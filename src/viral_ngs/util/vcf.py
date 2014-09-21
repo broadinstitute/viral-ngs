@@ -9,7 +9,7 @@ __date__ = "$Date$"[7:-2]
 
 import os, shutil, logging, itertools, sqlite3
 import pysam		## must be installed by user
-import util_files
+import util.files
 
 log = logging.getLogger(__name__)
 

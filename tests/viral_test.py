@@ -7,7 +7,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "$Revision$".split(' ')[1]
 __date__ = "$Date$"[7:-2]
 
-import viral, util_cmd, util_files
+import viral, util.cmd, util.files
 import Bio.SeqIO, Bio.Data.IUPACData
 import unittest
 import os, shutil, tempfile, argparse, itertools

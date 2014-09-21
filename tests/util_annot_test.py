@@ -6,7 +6,7 @@ __version__ = "$Revision$".split(' ')[1]
 # $Id$
 __date__ = "$Date$"[7:-2]
 
-import util_vcf
+import util.vcf
 import unittest
 
 class TestGeneDb(unittest.TestCase):
