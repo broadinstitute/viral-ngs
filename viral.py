@@ -13,6 +13,7 @@ __commands__ = []
 
 import os, tempfile, sys, shutil, argparse, logging, random, itertools, re, numpy
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
+import util.cmd, util.files, util.vcf
 
 log = logging.getLogger(__name__)
 global_tool_paths = {}
@@ -49,7 +50,7 @@ def parser_modify_contig():
 		default=10, type=int)
 	parser.add_argument("-td","--tmpDir",
 		help="Directory for temp files (default: %(default)s)",
-		default=find_tmpDir())
+		default=util.cmd.find_tmpDir())
 	parser.add_argument("-f", "--format",
 		help="Format for input alignment (default: %(default)s)",
 		default="fasta")
@@ -215,7 +216,7 @@ def do_remove_end_ns(consensus):
 def print_output(outfile, header, consensus):
 	with open(outfile, "wt") as f:
 		outseq = [x for x in consensus if not '-' in x]
-		for line in fastaMaker([(header, outseq)]):
+		for line in util.files.fastaMaker([(header, outseq)]):
 			f.write(line)
 
 
@@ -372,15 +373,15 @@ def main_vcf_to_fasta(args):
 	assert args.min_dp >= 0
 	assert 0.0 <= args.major_cutoff < 1.0
 	
-	chrlens = dict(vcf_chrlens(args.inVcf))
-	samples = vcf_sample_names(args.inVcf)
+	chrlens = dict(util.vcf.vcf_chrlens(args.inVcf))
+	samples = util.vcf.vcf_sample_names(args.inVcf)
 	with open(args.outFasta, 'wt') as outf:
 		for header, seq in vcf_to_seqs(read_tabfile(args.inVcf),
 			chrlens, samples, min_dp=args.min_dp, major_cutoff=args.major_cutoff,
 			min_dp_ratio=args.min_dp_ratio):
 			if args.trim_ends:
 				seq = seq.strip('Nn')
-			for line in fastaMaker([(header, seq)]):
+			for line in util.files.fastaMaker([(header, seq)]):
 				outf.write(line)
 	
 	# done
@@ -402,7 +403,7 @@ def main_trim_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
 		with open(args.inFasta, 'rt') as inf:
 			for record in Bio.SeqIO.parse(inf, 'fasta'):
-				for line in fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
+				for line in util.files.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
 					outf.write(line)
 	log.info("done")
 	return 0
@@ -428,7 +429,7 @@ def main_deambig_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
 		with open(args.inFasta, 'rt') as inf:
 			for record in Bio.SeqIO.parse(inf, 'fasta'):
-				for line in fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
+				for line in util.files.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
 					outf.write(line)
 	log.info("done")
 	return 0
@@ -437,7 +438,7 @@ __commands__.append(('deambig_fasta', main_deambig_fasta, parser_deambig_fasta))
 
 def vcf_dpdiff(vcfs):
 	for vcf in vcfs:
-		samples = vcf_sample_names(vcf)
+		samples = util.vcf.vcf_sample_names(vcf)
 		assert len(samples)==1
 		for row in read_tabfile(vcf):
 			dp1 = int(dict(x.split('=') for x in row[7].split(';') if x != '.').get('DP',0))
@@ -625,7 +626,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 					iSNVs[s] = {consAlleles[s]:1.0}
 			
 			# get unique allele list and map to numeric
-			alleles = [a for a,n in sorted(histogram(consAlleles.values()).items(), key=lambda(a,n):n, reverse=True) if a!=refAllele]
+			alleles = [a for a,n in sorted(util.files.histogram(consAlleles.values()).items(), key=lambda(a,n):n, reverse=True) if a!=refAllele]
 			alleles2 = list(itertools.chain(*[iSNVs[s].keys() for s in samples if s in iSNVs]))
 			alleles = list(unique([refAllele] + alleles + alleles2))
 			assert len(alleles)>1
@@ -684,7 +685,7 @@ def compute_Fws(vcfrow):
 
 def add_Fws_vcf(inVcf, outVcf):
 	with open(outVcf, 'wt') as outf:
-		with open_or_gzopen(inVcf, 'rt') as inf:
+		with util.files.open_or_gzopen(inVcf, 'rt') as inf:
 			for line in inf:
 				if line.startswith('##'):
 					outf.write(line)
@@ -799,51 +800,9 @@ def main_iSNP_per_patient(args):
 __commands__.append(('iSNP_per_patient', main_iSNP_per_patient, parser_iSNP_per_patient))
 
 
-def fastaMaker(seqs, linewidth=60):
-	''' Given an iterator of (name,sequence) pairs, emit an iterator of lines
-		suitable for writing to a file in FASTA format.
-	'''
-	assert linewidth>0
-	for id,seq in seqs:
-		yield ">"+id+"\n"
-		while len(seq)>linewidth:
-			line = seq[:linewidth]
-			seq = seq[linewidth:]
-			yield line+"\n"
-		if seq:
-			yield seq+"\n"
-
-def vcf_chrlens(inVcf):
-	''' Read chromosome lengths and order from "contig" rows in the VCF header. '''
-	chrlens = []
-	with open_or_gzopen(inVcf, 'rt') as inf:
-		for line in inf:
-			line = line.rstrip('\n')
-			if line.startswith('##contig=<ID=') and line.endswith('>'):
-				line = line[13:-1]
-				c = line.split(',')[0]
-				clen = int(line.split('=')[1])
-				chrlens.append((c,clen))
-			elif line.startswith('#CHROM'):
-				break
-	assert chrlens, "no reference genome information found in %s" % inVcf
-	return chrlens
-
-def vcf_sample_names(inVcf):
-	''' Return the list of sample names in a given VCF file. '''
-	samples = None
-	with open_or_gzopen(inVcf, 'rt') as inf:
-		for line in inf:
-			if line.startswith('#CHROM'):
-				row = line.rstrip('\r\n').split('\t')
-				samples = row[9:]
-				break  # we must properly close the file.. not sure if "return" does that
-	assert samples, "error: no header line!"
-	return samples
-
 def read_tabfile_dict(inFile):
 	''' Read a tab text file (possibly gzipped) and return contents as an iterator of dicts. '''
-	with open_or_gzopen(inFile, 'rt') as inf:
+	with util.files.open_or_gzopen(inFile, 'rt') as inf:
 		header = None
 		for line in inf:
 			row = line.rstrip('\n').split('\t')
@@ -858,15 +817,10 @@ def read_tabfile_dict(inFile):
 
 def read_tabfile(inFile):
 	''' Read a tab text file (possibly gzipped) and return contents as an iterator of arrays. '''
-	with open_or_gzopen(inFile, 'rt') as inf:
+	with util.files.open_or_gzopen(inFile, 'rt') as inf:
 		for line in inf:
 			if not line.startswith('#'):
 				yield line.rstrip('\n').split('\t')
-
-def open_or_gzopen(fname, mode):
-	''' Interchangeably open a text or gzipped-text file for reading, depending on the
-		filename extension. '''
-	return fname.endswith('.gz') and gzip.GzipFile(fname, mode) or open(fname, mode)
 
 def unique(items):
 	''' Return unique items in the same order as seen in the input. '''
@@ -876,96 +830,5 @@ def unique(items):
 			seen.add(i)
 			yield i
 
-def histogram(items):
-	''' I count the number of times I see stuff and return a dict of counts. '''
-	out = {}
-	for i in items:
-		out.setdefault(i, 0)
-		out[i] += 1
-	return out
-
-def find_tmpDir():
-	''' This provides a suggested base directory for a temp dir for use in your
-		argparse-based tmpDir option.
-	'''
-	tmpdir = '/tmp'
-	if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK):
-		tmpdir = '/local/scratch'
-	if 'LSB_JOBID' in os.environ:
-		# this directory often exists for LSF jobs, but not always.
-		# for example, if the job is part of a job array, this directory is called
-		# something unpredictable and unfindable, so just use /local/scratch
-		proposed_dir = '/local/scratch/%s.tmpdir' % os.environ['LSB_JOBID']
-		if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
-			tmpdir = proposed_dir
-	return tmpdir
-
-def setup_logger(log_level):
-	loglevel = getattr(logging, log_level.upper(), None)
-	assert loglevel, "unrecognized log level: %s" % log_level
-	log.setLevel(loglevel)
-	h = logging.StreamHandler()
-	h.setFormatter(logging.Formatter("%(asctime)s - %(module)s:%(lineno)d:%(funcName)s - %(levelname)s - %(message)s"))
-	log.addHandler(h)
-
-def script_name():
-	return sys.argv[0].split('/')[-1].rsplit('.',1)[0]
-
-def main_argparse(commands, description):
-	tmpDir = find_tmpDir()
-	
-	cmdlist = [x[0] for x in commands]
-	commands = dict([(x[0],x[1:]) for x in commands])
-	
-	if len(sys.argv) <= 1:
-		print ("Usage: %s commandname [arguments]" % sys.argv[0])
-		if description.strip():
-			print (description)
-		print ("\ncommands:")
-		for cmd in cmdlist:
-			print ("\t%s" % cmd)
-		print ("\nRun a command with --help for instructions on that command.")
-		return
-
-	command = sys.argv[1]
-	assert command in commands, "command '%s' not recognized" % command
-	parser = commands[command][1]()
-	if len(sys.argv) <= 2:
-		parser.print_help()
-		return
-	args = parser.parse_args(sys.argv[2:])
-	
-	setup_logger(not hasattr(args, 'loglevel') and 'DEBUG' or args.loglevel)
-	log.info("software version: " + __version__)
-	log.debug("python version: " + sys.version)
-	log.debug("command line parameters (including implicit defaults): %s" % (
-		' '.join(["%s=%s" % (k,v) for k,v in vars(args).items()])))
-	
-	if hasattr(args, 'tmpDir'):
-		''' If this command has a tmpDir option, use that as a base directory
-			and create a subdirectory within it which we will then destroy at
-			the end of execution.
-		'''
-		proposed_dir = 'tmp-%s-%s' % (script_name(),command!=None and command or '')
-		if 'LSB_JOBID' in os.environ:
-			proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(),command,os.environ['LSB_JOBID'],os.environ['LSB_JOBINDEX'])
-		tempfile.tempdir = tempfile.mkdtemp(prefix='%s-'%proposed_dir, dir=args.tmpDir)
-		log.debug("using tempDir: %s" % tempfile.tempdir)
-		os.environ['TMPDIR'] = tempfile.tempdir		# this is for running R
-		try:
-			ret = commands[command][0](args)
-		except:
-			if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep and not (tempfile.tempdir.startswith('/tmp') or tempfile.tempdir.startswith('/local')):
-				log.exception("Exception occurred while running %s, saving tmpDir at %s" % (command, tempfile.tempdir))
-			else:
-				shutil.rmtree(tempfile.tempdir)
-			raise
-		else:
-			shutil.rmtree(tempfile.tempdir)
-		return ret
-	else:
-		# otherwise just run the command
-		return commands[command][0](args)
-
 if __name__ == '__main__':
-	main_argparse(__commands__, __doc__)
+	util.cmd.main_argparse(__commands__, __doc__)

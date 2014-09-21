@@ -8,7 +8,7 @@ __version__ = "$Revision$".split(' ')[1]
 __date__ = "$Date$"[7:-2]
 
 import sqlite3, itertools, urllib, logging, re, os
-import util_files
+import util.files
 
 log = logging.getLogger(__name__)
 
