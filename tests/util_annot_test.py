@@ -2,9 +2,6 @@
 '''Unit tests for util_annot.py'''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "$Revision$".split(' ')[1]
-# $Id$
-__date__ = "$Date$"[7:-2]
 
 import util.vcf
 import unittest

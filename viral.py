@@ -6,9 +6,8 @@ Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
 to work with the Python-2.7 and Python-3.4 dotkits.'''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
-__version__ = "$Id$"[5:-2]
-#__version__ = "$Revision$".split(' ')[1]
-__date__ = "$Date$"[7:-2]
+__version__ = "PLACEHOLDER"
+__date__ = "PLACEHOLDER"
 __commands__ = []
 
 import os, tempfile, sys, shutil, argparse, logging, random, itertools, re, numpy
