@@ -4,8 +4,6 @@
 # $Id$
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "$Revision$".split(' ')[1]
-__date__ = "$Date$"[7:-2]
 
 import viral, util.cmd, util.files
 import Bio.SeqIO, Bio.Data.IUPACData

@@ -2,9 +2,6 @@
 '''Unit tests for util_vcf.py'''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "$Revision$".split(' ')[1]
-# $Id$
-__date__ = "$Date$"[7:-2]
 
 import util.vcf
 import unittest
@@ -140,7 +137,7 @@ class TestVcfReaderPositions(unittest.TestCase):
 	''' Test the OBO errors in the pysam-based VCFReader class (it's prone to such errors) '''
 	
 	def setUp(self):
-		self.vcf_fname = 'test_files/one_gene.vcf.gz'
+		self.vcf_fname = 'test/input/one_gene.vcf.gz'
 		self.vcf_window = ('Pf3D7_13_v3', 1724817, 1726997)
 		try:
 			self.basestring = basestring

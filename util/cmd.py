@@ -5,9 +5,8 @@ command-line functions from a single python script.
 requires python >= 2.7'''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "$Revision$".split(' ')[1]
-# $Id$
-__date__ = "$Date$"[7:-2]
+__version__ = "PLACEHOLDER"
+__date__ = "PLACEHOLDER"
 
 import os, tempfile, sys, shutil, logging
 

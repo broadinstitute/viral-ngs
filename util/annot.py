@@ -3,9 +3,8 @@
 Requires python >= 2.6'''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "$Revision$".split(' ')[1]
-# $Id$
-__date__ = "$Date$"[7:-2]
+__version__ = "PLACEHOLDER"
+__date__ = "PLACEHOLDER"
 
 import sqlite3, itertools, urllib, logging, re, os
 import util.files
