@@ -47,9 +47,6 @@ def parser_modify_contig():
 	parser.add_argument("-l", "--replace-length",
 		help="length of ends to be replaced (if replace-ends is yes) (default: %(default)s)",
 		default=10, type=int)
-	parser.add_argument("-td","--tmpDir",
-		help="Directory for temp files (default: %(default)s)",
-		default=util.cmd.find_tmpDir())
 	parser.add_argument("-f", "--format",
 		help="Format for input alignment (default: %(default)s)",
 		default="fasta")
@@ -64,7 +61,7 @@ def parser_modify_contig():
 		the reference sequence is more informative & consistant with the ambiguous base
 		(ie Y->C) (default: %(default)s)""",
 		default=False, action="store_true", dest="call_reference_ambiguous")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
 	return parser
 def main_modify_contig(args):
     aln = Bio.AlignIO.read(args.input, args.format)
@@ -366,7 +363,7 @@ def parser_vcf_to_fasta():
 		total read count.  This filter will not apply to any sites unless both DP values
 		are reported.  [default: %(default)s]""",
 		default=None)
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_vcf_to_fasta(args):
 	assert args.min_dp >= 0
@@ -396,7 +393,7 @@ def parser_trim_fasta():
 		N's from the ends of them.  Write trimmed sequences to an output fasta file.''')
 	parser.add_argument("inFasta", help="Input fasta file")
 	parser.add_argument("outFasta", help="Output (trimmed) fasta file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_trim_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
@@ -422,7 +419,7 @@ def parser_deambig_fasta():
 		code.  Write output to fasta file.''')
 	parser.add_argument("inFasta", help="Input fasta file")
 	parser.add_argument("outFasta", help="Output fasta file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_deambig_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
@@ -459,7 +456,7 @@ def parser_dpdiff():
 		sample's genotype column).''')
 	parser.add_argument("inVcfs", help="Input VCF file", nargs='+')
 	parser.add_argument("outFile", help="Output flat file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_dpdiff(args):
 	header = ['chr','pos','sample','dp_info','dp_sample','diff','ratio']
@@ -500,7 +497,7 @@ through untouched (it is assumed to be a header).''')
 	parser.add_argument("--col_idx", dest="col_idx", type=int,
 		help="""Which column number to replace (0-based index). [default: %(default)s]""",
 		default=0)
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_tabfile_rename(args):
 	tabfile_values_rename(args.inFile, args.mapFile, args.outFile, args.col_idx)
@@ -651,7 +648,7 @@ def parser_vphaser_to_vcf():
 	parser.add_argument("inRef", help="Reference genome FASTA")
 	parser.add_argument("multiAlign", help="Consensus genomes multi-alignment FASTA")
 	parser.add_argument("outVcf", help="Output VCF file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_vphaser_to_vcf(args):
 	vphaser_to_vcf(args.inFile, args.inRef, args.multiAlign, args.outVcf)
@@ -705,7 +702,7 @@ def parser_Fws():
 		See Manske, 2012 (Nature)''')
 	parser.add_argument("inVcf", help="Input VCF file")
 	parser.add_argument("outVcf", help="Output VCF file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_Fws(args):
 	add_Fws_vcf(args.inVcf, args.outVcf)
@@ -750,7 +747,7 @@ def parser_iSNV_table():
 		description='''Convert VCF iSNV data to tabular text''')
 	parser.add_argument("inVcf", help="Input VCF file")
 	parser.add_argument("outFile", help="Output text file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_iSNV_table(args):
 	header = ['pos','sample','patient','time','alleles','iSNV_freq','Hw',
@@ -786,7 +783,7 @@ def parser_iSNP_per_patient():
 		description='''Aggregate tabular iSNP data per patient x position (all time points averaged)''')
 	parser.add_argument("inFile", help="Input text file")
 	parser.add_argument("outFile", help="Output text file")
-	parser.add_argument("--version", action='version', version=__version__)
+	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_iSNP_per_patient(args):
 	header = ['pos','patient','alleles','iSNV_freq','Hw',
