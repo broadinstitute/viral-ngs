@@ -11,37 +11,6 @@ import os, gzip, tempfile, logging
 
 log = logging.getLogger(__name__)
 
-def histogram(items):
-	''' I count the number of times I see stuff and return a dict of counts. '''
-	out = {}
-	for i in items:
-		out.setdefault(i, 0)
-		out[i] += 1
-	return out
-
-def freqs(items, zero_checks = set()):
-	''' Given a list of comparable, non-unique items, produce an iterator of
-			(item, count, freq) tuples.
-			item is a unique instance of one of the items seen on input
-			count is a positive integer describing the number of times this item was observed
-			freq is count / sum(count) for all outputs.
-		If zero_checks is specified, then the output iterator will emit tuples for the
-		items in zero_checks even if they do not appear in the input.  If they are not in
-		the input, they will be emitted with a zero count and freq.
-		See histogram(items)
-	'''
-	tot = 0
-	out = {}
-	for i in items:
-		out.setdefault(i, 0)
-		out[i] += 1
-		tot += 1
-	for k,v in out.items():
-		yield (k,v,float(v)/tot)
-	for i in zero_checks:
-		if i not in out:
-			yield (i,0,0.0)
-
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	''' There's no other one-liner way to securely ask for a temp file by filename only.
 		This calls mkstemp, which does what we want, except that it returns an open
@@ -84,6 +53,28 @@ def intervals(i, n, l):
 	if i==n:
 		stop = l
 	return (start,stop)
+
+def read_tabfile_dict(inFile):
+	''' Read a tab text file (possibly gzipped) and return contents as an iterator of dicts. '''
+	with util.files.open_or_gzopen(inFile, 'rt') as inf:
+		header = None
+		for line in inf:
+			row = line.rstrip('\n').split('\t')
+			if line.startswith('#'):
+				row[0] = row[0][1:]
+				header = row
+			elif header==None:
+				header = row
+			else:
+				assert len(header)==len(row)
+				yield dict((k,v) for k,v in zip(header, row) if v)
+
+def read_tabfile(inFile):
+	''' Read a tab text file (possibly gzipped) and return contents as an iterator of arrays. '''
+	with util.files.open_or_gzopen(inFile, 'rt') as inf:
+		for line in inf:
+			if not line.startswith('#'):
+				yield line.rstrip('\n').split('\t')
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
 	with open_or_gzopen(filename, 'rt') as inf:
