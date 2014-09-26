@@ -12,7 +12,7 @@ __commands__ = []
 
 import os, tempfile, sys, shutil, argparse, logging, random, itertools, re, numpy
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
-import util.cmd, util.files, util.vcf, util.misc
+import util.cmd, util.file, util.vcf, util.misc
 
 log = logging.getLogger(__name__)
 global_tool_paths = {}
@@ -77,7 +77,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 	ref = ref[0]
 	
 	# prepare sample list
-	samples = list(util.misc.unique(row['patient'] for row in util.files.read_tabfile_dict(inFile)))
+	samples = list(util.misc.unique(row['patient'] for row in util.file.read_tabfile_dict(inFile)))
 	samples_assembled = [(i, seq.id.split('.')[0], seq.id) for i,seq in enumerate(aln)]
 	sample_idx_map = {}
 	for s in samples:
@@ -97,7 +97,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 		
 		# read in iSNVs and group rows based on unique position
 		
-		data = sorted(map(reposition_vphaser_deletions, map(pos_to_number, util.files.read_tabfile_dict(inFile))), key=lambda row: row['pos'])
+		data = sorted(map(reposition_vphaser_deletions, map(pos_to_number, util.file.read_tabfile_dict(inFile))), key=lambda row: row['pos'])
 		for pos, rows in itertools.groupby(data, lambda row: row['pos']):
 			# get the set of alleles seen per patient
 			rows = [(row['patient'], [row[h].split(':') for h in ('ct_1','ct_2','ct_3','ct_4','extra1','extra2') if row.get(h)]) for row in rows]
@@ -230,7 +230,7 @@ def compute_Fws(vcfrow):
 
 def add_Fws_vcf(inVcf, outVcf):
 	with open(outVcf, 'wt') as outf:
-		with util.files.open_or_gzopen(inVcf, 'rt') as inf:
+		with util.file.open_or_gzopen(inVcf, 'rt') as inf:
 			for line in inf:
 				if line.startswith('##'):
 					outf.write(line)
@@ -303,7 +303,7 @@ def main_iSNV_table(args):
 		'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
 	with open(args.outFile, 'wt') as outf:
 		outf.write('\t'.join(header)+'\n')
-		for row in iSNV_table(util.files.read_tabfile_dict(args.inVcf)):
+		for row in iSNV_table(util.file.read_tabfile_dict(args.inVcf)):
 			sample_parts = row['sample'].split('.')
 			row['patient'] = sample_parts[0]
 			if len(sample_parts)>1:
@@ -339,7 +339,7 @@ def main_iSNP_per_patient(args):
 		'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
 	with open(args.outFile, 'wt') as outf:
 		outf.write('\t'.join(header)+'\n')
-		for row in iSNP_per_patient(util.files.read_tabfile_dict(args.inFile)):
+		for row in iSNP_per_patient(util.file.read_tabfile_dict(args.inFile)):
 			outf.write('\t'.join(map(str, [row.get(h,'') for h in header]))+'\n')
 	return 0
 __commands__.append(('iSNP_per_patient', main_iSNP_per_patient, parser_iSNP_per_patient))

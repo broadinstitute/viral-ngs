@@ -5,7 +5,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import viral, util.cmd, util.files
+import viral, util.cmd, util.file
 import Bio.SeqIO, Bio.Data.IUPACData
 import unittest
 import os, shutil, tempfile, argparse, itertools
@@ -19,13 +19,13 @@ def set_tmpDir(name):
 		if e in os.environ:
 			proposed_prefix.append(os.environ[e])
 	tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix)+'-',
-		dir=util_cmd.find_tmpDir())
+		dir=util.cmd.find_tmpDir())
 def destroy_tmpDir():
 	shutil.rmtree(tempfile.tempdir)
 
 def makeFasta(seqs, outFasta):
 	with open(outFasta, 'wt') as outf:
-		for line in util_files.fastaMaker(seqs):
+		for line in util.file.fastaMaker(seqs):
 			outf.write(line)
 
 
@@ -118,8 +118,8 @@ class TestDeambigAndTrimFasta(unittest.TestCase):
 	def tearDown(self):
 		destroy_tmpDir()
 	def run_method(self, inseqs, parser_fun, main_fun):
-		fasta_in = util_files.mkstempfname()
-		fasta_out = util_files.mkstempfname()
+		fasta_in = util.file.mkstempfname()
+		fasta_out = util.file.mkstempfname()
 		makeFasta([(str(i), inseqs[i]) for i in range(len(inseqs))], fasta_in)
 		args = parser_fun().parse_args([fasta_in, fasta_out])
 		main_fun(args)

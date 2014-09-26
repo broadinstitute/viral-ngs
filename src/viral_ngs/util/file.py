@@ -56,7 +56,7 @@ def intervals(i, n, l):
 
 def read_tabfile_dict(inFile):
 	''' Read a tab text file (possibly gzipped) and return contents as an iterator of dicts. '''
-	with util.files.open_or_gzopen(inFile, 'rt') as inf:
+	with open_or_gzopen(inFile, 'rt') as inf:
 		header = None
 		for line in inf:
 			row = line.rstrip('\n').split('\t')
@@ -71,7 +71,7 @@ def read_tabfile_dict(inFile):
 
 def read_tabfile(inFile):
 	''' Read a tab text file (possibly gzipped) and return contents as an iterator of arrays. '''
-	with util.files.open_or_gzopen(inFile, 'rt') as inf:
+	with open_or_gzopen(inFile, 'rt') as inf:
 		for line in inf:
 			if not line.startswith('#'):
 				yield line.rstrip('\n').split('\t')

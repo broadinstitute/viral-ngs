@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-'''Unit tests for util_annot.py'''
+'''Unit tests for util.annot.py'''
 
 __author__ = "dpark@broadinstitute.org"
 
-import util.vcf
+import util.annot
 import unittest
 
 class TestGeneDb(unittest.TestCase):

@@ -8,7 +8,7 @@ __date__ = "PLACEHOLDER"
 
 import os, shutil, logging, itertools, sqlite3
 import pysam		## must be installed by user
-import util.files, util.misc
+import util.file, util.misc
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def vcf_bgzip_index(inVcf, outVcf, tabixPath=None, vcftoolsPath=None):
 	
 	if vcftoolsPath:
 		log.info("indexing with vcftools")
-		tmpFile = util.files.mkstempfname(prefix='vcftools-log-', suffix='.vcf')
+		tmpFile = util.file.mkstempfname(prefix='vcftools-log-', suffix='.vcf')
 		cmdline = "%s/vcftools --gzvcf %s --out %s --force-index-write" % (vcftoolsPath, outVcf, tmpFile)
 		assert not os.system(cmdline)
 		os.unlink(tmpFile)
@@ -148,7 +148,7 @@ def get_chrlens(inFile):
 						c_len = int(row[2][3:])
 						chrlens.append((c,c_len))
 		elif inFile.endswith('.vcf') or inFile.endswith('.vcf.gz'):
-			with util.files.open_or_gzopen(inFile, 'rt') as inf:
+			with util.file.open_or_gzopen(inFile, 'rt') as inf:
 				for line in inf:
 					line = line.rstrip('\n')
 					if line.startswith('##contig=<ID=') and line.endswith('>'):
@@ -167,7 +167,7 @@ def get_chroms(inVcf, tabixPath=None):
 	''' Get a list of unique chromosomes for this genome, in sort order.
 		(Use tabix to do it quickly)
 	'''
-	tmpFile = util.files.mkstempfname(prefix='chrnames-', suffix='.txt')
+	tmpFile = util.file.mkstempfname(prefix='chrnames-', suffix='.txt')
 	cmdline = "%s/tabix -l %s > %s" % (tabixPath, inVcf, tmpFile)
 	assert not os.system(cmdline)
 	chroms = []
@@ -180,7 +180,7 @@ def get_chroms(inVcf, tabixPath=None):
 def vcf_sample_names(inVcf):
 	''' Return the list of sample names in a given VCF file (quickly). '''
 	samples = None
-	with util.files.open_or_gzopen(inVcf, 'rt') as inf:
+	with util.file.open_or_gzopen(inVcf, 'rt') as inf:
 		for line in inf:
 			if line.startswith('#CHROM'):
 				row = line.rstrip('\r\n').split('\t')
@@ -194,7 +194,7 @@ def vcf_subset(inVcf, c, start_stop=None, outVcf=None, keepHeader=False, tabixPa
 		file if outVcf is not specified).
 	'''
 	if outVcf==None:
-		outVcf = util.files.mkstempfname(prefix='vcf_subset-%s-'%c, suffix='.vcf')
+		outVcf = util.file.mkstempfname(prefix='vcf_subset-%s-'%c, suffix='.vcf')
 	assert inVcf.endswith('.vcf.gz') and outVcf.endswith('.vcf')
 	cmdline = "%s/tabix" % tabixPath
 	if keepHeader:
@@ -225,7 +225,7 @@ def vcf_rows(inVcf):
 			3: {dict of sample name : genotype column}
 			4: [list of sample names]
 	'''
-	with util.files.open_or_gzopen(inVcf, 'rt') as inf:
+	with util.file.open_or_gzopen(inVcf, 'rt') as inf:
 		samples = []
 		for line in inf:
 			if not line.startswith('#'):
@@ -336,7 +336,7 @@ class SnpDb:
 		self.contigs = [c for c,l in clens]
 		self.sample_names = vcf_sample_names(inVcf)
 		root_fname = inVcf[:-7].split('/')[-1]
-		self.dbFile = util.files.mkstempfname(prefix='%s-'%root_fname,suffix='.db')
+		self.dbFile = util.file.mkstempfname(prefix='%s-'%root_fname,suffix='.db')
 		self.conn = sqlite3.connect(self.dbFile, isolation_level='DEFERRED')
 		self.cur = self.conn.cursor()
 		self.cur.execute("""create table snp (
@@ -667,7 +667,7 @@ class TabixWriter:
 		assert not os.access(outFile, os.F_OK) or os.access(outFile, os.W_OK)
 		self.outFile = outFile
 		root_fname = outFile.split('/')[-1].split('.')[0]
-		self.tmpFile = util.files.mkstempfname(prefix='tabix-%s-'%root_fname,suffix='.txt')
+		self.tmpFile = util.file.mkstempfname(prefix='tabix-%s-'%root_fname,suffix='.txt')
 		self.tmp_f = open(self.tmpFile, 'wt')
 		self.params = {'seq_col':col_chr, 'start_col':col_start, 'end_col':col_stop,
 			'preset':preset, 'zerobased':zerobased, 'meta_char':header_prefix,

@@ -12,7 +12,7 @@ __commands__ = []
 
 import os, tempfile, sys, shutil, argparse, logging, random, itertools, re, numpy
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
-import util.cmd, util.files, util.vcf
+import util.cmd, util.file, util.vcf
 
 log = logging.getLogger(__name__)
 global_tool_paths = {}
@@ -212,7 +212,7 @@ def do_remove_end_ns(consensus):
 def print_output(outfile, header, consensus):
 	with open(outfile, "wt") as f:
 		outseq = [x for x in consensus if not '-' in x]
-		for line in util.files.fastaMaker([(header, outseq)]):
+		for line in util.file.fastaMaker([(header, outseq)]):
 			f.write(line)
 
 
@@ -377,7 +377,7 @@ def main_vcf_to_fasta(args):
 			min_dp_ratio=args.min_dp_ratio):
 			if args.trim_ends:
 				seq = seq.strip('Nn')
-			for line in util.files.fastaMaker([(header, seq)]):
+			for line in util.file.fastaMaker([(header, seq)]):
 				outf.write(line)
 	
 	# done
@@ -399,7 +399,7 @@ def main_trim_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
 		with open(args.inFasta, 'rt') as inf:
 			for record in Bio.SeqIO.parse(inf, 'fasta'):
-				for line in util.files.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
+				for line in util.file.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
 					outf.write(line)
 	log.info("done")
 	return 0
@@ -425,7 +425,7 @@ def main_deambig_fasta(args):
 	with open(args.outFasta, 'wt') as outf:
 		with open(args.inFasta, 'rt') as inf:
 			for record in Bio.SeqIO.parse(inf, 'fasta'):
-				for line in util.files.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
+				for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
 					outf.write(line)
 	log.info("done")
 	return 0

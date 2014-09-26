@@ -7,7 +7,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import sqlite3, itertools, urllib, logging, re, os
-import util.files, util.misc
+import util.file, util.misc
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class SnpAnnotater:
 	'''
 	def __init__(self, snpEffVcf=None, snpIterator=None):
 		self.snpIterator = snpIterator
-		self.dbFile = util.files.mkstempfname(prefix='SnpAnnotater-', suffix='.db')
+		self.dbFile = util.file.mkstempfname(prefix='SnpAnnotater-', suffix='.db')
 		self.conn = sqlite3.connect(self.dbFile, isolation_level='DEFERRED')
 		self.cur = self.conn.cursor()
 		self.cur.execute("""create table annot (
@@ -37,8 +37,8 @@ class SnpAnnotater:
 			self.loadVcf(snpEffVcf)
 	def loadVcf(self, snpEffVcf):
 		#log.info("reading in snpEff VCF file: %s" % snpEffVcf)
-		with util.files.open_or_gzopen(snpEffVcf, 'rt') as inf:
-			ffp = util.files.FlatFileParser(inf)
+		with util.file.open_or_gzopen(snpEffVcf, 'rt') as inf:
+			ffp = util.file.FlatFileParser(inf)
 			try:
 				imap = hasattr(itertools, 'imap') and itertools.imap or map  #py2 & py3 compatibility
 				ifilter = hasattr(itertools, 'ifilter') and itertools.ifilter or filter  #py2 & py3 compatibility
@@ -165,7 +165,7 @@ def parse_eff(chrom, pos, info, required=True):
 class DbConnection:
 	def __init__(self, dbFile=None):
 		if dbFile==None:
-			dbFile = util.files.mkstempfname(suffix='.db')
+			dbFile = util.file.mkstempfname(suffix='.db')
 		self.conn = sqlite3.connect(dbFile, isolation_level='DEFERRED')
 		assert self.conn.isolation_level
 		self.conn.text_factory = sqlite3.OptimizedUnicode
@@ -223,7 +223,7 @@ class GeneDb(DbConnection):
 		self.cur.execute("create unique index idx_chr_info on chr_info(chr,key)")
 	def loadGff(self, inGff):
 		log.info("loading GFF %s" % inGff)
-		with util.files.open_or_gzopen(inGff, 'rt') as inf:
+		with util.file.open_or_gzopen(inGff, 'rt') as inf:
 			line_num = 0
 			for line in inf:
 				line_num += 1
