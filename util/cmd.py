@@ -59,7 +59,7 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
 			raise Exception("unrecognized argument %s" % arg)
 	return parser
 
-def main_argparse(commands, version, tool_paths, description):
+def main_argparse(commands, description):
 	''' commands: a list of 3-tuples containing the following:
 			1. name of command (string, no whitespace)
 			2. method to call that takes one argument (an argparse construct),
@@ -74,8 +74,7 @@ def main_argparse(commands, version, tool_paths, description):
 			as a whole if the script is run with no arguments
 	'''
 	assert description, "docstring cannot be absent!"
-	tool_paths['tmpDir'] = find_tmpDir()
-	tmpDir = tool_paths['tmpDir']
+	tmpDir = find_tmpDir()
 	
 	cmdlist = [x[0] for x in commands]
 	commands = dict([(x[0],x[1:]) for x in commands])
@@ -106,7 +105,7 @@ def main_argparse(commands, version, tool_paths, description):
 	args = parser.parse_args(argv)
 	
 	setup_logger(not hasattr(args, 'loglevel') and 'DEBUG' or args.loglevel)
-	log.info("software version: " + version)
+	log.info("software version: " + __version__)
 	log.debug("python version: " + sys.version)
 	log.debug("command line parameters (including implicit defaults): %s" % (
 		' '.join(["%s=%s" % (k,v) for k,v in vars(args).items()])))
