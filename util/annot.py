@@ -7,24 +7,16 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import sqlite3, itertools, urllib, logging, re, os
-import util.files
+import util.files, util.misc
 
 log = logging.getLogger(__name__)
-
-def unique(items):
-	''' Return unique items in the same order as seen in the input. '''
-	seen = set()
-	for i in items:
-		if i not in seen:
-			seen.add(i)
-			yield i
 
 class SnpAnnotater:
 	''' Add annotations to snps based on a snpEff-annotated VCF file.
 	'''
 	def __init__(self, snpEffVcf=None, snpIterator=None):
 		self.snpIterator = snpIterator
-		self.dbFile = util_files.mkstempfname(prefix='SnpAnnotater-', suffix='.db')
+		self.dbFile = util.files.mkstempfname(prefix='SnpAnnotater-', suffix='.db')
 		self.conn = sqlite3.connect(self.dbFile, isolation_level='DEFERRED')
 		self.cur = self.conn.cursor()
 		self.cur.execute("""create table annot (
@@ -45,8 +37,8 @@ class SnpAnnotater:
 			self.loadVcf(snpEffVcf)
 	def loadVcf(self, snpEffVcf):
 		#log.info("reading in snpEff VCF file: %s" % snpEffVcf)
-		with util_files.open_or_gzopen(snpEffVcf, 'rt') as inf:
-			ffp = util_files.FlatFileParser(inf)
+		with util.files.open_or_gzopen(snpEffVcf, 'rt') as inf:
+			ffp = util.files.FlatFileParser(inf)
 			try:
 				imap = hasattr(itertools, 'imap') and itertools.imap or map  #py2 & py3 compatibility
 				ifilter = hasattr(itertools, 'ifilter') and itertools.ifilter or filter  #py2 & py3 compatibility
@@ -157,7 +149,7 @@ def parse_eff(chrom, pos, info, required=True):
 			if out[0][0] == out[1][0]:
 				#log.debug("SNP found with multiple effects of the same impact level: %s:%s - %s" % (chrom, pos, info))
 				#assert out[0][2] in ('MODIFIER','LOW'), "Error: SNP found with multiple effects of the same impact level"
-				out = [[';'.join(unique([str(o[i]) for o in out])) for i in range(len(out[0]))]]
+				out = [[';'.join(util.misc.unique([str(o[i]) for o in out])) for i in range(len(out[0]))]]
 		eff = out[0][1:]
 		return eff
 		
@@ -173,7 +165,7 @@ def parse_eff(chrom, pos, info, required=True):
 class DbConnection:
 	def __init__(self, dbFile=None):
 		if dbFile==None:
-			dbFile = util_files.mkstempfname(suffix='.db')
+			dbFile = util.files.mkstempfname(suffix='.db')
 		self.conn = sqlite3.connect(dbFile, isolation_level='DEFERRED')
 		assert self.conn.isolation_level
 		self.conn.text_factory = sqlite3.OptimizedUnicode
@@ -231,7 +223,7 @@ class GeneDb(DbConnection):
 		self.cur.execute("create unique index idx_chr_info on chr_info(chr,key)")
 	def loadGff(self, inGff):
 		log.info("loading GFF %s" % inGff)
-		with util_files.open_or_gzopen(inGff, 'rt') as inf:
+		with util.files.open_or_gzopen(inGff, 'rt') as inf:
 			line_num = 0
 			for line in inf:
 				line_num += 1
