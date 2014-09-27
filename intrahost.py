@@ -10,7 +10,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import os, tempfile, sys, shutil, argparse, logging, random, itertools, re, numpy
+import argparse, logging, itertools, re, numpy
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
 
