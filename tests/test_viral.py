@@ -1,7 +1,4 @@
-#!/usr/bin/env python
 # viral_test.py - Unit tests for viral.py
-#
-# $Id$
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -149,7 +146,3 @@ class TestDeambigAndTrimFasta(unittest.TestCase):
 				outseq = str(rec.seq)
 				for i in range(len(outseq)):
 					self.assertIn(outseq[i], vals[i])
-
-
-if __name__ == "__main__":
-	unittest.main()
