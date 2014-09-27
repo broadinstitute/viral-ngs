@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''Unit tests for util.vcf.py'''
 
 __author__ = "dpark@broadinstitute.org"
@@ -172,6 +171,3 @@ class TestVcfReaderPositions(unittest.TestCase):
 		self.assertEqual(out[0], self.vcf_window[1])
 		self.assertEqual(out[-1], self.vcf_window[2])
 
-
-if __name__ == "__main__":
-	unittest.main()

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''Unit tests for util.annot.py'''
 
 __author__ = "dpark@broadinstitute.org"
@@ -26,6 +25,3 @@ class TestGeneDb(unittest.TestCase):
 - GeneDb.getFeaturesInRegion properly handles edge cases
 - GeneDb.getGeneNameById returns None for IDs not in DB
 '''
-
-if __name__ == "__main__":
-	unittest.main()
