@@ -5,7 +5,7 @@ on membership or non-membership in a species / genus / taxonomic grouping.
 Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
 to work with the Python-2.7 and Python-3.4 dotkits.'''
 
-__author__ = "dpark@broadinstitute.org"
+__author__ = "PLACEHOLDER"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
