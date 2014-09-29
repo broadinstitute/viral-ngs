@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-'''This script contains a number of utilities for filtering NGS reads based
-on membership or non-membership in a species / genus / taxonomic grouping.
+'''This script contains a number of utilities for submitting our analyses
+to NCBI's Genbank and SRA databases.
 
 Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
 to work with the Python-2.7 and Python-3.4 dotkits.'''
