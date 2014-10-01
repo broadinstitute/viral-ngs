@@ -1,4 +1,4 @@
-'''Unit tests for util.annot.py'''
+# Unit tests for util.annot.py
 
 __author__ = "dpark@broadinstitute.org"
 

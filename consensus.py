@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 '''This script contains a number of utilities for a viral analysis pipeline
 for Lassa virus sequence analysis, primarily used by Kristian Andersen.
-
-Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
-to work with the Python-2.7 and Python-3.4 dotkits.'''
+'''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __version__ = "PLACEHOLDER"
