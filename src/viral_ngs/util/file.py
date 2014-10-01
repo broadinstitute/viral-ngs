@@ -1,7 +1,6 @@
 '''This gives a number of useful quick methods for dealing with
 tab-text files and gzipped files.
-
-Requires python >= 2.7'''
+'''
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"

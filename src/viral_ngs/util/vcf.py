@@ -1,13 +1,12 @@
 '''This gives a number of useful quick methods for dealing with VCF files.
-
-Requires python = 2.7 or >= 3.3.'''
+'''
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import os, shutil, logging, itertools, sqlite3
-import pysam		## must be installed by user
+import pysam
 import util.file, util.misc
 
 log = logging.getLogger(__name__)

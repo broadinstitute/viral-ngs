@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 '''This script contains a number of utilities for intrahost variant calling
 and annotation for viral genomes.
-
-Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
-to work with the Python-2.7 and Python-3.4 dotkits.'''
+'''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org"
 __version__ = "PLACEHOLDER"
