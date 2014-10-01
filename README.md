@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/broadinstitute/viral-ngs.svg)](https://travis-ci.org/broadinstitute/viral-ngs)
 [![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
 
 viral-ngs
