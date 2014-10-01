@@ -16,6 +16,38 @@ log = logging.getLogger(__name__)
 global_tool_paths = {}
 
 
+def assemble_trinity(inReads):
+	''' KGA "recipe" follows
+	
+# DE NOVO ASSEMBLY USING TRINITY
+use Java-1.6
+for sample in
+do
+for directory in
+do
+bsub -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -q hour -W 4:00 -o $directory/_logs/$sample.log.denovo.txt -P sabeti_meta -J $sample.dn "/idi/sabeti-scratch/kandersen/bin/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 $directory/_temp/$sample.lastal.1.fastq -f2 $directory/_temp/$sample.lastal.2.fastq -o $directory/_temp/$sample.clean && /idi/sabeti-scratch/kandersen/bin/scripts/subsampler.py -n 100000 -mode p -in $directory/_temp/$sample.clean.1.fastq $directory/_temp/$sample.clean.2.fastq -out $directory/_temp/$sample.reads1.sub.fastq $directory/_temp/$sample.reads2.sub.fastq && wc -l $directory/_temp/$sample.clean.?.fastq > $directory/_logs/$sample.log.lastal.txt && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left $directory/_temp/$sample.reads1.sub.fastq --right $directory/_temp/$sample.reads2.sub.fastq --output $directory/_temp/$sample.trinity && mv $directory/_temp/$sample.trinity/Trinity.fasta $directory/_pileup/$sample.contigs.fasta && rm $directory/_temp/$sample.clean.nomatch.fastq && rm $directory/_temp/$sample.reads?.sub.fastq"
+done
+done
+	'''
+	raise ("not yet implemented")
+	
+def align_and_orient_vfat(contigs):
+	''' KGA "recipe" follows
+	
+# ALIGN AND ORIENT CONTIGS TO REFERENCES
+for sample in
+do
+for directory in
+do
+for country in NG # SL
+do
+bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c1 "touch $directory/_temp/$sample.s_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta $directory/_temp/$sample.s_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.s_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.s_segment1 && cat $directory/_temp/$sample.s_segment1*assembly.fa > $directory/_temp/$sample.s_segment1.fasta"
+bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c2 "touch $directory/_temp/$sample.l_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta $directory/_temp/$sample.l_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.l_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.l_segment1 && cat $directory/_temp/$sample.l_segment1*assembly.fa > $directory/_temp/$sample.l_segment1.fasta"
+done
+done
+done
+	'''
+
 def parser_modify_contig():
 	parser = argparse.ArgumentParser(
 		description='''Modifies an input contig. Depending on the options
