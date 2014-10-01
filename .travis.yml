@@ -9,7 +9,7 @@ install:
   - pip install conda
   - conda init
   #- conda update conda --yes
-  - conda create -p $HOME/py --yes `cat requirements.txt` coveralls "python=$TRAVIS_PYTHON_VERSION"
+  - conda create -p $HOME/py --yes `cat requirements.txt` "python=$TRAVIS_PYTHON_VERSION"
   #- conda install --yes -c dan_blanchard python-coveralls nose-cov
   - source activate $HOME/py
   #- pip install -r requirements.txt
