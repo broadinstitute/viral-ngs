@@ -8,7 +8,7 @@ python:
 install:
   - pip install conda
   - conda init
-  - conda update conda --yes
+  #- conda update conda --yes
   - conda create -p $HOME/py --yes `cat requirements.txt` "python=$TRAVIS_PYTHON_VERSION"
 
   #- pip install -r requirements.txt
