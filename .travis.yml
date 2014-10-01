@@ -10,9 +10,10 @@ install:
   - conda init
   #- conda update conda --yes
   - conda create -p $HOME/py --yes `cat requirements.txt` coveralls "python=$TRAVIS_PYTHON_VERSION"
+  #- conda install --yes -c dan_blanchard python-coveralls nose-cov
   - source activate $HOME/py
   #- pip install -r requirements.txt
-  #- pip install coveralls
+  - pip install coveralls
 
 # command to run tests
 script:
@@ -21,4 +22,5 @@ script:
 
 # post-tests
 after_success:
-  coveralls
+  - source deactivate
+  - coveralls
