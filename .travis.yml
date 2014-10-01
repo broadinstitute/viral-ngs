@@ -11,7 +11,8 @@ install:
 
 # command to run tests
 script:
-  - python -m unittest discover -v
+  #- python -m unittest discover -v
+  - nosetests -v --with-xunit --with-coverage --cover-package consensus,intrahost,ncbi,taxon_filter,util --cover-erase --cover-inclusive --cover-branches --cover-tests
 
 # post-tests
 after_success:
