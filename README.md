@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
+
 viral-ngs
 =========
 
