@@ -2,3 +2,5 @@ numpy
 scipy
 biopython
 pysam
+nosetests
+mock
