@@ -10,17 +10,15 @@ install:
   - conda init
   #- conda update conda --yes
   - conda create -p $HOME/py --yes `cat requirements.txt` "python=$TRAVIS_PYTHON_VERSION"
-  #- conda install --yes -c dan_blanchard python-coveralls nose-cov
+  - conda install --yes -c dan_blanchard python-coveralls nose-cov
   - source activate $HOME/py
   #- pip install -r requirements.txt
-  - pip install coveralls
+  #- pip install coveralls
 
 # command to run tests
 script:
-  #- python -m unittest discover -v
   - nosetests -v --with-xunit --with-coverage --cover-package consensus,intrahost,ncbi,taxon_filter,util --cover-erase --cover-inclusive --cover-branches --cover-tests
 
 # post-tests
 after_success:
-  - source deactivate
   - coveralls
