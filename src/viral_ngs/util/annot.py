@@ -1,6 +1,4 @@
-'''A few methods for dealing with gene annotation from snpEff.
-
-Requires python >= 2.6'''
+'''A few methods for dealing with gene annotation from snpEff.'''
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"

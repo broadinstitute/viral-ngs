@@ -1,13 +1,12 @@
 '''This gives a number of useful quick methods for dealing with VCF files.
-
-Requires python = 2.7 or >= 3.3.'''
+'''
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import os, shutil, logging, itertools, sqlite3
-import pysam		## must be installed by user
+import pysam
 import util.file, util.misc
 
 log = logging.getLogger(__name__)
@@ -440,7 +439,7 @@ class TabixReader(pysam.Tabixfile):
 	'''
 	def __init__(self, inFile, parser=pysam.asTuple()):
 		# because of odd Cython weirdness, we don't actually want to call super.__init__ here..
-		#super(TabixReader, self).__init__(inFile, parser=parser, mode=mode)
+		#super(TabixReader, self).__init__(inFile, parser=parser)
 		self.parser = parser
 	def __enter__(self):
 		return self

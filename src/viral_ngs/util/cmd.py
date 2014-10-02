@@ -1,8 +1,7 @@
 '''This gives a main() function that serves as a nice wrapper
 around other commands and presents the ability to serve up multiple
 command-line functions from a single python script.
-
-requires python >= 2.7'''
+'''
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
