@@ -5,4 +5,7 @@ __author__ = "PLACEHOLDER"
 import intrahost
 import unittest
 
-pass
+class TestIntrahost(unittest.TestCase):
+	def testNothingAtAll(self):
+		'''here we test nothing at all and this should pass'''
+		pass

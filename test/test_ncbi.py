@@ -5,4 +5,7 @@ __author__ = "PLACEHOLDER"
 import ncbi
 import unittest
 
-pass
+class TestNCBI(unittest.TestCase):
+	def testNothingAtAll(self):
+		'''here we test nothing at all and this should pass'''
+		pass
