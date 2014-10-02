@@ -1,4 +1,4 @@
-'''Unit tests for util.vcf.py'''
+# Unit tests for util/vcf.py
 
 __author__ = "dpark@broadinstitute.org"
 

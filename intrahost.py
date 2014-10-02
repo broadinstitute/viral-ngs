@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 '''This script contains a number of utilities for intrahost variant calling
 and annotation for viral genomes.
-
-Requires python >= 2.7 and BioPython.  On the Broad cluster, it is known
-to work with the Python-2.7 and Python-3.4 dotkits.'''
+'''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org"
 __version__ = "PLACEHOLDER"
@@ -119,7 +117,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 				log.warn("dropping samples %s at position %d due to filtered variation" % (dropped, pos))
 			
 			# combine fwd+rev counts and sort (allele,count) tuples in descending count order
-			rows = [(s,list(sorted([(a,f+r) for a,f,r in counts], key=lambda (a,n):n, reverse=True))) for s,counts in rows]
+			rows = [(s,list(sorted([(a,f+r) for a,f,r in counts], key=lambda a,n:n, reverse=True))) for s,counts in rows]
 			
 			# define the length of this variation based on the largest deletion
 			end = pos
@@ -171,7 +169,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 					iSNVs[s] = {consAlleles[s]:1.0}
 			
 			# get unique allele list and map to numeric
-			alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda(a,n):n, reverse=True) if a!=refAllele]
+			alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda a,n:n, reverse=True) if a!=refAllele]
 			alleles2 = list(itertools.chain(*[iSNVs[s].keys() for s in samples if s in iSNVs]))
 			alleles = list(util.misc.unique([refAllele] + alleles + alleles2))
 			assert len(alleles)>1

@@ -1,4 +1,4 @@
-# test_consensus.py - Unit tests for consensus.py
+# Unit tests for consensus.py
 
 __author__ = "dpark@broadinstitute.org"
 
