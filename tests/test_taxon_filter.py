@@ -5,4 +5,7 @@ __author__ = "PLACEHOLDER"
 import taxon_filter
 import unittest
 
-pass
+class TestTaxonFilter(unittest.TestCase):
+	def testNothingAtAll(self):
+		'''here we test nothing at all and this should pass'''
+		pass
