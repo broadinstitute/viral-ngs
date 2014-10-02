@@ -15,7 +15,7 @@ before_install:
 install:
   - conda create -n env-conda --yes "python=$TRAVIS_PYTHON_VERSION"
   - source activate env-conda
-  - conda install --yes Cython numpy scipy pip
+  - conda install --yes Cython numpy scipy pandas pip
   - pip install `cat requirements.txt | grep -v numpy | grep -v scipy | grep -v Cython`
   - pip install coveralls nose-cov
 
