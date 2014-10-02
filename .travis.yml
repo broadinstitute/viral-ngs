@@ -13,11 +13,11 @@ before_install:
   - conda update --yes conda
 
 install:
-  - conda create -n test --yes "python=$TRAVIS_PYTHON_VERSION"
-  - source activate test
-  - conda install --yes pip Cython numpy scipy
+  - conda create -n env-conda --yes "python=$TRAVIS_PYTHON_VERSION"
+  - source activate env-conda
+  - conda install --yes Cython numpy scipy pip
   - pip install `cat requirements.txt | grep -v numpy | grep -v scipy | grep -v Cython`
-  - pip install coveralls
+  - pip install coveralls nose-cov
 
 # command to run tests
 script:
