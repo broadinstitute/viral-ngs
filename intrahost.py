@@ -169,7 +169,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 					iSNVs[s] = {consAlleles[s]:1.0}
 			
 			# get unique allele list and map to numeric
-			alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda(a,n):n, reverse=True) if a!=refAllele]
+			alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda a,n:n, reverse=True) if a!=refAllele]
 			alleles2 = list(itertools.chain(*[iSNVs[s].keys() for s in samples if s in iSNVs]))
 			alleles = list(util.misc.unique([refAllele] + alleles + alleles2))
 			assert len(alleles)>1
