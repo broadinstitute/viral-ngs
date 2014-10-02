@@ -117,7 +117,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
 				log.warn("dropping samples %s at position %d due to filtered variation" % (dropped, pos))
 			
 			# combine fwd+rev counts and sort (allele,count) tuples in descending count order
-			rows = [(s,list(sorted([(a,f+r) for a,f,r in counts], key=lambda (a,n):n, reverse=True))) for s,counts in rows]
+			rows = [(s,list(sorted([(a,f+r) for a,f,r in counts], key=lambda a,n:n, reverse=True))) for s,counts in rows]
 			
 			# define the length of this variation based on the largest deletion
 			end = pos

@@ -438,8 +438,8 @@ class TabixReader(pysam.Tabixfile):
 		__getitem__ could be a bonus, but prob unnecessary.
 	'''
 	def __init__(self, inFile, parser=pysam.asTuple()):
-		# because of odd Cython weirdness, we don't actually want to call super.__init__ here..
-		#super(TabixReader, self).__init__(inFile, parser=parser, mode=mode)
+		## because of odd Cython weirdness, we don't actually want to call super.__init__ here..
+		super(TabixReader, self).__init__(inFile, parser=parser)
 		self.parser = parser
 	def __enter__(self):
 		return self
