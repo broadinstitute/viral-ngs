@@ -20,10 +20,10 @@ def destroy_tmpDir():
 	shutil.rmtree(tempfile.tempdir)
 
 class TestToolsInstallation(unittest.TestCase):
-	#def setUp(self):
-	#	set_tmpDir('TestToolsInstallation')
-	#def tearDown(self):
-	#	destroy_tmpDir()
+	def setUp(self):
+		set_tmpDir('TestToolsInstallation')
+	def tearDown(self):
+		destroy_tmpDir()
 	def testAllToolInstallers(self):
 		'''Load every tool's default chain of install methods and try them.'''
 		for tool_class in tools.Tool.__subclasses__():
