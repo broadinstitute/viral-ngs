@@ -10,7 +10,9 @@ import os, tempfile
 class SnpEff(tools.Tool):
 	''' 
 	'''
-	def __init__(self, install_methods = [BroadUnix(), DownloadJar()]):
+	def __init__(self, install_methods=None):
+		if install_methods==None:
+			install_methods = [BroadUnix(), DownloadJar()]
 		super(SnpEff, self).__init__(install_methods = install_methods)
 	def version(self):
 		return "4.0"
