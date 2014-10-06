@@ -12,7 +12,7 @@ class SnpEff(tools.Tool):
 	'''
 	def __init__(self, install_methods=None):
 		if install_methods==None:
-			install_methods = [BroadUnix(), DownloadJar()]
+			install_methods = [BroadUnix(), DownloadAndConfigJar()]
 		super(SnpEff, self).__init__(install_methods = install_methods)
 	def version(self):
 		return "4.0"
@@ -44,24 +44,15 @@ class BroadUnix(tools.PrexistingUnixCommand):
 		super(BroadUnix, self).__init__(path=path,
 			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h' % path)
 
-class DownloadJar(tools.InstallMethod):
-	''' #### TO DO
-	'''
-	def __init__(self):
-		pass
-		
-	def is_attempted(self):
-		pass
-	def attempt_install(self):
-
-		#	http://downloads.sourceforge.net/project/snpeff/snpEff_v4_0_core.zip
-
-		pass
-	def is_installed(self):
-		pass
-	def executable_path(self):
-		pass
-
-
+class DownloadAndConfigJar(tools.DownloadPackage):
+	def __init__(self, url='http://downloads.sourceforge.net/project/snpeff/snpEff_v4_0_core.zip',
+		targetpath='build/snpEff', download_dir=tempfile.tempdir, unpack_dir='build'):
+		super(DownloadAndConfigJar, self).__init__(url=url, targetpath=targetpath,
+			download_dir=download_dir, unpack_dir=unpack_dir,
+			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h' % targetpath)
+	def post_download(self):
+		self.unpack()
+		# other stuff here to set up config file and d/l some genomes
+		#### TO DO
 
 

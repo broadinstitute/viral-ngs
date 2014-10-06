@@ -3,9 +3,23 @@
 __author__ = "dpark@broadinstitute.org"
 
 import os
+import util.file
 
-class Tool:
+try:
+	# Python 3.x
+	from urllib.request import urlretrieve
+	from urllib.parse import urlparse
+except ImportError:
+	# Python 2.x
+	from urllib import urlretrieve
+	from urlparse import urlparse
+
+__all__ = ['snpeff']
+
+class Tool(object):
 	''' Base tool class that includes install machinery.
+		
+		TO DO: add something about dependencies..
 	'''
 	def __init__(self, install_methods=[]):
 		self.install_methods = install_methods
@@ -14,7 +28,7 @@ class Tool:
 	def is_installed(self):
 		return (self.installed_method != None)
 	def install(self):
-		if not is_installed():
+		if not self.is_installed():
 			for m in self.install_methods:
 				if not m.is_attempted():
 					m.attempt_install()
@@ -32,8 +46,11 @@ class Tool:
 	def execute(self, args):
 		assert not os.system(self.exec_path + ' ' + args)
 
-class InstallMethod:
-	''' Base class for installation methods for a given tool
+class InstallMethod(object):
+	''' Base class for installation methods for a given tool.
+		None of these methods should ever fail/error. attempt_install should
+		return silently regardless of the outcome (is_installed must be
+		called to verify success or failure).
 	'''
 	def __init__(self):
 		self.attempts = 0
@@ -47,7 +64,9 @@ class InstallMethod:
 		raise NotImplementedError
 
 class PrexistingUnixCommand(InstallMethod):
-	''' This is a method that tries to find whether an executable binary already exists
+	''' This is an install method that tries to find whether an executable binary
+		already exists for free on the unix file system--it doesn't actually try to
+		install anything.
 	'''
 	def __init__(self, path, verifycmd=None, verifycode=0):
 		self.path = path
@@ -73,4 +92,64 @@ class PrexistingUnixCommand(InstallMethod):
 	def executable_path(self):
 		return self.installed and self.path or None
 
+class DownloadPackage(InstallMethod):
+	''' This is an install method for downloading, unpacking, and post-processing
+		something straight from the source.
+	'''
+	def __init__(self, url, targetpath, download_dir='.', unpack_dir='.', verifycmd=None, verifycode=0):
+		self.url = url
+		self.targetpath = targetpath
+		self.download_dir = download_dir
+		self.unpack_dir = unpack_dir
+		self.verifycmd = verifycmd
+		self.verifycode = verifycode
+		self.attempted = False
+		self.installed = False
+	def is_attempted(self):
+		return self.attempted
+	def is_installed(self):
+		return self.installed
+	def executable_path(self):
+		return self.installed and self.targetpath or None
+	def verify_install(self):
+		if os.access(self.targetpath, os.X_OK | os.R_OK):
+			if self.verifycmd:
+				self.installed = (os.system(self.verifycmd) == self.verifycode)
+			else:	
+				self.installed = True
+		else:
+			self.installed = False
+	def attempt_install(self):
+		self.attempted = True
+		self.pre_download()
+		self.download()
+		self.post_download()
+		self.verify_install()
+	def pre_download(self):
+		pass
+	def download(self):
+		if not self.download_dir:
+			self.download_dir = '.'
+		util.file.mkdir_p(self.download_dir)
+		filepath = urlparse(self.url).path
+		filename = filepath.split('/')[-1]
+		urlretrieve(self.url, "%s/%s" % (self.download_dir,filename))
+		self.download_file = filename
+	def post_download(self):
+		self.unpack()
+	def unpack(self):
+		if not self.unpack_dir:
+			self.unpack_dir = '.'
+		util.file.mkdir_p(self.unpack_dir)
+		if self.download_file.endswith('.zip'):
+			if os.system("unzip -o %s/%s -d %s" % (self.download_dir, self.download_file, self.unpack_dir)):
+				return
+			else:
+				os.unlink("%s/%s" % (self.download_dir, self.download_file))
+		elif self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz'):
+			if os.system("tar -C %s -xzpf %s/%s" % (self.unpack_dir, self.download_dir, self.download_file)):
+				return
+			else:
+				os.unlink("%s/%s" % (self.download_dir, self.download_file))
 
+	
