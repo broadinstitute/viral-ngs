@@ -6,7 +6,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os, gzip, tempfile, logging
+import os, gzip, tempfile, errno, logging
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +19,16 @@ def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=dir, text=text)
 	os.close(fd)
 	return fn
+
+def mkdir_p(dirpath):
+	''' Verify that the directory given exists, and if not, create it.
+	'''
+	try:
+		os.makedirs(dirpath)
+	except OSError as exc: # Python >2.5
+		if exc.errno == errno.EEXIST and os.path.isdir(dirpath):
+			pass
+		else: raise
 
 def open_or_gzopen(fname, mode):
 	return fname.endswith('.gz') and gzip.GzipFile(fname, mode) or open(fname, mode)
