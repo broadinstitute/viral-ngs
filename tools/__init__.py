@@ -2,7 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import os
+import os, logging
 import util.file
 
 try:
@@ -15,6 +15,8 @@ except ImportError:
 	from urlparse import urlparse
 
 __all__ = ['snpeff']
+
+log = logging.getLogger(__name__)
 
 class Tool(object):
 	''' Base tool class that includes install machinery.
@@ -114,6 +116,7 @@ class DownloadPackage(InstallMethod):
 	def verify_install(self):
 		if os.access(self.targetpath, os.X_OK | os.R_OK):
 			if self.verifycmd:
+				log.debug("validating")
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
 			else:	
 				self.installed = True
@@ -128,6 +131,7 @@ class DownloadPackage(InstallMethod):
 	def pre_download(self):
 		pass
 	def download(self):
+		log.debug("downloading")
 		if not self.download_dir:
 			self.download_dir = '.'
 		util.file.mkdir_p(self.download_dir)
@@ -138,11 +142,12 @@ class DownloadPackage(InstallMethod):
 	def post_download(self):
 		self.unpack()
 	def unpack(self):
+		log.debug("unpacking")
 		if not self.unpack_dir:
 			self.unpack_dir = '.'
 		util.file.mkdir_p(self.unpack_dir)
 		if self.download_file.endswith('.zip'):
-			if os.system("unzip -o %s/%s -d %s" % (self.download_dir, self.download_file, self.unpack_dir)):
+			if os.system("unzip -o %s/%s -d %s > /dev/null" % (self.download_dir, self.download_file, self.unpack_dir)):
 				return
 			else:
 				os.unlink("%s/%s" % (self.download_dir, self.download_file))

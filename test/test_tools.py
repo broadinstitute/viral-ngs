@@ -4,8 +4,10 @@ __author__ = "dpark@broadinstitute.org"
 
 import tools
 from tools import *
-import unittest, tempfile, shutil, os
+import unittest, tempfile, shutil, os, logging
 import util.cmd
+
+log = logging.getLogger(__name__)
 
 def set_tmpDir(name):
 	proposed_prefix = ['tmp']
@@ -27,7 +29,9 @@ class TestToolsInstallation(unittest.TestCase):
 	def testAllToolInstallers(self):
 		'''Load every tool's default chain of install methods and try them.'''
 		for tool_class in tools.Tool.__subclasses__():
+			log.info(".. testing installation of %s" % tool_class.__name__)
 			t = tool_class()
 			t.install()
 			self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
+			log.info(".. %s succeeded with method %s" % (tool_class.__name__, t.installed_method.__class__.__name__))
 			
