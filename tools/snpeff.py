@@ -3,11 +3,11 @@
 	http://snpeff.sourceforge.net/
 '''
 
-import tool
+import tools
 import util.vcf, util.file
 import os, tempfile
 
-class SnpEff(tool.Tool):
+class SnpEff(tools.Tool):
 	''' 
 	'''
 	def __init__(self, install_methods = [BroadUnix(), DownloadJar()]):
@@ -37,12 +37,12 @@ class SnpEff(tool.Tool):
 			os.unlink(tmpVcf)
 
 
-class BroadUnix(tool.PrexistingUnixCommand):
+class BroadUnix(tools.PrexistingUnixCommand):
 	def __init__(self, path='/idi/sabeti-data/software/snpEff/snpEff_3.6-dev'):
 		super(BroadUnix, self).__init__(path=path,
 			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h' % path)
 
-class DownloadJar(tool.InstallMethod):
+class DownloadJar(tools.InstallMethod):
 	''' #### TO DO
 	'''
 	def __init__(self):
