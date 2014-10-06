@@ -49,7 +49,8 @@ class DownloadAndConfigJar(tools.DownloadPackage):
 		targetpath='build/snpEff', download_dir=tempfile.tempdir, unpack_dir='build'):
 		super(DownloadAndConfigJar, self).__init__(url=url, targetpath=targetpath,
 			download_dir=download_dir, unpack_dir=unpack_dir,
-			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h' % targetpath)
+			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog' % targetpath,
+			verifycode=1)
 	def post_download(self):
 		self.unpack()
 		# other stuff here to set up config file and d/l some genomes
