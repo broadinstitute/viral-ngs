@@ -41,16 +41,19 @@ class SnpEff(tools.Tool):
 
 class BroadUnix(tools.PrexistingUnixCommand):
 	def __init__(self, path='/idi/sabeti-data/software/snpEff/snpEff_3.6-dev'):
-		super(BroadUnix, self).__init__(path=path,
-			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path)
+		super(BroadUnix, self).__init__(path=path)
+		#verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path,
+		#verifycode=65280 xxx unfortunately snpEff is not returning a meaningful code)
+	def verify_install(self):
+		super(BroadUnix, self).verify_install()
 
 class DownloadAndConfigJar(tools.DownloadPackage):
 	def __init__(self, url='http://downloads.sourceforge.net/project/snpeff/snpEff_v4_0_core.zip',
 		targetpath='build/snpEff', download_dir=tempfile.tempdir, unpack_dir='build'):
+		#verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path,
+		#verifycode=65280 xxx unfortunately snpEff is not returning a meaningful code)
 		super(DownloadAndConfigJar, self).__init__(url=url, targetpath=targetpath,
-			download_dir=download_dir, unpack_dir=unpack_dir,
-			verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % targetpath,
-			verifycode=1)
+			download_dir=download_dir, unpack_dir=unpack_dir)
 	def post_download(self):
 		self.unpack()
 		# other stuff here to set up config file and d/l some genomes
