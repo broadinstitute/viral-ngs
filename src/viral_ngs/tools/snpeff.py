@@ -3,7 +3,9 @@
 	http://snpeff.sourceforge.net/
 '''
 
-import tool, util.vcf, util.file
+import tool
+import util.vcf, util.file
+import os, tempfile
 
 class SnpEff(tool.Tool):
 	''' 
@@ -12,9 +14,8 @@ class SnpEff(tool.Tool):
 		super(SnpEff, self).__init__(install_methods = install_methods)
 	def version(self):
 		return "4.0"
-	def execute(self, args):
+	def execute(self, inVcf, outVcf, commands, java_flags='-Xmx2g'):
 		raise NotImplementedError  #### TO DO
-
 		if outVcf.endswith('.gz'):
 			tmpVcf = util.file.mkstempfname(prefix='vcf_snpEff-', suffix='.vcf')
 		else:
