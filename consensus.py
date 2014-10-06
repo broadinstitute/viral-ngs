@@ -47,6 +47,12 @@ done
 done
 done
 	'''
+	raise ("not yet implemented")
+
+def filter_seqs_on_length(inFasta, outFasta):
+	# see rsealfon script
+	raise ("not yet implemented")
+
 
 def parser_modify_contig():
 	parser = argparse.ArgumentParser(
