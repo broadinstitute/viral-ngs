@@ -4,7 +4,7 @@ __author__ = "dpark@broadinstitute.org"
 
 import tools
 from tools import *
-import unittest, tempfile, shutil
+import unittest, tempfile, shutil, os
 import util.cmd
 
 def set_tmpDir(name):
