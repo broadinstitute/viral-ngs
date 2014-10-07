@@ -1,6 +1,8 @@
 # /idi/sabeti-scratch/kandersen/bin/last/lastal
 
 
+import tools
+
 class BroadUnix(tools.PrexistingUnixCommand):
 	def __init__(self, path='/idi/sabeti-scratch/kandersen/bin/last/lastal'):
 		super(BroadUnix, self).__init__(path=path)
