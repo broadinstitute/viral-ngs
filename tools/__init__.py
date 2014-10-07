@@ -124,10 +124,11 @@ class DownloadPackage(InstallMethod):
 			self.installed = False
 	def attempt_install(self):
 		self.attempted = True
-		self.pre_download()
-		self.download()
-		self.post_download()
-		self.verify_install()
+		if not self.verify_install():
+			self.pre_download()
+			self.download()
+			self.post_download()
+			self.verify_install()
 	def pre_download(self):
 		pass
 	def download(self):
