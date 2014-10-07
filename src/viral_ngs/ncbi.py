@@ -12,7 +12,6 @@ import argparse, logging
 import util.cmd, util.file, util.vcf, util.misc
 
 log = logging.getLogger(__name__)
-global_tool_paths = {}
 
 
 
