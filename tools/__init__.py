@@ -15,6 +15,7 @@ except ImportError:
 	from urlparse import urlparse
 
 __all__ = ['snpeff']
+installed_tools = {}
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class Tool(object):
 				if m.is_installed():
 					self.installed_method = m
 					self.exec_path = m.executable_path()
+					installed_tools[self.__class__.__name__] = self
 	def get_install_methods(self):
 		return self.install_methods
 	def set_install_methods(self, methods):
