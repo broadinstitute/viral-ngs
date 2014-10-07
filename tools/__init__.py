@@ -19,6 +19,12 @@ installed_tools = {}
 
 log = logging.getLogger(__name__)
 
+def get_tool_by_name(name):
+	if name not in installed_tools:
+		pass
+		raise NotImplementedError
+	return installed_tools[name]
+
 class Tool(object):
 	''' Base tool class that includes install machinery.
 		
