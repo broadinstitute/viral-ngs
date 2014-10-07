@@ -13,7 +13,6 @@ import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 
 log = logging.getLogger(__name__)
-global_tool_paths = {}
 
 
 def assemble_trinity(inReads):
