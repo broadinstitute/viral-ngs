@@ -2,9 +2,11 @@
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
+import unittest, os, sys
+# The following line is needed to access taxon_filter and util when running from shell
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import taxon_filter, util
 from test_consensus import set_tmpDir, destroy_tmpDir
-import unittest, os
 
 class TestCommandHelp(unittest.TestCase):
 	def test_help_parser_for_each_command(self):
@@ -17,23 +19,25 @@ class TestTaxonFilter(unittest.TestCase):
 		'''here we test nothing at all and this should pass'''
 		pass
 
+
+filterLastalInput = """@fakeRead
+AGTACATGCAGAGCAAGGACTGATACAATATCCAACAGCTTGGCAATCAGTAGGACACATGATGGTGA
++
+CCCFFFFFHHHHHJJJJJJJJJJJJJJJHIIIIJJJJHIJIIJJIJJFHGIIJJGHHHBDFDDDDDDD
+"""
+filterLastalExpected = """@fakeRead
+AGTACATGCAGAGCAAGGACTGATACAATATCCAACAGCTTGGCAATCAGTAGGACACATGATGGTGA
++fakeRead
+CCCFFFFFHHHHHJJJJJJJJJJJJJJJHIIIIJJJJHIJIIJJIJJFHGIIJJGHHHBDFDDDDDDD
+"""
+
 class TestFilterLastal(unittest.TestCase):
 	def setUp(self):
 		set_tmpDir('TestFilterLastal')
 	def tearDown(self):
 		destroy_tmpDir()
 	def test_filter_lastal(self) :
-		filterLastalInput = """@fakeRead
-		AGTACATGCAGAGCAAGGACTGATACAATATCCAACAGCTTGGCAATCAGTAGGACACATGATGGTGA
-		+
-		CCCFFFFFHHHHHJJJJJJJJJJJJJJJHIIIIJJJJHIJIIJJIJJFHGIIJJGHHHBDFDDDDDDD
-		"""
-		filterLastalExpected = """@fakeRead
-		AGTACATGCAGAGCAAGGACTGATACAATATCCAACAGCTTGGCAATCAGTAGGACACATGATGGTGA
-		+fakeRead
-		CCCFFFFFHHHHHJJJJJJJJJJJJJJJHIIIIJJJJHIJIIJJIJJFHGIIJJGHHHBDFDDDDDDD
-		"""
-		refDbs = os.path.join(os.path.dirname(__file__), 'input', 'ebola')
+		refDbs = os.path.join(os.path.dirname(__file__), 'input', 'ebolaDbs', 'ebola')
 		inFastq = util.file.mkstempfname()
 		outFastq = util.file.mkstempfname()
 		open(inFastq, 'w').write(filterLastalInput)
