@@ -17,7 +17,7 @@ class Lastal(LastTools) :
 	subtoolName = 'lastal'
 
 class MafSort(LastTools) :
-	subtoolName = 'maf-sort'
+	subtoolName = os.path.join('scripts', 'maf-sort.sh')
 
 class MafConvert(LastTools) :
-	subtoolName = 'maf-convert'
+	subtoolName = os.path.join('scripts', 'maf-convert.py')
