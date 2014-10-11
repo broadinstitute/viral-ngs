@@ -27,8 +27,17 @@ class TestToolsInstallation(unittest.TestCase):
 	def tearDown(self):
 		destroy_tmpDir()
 	def testAllToolInstallers(self):
+		def iter_leaf_subclasses(aClass) :
+			"Iterate over subclasses at all levels that don't themselves have a subclass"
+			isLeaf = True
+			for subclass in aClass.__subclasses__() :
+				isLeaf = False
+				for leafClass in iter_leaf_subclasses(subclass) :
+					yield leafClass
+			if isLeaf :
+				yield aClass
 		'''Load every tool's default chain of install methods and try them.'''
-		for tool_class in tools.Tool.__subclasses__():
+		for tool_class in iter_leaf_subclasses(tools.Tool):
 			log.info(".. testing installation of %s" % tool_class.__name__)
 			t = tool_class()
 			t.install()
