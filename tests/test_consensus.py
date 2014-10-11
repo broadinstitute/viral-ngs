@@ -25,6 +25,12 @@ def makeFasta(seqs, outFasta):
 		for line in util.file.fastaMaker(seqs):
 			outf.write(line)
 
+class TestCommandHelp(unittest.TestCase):
+	def test_help_parser_for_each_command(self):
+		for cmd_name, main_fun, parser_fun in consensus.__commands__:
+			parser = parser_fun()
+			helpstring = parser.format_help()
+
 
 class TestAmbiguityBases(unittest.TestCase):
 	def test_non_failure(self):
