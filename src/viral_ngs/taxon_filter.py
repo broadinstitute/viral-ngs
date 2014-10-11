@@ -3,13 +3,14 @@
 on membership or non-membership in a species / genus / taxonomic grouping.
 '''
 
-__author__ = "PLACEHOLDER"
+__author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging
+import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
+import tools
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def main_trim_trimmomatic(args):
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trimmomatic))
 
 
-def filter_lastal(inBam, refDbs):
+def filter_lastal(inBam, refDbs, outBam):
 	''' KGA "recipe" follows.
 	it is based on fastq, we will also need to implement bam->fastq->bam wrappers
 	that maintain the read metadata.
@@ -77,7 +78,38 @@ def parser_filter_lastal():
 	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
 	return parser
 def main_filter_lastal(args):
-	raise ("not yet implemented")
+	inBam = args.inBam
+	outBam = args.outBam
+	refDbs = args.refDbs[0] # Need to handle multiple refDbs's...
+	
+	# Temporary, until bam->fastq->bam conversion is done...
+	inFastq = inBam
+	outFastq = outBam
+	
+	tempFilePath = util.file.mkstempfname()
+	
+	import tools.last, tools.prinseq
+	
+	def install_and_get_path(tool) :
+		tool.install()
+		return tool.executable_path()
+	
+	lastalPath = install_and_get_path(tools.last.Lastal())
+	mafSortPath = install_and_get_path(tools.last.MafSort())
+	mafConvertPath = install_and_get_path(tools.last.MafConvert())
+	prinseqPath = install_and_get_path(tools.prinseq.PrinseqTool())
+	noBlastLikeHitsPath = os.path.join(os.path.dirname(util.__file__), 'noBlastLikeHits.py')
+	
+	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
+			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
+			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
+			   'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
+																							 tempFilePath = tempFilePath, inFastq = inFastq) +
+			   'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
+					 '-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
+			   'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
+	log.debug(cmdline)
+	assert not os.system(cmdline)
 	return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
