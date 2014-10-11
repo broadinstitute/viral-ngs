@@ -6,6 +6,8 @@ import unittest, os, sys
 # The following line is needed to access taxon_filter and util when running from shell
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import taxon_filter, util
+# The following line is needed to access test_consensus in python 3.4 
+sys.path.append(os.path.dirname(__file__))
 from test_consensus import set_tmpDir, destroy_tmpDir
 
 class TestCommandHelp(unittest.TestCase):
