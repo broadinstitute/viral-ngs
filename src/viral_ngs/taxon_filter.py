@@ -47,25 +47,58 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trim
 
 
 def filter_lastal(inBam, refDbs, outBam):
+	# we will need to implement bam->fastq->bam wrappers that maintain the read metadata...
+
+	# inBam -> inFastq
+	# ...
+	inFastq = inBam # Temporary patch
+	outFastq = outBam # Temporary patch
+
+	filter_lastal_fastq(inFastq, refDbs, outFastq)
+
+	# outFastq -> outBam
+	# ...
+
+def filter_lastal_fastq(inFastq, refDbs, outFastq):
 	''' KGA "recipe" follows.
-	it is based on fastq, we will also need to implement bam->fastq->bam wrappers
-	that maintain the read metadata.
-
-# LASTAL ALIGNMENT TO FIND RELEVANT READS
-for sample in
-do
-for directory in
-do
-for database in arena
-do
-bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l1 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.1.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads1.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads1.lastal.txt -r $directory/_reads/$sample.trimmed.1.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.1 && rm $directory/_temp/$sample.reads1.lastal.txt"
-bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l2 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.2.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads2.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads2.lastal.txt -r $directory/_reads/$sample.trimmed.2.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.2 && rm $directory/_temp/$sample.reads2.lastal.txt"
-done
-done
-done
+	# LASTAL ALIGNMENT TO FIND RELEVANT READS
+	for sample in
+	do
+	for directory in
+	do
+	for database in arena
+	do
+	bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l1 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.1.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads1.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads1.lastal.txt -r $directory/_reads/$sample.trimmed.1.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.1 && rm $directory/_temp/$sample.reads1.lastal.txt"
+	bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l2 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.2.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads2.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads2.lastal.txt -r $directory/_reads/$sample.trimmed.2.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.2 && rm $directory/_temp/$sample.reads2.lastal.txt"
+	done
+	done
+	done
 	'''
-	raise ("not yet implemented")
-
+	import tools.last, tools.prinseq
+	import scripts
+	
+	tempFilePath = util.file.mkstempfname()
+	
+	def install_and_get_path(tool) :
+		tool.install()
+		return tool.executable_path()
+	
+	lastalPath = install_and_get_path(tools.last.Lastal())
+	mafSortPath = install_and_get_path(tools.last.MafSort())
+	mafConvertPath = install_and_get_path(tools.last.MafConvert())
+	prinseqPath = install_and_get_path(tools.prinseq.PrinseqTool())
+	noBlastLikeHitsPath = os.path.join(scripts.get_scripts_path(), 'noBlastLikeHits.py')
+	
+	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
+			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
+			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
+			   'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
+																							 tempFilePath = tempFilePath, inFastq = inFastq) +
+			   'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
+					 '-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
+			   'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
+	log.debug(cmdline)
+	assert not os.system(cmdline)
 
 def parser_filter_lastal():
 	parser = argparse.ArgumentParser(
@@ -81,35 +114,7 @@ def main_filter_lastal(args):
 	inBam = args.inBam
 	outBam = args.outBam
 	refDbs = args.refDbs[0] # Need to handle multiple refDbs's...
-	
-	# Temporary, until bam->fastq->bam conversion is done...
-	inFastq = inBam
-	outFastq = outBam
-	
-	tempFilePath = util.file.mkstempfname()
-	
-	import tools.last, tools.prinseq
-	
-	def install_and_get_path(tool) :
-		tool.install()
-		return tool.executable_path()
-	
-	lastalPath = install_and_get_path(tools.last.Lastal())
-	mafSortPath = install_and_get_path(tools.last.MafSort())
-	mafConvertPath = install_and_get_path(tools.last.MafConvert())
-	prinseqPath = install_and_get_path(tools.prinseq.PrinseqTool())
-	noBlastLikeHitsPath = os.path.join(os.path.dirname(util.__file__), 'noBlastLikeHits.py')
-	
-	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
-			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
-			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
-			   'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
-																							 tempFilePath = tempFilePath, inFastq = inFastq) +
-			   'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
-					 '-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
-			   'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
-	log.debug(cmdline)
-	assert not os.system(cmdline)
+	filter_lastal(inBam, refDbs, outBam)
 	return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
