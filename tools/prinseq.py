@@ -1,11 +1,13 @@
 "tools.Tool for prinseq."
 
-import tools
+import os
+import tools, scripts
 
-prinseqBroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl'
+# BroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl'
 
 class PrinseqTool(tools.Tool) :
 	def __init__(self, install_methods = None):
 		if install_methods == None:
-			install_methods = [tools.PrexistingUnixCommand(prinseqBroadUnixPath)]
-		super(PrinseqTool, self).__init__(install_methods = install_methods)
+			path = os.path.join(scripts.get_scripts_path(), 'prinseq-lite.pl')
+			install_methods = [tools.PrexistingUnixCommand(path)]
+		tools.Tool.__init__(self, install_methods = install_methods)
