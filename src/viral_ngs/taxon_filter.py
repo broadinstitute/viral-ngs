@@ -89,6 +89,10 @@ def filter_lastal_fastq(inFastq, refDbs, outFastq):
 	prinseqPath = install_and_get_path(tools.prinseq.PrinseqTool())
 	noBlastLikeHitsPath = os.path.join(scripts.get_scripts_path(), 'noBlastLikeHits.py')
 	
+	# Hack: As of version 490 of the "last" tool, mafConvertPath doesn't run under python 3.x, breaking the 3.x regression tests.
+	#    Workaround it by running it with /usr/bin/python which is usually an old version.
+	mafConvertPath = '/usr/bin/python ' + mafConvertPath
+	
 	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
 			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
 			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
