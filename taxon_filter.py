@@ -47,20 +47,6 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trim
 
 
 def filter_lastal(inFastq, refDbs, outFastq):
-	''' KGA "recipe" follows.
-	# LASTAL ALIGNMENT TO FIND RELEVANT READS
-	for sample in
-	do
-	for directory in
-	do
-	for database in arena
-	do
-	bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l1 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.1.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads1.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads1.lastal.txt -r $directory/_reads/$sample.trimmed.1.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.1 && rm $directory/_temp/$sample.reads1.lastal.txt"
-	bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l2 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.2.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads2.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads2.lastal.txt -r $directory/_reads/$sample.trimmed.2.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.2 && rm $directory/_temp/$sample.reads2.lastal.txt"
-	done
-	done
-	done
-	'''
 	import tools.last, tools.prinseq
 	import scripts
 	
