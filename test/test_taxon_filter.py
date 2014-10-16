@@ -17,11 +17,6 @@ class TestCommandHelp(unittest.TestCase):
 			parser = parser_fun()
 			helpstring = parser.format_help()
 
-class TestTaxonFilter(unittest.TestCase):
-	def testNothingAtAll(self):
-		'''here we test nothing at all and this should pass'''
-		pass
-
 
 filterLastalInput = """@fakeRead
 AGTACATGCAGAGCAAGGACTGATACAATATCCAACAGCTTGGCAATCAGTAGGACACATGATGGTGA
