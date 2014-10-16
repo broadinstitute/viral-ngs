@@ -2,11 +2,10 @@
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
-import tools.last
 import unittest, os, sys, tempfile
 # The following line is needed to access taxon_filter and util when running from shell
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import taxon_filter, util
+import taxon_filter, util, tools.last
 # The following line is needed to access test_consensus in python 3.4 
 sys.path.append(os.path.dirname(__file__))
 from test_consensus import set_tmpDir, destroy_tmpDir
