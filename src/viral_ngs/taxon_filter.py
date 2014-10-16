@@ -66,14 +66,10 @@ def filter_lastal(inFastq, refDbs, outFastq):
 	
 	tempFilePath = util.file.mkstempfname()
 	
-	def install_and_get_path(tool) :
-		tool.install()
-		return tool.executable_path()
-	
-	lastalPath = install_and_get_path(tools.last.Lastal())
-	mafSortPath = install_and_get_path(tools.last.MafSort())
-	mafConvertPath = install_and_get_path(tools.last.MafConvert())
-	prinseqPath = install_and_get_path(tools.prinseq.PrinseqTool())
+	lastalPath = tools.last.Lastal().install_and_get_path()
+	mafSortPath = tools.last.MafSort().install_and_get_path()
+	mafConvertPath = tools.last.MafConvert().install_and_get_path()
+	prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
 	noBlastLikeHitsPath = os.path.join(scripts.get_scripts_path(), 'noBlastLikeHits.py')
 	
 	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
