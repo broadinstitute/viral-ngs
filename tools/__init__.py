@@ -14,7 +14,7 @@ except ImportError:
 	from urllib import urlretrieve
 	from urlparse import urlparse
 
-__all__ = ['snpeff']
+__all__ = ['snpeff','prinseq','last']
 installed_tools = {}
 
 log = logging.getLogger(__name__)
