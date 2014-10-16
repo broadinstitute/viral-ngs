@@ -39,9 +39,8 @@ class TestToolsInstallation(unittest.TestCase):
 				yield aClass
 		'''Load every tool's default chain of install methods and try them.'''
 		for tool_class in iter_leaf_subclasses(tools.Tool):
-			print(".. testing installation of %s" % tool_class.__name__)
 			t = tool_class()
 			t.install()
 			self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
-			print(".... %s succeeded with installer %s" % (tool_class.__name__, t.installed_method.__class__.__name__))
+			log.info(".. installation of %s succeeded with installer %s" % (tool_class.__name__, t.installed_method.__class__.__name__))
 			
