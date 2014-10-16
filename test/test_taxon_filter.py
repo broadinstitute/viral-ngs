@@ -2,7 +2,8 @@
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
-import unittest, os, sys
+import tools.last
+import unittest, os, sys, tempfile
 # The following line is needed to access taxon_filter and util when running from shell
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import taxon_filter, util
@@ -39,7 +40,14 @@ class TestFilterLastal(unittest.TestCase):
 	def tearDown(self):
 		destroy_tmpDir()
 	def test_filter_lastal(self) :
-		refDbs = os.path.join(os.path.dirname(__file__), 'input', 'ebolaDbs', 'ebola')
+		# Create refDbs
+		refFasta = os.path.join(os.path.dirname(__file__), 'input', 'ebola.fasta')
+		dbsDir = tempfile.mkdtemp()
+		refDbs = os.path.join(dbsDir, 'ebola')
+		lastdbPath = tools.last.Lastdb().install_and_get_path()
+		os.system('{lastdbPath} {refDbs} {refFasta}'.format(lastdbPath = lastdbPath,
+															refDbs = refDbs,
+															refFasta = refFasta))
 		inFastq = util.file.mkstempfname()
 		outFastq = util.file.mkstempfname()
 		open(inFastq, 'w').write(filterLastalInput)
