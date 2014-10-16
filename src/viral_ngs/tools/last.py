@@ -30,7 +30,7 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
 	def post_download(self) :
 		self.unpack()
 		path = os.path.join('build', self.lastWithVersion)
-		os.system('cd {}; make; make install prefix=.'.format(path))
+		os.system('cd {}; make &> /dev/null; make install prefix=. &> /dev/null'.format(path))
 
 class Lastal(LastTools) :
 	subtoolName = 'lastal'

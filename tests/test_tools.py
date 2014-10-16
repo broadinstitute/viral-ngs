@@ -24,6 +24,7 @@ def destroy_tmpDir():
 class TestToolsInstallation(unittest.TestCase):
 	def setUp(self):
 		set_tmpDir('TestToolsInstallation')
+		util.cmd.setup_logger('INFO')
 	def tearDown(self):
 		destroy_tmpDir()
 	def testAllToolInstallers(self):
@@ -38,9 +39,9 @@ class TestToolsInstallation(unittest.TestCase):
 				yield aClass
 		'''Load every tool's default chain of install methods and try them.'''
 		for tool_class in iter_leaf_subclasses(tools.Tool):
-			log.info(".. testing installation of %s" % tool_class.__name__)
+			print(".. testing installation of %s" % tool_class.__name__)
 			t = tool_class()
 			t.install()
 			self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
-			log.info(".. %s succeeded with method %s" % (tool_class.__name__, t.installed_method.__class__.__name__))
+			print(".... %s succeeded with installer %s" % (tool_class.__name__, t.installed_method.__class__.__name__))
 			
