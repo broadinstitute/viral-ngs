@@ -55,6 +55,9 @@ class Tool(object):
 		return self.exec_path
 	def execute(self, args):
 		assert not os.system(self.exec_path + ' ' + args)
+	def install_and_get_path(self) :
+		self.install()
+		return self.executable_path()
 
 class InstallMethod(object):
 	''' Base class for installation methods for a given tool.
