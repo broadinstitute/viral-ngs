@@ -130,6 +130,7 @@ class DownloadPackage(InstallMethod):
 				self.installed = True
 		else:
 			self.installed = False
+		return self.installed
 	def attempt_install(self):
 		self.attempted = True
 		if not self.verify_install():
