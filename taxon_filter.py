@@ -46,20 +46,7 @@ def main_trim_trimmomatic(args):
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trimmomatic))
 
 
-def filter_lastal(inBam, refDbs, outBam):
-	# we will need to implement bam->fastq->bam wrappers that maintain the read metadata...
-
-	# inBam -> inFastq
-	# ...
-	inFastq = inBam # Temporary patch
-	outFastq = outBam # Temporary patch
-
-	filter_lastal_fastq(inFastq, refDbs, outFastq)
-
-	# outFastq -> outBam
-	# ...
-
-def filter_lastal_fastq(inFastq, refDbs, outFastq):
+def filter_lastal(inFastq, refDbs, outFastq):
 	''' KGA "recipe" follows.
 	# LASTAL ALIGNMENT TO FIND RELEVANT READS
 	for sample in
@@ -102,19 +89,24 @@ def filter_lastal_fastq(inFastq, refDbs, outFastq):
 
 def parser_filter_lastal():
 	parser = argparse.ArgumentParser(
-		description='''Restrict input reads to those that align to the given
-		reference databases using LASTAL.''')
-	parser.add_argument("inBam", help="Input BAM file")
-	parser.add_argument("refDbs", nargs='+',
-		help="""Reference databases (one or more) to retain from input""")
-	parser.add_argument("outBam", help="Output BAM file")
-	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+		description = '''Restrict input reads to those that align to the given
+		reference database using LASTAL.''')
+	parser.add_argument("inFastq", help = "Input fastq file")
+	parser.add_argument("refDbs", help = "Reference database to retain from input")
+	parser.add_argument("outFastq", help = "Output fastq file")
+	util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+	
+	# Future: handle BAM input and output; handle multiple databases.
+	# Will need to implement bam->fastq->bam wrappers that maintain the read metadata
+	#parser.add_argument("inBam", help="Input BAM file")
+	#parser.add_argument("outBam", help="Output BAM file")
+	
 	return parser
 def main_filter_lastal(args):
-	inBam = args.inBam
-	outBam = args.outBam
-	refDbs = args.refDbs[0] # Need to handle multiple refDbs's...
-	filter_lastal(inBam, refDbs, outBam)
+	inFastq = args.inFastq
+	refDbs = args.refDbs
+	outFastq = args.outFastq
+	filter_lastal(inFastq, refDbs, outFastq)
 	return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
