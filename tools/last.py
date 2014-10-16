@@ -1,6 +1,6 @@
 "Tools in the 'last' suite."
 
-import tools
+import tools, scripts
 import os, tempfile
 
 #lastBroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/last'
@@ -40,6 +40,20 @@ class MafSort(LastTools) :
 	subtoolName = 'maf-sort'
 	subtoolNameOnBroad = os.path.join('scripts', 'maf-sort.sh')
 
+class Lastdb(LastTools) :
+	subtoolName = 'lastdb'
+	subtoolNameOnBroad = 'lastdb'
+
+# As of version 490 of "last", maf-convert doesn't run in python 3.x.
+# Workaround this by distributing our own copy that does.
+"""
 class MafConvert(LastTools) :
 	subtoolName = 'maf-convert'
 	subtoolNameOnBroad = os.path.join('scripts', 'maf-convert.py')
+"""
+class MafConvert(tools.Tool) :
+	def __init__(self, install_methods = None):
+		if install_methods == None:
+			path = os.path.join(scripts.get_scripts_path(), 'maf-convert.last-490.2to3.py')
+			install_methods = [tools.PrexistingUnixCommand(path)]
+		tools.Tool.__init__(self, install_methods = install_methods)
