@@ -10,7 +10,8 @@ __commands__ = []
 
 import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
-import tools
+import tools.last, tools.prinseq
+import scripts
 
 log = logging.getLogger(__name__)
 
@@ -47,11 +48,7 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trim
 
 
 def filter_lastal(inFastq, refDbs, outFastq):
-	import tools.last, tools.prinseq
-	import scripts
-	
 	tempFilePath = util.file.mkstempfname()
-	
 	lastalPath = tools.last.Lastal().install_and_get_path()
 	mafSortPath = tools.last.MafSort().install_and_get_path()
 	mafConvertPath = tools.last.MafConvert().install_and_get_path()
