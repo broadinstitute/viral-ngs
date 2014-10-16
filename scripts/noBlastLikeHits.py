@@ -65,7 +65,7 @@ elif char == '@':
     for i in range(0, linesToPlus):
       FILE.readline()
 else:
-  print "Your file does not appear to be fasta or fastq"
+  print("Your file does not appear to be fasta or fastq")
   sys.exit()
 
 if args.hit == "nohit":

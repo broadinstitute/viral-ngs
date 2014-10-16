@@ -1,6 +1,6 @@
 #! /usr/bin/env python
-# This script was created by running 2to3 on maf-convert from version 490 of "last"
-#     and importing print from __future__.
+# This script was created by running 2to3 on maf-convert from version 490 of "last",
+#     importing print from __future__, and replacing string.maketrans("", "") with None.
 
 # Copyright 2010, 2011, 2013, 2014 Martin C. Frith
 # Read MAF-format alignments: write them in other formats.
@@ -19,7 +19,7 @@ def maxlen(s):
 def joined(things, delimiter):
     return delimiter.join(map(str, things))
 
-identityTranslation = string.maketrans("", "")
+identityTranslation = None # Used to be string.maketrans("", "") but doesn't work in 3.x
 def deleted(myString, deleteChars):
     return myString.translate(identityTranslation, deleteChars)
 
