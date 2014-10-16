@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Unit tests for taxon_filter.py
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
