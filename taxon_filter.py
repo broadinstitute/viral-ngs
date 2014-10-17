@@ -3,13 +3,15 @@
 on membership or non-membership in a species / genus / taxonomic grouping.
 '''
 
-__author__ = "PLACEHOLDER"
+__author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging
+import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
+import tools.last, tools.prinseq
+import scripts
 
 log = logging.getLogger(__name__)
 
@@ -45,39 +47,45 @@ def main_trim_trimmomatic(args):
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trimmomatic))
 
 
-def filter_lastal(inBam, refDbs):
-	''' KGA "recipe" follows.
-	it is based on fastq, we will also need to implement bam->fastq->bam wrappers
-	that maintain the read metadata.
-
-# LASTAL ALIGNMENT TO FIND RELEVANT READS
-for sample in
-do
-for directory in
-do
-for database in arena
-do
-bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l1 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.1.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads1.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads1.lastal.txt -r $directory/_reads/$sample.trimmed.1.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.1 && rm $directory/_temp/$sample.reads1.lastal.txt"
-bsub -n 1 -R "span[hosts=1]" -q week -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.l2 "/idi/sabeti-scratch/kandersen/bin/last/lastal -Q1 /idi/sabeti-scratch/kandersen/references/lastal/$database $directory/_reads/$sample.trimmed.2.fastq | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-sort.sh -n2 | /idi/sabeti-scratch/kandersen/bin/last/scripts/maf-convert.py tab /dev/stdin > $directory/_temp/$sample.reads2.lastal.txt && python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastLikeHits.py -b $directory/_temp/$sample.reads2.lastal.txt -r $directory/_reads/$sample.trimmed.2.fastq -m hit | perl /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -ns_max_n 1 -derep 1 -fastq stdin -out_bad null -line_width 0 -out_good $directory/_temp/$sample.lastal.2 && rm $directory/_temp/$sample.reads2.lastal.txt"
-done
-done
-done
-	'''
-	raise ("not yet implemented")
-
+def filter_lastal(inFastq, refDbs, outFastq):
+	tempFilePath = util.file.mkstempfname()
+	lastalPath = tools.last.Lastal().install_and_get_path()
+	mafSortPath = tools.last.MafSort().install_and_get_path()
+	mafConvertPath = tools.last.MafConvert().install_and_get_path()
+	prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
+	noBlastLikeHitsPath = os.path.join(scripts.get_scripts_path(), 'noBlastLikeHits.py')
+	
+	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
+			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
+			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
+			   'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
+																							 tempFilePath = tempFilePath, inFastq = inFastq) +
+			   'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
+					 '-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
+			   'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
+	log.debug(cmdline)
+	assert not os.system(cmdline)
 
 def parser_filter_lastal():
 	parser = argparse.ArgumentParser(
-		description='''Restrict input reads to those that align to the given
-		reference databases using LASTAL.''')
-	parser.add_argument("inBam", help="Input BAM file")
-	parser.add_argument("refDbs", nargs='+',
-		help="""Reference databases (one or more) to retain from input""")
-	parser.add_argument("outBam", help="Output BAM file")
-	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+		description = '''Restrict input reads to those that align to the given
+		reference database using LASTAL.''')
+	parser.add_argument("inFastq", help = "Input fastq file")
+	parser.add_argument("refDbs", help = "Reference database to retain from input")
+	parser.add_argument("outFastq", help = "Output fastq file")
+	util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+	
+	# Future: handle BAM input and output; handle multiple databases.
+	# Will need to implement bam->fastq->bam wrappers that maintain the read metadata
+	#parser.add_argument("inBam", help="Input BAM file")
+	#parser.add_argument("outBam", help="Output BAM file")
+	
 	return parser
 def main_filter_lastal(args):
-	raise ("not yet implemented")
+	inFastq = args.inFastq
+	refDbs = args.refDbs
+	outFastq = args.outFastq
+	filter_lastal(inFastq, refDbs, outFastq)
 	return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
