@@ -11,7 +11,6 @@ __commands__ = []
 import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
 import tools.last, tools.prinseq
-import scripts
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ def filter_lastal(inFastq, refDbs, outFastq):
 	mafSortPath = tools.last.MafSort().install_and_get_path()
 	mafConvertPath = tools.last.MafConvert().install_and_get_path()
 	prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
-	noBlastLikeHitsPath = os.path.join(scripts.get_scripts_path(), 'noBlastLikeHits.py')
+	noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 	
 	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
 			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +

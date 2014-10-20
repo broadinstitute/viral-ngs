@@ -2,7 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import util.vcf
+import util.vcf, util.file
 import unittest
 
 '''
@@ -136,7 +136,7 @@ class TestVcfReaderPositions(unittest.TestCase):
 	''' Test the OBO errors in the pysam-based VCFReader class (it's prone to such errors) '''
 	
 	def setUp(self):
-		self.vcf_fname = 'test/input/one_gene.vcf.gz'
+		self.vcf_fname = util.file.get_test_path() + '/input/one_gene.vcf.gz'
 		self.vcf_window = ('Pf3D7_13_v3', 1724817, 1726997)
 		try:
 			self.basestring = basestring

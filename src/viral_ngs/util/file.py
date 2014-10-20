@@ -6,9 +6,33 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os, gzip, tempfile, errno, logging
+import os, gzip, tempfile, shutil, errno, logging
+import util.cmd
 
 log = logging.getLogger(__name__)
+
+def get_project_path() :
+	'''Return the absolute path of the top-level project, assumed to be the
+	   parent of the directory containing this script.'''
+	# abspath converts relative to absolute path; expanduser interprets ~
+	path = __file__                  # path to this script
+	path = os.path.expanduser(path)  # interpret ~
+	path = os.path.abspath(path)     # convert to absolute path
+	path = os.path.dirname(path)     # containing directory: util
+	path = os.path.dirname(path)     # containing directory: main project dir
+	return path
+
+def get_build_path() :
+	'''Return absolute path of "build" directory'''
+	return os.path.join(get_project_path(), 'build')
+
+def get_scripts_path() :
+	'''Return absolute path of "scripts" directory'''
+	return os.path.join(get_project_path(), 'scripts')
+
+def get_test_path() :
+	'''Return absolute path of "test" directory'''
+	return os.path.join(get_project_path(), 'test')
 
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	''' There's no other one-liner way to securely ask for a temp file by filename only.
@@ -19,6 +43,19 @@ def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=dir, text=text)
 	os.close(fd)
 	return fn
+
+def set_tmpDir(name):
+	proposed_prefix = ['tmp']
+	if name:
+		proposed_prefix.append(name)
+	for e in ('LSB_JOBID','LSB_JOBINDEX'):
+		if e in os.environ:
+			proposed_prefix.append(os.environ[e])
+	tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix)+'-',
+		dir=util.cmd.find_tmpDir())
+
+def destroy_tmpDir():
+	shutil.rmtree(tempfile.tempdir)
 
 def mkdir_p(dirpath):
 	''' Verify that the directory given exists, and if not, create it.
