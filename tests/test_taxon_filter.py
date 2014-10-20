@@ -4,12 +4,7 @@
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
 import unittest, os, sys, tempfile
-# The following line is needed to access taxon_filter and util when running from shell
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import taxon_filter, util, tools.last
-# The following line is needed to access test_consensus in python 3.4 
-sys.path.append(os.path.dirname(__file__))
-from test_consensus import set_tmpDir, destroy_tmpDir
+import taxon_filter, util.file, tools.last
 
 class TestCommandHelp(unittest.TestCase):
 	def test_help_parser_for_each_command(self):
@@ -43,9 +38,9 @@ CCCFFFFFHHHHHJJJJJJJJJJJJJJJHIIIIJJJJHIJIIJJIJJFHGIIJJGHHHBDFDDDDDDD
 
 class TestFilterLastal(unittest.TestCase):
 	def setUp(self):
-		set_tmpDir('TestFilterLastal')
+		util.file.set_tmpDir('TestFilterLastal')
 	def tearDown(self):
-		destroy_tmpDir()
+		util.file.destroy_tmpDir()
 	def test_filter_lastal(self) :
 		# Create refDbs
 		refFasta = os.path.join(os.path.dirname(__file__), 'input', 'ebola.fasta')
