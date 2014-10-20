@@ -1,6 +1,6 @@
 "Tools in the 'last' suite."
 
-import tools, scripts
+import tools, util.file
 import os, tempfile
 
 #lastBroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/last'
@@ -22,14 +22,15 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
 	lastWithVersion = 'last-490'
 	def __init__(self, subtoolName) :
 		url = 'http://last.cbrc.jp/{}.zip'.format(self.lastWithVersion)
-		targetpath = os.path.join('build', self.lastWithVersion, 'bin', subtoolName)
+		buildDir = util.file.get_build_path()
+		targetpath = os.path.join(buildDir, self.lastWithVersion, 'bin', subtoolName)
 		download_dir = tempfile.tempdir
-		unpack_dir = 'build'
+		unpack_dir = buildDir
 		tools.DownloadPackage.__init__(self, url = url, targetpath = targetpath,
 									   download_dir = download_dir, unpack_dir = unpack_dir)
 	def post_download(self) :
 		self.unpack()
-		path = os.path.join('build', self.lastWithVersion)
+		path = os.path.join(util.file.get_build_path(), self.lastWithVersion)
 		os.system('cd {}; make; make install prefix=.'.format(path))
 
 class Lastal(LastTools) :
@@ -38,7 +39,7 @@ class Lastal(LastTools) :
 
 class MafSort(LastTools) :
 	subtoolName = 'maf-sort'
-	subtoolNameOnBroad = os.path.join('scripts', 'maf-sort.sh')
+	subtoolNameOnBroad = 'scripts/maf-sort.sh'
 
 class Lastdb(LastTools) :
 	subtoolName = 'lastdb'
@@ -49,11 +50,11 @@ class Lastdb(LastTools) :
 """
 class MafConvert(LastTools) :
 	subtoolName = 'maf-convert'
-	subtoolNameOnBroad = os.path.join('scripts', 'maf-convert.py')
+	subtoolNameOnBroad = 'scripts/maf-convert.py'
 """
 class MafConvert(tools.Tool) :
 	def __init__(self, install_methods = None):
 		if install_methods == None:
-			path = os.path.join(scripts.get_scripts_path(), 'maf-convert.last-490.2to3.py')
+			path = os.path.join(util.file.get_scripts_path(), 'maf-convert.last-490.2to3.py')
 			install_methods = [tools.PrexistingUnixCommand(path)]
 		tools.Tool.__init__(self, install_methods = install_methods)

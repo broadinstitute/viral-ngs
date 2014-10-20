@@ -11,6 +11,29 @@ import util.cmd
 
 log = logging.getLogger(__name__)
 
+def get_project_path() :
+	'''Return the absolute path of the top-level project, assumed to be the
+	   parent of the directory containing this script.'''
+	# abspath converts relative to absolute path; expanduser interprets ~
+	path = __file__                  # path to this script
+	path = os.path.expanduser(path)  # interpret ~
+	path = os.path.abspath(path)     # convert to absolute path
+	path = os.path.dirname(path)     # containing directory: util
+	path = os.path.dirname(path)     # containing directory: main project dir
+	return path
+
+def get_build_path() :
+	'''Return absolute path of "build" directory'''
+	return os.path.join(get_project_path(), 'build')
+
+def get_scripts_path() :
+	'''Return absolute path of "scripts" directory'''
+	return os.path.join(get_project_path(), 'scripts')
+
+def get_test_path() :
+	'''Return absolute path of "test" directory'''
+	return os.path.join(get_project_path(), 'test')
+
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	''' There's no other one-liner way to securely ask for a temp file by filename only.
 		This calls mkstemp, which does what we want, except that it returns an open
