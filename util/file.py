@@ -6,7 +6,8 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os, gzip, tempfile, errno, logging
+import os, gzip, tempfile, shutil, errno, logging
+import util.cmd
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +20,19 @@ def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=dir, text=text)
 	os.close(fd)
 	return fn
+
+def set_tmpDir(name):
+	proposed_prefix = ['tmp']
+	if name:
+		proposed_prefix.append(name)
+	for e in ('LSB_JOBID','LSB_JOBINDEX'):
+		if e in os.environ:
+			proposed_prefix.append(os.environ[e])
+	tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix)+'-',
+		dir=util.cmd.find_tmpDir())
+
+def destroy_tmpDir():
+	shutil.rmtree(tempfile.tempdir)
 
 def mkdir_p(dirpath):
 	''' Verify that the directory given exists, and if not, create it.

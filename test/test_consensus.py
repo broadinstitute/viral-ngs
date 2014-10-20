@@ -8,18 +8,6 @@ import unittest
 import os, shutil, tempfile, argparse, itertools
 
 
-def set_tmpDir(name):
-	proposed_prefix = ['tmp']
-	if name:
-		proposed_prefix.append(name)
-	for e in ('LSB_JOBID','LSB_JOBINDEX'):
-		if e in os.environ:
-			proposed_prefix.append(os.environ[e])
-	tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix)+'-',
-		dir=util.cmd.find_tmpDir())
-def destroy_tmpDir():
-	shutil.rmtree(tempfile.tempdir)
-
 def makeFasta(seqs, outFasta):
 	with open(outFasta, 'wt') as outf:
 		for line in util.file.fastaMaker(seqs):
@@ -117,9 +105,9 @@ class TestManualSnpCaller(unittest.TestCase):
 class TestDeambigAndTrimFasta(unittest.TestCase):
 	''' Test the deambig_fasta and trim_fasta commands. '''
 	def setUp(self):
-		set_tmpDir('TestDeambigAndTrimFasta')
+		util.file.set_tmpDir('TestDeambigAndTrimFasta')
 	def tearDown(self):
-		destroy_tmpDir()
+		util.file.destroy_tmpDir()
 	def run_method(self, inseqs, parser_fun, main_fun):
 		fasta_in = util.file.mkstempfname()
 		fasta_out = util.file.mkstempfname()
