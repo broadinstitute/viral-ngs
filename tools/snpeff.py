@@ -60,7 +60,9 @@ class BroadUnix(tools.PrexistingUnixCommand):
 
 class DownloadAndConfigJar(tools.DownloadPackage):
 	def __init__(self, url='http://downloads.sourceforge.net/project/snpeff/snpEff_v4_0_core.zip',
-		targetpath='build/snpEff', download_dir=tempfile.tempdir, unpack_dir='build'):
+		targetpath=util.file.get_build_path()+'/snpEff',
+		download_dir=tempfile.tempdir,
+		unpack_dir=util.file.get_build_path()):
 		#verifycmd='java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path,
 		#verifycode=65280 xxx unfortunately snpEff is not returning a meaningful code)
 		super(DownloadAndConfigJar, self).__init__(url=url, targetpath=targetpath,
