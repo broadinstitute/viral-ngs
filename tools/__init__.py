@@ -14,7 +14,7 @@ except ImportError:
 	from urllib import urlretrieve
 	from urlparse import urlparse
 
-__all__ = ['snpeff','prinseq','last']
+__all__ = ['snpeff','prinseq','last','trimmomatic']
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -81,17 +81,19 @@ class PrexistingUnixCommand(InstallMethod):
 		already exists for free on the unix file system--it doesn't actually try to
 		install anything.
 	'''
-	def __init__(self, path, verifycmd=None, verifycode=0):
+	def __init__(self, path, verifycmd=None, verifycode=0, requireExecutability=True):
 		self.path = path
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
 		self.attempted = False
 		self.installed = False
+		self.requireExecutability = requireExecutability
 	def is_attempted(self):
 		return self.attempted
 	def attempt_install(self):
 		self.attempted = True
-		if os.access(self.path, os.X_OK | os.R_OK):
+		if os.access(self.path,
+					 (os.X_OK | os.R_OK) if self.requireExecutability else os.R_OK):
 			if self.verifycmd:
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
 			else:	
@@ -109,7 +111,8 @@ class DownloadPackage(InstallMethod):
 	''' This is an install method for downloading, unpacking, and post-processing
 		something straight from the source.
 	'''
-	def __init__(self, url, targetpath, download_dir='.', unpack_dir='.', verifycmd=None, verifycode=0):
+	def __init__(self, url, targetpath, download_dir='.', unpack_dir='.',
+				 verifycmd=None, verifycode=0, requireExecutability=True):
 		self.url = url
 		self.targetpath = targetpath
 		self.download_dir = download_dir
@@ -118,6 +121,7 @@ class DownloadPackage(InstallMethod):
 		self.verifycode = verifycode
 		self.attempted = False
 		self.installed = False
+		self.requireExecutability = requireExecutability
 	def is_attempted(self):
 		return self.attempted
 	def is_installed(self):
@@ -125,7 +129,8 @@ class DownloadPackage(InstallMethod):
 	def executable_path(self):
 		return self.installed and self.targetpath or None
 	def verify_install(self):
-		if os.access(self.targetpath, os.X_OK | os.R_OK):
+		if os.access(self.targetpath,
+					 (os.X_OK | os.R_OK) if self.requireExecutability else os.R_OK):
 			if self.verifycmd:
 				log.debug("validating")
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
