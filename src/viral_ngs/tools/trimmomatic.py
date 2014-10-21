@@ -13,7 +13,8 @@ class TrimmomaticTool(tools.Tool) :
 	def __init__(self, install_methods = None) :
 		if install_methods == None :
 			install_methods = []
-			install_methods.append(tools.PrexistingUnixCommand(trimmomaticBroadUnixPath))
+			install_methods.append(tools.PrexistingUnixCommand(trimmomaticBroadUnixPath,
+															   requireExecutability=False))
 			install_methods.append(DownloadAndBuildTrimmomatic())
 		tools.Tool.__init__(self, install_methods = install_methods)
 
