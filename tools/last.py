@@ -24,12 +24,10 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
 		url = 'http://last.cbrc.jp/{}.zip'.format(self.lastWithVersion)
 		buildDir = util.file.get_build_path()
 		targetpath = os.path.join(buildDir, self.lastWithVersion, 'bin', subtoolName)
-		download_dir = tempfile.tempdir
-		unpack_dir = buildDir
+		destination_dir = buildDir
 		tools.DownloadPackage.__init__(self, url = url, targetpath = targetpath,
-									   download_dir = download_dir, unpack_dir = unpack_dir)
+									   destination_dir = destination_dir)
 	def post_download(self) :
-		self.unpack()
 		path = os.path.join(util.file.get_build_path(), self.lastWithVersion)
 		os.system('cd {}; make; make install prefix=.'.format(path))
 
