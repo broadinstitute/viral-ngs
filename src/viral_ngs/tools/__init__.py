@@ -45,6 +45,7 @@ class Tool(object):
 					self.installed_method = m
 					self.exec_path = m.executable_path()
 					installed_tools[self.__class__.__name__] = self
+					break
 	def get_install_methods(self):
 		return self.install_methods
 	def set_install_methods(self, methods):
