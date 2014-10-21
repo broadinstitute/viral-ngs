@@ -2,7 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import os, logging
+import os, logging, tempfile
 import util.file
 
 try:
@@ -14,7 +14,7 @@ except ImportError:
 	from urllib import urlretrieve
 	from urlparse import urlparse
 
-__all__ = ['snpeff','prinseq','last','trimmomatic']
+__all__ = ['snpeff','prinseq','last','trimmomatic','bmtagger']
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -82,19 +82,19 @@ class PrexistingUnixCommand(InstallMethod):
 		already exists for free on the unix file system--it doesn't actually try to
 		install anything.
 	'''
-	def __init__(self, path, verifycmd=None, verifycode=0, requireExecutability=True):
+	def __init__(self, path, verifycmd=None, verifycode=0, require_executability=True):
 		self.path = path
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
 		self.attempted = False
 		self.installed = False
-		self.requireExecutability = requireExecutability
+		self.require_executability = require_executability
 	def is_attempted(self):
 		return self.attempted
 	def attempt_install(self):
 		self.attempted = True
 		if os.access(self.path,
-					 (os.X_OK | os.R_OK) if self.requireExecutability else os.R_OK):
+					 (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
 			if self.verifycmd:
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
 			else:	
@@ -112,17 +112,16 @@ class DownloadPackage(InstallMethod):
 	''' This is an install method for downloading, unpacking, and post-processing
 		something straight from the source.
 	'''
-	def __init__(self, url, targetpath, download_dir='.', unpack_dir='.',
-				 verifycmd=None, verifycode=0, requireExecutability=True):
+	def __init__(self, url, targetpath, destination_dir='.',
+				 verifycmd=None, verifycode=0, require_executability=True):
 		self.url = url
 		self.targetpath = targetpath
-		self.download_dir = download_dir
-		self.unpack_dir = unpack_dir
+		self.destination_dir = destination_dir
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
 		self.attempted = False
 		self.installed = False
-		self.requireExecutability = requireExecutability
+		self.require_executability = require_executability
 	def is_attempted(self):
 		return self.attempted
 	def is_installed(self):
@@ -131,7 +130,7 @@ class DownloadPackage(InstallMethod):
 		return self.installed and self.targetpath or None
 	def verify_install(self):
 		if os.access(self.targetpath,
-					 (os.X_OK | os.R_OK) if self.requireExecutability else os.R_OK):
+					 (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
 			if self.verifycmd:
 				log.debug("validating")
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
@@ -151,29 +150,41 @@ class DownloadPackage(InstallMethod):
 		pass
 	def download(self):
 		log.debug("downloading")
-		if not self.download_dir:
-			self.download_dir = '.'
-		util.file.mkdir_p(self.download_dir)
+		download_dir = tempfile.gettempdir()
+		util.file.mkdir_p(download_dir)
 		filepath = urlparse(self.url).path
 		filename = filepath.split('/')[-1]
-		urlretrieve(self.url, "%s/%s" % (self.download_dir,filename))
+		urlretrieve(self.url, "%s/%s" % (download_dir,filename))
 		self.download_file = filename
+		self.unpack(download_dir)
 	def post_download(self):
-		self.unpack()
-	def unpack(self):
+		pass
+	def unpack(self, download_dir):
 		log.debug("unpacking")
-		if not self.unpack_dir:
-			self.unpack_dir = '.'
-		util.file.mkdir_p(self.unpack_dir)
+		if not self.destination_dir:
+			self.destination_dir = '.'
+		util.file.mkdir_p(self.destination_dir)
 		if self.download_file.endswith('.zip'):
-			if os.system("unzip -o %s/%s -d %s > /dev/null" % (self.download_dir, self.download_file, self.unpack_dir)):
+			if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file,
+															   self.destination_dir)):
 				return
 			else:
-				os.unlink("%s/%s" % (self.download_dir, self.download_file))
+				os.unlink("%s/%s" % (download_dir, self.download_file))
 		elif self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz'):
-			if os.system("tar -C %s -xzpf %s/%s" % (self.unpack_dir, self.download_dir, self.download_file)):
+			if os.system("tar -C %s -xzpf %s/%s" % (self.destination_dir, download_dir,
+													self.download_file)):
 				return
 			else:
-				os.unlink("%s/%s" % (self.download_dir, self.download_file))
+				os.unlink("%s/%s" % (download_dir, self.download_file))
+		else :
+			os.rename(os.path.join(download_dir, self.download_file),
+					  os.path.join(self.destination_dir, self.download_file))
 
-	
+class DownloadScript(DownloadPackage):
+	'''Install method for downloading a script with no post-processing other than unpacking'''
+	def __init__(self, url, executable_rel_path, require_executability=False):
+		# executable_path will be ProjectPath/build/executable_rel_path
+		build_dir = util.file.get_build_path()
+		targetpath = os.path.join(build_dir, executable_rel_path)
+		DownloadPackage.__init__(self, url, targetpath, destination_dir = build_dir,
+								 require_executability = require_executability)

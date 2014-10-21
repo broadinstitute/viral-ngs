@@ -14,16 +14,7 @@ class TrimmomaticTool(tools.Tool) :
 		if install_methods == None :
 			install_methods = []
 			install_methods.append(tools.PrexistingUnixCommand(trimmomaticBroadUnixPath,
-															   requireExecutability=False))
-			install_methods.append(DownloadAndBuildTrimmomatic())
+															   require_executability=False))
+			install_methods.append(tools.DownloadScript(trimmomaticURL,
+														'Trimmomatic-0.32/trimmomatic-0.32.jar'))
 		tools.Tool.__init__(self, install_methods = install_methods)
-
-class DownloadAndBuildTrimmomatic(tools.DownloadPackage) :
-	def __init__(self) :
-		buildDir = util.file.get_build_path()
-		targetpath = os.path.join(buildDir, 'Trimmomatic-0.32', 'trimmomatic-0.32.jar')
-		download_dir = tempfile.tempdir
-		unpack_dir = buildDir
-		tools.DownloadPackage.__init__(self, url = trimmomaticURL, targetpath = targetpath,
-									   download_dir = download_dir, unpack_dir = unpack_dir,
-									   requireExecutability = False)
