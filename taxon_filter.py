@@ -10,38 +10,52 @@ __commands__ = []
 
 import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
-import tools.last, tools.prinseq
+import tools.last, tools.prinseq, tools.trimmomatic
 
 log = logging.getLogger(__name__)
 
 
-def trimmomatic(inBam, outBam):
-	''' KGA "recipe" follows.
-	it is based on fastq, we will also need to implement bam->fastq->bam wrappers
-	that maintain the read metadata.
+def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta):
+	trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
+	tempUnpaired1 = util.file.mkstempfname()
+	tempUnpaired2 = util.file.mkstempfname()
+	cmdline = (
+		'java -Xmx2g -classpath {trimmomaticPath} '.format(trimmomaticPath = trimmomaticPath) +
+			'org.usadellab.trimmomatic.TrimmomaticPE ' +
+			' '.join([inFastq1, inFastq2, pairedOutFastq1, tempUnpaired1, pairedOutFastq2, tempUnpaired2]) +
+			' LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30 ' +
+			'ILLUMINACLIP:{clipFasta}:2:30:12 && '.format(clipFasta = clipFasta) +
+		'rm {tempUnpaired1} {tempUnpaired2}'.format(tempUnpaired1 = tempUnpaired1, tempUnpaired2 = tempUnpaired2)
+			   )
+	log.debug(cmdline)
+	assert not os.system(cmdline)
 	
-# TRIM THE READS WITH TRIMMOMATIC
-for sample in
-do
-for directory in
-do
-bsub -W 4:00 -q hour -R "rusage[mem=4]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.tr "java -Xmx2g -classpath /idi/sabeti-scratch/kandersen/bin/trimmomatic/trimmomatic-0.32.jar org.usadellab.trimmomatic.TrimmomaticPE $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq $directory/_reads/$sample.trimmed.1.fastq $directory/_temp/$sample.reads1.trimmed_unpaired.fastq $directory/_reads/$sample.trimmed.2.fastq $directory/_temp/$sample.reads2.trimmed_unpaired.fastq LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30 ILLUMINACLIP:/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta:2:30:12 && rm $directory/_temp/$sample.reads?.trimmed_unpaired.fastq"
-done
-done
-	'''
-	raise ("not yet implemented")
-
-
 def parser_trim_trimmomatic():
 	parser = argparse.ArgumentParser(
-		description='''Trim read sequences with Trimmomatic. Perhaps move this to
-		a separate script of general bam/alignment utility functions?''')
-	parser.add_argument("inBam", help="Input BAM file")
-	parser.add_argument("outBam", help="Output BAM file")
-	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+		description='''Trim read sequences with Trimmomatic.''')
+	parser.add_argument("inFastq1", help = "Input reads 1")
+	parser.add_argument("inFastq2", help = "Input reads 2")
+	parser.add_argument("pairedOutFastq1", help = "Paired output 1")
+	parser.add_argument("pairedOutFastq2", help = "Paired output 2")
+	parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR sequences, etc. to clip off")
+		# clipFasta = /idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta
+	util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+
+	# Future: handle BAM input and output; handle multiple databases.
+	# Will need to implement bam->fastq->bam wrappers that maintain the read metadata
+	#parser.add_argument("inBam", help="Input BAM file")
+	#parser.add_argument("outBam", help="Output BAM file")
+
 	return parser
+
 def main_trim_trimmomatic(args):
-	raise ("not yet implemented")
+	'''Perhaps move this to a separate script of general bam/alignment utility functions?...'''
+	inFastq1 = args.inFastq1
+	inFastq2 = args.inFastq2
+	pairedOutFastq1 = args.pairedOutFastq1
+	pairedOutFastq2 = args.pairedOutFastq2
+	clipFasta = args.clipFasta
+	trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
 	return 0
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trimmomatic))
 
@@ -54,14 +68,16 @@ def filter_lastal(inFastq, refDbs, outFastq):
 	prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
 	noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 	
-	cmdline = ('{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
-			   '{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
-			   '{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
-			   'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
-																							 tempFilePath = tempFilePath, inFastq = inFastq) +
-			   'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
-					 '-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
-			   'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
+	cmdline = (
+		'{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
+		'{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
+		'{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(
+			mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
+		'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
+			tempFilePath = tempFilePath, inFastq = inFastq) +
+		'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
+			'-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
+		'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
 	log.debug(cmdline)
 	assert not os.system(cmdline)
 
