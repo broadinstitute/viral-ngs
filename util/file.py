@@ -34,6 +34,10 @@ def get_test_path() :
 	'''Return absolute path of "test" directory'''
 	return os.path.join(get_project_path(), 'test')
 
+def get_test_input_path(testClassInstance) :
+	'''Return the path to the directory for input files for the specified test class'''
+	return os.path.join(get_test_path(), 'input', type(testClassInstance).__name__)
+
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
 	''' There's no other one-liner way to securely ask for a temp file by filename only.
 		This calls mkstemp, which does what we want, except that it returns an open
