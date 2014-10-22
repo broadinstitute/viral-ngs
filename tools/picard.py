@@ -5,9 +5,9 @@ url = 'https://github.com/broadinstitute/picard/releases/download/1.123/picard-t
 #         Note: Version 1.123 is latest as of 2014-10-22
 picardBroadUnix = '/seq/software/picard/current/bin'
 
-class PicardTool(tools.Tool) :
+class PicardTools(tools.Tool) :
 	"""'Abstract' base class for tools in the picard suite.
-	   Subclasses must define class member subtoolName=."""
+	   Subclasses must define class member subtoolName."""
 	def __init__(self, install_methods = None) :
 		if install_methods == None :
 			install_methods = []
@@ -19,11 +19,11 @@ class PicardTool(tools.Tool) :
 			#												   require_executability=False))
 		tools.Tool.__init__(self, install_methods = install_methods)
 
-class MarkDuplicatesTool(PicardTool) :
+class MarkDuplicatesTool(PicardTools) :
 	subtoolName = 'MarkDuplicates.jar'
 
-class SamToFastqTool(PicardTool) :
+class SamToFastqTool(PicardTools) :
 	subtoolName = 'SamToFastq.jar'
 
-class SortSamTool(PicardTool) :
+class SortSamTool(PicardTools) :
 	subtoolName = 'SortSam.jar'

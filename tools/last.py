@@ -25,7 +25,7 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
 		target_rel_path = os.path.join(self.lastWithVersion, 'bin', subtoolName)
 		tools.DownloadPackage.__init__(self, url, target_rel_path)
 	def post_download(self) :
-		path = os.path.join(util.file.get_build_path(), self.lastWithVersion)
+		path = os.path.join(self.destination_dir, self.lastWithVersion)
 		os.system('cd {}; make; make install prefix=.'.format(path))
 
 class Lastal(LastTools) :
