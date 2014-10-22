@@ -110,18 +110,25 @@ class PrexistingUnixCommand(InstallMethod):
 
 class DownloadPackage(InstallMethod):
 	''' This is an install method for downloading, unpacking, and post-processing
-		something straight from the source.
+		    something straight from the source.
+		target_rel_path is the path of the executable relative to destination_dir
+		destination_dir defaults to the project build directory
+		post_download_command will be executed if it isn't None, in destination_dir.
 	'''
-	def __init__(self, url, targetpath, destination_dir='.',
-				 verifycmd=None, verifycode=0, require_executability=True):
+	def __init__(self, url, target_rel_path, destination_dir=None,
+				 verifycmd=None, verifycode=0, require_executability=True,
+				 post_download_command=None):
+		if destination_dir == None :
+			destination_dir = util.file.get_build_path()
 		self.url = url
-		self.targetpath = targetpath
+		self.targetpath = os.path.join(destination_dir, target_rel_path)
 		self.destination_dir = destination_dir
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
 		self.attempted = False
 		self.installed = False
 		self.require_executability = require_executability
+		self.post_download_command = post_download_command
 	def is_attempted(self):
 		return self.attempted
 	def is_installed(self):
@@ -158,11 +165,10 @@ class DownloadPackage(InstallMethod):
 		self.download_file = filename
 		self.unpack(download_dir)
 	def post_download(self):
-		pass
+		if self.post_download_command:
+			os.system('cd "{}"; {}'.format(self.destination_dir, self.post_download_command))
 	def unpack(self, download_dir):
 		log.debug("unpacking")
-		if not self.destination_dir:
-			self.destination_dir = '.'
 		util.file.mkdir_p(self.destination_dir)
 		if self.download_file.endswith('.zip'):
 			if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file,
@@ -170,21 +176,17 @@ class DownloadPackage(InstallMethod):
 				return
 			else:
 				os.unlink("%s/%s" % (download_dir, self.download_file))
-		elif self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz'):
-			if os.system("tar -C %s -xzpf %s/%s" % (self.destination_dir, download_dir,
-													self.download_file)):
+		elif (self.download_file.endswith('.tar.gz') or
+			  self.download_file.endswith('.tar.bz2') or
+			  self.download_file.endswith('.tgz')):
+			compression_option = 'j' if self.download_file.endswith('.tar.bz2') else 'z'
+			if os.system("tar -C %s -x%spf %s/%s" % (self.destination_dir,
+													 compression_option,
+													 download_dir,
+													 self.download_file)):
 				return
 			else:
 				os.unlink("%s/%s" % (download_dir, self.download_file))
 		else :
 			os.rename(os.path.join(download_dir, self.download_file),
 					  os.path.join(self.destination_dir, self.download_file))
-
-class DownloadScript(DownloadPackage):
-	'''Install method for downloading a script with no post-processing other than unpacking'''
-	def __init__(self, url, executable_rel_path, require_executability=False):
-		# executable_path will be ProjectPath/build/executable_rel_path
-		build_dir = util.file.get_build_path()
-		targetpath = os.path.join(build_dir, executable_rel_path)
-		DownloadPackage.__init__(self, url, targetpath, destination_dir = build_dir,
-								 require_executability = require_executability)
