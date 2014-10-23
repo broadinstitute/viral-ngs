@@ -10,7 +10,7 @@ __commands__ = []
 
 import argparse, logging, os
 import util.cmd, util.file, util.vcf, util.misc
-import tools.last, tools.prinseq, tools.trimmomatic
+import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, tools.samtools, tools.picard
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +106,20 @@ __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
 
 def deplete_bmtagger(inBam, refDbs):
+	bmtaggerPath = tools.bmtagger.BmtaggerTool().install_and_get_path()
+	samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
+	markDuplicatesPath = tools.picard.MarkDuplicatesTool().install_and_get_path()
+	samToFastqPath = tools.picard.SamToFastqTool().install_and_get_path()
+	sortSamPath = tools.picard.SortSamTool().install_and_get_path()
+	
+	# Temporary...
+	mvicunaPath = '/gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna'
+	novoalignPath = '/idi/sabeti-scratch/kandersen/bin/novocraft/novoalign'
+	novoalign3Path = '/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign'
+	
+	noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(), 'noBlastHits_v3.py')
+	mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(), 'mergeShuffledFastqSeqs.pl')
+
 	''' KGA's "recipe" for human read depletion
 #-------- CLEANING OF READS FOR SRA SUBMISSION --------#
 # MAKE REQUIRED SUB-DIRECTORIES - DON'T DO THIS IF YOU ALREADY CREATED THESE WITH ANOTHER PIPELINE
@@ -128,6 +142,31 @@ for db2 in hg19
 do
 for db3 in metagenomics_contaminants_v3 # If you want to remove Lassa, use metagenomics_contaminants_v3_w_lassa, ZEBOV use metagenomics_contaminants_v3_w_zebov
 do
+
+# Tools and files needed
+bmtaggerPath = /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh
+bitmaskDb1 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.bitmask
+srprismDb1 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.srprism
+bitmaskDb2 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.bitmask
+srprismDb2 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.srprism
+bitmaskDb3 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.bitmask
+srprismDb3 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.srprism
+inreads1 = $directory/_reads/$sample.reads1.fastq
+inreads2 = $directory/_reads/$sample.reads2.fastq
+tempMrna = $temp/$sample.bmtagger.mrna
+tempMrna1 = $temp/$sample.bmtagger.mrna.1.fastq # Presumably produced by previous call to bmtagger
+tempMrna2 = $temp/$sample.bmtagger.mrna.2.fastq
+tempHg19 = $temp/$sample.bmtagger.hg19
+tempHg19_1 = $temp/$sample.bmtagger.hg19.1.fastq
+tempHg10_2 = $temp/$sample.bmtagger.hg19.2.fastq
+tempContaminants = $temp/$sample.bmtagger.contaminants
+
+# Commands to execute
+bmtaggerPath -X -b bitmaskDb1 -x srprismDb1 -T $temp -q1 -1 inreads1 -2 inreads2 -o tempMrna && 
+bmtaggerPath -X -b bitmaskDb2 -x srprismDb2 -T $temp -q1 -1 tempMrna1 -2 tempMrna2 -o tempHg19 && 
+bmtaggerPath -X -b bitmaskDb3 -x srprismDb3 -T $temp -q1 -1 tempHg19_1 -2 tempHg19_2 -o tempContaminants
+
+
 bsub -R "rusage[mem=8]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.bt "/idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.srprism -T $temp -q1 -1 $directory/_reads/$sample.reads1.fastq -2 $directory/_reads/$sample.reads2.fastq -o $temp/$sample.bmtagger.mrna && /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.srprism -T $temp -q1 -1 $temp/$sample.bmtagger.mrna.1.fastq -2 $temp/$sample.bmtagger.mrna.2.fastq -o $temp/$sample.bmtagger.hg19 && /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.srprism -T $temp -q1 -1 $temp/$sample.bmtagger.hg19.1.fastq -2 $temp/$sample.bmtagger.hg19.2.fastq -o $temp/$sample.bmtagger.contaminants"
 done
 done
@@ -143,6 +182,23 @@ for directory in
 do
 for temp in /broad/hptmp/andersen
 do
+
+
+# Tools and files needed
+mvicunaPath = /seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
+contaminants1fastq = $temp/$sample.bmtagger.contaminants.1.fastq
+contaminants2fastq = $temp/$sample.bmtagger.contaminants.2.fastq
+cleaned1fastq = $temp/$sample.cleaned_reads.prinseq.1.fastq
+cleaned2fastq = $temp/$sample.cleaned_reads.prinseq.2.fastq
+cleanedUnpairedfastq = $temp/$sample.cleaned_reads.unpaired.fastq
+hg19temp1fastq = $temp/$sample.bmtagger.hg19.temp1.fastq
+hg19temp2fastq = $temp/$sample.bmtagger.hg19.temp2.fastq
+
+# Commands to execute...
+mvicunaPath -ipfq contaminants1fastq,contaminants2fastq -opfq cleaned1fastq,cleaned2fastq -osfq cleanedUnpairedfastq -drm_op hg19temp1fastq,hg19temp2fastq -tasks DupRm
+
+
+
 bsub -R "rusage[mem=$memory]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.p1 "/seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna -ipfq $temp/$sample.bmtagger.contaminants.1.fastq,$temp/$sample.bmtagger.contaminants.2.fastq -opfq $temp/$sample.cleaned_reads.prinseq.1.fastq,$temp/$sample.cleaned_reads.prinseq.2.fastq -osfq $temp/$sample.cleaned_reads.unpaired.fastq -drm_op $temp/$sample.bmtagger.hg19.temp1.fastq,$temp/$sample.bmtagger.hg19.temp2.fastq -tasks DupRm"
 done
 done
@@ -155,6 +211,32 @@ for directory in
 do
 for temp in /broad/hptmp/andersen
 do
+
+# Tools and files needed
+novoalignPath = /idi/sabeti-scratch/kandersen/bin/novocraft/novoalign
+sortSamPath = /seq/software/picard/current/bin/SortSam.jar
+samToFastqPath = /seq/software/picard/current/bin/SamToFastq.jar
+prinseqLitePath = /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl
+prinseq1fastq = $temp/$sample.cleaned_reads.prinseq.1.fastq
+prinseq2fastq = $temp/$sample.cleaned_reads.prinseq.2.fastq
+novalignlog = $directory/_logs/$sample.log.novoalign.txt
+sampleSortedBam = $directory/_temp/$sample.sorted.bam
+sampleDepletedBam = $directory/_temp/$sample.depleted.bam
+novoDepleted1Fastq = $directory/_temp/$sample.novo.depleted.reads1.fastq
+novoDepleted2Fastq = $directory/_temp/$sample.novo.depleted.reads2.fastq
+prinseq1 = $directory/_temp/$sample.prinseq.1
+prinseq2 = $directory/_temp/$sample.prinseq.2
+refnix = /idi/sabeti-scratch/kandersen/references/novo_clean/metag_v3.ncRNA.mRNA.mitRNA.consensus.nix
+
+# Commands to execute
+novoalignPath -c 4 -f prinseq1fastq prinseq2fastq -r Random -l 30 -g 20 -x 6 -t 502 -F STDFQ -d refnix -o SAM $'@RG\tID:140813.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> novalignlog |
+java -Xmx2g -jar sortSamPath SO=coordinate I=/dev/stdin O=sampleSortedBam CREATE_INDEX=true &&
+samtools view -b -f 4 -u sampleSortedBam > sampleDepletedBam &&
+java -Xmx2g -jar samToFastqPath INPUT=sampleDepletedBam FASTQ=novoDepleted1Fastq SECOND_END_FASTQ=novoDepleted2Fastq VALIDATION_STRINGENCY=SILENT &&
+printseqLitePath -out_format 1 -line_width 0 -fastq novoDepleted1Fastq -out_good prinseq1 -out_bad null &&
+printseqLitePath -out_format 1 -line_width 0 -fastq novoDepleted2Fastq -out_good prinseq2 -out_bad null
+
+
 bsub -W 4:00 -q hour -R "rusage[mem=4]" -n 4 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.al "/idi/sabeti-scratch/kandersen/bin/novocraft/novoalign -c 4 -f $temp/$sample.cleaned_reads.prinseq.1.fastq $temp/$sample.cleaned_reads.prinseq.2.fastq -r Random -l 30 -g 20 -x 6 -t 502 -F STDFQ -d /idi/sabeti-scratch/kandersen/references/novo_clean/metag_v3.ncRNA.mRNA.mitRNA.consensus.nix -o SAM $'@RG\tID:140813.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.novoalign.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted.bam CREATE_INDEX=true && samtools view -b -f 4 -u $directory/_temp/$sample.sorted.bam > $directory/_temp/$sample.depleted.bam && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted.bam FASTQ=$directory/_temp/$sample.novo.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.novo.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads1.fastq -out_good $directory/_temp/$sample.prinseq.1 -out_bad null && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads2.fastq -out_good $directory/_temp/$sample.prinseq.2 -out_bad null"
 done
 done
@@ -256,6 +338,21 @@ for directory in
 do
 for reference in $directory/_refs/zaire_guinea.nix
 do
+
+# Tools and files needed
+novoalign3Path = /idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign
+
+# Commands to execute
+novoalign3Path -c 1 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral.txt |
+java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted3.bam CREATE_INDEX=true &&
+samtools view -b -q 1 -u $directory/_temp/$sample.sorted3.bam |
+java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped3.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT &&
+java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped3.bam O=$directory/_temp/$sample.mappedNoDub3.bam METRICS_FILE=$directory/_temp/$sample.log.markdups3.txt CREATE_INDEX=true REMOVE_DUPLICATES=true &&
+java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.mappedNoDub3.bam FASTQ=$directory/_temp/$sample.viral.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.reads2.fastq VALIDATION_STRINGENCY=SILENT
+
+
+
+
 bsub -q week -W 24:00 -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.a2 "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -c 1 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted3.bam CREATE_INDEX=true && samtools view -b -q 1 -u $directory/_temp/$sample.sorted3.bam | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped3.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped3.bam O=$directory/_temp/$sample.mappedNoDub3.bam METRICS_FILE=$directory/_temp/$sample.log.markdups3.txt CREATE_INDEX=true REMOVE_DUPLICATES=true && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.mappedNoDub3.bam FASTQ=$directory/_temp/$sample.viral.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.reads2.fastq VALIDATION_STRINGENCY=SILENT"
 bsub -q hour -W 4:00 -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.a1 "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -c 1 -f $directory/_temp/$sample.cleaned.1.fastq $directory/_temp/$sample.cleaned.2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral-deplete.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted2.bam CREATE_INDEX=true && samtools view -b -f 4 -u $directory/_temp/$sample.sorted2.bam > $directory/_temp/$sample.depleted2.bam && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted2.bam FASTQ=$directory/_temp/$sample.viral.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT"
 done
@@ -283,7 +380,6 @@ done
 done
 done
 	'''
-	raise ("not yet implemented")
 
 
 def parser_deplete_bmtagger():
