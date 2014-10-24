@@ -116,9 +116,18 @@ class DownloadAndConfigJar(tools.DownloadPackage):
 
 
 class SnpEffGenome:
-    def __init__(self, name, desc, chroms, chrom_urls, codonTableMap={}):
+    def __init__(self, id, desc, chroms, data_dir, build_opts='', codonTableMap={}):
+        self.id=id
+        self.desc=desc
+        self.chroms=chroms
+        self.data_dir=data_dir
+        self.build_opts=build_opts
+        self.codonTableMap=codonTableMap
+    def has_genome(self):
         pass
     def install_genome(self, tool):
+        if self.has_genome():
+            return
         pass # check that it doesn't exist already
         #zebov.k.genome : Zaire ebolavirus Kissidougou
         #zebov.k.reference : http://www.ncbi.nlm.nih.gov/nuccore/KJ660346.1
@@ -126,6 +135,6 @@ class SnpEffGenome:
         #   vibrio.chromosomes : NC_002505.1, NC_002506.1
         #   vibrio.NC_002505.1.codonTable : Bacterial_and_Plant_Plastid
         #   vibrio.NC_002506.1.codonTable : Bacterial_and_Plant_Plastid
-
+        
         # cd snpEffpath
         # java -jar snpEff.jar build -genbank -v genomeid
