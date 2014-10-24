@@ -1,6 +1,6 @@
-'''Stuff here'''
+'''class Tool, class InstallMethod, and related subclasses and methods'''
 
-__author__ = "dpark@broadinstitute.org"
+__author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
 import os, logging, tempfile
 import util.file
@@ -14,7 +14,14 @@ except ImportError:
 	from urllib import urlretrieve
 	from urlparse import urlparse
 
-__all__ = ['snpeff','prinseq','last','trimmomatic','bmtagger','samtools','picard']
+# Put all tool files in __all__ so "from tools import *" will import them for testtools
+__all__ = [filename[:-3] # Remove .py
+		   for filename in os.listdir(os.path.dirname(__file__)) # tools directory
+		   if filename.endswith('.py') and
+		      filename[0] != '_' and # Exclude __init__.py
+			  filename not in [ # Add any files to exclude here:
+							  ]
+		  ]
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -166,7 +173,8 @@ class DownloadPackage(InstallMethod):
 		self.unpack(download_dir)
 	def post_download(self):
 		if self.post_download_command:
-			os.system('cd "{}"; {}'.format(self.destination_dir, self.post_download_command))
+			assert not os.system('cd "{}" && {}'.format(self.destination_dir,
+														self.post_download_command))
 	def unpack(self, download_dir):
 		log.debug("unpacking")
 		util.file.mkdir_p(self.destination_dir)
@@ -177,8 +185,8 @@ class DownloadPackage(InstallMethod):
 			else:
 				os.unlink("%s/%s" % (download_dir, self.download_file))
 		elif (self.download_file.endswith('.tar.gz') or
-			  self.download_file.endswith('.tar.bz2') or
-			  self.download_file.endswith('.tgz')):
+			  self.download_file.endswith('.tgz') or
+			  self.download_file.endswith('.tar.bz2')):
 			compression_option = 'j' if self.download_file.endswith('.tar.bz2') else 'z'
 			if os.system("tar -C %s -x%spf %s/%s" % (self.destination_dir,
 													 compression_option,
