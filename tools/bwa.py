@@ -25,6 +25,7 @@ BWA_DIR = '.'.join( [ x for x in URL.split("/")[-2].split('.') if
 class Bwa(tools.Tool) :
 	def __init__(self, install_methods = None) :
 		if install_methods == None :
+			install_methods = []
 			install_methods.append( tools.DownloadPackage(
 				BWA_URL['current'], "%s/bwa" % BWA_DIR,
 				post_download_command = 'cd %s; make' % BWA_DIR))
