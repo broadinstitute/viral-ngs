@@ -10,7 +10,7 @@ import os, logging
 log = logging.getLogger(__name__)
 
 # magic vars for now, later can set with config
-# legacy version is version used in pipeline recipes
+# legacy version is version used in pipeline recipes (see old_scripts dir)
 # current is lates version as of 8/27/2014
 USE_CURRENT = True
 BWA_URL = {
