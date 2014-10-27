@@ -10,6 +10,8 @@ import os, logging
 log = logging.getLogger(__name__)
 
 # magic vars for now, later can set with config
+# legacy version is version used in pipeline recipes
+# current is lates version as of 8/27/2014
 USE_CURRENT = True
 BWA_URL = {
 	'legacy':
@@ -34,13 +36,9 @@ class Bwa(tools.Tool) :
 	def version(self) :
 		return ''.join([c for c in BWA_DIR if c.isdigit() or c=='.'])
 
-	def execute(self, args, options={}):
-		if len(args) != 2:
-			raise TypeException(" bwa command requires exactly 2 arguments" +\
-					" (%s given)" % len(args)
-					)
+	def execute(self, subcommand, args, options={}):
 		arg_str = " ".join(args)
 		option_str = " ".join([ "%s %s" % (k, v) for k, v in
 								options.iteritems()])
-		cmd = "./%s/bwa %s %s" % (BWA_DIR, option_str, arg_str)
+		cmd = "./%s/bwa %s %s %s" % (BWA_DIR, subcommand, option_str, arg_str)
 		os.system(cmd)
