@@ -51,6 +51,7 @@ class Bwa(tools.Tool) :
 		arg_str = " ".join(args)
 		option_str = " ".join([ "{} {}".format(k, v) for k, v in
 								options.iteritems()].append(option_string))
-		cmd = "{} {} {} {}".format(self.exec_path, subcommand, option_str, arg_str)
+		cmd = "{} {} {} {}".format(self.exec_path, subcommand, option_str,
+								   arg_str)
 		log.debug("Calling bwa with cmd: {}".format(cmd))
 		os.system(cmd)

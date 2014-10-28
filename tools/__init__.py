@@ -14,7 +14,8 @@ except ImportError:
 	from urllib import urlretrieve
 	from urlparse import urlparse
 
-# Put all tool files in __all__ so "from tools import *" will import them for testtools
+# Put all tool files in __all__
+# allows "from tools import *" to import all tooles for testtools
 __all__ = [filename[:-3] # Remove .py
 	for filename in os.listdir(os.path.dirname(__file__)) # tools directory
 		if filename.endswith('.py') and filename != '__init__.py' and
@@ -84,9 +85,9 @@ class InstallMethod(object):
 		raise NotImplementedError
 
 class PrexistingUnixCommand(InstallMethod):
-	''' This is an install method that tries to find whether an executable binary
-		already exists for free on the unix file system--it doesn't actually try to
-		install anything.
+	''' This is an install method that tries to find whether an executable
+		binary already exists for free on the unix file system--it doesn't
+		actually try to install anything.
 	'''
 	def __init__(self, path, verifycmd=None, verifycode=0,
 				 require_executability=True):
@@ -116,11 +117,11 @@ class PrexistingUnixCommand(InstallMethod):
 		return self.installed and self.path or None
 
 class DownloadPackage(InstallMethod):
-	''' This is an install method for downloading, unpacking, and post-processing
-			something straight from the source.
-		target_rel_path is the path of the executable relative to destination_dir
+	''' This is an install method for downloading, unpacking, and post-
+			processing straight from the source.
+		target_rel_path is the executable's path relative to destination_dir
 		destination_dir defaults to the project build directory
-		post_download_command will be executed if it isn't None, in destination_dir.
+		post_download_command executed if it isn't None, in destination_dir.
 	'''
 	def __init__(self, url, target_rel_path, destination_dir=None,
 				 verifycmd=None, verifycode=0, require_executability=True,
@@ -175,8 +176,11 @@ class DownloadPackage(InstallMethod):
 		self.unpack(download_dir)
 	def post_download(self):
 		if self.post_download_command:
+			# unnecessary to rename variable, but quick and dirty way to get
+			# 80-completeness
+			post_download_cmd = self.post_download_command
 			assert not os.system('cd "{}" && {}'.format(self.destination_dir,
-														self.post_download_command))
+														post_download_cmd))
 	def unpack(self, download_dir):
 		log.debug("unpacking")
 		util.file.mkdir_p(self.destination_dir)
@@ -199,7 +203,8 @@ class DownloadPackage(InstallMethod):
 			log.debug("Untaring with command: {}".format(untar_cmd))
 			exitCode = os.system(untar_cmd)
 			if exitCode:
-				log.info("tar returned with non-zero exit code {}".format(exitCode))
+				log_str="tar returned non-zero exitcode {}".format(exitCode)
+				log.info(log_str)
 				return
 			else:
 				log.debug("tar returned with exit code 0")
