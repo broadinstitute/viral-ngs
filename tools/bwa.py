@@ -15,13 +15,13 @@ log = logging.getLogger(__name__)
 USE_CURRENT = True
 BWA_URL = {
 	'legacy':
-	    'http://sourceforge.net/projects/bio-bwa/files/bwa-0.6.2.tar.bz2/download',
+	    'http://sourceforge.net/projects/bio-bwa/files/bwa-0.6.2.tar.bz2',
 	'current':
-	    'http://sourceforge.net/projects/bio-bwa/files/bwa-0.7.10.tar.bz2/download'
+	    'http://sourceforge.net/projects/bio-bwa/files/bwa-0.7.10.tar.bz2'
 	}
 
 URL = BWA_URL['current'] if USE_CURRENT else BWA_URL['legacy']
-BWA_DIR = '.'.join( [ x for x in URL.split("/")[-2].split('.') if
+BWA_DIR = '.'.join( [ x for x in URL.split("/")[-1].split('.') if
 						x != "tar" and x != "bz2" and x != "gz"])
 log.debug("BWA_DIR: %s" % BWA_DIR)
 
@@ -31,7 +31,7 @@ class Bwa(tools.Tool) :
 			install_methods = []
 			install_methods.append( tools.DownloadPackage(
 				BWA_URL['current'], "%s/bwa" % BWA_DIR,
-				post_download_command="cd %s; make" % BWA_DIR))
+				post_download_command="cd %s; make" % (BWA_DIR, BWA_DIR)))
 			tools.Tool.__init__(self, install_methods = install_methods)
 
 	def version(self) :

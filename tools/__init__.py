@@ -16,12 +16,11 @@ except ImportError:
 
 # Put all tool files in __all__ so "from tools import *" will import them for testtools
 __all__ = [filename[:-3] # Remove .py
-		   for filename in os.listdir(os.path.dirname(__file__)) # tools directory
-		   if filename.endswith('.py') and
-		      filename != '__init__.py' and
-			  filename not in [ # Add any files to exclude here:
-							  ]
-		  ]
+	for filename in os.listdir(os.path.dirname(__file__)) # tools directory
+		if filename.endswith('.py') and filename != '__init__.py' and
+			filename not in [ # Add any files to exclude here:
+			]
+	]
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ def get_tool_by_name(name):
 
 class Tool(object):
 	''' Base tool class that includes install machinery.
-		
+
 		TO DO: add something about dependencies..
 	'''
 	def __init__(self, install_methods=[]):
@@ -89,7 +88,8 @@ class PrexistingUnixCommand(InstallMethod):
 		already exists for free on the unix file system--it doesn't actually try to
 		install anything.
 	'''
-	def __init__(self, path, verifycmd=None, verifycode=0, require_executability=True):
+	def __init__(self, path, verifycmd=None, verifycode=0,
+				 require_executability=True):
 		self.path = path
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
@@ -100,11 +100,11 @@ class PrexistingUnixCommand(InstallMethod):
 		return self.attempted
 	def attempt_install(self):
 		self.attempted = True
-		if os.access(self.path,
-					 (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
+		if os.access(self.path, (os.X_OK | os.R_OK) if
+				self.require_executability else os.R_OK):
 			if self.verifycmd:
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
-			else:	
+			else:
 				self.installed = True
 		else:
 			self.installed = False
@@ -117,7 +117,7 @@ class PrexistingUnixCommand(InstallMethod):
 
 class DownloadPackage(InstallMethod):
 	''' This is an install method for downloading, unpacking, and post-processing
-		    something straight from the source.
+			something straight from the source.
 		target_rel_path is the path of the executable relative to destination_dir
 		destination_dir defaults to the project build directory
 		post_download_command will be executed if it isn't None, in destination_dir.
@@ -143,12 +143,12 @@ class DownloadPackage(InstallMethod):
 	def executable_path(self):
 		return self.installed and self.targetpath or None
 	def verify_install(self):
-		if os.access(self.targetpath,
-					 (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
+		if os.access(self.targetpath, (os.X_OK | os.R_OK) if
+				self.require_executability else os.R_OK):
 			if self.verifycmd:
 				log.debug("validating")
 				self.installed = (os.system(self.verifycmd) == self.verifycode)
-			else:	
+			else:
 				self.installed = True
 		else:
 			self.installed = False
@@ -163,11 +163,13 @@ class DownloadPackage(InstallMethod):
 	def pre_download(self):
 		pass
 	def download(self):
-		log.debug("downloading")
 		download_dir = tempfile.gettempdir()
 		util.file.mkdir_p(download_dir)
 		filepath = urlparse(self.url).path
 		filename = filepath.split('/')[-1]
+		log.info("Downloading from {} ...".format(self.url,
+												  download_dir,
+												  filename))
 		urlretrieve(self.url, "%s/%s" % (download_dir,filename))
 		self.download_file = filename
 		self.unpack(download_dir)
@@ -179,21 +181,28 @@ class DownloadPackage(InstallMethod):
 		log.debug("unpacking")
 		util.file.mkdir_p(self.destination_dir)
 		if self.download_file.endswith('.zip'):
-			if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file,
-															   self.destination_dir)):
+			if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir,
+				self.download_file, self.destination_dir)):
+
 				return
 			else:
 				os.unlink("%s/%s" % (download_dir, self.download_file))
 		elif (self.download_file.endswith('.tar.gz') or
 			  self.download_file.endswith('.tgz') or
 			  self.download_file.endswith('.tar.bz2')):
-			compression_option = 'j' if self.download_file.endswith('.tar.bz2') else 'z'
-			if os.system("tar -C %s -x%spf %s/%s" % (self.destination_dir,
-													 compression_option,
-													 download_dir,
-													 self.download_file)):
+			compression_option = 'j' if self.download_file.endswith( \
+					'.tar.bz2') else 'z'
+			untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir,
+														compression_option,
+														download_dir,
+														self.download_file)
+			log.debug("Untaring with command: {}".format(untar_cmd))
+			exitCode = os.system(untar_cmd)
+			if exitCode:
+				log.info("tar returned with non-zero exit code {}".format(exitCode))
 				return
 			else:
+				log.debug("tar returned with exit code 0")
 				os.unlink("%s/%s" % (download_dir, self.download_file))
 		else :
 			os.rename(os.path.join(download_dir, self.download_file),
