@@ -9,7 +9,7 @@ import os, logging
 
 log = logging.getLogger(__name__)
 
-# magic vars for now, later can set with config
+# magic vars for now, later can set with config variables
 # legacy version is version used in pipeline recipes (see old_scripts dir)
 # current is lates version as of 8/27/2014
 USE_CURRENT = True
@@ -23,23 +23,34 @@ BWA_URL = {
 URL = BWA_URL['current'] if USE_CURRENT else BWA_URL['legacy']
 BWA_DIR = '.'.join( [ x for x in URL.split("/")[-1].split('.') if
 						x != "tar" and x != "bz2" and x != "gz"])
-log.debug("BWA_DIR: %s" % BWA_DIR)
+log.debug("BWA_DIR: {}".format(BWA_DIR))
 
 class Bwa(tools.Tool) :
 	def __init__(self, install_methods = None) :
 		if install_methods == None :
 			install_methods = []
 			install_methods.append( tools.DownloadPackage(
-				BWA_URL['current'], "%s/bwa" % BWA_DIR,
-				post_download_command="cd %s; make" % (BWA_DIR, BWA_DIR)))
+				BWA_URL['current'], "{}/bwa".format(BWA_DIR),
+				post_download_command="cd {}; make".format(BWA_DIR)))
 			tools.Tool.__init__(self, install_methods = install_methods)
 
 	def version(self) :
 		return ''.join([c for c in BWA_DIR if c.isdigit() or c=='.'])
 
-	def execute(self, subcommand, args, options={}):
+	def execute(self, subcommand, args=[], options={}, option_string=""):
+		"""
+		args are required arguments for the specified bwa subcommand
+			(order matters for bwa execution)
+		options may be specified as key-value pairs of the form (flag: value)
+			leading dashes ('-' or '--') should be included in the key
+			for flags without value arguments, value should equal the empty str
+			(order does not matter for bwa execution)
+		option_string spefifies options in preformatted string.
+			An alternative to options, but may be use in conjuction as well.
+		"""
 		arg_str = " ".join(args)
-		option_str = " ".join([ "%s %s" % (k, v) for k, v in
-								options.iteritems()])
-		cmd = "./%s/bwa %s %s %s" % (BWA_DIR, subcommand, option_str, arg_str)
+		option_str = " ".join([ "{} {}".format(k, v) for k, v in
+								options.iteritems()].append(option_string))
+		cmd = "{} {} {} {}".format(self.exec_path, subcommand, option_str, arg_str)
+		log.debug("Calling bwa with cmd: {}".format(cmd))
 		os.system(cmd)
