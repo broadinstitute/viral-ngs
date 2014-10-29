@@ -18,20 +18,21 @@ class TestTrimmomatic(unittest.TestCase) :
 	def tearDown(self) :
 		util.file.destroy_tmpDir()
 	def test_trimmomatic(self) :
-		inputDir = util.file.get_test_input_path(self)
-		inFastq1 = os.path.join(inputDir, 'in1.fastq')
-		inFastq2 = os.path.join(inputDir, 'in2.fastq')
+		inputDir = util.file.get_test_input_path()
+		testInputDir = util.file.get_test_input_path(self)
+		inFastq1 = os.path.join(testInputDir, 'in1.fastq')
+		inFastq2 = os.path.join(testInputDir, 'in2.fastq')
 		pairedOutFastq1 = util.file.mkstempfname()
 		pairedOutFastq2 = util.file.mkstempfname()
-		clipFasta = os.path.join(inputDir, 'clip.fasta')
+		clipFasta = os.path.join(testInputDir, 'clip.fasta')
 		parser = taxon_filter.parser_trim_trimmomatic()
 		args = parser.parse_args([inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
 								 clipFasta])
 		taxon_filter.main_trim_trimmomatic(args)
 
 		# Check that results match expected
-		expected1Fastq = os.path.join(inputDir, 'expected1.fastq')
-		expected2Fastq = os.path.join(inputDir, 'expected2.fastq')
+		expected1Fastq = os.path.join(testInputDir, 'expected1.fastq')
+		expected2Fastq = os.path.join(testInputDir, 'expected2.fastq')
 		self.assertEqual(open(pairedOutFastq1).read(), open(expected1Fastq).read())
 		self.assertEqual(open(pairedOutFastq2).read(), open(expected2Fastq).read())
 
@@ -42,7 +43,8 @@ class TestFilterLastal(unittest.TestCase) :
 		util.file.destroy_tmpDir()
 	def test_filter_lastal(self) :
 		# Create refDbs
-		inputDir = util.file.get_test_input_path(self)
+		inputDir = util.file.get_test_input_path()
+		testInputDir = util.file.get_test_input_path(self)
 		refFasta = os.path.join(inputDir, 'ebola.fasta')
 		dbsDir = tempfile.mkdtemp()
 		refDbs = os.path.join(dbsDir, 'ebola')
@@ -51,13 +53,13 @@ class TestFilterLastal(unittest.TestCase) :
 															refDbs = refDbs,
 															refFasta = refFasta))
 		# Call main_filter_lastal
-		inFastq = os.path.join(inputDir, 'in.fastq')
+		inFastq = os.path.join(testInputDir, 'in.fastq')
 		outFastq = util.file.mkstempfname()
 		args = taxon_filter.parser_filter_lastal().parse_args([inFastq, refDbs, outFastq])
 		taxon_filter.main_filter_lastal(args)
 
 		# Check that results match expected
-		expectedFastq = os.path.join(inputDir, 'expected.fastq')
+		expectedFastq = os.path.join(testInputDir, 'expected.fastq')
 		self.assertEqual(open(outFastq + '.fastq').read(), open(expectedFastq).read())
 
 if __name__ == '__main__':

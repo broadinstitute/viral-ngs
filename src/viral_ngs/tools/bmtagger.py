@@ -12,7 +12,8 @@ class BmtaggerTool(tools.Tool) :
 	def __init__(self, install_methods = None) :
 		if install_methods == None :
 			install_methods = []
-			install_methods.append(tools.DownloadPackage(bmtaggerURL, 'bmtagger.sh',
+			install_methods.append(tools.DownloadPackage(bmtaggerURL,
+														 'bmtagger.sh',
 														 require_executability = False))
 			#install_methods.append(tools.PrexistingUnixCommand(bmtaggerBroadUnixPath,
 			#												   require_executability=False))
