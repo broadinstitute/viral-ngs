@@ -121,11 +121,16 @@ class DownloadPackage(InstallMethod):
 			processing straight from the source.
 		target_rel_path is the executable's path relative to destination_dir
 		destination_dir defaults to the project build directory
+<<<<<<< HEAD
 		post_download_command executed if it isn't None, in destination_dir.
+=======
+		post_download_command will be executed if it isn't None, in destination_dir.
+		if post_download_ret != None, assert it is returned by post_download_command
+>>>>>>> 9bd58d8122f80d6f85a7fed5d7ce45f9ecd46279
 	'''
 	def __init__(self, url, target_rel_path, destination_dir=None,
 				 verifycmd=None, verifycode=0, require_executability=True,
-				 post_download_command=None):
+				 post_download_command=None, post_download_ret=0):
 		if destination_dir == None :
 			destination_dir = util.file.get_build_path()
 		self.url = url
@@ -137,6 +142,7 @@ class DownloadPackage(InstallMethod):
 		self.installed = False
 		self.require_executability = require_executability
 		self.post_download_command = post_download_command
+		self.post_download_ret = post_download_ret
 	def is_attempted(self):
 		return self.attempted
 	def is_installed(self):
@@ -176,11 +182,10 @@ class DownloadPackage(InstallMethod):
 		self.unpack(download_dir)
 	def post_download(self):
 		if self.post_download_command:
-			# unnecessary to rename variable, but quick and dirty way to get
-			# 80-completeness
-			post_download_cmd = self.post_download_command
-			assert not os.system('cd "{}" && {}'.format(self.destination_dir,
-														post_download_cmd))
+			return_code = os.system('cd "{}" && {}'.format(self.destination_dir,
+														self.post_download_command))
+			if self.post_download_ret != None:
+				assert return_code == self.post_download_ret
 	def unpack(self, download_dir):
 		log.debug("unpacking")
 		util.file.mkdir_p(self.destination_dir)
