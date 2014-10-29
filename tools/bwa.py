@@ -53,7 +53,7 @@ class Bwa(tools.Tool) :
 		"""
 		arg_str = " ".join(args)
 		option_str = '{} {}'.format(' '.join([ "{} {}".format(k, v) for k, v in
-												options.iteritems() ]),
+												options.items() ]),
 									option_string
 									)
 		cmd =  "{self.exec_path} {subcommand} {option_str} {arg_str} {post_cmd}" \
