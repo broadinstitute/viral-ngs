@@ -16,4 +16,4 @@ log = logging.getLogger(__name__)
 
 
 if __name__ == '__main__':
-	util.cmd.main_argparse(__commands__, __doc__)
+    util.cmd.main_argparse(__commands__, __doc__)
