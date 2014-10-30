@@ -6,24 +6,24 @@ url = 'https://github.com/broadinstitute/picard/releases/download/1.123/picard-t
 picardBroadUnix = '/seq/software/picard/current/bin'
 
 class PicardTool(tools.Tool) :
-	"""'Abstract' base class for tools in the picard suite.
-	   Subclasses must define class member subtoolName=."""
-	def __init__(self, install_methods = None) :
-		if install_methods == None :
-			install_methods = []
-			target_rel_path = 'picard-tools-1.123/{}'.format(self.subtoolName)
-			install_methods.append(tools.DownloadPackage(url, target_rel_path,
-														 require_executability=False))
-			#broadUnixPath = picardBroadUnix + '/' + subtoolName
-			#install_methods.append(tools.PrexistingUnixCommand(broadUnixPath,
-			#												   require_executability=False))
-		tools.Tool.__init__(self, install_methods = install_methods)
+    """'Abstract' base class for tools in the picard suite.
+       Subclasses must define class member subtoolName=."""
+    def __init__(self, install_methods = None) :
+        if install_methods == None :
+            install_methods = []
+            target_rel_path = 'picard-tools-1.123/{}'.format(self.subtoolName)
+            install_methods.append(tools.DownloadPackage(url, target_rel_path,
+                                                         require_executability=False))
+            #broadUnixPath = picardBroadUnix + '/' + subtoolName
+            #install_methods.append(tools.PrexistingUnixCommand(broadUnixPath,
+            #                                                  require_executability=False))
+        tools.Tool.__init__(self, install_methods = install_methods)
 
 class MarkDuplicatesTool(PicardTool) :
-	subtoolName = 'MarkDuplicates.jar'
+    subtoolName = 'MarkDuplicates.jar'
 
 class SamToFastqTool(PicardTool) :
-	subtoolName = 'SamToFastq.jar'
+    subtoolName = 'SamToFastq.jar'
 
 class SortSamTool(PicardTool) :
-	subtoolName = 'SortSam.jar'
+    subtoolName = 'SortSam.jar'
