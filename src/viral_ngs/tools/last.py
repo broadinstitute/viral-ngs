@@ -6,14 +6,16 @@ import os
 #lastBroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/last'
 
 class LastTools(tools.Tool) :
-    """Abstract base class for tools in the 'last' suite.
-       Subclasses must define class members subtoolName and subtoolNameOnBroad."""
+    """
+    Abstract base class for tools in the 'last' suite.
+    Subclasses must define class members subtoolName and subtoolNameOnBroad.
+    """
     def __init__(self, install_methods = None) :
         if install_methods == None :
             install_methods = []
             install_methods.append(DownloadAndBuildLast(self.subtoolName))
-            #Version of last on broad is old, database-incompatible with newer one,
-            #   so don't use it and always load the newer version
+            #Version of last on broad is old, database-incompatible with newer
+            # one, so don't use it and always load the newer version
             #path = os.path.join(lastBroadUnixPath, self.subtoolNameOnBroad)
             #install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods = install_methods)
@@ -50,6 +52,7 @@ class MafConvert(LastTools) :
 class MafConvert(tools.Tool) :
     def __init__(self, install_methods = None):
         if install_methods == None:
-            path = os.path.join(util.file.get_scripts_path(), 'maf-convert.last-490.2to3.py')
+            path = os.path.join(util.file.get_scripts_path(),
+                                'maf-convert.last-490.2to3.py')
             install_methods = [tools.PrexistingUnixCommand(path)]
         tools.Tool.__init__(self, install_methods = install_methods)
