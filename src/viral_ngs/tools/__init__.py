@@ -76,8 +76,11 @@ class InstallMethod(object):
 		self.attempts = 0
 	def is_attempted(self):
 		return self.attempts
-	def attempt_install(self):
+	def attempt_install(self): # Don't override this. Instead, override _attempt_install.
 		self.attempts += 1
+		self._attempt_install()
+	def _attempt_install(self):
+		raise NotImplementedError
 	def is_installed(self):
 		raise NotImplementedError
 	def executable_path(self):
@@ -93,13 +96,10 @@ class PrexistingUnixCommand(InstallMethod):
 		self.path = path
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
-		self.attempted = False
 		self.installed = False
 		self.require_executability = require_executability
-	def is_attempted(self):
-		return self.attempted
-	def attempt_install(self):
-		self.attempted = True
+		InstallMethod.__init__(self)
+	def _attempt_install(self):
 		if os.access(self.path, (os.X_OK | os.R_OK) if
 				self.require_executability else os.R_OK):
 			if self.verifycmd:
@@ -133,13 +133,11 @@ class DownloadPackage(InstallMethod):
 		self.destination_dir = destination_dir
 		self.verifycmd = verifycmd
 		self.verifycode = verifycode
-		self.attempted = False
 		self.installed = False
 		self.require_executability = require_executability
 		self.post_download_command = post_download_command
 		self.post_download_ret = post_download_ret
-	def is_attempted(self):
-		return self.attempted
+		InstallMethod.__init__(self)
 	def is_installed(self):
 		return self.installed
 	def executable_path(self):
@@ -155,8 +153,7 @@ class DownloadPackage(InstallMethod):
 		else:
 			self.installed = False
 		return self.installed
-	def attempt_install(self):
-		self.attempted = True
+	def _attempt_install(self):
 		if not self.verify_install():
 			self.pre_download()
 			self.download()
