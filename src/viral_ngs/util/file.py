@@ -35,7 +35,9 @@ def get_test_path() :
     return os.path.join(get_project_path(), 'test')
 
 def get_test_input_path(testClassInstance=None) :
-    '''Return the path to the directory for input files for the specified test class'''
+    '''Return the path to the directory containing input files for the specified
+       test class
+    '''
     if testClassInstance is not None :
         return os.path.join(get_test_path(), 'input',
                             type(testClassInstance).__name__)
@@ -43,10 +45,10 @@ def get_test_input_path(testClassInstance=None) :
         return os.path.join(get_test_path(), 'input')
 
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
-    ''' There's no other one-liner way to securely ask for a temp file by filename only.
-        This calls mkstemp, which does what we want, except that it returns an open
-        file handle, which causes huge problems on NFS if we don't close it.  So close
-        it first then return the name part only.
+    ''' There's no other one-liner way to securely ask for a temp file by
+        filename only.  This calls mkstemp, which does what we want, except
+        that it returns an open file handle, which causes huge problems on NFS
+        if we don't close it.  So close it first then return the name part only.
     '''
     fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=dir, text=text)
     os.close(fd)
@@ -76,7 +78,8 @@ def mkdir_p(dirpath):
         else: raise
 
 def open_or_gzopen(fname, mode):
-    return fname.endswith('.gz') and gzip.GzipFile(fname, mode) or open(fname, mode)
+    return fname.endswith('.gz') and gzip.GzipFile(fname, mode) \
+            or open(fname, mode)
 
 def cat_files_and_header(inFiles, outFile, add_header=None, strip_in_rows=0):
     ''' This is like cat... except that we optionally drop header rows from
@@ -109,7 +112,9 @@ def intervals(i, n, l):
     return (start,stop)
 
 def read_tabfile_dict(inFile):
-    ''' Read a tab text file (possibly gzipped) and return contents as an iterator of dicts. '''
+    ''' Read a tab text file (possibly gzipped) and return contents as an
+        iterator of dicts.
+    '''
     with open_or_gzopen(inFile, 'rt') as inf:
         header = None
         for line in inf:
@@ -124,7 +129,9 @@ def read_tabfile_dict(inFile):
                 yield dict((k,v) for k,v in zip(header, row) if v)
 
 def read_tabfile(inFile):
-    ''' Read a tab text file (possibly gzipped) and return contents as an iterator of arrays. '''
+    ''' Read a tab text file (possibly gzipped) and return contents as an
+        iterator of arrays.
+    '''
     with open_or_gzopen(inFile, 'rt') as inf:
         for line in inf:
             if not line.startswith('#'):
@@ -138,9 +145,11 @@ def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
     return header
 
 class FlatFileParser:
-    ''' Generic flat file parser that parses tabular text input '''
-    def __init__(self, lineIter=None, name=None, outType='dict', readHeader=True,
-        headerPrefix='#', delim='\t', requireUniqueHeader=False):
+    ''' Generic flat file parser that parses tabular text input
+    '''
+    def __init__(self, lineIter=None, name=None, outType='dict',
+            readHeader=True, headerPrefix='#', delim='\t',
+            requireUniqueHeader=False):
         self.lineIter = lineIter
         self.header = None
         self.name = name
@@ -152,16 +161,20 @@ class FlatFileParser:
         assert outType in ('dict','arrayStrict', 'arrayLoose','both')
         self.outType=outType
         assert readHeader or outType in ('arrayStrict', 'arrayLoose')
+
     def __enter__(self):
         return self
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         return 0
+
     def __iter__(self):
         assert self.lineIter
         for row in self.lineIter:
             out = self.parse(row)
             if out != None:
                 yield out
+
     def parse(self, row):
         self.line_num += 1
         try:
@@ -180,34 +193,44 @@ class FlatFileParser:
             else:
                 return self.parseRow(line)
         except Exception as e:
+            template = "Exception parsing file at line {}. Line contents: '{}'"
+            message = template.format(self.line_num, row)
             if self.name:
-                log.exception("Exception parsing file at line %d.  Line contents: '%s'  File: %s" % (self.line_num, row, self.name))
+                log.exception("{message}  File: {self.name}".format(**locals()))
             else:
-                log.exception("Exception parsing file at line %d.  Line contents: '%s'" % (self.line_num, row))
+                log.exception(message)
             raise
+
     def parseHeader(self, row):
         assert row
         self.header = row
         if self.outType != 'arrayLoose':
             assert len(row) == len(dict([(x,0) for x in row]))
+
     def parseRow(self, row):
-        assert self.outType=='arrayLoose' or self.header and len(self.header)==len(row)
-        if self.outType=='arrayLoose' or self.outType=='arrayStrict':
+        assert self.outType == 'arrayLoose' or ( self.header and
+                len(self.header) == len(row) )
+
+        if self.outType =='arrayLoose' or self.outType == 'arrayStrict' :
             return row
-        out = dict([(self.header[i],row[i]) for i in range(len(self.header))])
+        out = { self.header[i]: row[i] for i in range( len(self.header) ) }
         if self.outType=='both':
             for i in range(len(self.header)):
                 out[i] = row[i]
         return out
 
+
 class FlatFileMaker:
-    def __init__(self, header, mapIter, comment='#', delim='\t', nullchar='', noHeaderline=False):
+
+    def __init__(self, header, mapIter, comment='#', delim='\t', nullchar='',
+            noHeaderline=False):
         self.comment = comment
         self.delim = delim
         self.header = header
         self.nullchar = nullchar
         self.maps = mapIter
         self.noHeaderline = noHeaderline
+
     def __iter__(self):
         if not self.noHeaderline:
             yield self.comment + self.delim.join(self.header) + "\n"
@@ -217,12 +240,15 @@ class FlatFileMaker:
 
 
 def fastaMaker(seqs, linewidth=60):
-    assert linewidth>0
-    for id,seq in seqs:
-        yield ">"+id+"\n"
-        while len(seq)>linewidth:
+    assert linewidth > 0
+
+    for id, seq in seqs:
+        yield "> {} \n".format(id)
+
+        while len(seq) > linewidth:
             line = seq[:linewidth]
             seq = seq[linewidth:]
-            yield line+"\n"
+            yield "{} \n".format(line)
+
         if seq:
             yield seq+"\n"
