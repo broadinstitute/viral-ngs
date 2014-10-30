@@ -96,6 +96,8 @@ def filter_lastal(inFastq, refDbs, outFastq):
                                         'noBlastLikeHits.py')
 
     # each pipe separated cmd gets own line
+    # unfortunately, it doesn't seem to work to do .format(**locals()) on the
+    # final string as opposed to the individual parts.
     lastalCmd = ' '.join([
         '{lastalPath} -Q1 {refDbs} {inFastq}'.format(**locals()),
         '| {mafSortPath} -n2'.format(**locals()),
