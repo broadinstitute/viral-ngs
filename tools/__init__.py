@@ -18,7 +18,7 @@ except ImportError:
 __all__ = [filename[:-3] # Remove .py
 		   for filename in os.listdir(os.path.dirname(__file__)) # tools directory
 		   if filename.endswith('.py') and
-		      filename[0] != '_' and # Exclude __init__.py
+		      filename != '__init__.py' and
 			  filename not in [ # Add any files to exclude here:
 							  ]
 		  ]
