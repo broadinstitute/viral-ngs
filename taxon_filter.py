@@ -3,7 +3,8 @@
 on membership or non-membership in a species / genus / taxonomic grouping.
 '''
 
-__author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
+__author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
+                + "hlevitin@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
@@ -14,99 +15,147 @@ import tools.last, tools.prinseq, tools.trimmomatic
 
 log = logging.getLogger(__name__)
 
+def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
+        clipFasta):
+    """
+    TODO: docstring here
+    """
+    trimmomaticPath = tools.trimmomatic.TrimmomaticTool() \
+        .install_and_get_path()
+    tmpUnpaired1 = util.file.mkstempfname()
+    tmpUnpaired2 = util.file.mkstempfname()
 
-def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta):
-	trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
-	tempUnpaired1 = util.file.mkstempfname()
-	tempUnpaired2 = util.file.mkstempfname()
-	cmdline = (
-		'java -Xmx2g -classpath {trimmomaticPath} '.format(trimmomaticPath = trimmomaticPath) +
-			'org.usadellab.trimmomatic.TrimmomaticPE ' +
-			' '.join([inFastq1, inFastq2, pairedOutFastq1, tempUnpaired1, pairedOutFastq2, tempUnpaired2]) +
-			' LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30 ' +
-			'ILLUMINACLIP:{clipFasta}:2:30:12 && '.format(clipFasta = clipFasta) +
-		'rm {tempUnpaired1} {tempUnpaired2}'.format(tempUnpaired1 = tempUnpaired1, tempUnpaired2 = tempUnpaired2)
-			   )
-	log.debug(cmdline)
-	assert not os.system(cmdline)
-	
+    #  This java program has a lot of argments...
+    javaCmd = ' '.join( [ 'java -Xmx2g -classpath',
+        trimmomaticPath,
+        'org.usadellab.trimmomatic.TrimmomaticPE',
+        inFastq1,
+        inFastq2,
+        pairedOutFastq1,
+        tmpUnpaired1,
+        pairedOutFastq2,
+        tmpUnpaired2,
+        'LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30',
+        'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
+        ])
+
+    fullCmd = "{javaCmd} && rm {tmpUnpaired1} {tmpUnpaired2}".format(**locals())
+    log.info("Running command: {}".format(fullCmd))
+    assert not os.system(fullCmd)
+
 def parser_trim_trimmomatic():
-	parser = argparse.ArgumentParser(
-		description='''Trim read sequences with Trimmomatic.''')
-	parser.add_argument("inFastq1", help = "Input reads 1")
-	parser.add_argument("inFastq2", help = "Input reads 2")
-	parser.add_argument("pairedOutFastq1", help = "Paired output 1")
-	parser.add_argument("pairedOutFastq2", help = "Paired output 2")
-	parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR sequences, etc. to clip off")
-		# clipFasta = /idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta
-	util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    """
+    TODO: docstring here
+    original clipFasta =
+        /idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta
+    """
+    parser = argparse.ArgumentParser(
+        description='''Trim read sequences with Trimmomatic.''')
+    parser.add_argument("inFastq1", help = "Input reads 1")
+    parser.add_argument("inFastq2", help = "Input reads 2")
+    parser.add_argument("pairedOutFastq1", help = "Paired output 1")
+    parser.add_argument("pairedOutFastq2", help = "Paired output 2")
+    parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR "
+                        + "sequences, etc. to clip off")
 
-	# Future: handle BAM input and output; handle multiple databases.
-	# Will need to implement bam->fastq->bam wrappers that maintain the read metadata
-	#parser.add_argument("inBam", help="Input BAM file")
-	#parser.add_argument("outBam", help="Output BAM file")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    return parser
 
-	return parser
+    # Future: handle BAM input and output; handle multiple databases.
+    # Will need to implement bam->fastq->bam wrappers that maintain the read
+    # metadata
+    #parser.add_argument("inBam", help="Input BAM file")
+    #parser.add_argument("outBam", help="Output BAM file")
 
 def main_trim_trimmomatic(args):
-	'''Perhaps move this to a separate script of general bam/alignment utility functions?...'''
-	inFastq1 = args.inFastq1
-	inFastq2 = args.inFastq2
-	pairedOutFastq1 = args.pairedOutFastq1
-	pairedOutFastq2 = args.pairedOutFastq2
-	clipFasta = args.clipFasta
-	trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
-	return 0
-__commands__.append(('trim_trimmomatic', main_trim_trimmomatic, parser_trim_trimmomatic))
+    '''
+        Perhaps move this to a separate script of general bam/alignment utility
+        functions?...
+    '''
+    inFastq1 = args.inFastq1
+    inFastq2 = args.inFastq2
+    pairedOutFastq1 = args.pairedOutFastq1
+    pairedOutFastq2 = args.pairedOutFastq2
+    clipFasta = args.clipFasta
+    trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
+    return 0
 
+__commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
+                     parser_trim_trimmomatic))
 
 def filter_lastal(inFastq, refDbs, outFastq):
-	tempFilePath = util.file.mkstempfname()
-	lastalPath = tools.last.Lastal().install_and_get_path()
-	mafSortPath = tools.last.MafSort().install_and_get_path()
-	mafConvertPath = tools.last.MafConvert().install_and_get_path()
-	prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
-	noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
-	
-	cmdline = (
-		'{lastalPath} -Q1 {refDbs} {inFastq} |'.format(lastalPath = lastalPath, refDbs = refDbs, inFastq = inFastq) +
-		'{mafSortPath} -n2 |'.format(mafSortPath = mafSortPath) +
-		'{mafConvertPath} tab /dev/stdin > {tempFilePath} &&'.format(
-			mafConvertPath = mafConvertPath, tempFilePath = tempFilePath) +
-		'python {noBlastLikeHitsPath} -b {tempFilePath} -r {inFastq} -m hit |'.format(noBlastLikeHitsPath = noBlastLikeHitsPath,
-			tempFilePath = tempFilePath, inFastq = inFastq) +
-		'perl {prinseqPath} -ns_max_n 1 -derep 1 -fastq stdin '.format(prinseqPath = prinseqPath) +
-			'-out_bad null -line_width 0 -out_good {outFastq} &&'.format(outFastq = outFastq) +
-		'rm {tempFilePath}'.format(tempFilePath = tempFilePath))
-	log.debug(cmdline)
-	assert not os.system(cmdline)
+    """
+    TODO: docstring here
+    """
+    tempFilePath = util.file.mkstempfname()
+    lastalPath = tools.last.Lastal().install_and_get_path()
+    mafSortPath = tools.last.MafSort().install_and_get_path()
+    mafConvertPath = tools.last.MafConvert().install_and_get_path()
+    prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
+    noBlastLikeHitsPath = os.path.join( util.file.get_scripts_path(),
+                                        'noBlastLikeHits.py')
+
+    # each pipe separated cmd gets own line
+    # unfortunately, it doesn't seem to work to do .format(**locals()) on the
+    # final string as opposed to the individual parts.
+    lastalCmd = ' '.join([
+        '{lastalPath} -Q1 {refDbs} {inFastq}'.format(**locals()),
+        '| {mafSortPath} -n2'.format(**locals()),
+        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(**locals()),
+        ])
+
+    # each option/flag on own line
+    noBlastLikeHitsCmd = ' '.join([
+        'python', noBlastLikeHitsPath,
+            '-b', tempFilePath,
+            '-r', inFastq,
+            '-m hit' ])
+
+    prinseqCmd = ' '.join([
+        'perl', prinseqPath,
+            '-ns_max_n 1',
+            '-derep 1',
+            '-fastq stdin',
+            '-out_bad null',
+            '-line_width 0',
+            '-out_good', outFastq,
+        '&& rm', tempFilePath
+        ])
+
+    fullCmd = "{lastalCmd} && {noBlastLikeHitsCmd} | {prinseqCmd}" \
+        .format(**locals())
+
+    log.debug(fullCmd)
+    assert not os.system(fullCmd)
 
 def parser_filter_lastal():
-	parser = argparse.ArgumentParser(
-		description = '''Restrict input reads to those that align to the given
-		reference database using LASTAL.''')
-	parser.add_argument("inFastq", help = "Input fastq file")
-	parser.add_argument("refDbs", help = "Reference database to retain from input")
-	parser.add_argument("outFastq", help = "Output fastq file")
-	util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-	
-	# Future: handle BAM input and output; handle multiple databases.
-	# Will need to implement bam->fastq->bam wrappers that maintain the read metadata
-	#parser.add_argument("inBam", help="Input BAM file")
-	#parser.add_argument("outBam", help="Output BAM file")
-	
-	return parser
+    parser = argparse.ArgumentParser(
+        description = '''Restrict input reads to those that align to the given
+        reference database using LASTAL.''')
+    parser.add_argument("inFastq", help="Input fastq file")
+    parser.add_argument("refDbs",
+                        help="Reference database to retain from input")
+    parser.add_argument("outFastq", help = "Output fastq file")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+
+    # Future: handle BAM input and output; handle multiple databases.
+    # Will need to implement bam->fastq->bam wrappers that maintain the read
+    # metadata
+    #parser.add_argument("inBam", help="Input BAM file")
+    #parser.add_argument("outBam", help="Output BAM file")
+
+    return parser
+
 def main_filter_lastal(args):
-	inFastq = args.inFastq
-	refDbs = args.refDbs
-	outFastq = args.outFastq
-	filter_lastal(inFastq, refDbs, outFastq)
-	return 0
+    inFastq = args.inFastq
+    refDbs = args.refDbs
+    outFastq = args.outFastq
+    filter_lastal(inFastq, refDbs, outFastq)
+    return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
-
 def deplete_bmtagger(inBam, refDbs):
-	''' KGA's "recipe" for human read depletion
+    ''' KGA's "recipe" for human read depletion
 #-------- CLEANING OF READS FOR SRA SUBMISSION --------#
 # MAKE REQUIRED SUB-DIRECTORIES - DON'T DO THIS IF YOU ALREADY CREATED THESE WITH ANOTHER PIPELINE
 for directory in
@@ -282,24 +331,24 @@ bsub -W 4:00 -q hour -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_l
 done
 done
 done
-	'''
-	raise ("not yet implemented")
+    '''
+    raise ("not yet implemented")
 
 
 def parser_deplete_bmtagger():
-	parser = argparse.ArgumentParser(
-		description='''Deplete human reads and other contaminants using bmtagger''')
-	parser.add_argument("inBam", help="Input BAM file")
-	parser.add_argument("refDbs", nargs='+',
-		help="""Reference databases (one or more) to deplete from input""")
-	parser.add_argument("outBam", help="Output BAM file")
-	util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
-	return parser
+    parser = argparse.ArgumentParser(
+        description='''Deplete human reads and other contaminants using bmtagger''')
+    parser.add_argument("inBam", help="Input BAM file")
+    parser.add_argument("refDbs", nargs='+',
+        help="""Reference databases (one or more) to deplete from input""")
+    parser.add_argument("outBam", help="Output BAM file")
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    return parser
 def main_deplete_bmtagger(args):
-	raise ("not yet implemented")
-	return 0
+    raise ("not yet implemented")
+    return 0
 __commands__.append(('deplete_bmtagger', main_deplete_bmtagger, parser_deplete_bmtagger))
 
 
 if __name__ == '__main__':
-	util.cmd.main_argparse(__commands__, __doc__)
+    util.cmd.main_argparse(__commands__, __doc__)

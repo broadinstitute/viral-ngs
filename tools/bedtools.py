@@ -1,3 +1,3 @@
 
 
-#	'bedtools':	'/idi/sabeti-data/software/bedtools/bin',
+#   'bedtools': '/idi/sabeti-data/software/bedtools/bin',

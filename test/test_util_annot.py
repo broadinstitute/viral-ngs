@@ -6,16 +6,16 @@ import util.annot
 import unittest
 
 class TestGeneDb(unittest.TestCase):
-	def setUp(self):
-		pass
-		
-	def testNothingAtAll(self):
-		'''here we test nothing at all and this should pass'''
-		pass
-		
-	def testTautology(self):
-		'''here we test 1 = 1'''
-		self.assertEqual(1, 1)
+    def setUp(self):
+        pass
+
+    def testNothingAtAll(self):
+        '''here we test nothing at all and this should pass'''
+        pass
+
+    def testTautology(self):
+        '''here we test 1 = 1'''
+        self.assertEqual(1, 1)
 
 ''' some tests to write
 
