@@ -15,7 +15,6 @@ import tools.last, tools.prinseq, tools.trimmomatic
 
 log = logging.getLogger(__name__)
 
-
 def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         clipFasta):
     """
@@ -84,7 +83,6 @@ def main_trim_trimmomatic(args):
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
                      parser_trim_trimmomatic))
 
-
 def filter_lastal(inFastq, refDbs, outFastq):
     """
     TODO: docstring here
@@ -145,6 +143,7 @@ def parser_filter_lastal():
     #parser.add_argument("outBam", help="Output BAM file")
 
     return parser
+
 def main_filter_lastal(args):
     inFastq = args.inFastq
     refDbs = args.refDbs
@@ -152,7 +151,6 @@ def main_filter_lastal(args):
     filter_lastal(inFastq, refDbs, outFastq)
     return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
-
 
 def deplete_bmtagger(inBam, refDbs):
     ''' KGA's "recipe" for human read depletion
