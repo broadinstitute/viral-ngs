@@ -40,6 +40,10 @@ for directory in
 do
 for country in NG # SL
 do
+
+# Note, vfat stuff has moved to /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl and
+#       /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl
+
 bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c1 "touch $directory/_temp/$sample.s_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta $directory/_temp/$sample.s_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.s_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.s_segment1 && cat $directory/_temp/$sample.s_segment1*assembly.fa > $directory/_temp/$sample.s_segment1.fasta"
 bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c2 "touch $directory/_temp/$sample.l_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta $directory/_temp/$sample.l_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.l_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.l_segment1 && cat $directory/_temp/$sample.l_segment1*assembly.fa > $directory/_temp/$sample.l_segment1.fasta"
 done
