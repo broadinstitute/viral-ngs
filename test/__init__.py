@@ -2,6 +2,8 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-def assert_equal_contents(testCase, file1, file2) :
+import filecmp
+
+def assert_equal_contents(testCase, filename1, filename2) :
     'Assert contents of two files are equal for a unittest.TestCase'
-    testCase.assertEqual(open(file1).read(), open(file2).read())
+    testCase.assertTrue(filecmp.cmp(filename1, filename2, shallow=False))
