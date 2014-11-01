@@ -8,6 +8,6 @@
 # V2.02.02: Mac                     http://www.novocraft.com/main/download.php?filename=V3.02.02/novocraftV3.02.02.MacOSX.tar.gz
 
 def get_os_and_version() :
-	import os
-	uname = os.uname()
-	return uname[0], uname[2][:3] # e.g., (Darwin, 13.) or (Linux, 2.6)
+    import os
+    uname = os.uname()
+    return uname[0], uname[2][:3] # e.g., (Darwin, 13.) or (Linux, 2.6)

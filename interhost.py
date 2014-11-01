@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ''' This script contains a number of utilities for SNP calling, multi-alignment,
-	phylogenetics, etc.
+    phylogenetics, etc.
 '''
 
 __author__ = "PLACEHOLDER"
@@ -14,4 +14,4 @@ log = logging.getLogger(__name__)
 
 
 if __name__ == '__main__':
-	util.cmd.main_argparse(__commands__, __doc__)
+    util.cmd.main_argparse(__commands__, __doc__)

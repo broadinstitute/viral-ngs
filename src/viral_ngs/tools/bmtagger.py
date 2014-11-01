@@ -21,9 +21,10 @@ class BmtaggerTool(tools.Tool) :
         if install_methods == None :
             install_methods = []
             install_methods.append(DownloadBmtagger())
-            #bmtaggerBroadUnixPath='/idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh'
-            #install_methods.append(tools.PrexistingUnixCommand(bmtaggerBroadUnixPath,
-            #                                                   require_executability=False))
+            #bmtaggerBroadUnixPath = \
+            #   '/idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh'
+            #install_methods.append(tools.PrexistingUnixCommand(
+            #    bmtaggerBroadUnixPath, require_executability=False))
         tools.Tool.__init__(self, install_methods = install_methods)
     def install_and_get_related_path(self, otherTool) :
         '''
