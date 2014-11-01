@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# Unit tests for taxon_filter.py
+# Unit tests for bwa tool
 
 __author__ = "hlevitin@broadinstitute.org"
 
