@@ -184,7 +184,7 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
     outMatch, outNoMatch: either may be None;
         output out...Match.1.fastq and out...Match.2.fastq.
     """
-    bmtaggerPath = tools.bmtagger.BmtaggerTool().install_and_get_path()
+    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
     
     # bmtagger calls several executables in the same directory, and blastn;
     # make sure they are accessible through $PATH
