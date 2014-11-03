@@ -6,9 +6,10 @@ from tools import urlretrieve
 log = logging.getLogger(__name__)
 
 
-class BmtaggerTool(tools.Tool) :
+class BmtaggerTools(tools.Tool) :
     '''
-    Install bmtagger.sh, bmfilter, extract_fullseq, and srprism.
+    "Abstract" base class for bmtagger.sh, bmfilter, extract_fullseq, srprism.
+    Subclasses must define class member subtoolName.
     
     Note: bmtagger calls blastn so that must be installed somewhere in $PATH.
     
@@ -17,29 +18,36 @@ class BmtaggerTool(tools.Tool) :
     using fink and assuring that /sw/bin comes before /usr/bin in $PATH.
 
     '''
+    # subtoolName must be defined in subclass
+    
     def __init__(self, install_methods = None) :
         if install_methods == None :
             install_methods = []
-            install_methods.append(DownloadBmtagger())
+            install_methods.append(DownloadBmtagger(self.subtoolName))
             #bmtaggerBroadUnixPath = \
             #   '/idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh'
             #install_methods.append(tools.PrexistingUnixCommand(
             #    bmtaggerBroadUnixPath, require_executability=False))
         tools.Tool.__init__(self, install_methods = install_methods)
-    def install_and_get_related_path(self, otherTool) :
-        '''
-        Get path to one of the associated tools we download with bmtagger:
-            bmfilter, extract_fullseq, srprism
-        '''
-        self.install()
-        return os.path.join(os.path.dirname(self.executable_path()), otherTool)
+
+class BmtaggerShTool(BmtaggerTools) :
+    subtoolName = 'bmtagger.sh'
+
+class BmfilterTool(BmtaggerTools) :
+    subtoolName = 'bmfilter'
+
+class Extract_fullseqTool(BmtaggerTools) :
+    subtoolName = 'extract_fullseq'
+
+class SrprismTool(BmtaggerTools) :
+    subtoolName = 'srprism'
 
 class DownloadBmtagger(tools.InstallMethod) :
     executables = ['bmtagger.sh', 'bmfilter', 'extract_fullseq', 'srprism']
-    def __init__(self) :
+    def __init__(self, subtoolName) :
         self.installed = False
         self.targetDir = os.path.join(util.file.get_build_path(), 'bmtagger')
-        self.targetpath = os.path.join(self.targetDir, 'bmtagger.sh')
+        self.targetpath = os.path.join(self.targetDir, subtoolName)
         tools.InstallMethod.__init__(self)
     def is_installed(self):
         return self.installed

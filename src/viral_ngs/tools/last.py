@@ -7,8 +7,8 @@ import os
 
 class LastTools(tools.Tool) :
     """
-    Abstract base class for tools in the 'last' suite.
-    Subclasses must define class members subtoolName and subtoolNameOnBroad.
+    "Abstract" base class for tools in the 'last' suite.
+    Subclasses must define class members subtoolName #and subtoolNameOnBroad.
     """
     def __init__(self, install_methods = None) :
         if install_methods == None :
