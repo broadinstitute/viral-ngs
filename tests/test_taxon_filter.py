@@ -4,7 +4,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
                 + "hlevitin@broadinstitute.org"
 
 import unittest, os, sys, tempfile, shutil
-import taxon_filter, util.file, tools.last
+import taxon_filter, util.file, tools.last, tools.bmtagger
 from test import assert_equal_contents
 
 
@@ -93,8 +93,7 @@ class TestBmtagger(unittest.TestCase) :
     def test_bmtagger(self) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
-        srprismPath = tools.bmtagger.BmtaggerTool()\
-            .install_and_get_related_path('srprism')
+        srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
         for db in ['humanChr1Subset', 'humanChr9Subset'] :
             # .map file is > 100M, so recreate instead of copying
             dbfa = os.path.join(myInputDir, db + '.fa')
