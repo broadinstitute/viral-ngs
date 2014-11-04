@@ -1,6 +1,6 @@
-
-bindir: '/path/to/bindir'
-workdir: '/path/to/workdir'
+bindir = '.'
+bmTaggerDbDir = '/idi/sabeti-scratch/kandersen/references/bmtagger'
+#workdir = '.'
 
 rule bam_to_fastq:
     input:  '_reads/{sample}.bam'
@@ -12,8 +12,11 @@ rule bam_to_fastq:
 rule deplete_bmtagger:
     input:  '_reads/{sample}.raw.1.fastq', '_reads/{sample}.raw.2.fastq'
     output: '_tmp/{sample}.bmtagger_depleted.1.fastq', '_tmp/{sample}.bmtagger_depleted.2.fastq'
-    params: LSF='-W 4:00'
-    shell:  "{bindir}/taxon_filter.py partition_bmtagger {input}[0] {input}[1] {refDbs} --outNoMatch {output}[0][:-8]"
+    params: LSF='-W 4:00',
+            refDbs=['$bmTaggerDbDir/hg19',
+            '$bmTaggerDbDir/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA',
+            '$bmTaggerDbDir/metagenomics_contaminants_v3']
+    shell:  "$bindir/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}[0][:-8]"
 
 rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
@@ -29,25 +32,25 @@ rule fastq_to_fasta:
     
 rule split_reads:
     input:  '_tmp/{sample}.rmdup.{direction}.fasta'
-    output: dynamic('_tmp/{sample}.blast_input.{direction}.split.{split_id}')
+    output: dynamic('_tmp/{sample}.{direction}.blast_input.{split_id}')
     params: LSF=''
     shell:  ""
 
 rule blastn:
-    input:  '_tmp/{sample}.blast_input.{direction}.split.{split_id}'
-    output: '_tmp/{sample}.blast_output.{direction}.{split_id}.txt'
+    input:  '{basename}.blast_input.{idx}'
+    output: '{basename}.blast_output.{idx}'
     params: LSF='-q week'
     shell:  ""
 
 rule cat_reads:
-    input:  dynamic('_tmp/{sample}.blast_output.{direction}.{split_id}.txt')
-    output: '_tmp/{sample}.blast_hits.{direction}.txt'
+    input:  dynamic('{basename}.blast_output.{split_id}')
+    output: '{basename}.blast_hits.txt'
     params: LSF=""
     shell:  "cat {input} > {output}"
 
 rule filter_fastq_from_list:
     input:  '{basename}.rmdup.1.fastq', '{basename}.rmdup.2.fastq',
-            '{basename}.blast_hits.1.txt', '{basename}.blast_hits.2.txt'
+            '{basename}.1.blast_hits.txt', '{basename}.2.blast_hits.txt'
     output: '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
     params: LSF=''
     shell:  ""
