@@ -14,8 +14,8 @@ rule bam_to_tmp:
     shell:  'cp {input} {output}'
 
 rule bam_to_fastq:
-    input:  '{basename}.{adjective}.bam'
-    output: '{basename}.{adjective}.1.fastq', '{basename}.{adjective}.2.fastq', '{basename}.samheader.txt'
+    input:  '{basename}.bam'
+    output: '{basename}.1.fastq', '{basename}.2.fastq', '{basename}.samheader.txt'
     params: LSF='', JVM='-Xmx2g'
     # TODO: replace with python command
     run:
@@ -78,7 +78,7 @@ rule fastq_matepair_fix:
     shell:  "$binDir/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 {input}[0] -f2 {input}[1] -o {output}[0][:-8]"
 
 rule fastq_to_bam:
-    input:  '{basename}.{adjective}.1.fastq', '{basename}.{adjective}.2.fastq', '{basename}.samheader.txt'
+    input:  '{basename}.{adjective}.1.fastq', '{basename}.{adjective}.2.fastq', '{basename}.raw.samheader.txt'
     output: '{basename}.{adjective}.bam', temp('{basename}.{adjective}.badheader.bam')
     # TODO: replace with python command
     params: LSF='', JVM='-Xmx2g'
