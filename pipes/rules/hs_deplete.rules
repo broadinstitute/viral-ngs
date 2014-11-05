@@ -46,7 +46,7 @@ rule fastq_to_fasta:
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fasta'
     output: dynamic('{basename}.{direction}.blast_input.{split_id}')
-    params: LSF='', length=20000
+    params: LSF='', length='20000'
     shell:  "split -a 3 -l {params.length} {input} {basename}.{direction}.blast_input."
 
 rule blastn:
