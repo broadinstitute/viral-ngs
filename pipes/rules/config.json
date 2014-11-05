@@ -6,10 +6,8 @@
 
   "picardDir":    "/seq/software/picard/current/bin",
   "samtoolsDir":  "/idi/sabeti-data/software/samtools/samtools-0.1.19",
-  "mvicunaDir":   "/gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin",
 
   "dataDir":   "/idi/sabeti-data/dpark/depletion_kga_files/test/_reads",
   "tmpDir":    "/idi/sabeti-data/dpark/depletion_kga_files/test/_tmp",
   "binDir":    "."
-
 }
