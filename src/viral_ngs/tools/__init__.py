@@ -20,7 +20,8 @@ __all__ = [filename[:-3] # Remove .py
     for filename in os.listdir(os.path.dirname(__file__)) # tools directory
         if filename.endswith('.py') and filename != '__init__.py' and
             filename not in [ # Add any files to exclude here:
-            ]
+                              # e.g. 'sometool.py',
+                            ]
     ]
 installed_tools = {}
 
