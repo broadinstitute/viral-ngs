@@ -54,12 +54,10 @@ class TestFilterLastal(unittest.TestCase) :
         # Create refDbs
         commonInputDir = util.file.get_test_input_path()
         myInputDir = util.file.get_test_input_path(self)
-
         refFasta = os.path.join(commonInputDir, 'ebola.fasta')
         dbsDir = tempfile.mkdtemp()
         refDbs = os.path.join(dbsDir, 'ebola')
         lastdbPath = tools.last.Lastdb().install_and_get_path()
-
         assert not os.system(
             '{lastdbPath} {refDbs} {refFasta}'.format(**locals()))
 
@@ -105,19 +103,61 @@ class TestBmtagger(unittest.TestCase) :
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
         
         # Partition the input files
-        taxon_filter.partition_bmtagger(
-            os.path.join(myInputDir, 'in1.fastq'),
-            os.path.join(myInputDir, 'in2.fastq'),
-            [os.path.join(tempDir, 'humanChr1Subset'),
-             os.path.join(tempDir, 'humanChr9Subset')],
-            os.path.join(tempDir, 'outMatch'),
-            os.path.join(tempDir, 'outNoMatch'))
+        args = taxon_filter.parser_partition_bmtagger().parse_args(
+            [os.path.join(myInputDir, 'in1.fastq'),
+             os.path.join(myInputDir, 'in2.fastq'),
+             os.path.join(tempDir, 'humanChr1Subset'),
+             os.path.join(tempDir, 'humanChr9Subset'),
+             '--outMatch', os.path.join(tempDir, 'outMatch'),
+             '--outNoMatch', os.path.join(tempDir, 'outNoMatch')])
+        taxon_filter.main_partition_bmtagger(args)
             
         # Compare to expected
         for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2'] :
             assert_equal_contents(self,
                 os.path.join(tempDir, 'out' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.' + case + '.fastq'))
+
+class TestMvicuna(unittest.TestCase) :
+    """
+    Input consists of 3 read pairs.
+    Second read pair is identical to first.
+    Third read pair has same 5' read as first, but different 3' read.
+    What Mvicuna did was create paired output files in which the 2nd read
+        was deleted. It created an empty unpaired output file. Although
+        it initially created the postDupRm pair, it renamed them to the output
+        pair.
+    [IJ:]I have no idea if this is the correct behavior, but test checks that it
+        doesn't change.
+    """
+    def setUp(self) :
+        util.file.set_tmpDir('TestMvicuna')
+    
+    def tearDown(self) :
+        util.file.destroy_tmpDir()
+        
+    def test_mvicuna(self) :
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        
+        # Run mvicuna
+        inFastqPair = os.path.join(myInputDir, 'in')
+        pairedOutPair = os.path.join(tempDir, 'pairedOut')
+        unpairedOut = os.path.join(tempDir, 'unpairedOut.fastq')
+        postDupRmPair = os.path.join(tempDir, 'postDupRmPair')
+        args = taxon_filter.parser_dup_remove_mvicuna().parse_args(
+            [inFastqPair, pairedOutPair, unpairedOut, postDupRmPair])
+        taxon_filter.main_dup_remove_mvicuna(args)
+            
+        # Compare to expected
+        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq',
+                         'unpairedOut.fastq'] :
+            assert_equal_contents(self,
+                os.path.join(tempDir, filename),
+                os.path.join(myInputDir, 'expected_' + filename))
+        self.assertFalse(os.path.exists(postDupRmPair + '.1.fastq'))
+        self.assertFalse(os.path.exists(postDupRmPair + '.2.fastq'))
+
 
 if __name__ == '__main__':
     unittest.main()
