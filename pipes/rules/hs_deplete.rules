@@ -1,10 +1,14 @@
+''' This is a basic framework for depleting human and other contaminant reads from
+    NGS data.  All non-human reads should remain behind.
+'''
 
+__author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
+configfile: "config.json"
 
 
 rule all_deplete:
-    input:  expand("{config.dataDir}/{sample}.{adjective}.bam",
-            sample=config['samples'], adjective=['cleaned', 'bmtagger_depleted'])
+    input:  expand("{config.dataDir}/{sample}.{adjective}.bam", sample=config['samples'], adjective=['cleaned', 'bmtagger_depleted'])
 
 rule bam_to_tmp:
     input:  '{config.dataDir}/{sample}.bam'
