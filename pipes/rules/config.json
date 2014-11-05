@@ -1,0 +1,14 @@
+{
+
+  'bmTaggerDbDir':  '/idi/sabeti-scratch/kandersen/references/bmtagger',
+  'blastDbDir':     '/idi/sabeti-scratch/kandersen/references/blast',
+
+  'picardDir':    '/seq/software/picard/current/bin',
+  'samtoolsDir':  '/idi/sabeti-data/software/samtools/samtools-0.1.19',
+  'mvicunaDir':   '/gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin',
+
+  'dataDir':   '_reads/',
+  'tmpDir':    '_tmp/',
+  'binDir':    '.',
+
+}
