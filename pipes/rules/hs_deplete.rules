@@ -1,16 +1,26 @@
 bindir = '.'
 bmTaggerDbDir = '/idi/sabeti-scratch/kandersen/references/bmtagger'
+blastDbDir = '/idi/sabeti-scratch/kandersen/references/blast'
 picardDir = '/seq/software/picard/current/bin'
+samtoolsDir = '/idi/sabeti-data/software/samtools/samtools-0.1.19'
 mvicunaDir = '/gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin'
+dataDir = '_reads/'
+tmpDir = '_tmp/'
 #workdir = '.'
 
+rule bam_to_tmp:
+    input:  '$dataDir{sample}.bam'
+    output: '$tmpDir{sample}.raw.bam'
+    shell:  'cp {input} {output}'
+
 rule bam_to_fastq:
-    input:  '_reads/{sample}.bam'
-    output: '_tmp/{sample}.raw.1.fastq', '_tmp/{sample}.raw.2.fastq'
+    input:  '{basename}.{adjective}.bam'
+    output: '{basename}.{adjective}.1.fastq', '{basename}.{adjective}.2.fastq', '{basename}.samheader.txt'
     params: LSF='', JVM='-Xmx2g'
-    # maybe dump the SAM header data separately for later reincorporation?
     # TODO: replace with python command
-    shell:  "java {params.JVM} -jar $picardDir/SamToFastq.jar INPUT={input} FASTQ={output}[0] SECOND_END_FASTQ={output}[1] VALIDATION_STRINGENCY=SILENT"
+    run:
+            shell("java {params.JVM} -jar $picardDir/SamToFastq.jar INPUT={input} FASTQ={output}[0] SECOND_END_FASTQ={output}[1] VALIDATION_STRINGENCY=SILENT")
+            shell("$samtoolsDir/samtools view -H {input} > {output}[2]")
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
@@ -25,28 +35,26 @@ rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     output: '{basename}.rmdup.1.fastq', '{basename}.rmdup.2.fastq'
     params: LSF='-W 4:00 -R "rusage[mem=8]"'
-    # TODO: replace with python command
-    shell:  "$mvicunaDir/mvicuna -ipfq {input}[0],{input}[1] -opfq {output}[0],{output}[1] -tasks DupRm"
+    shell:  "$binDir/taxon_filter.py dup_remove_mvicuna {input}[0][:-8] {output}[0][:-8]"
 
 rule fastq_to_fasta:
     input:  '{basename}.fastq'
     output: '{basename}.fasta'
     params: LSF=''
-    # prinseq.pl
-    shell:  ""
+    shell:  "$binDir/scripts/prinseq-lite.pl -out_format 1 -line_width 0 -fastq {input} -out_good {output}[0][:-6] -out_bad null"
     
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fasta'
     output: dynamic('{basename}.{direction}.blast_input.{split_id}')
-    params: LSF=''
-    # unix split
-    shell:  ""
+    params: LSF='', length=20000
+    shell:  "split -a 3 -l {params.length} {input} {basename}.{direction}.blast_input."
 
 rule blastn:
     input:  '{basename}.blast_input.{idx}'
     output: '{basename}.blast_output.{idx}'
-    params: LSF='-q week'
-    shell:  ""
+    params: LSF='-q week',
+            refDb='$blastDbDir/metag_v3.ncRNA.mRNA.mitRNA.consensus'
+    shell:  "blastn -db {params.refDb} -query {input} -out {output} -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2"
 
 rule cat_reads:
     input:  dynamic('{basename}.blast_output.{split_id}')
@@ -64,88 +72,25 @@ rule filter_fastq_from_list:
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
     output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq',
-            '{basename}.cleaned.unpaired.fastq'
+            temp('{basename}.cleaned.unpaired.fastq')
     params: LSF=''
     # TODO: replace with python command
     shell:  "$binDir/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 {input}[0] -f2 {input}[1] -o {output}[0][:-8]"
 
 rule fastq_to_bam:
-    input:  '_tmp/{sample}.cleaned.1.fastq', '_tmp/{sample}.cleaned.2.fastq'
-    output: '_reads/{sample}.cleaned.bam'
-    # maybe make this more generalized
+    input:  '{basename}.{adjective}.1.fastq', '{basename}.{adjective}.2.fastq', '{basename}.samheader.txt'
+    output: '{basename}.{adjective}.bam', temp('{basename}.{adjective}.badheader.bam')
     # TODO: replace with python command
-    # TODO: load in sam header / metadata
     params: LSF='', JVM='-Xmx2g'
-    shell:  "java {params.JVM} -jar $picardDir/FastqToSam.jar FASTQ={input}[0] FASTQ2={input}[1] OUTPUT={output}"
-    #SAMPLE_NAME=$sample LIBRARY_NAME=$sample PLATFORM=illumina SEQUENCING_CENTER=broad RUN_DATE=$date CREATE_MD5_FILE=True
+    run:
+            shell("java {params.JVM} -jar $picardDir/FastqToSam.jar FASTQ={input}[0] FASTQ2={input}[1] OUTPUT={output}[1] SAMPLE_NAME=unknown SORT_ORDER=unsorted")
+            shell("$samtoolsDir/samtools reheader {input}[2] {output}[1] > {output}[0]")
 
+rule copy_final_to_data:
+    input:  '$tmpDir{basename}.bam'
+    output: '$dataDir{basename}.bam'
+    shell:  'cp {input} {output}'
 
 #rule all_deplete:
-#	input: '_reads/{sample}.cleaned.bam'
+#	input: '_reads/{sample}.cleaned.bam', '_reads/{sample}.bmtagger_depleted.bam'
 
-
-'''
-# REMOVE HUMAN READS AND CONTAMINANTS USING NOVOALIGN
-# This step probably isn't necessary
-for sample in G2295_2 G2554_3
-do
-for directory in /idi/sabeti-data/kandersen/analysis/141017_danny-ebov
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -W 4:00 -q hour -R "rusage[mem=4]" -n 4 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.al "/idi/sabeti-scratch/kandersen/bin/novocraft/novoalign -c 4 -f $temp/$sample.cleaned_reads.prinseq.1.fastq $temp/$sample.cleaned_reads.prinseq.2.fastq -r Random -l 30 -g 20 -x 6 -t 502 -F STDFQ -d /idi/sabeti-scratch/kandersen/references/novo_clean/metag_v3.ncRNA.mRNA.mitRNA.consensus.nix -o SAM $'@RG\tID:140813.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.novoalign.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted.bam CREATE_INDEX=true && samtools view -b -f 4 -u $directory/_temp/$sample.sorted.bam > $directory/_temp/$sample.depleted.bam && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted.bam FASTQ=$directory/_temp/$sample.novo.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.novo.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads1.fastq -out_good $directory/_temp/$sample.prinseq.1 -out_bad null && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads2.fastq -out_good $directory/_temp/$sample.prinseq.2 -out_bad null"
-done
-done
-done
-
-# SPLIT FILES FOR BLASTN ANALYSIS
-for sample in G2295_2 G2554_3
-do
-for directory in /idi/sabeti-data/kandersen/analysis/141017_danny-ebov
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.sf "split -a 3 -l 20000 $directory/_temp/$sample.prinseq.1.fasta $temp/$sample.prinseq.1.split."
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.sf "split -a 3 -l 20000 $directory/_temp/$sample.prinseq.2.fasta $temp/$sample.prinseq.2.split."
-done
-done
-done
-
-# RUN BLASTN ANALYSIS
-for sample in G2295_2 G2554_3
-do
-for directory in /idi/sabeti-data/kandersen/analysis/141017_danny-ebov
-do
-for temp in /broad/hptmp/andersen
-do
-for db in metag_v3.ncRNA.mRNA.mitRNA.consensus
-do
-i=1
-j=1
-for a in $temp/$sample.prinseq.1.split.*
-do
-bsub -R "rusage[mem=2]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.$((j++)).bn "blastn -db /idi/sabeti-scratch/kandersen/references/blast/$db -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query $a -out $temp/$sample.1.$db.$((i++)).txt"
-done
-done
-done
-done
-done
-for sample in G2295_2 G2554_3
-do
-for directory in /idi/sabeti-data/kandersen/analysis/141017_danny-ebov
-do
-for temp in /broad/hptmp/andersen
-do
-for db in metag_v3.ncRNA.mRNA.mitRNA.consensus
-do
-i=1
-j=1
-for b in $temp/$sample.prinseq.2.split.*
-do
-bsub -R "rusage[mem=2]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.$((j++)).bn "blastn -db /idi/sabeti-scratch/kandersen/references/blast/$db -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query $b -out $temp/$sample.2.$db.$((i++)).txt"
-done
-done
-done
-done
-done
-'''
