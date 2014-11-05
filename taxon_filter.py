@@ -301,10 +301,7 @@ def dup_remove_mvicuna(inPair, pairedOutPair, unpairedOut, postDupRmPair) :
                '-drm_op {postDupRmOut} '
                '-tasks DupRm').format(**locals())
     log.debug(cmdline)
-    
-    print(cmdline)
-    
-    #assert not os.system(cmdline)
+    assert not os.system(cmdline)
 
 def fastq_pair_to_pair(fastqPair) :
     return (fastqPair + '.1.fastq', fastqPair + '.2.fastq')
@@ -646,7 +643,7 @@ done
 done
 done
 
-# COMBINE READS
+## COMBINE READS
 for sample in
 do
 for directory in
@@ -655,7 +652,7 @@ bsub -R "rusage[mem=4]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabe
 done
 done
 
-# CONVERT TO BAM FILE
+## CONVERT TO BAM FILE
 for sample in
 do
 for directory in

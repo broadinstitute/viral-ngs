@@ -21,7 +21,6 @@ __all__ = [filename[:-3] # Remove .py
         if filename.endswith('.py') and filename != '__init__.py' and
             filename not in [ # Add any files to exclude here:
                               # e.g. 'sometool.py',
-                             'mvicuna.py', # ...until fully implemented
                             ]
     ]
 installed_tools = {}
