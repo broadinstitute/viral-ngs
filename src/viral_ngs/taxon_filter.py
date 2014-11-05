@@ -13,10 +13,14 @@ import argparse, logging, os, tempfile
 from Bio import SeqIO
 import util.cmd, util.file, util.vcf, util.misc
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
-       tools.samtools, tools.picard, tools.blast
+       tools.samtools, tools.picard, tools.blast, tools.mvicuna
 from util.file import mkstempfname
 
 log = logging.getLogger(__name__)
+
+# ==========================
+# ***  trim_trimmomatic  ***
+# ==========================
 
 def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         clipFasta):
@@ -85,6 +89,10 @@ def main_trim_trimmomatic(args):
 
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
                      parser_trim_trimmomatic))
+
+# =======================
+# ***  filter_lastal  ***
+# =======================
 
 def filter_lastal(inFastq, refDbs, outFastq):
     """
@@ -157,6 +165,10 @@ def main_filter_lastal(args):
     return 0
 __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
+
+# ============================
+# ***  partition_bmtagger  ***
+# ============================
 
 def select_reads(inFastq, outFastq, selectorFcn) :
     """
@@ -266,6 +278,65 @@ def main_partition_bmtagger(args) :
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
 
+
+# ============================
+# ***  dup_remove_mvicuna  ***
+# ============================
+
+def dup_remove_mvicuna(inPair, pairedOutPair, unpairedOut, postDupRmPair) :
+    """
+    Run mvicuna's duplicate removal operation on paired-end input reads in
+        fastq format, producing various outputs in fastq format.
+    inPair, pairedOutPair, and postDupRmOutPair are pairs of file names,
+        while unpairedOut is a single file name.
+    """
+    mvicunaPath = tools.mvicuna.MvicunaTool().install_and_get_path()
+    input       = ','.join(inPair)
+    pairedOut    = ','.join(pairedOutPair)
+    postDupRmOut = ','.join(postDupRmPair)
+    cmdline = ('{mvicunaPath} '
+               '-ipfq {input} '
+               '-opfq {pairedOut} '
+               '-osfq {unpairedOut} '
+               '-drm_op {postDupRmOut} '
+               '-tasks DupRm').format(**locals())
+    log.debug(cmdline)
+    assert not os.system(cmdline)
+
+def fastq_pair_to_pair(fastqPair) :
+    return (fastqPair + '.1.fastq', fastqPair + '.2.fastq')
+
+def parser_dup_remove_mvicuna() :
+    # Paired files are always .1.fastq and .2.fastq.
+    parser = argparse.ArgumentParser(
+        description='''Run mvicuna's duplicate removal operation on paired-end 
+                       input reads, producing various outputs.''')
+    parser.add_argument('inFastqPair',
+        help='''Base name of input paired-end reads; reads must be in
+                inFastqPair.1.fastq and inFastqPair.2.fastq''')
+    parser.add_argument('pairedOutPair',
+        help='''Base name of output paired-end reads; reads will be in
+                pairedOutPair.1.fastq and pairedOutPair.2.fastq''')
+    parser.add_argument('unpairedOut',
+        help='''File name of output unpaired reads''')
+    parser.add_argument('postDupRmPair',
+        help='''Base name of post-duplicate-removal output paired-end reads; 
+                reads will be in postDupRmPair.1.fastq and postDupRmPair.2.fastq
+                ''')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    return parser
+def main_dup_remove_mvicuna(args) :
+    inPair = fastq_pair_to_pair(args.inFastqPair)
+    pairedOutPair = fastq_pair_to_pair(args.pairedOutPair)
+    unpairedOut = args.unpairedOut
+    postDupRmPair = fastq_pair_to_pair(args.postDupRmPair)
+    dup_remove_mvicuna(inPair, pairedOutPair, unpairedOut, postDupRmPair)
+    return 0
+
+__commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,
+                     parser_dup_remove_mvicuna))
+
+
 """
 def deplete_contaminants(inBam, refDbs):
     samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
@@ -348,7 +419,7 @@ do
 
 
 # Tools and files needed
-mvicunaPath = /seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
+mvicunaPath = /gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
 contaminants1fastq = $temp/$sample.bmtagger.contaminants.1.fastq
 contaminants2fastq = $temp/$sample.bmtagger.contaminants.2.fastq
 cleaned1fastq = $temp/$sample.cleaned_reads.prinseq.1.fastq
@@ -356,6 +427,7 @@ cleaned2fastq = $temp/$sample.cleaned_reads.prinseq.2.fastq
 cleanedUnpairedfastq = $temp/$sample.cleaned_reads.unpaired.fastq
 hg19temp1fastq = $temp/$sample.bmtagger.hg19.temp1.fastq
 hg19temp2fastq = $temp/$sample.bmtagger.hg19.temp2.fastq
+# old path: /seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
 
 # Commands to execute...
 mvicunaPath -ipfq contaminants1fastq,contaminants2fastq -opfq cleaned1fastq,cleaned2fastq -osfq cleanedUnpairedfastq -drm_op hg19temp1fastq,hg19temp2fastq -tasks DupRm
@@ -571,7 +643,7 @@ done
 done
 done
 
-# COMBINE READS
+## COMBINE READS
 for sample in
 do
 for directory in
@@ -580,7 +652,7 @@ bsub -R "rusage[mem=4]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabe
 done
 done
 
-# CONVERT TO BAM FILE
+## CONVERT TO BAM FILE
 for sample in
 do
 for directory in
