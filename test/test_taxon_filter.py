@@ -103,13 +103,14 @@ class TestBmtagger(unittest.TestCase) :
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
         
         # Partition the input files
-        taxon_filter.partition_bmtagger(
-            os.path.join(myInputDir, 'in1.fastq'),
-            os.path.join(myInputDir, 'in2.fastq'),
-            [os.path.join(tempDir, 'humanChr1Subset'),
-             os.path.join(tempDir, 'humanChr9Subset')],
-            os.path.join(tempDir, 'outMatch'),
-            os.path.join(tempDir, 'outNoMatch'))
+        args = taxon_filter.parser_partition_bmtagger().parse_args(
+            [os.path.join(myInputDir, 'in1.fastq'),
+             os.path.join(myInputDir, 'in2.fastq'),
+             os.path.join(tempDir, 'humanChr1Subset'),
+             os.path.join(tempDir, 'humanChr9Subset'),
+             '--outMatch', os.path.join(tempDir, 'outMatch'),
+             '--outNoMatch', os.path.join(tempDir, 'outNoMatch')])
+        taxon_filter.main_partition_bmtagger(args)
             
         # Compare to expected
         for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2'] :
