@@ -1,6 +1,7 @@
-''' This is a basic framework for depleting human and other contaminant reads from
-    NGS data.  All non-human reads should remain behind.
-'''
+"""
+    This is a basic framework for depleting human and other contaminant 
+    reads from NGS data.  All non-human reads should remain behind.
+"""
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
@@ -8,54 +9,52 @@ configfile: "config.json"
 
 
 rule all_deplete:
-    input:  expand("{config.dataDir}/{sample}.{adjective}.bam", sample=config['samples'], adjective=['cleaned', 'bmtagger_depleted'])
-
-rule bam_to_tmp:
-    input:  '{config.dataDir}/{sample}.bam'
-    output: '{config.tmpDir}/{sample}.raw.bam'
-    shell:  'cp {input} {output}'
+    # these are the final desired output files from this pipeline
+    input:  expand("{dataDir}/{sample}.{adjective}.bam", dataDir=config["dataDir"], sample=config["samples"], adjective=["cleaned", "bmtagger_depleted"])
 
 rule bam_to_fastq:
-    input:  '{basename}.bam'
-    output: '{basename}.1.fastq', '{basename}.2.fastq', '{basename}.samheader.txt'
+    input:  config["dataDir"]+'/{sample,\w+}.bam'
+    output: config["tmpDir"]+ '/{sample}.raw.1.fastq', 
+            config["tmpDir"]+ '/{sample}.raw.2.fastq', 
+            config["tmpDir"]+ '/{sample}.raw.samheader.txt'
     params: LSF='', JVM='-Xmx2g'
     # TODO: replace with python command
     run:
-            shell("java {params.JVM} -jar {config.picardDir}/SamToFastq.jar INPUT={input} FASTQ={output}[0] SECOND_END_FASTQ={output}[1] VALIDATION_STRINGENCY=SILENT")
-            shell("{config.samtoolsDir}/samtools view -H {input} > {output}[2]")
+            shell("java {params.JVM} -jar {config[picardDir]}/SamToFastq.jar INPUT={input} FASTQ={output}[0] SECOND_END_FASTQ={output}[1] VALIDATION_STRINGENCY=SILENT")
+            shell("{config[samtoolsDir]}/samtools view -H {input} > {output}[2]")
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
     output: '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     params: LSF='-W 4:00',
-            refDbs=['{config.bmTaggerDbDir}/hg19',
-            '{config.bmTaggerDbDir}/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA',
-            '{config.bmTaggerDbDir}/metagenomics_contaminants_v3']
-    shell:  "{config.binDir}/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}[0][:-8]"
+            refDbs=['{config[bmTaggerDbDir]}/hg19',
+            '{config[bmTaggerDbDir]}/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA',
+            '{config[bmTaggerDbDir]}/metagenomics_contaminants_v3']
+    shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}[0][:-8]"
 
 rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     output: '{basename}.rmdup.1.fastq', '{basename}.rmdup.2.fastq'
     params: LSF='-W 4:00 -R "rusage[mem=8]"'
-    shell:  "{config.binDir}/taxon_filter.py dup_remove_mvicuna {input}[0][:-8] {output}[0][:-8]"
+    shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input}[0][:-8] {output}[0][:-8]"
 
 rule fastq_to_fasta:
     input:  '{basename}.fastq'
     output: '{basename}.fasta'
     params: LSF=''
-    shell:  "{config.binDir}/scripts/prinseq-lite.pl -out_format 1 -line_width 0 -fastq {input} -out_good {output}[0][:-6] -out_bad null"
+    shell:  "{config[binDir]}/scripts/prinseq-lite.pl -out_format 1 -line_width 0 -fastq {input} -out_good {output}[0][:-6] -out_bad null"
     
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fasta'
-    output: dynamic('{basename}.{direction,[12]}.blast_input.{split_id}')
+    output: dynamic('{basename}.{direction}.blast_input.{split_id}')
     params: LSF='', length='20000'
     shell:  "split -a 3 -l {params.length} {input} {basename}.{direction}.blast_input."
 
 rule blastn:
-    input:  '{basename}.blast_input.{idx}'
-    output: '{basename}.blast_output.{idx,\d+}'
+    input:  '{basename}.blast_input.{split_id}'
+    output: '{basename}.blast_output.{split_id}'
     params: LSF='-q week',
-            refDb='{config.blastDbDir}/metag_v3.ncRNA.mRNA.mitRNA.consensus'
+            refDb='{config[blastDbDir]}/metag_v3.ncRNA.mRNA.mitRNA.consensus'
     shell:  "blastn -db {params.refDb} -query {input} -out {output} -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2"
 
 rule cat_reads:
@@ -69,7 +68,7 @@ rule filter_fastq_from_list:
     output: '{basename}.blast_depleted.{direction,[12]}.fastq'
     params: LSF=''
     # TODO: replace with python command
-    shell:  "{config.binDir}/scripts/noBlastHits_v3.py -b {input}[1] -r {input}[0] -m nohit > {output}"
+    shell:  "{config[binDir]}/scripts/noBlastHits_v3.py -b {input}[1] -r {input}[0] -m nohit > {output}"
 
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
@@ -77,23 +76,16 @@ rule fastq_matepair_fix:
             temp('{basename}.cleaned.unpaired.fastq')
     params: LSF=''
     # TODO: replace with python command
-    shell:  "{config.binDir}/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 {input}[0] -f2 {input}[1] -o {output}[0][:-8]"
+    shell:  "{config[binDir]}/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 {input}[0] -f2 {input}[1] -o {output}[0][:-8]"
 
 rule fastq_to_bam:
-    input:  '{basename}.{adjective}.1.fastq',
-            '{basename}.{adjective}.2.fastq',
-            '{basename}.raw.samheader.txt'
-    output: '{basename}.{adjective,\w+}.bam',
-            temp('{basename}.{adjective}.badheader.bam')
+    input:  config["tmpDir"] +'/{sample}.{adjective}.1.fastq',
+            config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
+            config["tmpDir"] +'/{sample}.raw.samheader.txt'
+    output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam',
+            config["dataDir"]+'/{sample}.{adjective}.badheader.bam'
     # TODO: replace with python command
     params: LSF='', JVM='-Xmx2g'
     run:
-            shell("java {params.JVM} -jar {config.picardDir}/FastqToSam.jar FASTQ={input}[0] FASTQ2={input}[1] OUTPUT={output}[1] SAMPLE_NAME=unknown SORT_ORDER=unsorted")
-            shell("{config.samtoolsDir}/samtools reheader {input}[2] {output}[1] > {output}[0]")
-
-rule copy_final_to_data:
-    input:  '{config.tmpDir}/{basename}.bam'
-    output: '{config.dataDir}/{basename}.bam'
-    shell:  'cp {input} {output}'
-
-
+            shell("java {params.JVM} -jar {config[picardDir]}/FastqToSam.jar FASTQ={input}[0] FASTQ2={input}[1] OUTPUT={output}[1] SAMPLE_NAME={sample} SORT_ORDER=unsorted")
+            shell("{config[samtoolsDir]}/samtools reheader {input}[2] {output}[1] > {output}[0]")
