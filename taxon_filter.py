@@ -259,9 +259,9 @@ def parser_partition_bmtagger() :
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.
              ''')
-    parser.add_argument('--outMatch', type = str, default = None, nargs = 2,
+    parser.add_argument('--outMatch', nargs = 2,
         help='Filenames for fastq output of matching reads.')
-    parser.add_argument('--outNoMatch', type = str, default = None, nargs = 2,
+    parser.add_argument('--outNoMatch', nargs = 2,
         help='Filenames for fastq output of unmatched reads.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     return parser
@@ -313,7 +313,7 @@ def parser_dup_remove_mvicuna() :
         help='Output fastq file; 1st end of paired-end reads.')
     parser.add_argument('pairedOutFastq2',
         help='Output fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('--unpairedOutFastq', type = str, default = None,
+    parser.add_argument('--unpairedOutFastq',
         help='File name of output unpaired reads')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     return parser
@@ -339,7 +339,7 @@ There are 4 utilities in the deplete_blastn suite.
 The first one, deplete_blastn uses blastn to remove reads that match
     a set of databases, all in one step.
 The other three break the same operation into several steps allowing the
-    caller to run the parallel if appropriate infrastructure is available.
+    caller to run them in parallel if appropriate infrastructure is available.
     The different pieces communicate by way of a single directory,
     scratchDir, which they create, fill, and delete.
 deplete_blastn_prep:   splits file into several pieces and prepare for blastn
@@ -350,7 +350,8 @@ deplete_blastn_finish: combines the results and does postprocessing
 def parser_deplete_blastn() :
     parser = argparse.ArgumentParser(
         description='''Use blastn to remove reads that match at least
-                       one of several databases.''')
+                       one of one or more databases. (This is a single-step
+                       alternative to the 3 deplete_blastn_* commands.)''')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2',
@@ -371,13 +372,15 @@ __commands__.append(('deplete_blastn', main_deplete_blastn,
 def parser_deplete_blastn_prep() :
     defaultMax = 10000
     parser = argparse.ArgumentParser(
-        description=\
-            '''Split file into several pieces and prepare for blastn.
-               More specifically: 
-               create scratchDir;
-               link scratchDir/in[12].fastq to in-files for later use;
-               run prinseq-lite.pl to convert to fasta: scratchDir/in[12].fasta;
-               split fasta file: results in scratchDir/in[12].fasta.XXX
+        description =
+            '''
+            Split file into several pieces and prepare for blastn.
+            More specifically:
+            create scratchDir;
+            link scratchDir/in[12].fastq to in-files for later use;
+            run prinseq-lite.pl to convert to fasta, producing
+            scratchDir/in[12].fasta;
+            split fasta file into scratchDir/in[12].fasta.XXX
             ''')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
@@ -399,7 +402,18 @@ __commands__.append(('deplete_blastn_prep', main_deplete_blastn_prep,
 
 def parser_deplete_blastn_do1() :
     parser = argparse.ArgumentParser(
-        description='''...''')
+        description='''Run blastn on a single pair of input chunks and a single
+            reference database. Specified input chunk must be one of the files
+            in1.fasta.XXX in scratchDir. Use in1.fasta.XXX and in2.fasta.XXX
+            as input and produce out1.dbId.XXX.txt and out2.dbId.XXX.txt''')
+    parser.add_argument('inChunk1',
+        help='''One of the files created by deplete_blastn_prep
+                of the form PATH_TO_SCRATCH_DIR/in1.fasta.XXX.''')
+    parser.add_argument('refDb',
+        help='One reference database for blast.')
+    parser.add_argument('--dbId',
+        help='''Optional identifier for naming output files;
+                defaults to portion of refDb name after last '/'.''')
     return parser
 def main_deplete_blastn_do1(args) :
     raise NotImplementedError("not yet implemented")
@@ -409,15 +423,28 @@ __commands__.append(('deplete_blastn_do1', main_deplete_blastn_do1,
 
 def parser_deplete_blastn_finish() :
     parser = argparse.ArgumentParser(
-        description='''...''')
+        description =
+            '''
+            Combine and postprocess results from calls to deplete_blastn_do1.
+            More specifically:
+            concatenate scratchDir/out[12].*.*.txt;
+            run noBlastHits_v3.py to extract reads with no blast hits;
+            run mergeShuffledFastqSeqs.pl to fix mate pair information;
+            output in out1Fastq, out2Fastq;
+            delete scratchDir.
+            ''')
+    parser.add_argument('scratchDir',
+        help='Directory created by deplete_blastn_prep.')
+    parser.add_argument('pairedOutFastq1',
+        help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('pairedOutFastq2',
+        help='Output fastq file; 2nd end of paired-end reads.')
     return parser
 def main_deplete_blastn_finish(args) :
     raise NotImplementedError("not yet implemented")
     return 0
 __commands__.append(('deplete_blastn_finish', main_deplete_blastn_finish,
                      parser_deplete_blastn_finish))
-
-
 
 
 """
