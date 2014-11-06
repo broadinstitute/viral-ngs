@@ -2,7 +2,14 @@
   "samples": ["G1234", "G5678"],
 
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
+  "bmTaggerDbs_remove": [
+    "hg19",
+    "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
+    "metagenomics_contaminants_v3"],
+
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/blast",
+  "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
+
 
   "picardDir":    "/seq/software/picard/current/bin",
   "samtoolsDir":  "/idi/sabeti-data/software/samtools/samtools-0.1.19",
