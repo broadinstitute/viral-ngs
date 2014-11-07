@@ -28,7 +28,7 @@ rule deplete_bmtagger:
     output: '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     params: LSF='-W 4:00',
             refDbs = expand("{dir}/{db}", dir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"])
-    shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}[0][:-8]"
+    shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}"
 
 rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
@@ -36,39 +36,26 @@ rule rmdup_mvicuna:
     params: LSF='-W 4:00 -R "rusage[mem=8]"'
     shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
 
-rule fastq_to_fasta:
-    input:  '{basename}.fastq'
-    output: '{basename}.fasta'
-    params: LSF=''
-    # TODO: replace with python wrapper command
-    shell:  "{config[binDir]}/scripts/prinseq-lite.pl -out_format 1 -line_width 0 -fastq {input} -out_good {output}[0][:-6] -out_bad null"
-    
 rule split_reads:
-    input:  '{basename}.rmdup.{direction}.fasta'
-    output: dynamic('{basename}.{direction}.blast_input.{split_id}')
-    params: LSF='', length='20000'
-    shell:  "split -a 3 -l {params.length} {input} {basename}.{direction}.blast_input."
+    input:  '{basename}.rmdup.{direction}.fastq'
+    output: dynamic('{basename}.blast_split_input.{direction}.{split_id}')
+    params: LSF='', length='10000'
+    shell:  "split -a 3 -l {params.length} {input} {wildcards.basename}.blast_input.{wildcards.direction}."
 
-rule blastn:
-    input:  '{basename}.blast_input.{split_id}'
-    output: '{basename}.blast_output.{split_id}'
+rule blastn_deplete:
+    input:  '{basename}.blast_split_input.1.{split_id}',
+            '{basename}.blast_split_input.2.{split_id}'
+    output: '{basename}.blast_split_output.1.{split_id}',
+            '{basename}.blast_split_output.2.{split_id}'
     params: LSF='-q week',
-            refDb='{config[blastDbDir]}/{config[blastDb_remove]}'
-    # TODO: replace with python wrapper command
-    shell:  "blastn -db {params.refDb} -query {input} -out {output} -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2"
+            refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
+    shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 rule cat_reads:
-    input:  dynamic('{basename}.blast_output.{split_id}')
-    output: '{basename}.blast_hits.txt'
+    input:  dynamic('{basename}.blast_split_output.{direction}.{split_id}')
+    output: '{basename}.blast_depleted.{direction,[12]}.fastq'
     params: LSF=""
     shell:  "cat {input} > {output}"
-
-rule filter_fastq_from_list:
-    input:  '{basename}.rmdup.{direction}.fastq', '{basename}.{direction}.blast_hits.txt'
-    output: '{basename}.blast_depleted.{direction,[12]}.fastq'
-    params: LSF=''
-    # TODO: replace with python wrapper command
-    shell:  "{config[binDir]}/scripts/noBlastHits_v3.py -b {input}[1] -r {input}[0] -m nohit > {output}"
 
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
