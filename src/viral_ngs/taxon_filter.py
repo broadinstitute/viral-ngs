@@ -9,7 +9,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile
+import argparse, logging, os, tempfile, errno
 from Bio import SeqIO
 import util.cmd, util.file, util.vcf, util.misc
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
@@ -342,7 +342,7 @@ The other three break the same operation into several steps allowing the
     caller to run them in parallel if appropriate infrastructure is available.
     The different pieces communicate by way of a single directory,
     scratchDir, which they create, fill, and delete.
-deplete_blastn_prep:   splits file into several pieces and prepare for blastn
+deplete_blastn_prep:   splits files into several pieces and prepares for blastn
 deplete_blastn_do1:    runs blastn on one of the pieces with one database
 deplete_blastn_finish: combines the results and does postprocessing
 """
@@ -369,17 +369,54 @@ def main_deplete_blastn(args) :
 __commands__.append(('deplete_blastn', main_deplete_blastn,
                      parser_deplete_blastn))
 
+def deplete_blastn_prep(inFastq1, inFastq2, scratchDir, maxReadsPerChunk) :
+    '''
+    Split file into several pieces and prepare for blastn.
+    More specifically:
+    create scratchDir;
+    link scratchDir/in[12].fastq to in-files for later use;
+    run prinseq-lite.pl to convert to scratchDir/in[12].fasta;
+    split fasta file into scratchDir/in[12].fasta.XXX
+    '''
+    ## Create scratchDir
+    try :
+        os.makedirs(scratchDir)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST :
+            log.exception('Specify a scratchDir that does not already exist.')
+            raise
+    ## Create symbolic links to input file for use in deplete_blastn_finish
+    os.symlink(inFastq1, os.path.join(scratchDir, 'in1.fastq'))
+    os.symlink(inFastq2, os.path.join(scratchDir, 'in2.fastq'))
+    
+    inFasta1 = os.path.join(scratchDir, 'in1.fasta')
+    inFasta2 = os.path.join(scratchDir, 'in2.fasta')
+    prinseqLitePath = tools.prinseq.PrinseqTool().install_and_get_path()
+    for inFastq, inFasta in [(inFastq1, inFasta1), (inFastq2, inFasta2)] :
+        ## Convert to fasta
+        inFastaBase = inFasta[:-6] # strip off .fasta
+        prinseqCmd = '{prinseqLitePath} -out_format 1 -line_width 0 '          \
+                     '-fastq {inFastq} -out_good {inFastaBase} -out_bad null'. \
+                     format(**locals())
+        log.debug(prinseqCmd)
+        assert not os.system(prinseqCmd)
+        ## Split
+        maxLines = 2 * maxReadsPerChunk # prinseq puts whole sequence on 1 line
+        splitCmd = 'split -a 3 -l {maxLines} {inFasta} {inFasta}'. \
+                   format(**locals())
+        log.debug(splitCmd)
+        assert not os.system(splitCmd)
+
 def parser_deplete_blastn_prep() :
     defaultMax = 10000
     parser = argparse.ArgumentParser(
         description =
             '''
-            Split file into several pieces and prepare for blastn.
+            Split files into several pieces and prepare for blastn.
             More specifically:
             create scratchDir;
             link scratchDir/in[12].fastq to in-files for later use;
-            run prinseq-lite.pl to convert to fasta, producing
-            scratchDir/in[12].fasta;
+            run prinseq-lite.pl to convert to scratchDir/in[12].fasta;
             split fasta file into scratchDir/in[12].fasta.XXX
             ''')
     parser.add_argument('inFastq1',
@@ -395,7 +432,11 @@ def parser_deplete_blastn_prep() :
                 A 0 value means don't split at all.'''.format(defaultMax))
     return parser
 def main_deplete_blastn_prep(args) :
-    raise NotImplementedError("not yet implemented")
+    inFastq1 = args.inFastq1
+    inFastq2 = args.inFastq2
+    scratchDir = args.scratchDir
+    maxReadsPerChunk = args.maxReadsPerChunk
+    deplete_blastn_prep(inFastq1, inFastq2, scratchDir, maxReadsPerChunk)
     return 0
 __commands__.append(('deplete_blastn_prep', main_deplete_blastn_prep,
                      parser_deplete_blastn_prep))
