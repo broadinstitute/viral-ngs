@@ -103,13 +103,17 @@ class TestBmtagger(unittest.TestCase) :
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
         
         # Partition the input files
+        outMatch   = [os.path.join(tempDir,   'outMatch.{}.fastq'.format(n))
+                      for n in '12']
+        outNoMatch = [os.path.join(tempDir, 'outNoMatch.{}.fastq'.format(n))
+                      for n in '12']
         args = taxon_filter.parser_partition_bmtagger().parse_args(
             [os.path.join(myInputDir, 'in1.fastq'),
              os.path.join(myInputDir, 'in2.fastq'),
              os.path.join(tempDir, 'humanChr1Subset'),
              os.path.join(tempDir, 'humanChr9Subset'),
-             '--outMatch', os.path.join(tempDir, 'outMatch'),
-             '--outNoMatch', os.path.join(tempDir, 'outNoMatch')])
+             '--outMatch', outMatch[0], outMatch[1],
+             '--outNoMatch', outNoMatch[0], outNoMatch[1]])
         taxon_filter.main_partition_bmtagger(args)
             
         # Compare to expected
@@ -141,12 +145,15 @@ class TestMvicuna(unittest.TestCase) :
         myInputDir = util.file.get_test_input_path(self)
         
         # Run mvicuna
-        inFastqPair = os.path.join(myInputDir, 'in')
-        pairedOutPair = os.path.join(tempDir, 'pairedOut')
-        unpairedOut = os.path.join(tempDir, 'unpairedOut.fastq')
-        postDupRmPair = os.path.join(tempDir, 'postDupRmPair')
+        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
+        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
+        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
+        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
+        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
         args = taxon_filter.parser_dup_remove_mvicuna().parse_args(
-            [inFastqPair, pairedOutPair, unpairedOut, postDupRmPair])
+            [inFastq1, inFastq2,
+             pairedOutFastq1, pairedOutFastq2,
+             '--unpairedOutFastq', unpairedOutFastq])
         taxon_filter.main_dup_remove_mvicuna(args)
             
         # Compare to expected
@@ -155,8 +162,6 @@ class TestMvicuna(unittest.TestCase) :
             assert_equal_contents(self,
                 os.path.join(tempDir, filename),
                 os.path.join(myInputDir, 'expected_' + filename))
-        self.assertFalse(os.path.exists(postDupRmPair + '.1.fastq'))
-        self.assertFalse(os.path.exists(postDupRmPair + '.2.fastq'))
 
 
 if __name__ == '__main__':
