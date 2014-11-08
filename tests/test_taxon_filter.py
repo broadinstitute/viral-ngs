@@ -183,9 +183,9 @@ class TestPurgeUnmated(TestCaseWithTmp) :
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         outFastq1 = util.file.mkstempfname()
         outFastq2 = util.file.mkstempfname()
-        parser = taxon_filter.parser_purge_unmated()
+        parser = util.read_utils.parser_purge_unmated()
         args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
-        taxon_filter.main_purge_unmated(args)
+        util.read_utils.main_purge_unmated(args)
 
         # Check that results match expected
         expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
