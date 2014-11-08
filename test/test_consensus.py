@@ -6,7 +6,7 @@ import consensus, util.cmd, util.file
 import Bio.SeqIO, Bio.Data.IUPACData
 import unittest
 import os, shutil, tempfile, argparse, itertools
-
+from test import TestCaseWithTmp
 
 def makeFasta(seqs, outFasta):
     with open(outFasta, 'wt') as outf:
@@ -102,12 +102,8 @@ class TestManualSnpCaller(unittest.TestCase):
 
 
 
-class TestDeambigAndTrimFasta(unittest.TestCase):
+class TestDeambigAndTrimFasta(TestCaseWithTmp):
     ''' Test the deambig_fasta and trim_fasta commands. '''
-    def setUp(self):
-        util.file.set_tmpDir('TestDeambigAndTrimFasta')
-    def tearDown(self):
-        util.file.destroy_tmpDir()
     def run_method(self, inseqs, parser_fun, main_fun):
         fasta_in = util.file.mkstempfname()
         fasta_out = util.file.mkstempfname()
