@@ -15,6 +15,7 @@ import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
        tools.samtools, tools.picard, tools.blast, tools.mvicuna
 from util.file import mkstempfname
+from read_utils import fastq_to_fasta
 
 log = logging.getLogger(__name__)
 
@@ -345,13 +346,8 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
                                       'noBlastHits_v3.py')
     
     ## Convert to fasta
-    inFastaBase = mkstempfname()
-    inFasta = inFastaBase + '.fasta' # prinseqLite adds the .fasta
-    prinseqCmd = '{prinseqLitePath} -out_format 1 -line_width 0 '          \
-                 '-fastq {inFastq} -out_good {inFastaBase} -out_bad null'. \
-                 format(**locals())
-    log.debug(prinseqCmd)
-    assert not os.system(prinseqCmd)
+    inFasta = mkstempfname() + '.fasta'
+    fastq_to_fasta(inFastq, inFasta)
 
     ## Run blastn using each of the databases in turn
     blastOutFiles = [mkstempfname() for db in refDbs]
