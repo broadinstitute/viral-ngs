@@ -397,11 +397,13 @@ __commands__.append(('deplete_blastn', main_deplete_blastn,
                      parser_deplete_blastn))
 
 
-# ============================
-# ***  fix_mate_pair_info  ***
-# ============================
+# =======================
+# ***  purge_unmated  ***
+# =======================
 
-def fix_mate_pair_info(inFastq1, inFastq2, outFastq1, outFastq2) :
+def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2) :
+    """Use mergeShuffledFastqSeqs to purge unmated reads, and put corresponding
+       reads in the same order."""
     tempOutput = mkstempfname()
     mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(),
                                               'mergeShuffledFastqSeqs.pl')
@@ -414,11 +416,12 @@ def fix_mate_pair_info(inFastq1, inFastq2, outFastq1, outFastq2) :
     os.rename(tempOutput + '.1.fastq', outFastq1)
     os.rename(tempOutput + '.2.fastq', outFastq2)
 
-def parser_fix_mate_pair_info() :
+def parser_purge_unmated() :
     parser = argparse.ArgumentParser(
-        description='''Use mergeShuffledFastqSeqs to fix mate pair information.
+        description='''Use mergeShuffledFastqSeqs to purge unmated reads, and
+                       put corresponding reads in the same order.
                        Corresponding sequences must have sequence identifiers
-                       of the form SEQID/1 and SEQID/2 in the two input files.
+                       of the form SEQID/1 and SEQID/2.
                     ''')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
@@ -430,16 +433,16 @@ def parser_fix_mate_pair_info() :
         help='Output fastq file; 2nd end of paired-end reads.')
     return parser
 
-def main_fix_mate_pair_info(args) :
+def main_purge_unmated(args) :
     inFastq1 = args.inFastq1
     inFastq2 = args.inFastq2
     outFastq1 = args.outFastq1
     outFastq2 = args.outFastq2
-    fix_mate_pair_info(inFastq1, inFastq2, outFastq1, outFastq2)
+    purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2)
     return 0
 
-__commands__.append(('fix_mate_pair_info', main_fix_mate_pair_info,
-                     parser_fix_mate_pair_info))
+__commands__.append(('purge_unmated', main_purge_unmated,
+                     parser_purge_unmated))
 
 
 ''' KGA's "recipe" for human read depletion (with some notes by Irwin)
