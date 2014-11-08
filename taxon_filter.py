@@ -405,6 +405,8 @@ def fix_mate_pair_info(inFastq1, inFastq2, outFastq1, outFastq2) :
     tempOutput = mkstempfname()
     mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(),
                                               'mergeShuffledFastqSeqs.pl')
+    # The regular expression that follow says that the sequence identifiers
+    # of corresponding sequences must be of the form SEQID/1 and SEQID/2
     cmdline = "{mergeShuffledFastqSeqsPath} -t -r '^@(\S+)/[1|2]$' " \
               "-f1 {inFastq1} -f2 {inFastq2} -o {tempOutput}".format(**locals())
     log.debug(cmdline)
@@ -414,7 +416,10 @@ def fix_mate_pair_info(inFastq1, inFastq2, outFastq1, outFastq2) :
 
 def parser_fix_mate_pair_info() :
     parser = argparse.ArgumentParser(
-        description='Use mergeShuffledFastqSeqs to fix mate pair information.')
+        description='''Use mergeShuffledFastqSeqs to fix mate pair information.
+                       Corresponding sequences must have sequence identifiers
+                       of the form SEQID/1 and SEQID/2 in the two input files.
+                    ''')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2',

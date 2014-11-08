@@ -18,7 +18,6 @@ class TestCommandHelp(unittest.TestCase):
 class TestTrimmomatic(TestCaseWithTmp) :
 
     def test_trimmomatic(self) :
-        commonInputDir = util.file.get_test_input_path()
         myInputDir = util.file.get_test_input_path(self)
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
@@ -175,6 +174,25 @@ class TestDepleteBlastn(TestCaseWithTmp) :
         # Compare to expected
         assert_equal_contents(self, outFile,
                               os.path.join(myInputDir, 'expected.fastq'))
+
+class TestFixMatePairInfo(TestCaseWithTmp) :
+    def test_fix_mate_pair_info(self) :
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        inFastq1 = os.path.join(myInputDir, 'in1.fastq')
+        inFastq2 = os.path.join(myInputDir, 'in2.fastq')
+        outFastq1 = util.file.mkstempfname()
+        outFastq2 = util.file.mkstempfname()
+        parser = taxon_filter.parser_fix_mate_pair_info()
+        args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
+        taxon_filter.main_fix_mate_pair_info(args)
+
+        # Check that results match expected
+        expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
+        expected2Fastq = os.path.join(myInputDir, 'expected2.fastq')
+        assert_equal_contents(self, outFastq1, expected1Fastq)
+        assert_equal_contents(self, outFastq2, expected2Fastq)
+
 
 if __name__ == '__main__':
     unittest.main()
