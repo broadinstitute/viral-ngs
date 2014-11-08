@@ -6,15 +6,14 @@ import tools
 from tools import *
 import unittest, tempfile, shutil, os, logging
 import util.cmd, util.file
+from test import TestCaseWithTmp
 
 log = logging.getLogger(__name__)
 
-class TestToolsInstallation(unittest.TestCase):
+class TestToolsInstallation(TestCaseWithTmp):
     def setUp(self):
-        util.file.set_tmpDir('TestToolsInstallation')
+        super(TestToolsInstallation, self).setUp()
         util.cmd.setup_logger('INFO')
-    def tearDown(self):
-        util.file.destroy_tmpDir()
     def testAllToolInstallers(self):
         def iter_leaf_subclasses(aClass) :
             "Iterate over subclasses at all levels that don't themselves have a subclass"

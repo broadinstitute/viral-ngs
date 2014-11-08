@@ -5,7 +5,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
 
 import unittest, os, sys, tempfile, shutil
 import taxon_filter, util.file, tools.last, tools.bmtagger
-from test import assert_equal_contents
+from test import assert_equal_contents, TestCaseWithTmp
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -15,13 +15,7 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-class TestTrimmomatic(unittest.TestCase) :
-
-    def setUp(self) :
-        util.file.set_tmpDir('TestTrimmomatic')
-
-    def tearDown(self) :
-        util.file.destroy_tmpDir()
+class TestTrimmomatic(TestCaseWithTmp) :
 
     def test_trimmomatic(self) :
         commonInputDir = util.file.get_test_input_path()
@@ -42,13 +36,7 @@ class TestTrimmomatic(unittest.TestCase) :
         assert_equal_contents(self, pairedOutFastq1, expected1Fastq)
         assert_equal_contents(self, pairedOutFastq2, expected2Fastq)
 
-class TestFilterLastal(unittest.TestCase) :
-
-    def setUp(self) :
-        util.file.set_tmpDir('TestFilterLastal')
-
-    def tearDown(self) :
-        util.file.destroy_tmpDir()
+class TestFilterLastal(TestCaseWithTmp) :
 
     def test_filter_lastal(self) :
         # Create refDbs
@@ -72,7 +60,7 @@ class TestFilterLastal(unittest.TestCase) :
         expectedFastq = os.path.join(myInputDir, 'expected.fastq')
         assert_equal_contents(self, outFastq + '.fastq', expectedFastq)
 
-class TestBmtagger(unittest.TestCase) :
+class TestBmtagger(TestCaseWithTmp) :
     """
     How test data was created:
       humanChr1Subset.fa has 200 bases from human chr1
@@ -82,12 +70,6 @@ class TestBmtagger(unittest.TestCase) :
       in[12].fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
           with arbitrary quality scores.
     """
-    def setUp(self) :
-        util.file.set_tmpDir('TestBmtagger')
-    
-    def tearDown(self) :
-        util.file.destroy_tmpDir()
-        
     def test_bmtagger(self) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
@@ -122,7 +104,7 @@ class TestBmtagger(unittest.TestCase) :
                 os.path.join(tempDir, 'out' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.' + case + '.fastq'))
 
-class TestMvicuna(unittest.TestCase) :
+class TestMvicuna(TestCaseWithTmp) :
     """
     Input consists of 3 read pairs.
     Second read pair is identical to first.
@@ -134,12 +116,6 @@ class TestMvicuna(unittest.TestCase) :
     [IJ:]I have no idea if this is the correct behavior, but test checks that it
         doesn't change.
     """
-    def setUp(self) :
-        util.file.set_tmpDir('TestMvicuna')
-    
-    def tearDown(self) :
-        util.file.destroy_tmpDir()
-        
     def test_mvicuna(self) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
