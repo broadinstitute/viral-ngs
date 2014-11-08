@@ -43,10 +43,8 @@ rule split_reads:
     shell:  "split -a 3 -l {params.length} {input} {wildcards.basename}.blast_input.{wildcards.direction}."
 
 rule blastn_deplete:
-    input:  '{basename}.blast_split_input.1.{split_id}',
-            '{basename}.blast_split_input.2.{split_id}'
-    output: '{basename}.blast_split_output.1.{split_id}',
-            '{basename}.blast_split_output.2.{split_id}'
+    input:  '{basename}.blast_split_input.{direction}.{split_id}'
+    output: '{basename}.blast_split_output.{direction}.{split_id}'
     params: LSF='-q week',
             refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
@@ -59,11 +57,9 @@ rule cat_reads:
 
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
-    output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq',
-            temp('{basename}.cleaned.unpaired.fastq')
+    output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
     params: LSF=''
-    # TODO: replace with python wrapper command
-    shell:  "{config[binDir]}/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 {input}[0] -f2 {input}[1] -o {output}[0][:-8]"
+    shell:  "{config[binDir]}/taxon_filter.py fix_mate_pair_info {input} {output}"
 
 rule fastq_to_bam:
     input:  config["tmpDir"] +'/{sample}.{adjective}.1.fastq',
