@@ -10,6 +10,7 @@ __date__ = "PLACEHOLDER"
 __commands__ = []
 
 import argparse, logging, os
+from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
 
@@ -63,10 +64,35 @@ def main_purge_unmated(args) :
 __commands__.append(('purge_unmated', main_purge_unmated,
                      parser_purge_unmated))
 
-# =======================
-# ***  fastq_to_bam   ***
-# =======================
-# TBD...
+# =========================
+# ***  fastq_to_fasta   ***
+# =========================
+def fastq_to_fasta(inFastq, outFasta) :
+    'Convert file in fastq format to fasta format.'
+    'Warning: output reads might be split onto multiple lines.'
+    
+    # Do this with biopython rather than prinseq, because if the latter fails
+    #    it doesn't return an error status.
+    inFile  = util.file.open_or_gzopen(inFastq)
+    outFile = util.file.open_or_gzopen(outFasta, 'w')
+    for rec in SeqIO.parse(inFile, 'fastq') :
+        SeqIO.write([rec], outFile, 'fasta')
+    outFile.close()
+
+def parser_fastq_to_fasta() :
+    parser = argparse.ArgumentParser(
+        description='Convert file from fastq format to fasta format.')
+    parser.add_argument('inFastq', help='Input fastq file.')
+    parser.add_argument('outFasta', help='Output fasta file.')
+    return parser
+
+def main_fastq_to_fasta(args) :
+    inFastq = args.inFastq
+    outFasta = args.outFasta
+    fastq_to_fasta(inFastq, outFasta)
+    return 0
+__commands__.append(('fastq_to_fasta', main_fastq_to_fasta,
+                     parser_fastq_to_fasta))
 
 # =======================
 # ***  bam_to_fastq   ***
@@ -74,9 +100,9 @@ __commands__.append(('purge_unmated', main_purge_unmated,
 # TBD...
 
 
-# =========================
-# ***  fastq_to_fasta   ***
-# =========================
+# =======================
+# ***  fastq_to_bam   ***
+# =======================
 # TBD...
 
 
