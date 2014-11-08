@@ -4,7 +4,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
                 + "hlevitin@broadinstitute.org"
 
 import unittest, os, sys, tempfile, shutil
-import taxon_filter, util.file, tools.last, tools.bmtagger
+import taxon_filter, util.file, tools.last, tools.bmtagger, tools.blast
 from test import assert_equal_contents, TestCaseWithTmp
 
 
@@ -139,6 +139,42 @@ class TestMvicuna(TestCaseWithTmp) :
                 os.path.join(tempDir, filename),
                 os.path.join(myInputDir, 'expected_' + filename))
 
+class TestDepleteBlastn(TestCaseWithTmp) :
+    '''
+    How test data was created:
+      humanChr1Subset.fa has 200 bases from human chr1
+      humanChr9Subset.fa has 200 bases from human chr9
+      in.fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
+          with arbitrary quality scores.
+    '''
+    def test_deplete_blastn(self) :
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+
+        # Make blast databases
+        makeblastdbPath = tools.blast.MakeblastdbTool().install_and_get_path()
+        dbnames = ['humanChr1Subset.fa', 'humanChr9Subset.fa']
+        refDbs = []
+        for dbname in dbnames :
+            refDb = os.path.join(tempDir, dbname)
+            os.symlink(os.path.join(myInputDir, dbname), refDb)
+            refDbs.append(refDb)
+            makeblastdbCmd = '{makeblastdbPath} -dbtype nucl -in {refDb}'.\
+                format(**locals())
+            assert not os.system(makeblastdbCmd)
+
+        # Run deplete_blastn
+        outFile = os.path.join(tempDir, 'out.fastq')
+        args = taxon_filter.parser_deplete_blastn().parse_args(
+            [os.path.join(myInputDir, 'in.fastq'),
+             outFile,
+             refDbs[0],
+             refDbs[1]])
+        taxon_filter.main_deplete_blastn(args)
+
+        # Compare to expected
+        assert_equal_contents(self, outFile,
+                              os.path.join(myInputDir, 'expected.fastq'))
 
 if __name__ == '__main__':
     unittest.main()
