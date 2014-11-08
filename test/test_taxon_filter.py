@@ -175,17 +175,17 @@ class TestDepleteBlastn(TestCaseWithTmp) :
         assert_equal_contents(self, outFile,
                               os.path.join(myInputDir, 'expected.fastq'))
 
-class TestFixMatePairInfo(TestCaseWithTmp) :
-    def test_fix_mate_pair_info(self) :
+class TestPurgeUnmated(TestCaseWithTmp) :
+    def test_purge_unmated(self) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         outFastq1 = util.file.mkstempfname()
         outFastq2 = util.file.mkstempfname()
-        parser = taxon_filter.parser_fix_mate_pair_info()
+        parser = taxon_filter.parser_purge_unmated()
         args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
-        taxon_filter.main_fix_mate_pair_info(args)
+        taxon_filter.main_purge_unmated(args)
 
         # Check that results match expected
         expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
