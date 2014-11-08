@@ -346,7 +346,7 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     
     ## Convert to fasta
     inFastaBase = mkstempfname()
-    inFasta = inFasta + '.fasta' # prinseqLite adds the .fasta
+    inFasta = inFastaBase + '.fasta' # prinseqLite adds the .fasta
     prinseqCmd = '{prinseqLitePath} -out_format 1 -line_width 0 '          \
                  '-fastq {inFastq} -out_good {inFastaBase} -out_bad null'. \
                  format(**locals())
