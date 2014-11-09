@@ -13,7 +13,7 @@ import argparse, logging, os, tempfile, errno
 from Bio import SeqIO
 import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
-       tools.samtools, tools.picard, tools.blast, tools.mvicuna
+       tools.blast, tools.mvicuna
 from util.file import mkstempfname
 from read_utils import fastq_to_fasta
 
@@ -149,13 +149,6 @@ def parser_filter_lastal():
                         help="Reference database to retain from input")
     parser.add_argument("outFastq", help = "Output fastq file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-
-    # Future: handle BAM input and output; handle multiple databases.
-    # Will need to implement bam->fastq->bam wrappers that maintain the read
-    # metadata
-    #parser.add_argument("inBam", help="Input BAM file")
-    #parser.add_argument("outBam", help="Output BAM file")
-
     return parser
 
 def main_filter_lastal(args):
