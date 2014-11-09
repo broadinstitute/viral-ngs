@@ -333,7 +333,6 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     'Use blastn to remove reads that match at least one of the databases.'
     
     ## Get tools
-    prinseqLitePath = tools.prinseq.PrinseqTool().install_and_get_path()
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
     noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(),
                                       'noBlastHits_v3.py')
