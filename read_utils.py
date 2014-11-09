@@ -9,7 +9,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os
+import argparse, logging, os, tempfile
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
@@ -96,43 +96,94 @@ def main_fastq_to_fasta(args) :
 __commands__.append(('fastq_to_fasta', main_fastq_to_fasta,
                      parser_fastq_to_fasta))
 
+# =================================================
+# ***  shared by bam_to_fastq and fastq_to_bam  ***
+# =================================================
+
+jvmMemDefault = '2g'
+
 # =======================
 # ***  bam_to_fastq   ***
 # =======================
-# TBD...
+def bam_to_fastq(inBam, outFastq1, outFastq2, outHeader = None,
+                 JVMmemory = jvmMemDefault, picardOptions = []) :
+    'Convert a bam file to a pair of fastq paired-end read files and optional '\
+    'text header.'
+    
+    SamToFastqPath = tools.picard.SamToFastqTool().install_and_get_path()
+    tempdir = tempfile.gettempdir()
+    samToFastqCmd = ('java -Xmx{JVMmemory}  -Djava.io.tmpdir={tempdir} '
+                     '-jar {SamToFastqPath} '
+                     'INPUT={inBam} '
+                     'FASTQ={outFastq1} '
+                     'SECOND_END_FASTQ={outFastq2} '
+                     'VALIDATION_STRINGENCY=SILENT ' +
+                     ' '.join(picardOptions)).format(**locals())
+    log.debug(samToFastqCmd)
+    assert not os.system(samToFastqCmd)
+    
+    if outHeader :
+        samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
+        dumpHeaderCmd = '{samtoolsPath} view -H {inBam} > {outHeader}'.format(
+            **locals())
+        log.debug(dumpHeaderCmd)
+        assert not os.system(dumpHeaderCmd)
 
+def parser_bam_to_fastq() :
+    jvmMemDefault = '2g'
+    parser = argparse.ArgumentParser(
+        description='Convert a bam file to a pair of fastq paired-end '\
+                    'read files and optional text header.')
+    parser.add_argument('inBam', help='Input bam file.')
+    parser.add_argument('outFastq1',
+        help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('outFastq2',
+        help='Output fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('--outHeader',
+        help='Optional text file name that will receive bam header.')
+    parser.add_argument('--JVMmemory', default = jvmMemDefault,
+        help='JVM virtual memory size (default: {})'.format(jvmMemDefault))
+    parser.add_argument('--picardOptions', default = [], nargs='+',
+        help='Optional arguments to picard\'s SamToFastq, OPTIONNAME=value ...')
+    
+    return parser
+
+def main_bam_to_fastq(args) :
+    outFastq1 = args.outFastq1
+    outFastq2 = args.outFastq2
+    inBam = args.inBam
+    outHeader = args.outHeader
+    JVMmemory = args.JVMmemory
+    picardOptions = args.picardOptions
+    bam_to_fastq(inBam, outFastq1, outFastq2, outHeader, JVMmemory,
+                 picardOptions)
+    return 0
+
+__commands__.append(('bam_to_fastq', main_bam_to_fastq,
+                     parser_bam_to_fastq))
 
 # =======================
 # ***  fastq_to_bam   ***
 # =======================
 
-def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam,
-                 header = None, JVMmemory = None, libraryName = None,
-                 runDate = None, platform = None, sequencingCenter = None) :
+def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header = None,
+                 JVMmemory = jvmMemDefault, picardOptions = []) :
     'Convert a pair of fastq paired-end read files and optional text header ' \
     'to a single bam file.'
     
-    FastqToSamTool = tools.picard.FastqToSamTool().install_and_get_path()
+    FastqToSamPath = tools.picard.FastqToSamTool().install_and_get_path()
     if header :
         fastqToSamOut = mkstempfname()
     else :
         fastqToSamOut = outBam
-    memStr = JVMmemory if JVMmemory else '2g'
-    options = []
-    if libraryName :
-        options.append('LIBRARY_NAME=' + libraryName)
-    if runDate :
-        options.append('RUN_DATE=' + runDate)
-    if platform :
-        options.append('PLATFORM=' + platform)
-    if sequencingCenter :
-        options.append('SEQUENCING_CENTER=' + sequencingCenter)
-    fastqToSamCmd = ('java -Xmx{memStr} -jar {FastqToSamTool} '
+    tempdir = tempfile.gettempdir()
+    fastqToSamCmd = ('java -Xmx{JVMmemory} -Djava.io.tmpdir={tempdir} '
+                     '-jar {FastqToSamPath} '
                      'FASTQ={inFastq1} FASTQ2={inFastq2} '
                      'OUTPUT={fastqToSamOut} '
                      'SAMPLE_NAME={sampleName} '
                      'CREATE_MD5_FILE=True ' +
-                     ' '.join(options)).format(**locals())
+                     ' '.join(picardOptions)).format(**locals())
     log.debug(fastqToSamCmd)
     assert not os.system(fastqToSamCmd)
     if header :
@@ -144,7 +195,6 @@ def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam,
         os.system('md5 {outBam} > {outBam}.md5'.format(**locals()))
 
 def parser_fastq_to_bam() :
-    defJvmMem = '2g'
     parser = argparse.ArgumentParser(
         description='Convert a pair of fastq paired-end read files and '
                     'optional text header to a single bam file.')
@@ -157,16 +207,13 @@ def parser_fastq_to_bam() :
     parser.add_argument('outBam', help='Output bam file.')
     parser.add_argument('--header',
         help='Optional text file containing header.')
-    parser.add_argument('--JVMmemory', default = defJvmMem,
-        help='JVM virtual memory size (default: {})'.format(defJvmMem))
-    parser.add_argument('--libraryName',
-        help='Library name to put in LB attribute in read group header.')
-    parser.add_argument('--runDate',
-        help='Run date in Iso8601 format (e.g., 2014-10-29).')
-    parser.add_argument('--platform',
-        help='The platform type (e.g. illumina, solid).')
-    parser.add_argument('--sequencingCenter',
-        help='The sequencing center from which the data originated.')
+    parser.add_argument('--JVMmemory', default = jvmMemDefault,
+        help='JVM virtual memory size (default: {})'.format(jvmMemDefault))
+    parser.add_argument('--picardOptions', default = [], nargs='+',
+        help='''Optional arguments to picard\'s FastqToSam,
+                OPTIONNAME=value ...  Note that header-related options will be 
+                overwritten by HEADER if present.''')
+    
     return parser
 
 def main_fastq_to_bam(args) :
@@ -176,13 +223,11 @@ def main_fastq_to_bam(args) :
     outBam = args.outBam
     header = args.header
     JVMmemory = args.JVMmemory
-    libraryName = args.libraryName
-    runDate = args.runDate
-    platform = args.platform
-    sequencingCenter = args.sequencingCenter
-    fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header,
-                 JVMmemory, libraryName, runDate, platform, sequencingCenter)
+    picardOptions = args.picardOptions
+    fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header, JVMmemory,
+                 picardOptions)
     return 0
+
 __commands__.append(('fastq_to_bam', main_fastq_to_bam,
                      parser_fastq_to_bam))
 
