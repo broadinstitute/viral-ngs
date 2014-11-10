@@ -235,8 +235,6 @@ __commands__.append(('fastq_to_bam', main_fastq_to_bam,
                      parser_fastq_to_bam))
 
 
-
-
 # =======================
 
 if __name__ == '__main__':
