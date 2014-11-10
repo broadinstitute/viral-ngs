@@ -166,7 +166,7 @@ __commands__.append(('bam_to_fastq', main_bam_to_fastq,
 # ***  fastq_to_bam   ***
 # =======================
 
-def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header = None,
+def fastq_to_bam(inFastq1, inFastq2, outBam, sampleName = None, header = None,
                  JVMmemory = jvmMemDefault, picardOptions = []) :
     'Convert a pair of fastq paired-end read files and optional text header ' \
     'to a single bam file.'
@@ -177,6 +177,8 @@ def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header = None,
     else :
         fastqToSamOut = outBam
     tempdir = tempfile.gettempdir()
+    if sampleName == None :
+        sampleName = 'Dummy' # Will get overwritten by rehead command
     fastqToSamCmd = ('java -Xmx{JVMmemory} -Djava.io.tmpdir={tempdir} '
                      '-jar {FastqToSamPath} '
                      'FASTQ={inFastq1} FASTQ2={inFastq2} '
@@ -192,20 +194,21 @@ def fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header = None,
                     '{outBam}'.format(**locals())
         log.debug(reheadCmd)
         assert not os.system(reheadCmd)
-        os.system('md5 {outBam} > {outBam}.md5'.format(**locals()))
+        os.system('md5 -q {outBam} > {outBam}.md5'.format(**locals()))
 
 def parser_fastq_to_bam() :
     parser = argparse.ArgumentParser(
         description='Convert a pair of fastq paired-end read files and '
                     'optional text header to a single bam file.')
-    parser.add_argument('sampleName',
-        help='Sample name to insert into the read group header.')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2',
         help='Input fastq file; 2nd end of paired-end reads.')
     parser.add_argument('outBam', help='Output bam file.')
-    parser.add_argument('--header',
+    headerGroup = parser.add_mutually_exclusive_group(required = True)
+    headerGroup.add_argument('--sampleName',
+        help='Sample name to insert into the read group header.')
+    headerGroup.add_argument('--header',
         help='Optional text file containing header.')
     parser.add_argument('--JVMmemory', default = jvmMemDefault,
         help='JVM virtual memory size (default: {})'.format(jvmMemDefault))
@@ -217,14 +220,14 @@ def parser_fastq_to_bam() :
     return parser
 
 def main_fastq_to_bam(args) :
-    sampleName = args.sampleName
     inFastq1 = args.inFastq1
     inFastq2 = args.inFastq2
     outBam = args.outBam
+    sampleName = args.sampleName
     header = args.header
     JVMmemory = args.JVMmemory
     picardOptions = args.picardOptions
-    fastq_to_bam(sampleName, inFastq1, inFastq2, outBam, header, JVMmemory,
+    fastq_to_bam(inFastq1, inFastq2, outBam, sampleName, header, JVMmemory,
                  picardOptions)
     return 0
 
