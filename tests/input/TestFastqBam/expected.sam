@@ -1,4 +1,4 @@
 @HD	VN:1.4	SO:queryname
-@RG	ID:A	PL:9.75	LB:Alexandria	DT:1776-07-03T19:00:00-0500	SM:FreeSample	CN:KareemAbdul-Jabbar
+@RG	ID:A	PL:9.75	LB:Alexandria	SM:FreeSample	CN:KareemAbdul-Jabbar
 myseq	77	*	0	0	*	*	0	0	TCAATAAAAAAAAAAAAGAAAGAAAAAAAAATTCTCCTCATTTTTGTTGT	""""""""""""""""""""""""""""""""""""""""""""""""""	RG:Z:A
 myseq	141	*	0	0	*	*	0	0	AATTATATTATTTCTTTGATAATTTCCTCTCCTCTTGTTTCTTTGTTTCT	"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#"#	RG:Z:A
