@@ -2,7 +2,18 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import filecmp, os
+import filecmp, os, unittest
+import util
+
+class TestCaseWithTmp(unittest.TestCase) :
+    'Base class for tests that use tempDir'
+    def setUp(self) :
+        util.file.set_tmpDir(type(self).__name__)
+
+    def tearDown(self) :
+        util.file.destroy_tmpDir()
+
+
 
 """
 When "nose" executes python scripts for automated testing, it excludes ones with

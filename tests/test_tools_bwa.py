@@ -4,17 +4,14 @@ __author__ = "hlevitin@broadinstitute.org"
 
 import unittest, os, sys, tempfile
 import util.file, tools.bwa
+from test import TestCaseWithTmp
 
-class TestToolBwa(unittest.TestCase) :
+class TestToolBwa(TestCaseWithTmp) :
 
     def setUp(self) :
-        util.file.set_tmpDir('TestToolBwa')
+        super(TestToolBwa, self).setUp()
         self.bwa = tools.bwa.Bwa()
         self.bwa.install()
-
-
-    def tearDown(self) :
-        util.file.destroy_tmpDir()
 
     def test_tool_bwa_index(self) :
         referenceDir = util.file.get_test_input_path()
