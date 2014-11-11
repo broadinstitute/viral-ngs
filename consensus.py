@@ -15,7 +15,7 @@ import util.cmd, util.file, util.vcf
 log = logging.getLogger(__name__)
 
 
-def assemble_trinity(inReads):
+def assemble_trinity(inFastq1, inFastq2):
     ''' KGA "recipe" follows
 
 # DE NOVO ASSEMBLY USING TRINITY
@@ -51,6 +51,14 @@ done
 done
     '''
     raise ("not yet implemented")
+
+def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
+    # make sure inFasta is indexed for Novoalign, create them if they don't exist
+    # run Novoalign to align input fastqs to inFasta
+    # convert outputs to BAM using Picard and other tools
+    # index/sort BAM file
+    raise ("not yet implemented")
+    
 
 def filter_seqs_on_length(inFasta, outFasta):
     # see rsealfon script
