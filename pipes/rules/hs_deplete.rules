@@ -21,7 +21,7 @@ rule bam_to_fastq:
     output: config["tmpDir"]+ '/{sample}.raw.1.fastq', 
             config["tmpDir"]+ '/{sample}.raw.2.fastq', 
             config["tmpDir"]+ '/{sample}.raw.samheader.txt'
-    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output}[0] {output}[1] --outHeader {output}[2]"
+    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}"
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
@@ -63,4 +63,4 @@ rule fastq_to_bam:
             config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
             config["tmpDir"] +'/{sample}.raw.samheader.txt'
     output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam'
-    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input}[0] {input}[1] {output} --header {input}[2] --sampleName {wildcards.sample}"
+    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input[0]} {input[1]} {output} --header {input[2]} --sampleName {wildcards.sample}"
