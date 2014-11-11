@@ -43,8 +43,8 @@ rule split_reads:
     shell:  "split -a 3 -l {params.length} {input} {wildcards.basename}.blast_input.{wildcards.direction}."
 
 rule blastn_deplete:
-    input:  '{basename}.blast_split_input.{direction}.{split_id}'
-    output: '{basename}.blast_split_output.{direction,[12]}.{split_id,\d+}'
+    input:  '{prefix}.blast_split_input.{suffix}'
+    output: '{prefix}.blast_split_output.{suffix}'
     params: LSF='-q week', refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
