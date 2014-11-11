@@ -66,7 +66,6 @@ class TestFastqBam(TestCaseWithTmp) :
             'LIBRARY_NAME=Alexandria',
             'PLATFORM=9.75',
             'SEQUENCING_CENTER=KareemAbdul-Jabbar',
-            'RUN_DATE=1776-07-04'
             ])
         read_utils.main_fastq_to_bam(args)
 
