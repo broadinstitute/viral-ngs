@@ -21,11 +21,7 @@ rule bam_to_fastq:
     output: config["tmpDir"]+ '/{sample}.raw.1.fastq', 
             config["tmpDir"]+ '/{sample}.raw.2.fastq', 
             config["tmpDir"]+ '/{sample}.raw.samheader.txt'
-    params: LSF='', JVM='-Xmx2g'
-    # TODO: replace with python wrapper command
-    run:
-            shell("java {params.JVM} -jar {config[picardDir]}/SamToFastq.jar INPUT={input} FASTQ={output}[0] SECOND_END_FASTQ={output}[1] VALIDATION_STRINGENCY=SILENT")
-            shell("{config[samtoolsDir]}/samtools view -H {input} > {output}[2]")
+    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output}[0] {output}[1] --outHeader {output}[2]"
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
@@ -43,36 +39,28 @@ rule rmdup_mvicuna:
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fastq'
     output: dynamic('{basename}.blast_split_input.{direction}.{split_id}')
-    params: LSF='', length='100000'
+    params: length='100000'
     shell:  "split -a 3 -l {params.length} {input} {wildcards.basename}.blast_input.{wildcards.direction}."
 
 rule blastn_deplete:
     input:  '{basename}.blast_split_input.{direction}.{split_id}'
     output: '{basename}.blast_split_output.{direction,[12]}.{split_id,\d+}'
-    params: LSF='-q week',
-            refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
+    params: LSF='-q week', refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 rule cat_reads:
     input:  dynamic('{basename}.blast_split_output.{direction}.{split_id}')
     output: '{basename}.blast_depleted.{direction,[12]}.fastq'
-    params: LSF=""
     shell:  "cat {input} > {output}"
 
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
     output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
-    params: LSF=''
-    shell:  "{config[binDir]}/taxon_filter.py fix_mate_pair_info {input} {output}"
+    shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule fastq_to_bam:
     input:  config["tmpDir"] +'/{sample}.{adjective}.1.fastq',
             config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
             config["tmpDir"] +'/{sample}.raw.samheader.txt'
-    output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam',
-            config["dataDir"]+'/{sample}.{adjective}.badheader.bam'
-    # TODO: replace with python wrapper command
-    params: LSF='', JVM='-Xmx2g'
-    run:
-            shell("java {params.JVM} -jar {config[picardDir]}/FastqToSam.jar FASTQ={input}[0] FASTQ2={input}[1] OUTPUT={output}[1] SAMPLE_NAME={wildcards.sample} SORT_ORDER=unsorted")
-            shell("{config[samtoolsDir]}/samtools reheader {input}[2] {output}[1] > {output}[0]")
+    output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam'
+    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input}[0] {input}[1] {output} --header {input}[2] --sampleName {wildcards.sample}"
