@@ -29,3 +29,6 @@ class BlastTools(tools.Tool) :
 
 class BlastnTool(BlastTools) :
     subtoolName = 'blastn'
+
+class MakeblastdbTool(BlastTools) :
+    subtoolName = 'makeblastdb'

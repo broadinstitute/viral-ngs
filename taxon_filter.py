@@ -9,12 +9,13 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile
+import argparse, logging, os, tempfile, errno
 from Bio import SeqIO
-import util.cmd, util.file, util.vcf, util.misc
+import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
-       tools.samtools, tools.picard, tools.blast, tools.mvicuna
+       tools.blast, tools.mvicuna
 from util.file import mkstempfname
+from read_utils import fastq_to_fasta
 
 log = logging.getLogger(__name__)
 
@@ -148,13 +149,6 @@ def parser_filter_lastal():
                         help="Reference database to retain from input")
     parser.add_argument("outFastq", help = "Output fastq file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-
-    # Future: handle BAM input and output; handle multiple databases.
-    # Will need to implement bam->fastq->bam wrappers that maintain the read
-    # metadata
-    #parser.add_argument("inBam", help="Input BAM file")
-    #parser.add_argument("outBam", help="Output BAM file")
-
     return parser
 
 def main_filter_lastal(args):
@@ -334,496 +328,63 @@ __commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,
 # ========================
 # ***  deplete_blastn  ***
 # ========================
-"""
-There are 4 utilities in the deplete_blastn suite.
-The first one, deplete_blastn uses blastn to remove reads that match
-    a set of databases, all in one step.
-The other three break the same operation into several steps allowing the
-    caller to run them in parallel if appropriate infrastructure is available.
-    The different pieces communicate by way of a single directory,
-    scratchDir, which they create, fill, and delete.
-deplete_blastn_prep:   splits file into several pieces and prepare for blastn
-deplete_blastn_do1:    runs blastn on one of the pieces with one database
-deplete_blastn_finish: combines the results and does postprocessing
-"""
+
+def deplete_blastn(inFastq, outFastq, refDbs) :
+    'Use blastn to remove reads that match at least one of the databases.'
+    
+    ## Get tools
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(),
+                                      'noBlastHits_v3.py')
+    
+    ## Convert to fasta
+    inFasta = mkstempfname() + '.fasta'
+    fastq_to_fasta(inFastq, inFasta)
+
+    ## Run blastn using each of the databases in turn
+    blastOutFiles = [mkstempfname() for db in refDbs]
+    for db, blastOutFile in zip(refDbs, blastOutFiles) :
+        blastnCmd = '{blastnPath} -db {db} '                 \
+                    '-word_size 16 -evalue 1e-6 -outfmt 6 '  \
+                    '-num_descriptions 2 -num_alignments 2 ' \
+                    '-query {inFasta} -out {blastOutFile}'.format(**locals())
+        log.debug(blastnCmd)
+        assert not os.system(blastnCmd)
+
+    ## Combine results from different databases
+    blastOutFilesStr = ' '.join(blastOutFiles)
+    blastOutCombined = mkstempfname()
+    catCmd = 'cat {blastOutFilesStr} > {blastOutCombined}'.format(**locals())
+    log.debug(catCmd)
+    assert not os.system(catCmd)
+
+    ## run noBlastHits_v3.py to extract reads with no blast hits
+    noBlastHitsCmd = 'python {noBlastHits_v3Path} -b {blastOutCombined} ' \
+                     '-r {inFastq} -m nohit > {outFastq}'.format(**locals())
+    log.debug(noBlastHitsCmd)
+    assert not os.system(noBlastHitsCmd)
 
 def parser_deplete_blastn() :
     parser = argparse.ArgumentParser(
         description='''Use blastn to remove reads that match at least
-                       one of one or more databases. (This is a single-step
-                       alternative to the 3 deplete_blastn_* commands.)''')
-    parser.add_argument('inFastq1',
-        help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2',
-        help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('pairedOutFastq1',
-        help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('pairedOutFastq2',
-        help='Output fastq file; 2nd end of paired-end reads.')
+                       one of the specified databases.''')
+    parser.add_argument('inFastq',
+        help='Input fastq file.')
+    parser.add_argument('outFastq',
+        help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+',
         help='One or more reference databases for blast.')
     return parser
 def main_deplete_blastn(args) :
-    raise NotImplementedError("not yet implemented")
+    inFastq = args.inFastq
+    outFastq = args.outFastq
+    refDbs = args.refDbs
+    deplete_blastn(inFastq, outFastq, refDbs)
     return 0
 __commands__.append(('deplete_blastn', main_deplete_blastn,
                      parser_deplete_blastn))
 
-def parser_deplete_blastn_prep() :
-    defaultMax = 10000
-    parser = argparse.ArgumentParser(
-        description =
-            '''
-            Split file into several pieces and prepare for blastn.
-            More specifically:
-            create scratchDir;
-            link scratchDir/in[12].fastq to in-files for later use;
-            run prinseq-lite.pl to convert to fasta, producing
-            scratchDir/in[12].fasta;
-            split fasta file into scratchDir/in[12].fasta.XXX
-            ''')
-    parser.add_argument('inFastq1',
-        help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2',
-        help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('scratchDir',
-        help='''Directory that will be created and used to communicate with
-                parser_deplete_blastn_do1 and parser_deplete_blastn_finish.''')
-    parser.add_argument('--maxReadsPerChunk', type = int, default = defaultMax,
-        help='''Input files will be split into files with no more than
-                MAXREADSPERCHUNK reads each (default {}).
-                A 0 value means don't split at all.'''.format(defaultMax))
-    return parser
-def main_deplete_blastn_prep(args) :
-    raise NotImplementedError("not yet implemented")
-    return 0
-__commands__.append(('deplete_blastn_prep', main_deplete_blastn_prep,
-                     parser_deplete_blastn_prep))
-
-def parser_deplete_blastn_do1() :
-    parser = argparse.ArgumentParser(
-        description='''Run blastn on a single pair of input chunks and a single
-            reference database. Specified input chunk must be one of the files
-            in1.fasta.XXX in scratchDir. Use in1.fasta.XXX and in2.fasta.XXX
-            as input and produce out1.dbId.XXX.txt and out2.dbId.XXX.txt''')
-    parser.add_argument('inChunk1',
-        help='''One of the files created by deplete_blastn_prep
-                of the form PATH_TO_SCRATCH_DIR/in1.fasta.XXX.''')
-    parser.add_argument('refDb',
-        help='One reference database for blast.')
-    parser.add_argument('--dbId',
-        help='''Optional identifier for naming output files;
-                defaults to portion of refDb name after last '/'.''')
-    return parser
-def main_deplete_blastn_do1(args) :
-    raise NotImplementedError("not yet implemented")
-    return 0
-__commands__.append(('deplete_blastn_do1', main_deplete_blastn_do1,
-                     parser_deplete_blastn_do1))
-
-def parser_deplete_blastn_finish() :
-    parser = argparse.ArgumentParser(
-        description =
-            '''
-            Combine and postprocess results from calls to deplete_blastn_do1.
-            More specifically:
-            concatenate scratchDir/out[12].*.*.txt;
-            run noBlastHits_v3.py to extract reads with no blast hits;
-            run mergeShuffledFastqSeqs.pl to fix mate pair information;
-            output in out1Fastq, out2Fastq;
-            delete scratchDir.
-            ''')
-    parser.add_argument('scratchDir',
-        help='Directory created by deplete_blastn_prep.')
-    parser.add_argument('pairedOutFastq1',
-        help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('pairedOutFastq2',
-        help='Output fastq file; 2nd end of paired-end reads.')
-    return parser
-def main_deplete_blastn_finish(args) :
-    raise NotImplementedError("not yet implemented")
-    return 0
-__commands__.append(('deplete_blastn_finish', main_deplete_blastn_finish,
-                     parser_deplete_blastn_finish))
-
-
-"""
-def deplete_contaminants(inBam, refDbs):
-    samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
-    markDuplicatesPath = tools.picard.MarkDuplicatesTool().install_and_get_path()
-    samToFastqPath = tools.picard.SamToFastqTool().install_and_get_path()
-    sortSamPath = tools.picard.SortSamTool().install_and_get_path()
-    
-    # Temporary...
-    mvicunaPath = '/gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna'
-    novoalignPath = '/idi/sabeti-scratch/kandersen/bin/novocraft/novoalign'
-    novoalign3Path = '/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign'
-    
-    noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(), 'noBlastHits_v3.py')
-    mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(), 'mergeShuffledFastqSeqs.pl')
-"""
-
-
-''' KGA's "recipe" for human read depletion (with some notes by Irwin)
-###-------- CLEANING OF READS FOR SRA SUBMISSION --------#
-# MAKE REQUIRED SUB-DIRECTORIES - DON'T DO THIS IF YOU ALREADY CREATED THESE WITH ANOTHER PIPELINE
-for directory in
-do
-bsub -o ~/log.txt -P sabeti_meta "mkdir $directory/_logs $directory/_temp $directory/_bams $directory/_reports $directory/_pileup $directory/_meta $directory/_reads"
-done
-
-## BMTAGGER REMOVAL OF HUMAN READS AND CONTAMINANTS
-# Rodent sequences can be removed using mm9_mn, nt_rodent.1 and nt_rodent.2
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-for db1 in GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA
-do
-for db2 in hg19
-do
-for db3 in metagenomics_contaminants_v3 # If you want to remove Lassa, use metagenomics_contaminants_v3_w_lassa, ZEBOV use metagenomics_contaminants_v3_w_zebov
-do
-
-# Tools and files needed
-bmtaggerPath = /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh
-bitmaskDb1 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.bitmask
-srprismDb1 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.srprism
-bitmaskDb2 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.bitmask
-srprismDb2 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.srprism
-bitmaskDb3 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.bitmask
-srprismDb3 = /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.srprism
-inreads1 = $directory/_reads/$sample.reads1.fastq
-inreads2 = $directory/_reads/$sample.reads2.fastq
-tempMrna = $temp/$sample.bmtagger.mrna
-tempMrna1 = $temp/$sample.bmtagger.mrna.1.fastq # Presumably produced by previous call to bmtagger
-tempMrna2 = $temp/$sample.bmtagger.mrna.2.fastq
-tempHg19 = $temp/$sample.bmtagger.hg19
-tempHg19_1 = $temp/$sample.bmtagger.hg19.1.fastq
-tempHg10_2 = $temp/$sample.bmtagger.hg19.2.fastq
-tempContaminants = $temp/$sample.bmtagger.contaminants
-
-# Commands to execute
-bmtaggerPath -X -b bitmaskDb1 -x srprismDb1 -T $temp -q1 -1 inreads1 -2 inreads2 -o tempMrna && 
-bmtaggerPath -X -b bitmaskDb2 -x srprismDb2 -T $temp -q1 -1 tempMrna1 -2 tempMrna2 -o tempHg19 && 
-bmtaggerPath -X -b bitmaskDb3 -x srprismDb3 -T $temp -q1 -1 tempHg19_1 -2 tempHg19_2 -o tempContaminants
-
-
-bsub -R "rusage[mem=8]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.bt "/idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db1.srprism -T $temp -q1 -1 $directory/_reads/$sample.reads1.fastq -2 $directory/_reads/$sample.reads2.fastq -o $temp/$sample.bmtagger.mrna && /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db2.srprism -T $temp -q1 -1 $temp/$sample.bmtagger.mrna.1.fastq -2 $temp/$sample.bmtagger.mrna.2.fastq -o $temp/$sample.bmtagger.hg19 && /idi/sabeti-scratch/kandersen/bin/bmtagger/bmtagger.sh -X -b /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.bitmask -x /idi/sabeti-scratch/kandersen/references/bmtagger/$db3.srprism -T $temp -q1 -1 $temp/$sample.bmtagger.hg19.1.fastq -2 $temp/$sample.bmtagger.hg19.2.fastq -o $temp/$sample.bmtagger.contaminants"
-done
-done
-done
-done
-done
-done
-
-## REMOVE DUPLICATES
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-
-
-# Tools and files needed
-mvicunaPath = /gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
-contaminants1fastq = $temp/$sample.bmtagger.contaminants.1.fastq
-contaminants2fastq = $temp/$sample.bmtagger.contaminants.2.fastq
-cleaned1fastq = $temp/$sample.cleaned_reads.prinseq.1.fastq
-cleaned2fastq = $temp/$sample.cleaned_reads.prinseq.2.fastq
-cleanedUnpairedfastq = $temp/$sample.cleaned_reads.unpaired.fastq
-hg19temp1fastq = $temp/$sample.bmtagger.hg19.temp1.fastq
-hg19temp2fastq = $temp/$sample.bmtagger.hg19.temp2.fastq
-# old path: /seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna
-
-# Commands to execute...
-mvicunaPath -ipfq contaminants1fastq,contaminants2fastq -opfq cleaned1fastq,cleaned2fastq -osfq cleanedUnpairedfastq -drm_op hg19temp1fastq,hg19temp2fastq -tasks DupRm
-
-
-
-bsub -R "rusage[mem=$memory]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.p1 "/seq/viral/analysis/xyang/programs/M-Vicuna/bin/mvicuna -ipfq $temp/$sample.bmtagger.contaminants.1.fastq,$temp/$sample.bmtagger.contaminants.2.fastq -opfq $temp/$sample.cleaned_reads.prinseq.1.fastq,$temp/$sample.cleaned_reads.prinseq.2.fastq -osfq $temp/$sample.cleaned_reads.unpaired.fastq -drm_op $temp/$sample.bmtagger.hg19.temp1.fastq,$temp/$sample.bmtagger.hg19.temp2.fastq -tasks DupRm"
-done
-done
-done
-
-## REMOVE HUMAN READS AND CONTAMINANTS USING NOVOALIGN
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-
-# NOTE: 10/23/14 Danny said this step could be eliminated
-
-# Tools and files needed
-novoalignPath = /idi/sabeti-scratch/kandersen/bin/novocraft/novoalign
-sortSamPath = /seq/software/picard/current/bin/SortSam.jar
-samToFastqPath = /seq/software/picard/current/bin/SamToFastq.jar
-prinseqLitePath = /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl
-prinseq1fastq = $temp/$sample.cleaned_reads.prinseq.1.fastq
-prinseq2fastq = $temp/$sample.cleaned_reads.prinseq.2.fastq
-novalignlog = $directory/_logs/$sample.log.novoalign.txt
-sampleSortedBam = $directory/_temp/$sample.sorted.bam
-sampleDepletedBam = $directory/_temp/$sample.depleted.bam
-novoDepleted1Fastq = $directory/_temp/$sample.novo.depleted.reads1.fastq
-novoDepleted2Fastq = $directory/_temp/$sample.novo.depleted.reads2.fastq
-prinseq1 = $directory/_temp/$sample.prinseq.1
-prinseq2 = $directory/_temp/$sample.prinseq.2
-refnix = /idi/sabeti-scratch/kandersen/references/novo_clean/metag_v3.ncRNA.mRNA.mitRNA.consensus.nix
-
-# Commands to execute
-novoalignPath -c 4 -f prinseq1fastq prinseq2fastq -r Random -l 30 -g 20 -x 6 -t 502 -F STDFQ -d refnix -o SAM $'@RG\tID:140813.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> novalignlog |
-java -Xmx2g -jar sortSamPath SO=coordinate I=/dev/stdin O=sampleSortedBam CREATE_INDEX=true &&
-samtools view -b -f 4 -u sampleSortedBam > sampleDepletedBam &&
-java -Xmx2g -jar samToFastqPath INPUT=sampleDepletedBam FASTQ=novoDepleted1Fastq SECOND_END_FASTQ=novoDepleted2Fastq VALIDATION_STRINGENCY=SILENT &&
-prinseqLitePath -out_format 1 -line_width 0 -fastq novoDepleted1Fastq -out_good prinseq1 -out_bad null &&
-prinseqLitePath -out_format 1 -line_width 0 -fastq novoDepleted2Fastq -out_good prinseq2 -out_bad null
-
-
-bsub -W 4:00 -q hour -R "rusage[mem=4]" -n 4 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.al "/idi/sabeti-scratch/kandersen/bin/novocraft/novoalign -c 4 -f $temp/$sample.cleaned_reads.prinseq.1.fastq $temp/$sample.cleaned_reads.prinseq.2.fastq -r Random -l 30 -g 20 -x 6 -t 502 -F STDFQ -d /idi/sabeti-scratch/kandersen/references/novo_clean/metag_v3.ncRNA.mRNA.mitRNA.consensus.nix -o SAM $'@RG\tID:140813.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.novoalign.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted.bam CREATE_INDEX=true && samtools view -b -f 4 -u $directory/_temp/$sample.sorted.bam > $directory/_temp/$sample.depleted.bam && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted.bam FASTQ=$directory/_temp/$sample.novo.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.novo.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads1.fastq -out_good $directory/_temp/$sample.prinseq.1 -out_bad null && /idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl -out_format 1 -line_width 0 -fastq $directory/_temp/$sample.novo.depleted.reads2.fastq -out_good $directory/_temp/$sample.prinseq.2 -out_bad null"
-done
-done
-done
-
-## SPLIT FILES FOR BLASTN ANALYSIS
-
-
-# Tools and files needed
-prinseq1Fasta = $directory/_temp/$sample.prinseq.1.fasta
-prinseq2Fasta = $directory/_temp/$sample.prinseq.2.fasta
-prinseq1Split = $temp/$sample.prinseq.1.split.
-prinseq1Split = $temp/$sample.prinseq.2.split.
-
-# Commands to execute
-split -a 3 -l 20000 prinseq1Fasta prinseq1Split
-split -a 3 -l 20000 prinseq2Fasta prinseq2Split
-
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.sf "split -a 3 -l 20000 $directory/_temp/$sample.prinseq.1.fasta $temp/$sample.prinseq.1.split."
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.sf "split -a 3 -l 20000 $directory/_temp/$sample.prinseq.2.fasta $temp/$sample.prinseq.2.split."
-done
-done
-done
-
-## RUN BLASTN ANALYSIS
-
-# Tools and files needed
-referenceDb = /idi/sabeti-scratch/kandersen/references/blast/metag_v3.ncRNA.mRNA.mitRNA.consensus
-prinseq1Split = $temp/$sample.prinseq.1.split.XXX
-prinseq2Split = $temp/$sample.prinseq.2.split.XXX
-
-sample1XXX = $temp/$sample.1.$db.$((i++)).txt
-sample2XXX = $temp/$sample.2.$db.$((i++)).txt
-
-# Commands to execute
-blastn -db referenceDb -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query prinseq1Split -out sample1XXX
-blastn -db referenceDb -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query prinseq2Split -out sample2XXX
-
-
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-for db in metag_v3.ncRNA.mRNA.mitRNA.consensus
-do
-i=1
-j=1
-for a in $temp/$sample.prinseq.1.split.*
-do
-bsub -R "rusage[mem=2]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.$((j++)).bn "blastn -db /idi/sabeti-scratch/kandersen/references/blast/$db -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query $a -out $temp/$sample.1.$db.$((i++)).txt"
-done
-done
-done
-done
-done
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-for db in metag_v3.ncRNA.mRNA.mitRNA.consensus
-do
-i=1
-j=1
-for b in $temp/$sample.prinseq.2.split.*
-do
-bsub -R "rusage[mem=$memory]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.$((j++)).bn "blastn -db /idi/sabeti-scratch/kandersen/references/blast/$db -word_size 16 -evalue 1e-6 -outfmt 6 -num_descriptions 2 -num_alignments 2 -query $b -out $temp/$sample.2.$db.$((i++)).txt"
-done
-done
-done
-done
-done
-
-## CONCATENATE BLASTN RESULTS
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c1 "cat $temp/$sample.1.*.*.txt > $directory/_temp/$sample.blast.1.txt"
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c2 "cat $temp/$sample.2.*.*.txt > $directory/_temp/$sample.blast.2.txt"
-done
-done
-done
-
-## EXTRACT READS WITH NO BLAST HITS
-
-# Tools and files needed
-noBlastHits_v3Path = /idi/sabeti-scratch/kandersen/bin/scripts/noBlastHits_v3.py
-blastOutput1Txt = $directory/_temp/$sample.blast.1.txt
-in1Fastq = $directory/_temp/$sample.novo.depleted.reads1.fastq
-out1Fastq = $temp/$sample.nohits.1.fastq
-
-
-# Commands to execute
-python noBlastHits_v3Path -b blastOutput1Txt -r in1Fastq -m nohit > out1Fastq
-Same with 2.
-
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.nb "python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastHits_v3.py -b $directory/_temp/$sample.blast.1.txt -r $directory/_temp/$sample.novo.depleted.reads1.fastq -m nohit > $temp/$sample.nohits.1.fastq"
-bsub -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.nb "python /idi/sabeti-scratch/kandersen/bin/scripts/noBlastHits_v3.py -b $directory/_temp/$sample.blast.2.txt -r $directory/_temp/$sample.novo.depleted.reads2.fastq -m nohit > $temp/$sample.nohits.2.fastq"
-done
-done
-done
-
-## FIX MATE-PAIR INFORMATION
-
-# Tools and files needed
-mergeShuffledFastqSeqsPath = /idi/sabeti-scratch/kandersen/bin/scripts/mergeShuffledFastqSeqs.pl
-in1Fastq = $temp/$sample.nohits.1.fastq
-in2Fastq = $temp/$sample.nohits.2.fastq
-outFastq = $directory/_temp/$sample.cleaned (makes ${outFastq}.[12].fastq)
-
-# Commands to execute
-mergeShuffledFastqSeqsPath -t -r '^@(\S+)/[1|2]$' -f1 in1Fastq -f2 in2Fastq -o outFastq
-
-for sample in
-do
-for directory in
-do
-for temp in /broad/hptmp/andersen
-do
-bsub -R "rusage[mem=4]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.fm "/idi/sabeti-scratch/kandersen/bin/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 $temp/$sample.nohits.1.fastq -f2 $temp/$sample.nohits.2.fastq -o $directory/_temp/$sample.cleaned"
-done
-done
-done
-
-## GET NON-VIRAL AND VIRAL READS
-for sample in
-do
-for directory in
-do
-for reference in $directory/_refs/zaire_guinea.nix
-do
-
-# Tools and files needed
-novoalign3Path = /idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign
-
-# Inputs 1st call:
-$directory/_reads/$sample.reads[12].fastq
-$reference
-
-# Outputs 1st call:
-$directory/_temp/$sample.viral.reads[12].fastq
-
-# Inputs 2nd call:
-$directory/_temp/$sample.cleaned.[12].fastq
-$reference
-
-# Outputs 2nd call:
-$directory/_temp/$sample.viral.depleted.reads[12].fastq
-
-
-# Commands to execute
-novoalign3Path -c 1 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral.txt |
-java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted3.bam CREATE_INDEX=true &&
-samtools view -b -q 1 -u $directory/_temp/$sample.sorted3.bam |
-java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped3.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT &&
-java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped3.bam O=$directory/_temp/$sample.mappedNoDub3.bam METRICS_FILE=$directory/_temp/$sample.log.markdups3.txt CREATE_INDEX=true REMOVE_DUPLICATES=true &&
-java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.mappedNoDub3.bam FASTQ=$directory/_temp/$sample.viral.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.reads2.fastq VALIDATION_STRINGENCY=SILENT
-
-novoalign3Path -c 1 -f $directory/_temp/$sample.cleaned.1.fastq $directory/_temp/$sample.cleaned.2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral-deplete.txt |
-java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted2.bam CREATE_INDEX=true &&
-samtools view -b -f 4 -u $directory/_temp/$sample.sorted2.bam > $directory/_temp/$sample.depleted2.bam &&
-java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted2.bam FASTQ=$directory/_temp/$sample.viral.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT
-
-
-
-
-
-bsub -q week -W 24:00 -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.a2 "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -c 1 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted3.bam CREATE_INDEX=true && samtools view -b -q 1 -u $directory/_temp/$sample.sorted3.bam | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped3.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped3.bam O=$directory/_temp/$sample.mappedNoDub3.bam METRICS_FILE=$directory/_temp/$sample.log.markdups3.txt CREATE_INDEX=true REMOVE_DUPLICATES=true && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.mappedNoDub3.bam FASTQ=$directory/_temp/$sample.viral.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.reads2.fastq VALIDATION_STRINGENCY=SILENT"
-bsub -q hour -W 4:00 -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.a1 "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -c 1 -f $directory/_temp/$sample.cleaned.1.fastq $directory/_temp/$sample.cleaned.2.fastq -r Random -l 40 -g 20 -x 6 -t 502 -F STDFQ -d $reference -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.viral-deplete.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.sorted2.bam CREATE_INDEX=true && samtools view -b -f 4 -u $directory/_temp/$sample.sorted2.bam > $directory/_temp/$sample.depleted2.bam && java -Xmx2g -jar /seq/software/picard/current/bin/SamToFastq.jar INPUT=$directory/_temp/$sample.depleted2.bam FASTQ=$directory/_temp/$sample.viral.depleted.reads1.fastq SECOND_END_FASTQ=$directory/_temp/$sample.viral.depleted.reads2.fastq VALIDATION_STRINGENCY=SILENT"
-done
-done
-done
-
-## COMBINE READS
-for sample in
-do
-for directory in
-do
-bsub -R "rusage[mem=4]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.fm "cat $directory/_temp/$sample.viral.depleted.reads1.fastq $directory/_temp/$sample.viral.reads1.fastq > $directory/_reads/$sample.cleaned.1.fastq && cat $directory/_temp/$sample.viral.depleted.reads2.fastq $directory/_temp/$sample.viral.reads2.fastq > $directory/_reads/$sample.cleaned.2.fastq"
-done
-done
-
-## CONVERT TO BAM FILE
-
-# Tools and files needed
-FastqToSamTool = /seq/software/picard/current/bin/FastqToSam.jar
-in1Fastq, in2Fastq = $directory/_reads/$sample.cleaned.[12].fastq
-outBam = $directory/_bams/$sample.bam
-sampleName = $sample
-
-# Commands to execute
-java -Xmx2g -jar FastqToSamTool FASTQ=in1Fastq FASTQ2=in2Fastq OUTPUT=outBam SAMPLE_NAME=sampleName LIBRARY_NAME=sampleName PLATFORM=illumina SEQUENCING_CENTER=broad RUN_DATE=$date CREATE_MD5_FILE=True
-
-
-
-for sample in
-do
-for directory in
-do
-for date in
-do
-bsub -W 4:00 -q hour -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_align -J $sample.BF "java -Xmx2g -jar /seq/software/picard/current/bin/FastqToSam.jar FASTQ=$directory/_reads/$sample.cleaned.1.fastq FASTQ2=$directory/_reads/$sample.cleaned.2.fastq OUTPUT=$directory/_bams/$sample.bam SAMPLE_NAME=$sample LIBRARY_NAME=$sample PLATFORM=illumina SEQUENCING_CENTER=broad RUN_DATE=$date CREATE_MD5_FILE=True"
-done
-done
-done
-    '''
-
-"""
-def parser_deplete_bmtagger():
-    parser = argparse.ArgumentParser(
-        description='''Deplete human reads and other contaminants using bmtagger''')
-    parser.add_argument("inBam", help="Input BAM file")
-    parser.add_argument("refDbs", nargs='+',
-        help="Reference databases (one or more) to deplete from input")
-    parser.add_argument("outBam", help="Output BAM file")
-    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
-    return parser
-def main_deplete_bmtagger(args):
-    raise NotImplementedError("not yet implemented")
-    return 0
-__commands__.append(('deplete_bmtagger', main_deplete_bmtagger, parser_deplete_bmtagger))
-"""
+# ========================
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

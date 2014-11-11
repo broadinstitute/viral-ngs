@@ -26,5 +26,8 @@ class MarkDuplicatesTool(PicardTools) :
 class SamToFastqTool(PicardTools) :
     subtoolName = 'SamToFastq.jar'
 
+class FastqToSamTool(PicardTools) :
+    subtoolName = 'FastqToSam.jar'
+
 class SortSamTool(PicardTools) :
     subtoolName = 'SortSam.jar'
