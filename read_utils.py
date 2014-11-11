@@ -179,12 +179,18 @@ def fastq_to_bam(inFastq1, inFastq2, outBam, sampleName = None, header = None,
     tempdir = tempfile.gettempdir()
     if sampleName == None :
         sampleName = 'Dummy' # Will get overwritten by rehead command
+    if header :
+        # With the header option, rehead will be called after FastqToSam.
+        # This will invalidate any md5 file, which would be a slow to construct
+        # on our own, so just disallow and let the caller run md5sum if desired.
+        assert not any(opt.lower() == 'CREATE_MD5_FILE=True'.lower()
+                       for opt in picardOptions), \
+            'CREATE_MD5_FILE is not allowed with --header.'
     fastqToSamCmd = ('java -Xmx{JVMmemory} -Djava.io.tmpdir={tempdir} '
                      '-jar {FastqToSamPath} '
                      'FASTQ={inFastq1} FASTQ2={inFastq2} '
                      'OUTPUT={fastqToSamOut} '
-                     'SAMPLE_NAME={sampleName} '
-                     'CREATE_MD5_FILE=True ' +
+                     'SAMPLE_NAME={sampleName} ' +
                      ' '.join(picardOptions)).format(**locals())
     log.debug(fastqToSamCmd)
     assert not os.system(fastqToSamCmd)
@@ -194,7 +200,6 @@ def fastq_to_bam(inFastq1, inFastq2, outBam, sampleName = None, header = None,
                     '{outBam}'.format(**locals())
         log.debug(reheadCmd)
         assert not os.system(reheadCmd)
-        os.system('md5 -q {outBam} > {outBam}.md5'.format(**locals()))
 
 def parser_fastq_to_bam() :
     parser = argparse.ArgumentParser(

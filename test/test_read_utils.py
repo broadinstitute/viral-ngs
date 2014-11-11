@@ -49,7 +49,6 @@ class TestFastqBam(TestCaseWithTmp) :
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         inHeader = os.path.join(myInputDir, 'inHeader.txt')
         expectedSam = os.path.join(myInputDir, 'expected.sam')
-        expectedMd5 = os.path.join(myInputDir, 'expected.md5')
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq1')
         outBamCmd = util.file.mkstempfname() + '.bam'
         outBamTxt = util.file.mkstempfname() + '.bam'
@@ -83,7 +82,6 @@ class TestFastqBam(TestCaseWithTmp) :
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt,
             '--header', inHeader])
         read_utils.main_fastq_to_bam(args)
-        assert_equal_contents(self, outBamTxt + '.md5', expectedMd5)
 
         # out.bam -> out1.fastq, out2.fastq, outHeader.txt; trim 1 base from 1
         parser = read_utils.parser_bam_to_fastq()
