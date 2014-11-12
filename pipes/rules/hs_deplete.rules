@@ -25,10 +25,14 @@ rule bam_to_fastq:
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
+    #       expand("{dir}/{db}.{suffix}",
+    #           dir=config["bmTaggerDbDir"],
+    #           db=config["bmTaggerDbs_remove"],
+    #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     params: LSF='-W 4:00',
             refDbs = expand("{dir}/{db}", dir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"])
-    shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input} {params.refDbs} --outNoMatch {output}"
+    shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
 
 rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
@@ -38,9 +42,8 @@ rule rmdup_mvicuna:
 
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fastq'
-    output: dynamic('{basename}.blast_split_input.{direction}.{split_id}')
-    params: length='100000'
-    shell:  "split -a 3 -l {params.length} {input} {wildcards.basename}.blast_input.{wildcards.direction}."
+    output: expand('{{basename}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
+    shell:  "{config[binDir]}/read_utils.py split_fastq {input} {wildcards.basename}.blast_split_input.{wildcards.direction}. {config[blast_nchunks]}"
 
 rule blastn_deplete:
     input:  '{prefix}.blast_split_input.{suffix}'
@@ -49,7 +52,7 @@ rule blastn_deplete:
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 rule cat_reads:
-    input:  dynamic('{basename}.blast_split_output.{direction}.{split_id}')
+    input:  expand('{{basename}}.blast_split_output.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
     output: '{basename}.blast_depleted.{direction,[12]}.fastq'
     shell:  "cat {input} > {output}"
 
