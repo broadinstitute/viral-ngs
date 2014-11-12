@@ -12,11 +12,11 @@ rule all_assemble:
     # these are the final desired output files from this pipeline
     input:
         expand("{dataDir}/{sample}.fasta"),
-                dataDir=config["dataDir"],
-                sample=config["samples"]),
+            dataDir=config["dataDir"],
+            sample=config["samples"]),
         expand("{dataDir}/{sample}.aligned_to_{sample}.bam",
-                dataDir=config["dataDir"],
-                sample=config["samples"])
+            dataDir=config["dataDir"],
+            sample=config["samples"])
 
 rule bam_to_fastq:
     input:  config["dataDir"]+'/{sample,\w+}.bam'
