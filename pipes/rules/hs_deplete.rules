@@ -66,4 +66,4 @@ rule fastq_to_bam:
             config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
             config["tmpDir"] +'/{sample}.raw.samheader.txt'
     output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam'
-    shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]} --sampleName {wildcards.sample}"
+    shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]}"
