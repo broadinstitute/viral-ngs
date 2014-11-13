@@ -9,7 +9,7 @@
 
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/blast",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
-  "blast_nchunks":  "50",
+  "blast_nchunks":  50,
 
   "dataDir":   "data",
   "tmpDir":    "tmp",
