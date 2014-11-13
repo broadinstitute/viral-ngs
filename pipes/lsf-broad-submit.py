@@ -4,7 +4,7 @@ from snakemake.utils import read_job_properties
 
 LOGDIR = sys.argv[-2]
 jobscript = sys.argv[-1]
-mo = re.match(r'(\S+)/snakejob.\S+.(\d+).sh', jobscript)
+mo = re.match(r'(\S+)/snakejob\.\S+\.(\d+)\.sh', jobscript)
 assert mo
 sm_tmpdir, sm_jobid = mo.groups()
 props = read_job_properties(jobscript)
@@ -23,6 +23,9 @@ if dependencies:
 
 # the actual job
 cmdline += jobscript
+
+# the success file
+cmdline += " %s/%d.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
 cmdline += " | cut -f 2 -d \< | cut -f 1 -d \>"
