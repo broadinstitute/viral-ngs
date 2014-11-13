@@ -279,17 +279,33 @@ __commands__.append(('partition_bmtagger', main_partition_bmtagger,
 # ***  dup_remove_mvicuna  ***
 # ============================
 
-def dup_remove_mvicuna(inPair, pairedOutPair, unpairedOut, postDupRmPair) :
+def dup_remove_mvicuna(inPair, outPair, outUnpaired=None):
     """
     Run mvicuna's duplicate removal operation on paired-end input reads in
         fastq format, producing various outputs in fastq format.
-    inPair, pairedOutPair, and postDupRmOutPair are pairs of file names,
+    inPair, pairedOutPair are pairs of file names,
         while unpairedOut is a single file name.
+    Notes on weird behaviors of M-Vicuna DupRm:
+        For some reason, it requires you to specify both -opfq and -drm_op.
+        The -drm_op pair (here, tmp1OutPair) is where the output is initially written.
+        Then M-Vicuna renames the -drm_op files to the -opfq filenames (here, tmp2OutPair).
+        So obviously, we use throwaway (tempfile) names for -drm_op and use the real
+        desired output file names in -opfq.
+        The problem is that M-Vicuna uses a rename/move operating system function, which
+        means your tempfiles cannot be on a different file system than the final output
+        files. This is our typical use case (local disks for tempfile.tempdir and
+        network file systems for final output). Hence, our wrapper sets -opfq to yet
+        another set of temp file names, and we move the final output files ourselves
+        using shutil.move (which is capable of crossing file system boundaries).
     """
+    if not outUnpaired:
+        outUnpaired = mkstempfname(suffix='.unpaired.fastq')
+    tmp1OutPair = (mkstempfname(suffix='.tmp1out.1.fastq'), mkstempfname(suffix='.tmp1out.2.fastq'))
+    tmp2OutPair = (mkstempfname(suffix='.tmp2out.1.fastq'), mkstempfname(suffix='.tmp2out.2.fastq'))
     mvicunaPath = tools.mvicuna.MvicunaTool().install_and_get_path()
     input       = ','.join(inPair)
-    pairedOut    = ','.join(pairedOutPair)
-    postDupRmOut = ','.join(postDupRmPair)
+    pairedOut    = ','.join(tmp2OutPair)
+    postDupRmOut = ','.join(tmp1OutPair)
     cmdline = ('{mvicunaPath} '
                '-ipfq {input} '
                '-opfq {pairedOut} '
@@ -298,6 +314,8 @@ def dup_remove_mvicuna(inPair, pairedOutPair, unpairedOut, postDupRmPair) :
                '-tasks DupRm').format(**locals())
     log.debug(cmdline)
     assert not os.system(cmdline)
+    for tmpfname, outfname in zip(tmp2OutPair, outPair):
+        shutil.move(tmpfname, outfname)
 
 def parser_dup_remove_mvicuna() :
     parser = argparse.ArgumentParser(
@@ -312,6 +330,7 @@ def parser_dup_remove_mvicuna() :
     parser.add_argument('pairedOutFastq2',
         help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument('--unpairedOutFastq',
+        default=None,
         help='File name of output unpaired reads')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
@@ -319,10 +338,7 @@ def main_dup_remove_mvicuna(args) :
     inPair = (args.inFastq1, args.inFastq2)
     pairedOutPair = (args.pairedOutFastq1, args.pairedOutFastq2)
     unpairedOutFastq = args.unpairedOutFastq
-    if unpairedOutFastq == None :
-        unpairedOutFastq = mkstempfname()
-    postDupRmPair = (mkstempfname(), mkstempfname())
-    dup_remove_mvicuna(inPair, pairedOutPair, unpairedOutFastq, postDupRmPair)
+    dup_remove_mvicuna(inPair, pairedOutPair, unpairedOutFastq)
     return 0
 
 __commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,

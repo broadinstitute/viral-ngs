@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-import os
-import sys
-
+import os, sys, re
 from snakemake.utils import read_job_properties
 
+LOGDIR = sys.argv[-2]
 jobscript = sys.argv[-1]
+mo = re.match(r'(\S+)/snakejob.\S+.(\d+).sh', jobscript)
+assert mo
+sm_tmpdir, sm_jobid = mo.groups()
 props = read_job_properties(jobscript)
 
-cmdline = "bsub -N -P {proj_name} -J {job_name} ".format(
-    proj_name='viral_ngs',
-    job_name=props["rule"])
+# set up job name, log file output, etc
+cmdline = "bsub -o {logdir}/LSF-{rule}-{jobid}.txt -P {proj_name} -J {rule}_{jobid} ".format(
+    proj_name='viral_ngs', logdir=LOGDIR, rule=props["rule"], jobid=sm_jobid)
 
+# rule-specific LSF parameters (e.g. queue, runtime, memory)
 cmdline += props["params"].get("LSF","") + " "
 
 # figure out job dependencies
-dependencies = sys.argv[1:-1]
+dependencies = sys.argv[1:-2]
 if dependencies:
     cmdline += "-w '{}' ".format(" && ".join(dependencies))
 
