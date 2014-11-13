@@ -13,5 +13,6 @@
 
   "dataDir":   "/idi/sabeti-data/dpark/depletion_kga_files/test/_reads",
   "tmpDir":    "/idi/sabeti-scratch/dpark/viral_test/tmp",
-  "binDir":    "."
+  "binDir":    ".",
+  "project":   "viral_ngs"
 }
