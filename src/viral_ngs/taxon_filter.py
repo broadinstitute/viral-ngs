@@ -66,7 +66,7 @@ def parser_trim_trimmomatic():
     parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR "
                         + "sequences, etc. to clip off")
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
     # Future: handle BAM input and output; handle multiple databases.
@@ -148,7 +148,7 @@ def parser_filter_lastal():
     parser.add_argument("refDbs",
                         help="Reference database to retain from input")
     parser.add_argument("outFastq", help = "Output fastq file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_filter_lastal(args):
@@ -261,7 +261,7 @@ def parser_partition_bmtagger() :
         help='Filenames for fastq output of matching reads.')
     parser.add_argument('--outNoMatch', nargs = 2,
         help='Filenames for fastq output of unmatched reads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_partition_bmtagger(args) :
     inFastq1 = args.inFastq1
@@ -313,7 +313,7 @@ def parser_dup_remove_mvicuna() :
         help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument('--unpairedOutFastq',
         help='File name of output unpaired reads')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_dup_remove_mvicuna(args) :
     inPair = (args.inFastq1, args.inFastq2)
@@ -378,6 +378,7 @@ def parser_deplete_blastn() :
         help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+',
         help='One or more reference databases for blast.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_blastn(args) :
     inFastq = args.inFastq
