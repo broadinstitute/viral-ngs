@@ -309,7 +309,7 @@ def dup_remove_mvicuna(inPair, outPair, outUnpaired=None):
     cmdline = ('{mvicunaPath} '
                '-ipfq {input} '
                '-opfq {pairedOut} '
-               '-osfq {unpairedOut} '
+               '-osfq {outUnpaired} '
                '-drm_op {postDupRmOut} '
                '-tasks DupRm').format(**locals())
     log.debug(cmdline)
