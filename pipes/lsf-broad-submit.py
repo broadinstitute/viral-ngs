@@ -25,7 +25,7 @@ if dependencies:
 cmdline += jobscript
 
 # the success file
-cmdline += " %s/%d.jobfinished" % (sm_tmpdir, sm_jobid)
+cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
 cmdline += " | cut -f 2 -d \< | cut -f 1 -d \>"
