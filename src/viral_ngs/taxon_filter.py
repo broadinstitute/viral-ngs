@@ -9,7 +9,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile, errno
+import argparse, logging, os, tempfile, errno, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
