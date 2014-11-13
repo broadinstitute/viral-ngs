@@ -30,14 +30,14 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
-    params: LSF='-W 4:00',
+    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"',
             refDbs = expand("{dir}/{db}", dir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"])
     shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
 
 rule rmdup_mvicuna:
     input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
     output: '{basename}.rmdup.1.fastq', '{basename}.rmdup.2.fastq'
-    params: LSF='-W 4:00 -R "rusage[mem=8]"'
+    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"'
     shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
 
 rule split_reads:
@@ -48,7 +48,7 @@ rule split_reads:
 rule blastn_deplete:
     input:  '{prefix}.blast_split_input.{suffix}'
     output: '{prefix}.blast_split_output.{suffix}'
-    params: LSF='-q week', refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
+    params: LSF='-q week -M 16 -R "rusage[mem=8]"', refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 rule cat_reads:
