@@ -50,7 +50,8 @@ rule split_reads:
 rule blastn_deplete:
     input:  '{prefix}.blast_split_input.{suffix}'
     output: '{prefix}.blast_split_output.{suffix}'
-    params: LSF='-q week -M 16 -R "rusage[mem=8]"', refDbs='{config[blastDbDir]}/{config[blastDb_remove]}'
+    params: LSF='-q week -M 16 -R "rusage[mem=8]"',
+            refDbs = expand("{dir}/{db}", dir=config["blastDbDir"], db=config["blastDb_remove"])
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 rule cat_reads:
