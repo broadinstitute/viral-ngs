@@ -1,5 +1,5 @@
 {
-  "samples": ["G1234", "G5678"],
+  "samples_file": "samples.txt",
 
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
@@ -9,7 +9,7 @@
 
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/blast",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
-  "blast_nchunks":  50,
+  "blast_nchunks":  5,
 
   "dataDir":   "data",
   "tmpDir":    "tmp",
