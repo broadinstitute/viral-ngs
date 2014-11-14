@@ -5,6 +5,8 @@
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
+from snakemake.utils import makedirs
+
 configfile: "config.json"
 
 def read_samples_file(fname):
@@ -13,22 +15,26 @@ def read_samples_file(fname):
             yield line.strip()
 
 rule all_deplete:
-    # these are the final desired output files from this pipeline
     input:
-      expand("{dataDir}/{sample}.{adjective}.bam",
-        dataDir=config["dataDir"],
+      expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
+        dataDir=config["dataDir"], subdir=config["subdirs"]["depletion"],
         sample=read_samples_file(config["samples_file"]),
         adjective=["cleaned", "bmtagger_depleted"])
     params: LSF="-N"
     shell:  "echo all done!"
+    #shell:  "rm -rf {config[tmpDir]}/config[subdirs][depletion] && echo all done!"
 
 rule bam_to_fastq:
-    input:  config["dataDir"]+'/{sample,\w+}.bam'
-    output: config["tmpDir"]+ '/{sample}.raw.1.fastq', 
-            config["tmpDir"]+ '/{sample}.raw.2.fastq', 
-            config["tmpDir"]+ '/{sample}.raw.samheader.txt'
+    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample,\w+}.bam'
+    output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq', 
+            config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.2.fastq', 
+            config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
     params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
-    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}"
+    run:
+			makedirs(expand("{dir}/{subdir}",
+				dir=[config["dataDir"],config["tmpDir"]],
+				subdir=config["subdirs"]["depletion"]))
+            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
 
 rule deplete_bmtagger:
     input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
@@ -71,9 +77,9 @@ rule fastq_matepair_fix:
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule fastq_to_bam:
-    input:  config["tmpDir"] +'/{sample}.{adjective}.1.fastq',
-            config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
-            config["tmpDir"] +'/{sample}.raw.samheader.txt'
-    output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam'
+    input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.1.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.2.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.{adjective,\w+}.bam'
     params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
     shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]}"

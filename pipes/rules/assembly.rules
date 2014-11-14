@@ -5,6 +5,8 @@
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
+from snakemake.utils import makedirs
+
 configfile: "config.json"
 
 def read_samples_file(fname):
@@ -24,12 +26,17 @@ rule all_assemble:
     params: LSF="-N"
     shell:  "echo all done!"
 
-rule bam_to_fastq:
-    input:  config["dataDir"]+'/{sample,\w+}.bam'
-    output: config["tmpDir"]+ '/{sample}.cleaned.1.fastq', 
-            config["tmpDir"]+ '/{sample}.cleaned.2.fastq', 
-            config["tmpDir"]+ '/{sample}.cleaned.samheader.txt'
-    shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output}[0] {output}[1] --outHeader {output}[2]"
+rule assembly_bam_to_fastq:
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.bam'
+    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.1.fastq', 
+            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq', 
+            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.samheader.txt'
+    params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
+    run:
+			makedirs(expand("{dir}/{subdir}",
+				dir=[config["dataDir"],config["tmpDir"]],
+				subdir=config["subdirs"]["assembly"]))
+            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
 
 rule trim_reads:
     input:  '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
@@ -65,10 +72,10 @@ rule sort_contigs:
     # "python /idi/sabeti-data/rsealfon/assembly_scripts/filter_short_seqs.py $directory/_temp/$sample.l_segment1.fasta 6000 $directory/_temp/$sample.l_segment1.bad.fasta $directory/_temp/$sample.l_segment1.good.fasta"
 
 rule refine_assembly_with_reads:
-    input:  '{basename}.assembly3.fasta',
-            '{basename}.filtered.1.fastq',
-            '{basename}.filtered.2.fastq'
-    output: '{basename}.assembly4.fasta'
+    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.1.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq'
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     params: LSF='-q week -R "rusage[mem=8]" -M 16'
     # ALIGN REFERENCES AND CONTIGS THAT PASSED LENGTH FILTER
     # "cat $directory/_temp/$sample.s_segment1.good.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out $directory/_temp/$sample.s_alignment1.fasta -quiet"
@@ -90,17 +97,12 @@ rule refine_assembly_with_reads:
     # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 40 -x 20 -t 100 -F STDFQ -d $directory/_temp/$sample.l_segment3.nix -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' | samtools view -buS -q 1 - | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.ref_mapped_l2.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R $directory/_temp/$sample.l_segment3a.fasta -I $directory/_temp/$sample.ref_mapped_l2.bam -o $directory/_temp/$sample.gatk_l2.vcf --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 --min_base_quality_score 15 -ploidy 4 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance && python ~dpark/dev/sabetilab-dpark/scripts/viral.py vcf_to_fasta --trim_ends --min_coverage 2 $directory/_temp/$sample.gatk_l2.vcf $directory/_temp/$sample.l_segment4.fasta"
 
 rule map_reads_to_assembly:
-    input:  config["tmpDir"] +'/{sample}.assembly4.fasta',
-            config["tmpDir"] +'/{sample}.filtered.1.fastq',
-            config["tmpDir"] +'/{sample}.filtered.2.fastq'
-    output: config["dataDir"]+'/{sample}.aligned_to_{sample}.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.1.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq'
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8'
     # INDEX FINAL CONSENSUS SEQUENCES
     # "cat $directory/_temp/$sample.l_segment4.fasta $directory/_temp/$sample.s_segment4.fasta > $directory/_refs/$sample.fasta && java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_refs/$sample.fasta O=$directory/_refs/$sample.dict && /idi/sabeti-scratch/kandersen/bin/novocraft/novoindex $directory/_refs/$sample.nix $directory/_refs/$sample.fasta && samtools faidx $directory/_refs/$sample.fasta"
     # ALIGN ALL READS TO ITS OWN LASSA CONSENSUS
     # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -k -c 3 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 40 -x 20 -t 100 -F STDFQ -d $directory/_refs/$sample.nix -o SAM $'@RG\tID:$date.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.novoalign.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_bams/$sample.sorted.bam CREATE_INDEX=true && samtools view -b -q 1 -u $directory/_bams/$sample.sorted.bam | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped.bam O=$directory/_temp/$sample.mappedNoDub.bam METRICS_FILE=$directory/_temp/$sample.log.markdups.txt CREATE_INDEX=true REMOVE_DUPLICATES=true"
-
-rule final_assembly:
-    input:  config["tmpDir"] +'/{sample}.assembly4.fasta'
-    output: config["dataDir"]+'/{sample}.fasta'
-    shell:  "cp {input} {output}"

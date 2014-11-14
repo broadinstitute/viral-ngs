@@ -11,6 +11,13 @@
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
   "blast_nchunks":  5,
 
+  "subdirs": {
+    "source":       "00_raw",
+    "depletion":    "01_cleaned",
+    "assembly":     "02_assembly",
+    "interhost":    "03_interhost",
+    "intrahost":    "04_intrahost"
+  },
   "dataDir":   "data",
   "tmpDir":    "tmp",
   "logDir":    "log",
