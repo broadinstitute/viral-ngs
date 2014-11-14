@@ -9,9 +9,14 @@ assert mo
 sm_tmpdir, sm_jobid = mo.groups()
 props = read_job_properties(jobscript)
 
-# set up job name, log file output, etc
-cmdline = "bsub -o {logdir}/LSF-{rule}-{jobid}.txt -P {proj_name} -J {rule}_{jobid} ".format(
-    proj_name='viral_ngs', logdir=LOGDIR, rule=props["rule"], jobid=sm_jobid)
+# set up job name, project name
+cmdline = "bsub -P {proj_name} -J {rule}_{jobid} ".format(
+    proj_name='viral_ngs', rule=props["rule"], jobid=sm_jobid)
+
+# log file output
+if "-N" not in props["params"].get("LSF",""):
+    cmdline += "-o {logdir}/LSF-{rule}-{jobid}.txt ".format(
+        logdir=LOGDIR, rule=props["rule"], jobid=sm_jobid)
 
 # rule-specific LSF parameters (e.g. queue, runtime, memory)
 cmdline += props["params"].get("LSF","") + " "
