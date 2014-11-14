@@ -9,7 +9,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile
+import argparse, logging, os, tempfile, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
@@ -34,8 +34,8 @@ def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2) :
               "-f1 {inFastq1} -f2 {inFastq2} -o {tempOutput}".format(**locals())
     log.debug(cmdline)
     assert not os.system(cmdline)
-    os.rename(tempOutput + '.1.fastq', outFastq1)
-    os.rename(tempOutput + '.2.fastq', outFastq2)
+    shutil.move(tempOutput + '.1.fastq', outFastq1)
+    shutil.move(tempOutput + '.2.fastq', outFastq2)
 
 def parser_purge_unmated() :
     parser = argparse.ArgumentParser(
