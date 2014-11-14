@@ -7,16 +7,20 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
 configfile: "config.json"
 
+def read_samples_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
 
 rule all_assemble:
     # these are the final desired output files from this pipeline
     input:
-        expand("{dataDir}/{sample}.fasta"),
+        expand("{dataDir}/{sample}.fasta",
             dataDir=config["dataDir"],
-            sample=config["samples"]),
+            sample=read_samples_file(config["samples_file"])),
         expand("{dataDir}/{sample}.aligned_to_{sample}.bam",
             dataDir=config["dataDir"],
-            sample=config["samples"])
+            sample=read_samples_file(config["samples_file"]))
     params: LSF="-N"
     shell:  "echo all done!"
 
