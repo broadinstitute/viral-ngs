@@ -1,6 +1,7 @@
 #!/bin/bash
 # this is intended for use on the Broad LSF cluster
 
+eval `/broad/software/dotkit/init -b`
 reuse -q LSF
 reuse -q Python-3.4
 
