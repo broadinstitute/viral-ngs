@@ -7,13 +7,17 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
 configfile: "config.json"
 
+def read_samples_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
 
 rule all_deplete:
     # these are the final desired output files from this pipeline
     input:
       expand("{dataDir}/{sample}.{adjective}.bam",
         dataDir=config["dataDir"],
-        sample=config["samples"],
+        sample=read_samples_file(config["samples_file"]),
         adjective=["cleaned", "bmtagger_depleted"])
     params: LSF="-N"
     shell:  "echo all done!"
@@ -23,6 +27,7 @@ rule bam_to_fastq:
     output: config["tmpDir"]+ '/{sample}.raw.1.fastq', 
             config["tmpDir"]+ '/{sample}.raw.2.fastq', 
             config["tmpDir"]+ '/{sample}.raw.samheader.txt'
+    params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
     shell:  "{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}"
 
 rule deplete_bmtagger:
@@ -45,12 +50,12 @@ rule rmdup_mvicuna:
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fastq'
     output: expand('{{basename}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
-    shell:  "{config[binDir]}/read_utils.py split_fastq {input} {wildcards.basename}.blast_split_input.{wildcards.direction}. {config[blast_nchunks]}"
+    shell:  "{config[binDir]}/read_utils.py split_reads {input} {wildcards.basename}.blast_split_input.{wildcards.direction}. --numChunks {config[blast_nchunks]} --suffixLen 4 --format fastq"
 
 rule blastn_deplete:
     input:  '{prefix}.blast_split_input.{suffix}'
     output: '{prefix}.blast_split_output.{suffix}'
-    params: LSF='-q week -M 16 -R "rusage[mem=8]"',
+    params: LSF='-W 4:00 -M 8 -R "rusage[mem=4]" -sp 40',
             refDbs = expand("{dir}/{db}", dir=config["blastDbDir"], db=config["blastDb_remove"])
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
@@ -62,6 +67,7 @@ rule cat_reads:
 rule fastq_matepair_fix:
     input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
     output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
+    params: LSF='-W 4:00 -M 8 -R "rusage[mem=4]"'
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule fastq_to_bam:
@@ -69,4 +75,5 @@ rule fastq_to_bam:
             config["tmpDir"] +'/{sample}.{adjective}.2.fastq',
             config["tmpDir"] +'/{sample}.raw.samheader.txt'
     output: config["dataDir"]+'/{sample,\w+}.{adjective,\w+}.bam'
+    params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
     shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]}"
