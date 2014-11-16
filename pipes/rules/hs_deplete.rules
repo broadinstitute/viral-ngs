@@ -53,6 +53,13 @@ rule rmdup_mvicuna:
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"'
     shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
 
+## Future optimization: add a partition_bmtagger step that pulls out
+## a bunch of known microbial genomes that might comprise the bulk of the
+## non-human reads. Run blastn only on the uncharacterized reads that
+## do not match human or microbe by bmtagger. Afterwards, merge the
+## microbe bmtagger hits with the blastn-depleted reads. This would just
+## reduce the cpu time spent on blastn.
+
 rule split_reads:
     input:  '{basename}.rmdup.{direction}.fastq'
     output: expand('{{basename}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
