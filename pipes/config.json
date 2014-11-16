@@ -11,6 +11,10 @@
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
   "blast_nchunks":  5,
 
+  "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
+  "lastal_refDb":   "/idi/sabeti-scratch/kandersen/references/lastal/ebola",
+  "ref_genome":     "/idi/sabeti-scratch/kandersen/references/annotations/ebola/zaire_guinea.fasta",
+
   "subdirs": {
     "source":       "00_raw",
     "depletion":    "01_cleaned",
