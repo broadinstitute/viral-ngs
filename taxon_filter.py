@@ -230,17 +230,20 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
             # No need to calculate final depleted file. No one asked for it.
             # Technically, this violates the loop invariant ;-)
             break
+        log.debug("starting select_reads")
         matches = set(line.strip() for line in open(matchesFile))
         noMatchFcn = lambda rec : strip12(rec.id) not in matches
         select_reads(prevReads1, curReads1, noMatchFcn)
         select_reads(prevReads2, curReads2, noMatchFcn)
     if outMatch != None :
+        log.debug("preparing outMatch files")
         allMatches = set(line.strip()
                          for matchesFile in matchesFiles
                          for line in open(matchesFile))
         matchFcn = lambda rec : strip12(rec.id) in allMatches
         select_reads(inFastq1, outMatch[0], matchFcn)
         select_reads(inFastq2, outMatch[1], matchFcn)
+    log.debug("partition_bmtagger complete")
 
 def parser_partition_bmtagger() :
     parser = argparse.ArgumentParser(

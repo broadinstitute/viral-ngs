@@ -1,3 +1,5 @@
+## note: this is tailored to Lassa, see ebov_assembly.sh for Ebola-specific tweaks
+
 #-------- VIRAL GENOME ASSEMBLY @ BROAD --------#
 use BLAST+
 use Perl-5.10
