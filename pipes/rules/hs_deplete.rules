@@ -31,9 +31,9 @@ rule bam_to_fastq:
             config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
     params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
     run:
-			makedirs(expand("{dir}/{subdir}",
-				dir=[config["dataDir"],config["tmpDir"]],
-				subdir=config["subdirs"]["depletion"]))
+            makedirs(expand("{dir}/{subdir}",
+                dir=[config["dataDir"],config["tmpDir"]],
+                subdir=config["subdirs"]["depletion"]))
             shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
 
 rule deplete_bmtagger:
