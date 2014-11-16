@@ -28,9 +28,9 @@ rule all_assemble:
 
 rule assembly_bam_to_fastq:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.bam'
-    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.1.fastq', 
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq', 
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.samheader.txt'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.1.fastq', 
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.2.fastq', 
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.samheader.txt'
     params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"'
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -41,8 +41,8 @@ rule assembly_bam_to_fastq:
 rule trim_reads:
     input:  '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
     output: '{basename}.trimmed.1.fastq', '{basename}.trimmed.2.fastq'
-    params: LSF='-W 4:00'
-    shell:  "{config[binDir]}/taxon_filter.py trim_trimmomatic {input} {output} {config[clipFasta]}"
+    params: LSF='-W 4:00', clipDb=config["trim_clipDb"]
+    shell:  "{config[binDir]}/taxon_filter.py trim_trimmomatic {input} {output} {clipDb}"
 
 rule filter_to_taxon:
     input:  '{basename}.trimmed.{direction}.fastq'
@@ -50,58 +50,102 @@ rule filter_to_taxon:
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16', refDbs=config["lastal_refDb"]
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal {input} {params.refDbs} {output}"
 
+rule fix_lastal_output:
+    input:  '{basename}.filtered.{direction}.fastq'
+    output: '{basename}.filtered.fix.{direction,[12]}.fastq'
+    params: LSF='-R "rusage[mem=3]" -M 6'
+    shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
+
 rule assemble_trinity:
-    input:  '{basename}.filtered.1.fastq', '{basename}.filtered.2.fastq'
-    output: '{basename}.assembly1.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6'
-    shell: "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
-    #shell:  "use Java-1.6 && " + \
-    #        "/idi/sabeti-scratch/kandersen/bin/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 $directory/_temp/$sample.lastal.1.fastq -f2 $directory/_temp/$sample.lastal.2.fastq -o $directory/_temp/$sample.clean && " + \
-    #        "/idi/sabeti-scratch/kandersen/bin/scripts/subsampler.py -n 100000 -mode p -in $directory/_temp/$sample.clean.1.fastq $directory/_temp/$sample.clean.2.fastq -out $directory/_temp/$sample.reads1.sub.fastq $directory/_temp/$sample.reads2.sub.fastq && " + \
-    #        "wc -l $directory/_temp/$sample.clean.?.fastq > $directory/_logs/$sample.log.lastal.txt && " + \
-    #        "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left $directory/_temp/$sample.reads1.sub.fastq --right $directory/_temp/$sample.reads2.sub.fastq --output $directory/_temp/$sample.trinity && " + \
-    #        "mv $directory/_temp/$sample.trinity/Trinity.fasta $directory/_pileup/$sample.contigs.fasta && " + \
-    #        "rm $directory/_temp/$sample.clean.nomatch.fastq && " + \
-    #        "rm $directory/_temp/$sample.reads?.sub.fastq"
+    input:  '{basename}.filtered.fix.1.fastq', '{basename}.filtered.fix.2.fastq'
+    output: '{basename}.assembly1.fasta',
+            '{basename}.filtered.fix.sub.1.fastq', '{basename}.filtered.fix.sub.2.fastq',
+            '{basename}.trinity'
+    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8'
+    # TODO: replace with python wrapper
+    #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
+    shell:  "reuse -q Java-1.6 && " + \
+            "/idi/sabeti-scratch/kandersen/bin/scripts/subsampler.py -n 100000 -mode p -in {input} -out {output[1]} {output[2]} && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {output[1]} --right {output[2]} --output {output[3]} && " + \
+            "mv {output[3]}/Trinity.fasta {output[0]} && " + \
+            "rm -rf {output[1]} {output[2]} {output[3]}"
 
 rule align_and_orient:
     # VFAT / Bellini
-    input:  '{basename}.assembly1.fasta'
-    output: '{basename}.assembly2.fasta'
+    input:  '{basename}.assembly1.fasta',
+            '{basename}.filtered.fix.1.fastq', '{basename}.filtered.fix.2.fastq'
+    output: '{basename}.assembly2.fasta',
+            '{basename}.assembly1.5'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6', refGenome=config["ref_genome"]
-    shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
-    # "touch $directory/_temp/$sample.s_segment1_merger_assembly.fa && " + \
-    # "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/ebola/$ref_name.fasta $directory/_temp/$sample.s_segment1 && " + \
-    # "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl $directory/_temp/$sample.s_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/ebola/$ref_name.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.s_segment1 && " + \
-    # "cat $directory/_temp/$sample.s_segment1*assembly.fa > $directory/_temp/$sample.s_segment1.fasta"
+    # TODO: replace with python wrapper
+    #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
+    shell:  "touch {output[1]}_merger_assembly.fa && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl {input}[0] {params.refGenome} {output[1]} && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl {output[1]}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {output[1]} && " + \
+            "cat {output[1]}*assembly.fa > {output[0]} && " + \
+            "rm -rf {output[1]}*"
 
 rule sort_contigs:
     # rsealfon script
     input:  '{basename}.assembly2.fasta'
-    output: '{basename}.assembly3.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6'
-    shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output}"
-    # "python /idi/sabeti-data/rsealfon/assembly_scripts/filter_short_seqs.py $directory/_temp/$sample.s_segment1.fasta 15000 $directory/_temp/$sample.s_segment1.bad.fasta $directory/_temp/$sample.s_segment1.good.fasta && " + \
-    # "rm $directory/_temp/$sample.*.fa $directory/_temp/$sample.*.txt $directory/_temp/$sample.*.qlx $directory/_temp/$sample.*.pdf $directory/_temp/$sample.*.R $directory/_temp/$sample.*.afa $directory/_temp/$sample.*.mfa"
+    output: '{basename}.assembly3.fasta', '{basename}.assembly3-bad.fasta'
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6', length="15000"
+    # TODO: replace with python wrapper
+    #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output[0]}"
+    shell:  "python /idi/sabeti-data/rsealfon/assembly_scripts/filter_short_seqs.py {input} {params.length} {output[1]} {output[0]} && rm {output[1]}"
+
+def index_picard(fasta):
+    # TODO: replace with python wrapper
+    outfname = fasta[:-6] + '.dict'
+    shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
+def index_samtools(fasta):
+    # TODO: replace with python wrapper
+    shell("samtools faidx {fasta}")
+def index_novoalign(fasta):
+    # TODO: replace with python wrapper
+    outfname = fasta[:-6] + '.nix'
+    shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
+def deambig_fasta(inf, outf):
+    shell("python /home/unix/dpark/dev/dpark-scripts/viral.py {inf} {outf}")
+def novoalign(reads1, reads2, refFasta, sample_name):
+    pass
 
 rule refine_assembly_with_reads:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.1.fastq',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq'
-    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    params: LSF='-q week -R "rusage[mem=8]" -M 16'
-    # ALIGN REFERENCES AND CONTIGS THAT PASSED LENGTH FILTER
-    # "cat $directory/_temp/$sample.s_segment1.good.fasta /idi/sabeti-scratch/kandersen/references/annotations/ebola/$ref_name.fasta | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out $directory/_temp/$sample.s_alignment1.fasta -quiet"
-    # CLEANUP CONTIGS
-    # "python /idi/sabeti-data/rsealfon/assembly_scripts/modified_contig/modify_contig.py -n EBOV-$country-$year-$sample --call-reference-ns yes --trim-ends yes --replace-5ends yes --replace-3ends yes --replace-length 20 --replace-end-gaps yes --remove-end-ns no --call-reference-ambiguous no $directory/_temp/$sample.s_alignment1.fasta $directory/_temp/$sample.s_segment2.fasta $ref_name && python /home/unix/dpark/dev/dpark-scripts/viral.py deambig_fasta $directory/_temp/$sample.s_segment2.fasta $directory/_temp/$sample.s_segment2a.fasta"
-    # INDEX MODIFIED CONTIGS
-    # "java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment2.fasta O=$directory/_temp/$sample.s_segment2.dict && /idi/sabeti-scratch/kandersen/bin/novocraft/novoindex $directory/_temp/$sample.s_segment2.nix $directory/_temp/$sample.s_segment2.fasta && samtools faidx $directory/_temp/$sample.s_segment2.fasta && java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment2a.fasta O=$directory/_temp/$sample.s_segment2a.dict && samtools faidx $directory/_temp/$sample.s_segment2a.fasta"
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.modify_contig.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.deambig_fasta.fasta',
+    
+    params: LSF='-q week -R "rusage[mem=8]" -M 16',
+            refGenome=config["ref_genome"], year="2014", refName="zaire_guinea"
+    # TODO: replace with one big python wrapper
+    run:
+            shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
+            shell("python /idi/sabeti-data/rsealfon/assembly_scripts/modified_contig/modify_contig.py -n EBOV_{params.year}_{wildcards.sample} --call-reference-ns yes --trim-ends yes --replace-5ends yes --replace-3ends yes --replace-length 20 --replace-end-gaps yes --remove-end-ns no --call-reference-ambiguous no {output[1]} {output[2]} {params.refName}")
+            deambig_fasta({output[2]}, {output[3]})
+            index_picard({output[2]})
+            index_novoalign({output[2]})
+            index_samtools({output[2]})
+            index_picard({output[3]})
+            index_samtools({output[3]})
     # NOVOALIGN EBOV READS TO MODIFIED CONTIGS
-    # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f $directory/_temp/$sample.clean.1.fastq $directory/_temp/$sample.clean.2.fastq -r Random -l 30 -g 40 -x 20 -t 502 -F STDFQ -d $directory/_temp/$sample.s_segment2.nix -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' | samtools view -buS -q 1 - | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.ref_mapped_s1.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R $directory/_temp/$sample.s_segment2a.fasta -I $directory/_temp/$sample.ref_mapped_s1.bam -o $directory/_temp/$sample.gatk_s1.vcf --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 --min_base_quality_score 15 -ploidy 4 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance && python /home/unix/dpark/dev/dpark-scripts/viral.py vcf_to_fasta --trim_ends --min_coverage 2 $directory/_temp/$sample.gatk_s1.vcf $directory/_temp/$sample.s_segment3.fasta && python /home/unix/dpark/dev/dpark-scripts/viral.py deambig_fasta $directory/_temp/$sample.s_segment3.fasta $directory/_temp/$sample.s_segment3a.fasta"
+    # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f $directory/_temp/$sample.clean.1.fastq $directory/_temp/$sample.clean.2.fastq -r Random -l 30 -g 40 -x 20 -t 502 -F STDFQ -d $directory/_temp/$sample.s_segment2.nix -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' | samtools view -buS -q 1 - | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.ref_mapped_s1.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && " + \
+    # "java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R $directory/_temp/$sample.s_segment2a.fasta -I $directory/_temp/$sample.ref_mapped_s1.bam -o $directory/_temp/$sample.gatk_s1.vcf --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 --min_base_quality_score 15 -ploidy 4 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance && " + \
+    # "python /home/unix/dpark/dev/dpark-scripts/viral.py vcf_to_fasta --trim_ends --min_coverage 2 $directory/_temp/$sample.gatk_s1.vcf $directory/_temp/$sample.s_segment3.fasta && " + \
+    # "python /home/unix/dpark/dev/dpark-scripts/viral.py deambig_fasta $directory/_temp/$sample.s_segment3.fasta $directory/_temp/$sample.s_segment3a.fasta"
     # INDEX CONSENSUS SEQUENCES
-    # "java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment3.fasta O=$directory/_temp/$sample.s_segment3.dict && /idi/sabeti-scratch/kandersen/bin/novocraft/novoindex $directory/_temp/$sample.s_segment3.nix $directory/_temp/$sample.s_segment3.fasta && samtools faidx $directory/_temp/$sample.s_segment3.fasta && java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment3a.fasta O=$directory/_temp/$sample.s_segment3a.dict && samtools faidx $directory/_temp/$sample.s_segment3a.fasta"
+    # "java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment3.fasta O=$directory/_temp/$sample.s_segment3.dict && " + \
+    # "/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex $directory/_temp/$sample.s_segment3.nix $directory/_temp/$sample.s_segment3.fasta && " + \
+    # "samtools faidx $directory/_temp/$sample.s_segment3.fasta && " + \
+    # "java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_temp/$sample.s_segment3a.fasta O=$directory/_temp/$sample.s_segment3a.dict && " + \
+    # "samtools faidx $directory/_temp/$sample.s_segment3a.fasta"
     # NOVOALIGN ALL READS TO CONSENSUS SEQUENCES
-    # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 40 -x 20 -t 100 -F STDFQ -d $directory/_temp/$sample.s_segment3.nix -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' | samtools view -buS -q 1 - | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.ref_mapped_s2.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R $directory/_temp/$sample.s_segment3a.fasta -I $directory/_temp/$sample.ref_mapped_s2.bam -o $directory/_temp/$sample.gatk_s2.vcf --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 --min_base_quality_score 15 -ploidy 4 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance && python /home/unix/dpark/dev/dpark-scripts/viral.py vcf_to_fasta --trim_ends --min_coverage 2 $directory/_temp/$sample.gatk_s2.vcf $directory/_temp/$sample.s_segment4.fasta"
+    # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 40 -x 20 -t 100 -F STDFQ -d $directory/_temp/$sample.s_segment3.nix -o SAM $'@RG\tID:$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' | samtools view -buS -q 1 - | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.ref_mapped_s2.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && " + \
+    # "java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R $directory/_temp/$sample.s_segment3a.fasta -I $directory/_temp/$sample.ref_mapped_s2.bam -o $directory/_temp/$sample.gatk_s2.vcf --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 --min_base_quality_score 15 -ploidy 4 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance && " + \
+    # "python /home/unix/dpark/dev/dpark-scripts/viral.py vcf_to_fasta --trim_ends --min_coverage 2 $directory/_temp/$sample.gatk_s2.vcf $directory/_temp/$sample.s_segment4.fasta"
 
 rule map_reads_to_assembly:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
@@ -109,7 +153,9 @@ rule map_reads_to_assembly:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.2.fastq'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8'
-    # INDEX FINAL CONSENSUS SEQUENCES
-    # "cat $directory/_temp/$sample.s_segment4.fasta > $directory/_refs/$sample.fasta && java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R=$directory/_refs/$sample.fasta O=$directory/_refs/$sample.dict && /idi/sabeti-scratch/kandersen/bin/novocraft/novoindex $directory/_refs/$sample.nix $directory/_refs/$sample.fasta && samtools faidx $directory/_refs/$sample.fasta"
-    # ALIGN ALL READS TO ITS OWN EBOV CONSENSUS
+    # TODO: replace with python wrapper
+    run:
+            index_picard({input[0]})
+            index_samtools({input[0]})
+            index_novoalign({input[0]})
     # "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -k -c 3 -f $directory/_reads/$sample.reads1.fastq $directory/_reads/$sample.reads2.fastq -r Random -l 40 -g 40 -x 20 -t 100 -F STDFQ -d $directory/_refs/$sample.nix -o SAM $'@RG\tID:$date.$sample\tSM:$sample\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad' 2> $directory/_logs/$sample.log.novoalign.txt | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_bams/$sample.sorted.bam CREATE_INDEX=true && samtools view -b -q 1 -u $directory/_bams/$sample.sorted.bam | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O=$directory/_temp/$sample.mapped.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT && java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I=$directory/_temp/$sample.mapped.bam O=$directory/_temp/$sample.mappedNoDub.bam METRICS_FILE=$directory/_temp/$sample.log.markdups.txt CREATE_INDEX=true REMOVE_DUPLICATES=true"
