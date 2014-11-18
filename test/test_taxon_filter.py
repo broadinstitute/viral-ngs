@@ -50,14 +50,14 @@ class TestFilterLastal(TestCaseWithTmp) :
 
         # Call main_filter_lastal
         inFastq = os.path.join( myInputDir, 'in.fastq')
-        outFastq = util.file.mkstempfname()
+        outFastq = util.file.mkstempfname('.fastq')
         args = taxon_filter.parser_filter_lastal().parse_args([inFastq, refDbs,
             outFastq])
         taxon_filter.main_filter_lastal(args)
 
         # Check that results match expected
         expectedFastq = os.path.join(myInputDir, 'expected.fastq')
-        assert_equal_contents(self, outFastq + '.fastq', expectedFastq)
+        assert_equal_contents(self, outFastq, expectedFastq)
 
 class TestBmtagger(TestCaseWithTmp) :
     """

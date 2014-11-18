@@ -99,6 +99,8 @@ def filter_lastal(inFastq, refDbs, outFastq):
     """
     TODO: docstring here
     """
+    assert outFastq.endswith('.fastq')
+    outFastq = outFastq[:-6]
     tempFilePath = mkstempfname()
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
