@@ -115,6 +115,8 @@ def filter_lastal(inFastq, refDbs, outFastq):
         '| {mafSortPath} -n2'.format(**locals()),
         '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(**locals()),
         ])
+    log.debug(lastalCmd)
+    assert not os.system(lastalCmd)
 
     # each option/flag on own line
     noBlastLikeHitsCmd = ' '.join([
@@ -130,15 +132,14 @@ def filter_lastal(inFastq, refDbs, outFastq):
             '-fastq stdin',
             '-out_bad null',
             '-line_width 0',
-            '-out_good', outFastq,
-        '&& rm', tempFilePath
+            '-out_good', outFastq
         ])
 
-    fullCmd = "{lastalCmd} && {noBlastLikeHitsCmd} | {prinseqCmd}" \
-        .format(**locals())
-
+    fullCmd = "{noBlastLikeHitsCmd} | {prinseqCmd}".format(**locals())
     log.debug(fullCmd)
     assert not os.system(fullCmd)
+    
+    log.debug("done")
 
 def parser_filter_lastal():
     parser = argparse.ArgumentParser(
