@@ -248,6 +248,47 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
         select_reads(inFastq2, outMatch[1], matchFcn)
     log.debug("partition_bmtagger complete")
 
+def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
+    """
+    Use bmtagger to partition the input reads into ones that match at least one
+        of the databases and ones that don't match any of the databases.
+    inFastq1, inFastq2: paired-end input reads in fastq format
+        The names of the reads must be in one-to-one correspondence.
+    databases: for each db in databases bmtagger expects files
+        db.bitmask created by bmtool, and
+        db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
+    outFastq1, outFastq2: pair of output fastq files depleted of reads present
+        in the databases
+    This version is optimized for the case of only requiring depletion, which
+    allows us to avoid time-intensive lookups.
+    """
+    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
+    
+    # bmtagger calls several executables in the same directory, and blastn;
+    # make sure they are accessible through $PATH
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    blastnDir = os.path.dirname(blastnPath)
+    bmtaggerDir = os.path.dirname(bmtaggerPath)
+    envStr = 'PATH={bmtaggerDir}:{blastnDir}:$PATH'.format(**locals())
+    
+    tempDir = tempfile.mkdtemp()
+    curReads1, curReads2 = inFastq1, inFastq2
+    tempfiles = []
+    for db in databases:
+        outprefix = mkstempfname()
+        cmdline = ('{envStr} {bmtaggerPath} -X '
+                   '-b {db}.bitmask -x {db}.srprism -T {tempDir} '
+                   '-q1 -1 {curReads1} -2 {curReads2} '
+                   '-o {outprefix}').format(**locals())
+        log.debug(cmdline)
+        assert not os.system(cmdline)
+        curReads1, curReads2 = [outprefix+suffix for suffix in ('_1.fastq', '_2.fastq')]
+        tempfiles += [curReads1, curReads2]
+    shutil.copyfile(curReads1, outFastq1)
+    shutil.copyfile(curReads2, outFastq2)
+    map(os.unlink, tempfiles)
+    log.debug("deplete_bmtagger complete")
+
 def parser_partition_bmtagger() :
     parser = argparse.ArgumentParser(
         description='''Use bmtagger to partition input reads into ones that 
@@ -275,7 +316,11 @@ def main_partition_bmtagger(args) :
     databases = args.refDbs
     outMatch = args.outMatch
     outNoMatch = args.outNoMatch
-    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
+    assert outMatch or outNoMatch
+    if outMatch==None:
+        deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
+    else:
+        partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
     return 0
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
