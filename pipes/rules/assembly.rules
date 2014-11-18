@@ -67,49 +67,49 @@ rule fix_lastal_output:
 rule assemble_trinity:
     input:  '{dir}/{sample}.filtered.fix.1.fastq',
             '{dir}/{sample}.filtered.fix.2.fastq'
-    output: '{dir}/{sample}.assembly1.fasta',
-            '{dir}/{sample}.filtered.fix.sub.1.fastq',
-            '{dir}/{sample}.filtered.fix.sub.2.fastq',
-            '{dir}/{sample}.trinity'
+    output: '{dir}/{sample}.assembly1.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
+                '{dir}/{sample}.filtered.fix.sub.2.fastq'],
+            tmpd_trinity='{dir}/{sample}.trinity'
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
     shell:  "reuse -q Java-1.6 && " + \
-            "{config[binDir]}/scripts/subsampler.py -n 100000 -mode p -in {input} -out {output[1]} {output[2]} && " + \
-            "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {output[1]} --right {output[2]} --output {output[3]} && " + \
-            "mv {output[3]}/Trinity.fasta {output[0]} && " + \
-            "rm -rf {output[1]} {output[2]} {output[3]}"
+            "{config[binDir]}/scripts/subsampler.py -n 100000 -mode p -in {input} -out {params.tmpf_subsamp} && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity} && " + \
+            "mv {params.tmpd_trinity}/Trinity.fasta {output} && " + \
+            "rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}"
 
 rule align_and_orient:
     # VFAT / Bellini
     input:  '{dir}/{sample}.assembly1.fasta',
             '{dir}/{sample}.filtered.fix.1.fastq',
             '{dir}/{sample}.filtered.fix.2.fastq'
-    output: '{dir}/{sample}.assembly2.fasta',
-            '{dir}/{sample}.assembly1.5'
+    output: '{dir}/{sample}.assembly2.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_prefix='{dir}/{sample}.assembly1.5'
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
-    shell:  "touch {output[1]}_merger_assembly.fa && " + \
-            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl {input}[0] {params.refGenome} {output[1]} && " + \
-            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl {output[1]}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {output[1]} && " + \
-            "cat {output[1]}*assembly.fa > {output[0]} && " + \
-            "rm -rf {output[1]}*"
+    shell:  "touch {params.tmpf_prefix}_merger_assembly.fa && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl {input}[0] {params.refGenome} {params.tmpf_prefix} && " + \
+            "perl /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix} && " + \
+            "cat {params.tmpf_prefix}*assembly.fa > {output} && " + \
+            "rm -rf {params.tmpf_prefix}*"
 
 rule sort_contigs:
     # rsealfon script
     input:  '{dir}/{sample}.assembly2.fasta'
-    output: '{dir}/{sample}.assembly3.fasta',
-            '{dir}/{sample}.assembly3-bad.fasta'
+    output: '{dir}/{sample}.assembly3.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             length="15000",
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_bad='{dir}/{sample}.assembly3-bad.fasta'
     # TODO: replace with python wrapper
-    #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output[0]}"
-    shell:  "{config[binDir]}/old-scripts/rsealfon/filter_short_seqs.py {input} {params.length} {output[1]} {output[0]} && rm {output[1]}"
+    #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output}"
+    shell:  "{config[binDir]}/old-scripts/rsealfon/filter_short_seqs.py {input} {params.length} {params.tmpf_bad} {output} && rm {params.tmpf_bad}"
 
 def index_picard(fasta):
     # TODO: replace with python wrapper
