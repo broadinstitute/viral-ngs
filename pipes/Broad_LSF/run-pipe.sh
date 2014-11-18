@@ -5,6 +5,7 @@
 eval `/broad/software/dotkit/init -b`
 reuse -q LSF
 reuse -q Python-3.4
+reuse -q Perl-5.10
 
 # load Python virtual environment
 source venv/bin/activate
