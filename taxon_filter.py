@@ -274,6 +274,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
     tempDir = tempfile.mkdtemp()
     curReads1, curReads2 = inFastq1, inFastq2
     tempfiles = []
+    os.system("bash --version") # debug Travis... 
     for db in databases:
         outprefix = mkstempfname()
         cmdline = ("{envStr} bash -c '{bmtaggerPath} -X "
