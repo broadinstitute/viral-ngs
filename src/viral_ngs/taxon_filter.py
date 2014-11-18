@@ -276,10 +276,10 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
     tempfiles = []
     for db in databases:
         outprefix = mkstempfname()
-        cmdline = ('{envStr} {bmtaggerPath} -X '
-                   '-b {db}.bitmask -x {db}.srprism -T {tempDir} '
-                   '-q1 -1 {curReads1} -2 {curReads2} '
-                   '-o {outprefix}').format(**locals())
+        cmdline = ("{envStr} bash -c '{bmtaggerPath} -X "
+                   "-b {db}.bitmask -x {db}.srprism -T {tempDir} "
+                   "-q1 -1 {curReads1} -2 {curReads2} "
+                   "-o {outprefix}'").format(**locals())
         log.debug(cmdline)
         assert not os.system(cmdline)
         curReads1, curReads2 = [outprefix+suffix for suffix in ('_1.fastq', '_2.fastq')]
