@@ -10,13 +10,16 @@ sm_tmpdir, sm_jobid = mo.groups()
 props = read_job_properties(jobscript)
 
 # set up job name, project name
-cmdline = "bsub -P {proj_name} -J {rule}_{jobid} ".format(
-    proj_name='viral_ngs', rule=props["rule"], jobid=sm_jobid)
+jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
+if props["params"].get("logid"):
+    jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
+cmdline = "bsub -P {proj_name} -J {jobname} ".format(
+    proj_name='viral_ngs', jobname=jobname)
 
 # log file output
 if "-N" not in props["params"].get("LSF",""):
-    cmdline += "-o {logdir}/LSF-{rule}-{jobid}.txt ".format(
-        logdir=LOGDIR, rule=props["rule"], jobid=sm_jobid)
+    cmdline += "-o {logdir}/LSF-{jobname}.txt ".format(
+        logdir=LOGDIR, jobname=jobname)
 
 # rule-specific LSF parameters (e.g. queue, runtime, memory)
 cmdline += props["params"].get("LSF","") + " "
