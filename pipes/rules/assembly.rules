@@ -76,7 +76,7 @@ rule assemble_trinity:
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
     shell:  "reuse -q Java-1.6 && " + \
-            "/idi/sabeti-scratch/kandersen/bin/scripts/subsampler.py -n 100000 -mode p -in {input} -out {output[1]} {output[2]} && " + \
+            "{config[binDir]}/scripts/subsampler.py -n 100000 -mode p -in {input} -out {output[1]} {output[2]} && " + \
             "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {output[1]} --right {output[2]} --output {output[3]} && " + \
             "mv {output[3]}/Trinity.fasta {output[0]} && " + \
             "rm -rf {output[1]} {output[2]} {output[3]}"
