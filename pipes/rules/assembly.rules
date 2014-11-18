@@ -109,7 +109,7 @@ rule sort_contigs:
             logid="{sample}"
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output[0]}"
-    shell:  "python /idi/sabeti-data/rsealfon/assembly_scripts/filter_short_seqs.py {input} {params.length} {output[1]} {output[0]} && rm {output[1]}"
+    shell:  "{config[binDir]}/old-scripts/rsealfon/filter_short_seqs.py {input} {params.length} {output[1]} {output[0]} && rm {output[1]}"
 
 def index_picard(fasta):
     # TODO: replace with python wrapper
@@ -123,11 +123,9 @@ def index_novoalign(fasta):
     outfname = fasta[:-6] + '.nix'
     shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
 def deambig_fasta(inf, outf):
-    # TODO: incorporate dpark python code
-    shell("python /home/unix/dpark/dev/dpark-scripts/viral.py deambig_fasta {inf} {outf}")
+    shell("{config[binDir]}/consensus.py deambig_fasta {inf} {outf}")
 def vcf_to_fasta(inVcf, outFasta, options=""):
-    # TODO: incorporate dpark python code
-    shell("python /home/unix/dpark/dev/dpark-scripts/viral.py vcf_to_fasta {inVcf} {outFasta} {options}")
+    shell("{config[binDir]}/consensus.py vcf_to_fasta {inVcf} {outFasta} {options}")
 def novoalign(reads1, reads2, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     # TODO: replace with python wrapper
     refFastaIdx = refFasta[:-6] + '.nix'
@@ -167,7 +165,7 @@ rule refine_assembly_with_reads:
     run:
             # tweak Trinity assembly w/muscle alignment to known reference
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
-            shell("python /idi/sabeti-data/rsealfon/assembly_scripts/modified_contig/modify_contig.py -n EBOV_{params.year}_{wildcards.sample} --call-reference-ns yes --trim-ends yes --replace-5ends yes --replace-3ends yes --replace-length 20 --replace-end-gaps yes --remove-end-ns no --call-reference-ambiguous no {output[1]} {output[2]} {params.refName}")
+            shell("{config[binDir]}/consensus.py modify_contig -n EBOV_{params.year}_{wildcards.sample} --call-reference-ns yes --trim-ends yes --replace-5ends yes --replace-3ends yes --replace-length 20 --replace-end-gaps yes --remove-end-ns no --call-reference-ambiguous no {output[1]} {output[2]} {params.refName}")
             deambig_fasta(output[2], output[3])
             index_picard(output[2])
             index_novoalign(output[2])
