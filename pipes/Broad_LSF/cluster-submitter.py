@@ -18,7 +18,7 @@ cmdline = "bsub -P {proj_name} -J {jobname} ".format(
 
 # log file output
 if "-N" not in props["params"].get("LSF",""):
-    cmdline += "-o {logdir}/LSF-{jobname}.txt ".format(
+    cmdline += "-oo {logdir}/LSF-{jobname}.txt ".format(
         logdir=LOGDIR, jobname=jobname)
 
 # rule-specific LSF parameters (e.g. queue, runtime, memory)

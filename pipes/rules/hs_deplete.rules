@@ -29,7 +29,7 @@ rule depl_bam_to_fastq:
     output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq', 
             config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.2.fastq', 
             config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
-    params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"',
+    params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -44,7 +44,7 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: '{dir}/{sample}.bmtagger_depleted.1.fastq', '{dir}/{sample}.bmtagger_depleted.2.fastq'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"',
+    params: LSF='-q week -M 16 -R "rusage[mem=8]"',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
