@@ -69,7 +69,7 @@ class TestBmtagger(TestCaseWithTmp) :
       in[12].fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
           with arbitrary quality scores.
     """
-    def test_bmtagger(self) :
+    def test_partition_bmtagger(self) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
@@ -102,6 +102,37 @@ class TestBmtagger(TestCaseWithTmp) :
             assert_equal_contents(self,
                 os.path.join(tempDir, 'out' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.' + case + '.fastq'))
+
+    def test_deplete_bmtagger(self) :
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
+        for db in ['humanChr1Subset', 'humanChr9Subset'] :
+            # .map file is > 100M, so recreate instead of copying
+            dbfa = os.path.join(myInputDir, db + '.fa')
+            dbsrprism = os.path.join(tempDir, db + '.srprism')
+            assert not os.system(
+                '{srprismPath} mkindex -i {dbfa} -o {dbsrprism}'.format(
+                    **locals()))
+            # .bitmask and .srprism.* files must be in same dir, so copy
+            shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
+        
+        # Deplete the input files
+        outNoMatch = [os.path.join(tempDir, 'deplete.{}.fastq'.format(n))
+                      for n in '12']
+        args = taxon_filter.parser_partition_bmtagger().parse_args(
+            [os.path.join(myInputDir, 'in1.fastq'),
+             os.path.join(myInputDir, 'in2.fastq'),
+             os.path.join(tempDir, 'humanChr1Subset'),
+             os.path.join(tempDir, 'humanChr9Subset'),
+             '--outNoMatch', outNoMatch[0], outNoMatch[1]])
+        taxon_filter.main_partition_bmtagger(args)
+        
+        # Compare to expected
+        for case in ['1', '2'] :
+            assert_equal_contents(self,
+                os.path.join(tempDir, 'deplete.' + case + '.fastq'),
+                os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
 
 class TestMvicuna(TestCaseWithTmp) :
     """
