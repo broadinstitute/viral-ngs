@@ -40,35 +40,39 @@ rule assembly_bam_to_fastq:
             shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
 
 rule trim_reads:
-    input:  '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
-    output: '{basename}.trimmed.1.fastq', '{basename}.trimmed.2.fastq'
+    input:  '{dir}/{sample}.cleaned.1.fastq', '{dir}/{sample}.cleaned.2.fastq'
+    output: '{dir}/{sample}.trimmed.1.fastq', '{dir}/{sample}.trimmed.2.fastq'
     params: LSF='-W 4:00',
             clipDb=config["trim_clipDb"],
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py trim_trimmomatic {input} {output} {params.clipDb}"
 
 rule filter_to_taxon:
-    input:  '{basename}.trimmed.{direction}.fastq'
-    output: '{basename}.filtered.{direction,[12]}.fastq'
+    input:  '{dir}/{sample}.trimmed.{direction}.fastq'
+    output: '{dir}/{sample}.filtered.{direction,[12]}.fastq'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
             refDbs=config["lastal_refDb"],
-            logid="{basename}-{direction}".split('/')[-1]
+            logid="{sample}-{direction}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal {input} {params.refDbs} {output}"
 
 rule fix_lastal_output:
-    input:  '{basename}.filtered.1.fastq',     '{basename}.filtered.2.fastq'
-    output: '{basename}.filtered.fix.1.fastq', '{basename}.filtered.fix.2.fastq'
+    input:  '{dir}/{sample}.filtered.1.fastq',
+            '{dir}/{sample}.filtered.2.fastq'
+    output: '{dir}/{sample}.filtered.fix.1.fastq',
+            '{dir}/{sample}.filtered.fix.2.fastq'
     params: LSF='-R "rusage[mem=3]" -M 6',
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule assemble_trinity:
-    input:  '{basename}.filtered.fix.1.fastq', '{basename}.filtered.fix.2.fastq'
-    output: '{basename}.assembly1.fasta',
-            '{basename}.filtered.fix.sub.1.fastq', '{basename}.filtered.fix.sub.2.fastq',
-            '{basename}.trinity'
+    input:  '{dir}/{sample}.filtered.fix.1.fastq',
+            '{dir}/{sample}.filtered.fix.2.fastq'
+    output: '{dir}/{sample}.assembly1.fasta',
+            '{dir}/{sample}.filtered.fix.sub.1.fastq',
+            '{dir}/{sample}.filtered.fix.sub.2.fastq',
+            '{dir}/{sample}.trinity'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
     shell:  "reuse -q Java-1.6 && " + \
@@ -79,13 +83,14 @@ rule assemble_trinity:
 
 rule align_and_orient:
     # VFAT / Bellini
-    input:  '{basename}.assembly1.fasta',
-            '{basename}.filtered.fix.1.fastq', '{basename}.filtered.fix.2.fastq'
-    output: '{basename}.assembly2.fasta',
-            '{basename}.assembly1.5'
+    input:  '{dir}/{sample}.assembly1.fasta',
+            '{dir}/{sample}.filtered.fix.1.fastq',
+            '{dir}/{sample}.filtered.fix.2.fastq'
+    output: '{dir}/{sample}.assembly2.fasta',
+            '{dir}/{sample}.assembly1.5'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
     shell:  "touch {output[1]}_merger_assembly.fa && " + \
@@ -96,11 +101,12 @@ rule align_and_orient:
 
 rule sort_contigs:
     # rsealfon script
-    input:  '{basename}.assembly2.fasta'
-    output: '{basename}.assembly3.fasta', '{basename}.assembly3-bad.fasta'
+    input:  '{dir}/{sample}.assembly2.fasta'
+    output: '{dir}/{sample}.assembly3.fasta',
+            '{dir}/{sample}.assembly3-bad.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             length="15000",
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output[0]}"
     shell:  "python /idi/sabeti-data/rsealfon/assembly_scripts/filter_short_seqs.py {input} {params.length} {output[1]} {output[0]} && rm {output[1]}"

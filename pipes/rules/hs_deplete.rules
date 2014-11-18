@@ -38,22 +38,24 @@ rule depl_bam_to_fastq:
             shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
 
 rule deplete_bmtagger:
-    input:  '{basename}.raw.1.fastq', '{basename}.raw.2.fastq'
-    #       expand("{dir}/{db}.{suffix}",
-    #           dir=config["bmTaggerDbDir"],
+    input:  '{dir}/{sample}.raw.1.fastq', '{dir}/{sample}.raw.2.fastq'
+    #       expand("{dbdir}/{db}.{suffix}",
+    #           dbdir=config["bmTaggerDbDir"],
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
-    output: '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
+    output: '{dir}/{sample}.bmtagger_depleted.1.fastq', '{dir}/{sample}.bmtagger_depleted.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"',
-            refDbs = expand("{dir}/{db}", dir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
-            logid="{basename}".split('/')[-1]
+            refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
+            logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
 
 rule rmdup_mvicuna:
-    input:  '{basename}.bmtagger_depleted.1.fastq', '{basename}.bmtagger_depleted.2.fastq'
-    output: '{basename}.rmdup.1.fastq', '{basename}.rmdup.2.fastq'
+    input:  '{dir}/{sample}.bmtagger_depleted.1.fastq',
+            '{dir}/{sample}.bmtagger_depleted.2.fastq'
+    output: '{dir}/{sample}.rmdup.1.fastq',
+            '{dir}/{sample}.rmdup.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"',
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
 
 ## Future optimization: add a partition_bmtagger step that pulls out
@@ -64,32 +66,34 @@ rule rmdup_mvicuna:
 ## reduce the cpu time spent on blastn.
 
 #rule split_reads:
-#    input:  '{basename}.rmdup.{direction}.fastq'
-#    output: expand('{{basename}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
-#    params: logid="{basename}-{direction}".split('/')[-1]
-#    shell:  "{config[binDir]}/read_utils.py split_reads {input} {wildcards.basename}.blast_split_input.{wildcards.direction}. --numChunks {config[blast_nchunks]} --suffixLen 4 --format fastq"
+#    input:  '{dir}/{sample}.rmdup.{direction}.fastq'
+#    output: expand('{{dir}}/{{sample}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
+#    params: logid="{sample}-{direction}"
+#    shell:  "{config[binDir]}/read_utils.py split_reads {input} {wildcards.dir}/{wildcards.sample}.blast_split_input.{wildcards.direction}. --numChunks {config[blast_nchunks]} --suffixLen 4 --format fastq"
 
 rule blastn_deplete:
-#    input:  '{prefix}.blast_split_input.{suffix}'
-#    output: '{prefix}.blast_split_output.{suffix}'
-    input:  '{prefix}.rmdup.{suffix}'
-    output: '{prefix}.blast_depleted.{suffix}'
+#    input:  '{dir}/{sample}.blast_split_input.{suffix}'
+#    output: '{dir}/{sample}.blast_split_output.{suffix}'
+    input:  '{dir}/{sample}.rmdup.{suffix}'
+    output: '{dir}/{sample}.blast_depleted.{suffix}'
     params: LSF='-q week -M 14 -R "rusage[mem=7]" -sp 40',
-            refDbs = expand("{dir}/{db}", dir=config["blastDbDir"], db=config["blastDb_remove"]),
-            logid="{prefix}-{suffix}".split('/')[-1]
+            refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
+            logid="{sample}-{suffix}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
 
 #rule cat_reads:
-#    input:  expand('{{basename}}.blast_split_output.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
-#    output: '{basename}.blast_depleted.{direction,[12]}.fastq'
-#    params: logid="{basename}-{direction}".split('/')[-1]
+#    input:  expand('{{dir}}/{{sample}}.blast_split_output.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
+#    output: '{dir}/{sample}.blast_depleted.{direction,[12]}.fastq'
+#    params: logid="{sample}-{direction}"
 #    shell:  "cat {input} > {output}"
 
 rule depl_fastq_matepair_fix:
-    input:  '{basename}.blast_depleted.1.fastq', '{basename}.blast_depleted.2.fastq'
-    output: '{basename}.cleaned.1.fastq', '{basename}.cleaned.2.fastq'
+    input:  '{dir}/{sample}.blast_depleted.1.fastq',
+            '{dir}/{sample}.blast_depleted.2.fastq'
+    output: '{dir}/{sample}.cleaned.1.fastq',
+            '{dir}/{sample}.cleaned.2.fastq'
     params: LSF='-W 4:00 -M 8 -R "rusage[mem=4]"',
-            logid="{basename}".split('/')[-1]
+            logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule depl_fastq_to_bam:
