@@ -12,7 +12,7 @@
   "blast_nchunks":  5,
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
-  "lastal_refDb":   "/idi/sabeti-scratch/kandersen/references/lastal/ebola",
+  "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
   "ref_genome":     "/idi/sabeti-scratch/kandersen/references/annotations/ebola/zaire_guinea.fasta",
 
   "subdirs": {
