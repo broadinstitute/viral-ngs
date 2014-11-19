@@ -115,14 +115,16 @@ rule filter_short_contigs:
 def index_picard(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.dict'
-    shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
+    if not os.path.isfile(outfname):
+        shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
 def index_samtools(fasta):
     # TODO: replace with python wrapper
     shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
 def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
-    shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
+    if not os.path.isfile(outfname):
+        shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
 def deambig_fasta(inf, outf):
     shell("{config[binDir]}/consensus.py deambig_fasta {inf} {outf}")
 def vcf_to_fasta(inVcf, outFasta, options=""):
