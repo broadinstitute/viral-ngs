@@ -119,7 +119,9 @@ def index_picard(fasta):
         shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
 def index_samtools(fasta):
     # TODO: replace with python wrapper
-    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
+    outfname = fasta + '.fai'
+    if not os.path.isfile(outfname):
+        shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
 def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
