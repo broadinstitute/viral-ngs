@@ -59,7 +59,7 @@ class TestFilterLastal(TestCaseWithTmp) :
         expectedFastq = os.path.join(myInputDir, 'expected.fastq')
         assert_equal_contents(self, outFastq, expectedFastq)
 
-class TestBmtagger(TestCaseWithTmp) :
+class TestBmtagger(unittest.TestCase) :
     """
     How test data was created:
       humanChr1Subset.fa has 200 bases from human chr1
@@ -69,30 +69,33 @@ class TestBmtagger(TestCaseWithTmp) :
       in[12].fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
           with arbitrary quality scores.
     """
-    def test_partition_bmtagger(self) :
-        tempDir = tempfile.mkdtemp()
+    def setUp(self) :
+        self.tempDir = tempfile.mkdtemp(prefix=type(self).__name__)
         myInputDir = util.file.get_test_input_path(self)
         srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
         for db in ['humanChr1Subset', 'humanChr9Subset'] :
             # .map file is > 100M, so recreate instead of copying
             dbfa = os.path.join(myInputDir, db + '.fa')
-            dbsrprism = os.path.join(tempDir, db + '.srprism')
+            dbsrprism = os.path.join(self.tempDir, db + '.srprism')
             assert not os.system(
                 '{srprismPath} mkindex -i {dbfa} -o {dbsrprism}'.format(
                     **locals()))
             # .bitmask and .srprism.* files must be in same dir, so copy
-            shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
-        
-        # Partition the input files
-        outMatch   = [os.path.join(tempDir,   'outMatch.{}.fastq'.format(n))
+            shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
+
+    def tearDown(self) :
+        shutil.rmtree(self.tempDir)
+
+    def test_partition_bmtagger(self) :
+        outMatch   = [os.path.join(self.tempDir,   'outMatch.{}.fastq'.format(n))
                       for n in '12']
-        outNoMatch = [os.path.join(tempDir, 'outNoMatch.{}.fastq'.format(n))
+        outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n))
                       for n in '12']
         args = taxon_filter.parser_partition_bmtagger().parse_args(
             [os.path.join(myInputDir, 'in1.fastq'),
              os.path.join(myInputDir, 'in2.fastq'),
-             os.path.join(tempDir, 'humanChr1Subset'),
-             os.path.join(tempDir, 'humanChr9Subset'),
+             os.path.join(self.tempDir, 'humanChr1Subset'),
+             os.path.join(self.tempDir, 'humanChr9Subset'),
              '--outMatch', outMatch[0], outMatch[1],
              '--outNoMatch', outNoMatch[0], outNoMatch[1]])
         taxon_filter.main_partition_bmtagger(args)
@@ -100,38 +103,24 @@ class TestBmtagger(TestCaseWithTmp) :
         # Compare to expected
         for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2'] :
             assert_equal_contents(self,
-                os.path.join(tempDir, 'out' + case + '.fastq'),
+                os.path.join(self.tempDir, 'out' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.' + case + '.fastq'))
 
     def test_deplete_bmtagger(self) :
-        tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
-        srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
-        for db in ['humanChr1Subset', 'humanChr9Subset'] :
-            # .map file is > 100M, so recreate instead of copying
-            dbfa = os.path.join(myInputDir, db + '.fa')
-            dbsrprism = os.path.join(tempDir, db + '.srprism')
-            assert not os.system(
-                '{srprismPath} mkindex -i {dbfa} -o {dbsrprism}'.format(
-                    **locals()))
-            # .bitmask and .srprism.* files must be in same dir, so copy
-            shutil.copy(os.path.join(myInputDir, db + '.bitmask'), tempDir)
-        
-        # Deplete the input files
-        outNoMatch = [os.path.join(tempDir, 'deplete.{}.fastq'.format(n))
-                      for n in '12']
         args = taxon_filter.parser_partition_bmtagger().parse_args(
             [os.path.join(myInputDir, 'in1.fastq'),
              os.path.join(myInputDir, 'in2.fastq'),
-             os.path.join(tempDir, 'humanChr1Subset'),
-             os.path.join(tempDir, 'humanChr9Subset'),
-             '--outNoMatch', outNoMatch[0], outNoMatch[1]])
+             os.path.join(self.tempDir, 'humanChr1Subset'),
+             os.path.join(self.tempDir, 'humanChr9Subset'),
+             '--outNoMatch',
+             os.path.join(self.tempDir, 'deplete.1.fastq'),
+             os.path.join(self.tempDir, 'deplete.2.fastq')])
         taxon_filter.main_partition_bmtagger(args)
         
         # Compare to expected
         for case in ['1', '2'] :
             assert_equal_contents(self,
-                os.path.join(tempDir, 'deplete.' + case + '.fastq'),
+                os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
 
 class TestMvicuna(TestCaseWithTmp) :
