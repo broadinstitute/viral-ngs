@@ -118,7 +118,7 @@ def index_picard(fasta):
     shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
 def index_samtools(fasta):
     # TODO: replace with python wrapper
-    shell("samtools faidx {fasta}")
+    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
 def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
@@ -137,7 +137,7 @@ def novoalign(reads1, reads2, refFasta, sample_name, outBam, options="-r Random"
     shell(cmd)
 def filter_bam_mapped_only(inBam, outBam):
     # TODO: replace with python wrapper
-    shell("samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
+    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
 def picard_rmdup(inBam, outBam):
     # TODO: replace with python wrapper
     shell("java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I={inBam} O={outBam} CREATE_INDEX=true REMOVE_DUPLICATES=true")
