@@ -60,9 +60,27 @@ def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
     raise ("not yet implemented")
     
 
-def filter_seqs_on_length(inFasta, outFasta):
-    # see rsealfon script
-    raise ("not yet implemented")
+def parser_filter_short_seqs():
+    parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
+    parser.add_argument("inFile", help="input sequence file")
+    parser.add_argument("minLength", help="minimum length for contig", type=int)
+    parser.add_argument("outFile", help="output file")
+    parser.add_argument("-f", "--format", help="Format for input sequence (default: fasta)", default="fasta")
+    parser.add_argument("-of", "--output-format",
+                        help="Format for output sequence (default: fasta)", default="fasta")
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    return parser
+def main_filter_short_seqs(args):
+    # orig by rsealfon, edited by dpark
+    with util.file.open_or_gzopen(args.inFile) as inf:
+        with util.file.open_or_gzopen(args.outFile, 'w') as outf:
+            Bio.SeqIO.write(
+                [s for s in Bio.SeqIO.parse(inf, args.format)
+                    if len(s) >= args.minLength],
+                outf, args.output_format)
+    return 0
+__commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
+
 
 
 def parser_modify_contig():
@@ -111,6 +129,7 @@ def parser_modify_contig():
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     return parser
 def main_modify_contig(args):
+    # by rsealfon
     aln = Bio.AlignIO.read(args.input, args.format)
     ref_idx = find_ref_idx(aln,args.ref)
     assert ref_idx >= 0, "reference name '%s' not in alignment" % args.ref
