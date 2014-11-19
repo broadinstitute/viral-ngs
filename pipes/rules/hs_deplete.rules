@@ -19,7 +19,7 @@ rule all_deplete:
       expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
         dataDir=config["dataDir"], subdir=config["subdirs"]["depletion"],
         sample=read_samples_file(config["samples_file"]),
-        adjective=["cleaned", "bmtagger_depleted"])
+        adjective=["cleaned"])
     params: LSF="-N"
     shell:  "echo all done!"
     #shell:  "rm -rf {config[tmpDir]}/config[subdirs][depletion] && echo all done!"
