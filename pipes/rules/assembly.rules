@@ -99,17 +99,11 @@ rule align_and_orient:
             "cat {params.tmpf_prefix}*assembly.fa > {output} && " + \
             "rm -rf {params.tmpf_prefix}*"
 
-rule sort_contigs:
-    # rsealfon script
+rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
     output: '{dir}/{sample}.assembly3.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
-            length="15000",
-            logid="{sample}",
-            tmpf_bad='{dir}/{sample}.assembly3-bad.fasta'
-    # TODO: replace with python wrapper
-    #shell:  "{config[binDir]}/consensus.py sort_and_filter_contigs {input} {output}"
-    shell:  "{config[binDir]}/old-scripts/rsealfon/filter_short_seqs.py {input} {params.length} {params.tmpf_bad} {output} && rm {params.tmpf_bad}"
+    params: length="15000", logid="{sample}"
+    shell:  "{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}"
 
 def index_picard(fasta):
     # TODO: replace with python wrapper
@@ -165,7 +159,7 @@ rule refine_assembly_with_reads:
     run:
             # tweak Trinity assembly w/muscle alignment to known reference
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
-            shell("{config[binDir]}/consensus.py modify_contig -n EBOV_{params.year}_{wildcards.sample} --call-reference-ns yes --trim-ends yes --replace-5ends yes --replace-3ends yes --replace-length 20 --replace-end-gaps yes --remove-end-ns no --call-reference-ambiguous no {output[1]} {output[2]} {params.refName}")
+            shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
             deambig_fasta(output[2], output[3])
             index_picard(output[2])
             index_novoalign(output[2])
