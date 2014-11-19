@@ -91,6 +91,7 @@ class TestBmtagger(unittest.TestCase) :
                       for n in '12']
         outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n))
                       for n in '12']
+        myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger().parse_args(
             [os.path.join(myInputDir, 'in1.fastq'),
              os.path.join(myInputDir, 'in2.fastq'),
@@ -107,6 +108,7 @@ class TestBmtagger(unittest.TestCase) :
                 os.path.join(myInputDir, 'expected.' + case + '.fastq'))
 
     def test_deplete_bmtagger(self) :
+        myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger().parse_args(
             [os.path.join(myInputDir, 'in1.fastq'),
              os.path.join(myInputDir, 'in2.fastq'),
