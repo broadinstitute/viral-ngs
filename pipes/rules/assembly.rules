@@ -51,7 +51,7 @@ rule trim_reads:
 rule filter_to_taxon:
     input:  '{dir}/{sample}.trimmed.{direction}.fastq'
     output: '{dir}/{sample}.filtered.{direction,[12]}.fastq'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    params: LSF='-W 4:00 -R "rusage[mem=12]" -M 24',
             refDbs=config["lastal_refDb"],
             logid="{sample}-{direction}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal {input} {params.refDbs} {output}"
