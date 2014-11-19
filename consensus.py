@@ -277,7 +277,7 @@ def do_remove_end_ns(consensus):
 
 def print_output(outfile, header, consensus):
     with open(outfile, "wt") as f:
-        outseq = [x for x in consensus if not '-' in x]
+        outseq = "".join([x for x in consensus if not '-' in x])
         for line in util.file.fastaMaker([(header, outseq)]):
             f.write(line)
 

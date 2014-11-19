@@ -6,6 +6,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
 from snakemake.utils import makedirs
+import os, os.path
 
 configfile: "config.json"
 
@@ -99,11 +100,17 @@ rule align_and_orient:
             "cat {params.tmpf_prefix}*assembly.fa > {output} && " + \
             "rm -rf {params.tmpf_prefix}*"
 
+def delete_empty_file(fname):
+    if os.path.getsize(fname)==0:
+        os.unlink(fname)
+
 rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
     output: '{dir}/{sample}.assembly3.fasta'
     params: length="15000", logid="{sample}"
-    shell:  "{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}"
+    run:
+            shell("{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}")
+            delete_empty_file(output[0])
 
 def index_picard(fasta):
     # TODO: replace with python wrapper
