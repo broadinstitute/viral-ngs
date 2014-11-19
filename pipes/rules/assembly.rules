@@ -94,7 +94,7 @@ rule align_and_orient:
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
     shell:  "touch {params.tmpf_prefix}_merger_assembly.fa && " + \
-            "{config[binDir]}/scripts/vfat/orientContig.pl {input}[0] {params.refGenome} {params.tmpf_prefix} && " + \
+            "{config[binDir]}/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix} && " + \
             "{config[binDir]}/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix} && " + \
             "cat {params.tmpf_prefix}*assembly.fa > {output} && " + \
             "rm -rf {params.tmpf_prefix}*"
