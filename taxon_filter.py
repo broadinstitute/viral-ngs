@@ -318,10 +318,12 @@ def main_partition_bmtagger(args) :
     outMatch = args.outMatch
     outNoMatch = args.outNoMatch
     assert outMatch or outNoMatch
-    if outMatch==None:
-        deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
-    else:
-        partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
+    # comment out this optimization until we can debug deplete_bmtagger's behavior
+    #if outMatch==None:
+    #    deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
+    #else:
+    #    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
+    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
     return 0
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
