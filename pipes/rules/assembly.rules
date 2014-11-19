@@ -104,6 +104,9 @@ def delete_empty_file(fname):
     if os.path.getsize(fname)==0:
         os.unlink(fname)
 
+def assert_nonempty_file(fname):
+    assert os.path.isfile(fname) and os.path.getsize(fname)
+
 rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
     output: '{dir}/{sample}.assembly3.fasta'
@@ -170,8 +173,11 @@ rule refine_assembly_with_reads:
     run:
             # tweak Trinity assembly w/muscle alignment to known reference
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
+            assert_nonempty_file(output[1])
             shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
+            assert_nonempty_file(output[2])
             deambig_fasta(output[2], output[3])
+            assert_nonempty_file(output[3])
             index_picard(output[2])
             index_novoalign(output[2])
             index_samtools(output[2])
