@@ -65,7 +65,9 @@ def set_tmpDir(name):
                                         dir=util.cmd.find_tmpDir())
 
 def destroy_tmpDir():
-    shutil.rmtree(tempfile.tempdir)
+    if tempfile.tempdir:
+        shutil.rmtree(tempfile.tempdir)
+    tempfile.tempdir = None
 
 def mkdir_p(dirpath):
     ''' Verify that the directory given exists, and if not, create it.

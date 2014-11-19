@@ -59,7 +59,7 @@ class TestFilterLastal(TestCaseWithTmp) :
         expectedFastq = os.path.join(myInputDir, 'expected.fastq')
         assert_equal_contents(self, outFastq, expectedFastq)
 
-class TestBmtagger(unittest.TestCase) :
+class TestBmtagger(TestCaseWithTmp) :
     """
     How test data was created:
       humanChr1Subset.fa has 200 bases from human chr1
@@ -70,7 +70,8 @@ class TestBmtagger(unittest.TestCase) :
           with arbitrary quality scores.
     """
     def setUp(self) :
-        self.tempDir = tempfile.mkdtemp(prefix=type(self).__name__)
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
         for db in ['humanChr1Subset', 'humanChr9Subset'] :
@@ -82,9 +83,6 @@ class TestBmtagger(unittest.TestCase) :
                     **locals()))
             # .bitmask and .srprism.* files must be in same dir, so copy
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
-
-    def tearDown(self) :
-        shutil.rmtree(self.tempDir)
 
     def test_partition_bmtagger(self) :
         outMatch   = [os.path.join(self.tempDir,   'outMatch.{}.fastq'.format(n))
