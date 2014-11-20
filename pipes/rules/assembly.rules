@@ -171,7 +171,7 @@ rule refine_assembly_with_reads:
             logid="{sample}"
     # TODO: replace with one big python wrapper
     run:
-            # tweak Trinity assembly w/muscle alignment to known reference
+            print("Modify Trinity assembly w/muscle alignment to known reference")
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
             assert_nonempty_file(output[1])
             shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
@@ -183,7 +183,7 @@ rule refine_assembly_with_reads:
             index_samtools(output[2])
             index_picard(output[3])
             index_samtools(output[3])
-            # align sample's reads to its own muscle-modified consensus and replace bases with majority read count
+            print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
             novoalign(input[1], input[2], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
             gatk_ug(output[4], output[3], output[5])
             vcf_to_fasta(output[5], output[6], options="--trim_ends --min_coverage 2")
@@ -193,7 +193,7 @@ rule refine_assembly_with_reads:
             index_samtools(output[6])
             index_picard(output[7])
             index_samtools(output[7])
-            # a second pass of align to self and refine
+            print("A second pass of align to self and refine")
             novoalign(input[1], input[2], output[6], wildcards.sample, output[8], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
             gatk_ug(output[8], output[7], output[9])
             vcf_to_fasta(output[9], output[0], options="--trim_ends --min_coverage 2")
