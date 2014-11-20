@@ -132,15 +132,18 @@ def main_modify_contig(args):
     # by rsealfon
     aln = Bio.AlignIO.read(args.input, args.format)
     ref_idx = find_ref_idx(aln,args.ref)
-    assert ref_idx >= 0, "reference name '%s' not in alignment" % args.ref
-    assert ref_idx <= 1, "alignment contains more than 2 sequences"
+    if ref_idx < 0:
+        raise Exception("reference name '%s' not in alignment" % args.ref)
+    if ref_idx > 1:
+        raise Exception("alignment contains more than 2 sequences")
 
     consensus_idx = (ref_idx + 1) % 2
 
     ref = list(str(aln[ref_idx].seq))
     consensus = list(str(aln[consensus_idx].seq))
 
-    assert len(ref) == len(consensus), "improper alignment"
+    if len(ref) != len(consensus):
+        raise Exception("improper alignment")
 
     if (args.name == None):
         args.name = aln[consensus_idx].name
@@ -286,17 +289,20 @@ def print_output(outfile, header, consensus):
 
 class MutableSequence:
     def __init__(self, name, start, stop, init_seq=None):
-        assert stop>=start>=1
+        if not (stop>=start>=1):
+            raise Exception("coords out of bounds")
         if init_seq==None:
             self.seq = list('N' * (stop-start+1))
         else:
             self.seq = list(init_seq)
-        assert stop-start+1 == len(self.seq)
+        if stop-start+1 != len(self.seq):
+            raise Exception("wrong length")
         self.start = start
         self.stop = stop
         self.name = name
     def modify(self, p, new_base):
-        assert self.start <= p <= self.stop
+        if not (self.start <= p <= self.stop):
+            raise Exception("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
     def emit(self):
@@ -306,7 +312,8 @@ def alleles_to_ambiguity(allelelist):
     ''' Convert a list of DNA bases to a single ambiguity base.
         All alleles must be one base long.  '''
     for a in allelelist:
-        assert len(a)==1
+        if len(a)!=1:
+            raise Exception("all alleles must be one base long")
     if len(allelelist)==1:
         return allelelist[0]
     else:
