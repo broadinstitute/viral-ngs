@@ -244,12 +244,12 @@ def fastaMaker(seqs, linewidth=60):
     assert linewidth > 0
 
     for id, seq in seqs:
-        yield "> {} \n".format(id)
+        yield ">{}\n".format(id)
 
         while len(seq) > linewidth:
             line = seq[:linewidth]
             seq = seq[linewidth:]
-            yield "{} \n".format(line)
+            yield "{}\n".format(line)
 
         if seq:
             yield seq+"\n"
