@@ -134,9 +134,9 @@ def index_novoalign(fasta):
 def novoalign(reads1, reads2, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     # TODO: replace with python wrapper
     refFastaIdx = refFasta[:-6] + '.nix'
-    cmd = "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f {reads1} {reads2} {options} -F STDFQ -d {refFastaIdx} -o SAM $'@RG\tID:{sample_name}\tSM:{sample_name}\tPL:Illumina\tPU:HiSeq\tLB:BroadPE\tCN:Broad'"
+    cmd = "bash -c /idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f {reads1} {reads2} {options} -F STDFQ -d {refFastaIdx} -o SAM $'@RG\\tID:{sample_name}\\tSM:{sample_name}\\tPL:Illumina\\tPU:HiSeq\\tLB:BroadPE\\tCN:Broad'"
     if min_qual>0:
-      cmd += "| samtools view -buS -q {min_qual} - "
+      cmd += " | /idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -buS -q {min_qual} - "
     cmd += "| java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
     shell(cmd)
 def filter_bam_mapped_only(inBam, outBam):
