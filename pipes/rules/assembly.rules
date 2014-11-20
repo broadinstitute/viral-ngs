@@ -105,9 +105,8 @@ def delete_empty_file(fname):
         os.unlink(fname)
 
 def assert_nonempty_file(fname):
-    assert os.path.isfile(fname) and os.path.getsize(fname)
     if not (os.path.isfile(fname) and os.path.getsize(fname)):
-        shell("echofail assert does not work")
+        raise Exception()
 
 rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
@@ -121,19 +120,16 @@ def index_picard(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.dict'
     if not os.path.isfile(outfname):
-        shell("echo Picard fasta index R={fasta} O={outfname}")
         shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
 def index_samtools(fasta):
     # TODO: replace with python wrapper
     outfname = fasta + '.fai'
     if not os.path.isfile(outfname):
-        shell("echo samtools faidx {fasta}")
         shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
 def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
     if not os.path.isfile(outfname):
-        shell("echo novoindex {outfname} {fasta}")
         shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
 def novoalign(reads1, reads2, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     # TODO: replace with python wrapper
@@ -174,35 +170,16 @@ rule refine_assembly_with_reads:
     run:
             print("Modify Trinity assembly w/muscle alignment to known reference")
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
-            shell("echo checkpt 1")
             assert_nonempty_file(output[1])
             shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
-            shell("echo checkpt 2")
             assert_nonempty_file(output[2])
             shell("{config[binDir]}/consensus.py deambig_fasta {output[2]} {output[3]}")
-            shell("echo checkpt 3")
-            assert_nonempty_file(output[2])
             assert_nonempty_file(output[3])
             index_picard(output[2])
-            shell("echo checkpt 4")
-            assert_nonempty_file(output[2])
-            assert_nonempty_file(output[3])
             index_novoalign(output[2])
-            shell("echo checkpt 5")
-            assert_nonempty_file(output[2])
-            assert_nonempty_file(output[3])
             index_samtools(output[2])
-            shell("echo checkpt 6")
-            assert_nonempty_file(output[2])
-            assert_nonempty_file(output[3])
             index_picard(output[3])
-            shell("echo checkpt 7")
-            assert_nonempty_file(output[2])
-            assert_nonempty_file(output[3])
             index_samtools(output[3])
-            shell("echo checkpt 8")
-            assert_nonempty_file(output[2])
-            assert_nonempty_file(output[3])
             print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
             novoalign(input[1], input[2], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
             gatk_ug(output[4], output[3], output[5])
