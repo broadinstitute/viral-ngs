@@ -119,24 +119,20 @@ def index_picard(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.dict'
     if not os.path.isfile(outfname):
-        print("Picard fasta index R={fasta} O={outfname}")
+        shell("echo Picard fasta index R={fasta} O={outfname}")
         shell("java -Xmx2g -jar /seq/software/picard/current/bin/CreateSequenceDictionary.jar R={fasta} O={outfname}")
 def index_samtools(fasta):
     # TODO: replace with python wrapper
     outfname = fasta + '.fai'
     if not os.path.isfile(outfname):
-        print("samtools faidx {fasta}")
+        shell("echo samtools faidx {fasta}")
         shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools faidx {fasta}")
 def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
     if not os.path.isfile(outfname):
-        print("novoindex {outfname} {fasta}")
+        shell("echo novoindex {outfname} {fasta}")
         shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
-def deambig_fasta(inf, outf):
-    shell("{config[binDir]}/consensus.py deambig_fasta {inf} {outf}")
-def vcf_to_fasta(inVcf, outFasta, options=""):
-    shell("{config[binDir]}/consensus.py vcf_to_fasta {inVcf} {outFasta} {options}")
 def novoalign(reads1, reads2, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     # TODO: replace with python wrapper
     refFastaIdx = refFasta[:-6] + '.nix'
@@ -179,7 +175,7 @@ rule refine_assembly_with_reads:
             assert_nonempty_file(output[1])
             shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
             assert_nonempty_file(output[2])
-            deambig_fasta(output[2], output[3])
+            shell("{config[binDir]}/consensus.py deambig_fasta {output[2]} {output[3]}")
             assert_nonempty_file(output[3])
             index_picard(output[2])
             index_novoalign(output[2])
@@ -189,8 +185,8 @@ rule refine_assembly_with_reads:
             print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
             novoalign(input[1], input[2], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
             gatk_ug(output[4], output[3], output[5])
-            vcf_to_fasta(output[5], output[6], options="--trim_ends --min_coverage 2")
-            deambig_fasta(output[6], output[7])
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[6]} {output[7]} --trim_ends --min_coverage 2")
+            shell("{config[binDir]}/consensus.py deambig_fasta {output[6]} {output[7]}")
             index_picard(output[6])
             index_novoalign(output[6])
             index_samtools(output[6])
@@ -199,7 +195,7 @@ rule refine_assembly_with_reads:
             print("A second pass of align to self and refine")
             novoalign(input[1], input[2], output[6], wildcards.sample, output[8], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
             gatk_ug(output[8], output[7], output[9])
-            vcf_to_fasta(output[9], output[0], options="--trim_ends --min_coverage 2")
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[9]} {output[0]} --trim_ends --min_coverage 2")
 
 rule map_reads_to_assembly:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',

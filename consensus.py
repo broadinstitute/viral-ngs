@@ -173,14 +173,15 @@ def find_ref_idx(aln,ref):
     return -1
 
 def do_call_reference_ns(ref, consensus):
-    print("populating N's from reference...")
+    log.debug("populating N's from reference...")
     for i in range(len(ref)):
         if (consensus[i].upper() == "N"):
             consensus[i] = ref[i]
     return consensus
 
 def do_call_reference_ambiguous(ref, consensus):
-    print("populating ambiguous bases from reference...")
+    log.debug("populating ambiguous bases from reference...")
+    # TO DO: replace all this with Bio.Data.IUPACData.ambiguous_dna_values
     for i in range(len(ref)):
         if (consensus[i].upper() == "K"):
             if (ref[i].upper() == "G" or ref[i].upper() == "T"):
@@ -212,7 +213,7 @@ def do_call_reference_ambiguous(ref, consensus):
     return consensus
 
 def do_trim_ends(ref, consensus):
-    print("trimming ends...")
+    log.debug("trimming ends...")
     for i in range(len(ref)):
         if (ref[i] != "-"):
             break
@@ -226,7 +227,7 @@ def do_trim_ends(ref, consensus):
     return consensus
 
 def do_replace_end_gaps(ref, consensus):
-    print("populating leading and trailing gaps from reference...")
+    log.debug("populating leading and trailing gaps from reference...")
     for i in range(len(ref)):
         if (consensus[i] != "-"):
             break
@@ -238,7 +239,7 @@ def do_replace_end_gaps(ref, consensus):
     return consensus
 
 def do_replace_5ends(ref, consensus, replace_length):
-    print("replacing 5' ends...")
+    log.debug("replacing 5' ends...")
     ct = 0
     for i in range(len(ref)):
         if (ref[i] != "-"):
@@ -250,7 +251,7 @@ def do_replace_5ends(ref, consensus, replace_length):
     return consensus
 
 def do_replace_3ends(ref, consensus, replace_length):
-    print("replacing 3' ends...")
+    log.debug("replacing 3' ends...")
     ct = 0
     for i in range(len(ref)):
         if (ref[len(ref) - i - 1] != "-"):
@@ -262,7 +263,7 @@ def do_replace_3ends(ref, consensus, replace_length):
     return consensus
 
 def do_remove_end_ns(consensus):
-    print("removing leading and trailing N's...")
+    log.debug("removing leading and trailing N's...")
     for i in range(len(consensus)):
         if (consensus[i].upper() == "N" or consensus[i] == "-"):
             consensus[i] = "-"
