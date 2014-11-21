@@ -3,6 +3,7 @@
 Utilities for working with sequence reads, such as converting formats and
 fixing mate pairs.
 """
+from __future__ import division
 
 __author__ = "irwin@broadinstitute.org"
 __version__ = "PLACEHOLDER"
@@ -239,6 +240,89 @@ def main_fastq_to_bam(args) :
 __commands__.append(('fastq_to_bam', main_fastq_to_bam,
                      parser_fastq_to_bam))
 
+
+# ======================
+# ***  split_reads   ***
+# ======================
+defaultSuffixLen = 2
+defaultMaxReads = 1000
+defaultFormat = 'fastq'
+
+def split_reads(inFileName, outPrefix, maxReads = None, numChunks = None,
+                suffixLen = defaultSuffixLen, format = defaultFormat) :
+    '''Split fasta or fastq file into chunks of maxReads reads or into 
+           numChunks chunks named outPrefixaa, outPrefixab, etc.
+       If both maxReads and numChunks are None, use defaultMaxReads.
+       The number of characters in file names after outPrefix is suffixLen;
+            if not specified, use defaultSuffixLen.
+       Format can be 'fastq' or 'fasta'.
+    '''
+    def index_to_suffix(index, suffixLen) :
+        'Convert an integer index into a suffix aaa, aab, aac, ...'
+        suffix = ''
+        while index > 0 :
+            suffix = chr(ord('a') + index % 26) + suffix
+            index //= 26
+        assert len(suffix) <= suffixLen
+        suffix = 'a' * (suffixLen - len(suffix)) + suffix
+        return suffix
+    
+    if maxReads == None :
+        if numChunks == None :
+            maxReads = defaultMaxReads
+        else :
+            inFile  = util.file.open_or_gzopen(inFileName)
+            totalReadCount = 0
+            for rec in SeqIO.parse(inFile, format) :
+                totalReadCount += 1
+            maxReads = int(totalReadCount / numChunks + 0.5)
+            inFile.close()
+
+    inFile  = util.file.open_or_gzopen(inFileName)
+    readsWritten = 0
+    curIndex = 0
+    outFile = None
+    for rec in SeqIO.parse(inFile, format) :
+        if outFile == None :
+            outFileName = outPrefix + index_to_suffix(curIndex, suffixLen)
+            outFile = util.file.open_or_gzopen(outFileName, 'w')
+        SeqIO.write([rec], outFile, format)
+        readsWritten += 1
+        if readsWritten == maxReads :
+            outFile.close()
+            outFile = None
+            readsWritten = 0
+            curIndex += 1
+    if outFile != None :
+        outFile.close()
+
+def parser_split_reads() :
+    parser = argparse.ArgumentParser(
+        description='Split a fastq or fasta file into chunks.')
+    parser.add_argument('inFile', help='Input fastq or fasta file.')
+    parser.add_argument('outPrefix',
+        help='Output files will be named ${outPrefix}aa, ${outPrefix}ab...')
+    group = parser.add_mutually_exclusive_group(required = False)
+    group.add_argument('--maxReads', type = int,
+        help = 'Maximum number of reads per chunk (default {:d} if neither '\
+               'maxReads nor numChunks is specified).'.format(defaultMaxReads))
+    group.add_argument('--numChunks', type = int,
+        help = 'Number of output files, if maxReads is not specified.')
+    parser.add_argument('--suffixLen', type = int, default = defaultSuffixLen,
+        help = 'Number of characters to append to outputPrefix for each '\
+               'output file (default {}). Number of files must not exceed '\
+               '26^SUFFIXLEN.'.format(defaultSuffixLen))
+    parser.add_argument('--format', choices = ['fastq', 'fasta'],
+        default = defaultFormat,
+        help='Input fastq or fasta file (default {}).'.format(defaultFormat))
+    return parser
+
+def main_split_reads(args) :
+    split_reads(args.inFile, args.outPrefix, args.maxReads, args.numChunks,
+                args.suffixLen, args.format)
+    return 0
+__commands__.append(('split_reads', main_split_reads,
+                     parser_split_reads))
 
 # =======================
 
