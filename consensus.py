@@ -443,7 +443,7 @@ def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
 
-    chrlens = dict(util.vcf.vcf_chrlens(args.inVcf))
+    chrlens = dict(util.vcf.get_chrlens(args.inVcf))
     samples = util.vcf.vcf_sample_names(args.inVcf)
     with open(args.outFasta, 'wt') as outf:
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
