@@ -96,5 +96,110 @@ class TestFastqBam(TestCaseWithTmp) :
         assert_equal_contents(self, outFastq2, inFastq2)
         assert_equal_contents(self, outHeader, inHeader)
 
+class TestSplitReads(TestCaseWithTmp) :
+    'Test various options of split_reads command.'
+    def test_max_reads(self) :
+        'Test splitting fastq using --maxReads option, with suffixLen 1.'
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        inFastq = os.path.join(myInputDir, 'in.fastq')
+        outPrefix = util.file.mkstempfname()
+        
+        # Split
+        parser = read_utils.parser_split_reads()
+        args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4',
+                                  '--suffixLen', '1'])
+        read_utils.main_split_reads(args)
+        
+        # Check that results match expected
+        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.a')
+        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.b')
+        assert_equal_contents(self, outPrefix + 'a', expectedFastq1)
+        assert_equal_contents(self, outPrefix + 'b', expectedFastq2)
+
+    def test_num_chunks(self) :
+        'Test spliting fastq using --numChunks option, with default suffixLen.'
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        inFastq = os.path.join(myInputDir, 'in.fastq')
+        outPrefix = util.file.mkstempfname()
+
+        # Split
+        parser = read_utils.parser_split_reads()
+        args = parser.parse_args([inFastq, outPrefix, '--numChunks', '3'])
+        read_utils.main_split_reads(args)
+        
+        # Check that results match expected
+        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.aa')
+        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.ab')
+        expectedFastq3 = os.path.join(myInputDir, 'expected.fastq.ac')
+        assert_equal_contents(self, outPrefix + 'aa', expectedFastq1)
+        assert_equal_contents(self, outPrefix + 'ab', expectedFastq2)
+        assert_equal_contents(self, outPrefix + 'ac', expectedFastq3)
+
+    def test_fasta(self) :
+        'Test splitting fasta file.'
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+        inFasta = os.path.join(myInputDir, 'in.fasta')
+        outPrefix = util.file.mkstempfname()
+
+        # Split
+        parser = read_utils.parser_split_reads()
+        args = parser.parse_args([inFasta, outPrefix, '--numChunks', '2',
+                                  '--format', 'fasta'])
+        read_utils.main_split_reads(args)
+        
+        # Check that results match expected
+        expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.aa')
+        expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.ab')
+        assert_equal_contents(self, outPrefix + 'aa', expectedFasta1)
+        assert_equal_contents(self, outPrefix + 'ab', expectedFasta2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     unittest.main()
