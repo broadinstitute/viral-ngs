@@ -436,7 +436,7 @@ def parser_vcf_to_fasta():
         reject calls in which the sample read count is below a specified fraction of the
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
-        default=None)
+        default=0.0)
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
