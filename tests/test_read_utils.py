@@ -156,50 +156,5 @@ class TestSplitReads(TestCaseWithTmp) :
         assert_equal_contents(self, outPrefix + 'aa', expectedFasta1)
         assert_equal_contents(self, outPrefix + 'ab', expectedFasta2)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 if __name__ == '__main__':
     unittest.main()
