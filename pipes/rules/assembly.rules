@@ -182,7 +182,7 @@ rule refine_assembly_with_reads:
             print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
             novoalign(input[1], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
             gatk_ug(output[4], output[3], output[5])
-            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[6]} {output[7]} --trim_ends --min_coverage 2")
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[5]} {output[6]} --trim_ends --min_coverage 2")
             shell("{config[binDir]}/consensus.py deambig_fasta {output[6]} {output[7]}")
             index_picard(output[6])
             index_novoalign(output[6])
