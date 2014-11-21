@@ -30,6 +30,10 @@ def get_scripts_path() :
     '''Return absolute path of "scripts" directory'''
     return os.path.join(get_project_path(), 'scripts')
 
+def get_binaries_path() :
+    '''Return absolute path of "binaries" directory'''
+    return os.path.join(get_project_path(), 'binaries')
+
 def get_test_path() :
     '''Return absolute path of "test" directory'''
     return os.path.join(get_project_path(), 'test')
