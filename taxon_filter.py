@@ -199,6 +199,10 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
     bmtaggerDir = os.path.dirname(bmtaggerPath)
     envStr = 'PATH={bmtaggerDir}:{blastnDir}:$PATH'.format(**locals())
     
+    # bmtagger's list of matches strips /1 and /2 from ends of reads
+    strip12 = lambda id : id[:-2] if id.endswith('/1') or id.endswith('/2') \
+                          else id
+    
     tempDir = tempfile.mkdtemp()
     matchesFiles = [mkstempfname() for db in databases]
     curReads1, curReads2 = inFastq1, inFastq2
@@ -227,14 +231,14 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
             # Technically, this violates the loop invariant ;-)
             break
         matches = set(line.strip() for line in open(matchesFile))
-        noMatchFcn = lambda rec : rec.id not in matches
+        noMatchFcn = lambda rec : strip12(rec.id) not in matches
         select_reads(prevReads1, curReads1, noMatchFcn)
         select_reads(prevReads2, curReads2, noMatchFcn)
     if outMatch != None :
         allMatches = set(line.strip()
                          for matchesFile in matchesFiles
                          for line in open(matchesFile))
-        matchFcn = lambda rec : rec.id in allMatches
+        matchFcn = lambda rec : strip12(rec.id) in allMatches
         select_reads(inFastq1, outMatch[0], matchFcn)
         select_reads(inFastq2, outMatch[1], matchFcn)
 
