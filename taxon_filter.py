@@ -32,9 +32,12 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         .install_and_get_path()
     tmpUnpaired1 = mkstempfname()
     tmpUnpaired2 = mkstempfname()
+    tempdir = tempfile.gettempdir()
 
     #  This java program has a lot of argments...
-    javaCmd = ' '.join( [ 'java -Xmx2g -classpath',
+    javaCmd = ' '.join( ['java -Xmx2g',
+        '-Djava.io.tmpdir={}'.format(tempdir),
+        '-classpath',
         trimmomaticPath,
         'org.usadellab.trimmomatic.TrimmomaticPE',
         inFastq1,
