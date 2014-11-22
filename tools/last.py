@@ -30,6 +30,25 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
         path = os.path.join(self.destination_dir, self.lastWithVersion)
         os.system('cd {}; make; make install prefix=.'.format(path))
 
+        # maf_convert doesn't run in Python 3.x. Fix it (in place).
+        binpath = os.path.join(path, 'bin')
+        mafConvertPath = os.path.join(binpath, 'maf-convert')
+        os.system('2to3 {mafConvertPath} -W'.format(**locals()))
+        # Still more fixes needed, the first for 3.x, the second for 2.7
+        fileContents = open(mafConvertPath).read()
+        fileContents = fileContents.replace('string.maketrans("", "")', 'None')
+        fileContents = fileContents.replace(
+            '#! /usr/bin/env python',
+            '#! /usr/bin/env python\nfrom __future__ import print_function')
+        open(mafConvertPath, 'w').write(fileContents)
+    def verify_install(self) :
+        'Default checks + verify python 2.7/3.x compatibility fixes were done'
+        if not tools.DownloadPackage.verify_install(self) :
+            return False
+        mafConvertPath = os.path.join(self.destination_dir,
+            self.lastWithVersion, 'bin', 'maf-convert')
+        return 'print_function' in open(mafConvertPath).read()
+
 class Lastal(LastTools) :
     subtoolName = 'lastal'
     subtoolNameOnBroad = 'lastal'
@@ -42,17 +61,8 @@ class Lastdb(LastTools) :
     subtoolName = 'lastdb'
     subtoolNameOnBroad = 'lastdb'
 
-# As of version 490 of "last", maf-convert doesn't run in python 3.x.
-# Workaround this by distributing our own copy that does.
-"""
 class MafConvert(LastTools) :
     subtoolName = 'maf-convert'
     subtoolNameOnBroad = 'scripts/maf-convert.py'
-"""
-class MafConvert(tools.Tool) :
-    def __init__(self, install_methods = None):
-        if install_methods == None:
-            path = os.path.join(util.file.get_scripts_path(),
-                                'maf-convert.last-490.2to3.py')
-            install_methods = [tools.PrexistingUnixCommand(path)]
-        tools.Tool.__init__(self, install_methods = install_methods)
+
+
