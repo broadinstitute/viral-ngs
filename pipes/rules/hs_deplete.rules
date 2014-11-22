@@ -92,7 +92,7 @@ rule depl_fastq_matepair_fix:
             '{dir}/{sample}.blast_depleted.2.fastq'
     output: '{dir}/{sample}.cleaned.1.fastq',
             '{dir}/{sample}.cleaned.2.fastq'
-    params: LSF='-W 4:00 -M 8 -R "rusage[mem=4]"',
+    params: LSF='-W 4:00 -M 12 -R "rusage[mem=6]"',
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
