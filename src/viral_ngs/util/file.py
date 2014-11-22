@@ -24,11 +24,15 @@ def get_project_path() :
 
 def get_build_path() :
     '''Return absolute path of "build" directory'''
-    return os.path.join(get_project_path(), 'build')
+    return os.path.join(get_project_path(), 'tools', 'build')
 
 def get_scripts_path() :
     '''Return absolute path of "scripts" directory'''
-    return os.path.join(get_project_path(), 'scripts')
+    return os.path.join(get_project_path(), 'tools', 'scripts')
+
+def get_binaries_path() :
+    '''Return absolute path of "binaries" directory'''
+    return os.path.join(get_project_path(), 'tools', 'binaries')
 
 def get_test_path() :
     '''Return absolute path of "test" directory'''

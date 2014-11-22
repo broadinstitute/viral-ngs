@@ -24,8 +24,8 @@ def _get_mvicuna_path() :
         log.debug('mvicuna not implemented for OS {}'.format(
             uname[0] + ' ' + uname[4]))
         return ''
-    scriptsPath = util.file.get_scripts_path()
-    return os.path.join(scriptsPath, 'mvicuna', osName, 'mvicuna')
+    binariesPath = util.file.get_binaries_path()
+    return os.path.join(binariesPath, 'mvicuna', osName, 'mvicuna')
 
 """
 Instructions for building mvicuna on Mac OS X Mavericks:
