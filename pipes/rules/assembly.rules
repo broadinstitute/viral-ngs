@@ -107,7 +107,7 @@ def assert_nonempty_file(fname):
 rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
     output: '{dir}/{sample}.assembly3.fasta'
-    params: length="15000", logid="{sample}"
+    params: LSF="-W 0:30", length="15000", logid="{sample}"
     run:
             shell("{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}")
             assert_nonempty_file(output[0])

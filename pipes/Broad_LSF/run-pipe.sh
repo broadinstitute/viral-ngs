@@ -11,7 +11,7 @@ reuse -q Perl-5.10
 source venv/bin/activate
 
 # invoke Snakemake in cluster mode with custom wrapper scripts
-snakemake --timestamp --rerun-incomplete \
+snakemake --timestamp --rerun-incomplete --keep-going --nolock \
 	--jobs 100000 --immediate-submit \
 	--jobscript bin/pipes/Broad_LSF/jobscript.sh \
 	--cluster 'bin/pipes/Broad_LSF/cluster-submitter.py {dependencies} {config[logDir]}' \
