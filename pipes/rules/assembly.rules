@@ -77,6 +77,7 @@ rule assemble_trinity:
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
     shell:  "reuse -q Java-1.6 && " + \
+            "rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}" + \
             "{config[binDir]}/tools/scripts/subsampler.py -n 100000 -mode p -in {input} -out {params.tmpf_subsamp} && " + \
             "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity} && " + \
             "mv {params.tmpd_trinity}/Trinity.fasta {output} && " + \
@@ -107,7 +108,7 @@ def assert_nonempty_file(fname):
 rule filter_short_contigs:
     input:  '{dir}/{sample}.assembly2.fasta'
     output: '{dir}/{sample}.assembly3.fasta'
-    params: LSF="-W 0:30", length="15000", logid="{sample}"
+    params: length="15000", logid="{sample}"
     run:
             shell("{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}")
             assert_nonempty_file(output[0])
@@ -138,9 +139,9 @@ def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qua
 def filter_bam_mapped_only(inBam, outBam):
     # TODO: replace with python wrapper
     shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
-def picard_rmdup(inBam, outBam):
+def picard_rmdup(inBam, outBam, outMetrics):
     # TODO: replace with python wrapper
-    shell("java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I={inBam} O={outBam} CREATE_INDEX=true REMOVE_DUPLICATES=true")
+    shell("java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I={inBam} O={outBam} CREATE_INDEX=true REMOVE_DUPLICATES=true METRICS_FILE={outMetrics}")
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
     # TODO: replace with python wrapper
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
@@ -197,7 +198,8 @@ rule map_reads_to_assembly:
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.bam'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_metrics=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.metrics'
     # TODO: replace with python wrapper
     run:
             index_picard(input[0])
@@ -205,4 +207,4 @@ rule map_reads_to_assembly:
             index_novoalign(input[0])
             novoalign(input[1], input[0], wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
             filter_bam_mapped_only(output[0], output[1])
-            picard_rmdup(output[1], output[2])
+            picard_rmdup(output[1], output[2], tmpf_metrics)
