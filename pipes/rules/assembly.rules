@@ -6,7 +6,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path
+import os, os.path, time
 
 configfile: "config.json"
 
@@ -14,6 +14,20 @@ def read_samples_file(fname):
     with open(fname, 'rt') as inf:
         for line in inf:
             yield line.strip()
+
+def assert_nonempty_file(fname):
+    if not (os.path.isfile(fname) and os.path.getsize(fname)):
+        raise Exception()
+
+def update_timestamps(files):
+    ''' this dumb function exists because sometimes the different nodes on the
+        cluster have out-of-sync system clocks and snakemake fails if the mtime of
+        any input file is more recent than the mtimes of the output files
+    '''
+    for f in files:
+        if os.path.isfile(f) and os.path.getmtime(f) > time.time():
+            print("input file %s is more recent than present, resetting its modification time to present" % f)
+            os.utime(f)
 
 rule all_assemble:
     # these are the final desired output files from this pipeline
@@ -27,26 +41,22 @@ rule all_assemble:
     params: LSF="-N"
     shell:  "echo all done!"
 
-rule assembly_bam_to_fastq:
+rule trim_reads:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.1.fastq', 
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.2.fastq', 
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.samheader.txt'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.1.fastq', 
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.2.fastq'
     params: LSF='-W 4:00 -M 6 -R "rusage[mem=3]"',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_fastq = [
+                config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.1.fastq',
+                config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.2.fastq'],
+            clipDb=config["trim_clipDb"]
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
-
-rule trim_reads:
-    input:  '{dir}/{sample}.cleaned.1.fastq', '{dir}/{sample}.cleaned.2.fastq'
-    output: '{dir}/{sample}.trimmed.1.fastq', '{dir}/{sample}.trimmed.2.fastq'
-    params: LSF='-W 4:00',
-            clipDb=config["trim_clipDb"],
-            logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py trim_trimmomatic {input} {output} {params.clipDb}"
+            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_fastq}")
+            shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_fastq} {output} {params.clipDb}")
 
 rule filter_to_taxon:
     input:  '{dir}/{sample}.trimmed.{direction}.fastq'
@@ -70,18 +80,19 @@ rule assemble_trinity:
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly1.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
+            n_reads=100000,
             logid="{sample}",
             tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
                 '{dir}/{sample}.filtered.fix.sub.2.fastq'],
             tmpd_trinity='{dir}/{sample}.trinity'
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
-    shell:  "reuse -q Java-1.6 && " + \
-            "rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}" + \
-            "{config[binDir]}/tools/scripts/subsampler.py -n 100000 -mode p -in {input} -out {params.tmpf_subsamp} && " + \
-            "perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity} && " + \
-            "mv {params.tmpd_trinity}/Trinity.fasta {output} && " + \
-            "rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}"
+    run:
+            shell("rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}")
+            shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {input} -out {params.tmpf_subsamp}")
+            shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
+            shell("mv {params.tmpd_trinity}/Trinity.fasta {output}")
+            shell("rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}")
 
 rule align_and_orient:
     # VFAT / Bellini
@@ -91,27 +102,20 @@ rule align_and_orient:
     output: '{dir}/{sample}.assembly2.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
+            length=15000,
             logid="{sample}",
             tmpf_prefix='{dir}/{sample}.assembly1.5'
     # TODO: replace with python wrapper
     #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
-    shell:  "touch {params.tmpf_prefix}_merger_assembly.fa && " + \
-            "{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix} && " + \
-            "{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix} && " + \
-            "cat {params.tmpf_prefix}*assembly.fa > {output} && " + \
-            "rm -rf {params.tmpf_prefix}*"
-
-def assert_nonempty_file(fname):
-    if not (os.path.isfile(fname) and os.path.getsize(fname)):
-        raise Exception()
-
-rule filter_short_contigs:
-    input:  '{dir}/{sample}.assembly2.fasta'
-    output: '{dir}/{sample}.assembly3.fasta'
-    params: length="15000", logid="{sample}"
     run:
-            shell("{config[binDir]}/consensus.py filter_short_seqs {input} {params.length} {output}")
+            update_timestamps(input)
+            shell("rm -rf {params.tmpf_prefix}* && touch {params.tmpf_prefix}_merger_assembly.fa")
+            shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
+            shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
+            shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
+            shell("{config[binDir]}/consensus.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {output}")
             assert_nonempty_file(output[0])
+            shell("rm -rf {params.tmpf_prefix}*")
 
 def index_picard(fasta):
     # TODO: replace with python wrapper
@@ -127,7 +131,7 @@ def index_novoalign(fasta):
     # TODO: replace with python wrapper
     outfname = fasta[:-6] + '.nix'
     if not os.path.isfile(outfname):
-        shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta}")
+        shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta} && chmod a-x {outfname}")
 def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     # TODO: replace with python wrapper
     refFastaIdx = refFasta[:-6] + '.nix'
@@ -147,7 +151,7 @@ def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploid
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
 
 rule refine_assembly_with_reads:
-    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.fasta',
+    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
@@ -164,6 +168,7 @@ rule refine_assembly_with_reads:
             logid="{sample}"
     # TODO: replace with one big python wrapper
     run:
+            update_timestamps(input)
             print("Modify Trinity assembly w/muscle alignment to known reference")
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
             assert_nonempty_file(output[1])
@@ -193,7 +198,7 @@ rule refine_assembly_with_reads:
 
 rule map_reads_to_assembly:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.bam'
@@ -202,6 +207,7 @@ rule map_reads_to_assembly:
             tmpf_metrics=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.metrics'
     # TODO: replace with python wrapper
     run:
+            update_timestamps(input)
             index_picard(input[0])
             index_samtools(input[0])
             index_novoalign(input[0])
