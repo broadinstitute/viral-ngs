@@ -38,6 +38,10 @@ rule all_assemble:
         expand("{dataDir}/{subdir}/{sample}.aligned_to_{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_file"]))
+        expand("{reportsDir}/{sample}.{suffix}",
+            suffix=['fastqc','coverage.txt','bamstats.txt','spike_count.txt'],
+            reportsDir=config["reportsDir"],
+            sample=read_samples_file(config["samples_file"]))
     params: LSF="-N"
     shell:  "echo all done!"
 
@@ -150,6 +154,10 @@ def picard_rmdup(inBam, outBam, outMetrics):
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
     # TODO: replace with python wrapper
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
+def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
+    # TODO: replace with python wrapper
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
 
 rule refine_assembly_with_reads:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
@@ -202,10 +210,12 @@ rule map_reads_to_assembly:
             config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.mapped.bam',
-            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.bam',
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.realigned.bam'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
             logid="{sample}",
-            tmpf_metrics=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.metrics'
+            tmpf_metrics=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.rmdup.metrics',
+            tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.intervals'
     # TODO: replace with python wrapper
     run:
             update_timestamps(input)
@@ -215,3 +225,29 @@ rule map_reads_to_assembly:
             novoalign(input[1], input[0], wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
             filter_bam_mapped_only(output[0], output[1])
             picard_rmdup(output[1], output[2], params.tmpf_metrics)
+            gatk_local_realign(output[2], input[0], output[3], params.tmpf_intervals)
+            os.unlink(tmpf_metrics)
+            os.unlink(tmpf_intervals)
+
+rule assembly_reports:
+    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.realigned.bam',
+            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    output: config["reportsDir"]+'/{sample}.fastqc',
+            config["reportsDir"]+'/{sample}.coverage.txt',
+            config["reportsDir"]+'/{sample}.bamstats.txt',
+            config["reportsDir"]+'/{sample}.spike_count.txt'
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+            logid="{sample}",
+            spike_in_fasta=config["spikeinsDb"],
+            tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
+    # TODO: replace with python wrapper
+    run:
+            makedirs(output[0])
+            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {output[0]}")
+            shell("/idi/sabeti-scratch/kandersen/bin/bedtools/genomeCoverageBed -d -ibam {input[2]} -g {input[0]} > {output[1]}")
+            shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
+            novoalign(input[3], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
+            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[3]}")
+            os.unlink(params.tmpf_spike_bam)

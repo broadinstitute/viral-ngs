@@ -13,6 +13,7 @@
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
+  "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/kandersen/references/annotations/ebola/zaire_guinea.fasta",
 
   "subdirs": {
@@ -25,6 +26,7 @@
   "dataDir":   "data",
   "tmpDir":    "tmp",
   "logDir":    "log",
+  "reportsDir":"reports",
   "binDir":    "bin",
   "project":   "viral_ngs"
 }
