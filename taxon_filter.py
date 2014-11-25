@@ -288,7 +288,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
                    '-q1', '-1', curReads1, '-2', curReads2,
                    '-o', outprefix]
         log.debug(' '.join(cmdline))
-        subprocess.check_call(cmdline)
+        subprocess.check_call(cmdline, shell=True)  # shell=True seems to be necessary for bmtagger?
         curReads1, curReads2 = [outprefix+suffix for suffix in ('_1.fastq', '_2.fastq')]
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
