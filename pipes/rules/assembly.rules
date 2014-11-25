@@ -246,7 +246,7 @@ rule assembly_reports:
     run:
             makedirs(output[0])
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {output[0]}")
-            shell("/idi/sabeti-data/software/bedtools/bin/genomeCoverageBed -d -ibam {input[2]} -g {input[0]} > {output[1]}")
+            shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bin/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
             shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
             novoalign(input[3], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[3]}")
