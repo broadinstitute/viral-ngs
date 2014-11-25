@@ -9,7 +9,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile, errno, shutil
+import argparse, logging, subprocess, os, tempfile, errno, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
@@ -266,26 +266,29 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
     allows us to avoid time-intensive lookups.
     """
     bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
     
     # bmtagger calls several executables in the same directory, and blastn;
     # make sure they are accessible through $PATH
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
-    blastnDir = os.path.dirname(blastnPath)
-    bmtaggerDir = os.path.dirname(bmtaggerPath)
-    envStr = 'PATH={bmtaggerDir}:{blastnDir}:$PATH'.format(**locals())
+    path = os.environ['PATH'].split(os.pathsep)
+    for t in (bmtaggerPath, blastnPath):
+        d = os.path.dirname(t)
+        if d not in path:
+            path = [d] + path
+    path = os.pathsep.join(path)
+    os.environ['PATH'] = path
     
     tempDir = tempfile.mkdtemp()
     curReads1, curReads2 = inFastq1, inFastq2
     tempfiles = []
-    os.system("bash --version") # debug Travis... 
     for db in databases:
         outprefix = mkstempfname()
-        cmdline = ("{envStr} bash -c '{bmtaggerPath} -X "
-                   "-b {db}.bitmask -x {db}.srprism -T {tempDir} "
-                   "-q1 -1 {curReads1} -2 {curReads2} "
-                   "-o {outprefix}'").format(**locals())
-        log.debug(cmdline)
-        assert not os.system(cmdline)
+        cmdline = [bmtaggerPath, '-X',
+                   '-b', db+'.bitmask', '-x', db+'.srprism' '-T', tempDir,
+                   '-q1', '-1', curReads1, '-2', curReads2,
+                   '-o', outprefix]
+        log.debug(' '.join(cmdline))
+        subprocess.check_call(cmdline)
         curReads1, curReads2 = [outprefix+suffix for suffix in ('_1.fastq', '_2.fastq')]
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
@@ -321,12 +324,10 @@ def main_partition_bmtagger(args) :
     outMatch = args.outMatch
     outNoMatch = args.outNoMatch
     assert outMatch or outNoMatch
-    # comment out this optimization until we can debug deplete_bmtagger's behavior
-    #if outMatch==None:
-    #    deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
-    #else:
-    #    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
-    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
+    if outMatch==None:
+        deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
+    else:
+        partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
     return 0
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
