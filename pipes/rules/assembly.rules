@@ -80,7 +80,7 @@ rule assemble_trinity:
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly1.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
-            n_reads=100000,
+            n_reads="100000",
             logid="{sample}",
             tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
                 '{dir}/{sample}.filtered.fix.sub.2.fastq'],
@@ -102,7 +102,7 @@ rule align_and_orient:
     output: '{dir}/{sample}.assembly2.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
-            length=15000,
+            length="15000",
             logid="{sample}",
             tmpf_prefix='{dir}/{sample}.assembly1.5'
     # TODO: replace with python wrapper
