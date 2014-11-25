@@ -37,7 +37,7 @@ rule all_assemble:
             sample=read_samples_file(config["samples_file"])),
         expand("{dataDir}/{subdir}/{sample}.aligned_to_{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"]))
+            sample=read_samples_file(config["samples_file"])),
         expand("{reportsDir}/{sample}.{suffix}",
             suffix=['fastqc','coverage.txt','bamstats.txt','spike_count.txt'],
             reportsDir=config["reportsDir"],
@@ -231,7 +231,7 @@ rule map_reads_to_assembly:
 
 rule assembly_reports:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["reportsDir"]+'/{sample}.fastqc',
