@@ -163,7 +163,7 @@ rule refine_assembly_with_reads:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf'
-    params: LSF='-q week -R "rusage[mem=8]" -M 16',
+    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
             refGenome=config["ref_genome"], year="2014", refName="zaire_guinea",
             logid="{sample}"
     # TODO: replace with one big python wrapper

@@ -76,7 +76,7 @@ rule blastn_deplete:
 #    output: '{dir}/{sample}.blast_split_output.{suffix}'
     input:  '{dir}/{sample}.rmdup.{suffix}'
     output: '{dir}/{sample}.blast_depleted.{suffix}'
-    params: LSF='-q week -M 14 -R "rusage[mem=7]" -sp 40',
+    params: LSF='-W 4:00 -M 14 -R "rusage[mem=7]" -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}-{suffix}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
