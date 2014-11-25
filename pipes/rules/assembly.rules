@@ -226,8 +226,8 @@ rule map_reads_to_assembly:
             filter_bam_mapped_only(output[0], output[1])
             picard_rmdup(output[1], output[2], params.tmpf_metrics)
             gatk_local_realign(output[2], input[0], output[3], params.tmpf_intervals)
-            os.unlink(tmpf_metrics)
-            os.unlink(tmpf_intervals)
+            os.unlink(params.tmpf_metrics)
+            os.unlink(params.tmpf_intervals)
 
 rule assembly_reports:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
