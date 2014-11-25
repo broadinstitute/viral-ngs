@@ -5,7 +5,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import argparse, re, time, os, sys
+import argparse, re, time, os, os.path, sys
 
 def read_lsf_logfile(infname):
     out = {}
@@ -54,7 +54,7 @@ def read_all_logfiles(dirname):
         'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads']
     yield header
     for fname in os.listdir(dirname):
-        row = read_lsf_logfile(fname)
+        row = read_lsf_logfile(os.path.join(dirname, fname))
         yield [row.get(h,'') for h in header]
 
 def parser_report():
