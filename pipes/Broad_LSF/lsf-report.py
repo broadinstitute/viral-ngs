@@ -8,7 +8,7 @@ __author__ = "dpark@broadinstitute.org"
 import argparse, re, time, os, os.path, sys
 
 def read_lsf_logfile(infname):
-    out = {}
+    out = {'logfile':infname}
     num_dash_lines = 0
     with open(infname, 'rt') as inf:
         for line in inf:
@@ -17,9 +17,10 @@ def read_lsf_logfile(infname):
                 mo = re.match(r'Subject: Job (\d+)', line)
                 out['job_id'] = mo.group(1)
             elif line.startswith('Job <'):
-                mo = re.match(r'Job <(\w+?)-(\w+)> was submitted from host', line)
-                out['job_rule'] = mo.group(1)
-                out['job_suffix'] = mo.group(2)
+                mo = re.match(r'Job <(\w+?)-(\S+)> was submitted from host', line)
+                if mo:
+                    out['job_rule'] = mo.group(1)
+                    out['job_suffix'] = mo.group(2)
             elif line.startswith('Job was executed on host'):
                 mo = re.match(r'Job was executed on host(s) <(\w+)>, in queue <(\w+)>', line)
                 out['exec_host'] = mo.group(1)
@@ -51,7 +52,8 @@ def read_lsf_logfile(infname):
 def read_all_logfiles(dirname):
     header = ['job_id', 'job_rule', 'job_suffix', 'queue', 'exec_host',
         'status', 'run_time', 'start_time', 'end_time',
-        'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads']
+        'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads',
+        'logfile']
     yield header
     for fname in os.listdir(dirname):
         row = read_lsf_logfile(os.path.join(dirname, fname))
