@@ -109,7 +109,7 @@ rule align_and_orient:
     #shell:  "{config[binDir]}/consensus.py align_and_orient {input} {params.refGenome} {output}"
     run:
             update_timestamps(input)
-            shell("rm -rf {params.tmpf_prefix}*")
+            shell("touch {params.tmpf_prefix}_dummy && rm -rf {params.tmpf_prefix}*")
             shell("touch {params.tmpf_prefix}_merger_assembly.fa")
             shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
             shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
