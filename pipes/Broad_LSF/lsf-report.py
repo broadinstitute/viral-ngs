@@ -5,12 +5,12 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import argparse, re, datetime, os, os.path, sys
+import argparse, re, time, os, os.path, sys
 
 def read_lsf_logfile(infname):
     out = {'logfile':infname}
     num_dash_lines = 0
-    with open(infname, 'rt') as inf:
+    with open(infname, 'rU', encoding='latin-1') as inf:
         for line in inf:
             line = line.strip()
             if line.startswith('Subject:'):
@@ -22,7 +22,7 @@ def read_lsf_logfile(infname):
                     out['job_rule'] = mo.group(1)
                     out['job_suffix'] = mo.group(2)
             elif line.startswith('Job was executed on host'):
-                mo = re.match(r'Job was executed on host\(s\) <(\w+)>, in queue <(\w+)>', line)
+                mo = re.match(r'Job was executed on host\(s\) <(\S+?)>, in queue <(\w+)>', line)
                 out['exec_host'] = mo.group(1)
                 out['queue'] = mo.group(2)
             elif line.startswith('Started at'):
@@ -45,8 +45,8 @@ def read_lsf_logfile(infname):
                         k,v = [s.strip() for s in line.split(':')]
                         out[k]=v
     if 'start_time' in out and 'end_time' in out:
-        duration = datetime.strptime(out['end_time']) - datetime.strptime(out['start_time'])
-        out['run_time'] = duration.total_seconds()
+        out['run_time'] = time.mktime(time.strptime(out['end_time'])) \
+            - time.mktime(time.strptime(out['start_time']))
     return out
 
 def read_all_logfiles(dirname):
@@ -61,7 +61,7 @@ def read_all_logfiles(dirname):
         except:
             print("Error parsing " + fname)
             raise
-        yield [row.get(h,'') for h in header]
+        yield [str(row.get(h,'')) for h in header]
 
 def parser_report():
     parser = argparse.ArgumentParser(
