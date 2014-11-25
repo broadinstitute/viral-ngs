@@ -5,7 +5,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import argparse, re, time, os, os.path, sys
+import argparse, re, datetime, os, os.path, sys
 
 def read_lsf_logfile(infname):
     out = {'logfile':infname}
@@ -22,7 +22,7 @@ def read_lsf_logfile(infname):
                     out['job_rule'] = mo.group(1)
                     out['job_suffix'] = mo.group(2)
             elif line.startswith('Job was executed on host'):
-                mo = re.match(r'Job was executed on host(s) <(\w+)>, in queue <(\w+)>', line)
+                mo = re.match(r'Job was executed on host\(s\) <(\w+)>, in queue <(\w+)>', line)
                 out['exec_host'] = mo.group(1)
                 out['queue'] = mo.group(2)
             elif line.startswith('Started at'):
@@ -45,7 +45,7 @@ def read_lsf_logfile(infname):
                         k,v = [s.strip() for s in line.split(':')]
                         out[k]=v
     if 'start_time' in out and 'end_time' in out:
-        duration = time.strptime(out['end_time']) - time.strptime(out['start_time'])
+        duration = datetime.strptime(out['end_time']) - datetime.strptime(out['start_time'])
         out['run_time'] = duration.total_seconds()
     return out
 
@@ -56,7 +56,11 @@ def read_all_logfiles(dirname):
         'logfile']
     yield header
     for fname in os.listdir(dirname):
-        row = read_lsf_logfile(os.path.join(dirname, fname))
+        try:
+            row = read_lsf_logfile(os.path.join(dirname, fname))
+        except:
+            print("Error parsing " + fname)
+            raise
         yield [row.get(h,'') for h in header]
 
 def parser_report():
