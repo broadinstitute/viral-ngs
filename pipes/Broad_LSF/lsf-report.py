@@ -4,15 +4,8 @@
 '''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "PLACEHOLDER"
-__commands__ = []
 
-import argparse, logging, re, time, glob
-import util.cmd, util.file
-
-log = logging.getLogger(__name__)
-
-
+import argparse, re, time, os, sys
 
 def read_lsf_logfile(infname):
     out = {}
@@ -20,7 +13,10 @@ def read_lsf_logfile(infname):
     with open(infname, 'rt') as inf:
         for line in inf:
             line = line.strip()
-            if line.startswith('Job <'):
+            if line.startswith('Subject:'):
+                mo = re.match(r'Subject: Job (\d+)', line)
+                out['job_id'] = mo.group(1)
+            elif line.startswith('Job <'):
                 mo = re.match(r'Job <(\w+?)-(\w+)> was submitted from host', line)
                 out['job_rule'] = mo.group(1)
                 out['job_suffix'] = mo.group(2)
@@ -41,6 +37,8 @@ def read_lsf_logfile(infname):
             else:
                 if line and num_dash_lines == 2:
                     if 'status' not in out:
+                        if line.startswith('TERM'):
+                            line = line.split(':')[0]
                         out['status'] = line
                     elif ':' in line:
                         k,v = [s.strip() for s in line.split(':')]
@@ -51,27 +49,32 @@ def read_lsf_logfile(infname):
     return out
 
 def read_all_logfiles(dirname):
-    for fname in glob.glob(dirname):
-        yield read_lsf_logfile(fname)
+    header = ['job_id', 'job_rule', 'job_suffix', 'queue', 'exec_host',
+        'status', 'run_time', 'start_time', 'end_time',
+        'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads']
+    yield header
+    for fname in os.listdir(dirname):
+        row = read_lsf_logfile(fname)
+        yield [row.get(h,'') for h in header]
 
-
-def parser_filter_short_seqs():
-    parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
-    parser.add_argument("inFile", help="input sequence file")
-    parser.add_argument("minLength", help="minimum length for contig", type=int)
-    parser.add_argument("outFile", help="output file")
-    parser.add_argument("-f", "--format", help="Format for input sequence (default: fasta)", default="fasta")
-    parser.add_argument("-of", "--output-format",
-                        help="Format for output sequence (default: fasta)", default="fasta")
-    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+def parser_report():
+    parser = argparse.ArgumentParser(
+        description = "Read a directory full of LSF log files and produce a tabular report.")
+    parser.add_argument("logDir", help="Input directory of LSF log files")
+    parser.add_argument("outFile", help="Output report file")
     return parser
-def main_filter_short_seqs(args):
-    # orig by rsealfon, edited by dpark
-    with util.file.open_or_gzopen(args.inFile) as inf:
-        with util.file.open_or_gzopen(args.outFile, 'w') as outf:
-            Bio.SeqIO.write(
-                [s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength],
-                outf, args.output_format)
+
+def main_report(args):
+    with open(args.outFile, 'wt') as outf:
+        for row in read_all_logfiles(args.logDir):
+            outf.write('\t'.join(row)+'\n')
     return 0
-__commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
+
+if __name__ == '__main__':
+    argv = sys.argv[1:]
+    parser = parser_report()
+    if len(argv)==0:
+        parser.print_help()
+    else:
+        args = parser.parse_args(argv)
+        main_report(args)
