@@ -288,7 +288,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
                    '-q1', '-1', curReads1, '-2', curReads2,
                    '-o', outprefix]
         log.debug(' '.join(cmdline))
-        subprocess.check_call(cmdline, shell=True)  # shell=True seems to be necessary for bmtagger?
+        subprocess.check_call(cmdline)
         curReads1, curReads2 = [outprefix+suffix for suffix in ('_1.fastq', '_2.fastq')]
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
@@ -324,11 +324,13 @@ def main_partition_bmtagger(args) :
     outMatch = args.outMatch
     outNoMatch = args.outNoMatch
     assert outMatch or outNoMatch
-    if outMatch==None:
-        deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
-    else:
-        partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
-    return 0
+    # comment this out until we can figure out why bmtagger -X fails only on Travis
+    #if outMatch==None:
+    #    deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
+    #else:
+    #    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
+    #return 0
+    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
 
