@@ -42,7 +42,10 @@ rule all_assemble:
         config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
     params: LSF="-N"
-    shell:  "echo all done!"
+    run:
+            if "job_profiler" in config:
+                shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
+            print("echo all done!")
 
 rule trim_reads:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.cleaned.bam'
@@ -268,14 +271,14 @@ rule consolidate_bamstats:
     params: logid="all"
     run:
             with open(output[0], 'wt') as outf:
-                header = ['sample']
+                header = ['Sample']
                 out_n = 0
                 for fn in input:
                     s = fn.split('/')[-1]
                     if not s.endswith('.bamstats.txt'):
                         raise
                     s = s[:-len('.bamstats.txt')]
-                    out = {'sample':s}
+                    out = {'Sample':s}
                     with open(fn, 'rt') as inf:
                         for line in inf:
                             row = line.strip().split(':')
