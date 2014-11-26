@@ -279,8 +279,11 @@ rule consolidate_bamstats:
                     with open(fn, 'rt') as inf:
                         for line in inf:
                             row = line.strip().split(':')
-                            if len(row)==2:
+                            if len(row)==2 and row[1]:
                                 k,v = [x.strip() for x in row]
+                                mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
+                                if mo:
+                                    v = mo.group(1)
                                 out[k] = v
                                 if out_n==0:
                                     header.append(k)

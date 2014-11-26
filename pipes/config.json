@@ -9,7 +9,6 @@
 
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/blast",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
-  "blast_nchunks":  5,
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
