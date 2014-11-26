@@ -40,7 +40,7 @@ rule all_assemble:
             sample=read_samples_file(config["samples_file"])),
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.bamstats.txt',
-        config["reportsDir"]+'/summary.spike_counts.txt'
+        config["reportsDir"]+'/summary.spike_count.txt'
     params: LSF="-N"
     shell:  "echo all done!"
 
@@ -233,46 +233,43 @@ rule assembly_reports:
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["reportsDir"]+'/{sample}.aligned_to_{sample}_fastqc',
-            config["reportsDir"]+'/{sample}.coverage.txt',
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.bamstats.txt',
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.spike_count.txt'
+    output: config["reportsDir"]+'/fastqc/{sample}.aligned_to_{sample}_fastqc',
+            config["reportsDir"]+'/coverage/{sample}.coverage.txt',
+            config["reportsDir"]+'/bamstats/{sample}.bamstats.txt',
+            config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             logid="{sample}",
             spike_in_fasta=config["spikeinsDb"],
             tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
     # TODO: replace with python wrapper
     run:
-            makedirs(config["reportsDir"])
+            makedirs("{config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
             shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
             novoalign(input[3], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[3]}")
             os.unlink(params.tmpf_spike_bam)
-            os.unlink(config[reportsDir]+'/{wildcards.sample}.aligned_to_{wildcards.sample}_fastqc.zip')
+            os.unlink(output[0]+'.zip')
 
 rule consolidate_fastqc:
-    input:
-            expand("{dir}/{sample}.aligned_to_{sample}_fastqc",
-                dir=config["reportsDir"],
+    input:  expand("{{dir}}/fastqc/{sample}.aligned_to_{sample}_fastqc", \
                 sample=read_samples_file(config["samples_file"]))
-    output:
-            config["reportsDir"]+'/summary.fastqc.txt'
+    output: '{dir}/summary.fastqc.txt'
+    params: logid="all"
     run:
             infiles = [os.path.join(dir, 'summary.txt') for dir in input]
             shell("cat {infiles} > {output}")
 
 rule consolidate_bamstats:
-    input:
-            expand("{dir}/{subdir}/{sample}.bamstats.txt",
-                dir=config["tmpDir"], subdir=config["subdirs"]["assembly"],
+    input:  expand("{{dir}}/bamstats/{sample}.bamstats.txt", \
                 sample=read_samples_file(config["samples_file"]))
-    output:
-            config["reportsDir"]+'/summary.bamstats.txt'
+    output: '{dir}/summary.bamstats.txt'
+    params: logid="all"
     run:
             with open(output[0], 'wt') as outf:
                 header = []
+                out_n = 0
                 for fn in input:
                     out = {}
                     s = fn.split('/')[-1]
@@ -291,15 +288,12 @@ rule consolidate_bamstats:
                         outf.write('\t'.join(header)+'\n')
                     outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
                     out_n += 1
-            #map(os.unlink, input)
 
 rule consolidate_spike_count:
-    input:
-            expand("{dir}/{subdir}/{sample}.spike_count.txt",
-                dir=config["tmpDir"], subdir=config["subdirs"]["assembly"],
+    input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
                 sample=read_samples_file(config["samples_file"]))
-    output:
-            config["reportsDir"]+'/summary.spike_counts.txt'
+    output: '{dir}/summary.spike_count.txt'
+    params: logid="all"
     run:
             with open(output[0], 'wt') as outf:
                 for fn in input:
@@ -312,4 +306,3 @@ rule consolidate_spike_count:
                             if not line.startswith('Input bam'):
                                 spike, count = line.strip().split('\t')
                                 outf.write('\t'.join([s, spike, count])+'\n')
-            #map(os.unlink, input)
