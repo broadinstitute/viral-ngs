@@ -44,6 +44,7 @@ rule all_assemble:
     params: LSF="-N"
     run:
             if "job_profiler" in config:
+                print("running report on all job runs")
                 shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
             print("echo all done!")
 
