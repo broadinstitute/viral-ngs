@@ -17,10 +17,10 @@ def read_lsf_logfile(infname):
                 mo = re.match(r'Subject: Job (\d+)', line)
                 out['job_id'] = mo.group(1)
             elif line.startswith('Job <'):
-                mo = re.match(r'Job <(\w+?)-(\S+)> was submitted from host', line)
-                if mo:
-                    out['job_rule'] = mo.group(1)
-                    out['job_suffix'] = mo.group(2)
+                mo = re.match(r'Job <(\S+)> was submitted from host', line)
+                out['job_name'] = mo.group(1)
+                if '-' in out['job_name']:
+                    out['job_prefix'], out['job_suffix'] = out['job_name'].split('-', 1)
             elif line.startswith('Job was executed on host'):
                 mo = re.match(r'Job was executed on host\(s\) <(\S+?)>, in queue <(\w+)>', line)
                 out['exec_host'] = mo.group(1)
@@ -50,7 +50,7 @@ def read_lsf_logfile(infname):
     return out
 
 def read_all_logfiles(dirname):
-    header = ['job_id', 'job_rule', 'job_suffix', 'queue', 'exec_host',
+    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host',
         'status', 'run_time', 'start_time', 'end_time',
         'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads',
         'logfile']
