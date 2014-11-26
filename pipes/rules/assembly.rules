@@ -268,19 +268,20 @@ rule consolidate_bamstats:
     params: logid="all"
     run:
             with open(output[0], 'wt') as outf:
-                header = []
+                header = ['sample']
                 out_n = 0
                 for fn in input:
-                    out = {}
                     s = fn.split('/')[-1]
                     if not s.endswith('.bamstats.txt'):
                         raise
                     s = s[:-len('.bamstats.txt')]
+                    out = {'sample':s}
                     with open(fn, 'rt') as inf:
                         for line in inf:
                             row = line.strip().split(':')
                             if len(row)==2 and row[1]:
                                 k,v = [x.strip() for x in row]
+                                k = k.strip("'")
                                 mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
                                 if mo:
                                     v = mo.group(1)
