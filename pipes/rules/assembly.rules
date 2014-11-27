@@ -49,7 +49,7 @@ rule all_assemble:
             print("echo all done!")
 
 rule trim_reads:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.cleaned.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.1.fastq', 
             config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.2.fastq'
     params: LSF='-M 6 -R "rusage[mem=3]"',
