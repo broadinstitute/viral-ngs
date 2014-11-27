@@ -2,7 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
-import os, logging, tempfile
+import os, logging, tempfile, shutil
 import util.file
 
 try:
@@ -209,7 +209,7 @@ class DownloadPackage(InstallMethod):
                 return
             else:
                 log.debug("tar returned with exit code 0")
-                os.unlink("%s/%s" % (download_dir, self.download_file))
+                os.unlink(os.path.join(download_dir, self.download_file))
         else :
-            os.rename(os.path.join(download_dir, self.download_file),
+            shutil.move(os.path.join(download_dir, self.download_file),
                       os.path.join(self.destination_dir, self.download_file))

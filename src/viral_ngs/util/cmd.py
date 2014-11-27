@@ -106,6 +106,7 @@ def main_argparse(commands, description):
     setup_logger(not hasattr(args, 'loglevel') and 'DEBUG' or args.loglevel)
     log.info("software version: " + __version__)
     log.debug("python version: " + sys.version)
+    log.debug("command: %s %s" % (sys.argv[0], sys.argv[1]))
     log.debug("command line parameters (including implicit defaults): %s" % (
         ' '.join(["%s=%s" % (k,v) for k,v in vars(args).items()])))
 
