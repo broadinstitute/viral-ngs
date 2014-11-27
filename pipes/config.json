@@ -19,6 +19,8 @@
     "source":       "00_raw",
     "depletion":    "01_cleaned",
     "assembly":     "02_assembly",
+    "align_self":   "02_align_to_self",
+    "align_ref":    "02_align_to_ref",
     "interhost":    "03_interhost",
     "intrahost":    "04_intrahost"
   },
