@@ -69,7 +69,9 @@ def set_tmpDir(name):
                                         dir=util.cmd.find_tmpDir())
 
 def destroy_tmpDir():
-    shutil.rmtree(tempfile.tempdir)
+    if tempfile.tempdir:
+        shutil.rmtree(tempfile.tempdir)
+    tempfile.tempdir = None
 
 def mkdir_p(dirpath):
     ''' Verify that the directory given exists, and if not, create it.
@@ -246,12 +248,12 @@ def fastaMaker(seqs, linewidth=60):
     assert linewidth > 0
 
     for id, seq in seqs:
-        yield "> {} \n".format(id)
+        yield ">{}\n".format(id)
 
         while len(seq) > linewidth:
             line = seq[:linewidth]
             seq = seq[linewidth:]
-            yield "{} \n".format(line)
+            yield "{}\n".format(line)
 
         if seq:
             yield seq+"\n"

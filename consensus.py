@@ -15,7 +15,7 @@ import util.cmd, util.file, util.vcf
 log = logging.getLogger(__name__)
 
 
-def assemble_trinity(inReads):
+def assemble_trinity(inFastq1, inFastq2):
     ''' KGA "recipe" follows
 
 # DE NOVO ASSEMBLY USING TRINITY
@@ -52,9 +52,35 @@ done
     '''
     raise ("not yet implemented")
 
-def filter_seqs_on_length(inFasta, outFasta):
-    # see rsealfon script
+def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
+    # make sure inFasta is indexed for Novoalign, create them if they don't exist
+    # run Novoalign to align input fastqs to inFasta
+    # convert outputs to BAM using Picard and other tools
+    # index/sort BAM file
     raise ("not yet implemented")
+    
+
+def parser_filter_short_seqs():
+    parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
+    parser.add_argument("inFile", help="input sequence file")
+    parser.add_argument("minLength", help="minimum length for contig", type=int)
+    parser.add_argument("outFile", help="output file")
+    parser.add_argument("-f", "--format", help="Format for input sequence (default: fasta)", default="fasta")
+    parser.add_argument("-of", "--output-format",
+                        help="Format for output sequence (default: fasta)", default="fasta")
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    return parser
+def main_filter_short_seqs(args):
+    # orig by rsealfon, edited by dpark
+    with util.file.open_or_gzopen(args.inFile) as inf:
+        with util.file.open_or_gzopen(args.outFile, 'w') as outf:
+            Bio.SeqIO.write(
+                [s for s in Bio.SeqIO.parse(inf, args.format)
+                    if len(s) >= args.minLength],
+                outf, args.output_format)
+    return 0
+__commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
+
 
 
 def parser_modify_contig():
@@ -103,17 +129,21 @@ def parser_modify_contig():
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     return parser
 def main_modify_contig(args):
+    # by rsealfon
     aln = Bio.AlignIO.read(args.input, args.format)
     ref_idx = find_ref_idx(aln,args.ref)
-    assert ref_idx >= 0, "reference name '%s' not in alignment" % args.ref
-    assert ref_idx <= 1, "alignment contains more than 2 sequences"
+    if ref_idx < 0:
+        raise Exception("reference name '%s' not in alignment" % args.ref)
+    if ref_idx > 1:
+        raise Exception("alignment contains more than 2 sequences")
 
     consensus_idx = (ref_idx + 1) % 2
 
     ref = list(str(aln[ref_idx].seq))
     consensus = list(str(aln[consensus_idx].seq))
 
-    assert len(ref) == len(consensus), "improper alignment"
+    if len(ref) != len(consensus):
+        raise Exception("improper alignment")
 
     if (args.name == None):
         args.name = aln[consensus_idx].name
@@ -146,14 +176,15 @@ def find_ref_idx(aln,ref):
     return -1
 
 def do_call_reference_ns(ref, consensus):
-    print("populating N's from reference...")
+    log.debug("populating N's from reference...")
     for i in range(len(ref)):
         if (consensus[i].upper() == "N"):
             consensus[i] = ref[i]
     return consensus
 
 def do_call_reference_ambiguous(ref, consensus):
-    print("populating ambiguous bases from reference...")
+    log.debug("populating ambiguous bases from reference...")
+    # TO DO: replace all this with Bio.Data.IUPACData.ambiguous_dna_values
     for i in range(len(ref)):
         if (consensus[i].upper() == "K"):
             if (ref[i].upper() == "G" or ref[i].upper() == "T"):
@@ -185,7 +216,7 @@ def do_call_reference_ambiguous(ref, consensus):
     return consensus
 
 def do_trim_ends(ref, consensus):
-    print("trimming ends...")
+    log.debug("trimming ends...")
     for i in range(len(ref)):
         if (ref[i] != "-"):
             break
@@ -199,7 +230,7 @@ def do_trim_ends(ref, consensus):
     return consensus
 
 def do_replace_end_gaps(ref, consensus):
-    print("populating leading and trailing gaps from reference...")
+    log.debug("populating leading and trailing gaps from reference...")
     for i in range(len(ref)):
         if (consensus[i] != "-"):
             break
@@ -211,7 +242,7 @@ def do_replace_end_gaps(ref, consensus):
     return consensus
 
 def do_replace_5ends(ref, consensus, replace_length):
-    print("replacing 5' ends...")
+    log.debug("replacing 5' ends...")
     ct = 0
     for i in range(len(ref)):
         if (ref[i] != "-"):
@@ -223,7 +254,7 @@ def do_replace_5ends(ref, consensus, replace_length):
     return consensus
 
 def do_replace_3ends(ref, consensus, replace_length):
-    print("replacing 3' ends...")
+    log.debug("replacing 3' ends...")
     ct = 0
     for i in range(len(ref)):
         if (ref[len(ref) - i - 1] != "-"):
@@ -235,7 +266,7 @@ def do_replace_3ends(ref, consensus, replace_length):
     return consensus
 
 def do_remove_end_ns(consensus):
-    print("removing leading and trailing N's...")
+    log.debug("removing leading and trailing N's...")
     for i in range(len(consensus)):
         if (consensus[i].upper() == "N" or consensus[i] == "-"):
             consensus[i] = "-"
@@ -250,7 +281,7 @@ def do_remove_end_ns(consensus):
 
 def print_output(outfile, header, consensus):
     with open(outfile, "wt") as f:
-        outseq = [x for x in consensus if not '-' in x]
+        outseq = "".join([x for x in consensus if not '-' in x])
         for line in util.file.fastaMaker([(header, outseq)]):
             f.write(line)
 
@@ -258,17 +289,20 @@ def print_output(outfile, header, consensus):
 
 class MutableSequence:
     def __init__(self, name, start, stop, init_seq=None):
-        assert stop>=start>=1
+        if not (stop>=start>=1):
+            raise Exception("coords out of bounds")
         if init_seq==None:
             self.seq = list('N' * (stop-start+1))
         else:
             self.seq = list(init_seq)
-        assert stop-start+1 == len(self.seq)
+        if stop-start+1 != len(self.seq):
+            raise Exception("wrong length")
         self.start = start
         self.stop = stop
         self.name = name
     def modify(self, p, new_base):
-        assert self.start <= p <= self.stop
+        if not (self.start <= p <= self.stop):
+            raise Exception("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
     def emit(self):
@@ -278,7 +312,8 @@ def alleles_to_ambiguity(allelelist):
     ''' Convert a list of DNA bases to a single ambiguity base.
         All alleles must be one base long.  '''
     for a in allelelist:
-        assert len(a)==1
+        if len(a)!=1:
+            raise Exception("all alleles must be one base long")
     if len(allelelist)==1:
         return allelelist[0]
     else:
@@ -401,14 +436,14 @@ def parser_vcf_to_fasta():
         reject calls in which the sample read count is below a specified fraction of the
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
-        default=None)
+        default=0.0)
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
 
-    chrlens = dict(util.vcf.vcf_chrlens(args.inVcf))
+    chrlens = dict(util.vcf.get_chrlens(args.inVcf))
     samples = util.vcf.vcf_sample_names(args.inVcf)
     with open(args.outFasta, 'wt') as outf:
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),

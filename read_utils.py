@@ -10,7 +10,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile
+import argparse, logging, os, tempfile, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
@@ -35,8 +35,8 @@ def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2) :
               "-f1 {inFastq1} -f2 {inFastq2} -o {tempOutput}".format(**locals())
     log.debug(cmdline)
     assert not os.system(cmdline)
-    os.rename(tempOutput + '.1.fastq', outFastq1)
-    os.rename(tempOutput + '.2.fastq', outFastq2)
+    shutil.move(tempOutput + '.1.fastq', outFastq1)
+    shutil.move(tempOutput + '.2.fastq', outFastq2)
 
 def parser_purge_unmated() :
     parser = argparse.ArgumentParser(
@@ -53,6 +53,7 @@ def parser_purge_unmated() :
         help='Output fastq file; 1st end of paired-end reads.')
     parser.add_argument('outFastq2',
         help='Output fastq file; 2nd end of paired-end reads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_purge_unmated(args) :
@@ -87,6 +88,7 @@ def parser_fastq_to_fasta() :
         description='Convert from fastq format to fasta format.')
     parser.add_argument('inFastq', help='Input fastq file.')
     parser.add_argument('outFasta', help='Output fasta file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_fastq_to_fasta(args) :
@@ -146,7 +148,7 @@ def parser_bam_to_fastq() :
         help='JVM virtual memory size (default: {})'.format(jvmMemDefault))
     parser.add_argument('--picardOptions', default = [], nargs='+',
         help='Optional arguments to picard\'s SamToFastq, OPTIONNAME=value ...')
-    
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_bam_to_fastq(args) :
@@ -222,7 +224,7 @@ def parser_fastq_to_bam() :
         help='''Optional arguments to picard\'s FastqToSam,
                 OPTIONNAME=value ...  Note that header-related options will be 
                 overwritten by HEADER if present.''')
-    
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_fastq_to_bam(args) :
