@@ -247,7 +247,7 @@ rule assembly_reports:
             tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
     # TODO: replace with python wrapper
     run:
-            makedirs("{config[reportsDir]}/fastqc")
+            makedirs(config[reportsDir]+"/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
             shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
