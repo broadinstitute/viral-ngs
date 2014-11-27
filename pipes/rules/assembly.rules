@@ -248,7 +248,7 @@ rule assembly_reports:
     # TODO: replace with python wrapper
     run:
             makedirs("{config[reportsDir]}/fastqc")
-            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}")
+            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
             shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
             novoalign(input[3], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
