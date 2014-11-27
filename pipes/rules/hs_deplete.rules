@@ -24,7 +24,7 @@ rule all_deplete:
     shell:  "echo all done!"
 
 rule depl_bam_to_fastq:
-    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample,\w+}.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq', 
             config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.2.fastq', 
             config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
@@ -101,7 +101,7 @@ rule depl_fastq_to_bam:
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.1.fastq',
             config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.2.fastq',
             config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample,\w+}.{adjective,\w+}.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective,\w+}.bam'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]}"
