@@ -127,19 +127,13 @@ def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qua
       cmd += "| /idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -buS -q {min_qual} - "
     cmd += "| java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
     shell(cmd)
-def filter_bam_mapped_only(inBam, outBam):
-    # TODO: replace with python wrapper
-    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
-def picard_rmdup(inBam, outBam, outMetrics):
-    # TODO: replace with python wrapper
-    shell("java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I={inBam} O={outBam} CREATE_INDEX=true REMOVE_DUPLICATES=true METRICS_FILE={outMetrics}")
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
     # TODO: replace with python wrapper
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
-def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
-    # TODO: replace with python wrapper
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
+def first_fasta_header(inFasta):
+    # this method can go away when refine_assembly_with_reads gets turned into a script
+    with open(inFasta, 'rt') as inf:
+        return inf.readline().rstrip('\n').lstrip('>')
 
 rule refine_assembly_with_reads:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
@@ -155,7 +149,7 @@ rule refine_assembly_with_reads:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
-            refGenome=config["ref_genome"], year="2014", refName="zaire_guinea",
+            refGenome=config["ref_genome"], renamed_prefix="EBOV_2014_",
             logid="{sample}"
     # TODO: replace with one big python wrapper
     run:
@@ -163,7 +157,8 @@ rule refine_assembly_with_reads:
             print("Modify Trinity assembly w/muscle alignment to known reference")
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
             assert_nonempty_file(output[1])
-            shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {params.refName} --name EBOV_{params.year}_{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
+            refName = first_fasta_header(params.refGenome)
+            shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
             assert_nonempty_file(output[2])
             shell("{config[binDir]}/consensus.py deambig_fasta {output[2]} {output[3]}")
             assert_nonempty_file(output[3])
@@ -189,6 +184,17 @@ rule refine_assembly_with_reads:
             index_picard(input[0])
             index_samtools(input[0])
             index_novoalign(input[0])
+
+def filter_bam_mapped_only(inBam, outBam):
+    # TODO: replace with python wrapper
+    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
+def picard_rmdup(inBam, outBam, outMetrics):
+    # TODO: replace with python wrapper
+    shell("java -Xmx2g -jar /seq/software/picard/current/bin/MarkDuplicates.jar I={inBam} O={outBam} CREATE_INDEX=true REMOVE_DUPLICATES=true METRICS_FILE={outMetrics}")
+def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
+    # TODO: replace with python wrapper
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
 
 rule map_reads_to_self:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
