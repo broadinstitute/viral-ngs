@@ -19,6 +19,6 @@ snakemake --timestamp --rerun-incomplete --keep-going --nolock \
 	--jobs 100000 --immediate-submit \
 	--config mode=LSF job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \
 	--jobscript "$BINDIR/pipes/Broad_LSF/jobscript.sh" \
-	--cluster "$BINDIR/pipes/Broad_LSF/cluster-submitter.py" '{dependencies} {config[logDir]}' \
+	--cluster $BINDIR'/pipes/Broad_LSF/cluster-submitter.py {dependencies} {config[logDir]}' \
 	"$@"
 
