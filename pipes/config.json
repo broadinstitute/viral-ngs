@@ -13,14 +13,14 @@
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
-  "ref_genome":     "/idi/sabeti-scratch/kandersen/references/annotations/ebola/zaire_guinea.fasta",
+  "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
 
   "subdirs": {
     "source":       "00_raw",
     "depletion":    "01_cleaned",
     "assembly":     "02_assembly",
     "align_self":   "02_align_to_self",
-    "align_ref":    "02_align_to_ref",
+    "align_ref":    "03_align_to_ref",
     "interhost":    "03_interhost",
     "intrahost":    "04_intrahost"
   },
