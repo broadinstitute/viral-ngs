@@ -10,13 +10,16 @@ def read_samples_file(fname):
 
 rule all:
     input:
+        # create final assemblies for all samples
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_file"])),
+        # create BAMs of aligned reads to own consensus and to commong ref
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"],
             subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
             sample=read_samples_file(config["samples_file"])),
+        # create summary reports
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
