@@ -7,14 +7,18 @@ reuse -q LSF
 reuse -q Python-3.4
 reuse -q Perl-5.10
 
+# load config dirs from config.json
+VENVDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["venvDir"]);f.close()'`
+BINDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["binDir"]);f.close()'`
+
 # load Python virtual environment
-source venv/bin/activate
+source "$VENVDIR/bin/activate"
 
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
 	--jobs 100000 --immediate-submit \
-	--config mode=LSF job_profiler='bin/pipes/Broad_LSF/lsf-report.py' \
-	--jobscript bin/pipes/Broad_LSF/jobscript.sh \
-	--cluster 'bin/pipes/Broad_LSF/cluster-submitter.py {dependencies} {config[logDir]}' \
+	--config mode=LSF job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \
+	--jobscript "$BINDIR/pipes/Broad_LSF/jobscript.sh" \
+	--cluster "$BINDIR/pipes/Broad_LSF/cluster-submitter.py" '{dependencies} {config[logDir]}' \
 	"$@"
 

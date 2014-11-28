@@ -1,9 +1,10 @@
 """
-    This is a basic framework for depleting human and other contaminant 
-    reads from NGS data.  All non-human reads should remain behind.
+    This is a basic framework for assembly of viral genomes, currently
+    tailored for EBOV. Some generalization work needed to expand this
+    to generic viral genomes with an arbitrary number of segments/chromosomes.
 """
 
-__author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
+__author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
 import os, os.path, time

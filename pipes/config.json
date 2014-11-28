@@ -24,10 +24,11 @@
     "interhost":    "03_interhost",
     "intrahost":    "04_intrahost"
   },
-  "dataDir":   "data",
-  "tmpDir":    "tmp",
-  "logDir":    "log",
-  "reportsDir":"reports",
-  "binDir":    "bin",
-  "project":   "viral_ngs"
+  "dataDir":    "data",
+  "tmpDir":     "tmp",
+  "logDir":     "log",
+  "reportsDir": "reports",
+  "binDir":     "bin",
+  "venvDir":    "venv",
+  "project":    "viral_ngs"
 }
