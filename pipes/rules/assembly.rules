@@ -29,26 +29,6 @@ def update_timestamps(files):
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
 
-rule all_assemble:
-    # these are the final desired output files from this pipeline
-    input:
-        expand("{dataDir}/{subdir}/{sample}.fasta",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"])),
-        expand("{dataDir}/{subdir}/{sample}.bam",
-            dataDir=config["dataDir"],
-            subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
-            sample=read_samples_file(config["samples_file"])),
-        config["reportsDir"]+'/summary.fastqc.txt',
-        config["reportsDir"]+'/summary.bamstats.txt',
-        config["reportsDir"]+'/summary.spike_count.txt'
-    params: LSF="-N"
-    run:
-            if "job_profiler" in config:
-                print("running report on all job runs")
-                shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
-            print("echo all done!")
-
 rule trim_reads:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.1.fastq', 
