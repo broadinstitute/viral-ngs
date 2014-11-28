@@ -9,20 +9,6 @@ from snakemake.utils import makedirs
 
 configfile: "config.json"
 
-def read_samples_file(fname):
-    with open(fname, 'rt') as inf:
-        for line in inf:
-            yield line.strip()
-
-rule all_deplete:
-    input:
-      expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
-        dataDir=config["dataDir"], subdir=config["subdirs"]["depletion"],
-        sample=read_samples_file(config["samples_file"]),
-        adjective=["cleaned"])
-    params: LSF="-N"
-    shell:  "echo all done!"
-
 rule depl_bam_to_fastq:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq', 
