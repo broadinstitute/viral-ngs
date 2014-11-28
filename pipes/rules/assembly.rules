@@ -8,8 +8,6 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 from snakemake.utils import makedirs
 import os, os.path, time
 
-configfile: "config.json"
-
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
         for line in inf:
@@ -215,24 +213,24 @@ rule map_reads_to_self:
             os.unlink(params.tmpf_intervals)
 
 rule map_reads_to_ref:
-    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
     params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
             logid="{sample}",
+            refGenome=config["ref_genome"],
             tmpf_metrics=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.rmdup.metrics',
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.intervals'
     # TODO: replace with python wrapper
     run:
             update_timestamps(input)
             makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_ref"]))
-            novoalign(input[1], input[0], wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
+            novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
             filter_bam_mapped_only(output[0], output[1])
             picard_rmdup(output[1], output[2], params.tmpf_metrics)
-            gatk_local_realign(output[2], input[0], output[3], params.tmpf_intervals)
+            gatk_local_realign(output[2], params.refGenome, output[3], params.tmpf_intervals)
             os.unlink(params.tmpf_metrics)
             os.unlink(params.tmpf_intervals)
 
