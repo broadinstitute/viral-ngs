@@ -14,6 +14,13 @@
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
+  
+  "align_outgroups": {
+    "ebov_2014":    "",
+    "ebov":         "",
+    "ebolavirus":   "",
+    "filovirus":    ""
+  },
 
   "subdirs": {
     "source":       "00_raw",

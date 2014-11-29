@@ -244,10 +244,12 @@ rule map_reads_to_ref:
 rule assembly_reports:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
+            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["reportsDir"]+'/fastqc/{sample}_fastqc',
-            config["reportsDir"]+'/coverage/{sample}.coverage.txt',
+            config["reportsDir"]+'/coverage/{sample}.coverage_self.txt',
+            config["reportsDir"]+'/coverage/{sample}.coverage_ref.txt',
             config["reportsDir"]+'/bamstats/{sample}.bamstats.txt',
             config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
@@ -259,9 +261,10 @@ rule assembly_reports:
             makedirs(config["reportsDir"]+"/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
-            shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[2]}")
-            novoalign(input[3], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
-            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[3]}")
+            shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[3]} -g {input[0]} > {output[2]}")
+            shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[3]}")
+            novoalign(input[4], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
+            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[4]}")
             os.unlink(params.tmpf_spike_bam)
             os.unlink(output[0]+'.zip')
 
@@ -273,6 +276,19 @@ rule consolidate_fastqc:
     run:
             infiles = [os.path.join(dir, 'summary.txt') for dir in input]
             shell("cat {infiles} > {output}")
+
+rule consolidate_coverage:
+    input:  expand("{{dir}}/coverage/{sample}.coverage_ref.txt", \
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.coverage_ref.txt'
+    params: logid="all"
+    run:
+            with open(output[0], 'wt') as outf:
+                for fn in input:
+                    s = fn.split('/')[-1][:-len('.coverage_ref.txt')]
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line.rstrip('\n') + '\t' + s + '\n')
 
 rule consolidate_bamstats:
     input:  expand("{{dir}}/bamstats/{sample}.bamstats.txt", \
