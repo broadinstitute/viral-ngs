@@ -20,7 +20,7 @@ rule all:
             subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
             sample=read_samples_file(config["samples_file"])),
         # create summary reports
-        config["reportsDir"]+'/summary.coverage_ref.txt',
+        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
