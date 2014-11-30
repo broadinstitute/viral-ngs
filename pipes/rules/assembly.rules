@@ -7,7 +7,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time
+import os, os.path, time, gzip
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -274,16 +274,33 @@ rule consolidate_fastqc:
     output: '{dir}/summary.fastqc.txt'
     params: logid="all"
     run:
-            infiles = [os.path.join(dir, 'summary.txt') for dir in input]
-            shell("cat {infiles} > {output}")
+            with open(output[0], 'wt') as outf:
+                header = ['Sample']
+                out_n = 0
+                for sdir in input:
+                    out = {}
+                    with open(os.path.join(sdir, 'summary.txt'), 'rt') as inf:
+                        for line in inf:
+                            v,k,fn = line.strip().split('\t')
+                            out[k] = v
+                            if out_n==0:
+                                header.append(k)
+                            if not fn.endswith('.bam'):
+                                raise
+                            out['Sample'] = fn[:-len('.bam')]
+                    if out_n==0:
+                        outf.write('\t'.join(header)+'\n')
+                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
+                    out_n += 1
+
 
 rule consolidate_coverage:
     input:  expand("{{dir}}/coverage/{sample}.coverage_ref.txt", \
                 sample=read_samples_file(config["samples_file"]))
-    output: '{dir}/summary.coverage_ref.txt'
+    output: '{dir}/summary.coverage_ref.txt.gz'
     params: logid="all"
     run:
-            with open(output[0], 'wt') as outf:
+            with gzip.GzipFile(output[0], 'wt') as outf:
                 for fn in input:
                     s = fn.split('/')[-1][:-len('.coverage_ref.txt')]
                     with open(fn, 'rt') as inf:
