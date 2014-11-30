@@ -300,7 +300,7 @@ rule consolidate_coverage:
     output: '{dir}/summary.coverage_ref.txt.gz'
     params: logid="all"
     run:
-            with gzip.GzipFile(output[0], 'wt') as outf:
+            with gzip.open(output[0], 'wt') as outf:
                 for fn in input:
                     s = fn.split('/')[-1][:-len('.coverage_ref.txt')]
                     with open(fn, 'rt') as inf:
