@@ -10,11 +10,11 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile, shutil
+import argparse, logging, os, tempfile, shutil, subprocess
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
-import tools.picard, tools.samtools
+import tools.picard, tools.samtools, tools.mvicuna
 
 log = logging.getLogger(__name__)
 
@@ -31,10 +31,10 @@ def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2) :
                                               'mergeShuffledFastqSeqs.pl')
     # The regular expression that follow says that the sequence identifiers
     # of corresponding sequences must be of the form SEQID/1 and SEQID/2
-    cmdline = "{mergeShuffledFastqSeqsPath} -t -r '^@(\S+)/[1|2]$' " \
-              "-f1 {inFastq1} -f2 {inFastq2} -o {tempOutput}".format(**locals())
-    log.debug(cmdline)
-    assert not os.system(cmdline)
+    cmdline = [mergeShuffledFastqSeqsPath, '-t', '-r', '^@(\S+)/[1|2]$',
+              '-f1', inFastq1, '-f2', inFastq2, '-o', tempOutput]
+    log.debug(' '.join(cmdline))
+    subprocess.check_call(cmdline)
     shutil.move(tempOutput + '.1.fastq', outFastq1)
     shutil.move(tempOutput + '.2.fastq', outFastq2)
 
@@ -99,41 +99,127 @@ def main_fastq_to_fasta(args) :
 __commands__.append(('fastq_to_fasta', main_fastq_to_fasta,
                      parser_fastq_to_fasta))
 
-# =================================================
-# ***  shared by bam_to_fastq and fastq_to_bam  ***
-# =================================================
+# ===============================
+# ***  index_fasta_samtools   ***
+# ===============================
 
-jvmMemDefault = '2g'
+def parser_index_fasta_samtools() :
+    parser = argparse.ArgumentParser(
+        description='''Index a reference genome for Samtools.''')
+    parser.add_argument('inFasta', help='Reference genome, FASTA format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    return parser
+def main_index_fasta_samtools(args) :
+    tools.samtools.SamtoolsTool().execute(args.inFasta)
+    return 0
+__commands__.append(('index_fasta_samtools',
+    main_index_fasta_samtools, parser_index_fasta_samtools))
+
+# =============================
+# ***  index_fasta_picard   ***
+# =============================
+
+def parser_index_fasta_picard() :
+    parser = argparse.ArgumentParser(
+        description='''Create an index file for a reference genome suitable
+                    for Picard/GATK.''')
+    parser.add_argument('inFasta', help='Input reference genome, FASTA format.')
+    parser.add_argument('--JVMmemory', default = tools.picard.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s CreateSequenceDictionary, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_index_fasta_picard(args) :
+    tools.picard.CreateSequenceDictionaryTool().execute(args.inFasta,
+        picardOptions=args.picardOptions, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('index_fasta_picard',
+    main_index_fasta_picard, parser_index_fasta_picard))
+
+# =============================
+# ***  mkdup_picard   ***
+# =============================
+
+def parser_mkdup_picard() :
+    parser = argparse.ArgumentParser(
+        description='''Mark or remove duplicate reads from BAM file.''')
+    parser.add_argument('inBams', help='Input reads, BAM format.', nargs='+')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('--outMetrics',
+        help='Output metrics file. Default is to dump to a temp file.',
+        default=None)
+    parser.add_argument("--remove",
+        help="Instead of marking duplicates, remove them entirely (default: %(default)s)",
+        default=False, action="store_true", dest="remove")
+    parser.add_argument('--JVMmemory', default = tools.picard.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s MarkDuplicates, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_mkdup_picard(args) :
+    opts = list(args.picardOptions)
+    if args.remove:
+        opts = ['REMOVE_DUPLICATES=true'] + opts
+    tools.picard.MarkDuplicatesTool().execute(
+        args.inBams, args.outBam, args.outMetrics,
+        picardOptions=opts, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('mkdup_picard', main_mkdup_picard, parser_mkdup_picard))
+
+# =======================
+# ***  sort_bam   ***
+# =======================
+
+def parser_sort_bam() :
+    parser = argparse.ArgumentParser(
+        description='Convert a bam file to a pair of fastq paired-end '\
+                    'read files and optional text header.')
+    parser.add_argument('inBam',   help='Input bam file.')
+    parser.add_argument('outBam',  help='Output bam file, sorted.')
+    parser.add_argument('sortOrder',
+        help='How to sort the reads. [default: %(default)s]',
+        choices = tools.picard.SortSamTool.valid_sort_orders,
+        default = tools.picard.SortSamTool.default_sort_order)
+    parser.add_argument("--index",
+        help="Index outBam (default: %(default)s)",
+        default=False, action="store_true", dest="index")
+    parser.add_argument("--md5",
+        help="MD5 checksum outBam (default: %(default)s)",
+        default=False, action="store_true", dest="md5")
+    parser.add_argument('--JVMmemory', default = tools.picard.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s SortSam, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_sort_bam(args) :
+    opts = list(args.picardOptions)
+    if args.index:
+        opts = ['CREATE_INDEX=true'] + opts
+    if args.md5:
+        opts = ['CREATE_MD5_FILE=true'] + opts
+    tools.picard.SortSamTool().execute(
+        args.inBam, args.outBam, args.sortOrder,
+        picardOptions=opts, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('sort_bam', main_sort_bam, parser_sort_bam))
 
 # =======================
 # ***  bam_to_fastq   ***
 # =======================
 def bam_to_fastq(inBam, outFastq1, outFastq2, outHeader = None,
-                 JVMmemory = jvmMemDefault, picardOptions = []) :
-    'Convert a bam file to a pair of fastq paired-end read files and optional '\
-    'text header.'
-    
-    SamToFastqPath = tools.picard.SamToFastqTool().install_and_get_path()
-    tempdir = tempfile.gettempdir()
-    samToFastqCmd = ('java -Xmx{JVMmemory}  -Djava.io.tmpdir={tempdir} '
-                     '-jar {SamToFastqPath} '
-                     'INPUT={inBam} '
-                     'FASTQ={outFastq1} '
-                     'SECOND_END_FASTQ={outFastq2} '
-                     'VALIDATION_STRINGENCY=SILENT ' +
-                     ' '.join(picardOptions)).format(**locals())
-    log.debug(samToFastqCmd)
-    assert not os.system(samToFastqCmd)
-    
+                 JVMmemory = tools.picard.jvmMemDefault, picardOptions = []) :
+    ''' Convert a bam file to a pair of fastq paired-end read files and optional
+        text header.
+    '''
+    tools.picard.SamToFastqTool().execute(inBam, outFastq1, outFastq2,
+        picardOptions=picardOptions, JVMmemory=JVMmemory)
     if outHeader :
-        samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
-        dumpHeaderCmd = '{samtoolsPath} view -H {inBam} > {outHeader}'.format(
-            **locals())
-        log.debug(dumpHeaderCmd)
-        assert not os.system(dumpHeaderCmd)
+        tools.samtools.SamtoolsTool().dumpHeader(inBam, outHeader)
 
 def parser_bam_to_fastq() :
-    jvmMemDefault = '2g'
     parser = argparse.ArgumentParser(
         description='Convert a bam file to a pair of fastq paired-end '\
                     'read files and optional text header.')
@@ -144,22 +230,16 @@ def parser_bam_to_fastq() :
         help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument('--outHeader',
         help='Optional text file name that will receive bam header.')
-    parser.add_argument('--JVMmemory', default = jvmMemDefault,
+    parser.add_argument('--JVMmemory', default = tools.picard.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--picardOptions', default = [], nargs='+',
-        help='Optional arguments to picard\'s SamToFastq, OPTIONNAME=value ...')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s SamToFastq, OPTIONNAME=value ...')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_bam_to_fastq(args) :
-    outFastq1 = args.outFastq1
-    outFastq2 = args.outFastq2
-    inBam = args.inBam
-    outHeader = args.outHeader
-    JVMmemory = args.JVMmemory
-    picardOptions = args.picardOptions
-    bam_to_fastq(inBam, outFastq1, outFastq2, outHeader, JVMmemory,
-                 picardOptions)
+    bam_to_fastq(args.inBam, args.outFastq1, args.outFastq2,
+                 args.outHeader, args.JVMmemory, args.picardOptions)
     return 0
 
 __commands__.append(('bam_to_fastq', main_bam_to_fastq,
@@ -170,39 +250,29 @@ __commands__.append(('bam_to_fastq', main_bam_to_fastq,
 # =======================
 
 def fastq_to_bam(inFastq1, inFastq2, outBam, sampleName = None, header = None,
-                 JVMmemory = jvmMemDefault, picardOptions = []) :
+                 JVMmemory = tools.picard.jvmMemDefault, picardOptions = []) :
     'Convert a pair of fastq paired-end read files and optional text header ' \
     'to a single bam file.'
     
-    FastqToSamPath = tools.picard.FastqToSamTool().install_and_get_path()
     if header :
-        fastqToSamOut = mkstempfname()
+        fastqToSamOut = mkstempfname('.bam')
     else :
         fastqToSamOut = outBam
-    tempdir = tempfile.gettempdir()
     if sampleName == None :
         sampleName = 'Dummy' # Will get overwritten by rehead command
     if header :
         # With the header option, rehead will be called after FastqToSam.
         # This will invalidate any md5 file, which would be a slow to construct
         # on our own, so just disallow and let the caller run md5sum if desired.
-        assert not any(opt.lower() == 'CREATE_MD5_FILE=True'.lower()
-                       for opt in picardOptions), \
-            'CREATE_MD5_FILE is not allowed with --header.'
-    fastqToSamCmd = ('java -Xmx{JVMmemory} -Djava.io.tmpdir={tempdir} '
-                     '-jar {FastqToSamPath} '
-                     'FASTQ={inFastq1} FASTQ2={inFastq2} '
-                     'OUTPUT={fastqToSamOut} '
-                     'SAMPLE_NAME={sampleName} ' +
-                     ' '.join(picardOptions)).format(**locals())
-    log.debug(fastqToSamCmd)
-    assert not os.system(fastqToSamCmd)
+        if any(opt.lower() == 'CREATE_MD5_FILE=True'.lower()
+                       for opt in picardOptions) :
+            raise Exception('CREATE_MD5_FILE is not allowed with --header.')
+    tools.picard.FastqToSamTool().execute(
+        inFastq1, inFastq2, sampleName, fastqToSamOut,
+        picardOptions=picardOptions, JVMmemory=JVMmemory)
+    
     if header :
-        samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
-        reheadCmd = '{samtoolsPath} reheader {header} {fastqToSamOut} >' \
-                    '{outBam}'.format(**locals())
-        log.debug(reheadCmd)
-        assert not os.system(reheadCmd)
+        tools.samtools.SamtoolsTool().reheader(fastqToSamOut, header, outBam)
 
 def parser_fastq_to_bam() :
     parser = argparse.ArgumentParser(
@@ -218,25 +288,18 @@ def parser_fastq_to_bam() :
         help='Sample name to insert into the read group header.')
     headerGroup.add_argument('--header',
         help='Optional text file containing header.')
-    parser.add_argument('--JVMmemory', default = jvmMemDefault,
+    parser.add_argument('--JVMmemory', default = tools.picard.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--picardOptions', default = [], nargs='+',
-        help='''Optional arguments to picard\'s FastqToSam,
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='''Optional arguments to Picard\'s FastqToSam,
                 OPTIONNAME=value ...  Note that header-related options will be 
                 overwritten by HEADER if present.''')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 
 def main_fastq_to_bam(args) :
-    inFastq1 = args.inFastq1
-    inFastq2 = args.inFastq2
-    outBam = args.outBam
-    sampleName = args.sampleName
-    header = args.header
-    JVMmemory = args.JVMmemory
-    picardOptions = args.picardOptions
-    fastq_to_bam(inFastq1, inFastq2, outBam, sampleName, header, JVMmemory,
-                 picardOptions)
+    fastq_to_bam(args.inFastq1, args.inFastq2, args.outBam, args.sampleName,
+                 args.header, args.JVMmemory, args.picardOptions)
     return 0
 
 __commands__.append(('fastq_to_bam', main_fastq_to_bam,
@@ -320,6 +383,37 @@ def main_split_reads(args) :
         args.maxReads, args.numChunks, args.indexLen, args.format)
     return 0
 __commands__.append(('split_reads', main_split_reads, parser_split_reads))
+
+# ============================
+# ***  dup_remove_mvicuna  ***
+# ============================
+
+def parser_dup_remove_mvicuna() :
+    parser = argparse.ArgumentParser(
+        description='''Run mvicuna's duplicate removal operation on paired-end 
+                       reads.''')
+    parser.add_argument('inFastq1',
+        help='Input fastq file; 1st end of paired-end reads.')
+    parser.add_argument('inFastq2',
+        help='Input fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('pairedOutFastq1',
+        help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('pairedOutFastq2',
+        help='Output fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('--unpairedOutFastq',
+        default=None,
+        help='File name of output unpaired reads')        
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_dup_remove_mvicuna(args) :
+    tools.mvicuna.MvicunaTool().rmdup(
+        (args.inFastq1, args.inFastq2),
+        (args.pairedOutFastq1, args.pairedOutFastq2),
+        args.unpairedOutFastq)
+    return 0
+__commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,
+                     parser_dup_remove_mvicuna))
+
 
 # =======================
 
