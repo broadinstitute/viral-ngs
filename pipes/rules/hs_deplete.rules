@@ -6,86 +6,83 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
 
 from snakemake.utils import makedirs
+import os
 
-rule depl_bam_to_fastq:
+rule depl_bam_to_split_fastq:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
-    output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq', 
-            config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.2.fastq', 
-            config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
+    output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt',
+            expand('{dir}/{{sample}}.raw.{split_id:04d}.{direction}.fastq',
+                dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
+                direction = [1,2],
+                split_id = range(config["deplete_nchunks"]))
     params: LSF='-M 6 -R "rusage[mem=3]"',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_fastq = [
+                config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.1.fastq',
+                config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.2.fastq'],
+            out_prefix = config["tmpDir"]+'/'+config["subdirs"]["depletion"]+"/{sample}.raw."
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {output[0]} {output[1]} --outHeader {output[2]}")
+            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_fastq} --outHeader {output[0]}")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_fastq[0]} {params.out_prefix} --outSuffix .1.fastq --numChunks {config[deplete_nchunks]} --indexLen 4 --format fastq")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_fastq[1]} {params.out_prefix} --outSuffix .2.fastq --numChunks {config[deplete_nchunks]} --indexLen 4 --format fastq")
+            map(os.unlink, params.tmpf_fastq)
 
 rule deplete_bmtagger:
-    input:  '{dir}/{sample}.raw.1.fastq',
-            '{dir}/{sample}.raw.2.fastq'
+    input:  '{dir}/{sample}.raw.{split_id}.1.fastq',
+            '{dir}/{sample}.raw.{split_id}.2.fastq'
     #       expand("{dbdir}/{db}.{suffix}",
     #           dbdir=config["bmTaggerDbDir"],
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
-    output: '{dir}/{sample}.bmtagger_depleted.1.fastq',
-            '{dir}/{sample}.bmtagger_depleted.2.fastq'
-    params: LSF='-q week -M 16 -R "rusage[mem=8]" -sp 40',
+    output: '{dir}/{sample}.bmtagger_depleted.{split_id,\d+}.1.fastq',
+            '{dir}/{sample}.bmtagger_depleted.{split_id,\d+}.2.fastq'
+    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
-            logid="{sample}"
+            logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
 
 rule rmdup_mvicuna:
-    input:  '{dir}/{sample}.bmtagger_depleted.1.fastq',
-            '{dir}/{sample}.bmtagger_depleted.2.fastq'
-    output: '{dir}/{sample}.rmdup.1.fastq',
-            '{dir}/{sample}.rmdup.2.fastq'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]"',
-            logid="{sample}"
+    input:  '{dir}/{sample}.bmtagger_depleted.{split_id}.1.fastq',
+            '{dir}/{sample}.bmtagger_depleted.{split_id}.2.fastq'
+    output: '{dir}/{sample}.rmdup.{split_id,\d+}.1.fastq',
+            '{dir}/{sample}.rmdup.{split_id,\d+}.2.fastq'
+    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+            logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
 
-## Future optimization: add a partition_bmtagger step that pulls out
-## a bunch of known microbial genomes that might comprise the bulk of the
-## non-human reads. Run blastn only on the uncharacterized reads that
-## do not match human or microbe by bmtagger. Afterwards, merge the
-## microbe bmtagger hits with the blastn-depleted reads. This would just
-## reduce the cpu time spent on blastn.
-
-#rule split_reads:
-#    input:  '{dir}/{sample}.rmdup.{direction}.fastq'
-#    output: expand('{{dir}}/{{sample}}.blast_split_input.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
-#    params: logid="{sample}-{direction}"
-#    shell:  "{config[binDir]}/read_utils.py split_reads {input} {wildcards.dir}/{wildcards.sample}.blast_split_input.{wildcards.direction}. --numChunks {config[blast_nchunks]} --suffixLen 4 --format fastq"
-
-rule blastn_deplete:
-#    input:  '{dir}/{sample}.blast_split_input.{suffix}'
-#    output: '{dir}/{sample}.blast_split_output.{suffix}'
-    input:  '{dir}/{sample}.rmdup.{suffix}'
-    output: '{dir}/{sample}.blast_depleted.{suffix}'
+rule deplete_blastn_paired:
+    input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
+            '{dir}/{sample}.rmdup.{split_id}.2.fastq'
+    output: '{dir}/{sample}.cleaned.{split_id,\d+}.1.fastq',
+            '{dir}/{sample}.cleaned.{split_id,\d+}.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
-            logid="{sample}-{suffix}"
-    shell:  "{config[binDir]}/taxon_filter.py deplete_blastn {input} {output} {params.refDbs}"
+            logid="{sample}-{split_id}"
+    shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_paired {input} {output} {params.refDbs}"
 
-#rule cat_reads:
-#    input:  expand('{{dir}}/{{sample}}.blast_split_output.{{direction}}.{split_id:04d}', split_id=range(config["blast_nchunks"]))
-#    output: '{dir}/{sample}.blast_depleted.{direction,[12]}.fastq'
-#    params: logid="{sample}-{direction}"
-#    shell:  "cat {input} > {output}"
-
-rule depl_fastq_matepair_fix:
-    input:  '{dir}/{sample}.blast_depleted.1.fastq',
-            '{dir}/{sample}.blast_depleted.2.fastq'
-    output: '{dir}/{sample}.cleaned.1.fastq',
-            '{dir}/{sample}.cleaned.2.fastq'
-    params: LSF='-M 14 -R "rusage[mem=7]"',
-            logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
-
-rule depl_fastq_to_bam:
-    input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.1.fastq',
-            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective}.2.fastq',
-            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt'
+rule merge_to_bam:
+    input:  config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.samheader.txt',
+            expand('{dir}/{{sample}}.{{adjective}}.{split_id:04d}.{direction}.fastq',
+                dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
+                direction = [1,2],
+                split_id = range(config["deplete_nchunks"]))
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.{adjective,\w+}.bam'
     params: LSF='-M 6 -R "rusage[mem=3]"',
-            logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py fastq_to_bam {input[0]} {input[1]} {output} --header {input[2]}"
+            logid="{sample}-{adjective}",
+            tmpf_fastq = [
+                config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.merge.{adjective}.1.fastq',
+                config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.merge.{adjective}.2.fastq'],
+            infiles1 = expand('{dir}/{{sample}}.{{adjective}}.{split_id:04d}.1.fastq',
+                dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
+                split_id = range(config["deplete_nchunks"])),
+            infiles2 = expand('{dir}/{{sample}}.{{adjective}}.{split_id:04d}.2.fastq',
+                dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
+                split_id = range(config["deplete_nchunks"]))
+    run:
+            shell("cat {params.infiles1} > {params.tmpf_fastq[0]}")
+            shell("cat {params.infiles2} > {params.tmpf_fastq[1]}")
+            shell("{config[binDir]}/read_utils.py fastq_to_bam {params.tmpf_fastq} {output} --header {input[0]}")
+            map(os.unlink, params.tmpf_fastq)
