@@ -123,41 +123,6 @@ class TestBmtagger(TestCaseWithTmp) :
                 os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
                 os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
 
-class TestMvicuna(TestCaseWithTmp) :
-    """
-    Input consists of 3 read pairs.
-    Second read pair is identical to first.
-    Third read pair has same 5' read as first, but different 3' read.
-    What Mvicuna did was create paired output files in which the 2nd read
-        was deleted. It created an empty unpaired output file. Although
-        it initially created the postDupRm pair, it renamed them to the output
-        pair.
-    [IJ:]I have no idea if this is the correct behavior, but test checks that it
-        doesn't change.
-    """
-    def test_mvicuna(self) :
-        tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
-        
-        # Run mvicuna
-        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
-        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
-        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
-        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
-        args = taxon_filter.parser_dup_remove_mvicuna().parse_args(
-            [inFastq1, inFastq2,
-             pairedOutFastq1, pairedOutFastq2,
-             '--unpairedOutFastq', unpairedOutFastq])
-        taxon_filter.main_dup_remove_mvicuna(args)
-            
-        # Compare to expected
-        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq',
-                         'unpairedOut.fastq'] :
-            assert_equal_contents(self,
-                os.path.join(tempDir, filename),
-                os.path.join(myInputDir, 'expected_' + filename))
-
 class TestDepleteBlastn(TestCaseWithTmp) :
     '''
     How test data was created:

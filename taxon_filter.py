@@ -12,8 +12,8 @@ __commands__ = []
 import argparse, logging, subprocess, os, tempfile, errno, shutil
 from Bio import SeqIO
 import util.cmd, util.file
-import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
-       tools.blast, tools.mvicuna
+import tools, tools.blast
+import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger
 from util.file import mkstempfname
 import read_utils
 
@@ -200,9 +200,13 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
     # bmtagger calls several executables in the same directory, and blastn;
     # make sure they are accessible through $PATH
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
-    blastnDir = os.path.dirname(blastnPath)
-    bmtaggerDir = os.path.dirname(bmtaggerPath)
-    envStr = 'PATH={bmtaggerDir}:{blastnDir}:$PATH'.format(**locals())
+    path = os.environ['PATH'].split(os.pathsep)
+    for t in (bmtaggerPath, blastnPath):
+        d = os.path.dirname(t)
+        if d not in path:
+            path = [d] + path
+    path = os.pathsep.join(path)
+    os.environ['PATH'] = path
     
     # bmtagger's list of matches strips /1 and /2 from ends of reads
     strip12 = lambda id : id[:-2] if id.endswith('/1') or id.endswith('/2') \
@@ -219,12 +223,12 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
             depleted by all matches to the first k databases, and
             matchesFiles[:k] contain the list of matching read names.
         """
-        cmdline = ('{envStr} {bmtaggerPath} '
-                   '-b {db}.bitmask -x {db}.srprism -T {tempDir} '
-                   '-q1 -1 {curReads1} -2 {curReads2} '
-                   '-o {matchesFile}').format(**locals())
-        log.debug(cmdline)
-        assert not os.system(cmdline)
+        cmdline = [bmtaggerPath,
+                   '-b', db+'.bitmask', '-x', db+'.srprism' '-T', tempDir,
+                   '-q1', '-1', curReads1, '-2', curReads2,
+                   '-o', matchesFile]
+        log.debug(' '.join(cmdline))
+        subprocess.check_call(cmdline)
         prevReads1, prevReads2 = curReads1, curReads2
         if count < len(databases) - 1 :
             curReads1, curReads2 = mkstempfname(), mkstempfname()
@@ -334,75 +338,6 @@ __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
 
 
-# ============================
-# ***  dup_remove_mvicuna  ***
-# ============================
-
-def dup_remove_mvicuna(inPair, outPair, outUnpaired=None):
-    """
-    Run mvicuna's duplicate removal operation on paired-end input reads in
-        fastq format, producing various outputs in fastq format.
-    inPair, pairedOutPair are pairs of file names,
-        while unpairedOut is a single file name.
-    Notes on weird behaviors of M-Vicuna DupRm:
-        For some reason, it requires you to specify both -opfq and -drm_op.
-        The -drm_op pair (here, tmp1OutPair) is where the output is initially written.
-        Then M-Vicuna renames the -drm_op files to the -opfq filenames (here, tmp2OutPair).
-        So obviously, we use throwaway (tempfile) names for -drm_op and use the real
-        desired output file names in -opfq.
-        The problem is that M-Vicuna uses a rename/move operating system function, which
-        means your tempfiles cannot be on a different file system than the final output
-        files. This is our typical use case (local disks for tempfile.tempdir and
-        network file systems for final output). Hence, our wrapper sets -opfq to yet
-        another set of temp file names, and we move the final output files ourselves
-        using shutil.move (which is capable of crossing file system boundaries).
-    """
-    if not outUnpaired:
-        outUnpaired = mkstempfname(suffix='.unpaired.fastq')
-    tmp1OutPair = (mkstempfname(suffix='.tmp1out.1.fastq'), mkstempfname(suffix='.tmp1out.2.fastq'))
-    tmp2OutPair = (mkstempfname(suffix='.tmp2out.1.fastq'), mkstempfname(suffix='.tmp2out.2.fastq'))
-    mvicunaPath = tools.mvicuna.MvicunaTool().install_and_get_path()
-    input       = ','.join(inPair)
-    pairedOut    = ','.join(tmp2OutPair)
-    postDupRmOut = ','.join(tmp1OutPair)
-    cmdline = ('{mvicunaPath} '
-               '-ipfq {input} '
-               '-opfq {pairedOut} '
-               '-osfq {outUnpaired} '
-               '-drm_op {postDupRmOut} '
-               '-tasks DupRm').format(**locals())
-    log.debug(cmdline)
-    assert not os.system(cmdline)
-    for tmpfname, outfname in zip(tmp2OutPair, outPair):
-        shutil.move(tmpfname, outfname)
-
-def parser_dup_remove_mvicuna() :
-    parser = argparse.ArgumentParser(
-        description='''Run mvicuna's duplicate removal operation on paired-end 
-                       reads.''')
-    parser.add_argument('inFastq1',
-        help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2',
-        help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('pairedOutFastq1',
-        help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('pairedOutFastq2',
-        help='Output fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('--unpairedOutFastq',
-        default=None,
-        help='File name of output unpaired reads')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
-    return parser
-def main_dup_remove_mvicuna(args) :
-    inPair = (args.inFastq1, args.inFastq2)
-    pairedOutPair = (args.pairedOutFastq1, args.pairedOutFastq2)
-    unpairedOutFastq = args.unpairedOutFastq
-    dup_remove_mvicuna(inPair, pairedOutPair, unpairedOutFastq)
-    return 0
-
-__commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,
-                     parser_dup_remove_mvicuna))
-
 
 # ========================
 # ***  deplete_blastn  ***
@@ -419,29 +354,32 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     ## Convert to fasta
     inFasta = mkstempfname() + '.fasta'
     read_utils.fastq_to_fasta(inFastq, inFasta)
-
+    
     ## Run blastn using each of the databases in turn
     blastOutFiles = [mkstempfname() for db in refDbs]
     for db, blastOutFile in zip(refDbs, blastOutFiles) :
-        blastnCmd = '{blastnPath} -db {db} '                 \
-                    '-word_size 16 -evalue 1e-6 -outfmt 6 '  \
-                    '-num_descriptions 2 -num_alignments 2 ' \
-                    '-query {inFasta} -out {blastOutFile}'.format(**locals())
-        log.debug(blastnCmd)
-        assert not os.system(blastnCmd)
+        log.info("running blastn on {} against {}".format(inFastq, db))
+        blastnCmd = [blastnPath, '-db', db,
+                    '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                    '-num_descriptions', '2', '-num_alignments', '2',
+                    '-query', inFasta, '-out', blastOutFile]
+        log.debug(' '.join(blastnCmd))
+        subprocess.check_call(blastnCmd)
 
     ## Combine results from different databases
-    blastOutFilesStr = ' '.join(blastOutFiles)
-    blastOutCombined = mkstempfname()
-    catCmd = 'cat {blastOutFilesStr} > {blastOutCombined}'.format(**locals())
-    log.debug(catCmd)
-    assert not os.system(catCmd)
+    blastOutCombined = mkstempfname('.txt')
+    catCmd = ['cat'] + blastOutFiles
+    log.debug(' '.join(catCmd) + '> ' + blastOutCombined)
+    with open(blastOutCombined, 'wt') as outf:
+        subprocess.check_call(catCmd, stdout = outf)
 
     ## run noBlastHits_v3.py to extract reads with no blast hits
-    noBlastHitsCmd = 'python {noBlastHits_v3Path} -b {blastOutCombined} ' \
-                     '-r {inFastq} -m nohit > {outFastq}'.format(**locals())
-    log.debug(noBlastHitsCmd)
-    assert not os.system(noBlastHitsCmd)
+    # TODO: slurp the small amount of code in this script into here
+    noBlastHitsCmd = ['python', noBlastHits_v3Path, '-b', blastOutCombined,
+                     '-r', inFastq, '-m', 'nohit']
+    log.debug(' '.join(noBlastHitsCmd) + '> ' + outFastq)
+    with util.file.open_or_gzopen(outFastq, 'wt') as outf :
+        subprocess.check_call(noBlastHitsCmd, stdout = outf)
 
 def parser_deplete_blastn() :
     parser = argparse.ArgumentParser(

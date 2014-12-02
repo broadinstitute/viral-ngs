@@ -51,7 +51,7 @@ rule rmdup_mvicuna:
             '{dir}/{sample}.rmdup.{split_id,\d+}.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
             logid="{sample}-{split_id}"
-    shell:  "{config[binDir]}/taxon_filter.py dup_remove_mvicuna {input} {output}"
+    shell:  "{config[binDir]}/read_utils.py dup_remove_mvicuna {input} {output}"
 
 rule deplete_blastn_paired:
     input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
