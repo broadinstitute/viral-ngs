@@ -15,7 +15,7 @@ import util.cmd, util.file
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, \
        tools.blast, tools.mvicuna
 from util.file import mkstempfname
-from read_utils import fastq_to_fasta
+import read_utils
 
 log = logging.getLogger(__name__)
 
@@ -176,12 +176,11 @@ def select_reads(inFastq, outFastq, selectorFcn) :
     Output in outFastq all reads from inFastq for which
         selectorFcn returns True.
     """
-    inFile  = util.file.open_or_gzopen(inFastq)
-    outFile = util.file.open_or_gzopen(outFastq, 'w')
-    for rec in SeqIO.parse(inFile, 'fastq') :
-        if selectorFcn(rec) :
-            SeqIO.write([rec], outFile, 'fastq')
-    outFile.close()
+    with util.file.open_or_gzopen(inFastq, 'rt') as inFile :
+        with util.file.open_or_gzopen(outFastq, 'wt') as outFile :
+            for rec in SeqIO.parse(inFile, 'fastq') :
+                if selectorFcn(rec) :
+                    SeqIO.write([rec], outFile, 'fastq')
 
 def partition_bmtagger(inFastq1, inFastq2, databases,
                        outMatch = None, outNoMatch = None) :
@@ -419,7 +418,7 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     
     ## Convert to fasta
     inFasta = mkstempfname() + '.fasta'
-    fastq_to_fasta(inFastq, inFasta)
+    read_utils.fastq_to_fasta(inFastq, inFasta)
 
     ## Run blastn using each of the databases in turn
     blastOutFiles = [mkstempfname() for db in refDbs]
@@ -464,6 +463,44 @@ def main_deplete_blastn(args) :
     return 0
 __commands__.append(('deplete_blastn', main_deplete_blastn,
                      parser_deplete_blastn))
+
+def deplete_blastn_paired(infq1, infq2, outfq1, outfq2, refDbs):
+    tmpfq1_a = mkstempfname('.fastq')
+    tmpfq1_b = mkstempfname('.fastq')
+    tmpfq2_b = mkstempfname('.fastq')
+    tmpfq2_c = mkstempfname('.fastq')
+    # deplete fq1
+    deplete_blastn(infq1, tmpfq1_a, refDbs)
+    # purge fq2 of read pairs lost in fq1
+    # (this should significantly speed up the second run of deplete_blastn)
+    read_utils.purge_unmated(tmpfq1_a, infq2, tmpfq1_b, tmpfq2_b)
+    # deplete fq2
+    deplete_blastn(tmpfq2_b, tmpfq2_c, refDbs)
+    # purge fq1 of read pairs lost in fq2
+    read_utils.purge_unmated(tmpfq1_b, tmpfq2_c, outfq1, outfq2)
+
+def parser_deplete_blastn_paired() :
+    parser = argparse.ArgumentParser(
+        description='''Use blastn to remove reads that match at least
+                       one of the specified databases.''')
+    parser.add_argument('inFastq1',
+        help='Input fastq file.')
+    parser.add_argument('inFastq2',
+        help='Input fastq file.')
+    parser.add_argument('outFastq1',
+        help='Output fastq file with matching reads removed.')
+    parser.add_argument('outFastq2',
+        help='Output fastq file with matching reads removed.')
+    parser.add_argument('refDbs', nargs='+',
+        help='One or more reference databases for blast.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_deplete_blastn_paired(args) :
+    deplete_blastn_paired(args.inFastq1, args.inFastq2,
+        args.outFastq1, args.outFastq2, args.refDbs)
+    return 0
+__commands__.append(('deplete_blastn_paired', main_deplete_blastn_paired,
+                     parser_deplete_blastn_paired))
 
 # ========================
 
