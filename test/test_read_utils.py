@@ -99,7 +99,7 @@ class TestFastqBam(TestCaseWithTmp) :
 class TestSplitReads(TestCaseWithTmp) :
     'Test various options of split_reads command.'
     def test_max_reads(self) :
-        'Test splitting fastq using --maxReads option, with suffixLen 1.'
+        'Test splitting fastq using --maxReads option, with indexLen 1.'
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
@@ -108,20 +108,20 @@ class TestSplitReads(TestCaseWithTmp) :
         # Split
         parser = read_utils.parser_split_reads()
         args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4',
-                                  '--suffixLen', '1'])
+                                  '--indexLen', '1'])
         read_utils.main_split_reads(args)
         
         # Check that results match expected
-        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.a')
-        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.b')
-        assert_equal_contents(self, outPrefix + 'a', expectedFastq1)
-        assert_equal_contents(self, outPrefix + 'b', expectedFastq2)
+        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.1')
+        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.2')
+        assert_equal_contents(self, outPrefix + '1', expectedFastq1)
+        assert_equal_contents(self, outPrefix + '2', expectedFastq2)
 
     def test_num_chunks(self) :
-        'Test spliting fastq using --numChunks option, with default suffixLen.'
+        'Test spliting fastq.gz using --numChunks option, with default indexLen.'
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
-        inFastq = os.path.join(myInputDir, 'in.fastq')
+        inFastq = os.path.join(myInputDir, 'in.fastq.gz')
         outPrefix = util.file.mkstempfname()
 
         # Split
@@ -130,12 +130,12 @@ class TestSplitReads(TestCaseWithTmp) :
         read_utils.main_split_reads(args)
         
         # Check that results match expected
-        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.aa')
-        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.ab')
-        expectedFastq3 = os.path.join(myInputDir, 'expected.fastq.ac')
-        assert_equal_contents(self, outPrefix + 'aa', expectedFastq1)
-        assert_equal_contents(self, outPrefix + 'ab', expectedFastq2)
-        assert_equal_contents(self, outPrefix + 'ac', expectedFastq3)
+        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.01')
+        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.02')
+        expectedFastq3 = os.path.join(myInputDir, 'expected.fastq.03')
+        assert_equal_contents(self, outPrefix + '01', expectedFastq1)
+        assert_equal_contents(self, outPrefix + '02', expectedFastq2)
+        assert_equal_contents(self, outPrefix + '03', expectedFastq3)
 
     def test_fasta(self) :
         'Test splitting fasta file.'
@@ -151,10 +151,10 @@ class TestSplitReads(TestCaseWithTmp) :
         read_utils.main_split_reads(args)
         
         # Check that results match expected
-        expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.aa')
-        expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.ab')
-        assert_equal_contents(self, outPrefix + 'aa', expectedFasta1)
-        assert_equal_contents(self, outPrefix + 'ab', expectedFasta2)
+        expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.01')
+        expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.02')
+        assert_equal_contents(self, outPrefix + '01', expectedFasta1)
+        assert_equal_contents(self, outPrefix + '02', expectedFasta2)
 
 if __name__ == '__main__':
     unittest.main()
