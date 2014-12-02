@@ -3,8 +3,8 @@ import logging, os, os.path, subprocess, tempfile
 import tools, util.file
 
 tool_version = '1.126'
-url = 'https://github.com/broadinstitute/picard/releases/download/{ver}/' \
-        + 'picard-tools-{ver}.zip'.format(ver=tool_version)
+url = 'https://github.com/broadinstitute/picard/releases/download/' \
+        + '{ver}/picard-tools-{ver}.zip'.format(ver=tool_version)
 # Note: Version 1.126 is latest as of 2014-12-02
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
 
