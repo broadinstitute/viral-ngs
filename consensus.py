@@ -65,9 +65,9 @@ def parser_filter_short_seqs():
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
     parser.add_argument("outFile", help="output file")
-    parser.add_argument("-f", "--format", help="Format for input sequence (default: fasta)", default="fasta")
+    parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument("-of", "--output-format",
-                        help="Format for output sequence (default: fasta)", default="fasta")
+                        help="Format for output sequence (default: %(default)s)", default="fasta")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_filter_short_seqs(args):
@@ -94,7 +94,7 @@ def parser_modify_contig():
     parser.add_argument("output", help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
     parser.add_argument("-n", "--name",
-        help="fasta header output name (default:existing header)",
+        help="fasta header output name (default: existing header)",
         default=None)
     parser.add_argument("-cn", "--call-reference-ns",
         help="""should the reference sequence be called if there is an
