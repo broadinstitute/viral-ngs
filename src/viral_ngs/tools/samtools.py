@@ -48,6 +48,6 @@ class SamtoolsTool(tools.Tool) :
     
     def count(self, inBam, opts=[]) :
         tmp = util.file.mkstempfname('.count')
-        self.execute('view', ['-c'] + opts, stdout=tmp)
+        self.execute('view', ['-c'] + opts + [inBam], stdout=tmp)
         with open(tmp, 'rt') as inf:
             return int(inf.readline().strip())
