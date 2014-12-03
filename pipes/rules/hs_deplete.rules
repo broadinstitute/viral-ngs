@@ -19,16 +19,9 @@ rule revert_bam:
                 subdir=config["subdirs"]["depletion"]))
             shell("{config[binDir]}/read_utils.py revert_bam_picard {input} {output} --picardOptions SORT_ORDER=queryname SANITIZE=true SAMPLE_ALIAS={wildcards.sample}")
 
-rule rmdup_picard:
-    input:  '{dir}/{sample}.raw.bam'
-    output: '{dir}/{sample}.rmdup.bam'
-    params: LSF='-M 12 -R "rusage[mem=6]" -W 4:00',
-            logid="{sample}"
-    shell:	"{config[binDir]}/read_utils.py mkdup_picard {input} {output} --remove"
-
 rule split_bam:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
-    output: expand('{dir}/{{sample}}.rmdup.{split_id:04d}.bam', \
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+    output: expand('{dir}/{{sample}}.raw.{split_id:04d}.bam', \
     			dir = config["tmpDir"] + '/' + config["subdirs"]["depletion"], \
                 split_id = range(1,1+config["deplete_nchunks"]))
     params: LSF='-M 6 -R "rusage[mem=3]" -W 4:00',
@@ -36,17 +29,17 @@ rule split_bam:
     shell:	"{config[binDir]}/read_utils.py split_bam {input} {output}"
 
 rule depl_bam_to_fastq:
-    input:  '{dir}/{sample}.rmdup.{split_id,\d+}.bam'
-    output: '{dir}/{sample}.rmdup.{split_id}.samheader.txt',
-    		'{dir}/{sample}.rmdup.{split_id}.1.fastq',
-    		'{dir}/{sample}.rmdup.{split_id}.2.fastq'
+    input:  '{dir}/{sample}.raw.{split_id,\d+}.bam'
+    output: '{dir}/{sample}.raw.{split_id}.samheader.txt',
+    		'{dir}/{sample}.raw.{split_id}.1.fastq',
+    		'{dir}/{sample}.raw.{split_id}.2.fastq'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}-{split_id}"
     shell:	"{config[binDir]}/read_utils.py bam_to_fastq {input} {output[1]} {output[2]} --outHeader {output[0]}"
 
 rule deplete_bmtagger:
-    input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
-            '{dir}/{sample}.rmdup.{split_id}.2.fastq'
+    input:  '{dir}/{sample}.raw.{split_id}.1.fastq',
+            '{dir}/{sample}.raw.{split_id}.2.fastq'
     #       expand("{dbdir}/{db}.{suffix}",
     #           dbdir=config["bmTaggerDbDir"],
     #           db=config["bmTaggerDbs_remove"],
@@ -61,15 +54,15 @@ rule deplete_bmtagger:
 rule rmdup_mvicuna:
     input:  '{dir}/{sample}.bmtagger_depleted.{split_id}.1.fastq',
             '{dir}/{sample}.bmtagger_depleted.{split_id}.2.fastq'
-    output: '{dir}/{sample}.rmdup2.{split_id,\d+}.1.fastq',
-            '{dir}/{sample}.rmdup2.{split_id,\d+}.2.fastq'
+    output: '{dir}/{sample}.rmdup.{split_id,\d+}.1.fastq',
+            '{dir}/{sample}.rmdup.{split_id,\d+}.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/read_utils.py dup_remove_mvicuna {input} {output}"
 
 rule deplete_blastn_paired:
-    input:  '{dir}/{sample}.rmdup2.{split_id}.1.fastq',
-            '{dir}/{sample}.rmdup2.{split_id}.2.fastq'
+    input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
+            '{dir}/{sample}.rmdup.{split_id}.2.fastq'
     output: '{dir}/{sample}.cleaned.{split_id,\d+}.1.fastq',
             '{dir}/{sample}.cleaned.{split_id,\d+}.2.fastq'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
@@ -78,7 +71,7 @@ rule deplete_blastn_paired:
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_paired {input} {output} {params.refDbs}"
 
 rule merge_to_bam:
-    input:  config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.0001.samheader.txt',
+    input:  config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.0001.samheader.txt',
             expand('{dir}/{{sample}}.cleaned.{split_id:04d}.{direction}.fastq',
                 dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
                 direction = [1,2],
