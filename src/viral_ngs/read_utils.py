@@ -437,7 +437,7 @@ def split_bam(inBam, outBams) :
     
     # get totalReadCount and maxReads
     totalReadCount = samtools.count(inBam)
-    maxReads = int(round(float(totalReadCount) / len(outFiles) / 2) * 2)
+    maxReads = int(round(float(totalReadCount) / len(outBams) / 2) * 2)
     
     # load BAM header into memory
     headerFile = mkstempfname('.txt')
