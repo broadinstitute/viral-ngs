@@ -217,7 +217,9 @@ rule map_reads_to_ref:
     # TODO: replace with python wrapper
     run:
             update_timestamps(input)
-            makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_ref"]))
+            makedirs(expand("{dir}/{subdir}",
+                dir=[config["dataDir"], config["tmpDir"]],
+                subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
             novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
             filter_bam_mapped_only(output[0], output[1])
             shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
