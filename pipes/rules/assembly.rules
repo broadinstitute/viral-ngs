@@ -210,7 +210,7 @@ rule map_reads_to_ref:
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
+    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8 -sp 30',
             logid="{sample}",
             refGenome=config["ref_genome"],
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.intervals'
