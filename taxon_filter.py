@@ -172,9 +172,12 @@ __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 
 def select_reads(inFastq, outFastq, selectorFcn) :
     """
-    selectorFcn: Bio.SeqRecord.SeqRecord -> bool
-    Output in outFastq all reads from inFastq for which
-        selectorFcn returns True.
+        selectorFcn: Bio.SeqRecord.SeqRecord -> bool
+        Output in outFastq all reads from inFastq for which
+            selectorFcn returns True.
+        TO DO: change this to use Picard FilterSamReads (and operate
+            on BAM files) which is likely much faster. This is the
+            slowest step of partition_bmtagger currently.
     """
     with util.file.open_or_gzopen(inFastq, 'rt') as inFile :
         with util.file.open_or_gzopen(outFastq, 'wt') as outFile :
