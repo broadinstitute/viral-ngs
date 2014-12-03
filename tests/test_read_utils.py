@@ -12,8 +12,8 @@ class TestPurgeUnmated(TestCaseWithTmp) :
         myInputDir = util.file.get_test_input_path(self)
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
-        outFastq1 = util.file.mkstempfname()
-        outFastq2 = util.file.mkstempfname()
+        outFastq1 = util.file.mkstempfname('.fastq')
+        outFastq2 = util.file.mkstempfname('.fastq')
         parser = read_utils.parser_purge_unmated()
         args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
         read_utils.main_purge_unmated(args)
@@ -29,7 +29,7 @@ class TestFastqToFasta(TestCaseWithTmp) :
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
-        outFasta = util.file.mkstempfname()
+        outFasta = util.file.mkstempfname('.fasta')
         parser = read_utils.parser_fastq_to_fasta()
         args = parser.parse_args([inFastq, outFasta])
         read_utils.main_fastq_to_fasta(args)
@@ -50,12 +50,12 @@ class TestFastqBam(TestCaseWithTmp) :
         inHeader = os.path.join(myInputDir, 'inHeader.txt')
         expectedSam = os.path.join(myInputDir, 'expected.sam')
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq1')
-        outBamCmd = util.file.mkstempfname() + '.bam'
-        outBamTxt = util.file.mkstempfname() + '.bam'
-        outSam = util.file.mkstempfname() + '.sam'
-        outFastq1 = util.file.mkstempfname() + '.fastq'
-        outFastq2 = util.file.mkstempfname() + '.fastq'
-        outHeader = util.file.mkstempfname() + '.txt'
+        outBamCmd = util.file.mkstempfname('.bam')
+        outBamTxt = util.file.mkstempfname('.bam')
+        outSam = util.file.mkstempfname('.sam')
+        outFastq1 = util.file.mkstempfname('.fastq')
+        outFastq2 = util.file.mkstempfname('.fastq')
+        outHeader = util.file.mkstempfname('.txt')
         
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
         parser = read_utils.parser_fastq_to_bam()
