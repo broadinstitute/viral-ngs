@@ -436,6 +436,10 @@ def split_bam(inBam, outBams) :
     picard = tools.picard.PicardTools()
     
     # get totalReadCount and maxReads
+    # maxReads = totalReadCount / num files, but round up to the nearest
+    # even number in order to keep read pairs together (assuming the input
+    # is sorted in query order and has no unmated reads, which can be
+    # accomplished by Picard RevertSam with SANITIZE=true)
     totalReadCount = samtools.count(inBam)
     maxReads = int(math.ceil(float(totalReadCount) / len(outBams) / 2) * 2)
     log.info("splitting %d reads into %d files of %d reads each" % (
