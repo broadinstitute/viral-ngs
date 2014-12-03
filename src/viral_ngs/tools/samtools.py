@@ -45,3 +45,9 @@ class SamtoolsTool(tools.Tool) :
     
     def dumpHeader(self, inBam, outHeader) :
         self.execute('view', ['-H', inBam], stdout=outHeader)
+    
+    def count(self, inBam, opts=[]) :
+        tmp = util.file.mkstempfname('.count')
+        self.execute('view', ['-c'] + opts, stdout=tmp)
+        with open(tmp, 'rt') as inf:
+            return int(inf.readline().strip())

@@ -168,9 +168,33 @@ def main_mkdup_picard(args) :
     return 0
 __commands__.append(('mkdup_picard', main_mkdup_picard, parser_mkdup_picard))
 
-# =======================
-# ***  picard   ***
-# =======================
+# =============================
+# ***  revert_bam_picard   ***
+# =============================
+
+def parser_revert_bam_picard() :
+    parser = argparse.ArgumentParser(
+        description='''Revert BAM to raw reads''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('--JVMmemory', default = tools.picard.RevertSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s RevertSam, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_revert_bam_picard(args) :
+    opts = list(args.picardOptions)
+    tools.picard.RevertSamTool().execute(
+        args.inBam, args.outBam,
+        picardOptions=opts, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('revert_bam_picard',
+    main_revert_bam_picard, parser_revert_bam_picard))
+
+# =========================
+# ***  generic picard   ***
+# =========================
 
 def parser_picard() :
     parser = argparse.ArgumentParser(
@@ -188,9 +212,9 @@ def main_picard(args) :
     return 0
 __commands__.append(('picard', main_picard, parser_picard))
 
-# =======================
+# ===================
 # ***  sort_bam   ***
-# =======================
+# ===================
 
 def parser_sort_bam() :
     parser = argparse.ArgumentParser(
@@ -352,7 +376,7 @@ def split_reads(inFileName, outPrefix, outSuffix = "",
                 totalReadCount = 0
                 for rec in SeqIO.parse(inFile, format) :
                     totalReadCount += 1
-                maxReads = int(totalReadCount / numChunks + 0.5)
+                maxReads = int(round(totalReadCount / numChunks + 0.5))
 
     with util.file.open_or_gzopen(inFileName, 'rt') as inFile :
         readsWritten = 0
@@ -404,6 +428,59 @@ def main_split_reads(args) :
         args.maxReads, args.numChunks, args.indexLen, args.format)
     return 0
 __commands__.append(('split_reads', main_split_reads, parser_split_reads))
+
+
+def split_bam(inBam, outBams) :
+    '''Split BAM file equally into several output BAM files. '''
+    samtools = tools.samtools.SamtoolsTool()
+    picard = tools.picard.PicardTools()
+    
+    # get totalReadCount and maxReads
+    totalReadCount = samtools.count(inBam)
+    maxReads = int(round(float(totalReadCount) / len(outFiles) / 2) * 2)
+    
+    # load BAM header into memory
+    headerFile = mkstempfname('.txt')
+    samtools.dumpHeader(inBam, headerFile)
+    with open(headerFile, 'rt') as inf:
+        header = inf.readlines()
+    os.unlink(headerFile)
+    
+    # dump to bigsam
+    bigsam = mkstempfname('.sam')
+    samtools.execute('view', [inBam], stdout=bigsam)
+    
+    # split bigsam into little ones
+    with util.file.open_or_gzopen(bigsam, 'rt') as inf:
+        for outBam in outBams:
+            tmp_sam_reads = mkstempfname('.bam')
+            with open(tmp_sam_reads, 'wt') as outf:
+                for line in header:
+                    outf.write(line)
+                for i in range(maxReads):
+                    line = inf.readline()
+                    if not line:
+                        break
+                    outf.write(line)
+                if outBam == outBams[-1]:
+                    for line in inf:
+                        outf.write(line)
+            picard.execute("SamFormatConverter", ['INPUT='+tmp_sam_reads, 'OUTPUT='+outBam])
+            os.unlink(tmp_sam_reads)
+    os.unlink(bigsam)
+def parser_split_bam() :
+    parser = argparse.ArgumentParser(
+        description='Split a fastq or fasta file into chunks.')
+    parser.add_argument('inFile',
+        help='Input BAM file.')
+    parser.add_argument('outFiles', nargs='+',
+        help='Output BAM files')
+    return parser
+def main_split_bam(args) :
+    split_bam(args.inFile, args.outFiles)
+    return 0
+__commands__.append(('split_bam', main_split_bam, parser_split_bam))
+
 
 # ============================
 # ***  dup_remove_mvicuna  ***
