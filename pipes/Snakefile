@@ -31,3 +31,6 @@ rule all:
                 shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
             print("echo all done!")
 
+
+rule clean:
+    shell: "rm -rf {config[tmpDir]}/* .snakemake.tmp.*"
