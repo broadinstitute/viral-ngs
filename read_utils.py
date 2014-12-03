@@ -376,7 +376,7 @@ def split_reads(inFileName, outPrefix, outSuffix = "",
                 totalReadCount = 0
                 for rec in SeqIO.parse(inFile, format) :
                     totalReadCount += 1
-                maxReads = int(round(totalReadCount / numChunks + 0.5))
+                maxReads = int(totalReadCount / numChunks + 0.5)
 
     with util.file.open_or_gzopen(inFileName, 'rt') as inFile :
         readsWritten = 0
