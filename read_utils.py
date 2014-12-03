@@ -438,6 +438,8 @@ def split_bam(inBam, outBams) :
     # get totalReadCount and maxReads
     totalReadCount = samtools.count(inBam)
     maxReads = int(round(float(totalReadCount) / len(outBams) / 2) * 2)
+    log.info("splitting %d reads into %d files of %d reads each" % (
+        totalReadCount, len(outBams), maxReads))
     
     # load BAM header into memory
     headerFile = mkstempfname('.txt')
@@ -453,7 +455,8 @@ def split_bam(inBam, outBams) :
     # split bigsam into little ones
     with util.file.open_or_gzopen(bigsam, 'rt') as inf:
         for outBam in outBams:
-            tmp_sam_reads = mkstempfname('.bam')
+            log.info("preparing file "+outBam)
+            tmp_sam_reads = mkstempfname('.sam')
             with open(tmp_sam_reads, 'wt') as outf:
                 for line in header:
                     outf.write(line)
@@ -465,7 +468,9 @@ def split_bam(inBam, outBams) :
                 if outBam == outBams[-1]:
                     for line in inf:
                         outf.write(line)
-            picard.execute("SamFormatConverter", ['INPUT='+tmp_sam_reads, 'OUTPUT='+outBam])
+            picard.execute("SamFormatConverter", [
+                'INPUT='+tmp_sam_reads, 'OUTPUT='+outBam,
+                'VERBOSITY=WARNING'], JVMmemory='512m')
             os.unlink(tmp_sam_reads)
     os.unlink(bigsam)
 def parser_split_bam() :
