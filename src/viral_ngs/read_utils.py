@@ -10,7 +10,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, tempfile, shutil, subprocess
+import argparse, logging, math, os, tempfile, shutil, subprocess
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
@@ -437,7 +437,7 @@ def split_bam(inBam, outBams) :
     
     # get totalReadCount and maxReads
     totalReadCount = samtools.count(inBam)
-    maxReads = int(round(float(totalReadCount) / len(outBams) / 2) * 2)
+    maxReads = int(math.ceil(float(totalReadCount) / len(outBams) / 2) * 2)
     log.info("splitting %d reads into %d files of %d reads each" % (
         totalReadCount, len(outBams), maxReads))
     
