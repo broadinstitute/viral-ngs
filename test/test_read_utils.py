@@ -8,7 +8,6 @@ from test import assert_equal_contents, TestCaseWithTmp
 
 class TestPurgeUnmated(TestCaseWithTmp) :
     def test_purge_unmated(self) :
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
@@ -26,7 +25,6 @@ class TestPurgeUnmated(TestCaseWithTmp) :
 
 class TestFastqToFasta(TestCaseWithTmp) :
     def test_fastq_to_fasta(self) :
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
         outFasta = util.file.mkstempfname('.fasta')
@@ -41,7 +39,6 @@ class TestFastqToFasta(TestCaseWithTmp) :
 class TestFastqBam(TestCaseWithTmp) :
     'Class for testing fastq <-> bam conversions'
     def test_fastq_bam(self) :
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         
         # Define file names
@@ -70,10 +67,8 @@ class TestFastqBam(TestCaseWithTmp) :
         read_utils.main_fastq_to_bam(args)
 
         # samtools view for out.sam and compare to expected
-        samtoolsPath = tools.samtools.SamtoolsTool().install_and_get_path()
-        viewCmd = '{samtoolsPath} view -h {outBamCmd} > {outSam}'.format(
-            **locals())
-        assert not os.system(viewCmd)
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.execute('view', ['-h', outBamCmd], stdout=outSam)
         assert_equal_contents(self, outSam, expectedSam)
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
@@ -95,6 +90,12 @@ class TestFastqBam(TestCaseWithTmp) :
         assert_equal_contents(self, outFastq1, expectedFastq1) # 1 base trimmed
         assert_equal_contents(self, outFastq2, inFastq2)
         assert_equal_contents(self, outHeader, inHeader)
+        
+    def test_bam_count(self):
+        expectedSam = os.path.join(util.file.get_test_input_path(self), 'expected.sam')
+        n = tools.samtools.SamtoolsTool().count(expectedSam, ['-S'])
+        self.assertEqual(n, 2)
+        
 
 class TestSplitReads(TestCaseWithTmp) :
     'Test various options of split_reads command.'
