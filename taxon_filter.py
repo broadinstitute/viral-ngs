@@ -227,7 +227,7 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
             matchesFiles[:k] contain the list of matching read names.
         """
         cmdline = [bmtaggerPath,
-                   '-b', db+'.bitmask', '-x', db+'.srprism' '-T', tempDir,
+                   '-b', db+'.bitmask', '-x', db+'.srprism', '-T', tempDir,
                    '-q1', '-1', curReads1, '-2', curReads2,
                    '-o', matchesFile]
         log.debug(' '.join(cmdline))
@@ -290,7 +290,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
     for db in databases:
         outprefix = mkstempfname()
         cmdline = [bmtaggerPath, '-X',
-                   '-b', db+'.bitmask', '-x', db+'.srprism' '-T', tempDir,
+                   '-b', db+'.bitmask', '-x', db+'.srprism', '-T', tempDir,
                    '-q1', '-1', curReads1, '-2', curReads2,
                    '-o', outprefix]
         log.debug(' '.join(cmdline))
