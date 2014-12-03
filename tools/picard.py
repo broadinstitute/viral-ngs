@@ -34,6 +34,13 @@ class PicardTools(tools.Tool) :
     def dict_to_picard_opts(self, options) :
         return ["%s=%s" % (k,v) for k,v in options.items()]
 
+class RevertSamTool(PicardTools) :
+    subtoolName = 'RevertSam'
+    def execute(self, inBam, outBam,
+                picardOptions=[], JVMmemory=None) :
+        opts = ['INPUT='+inBam, 'OUTPUT='+outBam]
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
 class MarkDuplicatesTool(PicardTools) :
     subtoolName = 'MarkDuplicates'
     def execute(self, inBams, outBam, outMetrics=None,
@@ -41,7 +48,7 @@ class MarkDuplicatesTool(PicardTools) :
         if not outMetrics :
             outMetrics = util.file.mkstempfname('.metrics')
         opts = ['INPUT='+bam for bam in inBams] + [
-            'OUTPUT='+outBam, 'METRICS='+outMetrics]
+            'OUTPUT='+outBam, 'METRICS_FILE='+outMetrics]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class SamToFastqTool(PicardTools) :

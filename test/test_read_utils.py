@@ -100,7 +100,6 @@ class TestSplitReads(TestCaseWithTmp) :
     'Test various options of split_reads command.'
     def test_max_reads(self) :
         'Test splitting fastq using --maxReads option, with indexLen 1.'
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
         outPrefix = util.file.mkstempfname()
@@ -119,7 +118,6 @@ class TestSplitReads(TestCaseWithTmp) :
 
     def test_num_chunks(self) :
         'Test spliting fastq.gz using --numChunks option, with default indexLen.'
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq.gz')
         outPrefix = util.file.mkstempfname()
@@ -139,7 +137,6 @@ class TestSplitReads(TestCaseWithTmp) :
 
     def test_fasta(self) :
         'Test splitting fasta file.'
-        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         inFasta = os.path.join(myInputDir, 'in.fasta')
         outPrefix = util.file.mkstempfname()
@@ -155,6 +152,7 @@ class TestSplitReads(TestCaseWithTmp) :
         expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.02')
         assert_equal_contents(self, outPrefix + '01', expectedFasta1)
         assert_equal_contents(self, outPrefix + '02', expectedFasta2)
+        
 
 class TestMvicuna(TestCaseWithTmp) :
     """
