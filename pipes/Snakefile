@@ -1,0 +1,36 @@
+configfile: "config.json"
+
+include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
+include: config["binDir"]+"/pipes/rules/assembly.rules"
+
+def read_samples_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
+
+rule all:
+    input:
+        # create final assemblies for all samples
+        expand("{dataDir}/{subdir}/{sample}.fasta",
+            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
+            sample=read_samples_file(config["samples_file"])),
+        # create BAMs of aligned reads to own consensus and to commong ref
+        expand("{dataDir}/{subdir}/{sample}.bam",
+            dataDir=config["dataDir"],
+            subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
+            sample=read_samples_file(config["samples_file"])),
+        # create summary reports
+        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
+        config["reportsDir"]+'/summary.fastqc.txt',
+        config["reportsDir"]+'/summary.bamstats.txt',
+        config["reportsDir"]+'/summary.spike_count.txt'
+    params: LSF="-N"
+    run:
+            if "job_profiler" in config:
+                print("running report on all job runs")
+                shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
+            print("echo all done!")
+
+
+rule clean:
+    shell: "rm -rf {config[tmpDir]}/* .snakemake.tmp.*"

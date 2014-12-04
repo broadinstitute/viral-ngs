@@ -84,7 +84,7 @@ def mkdir_p(dirpath):
         else: raise
 
 def open_or_gzopen(fname, *opts):
-    return fname.endswith('.gz') and gzip.GzipFile(fname, *opts) or open(fname, *opts)
+    return fname.endswith('.gz') and gzip.open(fname, *opts) or open(fname, *opts)
 
 def cat_files_and_header(inFiles, outFile, add_header=None, strip_in_rows=0):
     ''' This is like cat... except that we optionally drop header rows from
