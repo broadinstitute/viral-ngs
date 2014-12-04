@@ -3,7 +3,11 @@
 __author__ = "irwin@broadinstitute.org"
 
 import filecmp, os, unittest
-import util
+import util.file
+
+def assert_equal_contents(testCase, filename1, filename2) :
+    'Assert contents of two files are equal for a unittest.TestCase'
+    testCase.assertTrue(filecmp.cmp(filename1, filename2, shallow=False))
 
 class TestCaseWithTmp(unittest.TestCase) :
     'Base class for tests that use tempDir'
@@ -13,6 +17,8 @@ class TestCaseWithTmp(unittest.TestCase) :
     def tearDown(self) :
         util.file.destroy_tmpDir()
 
+    def assertEqualContents(self, f1, f2) :
+        assert_equal_contents(self, f1, f2)
 
 
 """
@@ -26,7 +32,3 @@ def assert_none_executable() :
                for filename in os.listdir(testDir)
                if filename.endswith('.py'))
 assert_none_executable()
-
-def assert_equal_contents(testCase, filename1, filename2) :
-    'Assert contents of two files are equal for a unittest.TestCase'
-    testCase.assertTrue(filecmp.cmp(filename1, filename2, shallow=False))
