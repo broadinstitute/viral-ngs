@@ -84,9 +84,9 @@ class CreateSequenceDictionaryTool(PicardTools) :
     def execute(self, inFasta, outDict=None, overwrite=False,
                 picardOptions=[], JVMmemory=None) :
         if not outDict:
-            if inFasta.lowercase().endswith('.fa'):
+            if inFasta.lower().endswith('.fa'):
                 outDict = inFasta[:-3]
-            elif inFasta.lowercase().endswith('.fasta'):
+            elif inFasta.lower().endswith('.fasta'):
                 outDict = inFasta[:-6]
             else:
                 raise Exception("bad input")
