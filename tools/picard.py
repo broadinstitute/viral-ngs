@@ -81,13 +81,14 @@ class SortSamTool(PicardTools) :
 
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
+    jvmMemDefault = '512m'
     def execute(self, inFasta, outDict=None, overwrite=False,
                 picardOptions=[], JVMmemory=None) :
         if not outDict:
             if inFasta.lower().endswith('.fa'):
-                outDict = inFasta[:-3]
+                outDict = inFasta[:-3] + '.dict'
             elif inFasta.lower().endswith('.fasta'):
-                outDict = inFasta[:-6]
+                outDict = inFasta[:-6] + '.dict'
             else:
                 raise Exception("bad input")
         if os.path.isfile(outDict):

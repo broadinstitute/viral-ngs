@@ -4,7 +4,7 @@ __author__ = "irwin@broadinstitute.org"
 
 import unittest, os, tempfile
 import util, util.file, read_utils, tools, tools.samtools
-from test import assert_equal_contents, TestCaseWithTmp
+from test import TestCaseWithTmp
 
 class TestPurgeUnmated(TestCaseWithTmp) :
     def test_purge_unmated(self) :
@@ -20,8 +20,8 @@ class TestPurgeUnmated(TestCaseWithTmp) :
         # Check that results match expected
         expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
         expected2Fastq = os.path.join(myInputDir, 'expected2.fastq')
-        assert_equal_contents(self, outFastq1, expected1Fastq)
-        assert_equal_contents(self, outFastq2, expected2Fastq)
+        self.assertEqualContents(outFastq1, expected1Fastq)
+        self.assertEqualContents(outFastq2, expected2Fastq)
 
 class TestFastqToFasta(TestCaseWithTmp) :
     def test_fastq_to_fasta(self) :
@@ -34,7 +34,7 @@ class TestFastqToFasta(TestCaseWithTmp) :
 
         # Check that results match expected
         expectedFasta = os.path.join(myInputDir, 'expected.fasta')
-        assert_equal_contents(self, outFasta, expectedFasta)
+        self.assertEqualContents(outFasta, expectedFasta)
 
 class TestFastqBam(TestCaseWithTmp) :
     'Class for testing fastq <-> bam conversions'
@@ -69,7 +69,7 @@ class TestFastqBam(TestCaseWithTmp) :
         # samtools view for out.sam and compare to expected
         samtools = tools.samtools.SamtoolsTool()
         samtools.execute('view', ['-h', outBamCmd], stdout=outSam)
-        assert_equal_contents(self, outSam, expectedSam)
+        self.assertEqualContents(outSam, expectedSam)
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
         parser = read_utils.parser_fastq_to_bam()
@@ -87,14 +87,9 @@ class TestFastqBam(TestCaseWithTmp) :
         read_utils.main_bam_to_fastq(args)
 
         # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
-        assert_equal_contents(self, outFastq1, expectedFastq1) # 1 base trimmed
-        assert_equal_contents(self, outFastq2, inFastq2)
-        assert_equal_contents(self, outHeader, inHeader)
-        
-    def test_bam_count(self):
-        expectedSam = os.path.join(util.file.get_test_input_path(self), 'expected.sam')
-        n = tools.samtools.SamtoolsTool().count(expectedSam, ['-S'])
-        self.assertEqual(n, 2)
+        self.assertEqualContents(outFastq1, expectedFastq1) # 1 base trimmed
+        self.assertEqualContents(outFastq2, inFastq2)
+        self.assertEqualContents(outHeader, inHeader)
         
 
 class TestSplitReads(TestCaseWithTmp) :
@@ -114,8 +109,8 @@ class TestSplitReads(TestCaseWithTmp) :
         # Check that results match expected
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.1')
         expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.2')
-        assert_equal_contents(self, outPrefix + '1', expectedFastq1)
-        assert_equal_contents(self, outPrefix + '2', expectedFastq2)
+        self.assertEqualContents(outPrefix + '1', expectedFastq1)
+        self.assertEqualContents(outPrefix + '2', expectedFastq2)
 
     def test_num_chunks(self) :
         'Test spliting fastq.gz using --numChunks option, with default indexLen.'
@@ -132,9 +127,9 @@ class TestSplitReads(TestCaseWithTmp) :
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.01')
         expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.02')
         expectedFastq3 = os.path.join(myInputDir, 'expected.fastq.03')
-        assert_equal_contents(self, outPrefix + '01', expectedFastq1)
-        assert_equal_contents(self, outPrefix + '02', expectedFastq2)
-        assert_equal_contents(self, outPrefix + '03', expectedFastq3)
+        self.assertEqualContents(outPrefix + '01', expectedFastq1)
+        self.assertEqualContents(outPrefix + '02', expectedFastq2)
+        self.assertEqualContents(outPrefix + '03', expectedFastq3)
 
     def test_fasta(self) :
         'Test splitting fasta file.'
@@ -151,8 +146,8 @@ class TestSplitReads(TestCaseWithTmp) :
         # Check that results match expected
         expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.01')
         expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.02')
-        assert_equal_contents(self, outPrefix + '01', expectedFasta1)
-        assert_equal_contents(self, outPrefix + '02', expectedFasta2)
+        self.assertEqualContents(outPrefix + '01', expectedFasta1)
+        self.assertEqualContents(outPrefix + '02', expectedFasta2)
         
 
 class TestMvicuna(TestCaseWithTmp) :
@@ -186,7 +181,7 @@ class TestMvicuna(TestCaseWithTmp) :
         # Compare to expected
         for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq',
                          'unpairedOut.fastq'] :
-            assert_equal_contents(self,
+            self.assertEqualContents(
                 os.path.join(tempDir, filename),
                 os.path.join(myInputDir, 'expected_' + filename))
 
