@@ -32,7 +32,7 @@ class SamtoolsTool(tools.Tool) :
     
     def faidx(self, inFasta, overwrite=False) :
         ''' Index reference genome for samtools '''
-        outfname = fasta + '.fai'
+        outfname = inFasta + '.fai'
         if os.path.isfile(outfname):
             if overwrite:
                 os.unlink(outfname)
