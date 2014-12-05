@@ -61,7 +61,7 @@ rule rmdup_mvicuna_split:
                 direction = [1,2],
                 split_id = range(1,1+config["deplete_nchunks"]))
     params:
-            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 60',
             logid="{sample}",
             tmpf_input = expand(
                 '{{dir}}/{{sample}}.bmtagger_depleted.{direction}.fastq',
@@ -82,7 +82,6 @@ rule rmdup_mvicuna_split:
             shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[0]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
             shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[1]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
             map(os.unlink, params.tmpf_input+params.tmpf_output)
-            
 
 rule deplete_blastn_paired:
     input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
