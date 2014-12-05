@@ -21,7 +21,7 @@ install:
 
 # command to run tests
 script:
-  - nosetests -v --with-xunit --with-coverage --cover-package consensus,intrahost,ncbi,taxon_filter,read_utils,util --cover-erase --cover-inclusive --cover-branches --cover-tests
+  - nosetests -v --with-xunit --with-coverage --cover-package consensus,intrahost,ncbi,taxon_filter,read_utils,util,tools --cover-erase --cover-inclusive --cover-branches --cover-tests
 
 # post-tests
 after_success:
