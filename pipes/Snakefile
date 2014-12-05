@@ -31,6 +31,14 @@ rule all:
                 shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
             print("echo all done!")
 
+rule all_deplete:
+    input:
+        expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
+            dataDir=config["dataDir"],
+            subdir=config["subdirs"]["depletion"],
+            adjective=['raw','cleaned'],
+            sample=read_samples_file(config["samples_file"])),
+    params: LSF="-N"
 
 rule clean:
     shell: "rm -rf {config[tmpDir]}/* .snakemake.tmp.*"
