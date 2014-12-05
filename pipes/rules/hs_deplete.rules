@@ -79,8 +79,8 @@ rule rmdup_mvicuna_split:
             shell("cat {in1} > {params.tmpf_input[0]}")
             shell("cat {in2} > {params.tmpf_input[1]}")
             shell("{config[binDir]}/read_utils.py dup_remove_mvicuna {params.tmpf_input} {params.tmpf_output}")
-            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[0]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
-            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[1]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[0]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.1.fastq")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[1]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.2.fastq")
             map(os.unlink, params.tmpf_input+params.tmpf_output)
 
 rule deplete_blastn_paired:
