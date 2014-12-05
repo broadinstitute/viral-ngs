@@ -251,6 +251,7 @@ rule assembly_reports:
             novoalign(input[4], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[4]}")
             os.unlink(params.tmpf_spike_bam)
+            os.unlink(params.tmpf_spike_bam[:-1] + 'i')
             os.unlink(output[0]+'.zip')
 
 rule consolidate_fastqc:
