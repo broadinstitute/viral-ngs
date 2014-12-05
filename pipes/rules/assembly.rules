@@ -7,7 +7,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time, gzip
+import os, os.path, time, gzip, shutil
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -158,6 +158,7 @@ rule refine_assembly_with_reads:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[2]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
+            
             print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
             novoalign(input[1], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
             gatk_ug(output[4], output[3], output[5])
@@ -168,6 +169,7 @@ rule refine_assembly_with_reads:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[6]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[7]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[7]}")
+            
             print("A second pass of align to self and refine")
             novoalign(input[1], output[6], wildcards.sample, output[8], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
             gatk_ug(output[8], output[7], output[9])
@@ -243,6 +245,8 @@ rule assembly_reports:
             tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
     # TODO: replace with python wrapper
     run:
+            makedirs(config["reportsDir"])
+            shutil.rmtree(output[0], ignore_errors=True)
             makedirs(config["reportsDir"]+"/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
