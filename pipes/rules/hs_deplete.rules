@@ -51,14 +51,36 @@ rule deplete_bmtagger:
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py partition_bmtagger {input[0]} {input[1]} {params.refDbs} --outNoMatch {output}"
 
-rule rmdup_mvicuna:
-    input:  '{dir}/{sample}.bmtagger_depleted.{split_id}.1.fastq',
-            '{dir}/{sample}.bmtagger_depleted.{split_id}.2.fastq'
-    output: '{dir}/{sample}.rmdup.{split_id,\d+}.1.fastq',
-            '{dir}/{sample}.rmdup.{split_id,\d+}.2.fastq'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
-            logid="{sample}-{split_id}"
-    shell:  "{config[binDir]}/read_utils.py dup_remove_mvicuna {input} {output}"
+rule rmdup_mvicuna_split:
+    input:
+            expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:04d}.{direction}.fastq',
+                direction = [1,2],
+                split_id = range(1,1+config["deplete_nchunks"]))
+    output: 
+            expand('{{dir}}/{{sample}}.rmdup.{split_id:04d}.{direction}.fastq',
+                direction = [1,2],
+                split_id = range(1,1+config["deplete_nchunks"]))
+    params:
+            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+            logid="{sample}",
+            tmpf_input = expand(
+                '{{dir}}/{{sample}}.bmtagger_depleted.{direction}.fastq',
+                direction = [1,2]),
+            tmpf_output = expand(
+                '{{dir}}/{{sample}}.rmdup.{direction}.fastq',
+                direction = [1,2])
+    run:
+            in1 = expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:04d}.1.fastq',
+                split_id = range(1,1+config["deplete_nchunks"]))
+            in2 = expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:04d}.2.fastq',
+                split_id = range(1,1+config["deplete_nchunks"]))
+            shell("cat {in1} > {params.tmpf_input[0]}")
+            shell("cat {in2} > {params.tmpf_input[1]}")
+            shell("{config[binDir]}/read_utils.py dup_remove_mvicuna {params.tmpf_input} {params.tmpf_output}")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[0]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
+            shell("{config[binDir]}/read_utils.py split_reads {params.tmpf_output[1]} {wildcards.dir}/{wildcards.sample}.rmdup. --numChunks {config[deplete_nchunks]} --indexLen=4 --outSuffix=.fastq")
+            map(os.unlink, params.tmpf_input+params.tmpf_output)
+            
 
 rule deplete_blastn_paired:
     input:  '{dir}/{sample}.rmdup.{split_id}.1.fastq',
