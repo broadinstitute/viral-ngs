@@ -70,9 +70,11 @@ rule rmdup_mvicuna_split:
                 '{{dir}}/{{sample}}.rmdup.{direction}.fastq',
                 direction = [1,2])
     run:
-            in1 = expand('{{wildcards.dir}}/{{wildcards.sample}}.bmtagger_depleted.{split_id:04d}.1.fastq',
+            in1 = expand('{dir}/{sample}.bmtagger_depleted.{split_id:04d}.1.fastq',
+                dir = wildcards.dir, sample = wildcards.sample,
                 split_id = range(1,1+config["deplete_nchunks"]))
-            in2 = expand('{{wildcards.dir}}/{{wildcards.sample}}.bmtagger_depleted.{split_id:04d}.2.fastq',
+            in2 = expand('{dir}/{sample}.bmtagger_depleted.{split_id:04d}.2.fastq',
+                dir = wildcards.dir, sample = wildcards.sample,
                 split_id = range(1,1+config["deplete_nchunks"]))
             shell("cat {in1} > {params.tmpf_input[0]}")
             shell("cat {in2} > {params.tmpf_input[1]}")
