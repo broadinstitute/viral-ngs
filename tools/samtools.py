@@ -1,21 +1,24 @@
 import logging, tools, util.file
 import os, os.path, subprocess
 
-url = 'http://sourceforge.net/projects/samtools/files/samtools/0.1.19/' \
-        + 'samtools-0.1.19.tar.bz2'
+tool_version = '0.1.19'
+url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
+    + '{ver}/samtools-{ver}.tar.bz2'.format(ver=tool_version)
 
 log = logging.getLogger(__name__)
 
 class SamtoolsTool(tools.Tool) :
     def __init__(self, install_methods = None) :
         if install_methods == None :
-            install_methods = []
-            install_methods.append(
-                tools.DownloadPackage(url, 'samtools-0.1.19/samtools',
-                    post_download_command='cd samtools-0.1.19; make'))
+            install_methods = [
+                tools.DownloadPackage(url, 'samtools-{}/samtools'.format(tool_version),
+                    post_download_command='cd samtools-{}; make'.format(tool_version))]
             #path = '/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools',
             #install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods = install_methods)
+    
+    def version(self) :
+        return tool_version
     
     def execute(self, command, args, stdin=None, stdout=None):
         toolCmd = [self.install_and_get_path(), command] + args
@@ -47,7 +50,5 @@ class SamtoolsTool(tools.Tool) :
         self.execute('view', ['-H', inBam], stdout=outHeader)
     
     def count(self, inBam, opts=[]) :
-        tmp = util.file.mkstempfname('.count')
-        self.execute('view', ['-c'] + opts + [inBam], stdout=tmp)
-        with open(tmp, 'rt') as inf:
-            return int(inf.readline().strip())
+        cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam]
+        return int(subprocess.check_output(cmd).strip())
