@@ -14,7 +14,7 @@ rule all:
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_file"])),
-        # create BAMs of aligned reads to own consensus and to commong ref
+        # create BAMs of aligned reads to own consensus and to common ref
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"],
             subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
@@ -40,5 +40,14 @@ rule all_deplete:
             sample=read_samples_file(config["samples_file"])),
     params: LSF="-N"
 
+rule all_reports:
+    input:
+        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
+        config["reportsDir"]+'/summary.fastqc.txt',
+        config["reportsDir"]+'/summary.bamstats.txt',
+        config["reportsDir"]+'/summary.spike_count.txt'
+    params: LSF="-N"
+
 rule clean:
+    params: LSF="-N"
     shell: "rm -rf {config[tmpDir]}/* .snakemake.tmp.*"
