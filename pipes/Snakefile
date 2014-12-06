@@ -2,6 +2,8 @@ configfile: "config.json"
 
 include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
 include: config["binDir"]+"/pipes/rules/assembly.rules"
+include: config["binDir"]+"/pipes/rules/interhost.rules"
+include: config["binDir"]+"/pipes/rules/reports.rules"
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -16,11 +18,14 @@ rule all:
             sample=read_samples_file(config["samples_file"])),
         # create BAMs of aligned reads to own consensus and to common ref
         expand("{dataDir}/{subdir}/{sample}.bam",
-            dataDir=config["dataDir"],
-            subdir=[config["subdirs"]["align_self"], config["subdirs"]["align_ref"]],
+            dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
             sample=read_samples_file(config["samples_file"])),
+        # create reference-guided analyses of diversity (quick outputs)
+        os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
+        os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
         # create summary reports
         config["reportsDir"]+'/summary.coverage_ref.txt.gz',
+        config["reportsDir"]+'/summary.coverage_self.txt.gz',
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
@@ -40,9 +45,21 @@ rule all_deplete:
             sample=read_samples_file(config["samples_file"])),
     params: LSF="-N"
 
+rule all_assemble:
+    input:
+        # create final assemblies for all samples
+        expand("{dataDir}/{subdir}/{sample}.fasta",
+            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
+            sample=read_samples_file(config["samples_file"])),
+        # create BAMs of aligned reads to own consensus
+        expand("{dataDir}/{subdir}/{sample}.bam",
+            dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
+            sample=read_samples_file(config["samples_file"]))
+
 rule all_reports:
     input:
         config["reportsDir"]+'/summary.coverage_ref.txt.gz',
+        config["reportsDir"]+'/summary.coverage_self.txt.gz',
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'

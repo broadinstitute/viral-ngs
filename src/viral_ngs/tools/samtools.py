@@ -1,6 +1,12 @@
 import logging, tools, util.file
 import os, os.path, subprocess
 
+'''
+TO DO: much of this stuff can be all eliminated by using pysam instead:
+http://pysam.readthedocs.org/en/latest/usage.html#using-samtools-commands-within-python
+'''
+
+
 tool_version = '0.1.19'
 url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
     + '{ver}/samtools-{ver}.tar.bz2'.format(ver=tool_version)
