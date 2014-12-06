@@ -6,7 +6,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time
+import os, os.path, time, pysam
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -26,6 +26,63 @@ def update_timestamps(files):
         if os.path.isfile(f) and os.path.getmtime(f) > time.time():
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
+
+
+
+
+def merge_vcfs(inFiles, refFasta, outFile):
+    tmpVcf = outFile
+    if outFile.endswith('.gz'):
+        tmpVcf = tmpVcf[:-3]
+    inFilesString = ' '.join(['--variant '+i for i in inFiles])
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar" \
+        + " -T CombineVariants -R {refFasta} {inFilesString} -o {tmpVcf}" \
+        + " --genotypemergeoption REQUIRE_UNIQUE")
+    assert not os.system(cmdline)
+    if outFile.endswith('.gz'):
+        pysam.tabix_index(tmpVcf, preset='vcf', force=True)
+
+
+rule ref_guided_consensus:
+    input:  config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf',
+            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
+    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+            logid="{sample}",
+            refGenome=config["ref_genome"]
+    run:
+            update_timestamps(input)
+            gatk_ug(input[0], params.refGenome, output[0])
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[0]} {output[1]} --min_coverage 2")
+
+rule ref_guided_diversity:
+    input:  
+            expand("{dataDir}/{subdir}/{sample}.{ext}",
+                dataDir=config["dataDir"],
+                subdir=config["subdirs"]["align_ref"],
+                ext = ['fasta', 'vcf'],
+                sample=read_samples_file(config["samples_file"]))
+    output: os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
+            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
+    params: LSF='-W 4:00',
+            logid="all",
+            refGenome=config["ref_genome"],
+            inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
+                dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
+                sample=read_samples_file(config["samples_file"])),
+            inVcfs = expand("{dataDir}/{subdir}/{sample}.vcf",
+                dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
+                sample=read_samples_file(config["samples_file"]))
+    run:
+            update_timestamps(input)
+            shell("cat {params.inFastas} > {output[0]}")
+            merge_vcfs(params.inVcfs, params.refGenome, output[1])
+
+
+
+
+
+
 
 
 
