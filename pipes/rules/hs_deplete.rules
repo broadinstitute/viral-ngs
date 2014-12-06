@@ -11,7 +11,7 @@ import os
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    params: LSF='-M 12 -R "rusage[mem=6]"',
+    params: LSF='-M 12 -R "rusage[mem=6]" -W 4:00',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -61,7 +61,7 @@ rule rmdup_mvicuna_split:
                 direction = [1,2],
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
     params:
-            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 60',
+            LSF='-q week -M 16 -R "rusage[mem=8]" -sp 75',
             logid="{sample}",
             tmpf_input = expand(
                 '{{dir}}/{{sample}}.bmtagger_depleted.{direction}.fastq',
