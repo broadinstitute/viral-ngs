@@ -1,7 +1,8 @@
 {
   "samples_file": "samples.txt",
   
-  "deplete_nchunks":  5,
+  "deplete_bmtagger_nchunks":  10,
+  "deplete_blast_nchunks":      5,
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",

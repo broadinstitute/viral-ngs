@@ -126,57 +126,58 @@ def first_fasta_header(inFasta):
     with open(inFasta, 'rt') as inf:
         return inf.readline().rstrip('\n').lstrip('>')
 
-rule refine_assembly_with_reads:
+rule refine_assembly_1:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.vcf',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_deambig.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf'
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
             refGenome=config["ref_genome"], renamed_prefix="EBOV_2014_",
             logid="{sample}"
-    # TODO: replace with one big python wrapper
     run:
             update_timestamps(input)
-            print("Modify Trinity assembly w/muscle alignment to known reference")
-            shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[1]} -quiet")
-            assert_nonempty_file(output[1])
+            shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[0]} -quiet")
+            assert_nonempty_file(output[0])
             refName = first_fasta_header(params.refGenome)
-            shell("{config[binDir]}/consensus.py modify_contig {output[1]} {output[2]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
-            assert_nonempty_file(output[2])
-            shell("{config[binDir]}/consensus.py deambig_fasta {output[2]} {output[3]}")
-            assert_nonempty_file(output[3])
+            shell("{config[binDir]}/consensus.py modify_contig {output[0]} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
+            assert_nonempty_file(output[1])
+            shell("{config[binDir]}/consensus.py deambig_fasta {output[1]} {output[2]}")
+            index_novoalign(output[1])
+            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[1]}")
+            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[2]}")
-            index_novoalign(output[2])
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[2]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
-            
-            print("Align sample's reads to its own muscle-modified consensus and replace bases with majority read count")
-            novoalign(input[1], output[2], wildcards.sample, output[4], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
-            gatk_ug(output[4], output[3], output[5])
-            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[5]} {output[6]} --trim_ends --min_coverage 2")
-            shell("{config[binDir]}/consensus.py deambig_fasta {output[6]} {output[7]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[6]}")
-            index_novoalign(output[6])
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[6]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[7]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[7]}")
-            
-            print("A second pass of align to self and refine")
-            novoalign(input[1], output[6], wildcards.sample, output[8], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
-            gatk_ug(output[8], output[7], output[9])
-            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[9]} {output[0]} --trim_ends --min_coverage 2")
+            novoalign(input[1], output[1], wildcards.sample, output[3], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
+            gatk_ug(output[3], output[2], output[4])
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[4]} {output[5]} --trim_ends --min_coverage 2")
+
+rule refine_assembly_2:
+    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta',
+            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_deambig.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf',
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
+    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+            logid="{sample}"
+    run:
+            update_timestamps(input)
+            shell("{config[binDir]}/consensus.py deambig_fasta {input[0]} {output[0]}")
+            index_novoalign(input[0])
+            shell("{config[binDir]}/read_utils.py index_fasta_picard {input[0]}")
+            shell("{config[binDir]}/read_utils.py index_fasta_samtools {input[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-            index_novoalign(output[0])
+            novoalign(input[1], input[0], wildcards.sample, output[1], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
+            gatk_ug(output[1], output[0], output[2])
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
+            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
+            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
+            index_novoalign(output[3])
 
 def filter_bam_mapped_only(inBam, outBam):
     # TODO: replace with python wrapper
@@ -237,7 +238,6 @@ rule assembly_reports:
     output: config["reportsDir"]+'/fastqc/{sample}_fastqc',
             config["reportsDir"]+'/coverage/{sample}.coverage_self.txt',
             config["reportsDir"]+'/coverage/{sample}.coverage_ref.txt',
-            config["reportsDir"]+'/bamstats/{sample}.bamstats.txt',
             config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
             logid="{sample}",
@@ -251,12 +251,87 @@ rule assembly_reports:
             shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input[1]} -o {config[reportsDir]}/fastqc")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[2]} -g {input[0]} > {output[1]}")
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[3]} -g {input[0]} > {output[2]}")
-            shell("use BamTools; bamtools stats -insert -in {input[2]} > {output[3]}")
             novoalign(input[4], params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
-            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[4]}")
+            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output[3]}")
             os.unlink(params.tmpf_spike_bam)
             os.unlink(params.tmpf_spike_bam[:-1] + 'i')
             os.unlink(output[0]+'.zip')
+
+
+def bamstats_input_file(wildcards):
+    adj = wildcards.adjective
+    if adj in ('raw', 'cleaned'):
+        subdir = "depletion"
+    else:
+        if adj.startswith('self_'):
+            subdir = "align_self"
+        elif adj.startswith('ref_'):
+            subdir = "align_ref"
+        else:
+            raise Exception()
+        if adj.endswith('_mapped') or adj.endswith('_rmdup') or adj.endswith('_realigned'):
+            adj = adj.split('_')[-1]
+        elif adj.endswith('_align'):
+            adj = None
+        else:
+            raise Exception()
+    if adj==None:
+        bamfile = wildcards.sample + '.bam'
+    else:
+        bamfile = '.'.join([wildcards.sample, adj, 'bam'])
+    return os.path.join(config["dataDir"], config["subdirs"][subdir], bamfile)
+rule bamstats_reports:
+    input:  bamstats_input_file
+    output: config["reportsDir"]+'/bamstats/{sample}.{adjective}.txt'
+    params: LSF='-W 0:30 -sp 40',
+            logid="{sample}-{adjective}",
+            tmpf_report=config["reportsDir"]+'/bamstats/{sample}.{adjective}.tmp.txt'
+    run:
+            makedirs(config["reportsDir"]+'/bamstats')
+            shell("use BamTools; bamtools stats -insert -in {input} > {params.tmpf_report}")
+            out = []
+            out.append(['Sample', wildcards.sample])
+            out.append(['BAM', wildcards.adjective])
+            with open(params.tmpf_report, 'rt') as inf:
+                for line in inf:
+                    row = line.strip().split(':')
+                    if len(row)==2 and row[1]:
+                        k,v = [x.strip() for x in row]
+                        k = k.strip("'")
+                        mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
+                        if mo:
+                            v = mo.group(1)
+                        out.append([k,v])
+            with open(output[0], 'wt') as outf:
+                for row in out:
+                    outf.write('\t'.join(row)+'\n')
+            os.unlink(params.tmpf_report)
+
+rule consolidate_bamstats:
+    input:
+            expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
+                adjective=['raw','cleaned',
+                    'self_align', 'self_mapped', 'self_rmdup', 'self_realigned',
+                    'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.bamstats.txt'
+    params: logid="all"
+    run:
+            with open(output[0], 'wt') as outf:
+                header = []
+                out_n = 0
+                for fn in input:
+                    out = {}
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            k,v = line.rstrip('\n').split('\t')
+                            out[k] = v
+                            if out_n==0:
+                                header.append(k)
+                    if out_n==0:
+                        outf.write('\t'.join(header)+'\n')
+                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
+                    out_n += 1
 
 rule consolidate_fastqc:
     input:  expand("{{dir}}/fastqc/{sample}_fastqc", \
@@ -296,38 +371,6 @@ rule consolidate_coverage:
                     with open(fn, 'rt') as inf:
                         for line in inf:
                             outf.write(line.rstrip('\n') + '\t' + s + '\n')
-
-rule consolidate_bamstats:
-    input:  expand("{{dir}}/bamstats/{sample}.bamstats.txt", \
-                sample=read_samples_file(config["samples_file"]))
-    output: '{dir}/summary.bamstats.txt'
-    params: logid="all"
-    run:
-            with open(output[0], 'wt') as outf:
-                header = ['Sample']
-                out_n = 0
-                for fn in input:
-                    s = fn.split('/')[-1]
-                    if not s.endswith('.bamstats.txt'):
-                        raise
-                    s = s[:-len('.bamstats.txt')]
-                    out = {'Sample':s}
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            row = line.strip().split(':')
-                            if len(row)==2 and row[1]:
-                                k,v = [x.strip() for x in row]
-                                k = k.strip("'")
-                                mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
-                                if mo:
-                                    v = mo.group(1)
-                                out[k] = v
-                                if out_n==0:
-                                    header.append(k)
-                    if out_n==0:
-                        outf.write('\t'.join(header)+'\n')
-                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
-                    out_n += 1
 
 rule consolidate_spike_count:
     input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
