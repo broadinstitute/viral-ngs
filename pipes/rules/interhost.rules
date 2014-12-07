@@ -27,20 +27,16 @@ def update_timestamps(files):
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
 
-
-
+def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
 
 def merge_vcfs(inFiles, refFasta, outFile):
-    tmpVcf = outFile
-    if outFile.endswith('.gz'):
-        tmpVcf = tmpVcf[:-3]
     inFilesString = ' '.join(['--variant '+i for i in inFiles])
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar" \
-        + " -T CombineVariants -R {refFasta} {inFilesString} -o {tmpVcf}" \
+        + " -T CombineVariants -R {refFasta} {inFilesString} -o {outFile}" \
         + " --genotypemergeoption REQUIRE_UNIQUE")
-    assert not os.system(cmdline)
     if outFile.endswith('.gz'):
-        pysam.tabix_index(tmpVcf, preset='vcf', force=True)
+        pysam.tabix_index(outFile, preset='vcf', force=True)
 
 
 rule ref_guided_consensus:
