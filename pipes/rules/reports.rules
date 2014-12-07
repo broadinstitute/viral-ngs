@@ -148,7 +148,8 @@ def coverage_input_files(wildcards):
 rule coverage_report:
     input:  coverage_input_files
     output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6', logid="{sample}"
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6 -sp 40',
+            logid="{sample}"
     run:
             makedirs(os.path.join(config["reportsDir"], 'coverage'))
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[1]} -g {input[0]} > {output}")
