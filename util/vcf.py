@@ -201,16 +201,6 @@ class TabixReader(pysam.Tabixfile):
         return self.fetch(reference=chrom, start=start, end=stop,
             region=region, parser=self.parser)
 
-
-def get_pos_from_vcf_record(vcfrec):
-    # new versions of pysam return a zero-based position here
-    return vcfrec.pos + 1
-
-def bytes_to_string(o):
-    if type(o) == bytes:
-        o = o.decode('utf-8')
-    return o
-
 class VcfReader(TabixReader):
     ''' Same as TabixReader with a few more perks for VCF files:
         - emit results parsed as pysam VCF rows
@@ -225,7 +215,6 @@ class VcfReader(TabixReader):
         self.clens = []
         self.sample_names = None
         for line in self.header:
-            line = bytes_to_string(line)
             if line.startswith('##contig=<ID=') and line.endswith('>'):
                 line = line[13:-1]
                 c = line.split(',')[0]
@@ -242,7 +231,7 @@ class VcfReader(TabixReader):
         return self.clens
     def get_positions(self, c=None, start=None, stop=None, region=None):
         for snp in self.get(c,start,stop,region):
-            yield (bytes_to_string(snp.contig), get_pos_from_vcf_record(snp), get_pos_from_vcf_record(snp)+len(snp.ref)-1)
+            yield (snp.contig, snp.pos+1, snp.pos+len(snp.ref))
     def get_range(self, c=None, start=None, stop=None, region=None, as_strings=True, more=False):
         ''' Read a VCF file (optionally just a piece of it) and return contents
             as an iterator with parsed contents.  Each row is returned as
@@ -258,24 +247,24 @@ class VcfReader(TabixReader):
             If more is true, a fifth column will be emitted with the pysam VCF object.
         '''
         for snp in self.get(c,start,stop,region):
-            alleles = [bytes_to_string(snp.ref)] + bytes_to_string(snp.alt).split(',')
+            alleles = [snp.ref] + snp.alt.split(',')
             alleles = [a for a in alleles if a != '.']
             if self.ploidy==1:
-                genos = [(self.sample_names[i], int(bytes_to_string(snp[i])[0]))
+                genos = [(self.sample_names[i], int(snp[i][0]))
                     for i in range(len(self.sample_names))
-                    if bytes_to_string(snp[i])[0] != '.']
+                    if snp[i][0] != '.']
                 if as_strings:
                     genos = [(s,alleles[a]) for s,a in genos]
             else:
-                genos = [(self.sample_names[i], [int(bytes_to_string(snp[i])[j*2]) for j in range(self.ploidy)])
+                genos = [(self.sample_names[i], [int(snp[i][j*2]) for j in range(self.ploidy)])
                     for i in range(len(self.sample_names))
-                    if bytes_to_string(snp[i])[0] != '.']
+                    if snp[i][0] != '.']
                 if as_strings:
                     genos = [(s,[alleles[a] for a in g]) for s,g in genos]
             if more:
-                yield (bytes_to_string(snp.contig), get_pos_from_vcf_record(snp), alleles, genos, snp)
+                yield (snp.contig, snp.pos+1, alleles, genos, snp)
             else:
-                yield (bytes_to_string(snp.contig), get_pos_from_vcf_record(snp), alleles, genos)
+                yield (snp.contig, snp.pos+1, alleles, genos)
     def get_snp_genos(self, c, p, as_strings=True):
         ''' Read a single position from a VCF file and return the genotypes
             as a sample -> allele map.  If there is not exactly one matching
