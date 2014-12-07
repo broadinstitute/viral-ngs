@@ -437,6 +437,9 @@ def parser_vcf_to_fasta():
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
         default=0.0)
+    parser.add_argument("--name", dest="name",
+        help="output sequence name (default: reference name in VCF file)",
+        default=None)
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
@@ -452,6 +455,8 @@ def main_vcf_to_fasta(args):
             min_dp_ratio=args.min_dp_ratio):
             if args.trim_ends:
                 seq = seq.strip('Nn')
+            if args.name!=None:
+                header = args.name
             for line in util.file.fastaMaker([(header, seq)]):
                 outf.write(line)
 
