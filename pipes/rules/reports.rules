@@ -1,0 +1,206 @@
+"""
+    These rules generate reports and metrics on reads and assemblies.
+"""
+
+__author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
+
+from snakemake.utils import makedirs
+import os, os.path, gzip, shutil
+
+def read_samples_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
+
+
+#-----------BAMSTATS-------------------
+
+def bamstats_input_file(wildcards):
+    adj = wildcards.adjective
+    if adj in ('raw', 'cleaned'):
+        subdir = "depletion"
+    else:
+        if adj.startswith('self_'):
+            subdir = "align_self"
+        elif adj.startswith('ref_'):
+            subdir = "align_ref"
+        else:
+            raise Exception()
+        if adj.endswith('_mapped') or adj.endswith('_rmdup') or adj.endswith('_realigned'):
+            adj = adj.split('_')[-1]
+        elif adj.endswith('_align'):
+            adj = None
+        else:
+            raise Exception()
+    if adj==None:
+        bamfile = wildcards.sample + '.bam'
+    else:
+        bamfile = '.'.join([wildcards.sample, adj, 'bam'])
+    return os.path.join(config["dataDir"], config["subdirs"][subdir], bamfile)
+
+rule bamstats_report:
+    input:  bamstats_input_file
+    output: config["reportsDir"]+'/bamstats/{sample}.{adjective}.txt'
+    params: LSF='-W 0:30 -sp 40',
+            logid="{sample}-{adjective}",
+            tmpf_report=config["reportsDir"]+'/bamstats/{sample}.{adjective}.tmp.txt'
+    run:
+            makedirs(config["reportsDir"]+'/bamstats')
+            shell("use BamTools; bamtools stats -insert -in {input} > {params.tmpf_report}")
+            out = []
+            out.append(['Sample', wildcards.sample])
+            out.append(['BAM', wildcards.adjective])
+            with open(params.tmpf_report, 'rt') as inf:
+                for line in inf:
+                    row = line.strip().split(':')
+                    if len(row)==2 and row[1]:
+                        k,v = [x.strip() for x in row]
+                        k = k.strip("'")
+                        mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
+                        if mo:
+                            v = mo.group(1)
+                        out.append([k,v])
+            with open(output[0], 'wt') as outf:
+                for row in out:
+                    outf.write('\t'.join(row)+'\n')
+            os.unlink(params.tmpf_report)
+
+rule consolidate_bamstats:
+    input:
+            expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
+                adjective=['raw','cleaned',
+                    'self_align', 'self_mapped', 'self_rmdup', 'self_realigned',
+                    'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.bamstats.txt'
+    params: logid="all"
+    run:
+            with open(output[0], 'wt') as outf:
+                header = []
+                out_n = 0
+                for fn in input:
+                    out = {}
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            k,v = line.rstrip('\n').split('\t')
+                            out[k] = v
+                            if out_n==0:
+                                header.append(k)
+                    if out_n==0:
+                        outf.write('\t'.join(header)+'\n')
+                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
+                    out_n += 1
+
+
+#-----------FASTQC---------------------
+
+rule fastqc_report:
+    input:  config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam'
+    output: config["reportsDir"]+'/fastqc/{sample}_fastqc'
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+            logid="{sample}"
+    run:
+            makedirs(config["reportsDir"])
+            shutil.rmtree(output[0], ignore_errors=True)
+            makedirs(os.path.join(config["reportsDir"], 'fastqc'))
+            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input} -o {config[reportsDir]}/fastqc")
+            os.unlink(output[0]+'.zip')
+
+rule consolidate_fastqc:
+    input:
+            expand("{{dir}}/fastqc/{sample}_fastqc",
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.fastqc.txt'
+    params: logid="all"
+    run:
+            with open(output[0], 'wt') as outf:
+                header = ['Sample']
+                out_n = 0
+                for sdir in input:
+                    out = {}
+                    with open(os.path.join(sdir, 'summary.txt'), 'rt') as inf:
+                        for line in inf:
+                            v,k,fn = line.strip().split('\t')
+                            out[k] = v
+                            if out_n==0:
+                                header.append(k)
+                            if not fn.endswith('.bam'):
+                                raise
+                            out['Sample'] = fn[:-len('.bam')]
+                    if out_n==0:
+                        outf.write('\t'.join(header)+'\n')
+                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
+                    out_n += 1
+
+#-----------COVERAGE-------------------
+
+def coverage_input_files(wildcards):
+    if wildcards.adjective == 'ref':
+        ref   = config["ref_genome"]
+        reads = os.path.join(config["dataDir"], config["subdirs"]["align_ref"], wildcards.sample + '.realigned.bam')
+    elif wildcards.adjective == 'self':
+        ref   = os.path.join(config["dataDir"], config["subdirs"]["assembly"], wildcards.sample + '.fasta')
+        reads = os.path.join(config["dataDir"], config["subdirs"]["align_self"], wildcards.sample + '.realigned.bam')
+    else:
+        raise Exception()
+    return (ref, reads)
+
+rule coverage_report:
+    input:  coverage_input_files
+    output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6 -sp 40',
+            logid="{sample}"
+    run:
+            makedirs(os.path.join(config["reportsDir"], 'coverage'))
+            shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[1]} -g {input[0]} > {output}")
+
+rule consolidate_coverage:
+    input:
+            expand("{{dir}}/coverage/{sample}.coverage_{{adjective}}.txt",
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.coverage_{adjective}.txt.gz'
+    params: LSF='-W 4:00',
+            logid="all"
+    run:
+            with gzip.open(output[0], 'wt') as outf:
+                for fn in input:
+                    s = fn.split('/')[-1][:-len('.coverage_{wildcards.adjective}.txt')]
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line.rstrip('\n') + '\t' + s + '\n')
+
+
+#-----------SPIKE-INS------------------
+
+rule spikein_report:
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    output: config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
+    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+            logid="{sample}",
+            spike_in_fasta=config["spikeinsDb"],
+            tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
+    run:
+            makedirs(os.path.join(config["reportsDir"], 'spike_count'))
+            novoalign(input, params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
+            shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output}")
+            os.unlink(params.tmpf_spike_bam)
+            os.unlink(params.tmpf_spike_bam[:-1] + 'i')
+
+rule consolidate_spike_count:
+    input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
+                sample=read_samples_file(config["samples_file"]))
+    output: '{dir}/summary.spike_count.txt'
+    params: logid="all"
+    run:
+            with open(output[0], 'wt') as outf:
+                for fn in input:
+                    s = fn.split('/')[-1]
+                    if not s.endswith('.spike_count.txt'):
+                        raise
+                    s = s[:-len('.spike_count.txt')]
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            if not line.startswith('Input bam'):
+                                spike, count = line.strip().split('\t')
+                                outf.write('\t'.join([s, spike, count])+'\n')
+

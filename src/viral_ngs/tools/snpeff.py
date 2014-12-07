@@ -3,6 +3,7 @@ snpEff - a tool for annotating genetic consequences of variants in VCF format
 http://snpeff.sourceforge.net/
 '''
 
+import pysam
 import tools
 import util.vcf, util.file
 import os, tempfile, logging
@@ -73,9 +74,10 @@ class SnpEff(tools.Tool):
         post_pipe = " > {}".format(tmpVcf)
         self.execute(args, java_flags=java_flags, pre_pipe=pre_pipe,
                 post_pipe=post_pipe)
-
+        
         if outVcf.endswith('.vcf.gz'):
-            util.vcf.vcf_bgzip_index(tmpVcf, outVcf)
+            pysam.tabix_compress(tmpVcf, outVcf, force=True)
+            pysam.tabix_index(outVcf, force=True, preset='vcf')
             os.unlink(tmpVcf)
 
 

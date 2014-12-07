@@ -442,9 +442,10 @@ def parser_vcf_to_fasta():
 def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
-
-    chrlens = dict(util.vcf.get_chrlens(args.inVcf))
-    samples = util.vcf.vcf_sample_names(args.inVcf)
+    
+    with util.vcf.VcfReader(args.inVcf) as vcf:
+        chrlens = dict(vcf.chrlens())
+        samples = vcf.samples()
     with open(args.outFasta, 'wt') as outf:
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
             chrlens, samples, min_dp=args.min_dp, major_cutoff=args.major_cutoff,
@@ -508,7 +509,8 @@ __commands__.append(('deambig_fasta', main_deambig_fasta, parser_deambig_fasta))
 
 def vcf_dpdiff(vcfs):
     for vcf in vcfs:
-        samples = util.vcf.vcf_sample_names(vcf)
+        with util.vcf.VcfReader(vcf) as v:
+            samples = v.samples()
         assert len(samples)==1
         for row in util.file.read_tabfile(vcf):
             dp1 = int(dict(x.split('=') for x in row[7].split(';') if x != '.').get('DP',0))
