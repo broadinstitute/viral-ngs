@@ -104,10 +104,9 @@ def main_argparse(commands, description):
     args = parser.parse_args(argv)
 
     setup_logger(not hasattr(args, 'loglevel') and 'DEBUG' or args.loglevel)
-    log.info("software version: " + __version__)
-    log.debug("python version: " + sys.version)
-    log.debug("command: %s %s" % (sys.argv[0], sys.argv[1]))
-    log.debug("command line parameters (including implicit defaults): %s" % (
+    log.info("software version: %s, python version: %s" % (__version__, sys.version))
+    log.info("command: %s %s %s" % (
+        sys.argv[0], sys.argv[1],
         ' '.join(["%s=%s" % (k,v) for k,v in vars(args).items()])))
 
     if hasattr(args, 'tmpDir'):
