@@ -17,11 +17,3 @@ class TestGeneDb(unittest.TestCase):
         '''here we test 1 = 1'''
         self.assertEqual(1, 1)
 
-''' some tests to write
-
-- GeneDb.getByGeneId returns empty list for IDs not in DB
-- GeneDb.getByGeneId returns always returns 0 or 1 hits in list if asked for a 'gene'
-- GeneDb.getByGeneId always returns features in sorted order (chr,start) if asked for a child feature type
-- GeneDb.getFeaturesInRegion properly handles edge cases
-- GeneDb.getGeneNameById returns None for IDs not in DB
-'''
