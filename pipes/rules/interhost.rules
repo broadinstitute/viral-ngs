@@ -50,7 +50,7 @@ rule ref_guided_consensus:
     run:
             update_timestamps(input)
             gatk_ug(input[0], params.refGenome, output[0])
-            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[0]} {output[1]} --min_coverage 2 --name {wildcard.sample}")
+            shell("{config[binDir]}/consensus.py vcf_to_fasta {output[0]} {output[1]} --min_coverage 2 --name {wildcards.sample}")
 
 rule ref_guided_diversity:
     input:  
