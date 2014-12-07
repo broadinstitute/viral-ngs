@@ -61,7 +61,7 @@ rule rmdup_mvicuna_split:
                 direction = [1,2],
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
     params:
-            LSF='-q week -M 16 -R "rusage[mem=8]" -sp 75',
+            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 75',
             logid="{sample}",
             tmpf_input = expand(
                 '{{dir}}/{{sample}}.bmtagger_depleted.{direction}.fastq',
