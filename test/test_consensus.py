@@ -33,6 +33,66 @@ class TestAmbiguityBases(unittest.TestCase):
                 self.assertEqual(out, out.upper())
 
 
+class TestMutableSequence(unittest.TestCase):
+    ''' Test the MutableSequence class '''
+    def test_bad_coords(self):
+        self.assertRaises(Exception, consensus.MutableSequence, 'chr', 0, 4)
+        self.assertRaises(Exception, consensus.MutableSequence, 'chr', 5, 4)
+        self.assertRaises(Exception, consensus.MutableSequence, 'chr', -2, 4)
+        self.assertRaises(Exception, consensus.MutableSequence, 'chr', 5, 6, 'G')
+    def test_good_coords(self):
+        x = consensus.MutableSequence('chr', 1, 5)
+        x = consensus.MutableSequence('chr', 5, 5)
+        x = consensus.MutableSequence('chr', 100, 2000)
+        x = consensus.MutableSequence('chr name with spaces 5 @#$ --', 1, 5)
+        x = consensus.MutableSequence('chr', 5, 5, 'A')
+        x = consensus.MutableSequence('chr', 5, 6, 'AT')
+    def test_modify_one(self):
+        x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
+        self.assertRaises(Exception, x.modify, 4, 'G')
+        self.assertRaises(Exception, x.modify, 9, 'G')
+        self.assertEqual(x.emit(), ('chr', 'ATCG'))
+        x.modify(5, 'G')
+        self.assertEqual(x.emit(), ('chr', 'GTCG'))
+        x.modify(6, 'G')
+        self.assertEqual(x.emit(), ('chr', 'GGCG'))
+        x.modify(7, 'G')
+        self.assertEqual(x.emit(), ('chr', 'GGGG'))
+        x.modify(8, 'G')
+        self.assertEqual(x.emit(), ('chr', 'GGGG'))
+        x.modify(6, 'j')
+        self.assertEqual(x.emit(), ('chr', 'GjGG'))
+        x.modify(8, 'Y')
+        self.assertEqual(x.emit(), ('chr', 'GjGY'))
+    def test_modify_blank(self):
+        x = consensus.MutableSequence('chr', 5, 8)
+        self.assertEqual(x.emit(), ('chr', 'NNNN'))
+        x.modify(6, 'G')
+        self.assertEqual(x.emit(), ('chr', 'NGNN'))
+    def test_modify_insertions(self):
+        x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
+        x.modify(6, 'insert')
+        self.assertEqual(x.emit(), ('chr', 'AinsertCG'))
+        x.modify(8, 'tail')
+        self.assertEqual(x.emit(), ('chr', 'AinsertCtail'))
+        x.modify(5, 'headA')
+        self.assertEqual(x.emit(), ('chr', 'headAinsertCtail'))
+    def test_modify_deletions(self):
+        x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
+        self.assertRaises(Exception, x.replace, 6, 9, 'AT')
+        x.replace(6, 7, 'CT')
+        self.assertEqual(x.emit(), ('chr', 'ACTG'))
+        x.replace(6, 7, '')
+        self.assertEqual(x.emit(), ('chr', 'AG'))
+        x.modify(7, 'x')
+        self.assertEqual(x.emit(), ('chr', 'AxG'))
+        x.modify(6, 'y')
+        self.assertEqual(x.emit(), ('chr', 'AyxG'))
+        x.replace(7, 7, '123')
+        self.assertEqual(x.emit(), ('chr', 'Ay123G'))
+        x.modify(7, 'z')
+        self.assertEqual(x.emit(), ('chr', 'AyzG'))
+ 
 
 class TestManualSnpCaller(unittest.TestCase):
     ''' Test the vcfrow_parse_and_call_snps method.. lots of edge cases. '''
@@ -99,6 +159,18 @@ class TestManualSnpCaller(unittest.TestCase):
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,3,4']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out[0][3], ['T'])
+    def test_indels(self):
+        ''' Indel handling '''
+        row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,10,1']
+        out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        self.assertEqual(set(out[0][3]), set(['GA']))
+        row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,2']
+        out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        self.assertEqual(set(out[0][3]), set(['G','GA']))
+        row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,3']
+        out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        self.assertEqual(set(out[0][3]), set(['G','GA','T']))
+        
 
 
 
