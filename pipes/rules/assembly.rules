@@ -7,7 +7,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time, pysam
+import os, os.path, time
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -114,9 +114,7 @@ def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qua
     cmd += "| java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
     shell(cmd)
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
-    if outVcf.endswith('.gz'):
-        pysam.tabix_index(outVcf, preset='vcf', force=True)
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} -glm BOTH --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
 def first_fasta_header(inFasta):
     # this method can go away when refine_assembly_with_reads gets turned into a script
     with open(inFasta, 'rt') as inf:
