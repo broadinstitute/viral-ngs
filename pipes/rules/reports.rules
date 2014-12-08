@@ -74,22 +74,7 @@ rule consolidate_bamstats:
                 sample=read_samples_file(config["samples_file"]))
     output: '{dir}/summary.bamstats.txt'
     params: logid="all"
-    run:
-            with open(output[0], 'wt') as outf:
-                header = []
-                out_n = 0
-                for fn in input:
-                    out = {}
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            k,v = line.rstrip('\n').split('\t')
-                            out[k] = v
-                            if out_n==0:
-                                header.append(k)
-                    if out_n==0:
-                        outf.write('\t'.join(header)+'\n')
-                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
-                    out_n += 1
+    shell:  "{config[binDir]}/reports.py consolidate_bamstats {input} {output}"
 
 
 #-----------FASTQC---------------------
@@ -112,25 +97,7 @@ rule consolidate_fastqc:
                 sample=read_samples_file(config["samples_file"]))
     output: '{dir}/summary.fastqc.txt'
     params: logid="all"
-    run:
-            with open(output[0], 'wt') as outf:
-                header = ['Sample']
-                out_n = 0
-                for sdir in input:
-                    out = {}
-                    with open(os.path.join(sdir, 'summary.txt'), 'rt') as inf:
-                        for line in inf:
-                            v,k,fn = line.strip().split('\t')
-                            out[k] = v
-                            if out_n==0:
-                                header.append(k)
-                            if not fn.endswith('.bam'):
-                                raise
-                            out['Sample'] = fn[:-len('.bam')]
-                    if out_n==0:
-                        outf.write('\t'.join(header)+'\n')
-                    outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
-                    out_n += 1
+    shell:  "{config[binDir]}/reports.py consolidate_fastqc {input} {output}"
 
 #-----------COVERAGE-------------------
 
@@ -149,7 +116,7 @@ rule coverage_report:
     input:  coverage_input_files
     output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
     params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6 -sp 40',
-            logid="{sample}"
+            logid="{sample}-{adjective}"
     run:
             makedirs(os.path.join(config["reportsDir"], 'coverage'))
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[1]} -g {input[0]} > {output}")
@@ -161,13 +128,7 @@ rule consolidate_coverage:
     output: '{dir}/summary.coverage_{adjective}.txt.gz'
     params: LSF='-W 4:00',
             logid="all"
-    run:
-            with gzip.open(output[0], 'wt') as outf:
-                for fn in input:
-                    s = fn.split('/')[-1][:-len('.coverage_{wildcards.adjective}.txt')]
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            outf.write(line.rstrip('\n') + '\t' + s + '\n')
+    shell:  "{config[binDir]}/reports.py consolidate_coverage {input} {wildcards.adjective} {output}"
 
 
 #-----------SPIKE-INS------------------
@@ -191,16 +152,5 @@ rule consolidate_spike_count:
                 sample=read_samples_file(config["samples_file"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
-    run:
-            with open(output[0], 'wt') as outf:
-                for fn in input:
-                    s = fn.split('/')[-1]
-                    if not s.endswith('.spike_count.txt'):
-                        raise
-                    s = s[:-len('.spike_count.txt')]
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            if not line.startswith('Input bam'):
-                                spike, count = line.strip().split('\t')
-                                outf.write('\t'.join([s, spike, count])+'\n')
+    shell:  "{config[binDir]}/reports.py consolidate_spike_count {input} {output}"
 
