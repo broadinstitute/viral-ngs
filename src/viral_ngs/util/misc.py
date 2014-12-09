@@ -41,3 +41,17 @@ def freqs(items, zero_checks = set()):
         if i not in out:
             yield (i,0,0.0)
 
+def intervals(i, n, l):
+    ''' Divide something of length l into n equally sized parts and return the
+        start-stop values of the i'th part.  Values are 1-based.  Each part
+        will be adjacent and non-overlapping with the next part. i must be a
+        number from 1 to n.
+    '''
+    assert 1 <= i <= n and l>=n
+    part_size = l//n
+    start = 1 + part_size * (i-1)
+    stop = part_size * i
+    if i==n:
+        stop = l
+    return (start,stop)
+
