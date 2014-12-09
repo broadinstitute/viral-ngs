@@ -41,7 +41,7 @@ rule name_and_sort_bams:
 
 def extract_illumina_barcodes(flow_cell, lane, date, directory, read_structure,
         bar_codes, metrics_file, tempdir, max_mismatches=1, min_quality_score=10):
-    shell("java -Xmx2g -jar /seq/software/picard/current/bin/ExtractIlluminaBarcodes.jar"
+    shell("java -Xmx2g -jar /seq/software/picard/1.802/bin/ExtractIlluminaBarcodes.jar"
         + "BASECALLS_DIR={tempdir}/{date}.{flow_cell}/Data/Intensities/BaseCalls/"
         + "LANE={lane}"
         + "READ_STRUCTURE={read_structure}"
@@ -120,7 +120,7 @@ do
 for memory in 8
 do
 bsub -n 8 -R "span[hosts=1]" -R "rusage[mem=$memory]" -q hour -W 4:00 -o $directory/_logs/barcodes.log.bsub.txt -P sabeti_align -J bc.eb
-"java -Xmx2g -jar /seq/software/picard/current/bin/ExtractIlluminaBarcodes.jar
+"java -Xmx2g -jar /seq/software/picard/1.802/bin/ExtractIlluminaBarcodes.jar
     BASECALLS_DIR=$temp/$date.$flow_cell/Data/Intensities/BaseCalls/
     LANE=$lane
     READ_STRUCTURE=$read_structure
@@ -156,7 +156,7 @@ do
 for library_parameters in $directory/_logs/barcodes/$flow_cell.$lane.txt
 do
 bsub -q hour -W 4:00 -R "rusage[mem=54]" -n 8 -R "span[hosts=1]" -o $directory/_logs/barcodes.log.bsub.txt -P sabeti_align -J bc.cs
-"java -Xmx10g -jar /seq/software/picard/current/bin/IlluminaBasecallsToSam.jar
+"java -Xmx10g -jar /seq/software/picard/1.802/bin/IlluminaBasecallsToSam.jar
     BASECALLS_DIR=$temp/$date.$flow_cell/Data/Intensities/BaseCalls/
     LANE=$lane
     READ_STRUCTURE=$read_structure
