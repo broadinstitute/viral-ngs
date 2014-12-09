@@ -115,11 +115,15 @@ def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qua
     shell(cmd)
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} -glm BOTH --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
+def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
+def filter_bam_mapped_only(inBam, outBam):
+    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
 def first_fasta_header(inFasta):
     # this method can go away when refine_assembly_with_reads gets turned into a script
     with open(inFasta, 'rt') as inf:
         return inf.readline().rstrip('\n').lstrip('>')
-
 
 # TO DO: a lot of this novoalign -> GATK -> vcf_to_fasta business could be vastly
 # simplified (and sped up) by just writing a python script that goes from BAM -> FASTA
@@ -136,7 +140,9 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
             refGenome=config["ref_genome"], renamed_prefix="EBOV_2014_",
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.intervals',
+            tmpf_bam = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify_pre_indel_realign.bam'
     run:
             update_timestamps(input)
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[0]} -quiet")
@@ -150,7 +156,8 @@ rule refine_assembly_1:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[2]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[2]}")
-            novoalign(input[1], output[1], wildcards.sample, output[3], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
+            novoalign(input[1], output[1], wildcards.sample, params.tmpf_bam, options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
+            gatk_local_realign(params.tmpf_bam, output[2], output[3], params.tmpf_intervals)
             gatk_ug(output[3], output[2], output[4])
             shell("{config[binDir]}/consensus.py vcf_to_fasta {output[4]} {output[5]} --trim_ends --min_coverage 2")
 
@@ -162,7 +169,9 @@ rule refine_assembly_2:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.intervals',
+            tmpf_bam = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_pre_indel_realign.bam'
     run:
             update_timestamps(input)
             shell("{config[binDir]}/consensus.py deambig_fasta {input[0]} {output[0]}")
@@ -171,18 +180,14 @@ rule refine_assembly_2:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {input[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-            novoalign(input[1], input[0], wildcards.sample, output[1], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
+            novoalign(input[1], input[0], wildcards.sample, params.tmpf_bam, options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
+            gatk_local_realign(params.tmpf_bam, output[0], output[1], params.tmpf_intervals)
             gatk_ug(output[1], output[0], output[2])
             shell("{config[binDir]}/consensus.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
             index_novoalign(output[3])
 
-def filter_bam_mapped_only(inBam, outBam):
-    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
-def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
 
 rule map_reads_to_self:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
