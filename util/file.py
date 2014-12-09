@@ -86,36 +86,6 @@ def mkdir_p(dirpath):
 def open_or_gzopen(fname, *opts):
     return fname.endswith('.gz') and gzip.open(fname, *opts) or open(fname, *opts)
 
-def cat_files_and_header(inFiles, outFile, add_header=None, strip_in_rows=0):
-    ''' This is like cat... except that we optionally drop header rows from
-        the input files and/or optionally add a new header row to the output
-        file.
-    '''
-    with open_or_gzopen(outFile, 'wt') as outf:
-        if add_header:
-            outf.write(add_header+'\n')
-        for f in inFiles:
-            with open_or_gzopen(f, 'rt') as inf:
-                for i in range(strip_in_rows):
-                    inf.readline()
-                for line in inf:
-                    outf.write(line)
-    return outFile
-
-def intervals(i, n, l):
-    ''' Divide something of length l into n equally sized parts and return the
-        start-stop values of the i'th part.  Values are 1-based.  Each part
-        will be adjacent and non-overlapping with the next part. i must be a
-        number from 1 to n.
-    '''
-    assert 1 <= i <= n and l>=n
-    part_size = l//n
-    start = 1 + part_size * (i-1)
-    stop = part_size * i
-    if i==n:
-        stop = l
-    return (start,stop)
-
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
@@ -223,25 +193,6 @@ class FlatFileParser:
             for i in range(len(self.header)):
                 out[i] = row[i]
         return out
-
-
-class FlatFileMaker:
-
-    def __init__(self, header, mapIter, comment='#', delim='\t', nullchar='',
-            noHeaderline=False):
-        self.comment = comment
-        self.delim = delim
-        self.header = header
-        self.nullchar = nullchar
-        self.maps = mapIter
-        self.noHeaderline = noHeaderline
-
-    def __iter__(self):
-        if not self.noHeaderline:
-            yield self.comment + self.delim.join(self.header) + "\n"
-        for x in self.maps:
-            out = [str(x.get(h,self.nullchar)) for h in self.header]
-            yield self.delim.join(out) + "\n"
 
 
 def fastaMaker(seqs, linewidth=60):
