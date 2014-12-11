@@ -47,7 +47,7 @@ __commands__.append(('get_bustard_dir', main_get_bustard_dir, parser_get_bustard
 # ***  make_barcodes_file   ***
 # =============================
 
-def make_barcodes_file(inFile, flowcell, lane, run, bamDir, outFile):
+def make_barcodes_file(inFile, outFile):
     header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
@@ -67,7 +67,7 @@ def parser_make_barcodes_file() :
     parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
     return parser
 def main_make_barcodes_file(args) :
-    make_params_file(args.inFile, args.outFile)
+    make_barcodes_file(args.inFile, args.outFile)
     return 0
 __commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_barcodes_file))
 
@@ -75,7 +75,7 @@ __commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_
 # ***  extract_barcodes   ***
 # ===========================
 
-def parser_extract_barcodes() :
+def parser_extract_barcodes():
     parser = argparse.ArgumentParser(
         description='''Match every read in a lane against their barcode.''')
     parser.add_argument('inDir', help='Illumina basecalls directory.')
@@ -96,7 +96,7 @@ def parser_extract_barcodes() :
         default = tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
-def main_extract_barcodes(args) :
+def main_extract_barcodes(args):
     out_metrics = (args.outMetrics==None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
@@ -131,7 +131,7 @@ def make_params_file(inFile, flowcell, lane, bamDir, outFile):
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
             out['ID'] = hashlib.sha1('{}.{}.{}'.format(run_id,flowcell,lane).encode('utf-8')).hexdigest().upper()[:8]
             outf.write('\t'.join(out[h] for h in header)+'\n')
-def parser_make_params_file() :
+def parser_make_params_file():
     parser = argparse.ArgumentParser(description='Create input file for illumina_basecalls')
     parser.add_argument('barcodeFile',
         help='''Input tab file w/header and four named columns:
@@ -141,7 +141,7 @@ def parser_make_params_file() :
     parser.add_argument('bamDir', help='Directory for output bams')
     parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
     return parser
-def main_make_params_file(args) :
+def main_make_params_file(args):
     make_params_file(args.barcodeFile, args.flowcell, args.lane, args.bamDir, args.outFile)
     return 0
 __commands__.append(('make_params_file', main_make_params_file, parser_make_params_file))
@@ -158,7 +158,7 @@ def get_earliest_date(inDir):
     earliest = min(os.path.getmtime(fn) for fn in fnames)
     return time.strftime("%Y-%m-%d", time.localtime(earliest))
     
-def parser_illumina_basecalls() :
+def parser_illumina_basecalls():
     parser = argparse.ArgumentParser(
         description='''Demultiplex Illumina runs & produce BAM files, one per sample''')
     parser.add_argument('inIlluminaDir', help='Illumina basecalls directory.')
@@ -182,7 +182,7 @@ def parser_illumina_basecalls() :
         default = tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
-def main_illumina_basecalls(args) :
+def main_illumina_basecalls(args):
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
         if hasattr(args, opt) and getattr(args, opt)!=None and opt != 'read_structure')
