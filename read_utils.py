@@ -225,8 +225,7 @@ __commands__.append(('picard', main_picard, parser_picard))
 
 def parser_sort_bam() :
     parser = argparse.ArgumentParser(
-        description='Convert a bam file to a pair of fastq paired-end '\
-                    'read files and optional text header.')
+        description='Sort BAM file')
     parser.add_argument('inBam',   help='Input bam file.')
     parser.add_argument('outBam',  help='Output bam file, sorted.')
     parser.add_argument('sortOrder',
@@ -256,6 +255,29 @@ def main_sort_bam(args) :
         picardOptions=opts, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('sort_bam', main_sort_bam, parser_sort_bam))
+
+# ===================
+# ***  merge_bam  ***
+# ===================
+
+def parser_merge_bam() :
+    parser = argparse.ArgumentParser(
+        description='Merge multiple BAMs into one')
+    parser.add_argument('inBams',  help='Input bam files.', nargs='+')
+    parser.add_argument('outBam',  help='Output bam file.')
+    parser.add_argument('--JVMmemory', default = tools.picard.MergeSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s MergeSam, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_merge_bam(args) :
+    opts = list(args.picardOptions) + ['USE_THREADING=true']
+    tools.picard.MergeSamTool().execute(
+        args.inBams, args.outBam,
+        picardOptions=opts, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('merge_bam', main_merge_bam, parser_merge_bam))
 
 # =======================
 # ***  bam_to_fastq   ***

@@ -79,6 +79,13 @@ class SortSamTool(PicardTools) :
         opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'SORT_ORDER='+sort_order]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
+class MergeSamTool(PicardTools) :
+    subtoolName = 'MergeSam'
+    def execute(self, inBam, outBam,
+                picardOptions=[], JVMmemory=None) :
+        opts = ['INPUT='+bam for bam in inBams] + ['OUTPUT='+outBam]
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
     jvmMemDefault = '512m'
@@ -101,21 +108,65 @@ class CreateSequenceDictionaryTool(PicardTools) :
 
 class ExtractIlluminaBarcodesTool(PicardTools) :
     subtoolName = 'ExtractIlluminaBarcodes'
-    def execute(self, basecalls_dir, lane, read_structure, barcode_file, metrics,
-                picardOptions=[], JVMmemory=None) :
-        opts = ['BASECALLS_DIR='+basecalls_dir, 'LANE='+str(lane),
-            'READ_STRUCTURE='+read_structure,
-            'BARCODE_FILE='+barcode_file,
-            'METRICS_FILE='+metrics]
+    jvmMemDefault = '8g'
+    defaults = {'read_structure':'101T8B8B101T',
+        'max_mismatches':1, 'minimum_base_quality':15,
+        'num_processors':4}
+    option_list = ('read_structure', 'max_mismatches', 'minimum_base_quality',
+        'min_mismatch_delta', 'max_no_calls', 'minimum_quality',
+        'compress_outputs', 'num_processors')
+    def execute(self, basecalls_dir, lane, read_structure, barcode_file,
+                output_dir, metrics,
+                picardOptions={}, JVMmemory=None) :
+        opts_dict = self.defaults.copy()
+        for k,v in picardOptions.items():
+            opts_dict[k] = v
+        opts = []
+        for k,v in opts_dict.items():
+            if v != None:
+                if type(v) in (list, tuple):
+                    for x in v:
+                        opts.append('='.join((k.upper(), str(x))))
+                else:
+                    opts.append('='.join((k.upper(), str(x))))
+        opts = ['BASECALLS_DIR='+basecalls_dir,
+                'LANE='+str(lane),
+                'BARCODE_FILE='+barcode_file,
+                'METRICS_FILE='+metrics]
+        if output_dir != None:
+            opts += ['OUTPUT_DIR='+output_Dir]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class IlluminaBasecallsToSamTool(PicardTools) :
     subtoolName = 'IlluminaBasecallsToSam'
     jvmMemDefault = '54g'
-    def execute(self, basecalls_dir, lane, run_barcode, read_structure, library_params,
-                picardOptions=[], JVMmemory=None) :
-        opts = ['BASECALLS_DIR='+basecalls_dir, 'LANE='+str(lane),
-            'READ_STRUCTURE='+read_structure,
-            'RUN_BARCODE='+run_barcode, 'LIBRARY_PARAMS='+library_params]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-        
+    defaults = {'read_structure':'101T8B8B101T', 'sequencing_center':'BI',
+        'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
+        'max_reads_in_ram_per_tile':100000, 'max_records_in_ram':100000,
+        'num_processors':4}
+    option_list = ('read_structure', 'sequencing_center', 'adapters_to_check',
+        'platform', 'max_reads_in_ram_per_tile', 'max_records_in_ram', 'num_processors',
+        'apply_eamss_filter', 'force_gc', 'first_tile', 'tile_limit',
+        'include_non_pf_reads', 'run_start_date')
+    def execute(self, basecalls_dir, lane, read_structure, barcodes_dir,
+                run_barcode, library_params, 
+                picardOptions={}, JVMmemory=None) :
+        opts_dict = self.defaults.copy()
+        for k,v in picardOptions.items():
+            opts_dict[k] = v
+        opts = []
+        for k,v in opts_dict.items():
+            if v != None:
+                if type(v) in (list, tuple):
+                    for x in v:
+                        opts.append('='.join((k.upper(), str(x))))
+                else:
+                    opts.append('='.join((k.upper(), str(x))))
+        opts += ['BASECALLS_DIR='+basecalls_dir,
+                'BARCODES_DIR='+barcodes_dir,
+                'LANE='+str(lane),
+                'READ_STRUCTURE='+read_structure,
+                'RUN_BARCODE='+run_barcode,
+                'LIBRARY_PARAMS='+library_params]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
+
