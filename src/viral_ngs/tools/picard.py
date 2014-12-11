@@ -134,7 +134,7 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
                 'BARCODE_FILE='+barcode_file,
                 'METRICS_FILE='+metrics]
         if output_dir != None:
-            opts += ['OUTPUT_DIR='+output_Dir]
+            opts += ['OUTPUT_DIR='+output_dir]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class IlluminaBasecallsToSamTool(PicardTools) :
