@@ -57,7 +57,7 @@ def make_barcodes_file(inFile, outFile):
                     'barcode_name':row['sample'],
                     'library_name':row['sample']}
             if row.get('library_id_per_sample'):
-                out['library_name'] += '.' + str(row['library_id_per_sample'])
+                out['library_name'] += '.l' + row['library_id_per_sample']
             outf.write('\t'.join(out[h] for h in header)+'\n')
 def parser_make_barcodes_file() :
     parser = argparse.ArgumentParser(description='Create input file for extract_barcodes')
@@ -124,10 +124,10 @@ def make_params_file(inFile, flowcell, lane, bamDir, outFile):
                     'SAMPLE_ALIAS':row['sample'],
                     'LIBRARY_NAME':row['sample']}
             if row.get('library_id_per_sample'):
-                out['LIBRARY_NAME'] += '.' + str(row['library_id_per_sample'])
+                out['LIBRARY_NAME'] += '.l' + row['library_id_per_sample']
             run_id = out['LIBRARY_NAME']
             if row.get('run_id_per_library'):
-                run_id += '.r' + str(row['run_id_per_library'])
+                run_id += '.r' + row['run_id_per_library']
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
             out['ID'] = hashlib.sha1('{}.{}.{}'.format(run_id,flowcell,lane).encode('utf-8')).hexdigest().upper()[:8]
             outf.write('\t'.join(out[h] for h in header)+'\n')
