@@ -22,7 +22,7 @@ def get_bustard_dir(picardDir):
     ''' for example, /seq/walkup/picard/{flowcell_minus_first_char} '''
     analysisDir = max(
         (os.path.getmtime(d), d)
-        for d in os.path.listdir(picardDir)
+        for d in os.listdir(picardDir)
         if os.path.isdir(os.path.join(picardDir, d)))[1]
     jsonfile = list(glob.glob(os.path.join(picardDir, analysisDir, 'info', 'logs', '*.json')))
     if len(jsonfile) != 1:
