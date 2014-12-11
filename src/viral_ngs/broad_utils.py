@@ -51,7 +51,7 @@ def make_barcodes_file(inFile, outFile):
     header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
-        for row in read_tabfile_dict(inFile):
+        for row in util.file.read_tabfile_dict(inFile):
             out  = {'barcode_sequence_1':row['barcode_1'],
                     'barcode_sequence_2':row['barcode_2'],
                     'barcode_name':row['sample'],
@@ -116,7 +116,7 @@ def make_params_file(inFile, flowcell, lane, bamDir, outFile):
     header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'ID']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
-        rows = list(read_tabfile_dict(inFile))
+        rows = list(util.file.read_tabfile_dict(inFile))
         rows.append({'barcode_1':'N','barcode_2':'N','sample':'Unmatched'})
         for row in rows:
             out  = {'BARCODE_1':row['barcode_1'],
