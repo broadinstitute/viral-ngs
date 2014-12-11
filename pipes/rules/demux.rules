@@ -38,6 +38,7 @@ Basically the inputs are:
  
 
 
+
 #-------- DEMULTIPLEXING OF MISEQ AND HISEQ DATA @ BROAD --------#
 # Picard directory e.g. /seq/picard/D0N2CACXX/C1-210_2012-02-29_2012-04-12/2
 # Bustard directory e.g. /seq/solexaproc/SL-HAW/analyzed/120229_SL-HAW_0168_AFCD0N2CACXX
@@ -46,6 +47,12 @@ Basically the inputs are:
 # Barcode for IlluminaBasecallsToSam e.g. /seq/picard/D0N2CACXX/C1-210_2012-02-29_2012-04-12/2/library_params.txt
 # ExtractIlluminaBarcodes barcode example: http://cl.ly/3g1M2D0C2b2C3C0M0h2C
 # IlluminaBasecallsToSam barcode example: http://cl.ly/1N2w2n2U3Z431D382Q3j
+
+
+mkdir -p data/1 data/2 tmp/1 tmp/2 logs reports
+
+bin/broad_utils.py get_bustard_dir /seq/walkup/picard/HAVA0ADXX
+ln -s /seq/illumina/proc/SL-HDE/141205_SL-HDE_0500_AHAVA0ADXX data/bustard
 
 # CREATE LINKS TO RAW DATA
 for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
@@ -75,6 +82,12 @@ done
 
 
 # EXTRACT ILLUMINA BARCODES
+bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.1.txt
+bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.2.txt
+
+bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-1.txt bin/broad_utils.py extract_barcodes data/bustard 1 data/barcodes.AHAVA0ADXX.1.txt tmp/1
+bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_utils.py extract_barcodes data/bustard 2 data/barcodes.AHAVA0ADXX.2.txt tmp/2
+
 for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1 
 do
 for lane in 1 2
@@ -117,6 +130,13 @@ done
 done
 
 # CONVERT RAW FILES TO BAM
+
+bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 1 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/1 data/params.AHAVA0ADXX.1.txt
+bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 2 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/2 data/params.AHAVA0ADXX.2.txt
+
+bsub -R "rusage[mem=100]" -w 4005335 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
+bsub -R "rusage[mem=100]" -w 4005336 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
+
 for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
 do
 for lane in 1 2

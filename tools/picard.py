@@ -128,7 +128,7 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
                     for x in v:
                         opts.append('='.join((k.upper(), str(x))))
                 else:
-                    opts.append('='.join((k.upper(), str(x))))
+                    opts.append('='.join((k.upper(), str(v))))
         opts = ['BASECALLS_DIR='+basecalls_dir,
                 'LANE='+str(lane),
                 'BARCODE_FILE='+barcode_file,
@@ -161,7 +161,7 @@ class IlluminaBasecallsToSamTool(PicardTools) :
                     for x in v:
                         opts.append('='.join((k.upper(), str(x))))
                 else:
-                    opts.append('='.join((k.upper(), str(x))))
+                    opts.append('='.join((k.upper(), str(v))))
         opts += ['BASECALLS_DIR='+basecalls_dir,
                 'BARCODES_DIR='+barcodes_dir,
                 'LANE='+str(lane),
