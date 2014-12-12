@@ -7,7 +7,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, os, os.path, time, json, glob, hashlib
+import argparse, logging, os, os.path, time, json, glob, hashlib, base64
 import util.cmd, util.file
 import tools.picard
 
@@ -112,6 +112,12 @@ __commands__.append(('extract_barcodes', main_extract_barcodes, parser_extract_b
 # ***  make_library_params   ***
 # ==============================
 
+def short_hash(inString, length=None):
+    hash_obj = hashlib.sha1(inString.encode('utf-8'))
+    b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
+    if length>0 and len(b32_str)>length:
+        b32_str = b32_str[:length]
+    return b32_str
 def make_params_file(inFile, flowcell, lane, bamDir, outFile):
     header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'ID']
     with open(outFile, 'wt') as outf:
@@ -129,7 +135,7 @@ def make_params_file(inFile, flowcell, lane, bamDir, outFile):
             if row.get('run_id_per_library'):
                 run_id += '.r' + row['run_id_per_library']
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
-            out['ID'] = hashlib.sha1('{}.{}.{}'.format(run_id,flowcell,lane).encode('utf-8')).hexdigest().upper()[:8]
+            out['ID'] = short_hash('{}.{}.{}'.format(run_id,flowcell,lane), 6)
             outf.write('\t'.join(out[h] for h in header)+'\n')
 def parser_make_params_file():
     parser = argparse.ArgumentParser(description='Create input file for illumina_basecalls')
@@ -156,7 +162,9 @@ def get_earliest_date(inDir):
     '''
     fnames = [inDir] + [os.path.join(inDir, x) for x in os.listdir(inDir)]
     earliest = min(os.path.getmtime(fn) for fn in fnames)
-    return time.strftime("%Y-%m-%d", time.localtime(earliest))
+    #return time.strftime("%Y-%m-%d", time.localtime(earliest))
+    # what?? http://sourceforge.net/p/samtools/mailman/message/27441767/
+    return time.strftime("%m/%d/%Y", time.localtime(earliest))
     
 def parser_illumina_basecalls():
     parser = argparse.ArgumentParser(

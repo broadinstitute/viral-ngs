@@ -85,8 +85,8 @@ done
 bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.1.txt
 bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.2.txt
 
-bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-1.txt bin/broad_utils.py extract_barcodes data/bustard 1 data/barcodes.AHAVA0ADXX.1.txt tmp/1
-bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_utils.py extract_barcodes data/bustard 2 data/barcodes.AHAVA0ADXX.2.txt tmp/2
+bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-1.txt bin/broad_utils.py extract_barcodes data/bustard 1 data/barcodes.AHAVA0ADXX.1.txt tmp/1 --outMetrics=reports/barcodes-metrics-1.txt
+bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_utils.py extract_barcodes data/bustard 2 data/barcodes.AHAVA0ADXX.2.txt tmp/2 --outMetrics=reports/barcodes-metrics-2.txt
 
 for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1 
 do
@@ -134,8 +134,8 @@ done
 bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 1 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/1 data/params.AHAVA0ADXX.1.txt
 bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 2 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/2 data/params.AHAVA0ADXX.2.txt
 
-bsub -R "rusage[mem=100]" -w 4005335 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
-bsub -R "rusage[mem=100]" -w 4005336 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
+bsub -R "rusage[mem=100]" -w 4021130 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
+bsub -R "rusage[mem=100]" -w 4021131 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
 
 for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
 do
