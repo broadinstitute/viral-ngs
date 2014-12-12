@@ -6,7 +6,7 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time, json
+import os, os.path, time
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -40,45 +40,11 @@ Basically the inputs are:
 
 
 #-------- DEMULTIPLEXING OF MISEQ AND HISEQ DATA @ BROAD --------#
-# Picard directory e.g. /seq/picard/D0N2CACXX/C1-210_2012-02-29_2012-04-12/2
-# Bustard directory e.g. /seq/solexaproc/SL-HAW/analyzed/120229_SL-HAW_0168_AFCD0N2CACXX
-# Bustard directory can be found by looking in the following file: /seq/picard/<flowcell>/<analysis>/info/logs/ID_xxx.json - look for 'runFolder'
-# Barcode for ExtractIlluminaBarcodes e.g. /seq/solexaproc/SL-HAW/analyzed/120229_SL-HAW_0168_AFCD0N2CACXX/Data/Intensities/BaseCalls/barcodeData.2
-# Barcode for IlluminaBasecallsToSam e.g. /seq/picard/D0N2CACXX/C1-210_2012-02-29_2012-04-12/2/library_params.txt
-# ExtractIlluminaBarcodes barcode example: http://cl.ly/3g1M2D0C2b2C3C0M0h2C
-# IlluminaBasecallsToSam barcode example: http://cl.ly/1N2w2n2U3Z431D382Q3j
-
 
 mkdir -p data/1 data/2 tmp/1 tmp/2 logs reports
 
 bin/broad_utils.py get_bustard_dir /seq/walkup/picard/HAVA0ADXX
 ln -s /seq/illumina/proc/SL-HDE/141205_SL-HDE_0500_AHAVA0ADXX data/bustard
-
-# CREATE LINKS TO RAW DATA
-for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
-do
-for date in 141106
-do
-for flow_cell in AHAVA0ADXX
-do
-for temp in $directory/_temp
-do
-for bustard_dir in /seq/illumina/proc/SL-HDE/141205_SL-HDE_0500_AHAVA0ADXX
-do
-
-bsub -q hour -o $directory/_logs/barcodes.log.bsub.txt -P sabeti_align -J bc.sl
-"mkdir $temp/$date.$flow_cell"
-"mkdir -p mkdir $temp/$date.$flow_cell/Data/Intensities/BaseCalls"
-"ln -s $bustard_dir/Data/Intensities/L00* $temp/$date.$flow_cell/Data/Intensities"
-"ln -s $bustard_dir/Data/Intensities/BaseCalls/L00* $temp/$date.$flow_cell/Data/Intensities/BaseCalls"
-"ln -s $bustard_dir/Data/Intensities/BaseCalls/barcodeData* $temp/$date.$flow_cell/Data/Intensities/BaseCalls"
-
-done
-done
-done
-done
-done
-
 
 
 # EXTRACT ILLUMINA BARCODES
@@ -88,46 +54,6 @@ bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.
 bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-1.txt bin/broad_utils.py extract_barcodes data/bustard 1 data/barcodes.AHAVA0ADXX.1.txt tmp/1 --outMetrics=reports/barcodes-metrics-1.txt
 bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_utils.py extract_barcodes data/bustard 2 data/barcodes.AHAVA0ADXX.2.txt tmp/2 --outMetrics=reports/barcodes-metrics-2.txt
 
-for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1 
-do
-for lane in 1 2
-do
-for date in 141106
-do
-for flow_cell in AHAVA0ADXX
-do
-for temp in $directory/_temp
-do
-for read_structure in 101T8B8B101T # 151T8B151T 151T6B151T
-do
-for max_mismatches in 1
-do
-for min_quality_score in 15
-do
-for bar_codes in $directory/_logs/barcodes/barcodeData.txt
-do
-for memory in 16
-do
-bsub -R "rusage[mem=$memory]" -q forest -o $directory/_logs/barcodes.log.bsub.txt -P sabeti_align1 -J bc.eb
-"java -Xmx8g -jar /seq/software/picard/1.802/bin/ExtractIlluminaBarcodes.jar
-    BASECALLS_DIR=$temp/$date.$flow_cell/Data/Intensities/BaseCalls/
-    LANE=$lane
-    READ_STRUCTURE=$read_structure
-    BARCODE_FILE=$bar_codes
-    METRICS_FILE=$directory/_logs/barcode.metrics.$flow_cell.$lane.txt
-    MAX_MISMATCHES=$max_mismatches
-    MINIMUM_BASE_QUALITY=$min_quality_score
-    NUM_PROCESSORS=1"
-done
-done
-done
-done
-done
-done
-done
-done
-done
-done
 
 # CONVERT RAW FILES TO BAM
 
@@ -136,41 +62,6 @@ bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 2 /id
 
 bsub -R "rusage[mem=100]" -w 4021130 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
 bsub -R "rusage[mem=100]" -w 4021131 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
-
-for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
-do
-for lane in 1 2
-do
-for date in 141106
-do
-for flow_cell in AHAVA0ADXX
-do
-for temp in $directory/_temp
-do
-for read_structure in 101T8B8B101T # 151T8B151T 151T6B151T
-do
-for library_parameters in $directory/_logs/barcodes/$flow_cell.$lane.txt
-do
-bsub -q flower -R "rusage[mem=64]" -n 4 -R "span[hosts=1]" -o $directory/_logs/barcodes.log.bsub.txt -P sabeti_align2 -J bc.$lane.cs
-"java -Xmx48g -jar /seq/software/picard/1.802/bin/IlluminaBasecallsToSam.jar
-    BASECALLS_DIR=$temp/$date.$flow_cell/Data/Intensities/BaseCalls/
-    LANE=$lane
-    READ_STRUCTURE=$read_structure
-    LIBRARY_PARAMS=$library_parameters
-    SEQUENCING_CENTER=Broad
-    RUN_BARCODE=$flow_cell
-    NUM_PROCESSORS=4
-    ADAPTERS_TO_CHECK=PAIRED_END
-    MAX_READS_IN_RAM_PER_TILE=100000
-    MAX_RECORDS_IN_RAM=100000
-    FORCE_GC=false"
-done
-done
-done
-done
-done
-done
-done
 
 
 # MERGE BAM FILES
