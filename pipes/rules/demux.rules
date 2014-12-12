@@ -18,7 +18,7 @@ import os, os.path, time, shutil
 
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
-        header = inf.readline.rstrip('\n').split('\t')
+        header = inf.readline().rstrip('\n').split('\t')
         for line in inf:
             yield dict(zip(header, line.rstrip('\n').split('\t')))
 
@@ -35,7 +35,7 @@ rule make_picard_files:
     output:
             expand("samples/{file_type}.{lane_id}.txt",
                 file_type = ['barcodeData','library_params'],
-                lane_id = ['.'.join(x['flowcell'],x['lane']) for x in read_tab_file('samples/runs.txt')])
+                lane_id = ['.'.join((x['flowcell'],x['lane'])) for x in read_tab_file('samples/runs.txt')])
     params: logid="all"
     run:
             for lane in read_tab_file(input[0]):
@@ -54,7 +54,7 @@ rule extract_barcodes:
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
             shell("bin/broad_utils.py extract_barcodes {lane[bustard_dir]} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
 
-rule extract_barcodes:
+rule illumina_basecalls:
     input:  'samples/library_params.{flowcell}.{lane}.txt',
             'barcodes/{flowcell}.{lane}'
     output: 'bams/per_lane/{flowcell}.{lane}'
