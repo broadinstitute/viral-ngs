@@ -503,11 +503,9 @@ def split_bam(inBam, outBams) :
         totalReadCount, len(outBams), maxReads))
     
     # load BAM header into memory
-    headerFile = mkstempfname('.txt')
-    samtools.dumpHeader(inBam, headerFile)
-    with open(headerFile, 'rt') as inf:
-        header = inf.readlines()
-    os.unlink(headerFile)
+    header = samtools.getHeader(inBam)
+    if 'SO:queryname' not in header[0]:
+        raise Exception('Input BAM file must be sorted in queryame order')
     
     # dump to bigsam
     bigsam = mkstempfname('.sam')
@@ -519,8 +517,8 @@ def split_bam(inBam, outBams) :
             log.info("preparing file "+outBam)
             tmp_sam_reads = mkstempfname('.sam')
             with open(tmp_sam_reads, 'wt') as outf:
-                for line in header:
-                    outf.write(line)
+                for row in header:
+                    outf.write('\t'.join(row)+'\n')
                 for i in range(maxReads):
                     line = inf.readline()
                     if not line:

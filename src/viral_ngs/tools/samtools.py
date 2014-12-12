@@ -55,6 +55,14 @@ class SamtoolsTool(tools.Tool) :
     def dumpHeader(self, inBam, outHeader) :
         self.execute('view', ['-H', inBam], stdout=outHeader)
     
+    def getHeader(self, inBam):
+        fname = util.file.mkstempfname('.header.txt')
+        self.dumpHeader(inBam, fname)
+        with open(fname, 'rt') as inf:
+            header = [line.rstrip('\n').split('\t') for line in inf]
+        os.unlink(fname)
+        return header
+    
     def count(self, inBam, opts=[]) :
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam]
         return int(subprocess.check_output(cmd).strip())
