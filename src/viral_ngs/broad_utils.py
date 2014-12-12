@@ -78,7 +78,7 @@ __commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_
 def parser_extract_barcodes():
     parser = argparse.ArgumentParser(
         description='''Match every read in a lane against their barcode.''')
-    parser.add_argument('inDir', help='Illumina basecalls directory.')
+    parser.add_argument('inDir', help='Bustard directory.')
     parser.add_argument('lane', help='Lane number.', type=int)
     parser.add_argument('barcodeFile',
         help='''Input tab file w/header and four named columns:
@@ -100,9 +100,9 @@ def main_extract_barcodes(args):
     out_metrics = (args.outMetrics==None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-        if hasattr(args, opt) and getattr(args, opt)!=None and opt != 'read_structure')
+        if hasattr(args, opt) and getattr(args, opt)!=None)
     tools.picard.ExtractIlluminaBarcodesTool().execute(
-        args.inDir, args.lane, args.read_structure, args.barcodeFile,
+        os.path.join(args.inDir, 'Data/Intensities/BaseCalls'), args.lane, args.barcodeFile,
         args.outDir, out_metrics,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0
@@ -161,7 +161,7 @@ def get_earliest_date(inDir):
 def parser_illumina_basecalls():
     parser = argparse.ArgumentParser(
         description='''Demultiplex Illumina runs & produce BAM files, one per sample''')
-    parser.add_argument('inIlluminaDir', help='Illumina basecalls directory.')
+    parser.add_argument('inBustardDir', help='Bustard directory.')
     parser.add_argument('inBarcodesDir', help='Barcodes directory.')
     parser.add_argument('flowcell', help='Flowcell ID')
     parser.add_argument('lane', help='Lane number.', type=int)
@@ -190,7 +190,8 @@ def main_illumina_basecalls(args):
     if not picardOpts.get('run_start_date'):
         picardOpts['run_start_date'] = get_earliest_date(args.inIlluminaDir)
     tools.picard.IlluminaBasecallsToSamTool().execute(
-        args.inIlluminaDir, args.lane, args.read_structure, args.inBarcodesDir,
+        os.path.join(args.inBustardDir, 'Data/Intensities/BaseCalls'),
+        args.lane, args.read_structure, args.inBarcodesDir,
         args.flowcell, args.paramsFile,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0

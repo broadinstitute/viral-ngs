@@ -115,7 +115,7 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
     option_list = ('read_structure', 'max_mismatches', 'minimum_base_quality',
         'min_mismatch_delta', 'max_no_calls', 'minimum_quality',
         'compress_outputs', 'num_processors')
-    def execute(self, basecalls_dir, lane, read_structure, barcode_file,
+    def execute(self, basecalls_dir, lane, barcode_file,
                 output_dir, metrics,
                 picardOptions={}, JVMmemory=None) :
         opts_dict = self.defaults.copy()
@@ -129,9 +129,8 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
                         opts.append('='.join((k.upper(), str(x))))
                 else:
                     opts.append('='.join((k.upper(), str(v))))
-        opts = ['BASECALLS_DIR='+basecalls_dir,
+        opts += ['BASECALLS_DIR='+basecalls_dir,
                 'LANE='+str(lane),
-                'READ_STRUCTURE='+read_structure,
                 'BARCODE_FILE='+barcode_file,
                 'METRICS_FILE='+metrics]
         if output_dir != None:
