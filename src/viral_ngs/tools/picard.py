@@ -86,6 +86,14 @@ class MergeSamTool(PicardTools) :
         opts = ['INPUT='+bam for bam in inBams] + ['OUTPUT='+outBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
+class FilterSamReadsTool(PicardTools) :
+    subtoolName = 'FilterSamReads'
+    def execute(self, inBam, exclude, readList, outBam,
+                picardOptions=[], JVMmemory=None) :
+        opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
+            'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
     jvmMemDefault = '512m'
@@ -143,7 +151,7 @@ class IlluminaBasecallsToSamTool(PicardTools) :
     defaults = {'read_structure':'101T8B8B101T', 'sequencing_center':'BI',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
         'max_reads_in_ram_per_tile':100000, 'max_records_in_ram':100000,
-        'num_processors':4}
+        'num_processors':4, 'force_gc':False}
     option_list = ('read_structure', 'sequencing_center', 'adapters_to_check',
         'platform', 'max_reads_in_ram_per_tile', 'max_records_in_ram', 'num_processors',
         'apply_eamss_filter', 'force_gc', 'first_tile', 'tile_limit',
