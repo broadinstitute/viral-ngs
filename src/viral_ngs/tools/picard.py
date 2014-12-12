@@ -131,6 +131,7 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
                     opts.append('='.join((k.upper(), str(v))))
         opts = ['BASECALLS_DIR='+basecalls_dir,
                 'LANE='+str(lane),
+                'READ_STRUCTURE='+read_structure,
                 'BARCODE_FILE='+barcode_file,
                 'METRICS_FILE='+metrics]
         if output_dir != None:
