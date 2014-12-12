@@ -1,48 +1,72 @@
 """
     This is a basic framework for demultiplexing viral read data from
     the Broad Institute's walk-up sequencing platform.
+
+
+    Basically the inputs are:
+     - a tabular file describing sample name, library #, run #, barcode1 seq, and barcode2 seq
+        for each sample. One such tab file per lane.
+     - the flowcell ID and lane number
+     - the Bustard directory (ask the person who did the run)
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time
+import os, os.path, time, shutil
 
 
+def read_tab_file(fname):
+    with open(fname, 'rt') as inf:
+        header = inf.readline.rstrip('\n').split('\t')
+        for line in inf:
+            yield dict(zip(header, line.rstrip('\n').split('\t')))
+
+def get_bustard_dir(flowcell, lane, runfile):
+    lanes = [x for x in read_tab_file(runfile) if x['flowcell']==flowcell and x['lane']==lane]
+    assert len(lanes)==1
+    return lanes[0]['bustard_dir']
+
+rule make_picard_files:
+    input:
+            'samples/runs.txt',
+            expand("samples/{file}",
+                file = [x['barcode_file'] for x in read_tab_file('samples/runs.txt')])
+    output:
+            expand("samples/{file_type}.{lane_id}.txt",
+                file_type = ['barcodeData','library_params'],
+                lane_id = ['.'.join(x['flowcell'],x['lane']) for x in read_tab_file('samples/runs.txt')])
+    params: logid="all"
+    run:
+            for lane in read_tab_file(input[0]):
+                shell("bin/broad_utils.py make_barcodes_file samples/{lane[barcode_file]} samples/barcodeData.{lane[flowcell]}.{lane[lane]}.txt")
+                shell("bin/broad_utils.py make_params_file samples/{lane[barcode_file]} bams/per_lane/{lane[flowcell]}.{lane[lane]} data/library_params.{lane[flowcell]}.{lane[lane]}.txt")
+
+rule extract_barcodes:
+    input:  'samples/barcodeData.{flowcell}.{lane}.txt'
+    output: 'barcodes/{flowcell}.{lane}'
+    params: LSF='-R "rusage[mem=16]" -W 4:00',
+            logid="{flowcell}.{lane}"
+    run:
+            makedirs('reports')
+            shutil.rmtree(output[0], ignore_errors=True)
+            makedirs(output[0])
+            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
+            shell("bin/broad_utils.py extract_barcodes {lane[bustard_dir]} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
+
+rule extract_barcodes:
+    input:  'samples/library_params.{flowcell}.{lane}.txt',
+            'barcodes/{flowcell}.{lane}'
+    output: 'bams/per_lane/{flowcell}.{lane}'
+    params: LSF='-R "rusage[mem=50]" -q flower',
+            logid="{flowcell}.{lane}"
+    run:
+            shutil.rmtree(output[0], ignore_errors=True)
+            makedirs(output[0])
+            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
+            shell("bin/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]}")
 
 '''
-Basically the inputs are:
- - a tabular file describing sample name, library #, run #, barcode1 seq, and barcode2 seq
-    for each sample. One such tab file per lane.
- - the flowcell ID and lane number
- - the Bustard directory (ask the person who did the run)
-
-
-
-#-------- DEMULTIPLEXING OF MISEQ AND HISEQ DATA @ BROAD --------#
-
-mkdir -p data/1 data/2 data/combined tmp/1 tmp/2 logs reports
-
-bin/broad_utils.py get_bustard_dir /seq/walkup/picard/HAVA0ADXX
-ln -s /seq/illumina/proc/SL-HDE/141205_SL-HDE_0500_AHAVA0ADXX data/bustard
-
-
-# EXTRACT ILLUMINA BARCODES
-bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.1.txt
-bin/broad_utils.py make_barcodes_file data/samples.AHAVA0ADXX.txt data/barcodes.AHAVA0ADXX.2.txt
-
-bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-1.txt bin/broad_utils.py extract_barcodes data/bustard 1 data/barcodes.AHAVA0ADXX.1.txt tmp/1 --outMetrics=reports/barcodes-metrics-1.txt
-bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_utils.py extract_barcodes data/bustard 2 data/barcodes.AHAVA0ADXX.2.txt tmp/2 --outMetrics=reports/barcodes-metrics-2.txt
-
-
-# CONVERT RAW FILES TO BAM
-bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/1 data/params.AHAVA0ADXX.1.txt
-bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/2 data/params.AHAVA0ADXX.2.txt
-
-bsub -R "rusage[mem=100]" -w 4021130 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
-bsub -R "rusage[mem=100]" -w 4021131 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
-
-
 # MERGE BAM FILES
 # for each sample:
     bin/read_utils.py merge_bams data/1/{sample}.bam data/2/{sample}.bam data/combined/{sample}.bam

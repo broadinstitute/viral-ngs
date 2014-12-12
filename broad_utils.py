@@ -14,11 +14,11 @@ import tools.picard
 log = logging.getLogger(__name__)
 
 
-# ==========================
-# ***  get_bustard_dir   ***
-# ==========================
+# ==========================================
+# ***  get stuff from Picard json file   ***
+# ==========================================
 
-def get_bustard_dir(picardDir):
+def get_json_from_picard(picardDir):
     ''' for example, /seq/walkup/picard/{flowcell_minus_first_char} '''
     analysisDir = max(
         (os.path.getmtime(os.path.join(picardDir, d)), d)
@@ -27,10 +27,16 @@ def get_bustard_dir(picardDir):
     jsonfile = list(glob.glob(os.path.join(picardDir, analysisDir, 'info', 'logs', '*.json')))
     if len(jsonfile) != 1:
         raise Exception("error")
-    jsonfile = jsonfile[0]
+    return jsonfile[0]
+def get_run_date(jsonFile):
+    with open(jsonfile, 'rt') as inf:
+        runDate = json.load(inf)['workflow']['runDate']
+    return runDate
+def get_bustard_dir(jsonFile):
     with open(jsonfile, 'rt') as inf:
         bustard = json.load(inf)['workflow']['runFolder']
     return bustard
+
 def parser_get_bustard_dir() :
     parser = argparse.ArgumentParser(
         description='Find the Bustard directory from a Picard directory')
@@ -38,9 +44,19 @@ def parser_get_bustard_dir() :
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
 def main_get_bustard_dir(args) :
-    print(get_bustard_dir(args.inDir))
+    print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
 __commands__.append(('get_bustard_dir', main_get_bustard_dir, parser_get_bustard_dir))
+def parser_get_run_date() :
+    parser = argparse.ArgumentParser(
+        description='Find the sequencing run date from a Picard directory')
+    parser.add_argument('inDir',  help='Picard directory')
+    util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    return parser
+def main_get_run_date(args) :
+    print(get_run_date(get_json_from_picard(args.inDir)))
+    return 0
+__commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
 
 
 # =============================
