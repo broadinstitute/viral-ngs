@@ -256,11 +256,11 @@ def main_sort_bam(args) :
     return 0
 __commands__.append(('sort_bam', main_sort_bam, parser_sort_bam))
 
-# ===================
-# ***  merge_bam  ***
-# ===================
+# ====================
+# ***  merge_bams  ***
+# ====================
 
-def parser_merge_bam() :
+def parser_merge_bams() :
     parser = argparse.ArgumentParser(
         description='Merge multiple BAMs into one')
     parser.add_argument('inBams',  help='Input bam files.', nargs='+')
@@ -271,13 +271,41 @@ def parser_merge_bam() :
         help='Optional arguments to Picard\'s MergeSam, OPTIONNAME=value ...')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
-def main_merge_bam(args) :
+def main_merge_bams(args) :
     opts = list(args.picardOptions) + ['USE_THREADING=true']
     tools.picard.MergeSamTool().execute(
         args.inBams, args.outBam,
         picardOptions=opts, JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('merge_bam', main_merge_bam, parser_merge_bam))
+__commands__.append(('merge_bams', main_merge_bams, parser_merge_bams))
+
+# ====================
+# ***  filter_bam  ***
+# ====================
+
+def parser_filter_bam() :
+    parser = argparse.ArgumentParser(
+        description='Filter BAM file by read name')
+    parser.add_argument('inBam',  help='Input bam file.')
+    parser.add_argument('readList',  help='Input file of read IDs.')
+    parser.add_argument('outBam',  help='Output bam file.')
+    parser.add_argument("--exclude",
+        help="""If specified, readList is a list of reads to remove from input.
+            Default behavior is to treat readList as an inclusion list (all unnamed
+            reads are removed).""",
+        default=False, action="store_true", dest="exclude")
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s FilterSamReads, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_filter_bam(args) :
+    tools.picard.FilterSamReadsTool().execute(
+        args.inBam, args.exclude, args.readList, args.outBam,
+        picardOptions=args.picardOptions, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('filter_bam', main_filter_bam, parser_filter_bam))
 
 # =======================
 # ***  bam_to_fastq   ***

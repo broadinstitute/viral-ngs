@@ -8,40 +8,20 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time
 
-def read_samples_file(fname):
-    with open(fname, 'rt') as inf:
-        for line in inf:
-            yield line.strip()
-
-def assert_nonempty_file(fname):
-    if not (os.path.isfile(fname) and os.path.getsize(fname)):
-        raise Exception()
-
-def update_timestamps(files):
-    ''' this dumb function exists because sometimes the different nodes on the
-        cluster have out-of-sync system clocks and snakemake fails if the mtime of
-        any input file is more recent than the mtimes of the output files
-    '''
-    for f in files:
-        if os.path.isfile(f) and os.path.getmtime(f) > time.time():
-            print("input file %s is more recent than present, resetting its modification time to present" % f)
-            os.utime(f)
 
 
 '''
-
 Basically the inputs are:
- - a tabular file describing sample name, library name, barcode1 seq, and barcode2 seq
+ - a tabular file describing sample name, library #, run #, barcode1 seq, and barcode2 seq
     for each sample. One such tab file per lane.
  - the flowcell ID and lane number
  - the Bustard directory (ask the person who did the run)
- 
 
 
 
 #-------- DEMULTIPLEXING OF MISEQ AND HISEQ DATA @ BROAD --------#
 
-mkdir -p data/1 data/2 tmp/1 tmp/2 logs reports
+mkdir -p data/1 data/2 data/combined tmp/1 tmp/2 logs reports
 
 bin/broad_utils.py get_bustard_dir /seq/walkup/picard/HAVA0ADXX
 ln -s /seq/illumina/proc/SL-HDE/141205_SL-HDE_0500_AHAVA0ADXX data/bustard
@@ -56,26 +36,15 @@ bsub -R "rusage[mem=16]" -W 4:00 -oo logs/LSF-extract_barcodes-2.txt bin/broad_u
 
 
 # CONVERT RAW FILES TO BAM
-
-bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 1 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/1 data/params.AHAVA0ADXX.1.txt
-bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt AHAVA0ADXX 2 /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/2 data/params.AHAVA0ADXX.2.txt
+bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/1 data/params.AHAVA0ADXX.1.txt
+bin/broad_utils.py make_params_file data/samples.AHAVA0ADXX.txt /idi/sabeti-scratch/dpark/ebov/sl-batch3-demux/data/2 data/params.AHAVA0ADXX.2.txt
 
 bsub -R "rusage[mem=100]" -w 4021130 -q flower -oo logs/LSF-illumina_basecalls-1.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/1 AHAVA0ADXX 1 data/params.AHAVA0ADXX.1.txt
 bsub -R "rusage[mem=100]" -w 4021131 -q flower -oo logs/LSF-illumina_basecalls-2.txt bin/broad_utils.py illumina_basecalls data/bustard tmp/2 AHAVA0ADXX 2 data/params.AHAVA0ADXX.2.txt
 
 
 # MERGE BAM FILES
-for sample in G3682.1.c1 G4225.5.r1.l1 G4386.3.r1.l1 G4485.2.r1.l1 G4495.3.r1.l1 G4496.5.r1.l1 G4518.3.r1.l1 G4555.2.r1.l1 G4561.2.r1.l1 G4583.2.r1.l1 G4649.1.r1.l1 G4683.1.r1.l1 G4690.1.r1.l1 G4697.1.r1.l1 G4698.1.r1.l1 G4699.1.r1.l1 G4700.1.r1.l1 G4701.1.r1.l1 G4702.1.r1.l1 G4704.1.r1.l1 G4715.1.r1.l1 G4715.3.r1.l1 G4717.1.r1.l1 G4719.1.r1.l1 G4724.1.r1.l1 G4725.1.r1.l1 G4726.1.r1.l1 G4727.1.r1.l1 G4730.1.r1.l1 G4731.1.r1.l1 G4733.1.r1.l1 G4736.1.r1.l1 G4744.1.r1.l1 G4748.1.r1.l1 G4748.1.r2.l1 G4750.1.r1.l1 G4751.1.r1.l1 G4753.2.r1.l1 G4763.2.r1.l1 G4769.1.r1.l1 G4812.2.r1.l1 G4818.3.r1.l1 G4849.1.r1.l1 G4850.1.r1.l1 G4852.1.r1.l1 G4856.1.r1.l1 G4858.1.r1.l1 G4861.1.r1.l1 G4868.1.r1.l1 G4875.2.r1.l1 G4876.2.r1.l1 G4886.1.r1.l1 G4909.2.r1.l1 G4929.2.r1.l1 G4931.1.r1.l1 G4946.1.r1.l1 G4950.2.r1.l1 G4955.1.r1.l1 G4956.1.r1.l1 G4956.2.r1.l1 G4960.1.r1.l1 G4969.1.r1.l1 G4971.1.r1.l1 G4979.2.r1.l1 G4983.1.r1.l1 G4994.1.r1.l1 G4996.1.r1.l1 G4999.1.r1.l1 G5012.2.r1.l1 G5012.3.r1.l1 G5016.1.r1.l1 G5019.1.r1.l1 G5020.1.r1.l1 G5021.1.r1.l1 G5039.1.r1.l1 G5044.1.r1.l1 G5045.2.r1.l1 G5112.1.r1.l1 G5114.1.r1.l1 G5115.1.r1.l1 G5119.1.r1.l1 G5125.1.r1.l1 G5749.3.r1.l1 G5932.3.r1.l1 G5977.1.r1.l1 G5983.1.r1.l1 G5985.1.r1.l1 G5992.1.r1.l1 G5996.1.r1.l1 G5999.1.r1.l1 G6001.1.r1.l1 G6060.1.r1.l1 G6062.1.r1.l1 G6063.1.r1.l1 G6068.1.r1.l1 G6069.1.r1.l1
-do
-for directory in /idi/sabeti-scratch/kandersen/analysis/141106_ebola_round2_batch1
-do
-bsub -R "rusage[mem=4]" -W 4:00 -o $directory/_logs/$sample.log.bsub.txt -P sabeti_kga -J $sample.m
-"java -Xmx2g -jar /seq/software/picard/1.802/bin/MergeSamFiles.jar
-    I=$directory/picard/1/$sample.bam
-    I=$directory/picard/2/$sample.bam
-    O=$directory/picard/combined/$sample.bam"
-done
-done
-
+# for each sample:
+    bin/read_utils.py merge_bams data/1/{sample}.bam data/2/{sample}.bam data/combined/{sample}.bam
 
 '''
