@@ -112,14 +112,8 @@ __commands__.append(('extract_barcodes', main_extract_barcodes, parser_extract_b
 # ***  make_library_params   ***
 # ==============================
 
-def short_hash(inString, length=None):
-    hash_obj = hashlib.sha1(inString.encode('utf-8'))
-    b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
-    if length>0 and len(b32_str)>length:
-        b32_str = b32_str[:length]
-    return b32_str
-def make_params_file(inFile, flowcell, lane, bamDir, outFile):
-    header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'ID']
+def make_params_file(inFile, bamDir, outFile):
+    header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
         rows = list(util.file.read_tabfile_dict(inFile))
@@ -135,20 +129,17 @@ def make_params_file(inFile, flowcell, lane, bamDir, outFile):
             if row.get('run_id_per_library'):
                 run_id += '.r' + row['run_id_per_library']
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
-            out['ID'] = short_hash('{}.{}.{}'.format(run_id,flowcell,lane), 6)
             outf.write('\t'.join(out[h] for h in header)+'\n')
 def parser_make_params_file():
     parser = argparse.ArgumentParser(description='Create input file for illumina_basecalls')
     parser.add_argument('barcodeFile',
         help='''Input tab file w/header and four named columns:
                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
-    parser.add_argument('flowcell', help='Flowcell ID')
-    parser.add_argument('lane', help='Lane number', type=int)
     parser.add_argument('bamDir', help='Directory for output bams')
     parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
     return parser
 def main_make_params_file(args):
-    make_params_file(args.barcodeFile, args.flowcell, args.lane, args.bamDir, args.outFile)
+    make_params_file(args.barcodeFile, args.bamDir, args.outFile)
     return 0
 __commands__.append(('make_params_file', main_make_params_file, parser_make_params_file))
 
@@ -165,6 +156,16 @@ def get_earliest_date(inDir):
     #return time.strftime("%Y-%m-%d", time.localtime(earliest))
     # what?? http://sourceforge.net/p/samtools/mailman/message/27441767/
     return time.strftime("%m/%d/%Y", time.localtime(earliest))
+
+def short_hash(inString, length=None):
+    ''' Returns a base32 encoding of a SHA1 hash of the inString, optionally truncated
+        to a maximum length.  The base32 encoding is uppercase A-Z and 2-7.
+    '''
+    hash_obj = hashlib.sha1(inString.encode('utf-8'))
+    b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
+    if length>0 and len(b32_str)>length:
+        b32_str = b32_str[:length]
+    return b32_str
     
 def parser_illumina_basecalls():
     parser = argparse.ArgumentParser(
@@ -197,6 +198,8 @@ def main_illumina_basecalls(args):
     params_file = util.file.mkstempfname('library_params.txt')
     if not picardOpts.get('run_start_date'):
         picardOpts['run_start_date'] = get_earliest_date(args.inBustardDir)
+    #if not picardOpts.get('read_group_id'):
+    #    picardOpts['read_group_id'] = short_hash('{}.{}'.format(args.flowcell,args.lane), 6)
     tools.picard.IlluminaBasecallsToSamTool().execute(
         os.path.join(args.inBustardDir, 'Data/Intensities/BaseCalls'),
         args.inBarcodesDir, args.flowcell, args.lane, args.paramsFile,

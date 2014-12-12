@@ -147,7 +147,7 @@ class IlluminaBasecallsToSamTool(PicardTools) :
     option_list = ('read_structure', 'sequencing_center', 'adapters_to_check',
         'platform', 'max_reads_in_ram_per_tile', 'max_records_in_ram', 'num_processors',
         'apply_eamss_filter', 'force_gc', 'first_tile', 'tile_limit',
-        'include_non_pf_reads', 'run_start_date')
+        'include_non_pf_reads', 'run_start_date', 'read_group_id')
     def execute(self, basecalls_dir, barcodes_dir,
                 run_barcode, lane, library_params,
                 picardOptions={}, JVMmemory=None) :
