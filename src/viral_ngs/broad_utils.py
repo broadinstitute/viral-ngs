@@ -185,14 +185,13 @@ def parser_illumina_basecalls():
 def main_illumina_basecalls(args):
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
-        if hasattr(args, opt) and getattr(args, opt)!=None and opt != 'read_structure')
+        if hasattr(args, opt) and getattr(args, opt)!=None)
     params_file = util.file.mkstempfname('library_params.txt')
     if not picardOpts.get('run_start_date'):
-        picardOpts['run_start_date'] = get_earliest_date(args.inIlluminaDir)
+        picardOpts['run_start_date'] = get_earliest_date(args.inBustardDir)
     tools.picard.IlluminaBasecallsToSamTool().execute(
         os.path.join(args.inBustardDir, 'Data/Intensities/BaseCalls'),
-        args.lane, args.read_structure, args.inBarcodesDir,
-        args.flowcell, args.paramsFile,
+        args.inBarcodesDir, args.flowcell, args.lane, args.paramsFile,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('illumina_basecalls',

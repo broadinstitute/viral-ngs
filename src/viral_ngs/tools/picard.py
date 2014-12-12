@@ -148,8 +148,8 @@ class IlluminaBasecallsToSamTool(PicardTools) :
         'platform', 'max_reads_in_ram_per_tile', 'max_records_in_ram', 'num_processors',
         'apply_eamss_filter', 'force_gc', 'first_tile', 'tile_limit',
         'include_non_pf_reads', 'run_start_date')
-    def execute(self, basecalls_dir, lane, read_structure, barcodes_dir,
-                run_barcode, library_params, 
+    def execute(self, basecalls_dir, barcodes_dir,
+                run_barcode, lane, library_params,
                 picardOptions={}, JVMmemory=None) :
         opts_dict = self.defaults.copy()
         for k,v in picardOptions.items():
@@ -165,7 +165,6 @@ class IlluminaBasecallsToSamTool(PicardTools) :
         opts += ['BASECALLS_DIR='+basecalls_dir,
                 'BARCODES_DIR='+barcodes_dir,
                 'LANE='+str(lane),
-                'READ_STRUCTURE='+read_structure,
                 'RUN_BARCODE='+run_barcode,
                 'LIBRARY_PARAMS='+library_params]
         PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
