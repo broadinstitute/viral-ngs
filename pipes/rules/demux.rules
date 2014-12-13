@@ -46,9 +46,9 @@ def get_bam_path(lane, well):
 def all_basecalls_inputs(wildcards):
     for lane in read_tab_file('samples/runs.txt'):
         yield os.path.join('bams', 'per_lane', lane['flowcell']+'.'+lane['lane'],
-            'Umatched.bam')
+            'Unmatched.bam')
 
-rule all_demux_basecall:
+rule all_demux_basecalls:
     input:  all_basecalls_inputs
     params: LSF="-N"
     run:
