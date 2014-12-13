@@ -83,13 +83,15 @@ rule extract_barcodes:
     input:  'samples/barcodeData.{flowcell}.{lane}.txt'
     output: 'barcodes/{flowcell}.{lane}'
     params: LSF='-R "rusage[mem=16]" -W 4:00',
-            logid="{flowcell}.{lane}"
+            logid="{flowcell}.{lane}",
+            minimum_base_quality=config["demux_min_baseq"],
+            max_mismatches=config["demux_max_mismatches"]
     run:
             makedirs('reports')
             shutil.rmtree(output[0], ignore_errors=True)
             makedirs(output[0])
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
-            shell("bin/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
+            shell("bin/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt --max_mismatches={params.max_mismatches} --minimum_base_quality={params.minimum_base_quality}")
 
 rule illumina_basecalls:
     input:  'samples/library_params.{flowcell}.{lane}.txt',
