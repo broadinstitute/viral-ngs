@@ -102,7 +102,7 @@ rule illumina_basecalls:
             shutil.rmtree(params.outdir, ignore_errors=True)
             makedirs(params.outdir)
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
-            shell("bin/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]}")
+            shell("bin/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false")
 
 def merge_bams_inputs(wildcards):
     for lane in read_tab_file('samples/runs.txt'):
