@@ -550,6 +550,48 @@ __commands__.append(('split_bam', main_split_bam, parser_split_bam))
 # ***  dup_remove_mvicuna  ***
 # ============================
 
+def parser_rmdup_mvicuna_bam() :
+    parser = argparse.ArgumentParser(
+        description='''Remove duplicate reads from BAM file.''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_rmdup_mvicuna_bam(args) :
+    ''' TODO: this needs to be made smarter to operate independently
+        on a per-library basis.'''
+    
+    # Convert BAM -> FASTQ pair
+    inFastq1 = mkstempfname('.1.fastq')
+    inFastq2 = mkstempfname('.2.fastq')
+    tools.picard.SamToFastqTool().execute(args.inBam, inFastq1, inFastq2)
+    
+    # Run M-Vicuna on FASTQ files
+    outFastq1 = mkstempfname('.1.fastq')
+    outFastq2 = mkstempfname('.2.fastq')
+    tools.mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
+    os.unlink(inFastq1)
+    os.unlink(inFastq2)
+    
+    # Make a list of reads to keep
+    readList = mkstempfname('.txt')
+    with open(readList, 'wt') as outf:
+        for fq in (outFastq1, outFastq2):
+            with util.file.open_or_gzopen(fq, 'rt') as inf:
+                line_num = 0
+                for line in inf:
+                    if (line_num % 4) == 0:
+                        outf.write(line[1:])
+                    line_num += 1
+    os.unlink(outFastq1)
+    os.unlink(outFastq2)
+    
+    # Filter input BAM 
+    tools.picard.FilterSamReadsTool().execute(args.inBam, False, readList, args.outBam)
+    return 0
+__commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
+
+
 def parser_dup_remove_mvicuna() :
     parser = argparse.ArgumentParser(
         description='''Run mvicuna's duplicate removal operation on paired-end 
