@@ -607,7 +607,7 @@ def main_rmdup_mvicuna_bam(args) :
         log.info("executing M-Vicuna DupRm on library " + lb)
         
         # create merged FASTQs per library
-        infastqs = map(mkstempfname, ('.1.fastq', '.2.fastq'))
+        infastqs = (mkstempfname('.1.fastq'), mkstempfname('.2.fastq'))
         for d in range(2):
             with open(infastqs[d], 'wt') as outf:
                 for fprefix in files:
