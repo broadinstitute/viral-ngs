@@ -100,7 +100,7 @@ rule illumina_basecalls:
     output: expand("bams/per_lane/{{flowcell}}.{{lane}}/{run_id}.bam", run_id = "Unmatched")
     params: LSF='-R "rusage[mem=64]" -q flower',
             logid="{flowcell}.{lane}",
-            outdir='barcodes/{flowcell}.{lane}'
+            outdir='bams/per_lane/{flowcell}.{lane}'
     run:
             shutil.rmtree(params.outdir, ignore_errors=True)
             makedirs(params.outdir)
