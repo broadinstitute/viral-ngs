@@ -170,12 +170,12 @@ __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 # ***  partition_bmtagger  ***
 # ============================
 
-def deplete_bmtagger_bam(inBam, database, outBam) :
+def deplete_bmtagger_bam(inBam, db, outBam) :
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
     inBam: paired-end input reads in BAM format.
-    database: bmtagger expects files
+    db: bmtagger expects files
         db.bitmask created by bmtool, and
         db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
     outBam: the output BAM files to hold the unmatched reads.
@@ -404,15 +404,20 @@ def parser_deplete_bam_bmtagger() :
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_bam_bmtagger(args) :
-    inBam = args.inBam
-    for db in args.refDbs:
-        outBam = mkstempfname('.bam')
-        deplete_bmtagger_bam(inBam, db, outBam)
-        inBam = outBam
-    shutil.copyfile(inBam, outBam)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam)
 __commands__.append(('deplete_bam_bmtagger', main_deplete_bam_bmtagger,
                      parser_deplete_bam_bmtagger))
 
+
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam):
+    tmpBamIn = inBam
+    for db in refDbs:
+        tmpBamOut = mkstempfname('.bam')
+        deplete_method(tmpBamIn, db, tmpBamOut)
+        if tmpBamIn != inBam:
+            os.unlink(tmpBamIn)
+        tmpBamIn = tmpBamOut
+    shutil.copyfile(tmpBamIn, outBam)
 
 
 # ========================
@@ -517,8 +522,7 @@ __commands__.append(('deplete_blastn_paired', main_deplete_blastn_paired,
                      parser_deplete_blastn_paired))
 
 
-def deplete_blastn_bam(inBam, outBam, refDbs):
-
+def deplete_blastn_bam(inBam, db, outBam):
     'Use blastn to remove reads that match at least one of the databases.'
     
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
@@ -535,25 +539,24 @@ def deplete_blastn_bam(inBam, outBam, refDbs):
     read_utils.fastq_to_fasta(fastq1, fasta)
     os.unlink(fastq1)
     os.unlink(fastq2)
+    log.info("running blastn on {} pair 1 against {}".format(inBam, db))
+    blastOutfile = mkstempfname('.hits.txt')
+    blastnCmd = [blastnPath, '-db', db,
+                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                '-num_descriptions', '2', '-num_alignments', '2',
+                '-query', fasta, '-out', blastOutFile]
+    log.debug(' '.join(blastnCmd))
+    subprocess.check_call(blastnCmd)
     with open(blast_hits, 'wt') as outf:
-        for db in refDbs:
-            log.info("running blastn on {} against {}".format(inFastq, db))
-            blastOutfile = mkstempfname('.hits.txt')
-            blastnCmd = [blastnPath, '-db', db,
-                        '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
-                        '-num_descriptions', '2', '-num_alignments', '2',
-                        '-query', fasta, '-out', blastOutFile]
-            log.debug(' '.join(blastnCmd))
-            subprocess.check_call(blastnCmd)
-            with open(blastOutFile, 'rt') as inf:
-                for line in inf:
-                    id = line.split('\t')[0].strip()
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id+'\n')
-                    outf.write(id+'/1\n')
-                    outf.write(id+'/2\n')
-            os.unlink(blastOutFile)
+        with open(blastOutFile, 'rt') as inf:
+            for line in inf:
+                id = line.split('\t')[0].strip()
+                if id.endswith('/1') or id.endswith('/2'):
+                    id = id[:-2]
+                outf.write(id+'\n')
+                outf.write(id+'/1\n')
+                outf.write(id+'/2\n')
+        os.unlink(blastOutFile)
     
     # Deplete BAM of hits in FASTQ1
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam)
@@ -565,25 +568,24 @@ def deplete_blastn_bam(inBam, outBam, refDbs):
     read_utils.fastq_to_fasta(fastq2, fasta)
     os.unlink(fastq1)
     os.unlink(fastq2)
+    log.info("running blastn on {} pair 2 against {}".format(inBam, db))
+    blastOutfile = mkstempfname('.hits.txt')
+    blastnCmd = [blastnPath, '-db', db,
+                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                '-num_descriptions', '2', '-num_alignments', '2',
+                '-query', fasta, '-out', blastOutFile]
+    log.debug(' '.join(blastnCmd))
+    subprocess.check_call(blastnCmd)
     with open(blast_hits, 'wt') as outf:
-        for db in refDbs:
-            log.info("running blastn on {} against {}".format(inFastq, db))
-            blastOutfile = mkstempfname('.hits.txt')
-            blastnCmd = [blastnPath, '-db', db,
-                        '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
-                        '-num_descriptions', '2', '-num_alignments', '2',
-                        '-query', fasta, '-out', blastOutFile]
-            log.debug(' '.join(blastnCmd))
-            subprocess.check_call(blastnCmd)
-            with open(blastOutFile, 'rt') as inf:
-                for line in inf:
-                    id = line.split('\t')[0].strip()
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id+'\n')
-                    outf.write(id+'/1\n')
-                    outf.write(id+'/2\n')
-            os.unlink(blastOutFile)
+        with open(blastOutFile, 'rt') as inf:
+            for line in inf:
+                id = line.split('\t')[0].strip()
+                if id.endswith('/1') or id.endswith('/2'):
+                    id = id[:-2]
+                outf.write(id+'\n')
+                outf.write(id+'/1\n')
+                outf.write(id+'/2\n')
+        os.unlink(blastOutFile)
     
     # Deplete BAM of hits against FASTQ2
     tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam)
@@ -604,7 +606,7 @@ def parser_deplete_blastn_bam() :
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_blastn_bam(args) :
-    deplete_blastn_bam(args.inBam, args.outBam, args.refDbs)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam)
     return 0
 __commands__.append(('deplete_blastn_bam', main_deplete_blastn_bam,
                      parser_deplete_blastn_bam))
