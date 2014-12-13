@@ -603,7 +603,7 @@ def main_rmdup_mvicuna_bam(args) :
     
     # For each library, merge FASTQs and run rmdup for entire library
     readList = mkstempfname('.keep_reads.txt')
-    for lb, files in lb_to_rg.items():
+    for lb, files in lb_to_files.items():
         log.info("executing M-Vicuna DupRm on library " + lb)
         
         # create merged FASTQs per library
