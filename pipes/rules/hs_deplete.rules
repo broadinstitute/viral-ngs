@@ -40,7 +40,7 @@ rule deplete_bmtagger:
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
 
-rule rmdup_mvicuna_split:
+rule rmdup_mvicuna:
     input:
             expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:03d}.bam',
                 split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
@@ -53,13 +53,13 @@ rule rmdup_mvicuna_split:
             tmpf_input = '{dir}/{sample}.bmtagger_depleted.bam',
             tmpf_output = '{dir}/{sample}.rmdup.bam'
     run:
-            shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_input}")
+            shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_input} --picardOptions SORT_ORDER=queryname")
             shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_input} {params.tmpf_output}")
             shell("{config[binDir]}/read_utils.py split_bam {params.tmpf_output} {output}")
             os.unlink(params.tmpf_input)
             os.unlink(params.tmpf_output)
 
-rule deplete_blastn_paired:
+rule deplete_blastn:
     input:  '{dir}/{sample}.rmdup.{split_id}.bam'
     output: '{dir}/{sample}.cleaned.{split_id,\d+}.bam'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
@@ -75,4 +75,4 @@ rule merge_to_clean_bam:
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}"
-    shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output}"
+    shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
