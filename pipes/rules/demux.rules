@@ -119,5 +119,5 @@ rule merge_bams:
             logid="{sample}"
     run:
             makedirs('bams/combined')
-            shell("bin/read_utils.py merge_bams {input} {output}")
+            shell("bin/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
 
