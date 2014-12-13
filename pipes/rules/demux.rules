@@ -16,6 +16,8 @@ from snakemake.utils import makedirs
 import os, os.path, time, shutil
 
 
+configfile: "config.json"
+
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
         header = inf.readline().rstrip('\n').split('\t')
@@ -87,7 +89,7 @@ rule extract_barcodes:
             shutil.rmtree(output[0], ignore_errors=True)
             makedirs(output[0])
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
-            shell("bin/broad_utils.py extract_barcodes {lane[bustard_dir]} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
+            shell("bin/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
 
 rule illumina_basecalls:
     input:  'samples/library_params.{flowcell}.{lane}.txt',
