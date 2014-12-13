@@ -59,6 +59,9 @@ class SamToFastqTool(PicardTools) :
             'FASTQ='+outFastq1, 'SECOND_END_FASTQ='+outFastq2,
             'VALIDATION_STRINGENCY=SILENT']
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+    def per_read_group(self, inBam, outDir, picardOptions=[], JVMmemory=None) :
+        opts = ['INPUT='+inBam, 'OUTPUT_DIR='+outDir, 'OUTPUT_PER_RG=true']
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class FastqToSamTool(PicardTools) :
     subtoolName = 'FastqToSam'
@@ -79,7 +82,7 @@ class SortSamTool(PicardTools) :
         opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'SORT_ORDER='+sort_order]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
-class MergeSamTool(PicardTools) :
+class MergeSamFilesTool(PicardTools) :
     subtoolName = 'MergeSamFiles'
     def execute(self, inBams, outBam,
                 picardOptions=[], JVMmemory=None) :

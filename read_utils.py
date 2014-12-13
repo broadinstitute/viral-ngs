@@ -550,32 +550,14 @@ __commands__.append(('split_bam', main_split_bam, parser_split_bam))
 # ***  dup_remove_mvicuna  ***
 # ============================
 
-def parser_rmdup_mvicuna_bam() :
-    parser = argparse.ArgumentParser(
-        description='''Remove duplicate reads from BAM file.''')
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
-    return parser
-def main_rmdup_mvicuna_bam(args) :
-    ''' TODO: this needs to be made smarter to operate independently
-        on a per-library basis.'''
-    
-    # Convert BAM -> FASTQ pair
-    inFastq1 = mkstempfname('.1.fastq')
-    inFastq2 = mkstempfname('.2.fastq')
-    tools.picard.SamToFastqTool().execute(args.inBam, inFastq1, inFastq2)
-    
+def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     # Run M-Vicuna on FASTQ files
     outFastq1 = mkstempfname('.1.fastq')
     outFastq2 = mkstempfname('.2.fastq')
     tools.mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
-    os.unlink(inFastq1)
-    os.unlink(inFastq2)
     
     # Make a list of reads to keep
-    readList = mkstempfname('.txt')
-    with open(readList, 'wt') as outf:
+    with open(readList, 'at') as outf:
         for fq in (outFastq1, outFastq2):
             with util.file.open_or_gzopen(fq, 'rt') as inf:
                 line_num = 0
@@ -585,8 +567,61 @@ def main_rmdup_mvicuna_bam(args) :
                     line_num += 1
     os.unlink(outFastq1)
     os.unlink(outFastq2)
+
+def parser_rmdup_mvicuna_bam() :
+    parser = argparse.ArgumentParser(
+        description='''Remove duplicate reads from BAM file using M-Vicuna. The
+            primary advantage to this approach over Picard's MarkDuplicates tool
+            is that Picard requires that input reads are aligned to a reference,
+            and M-Vicuna can operate on unaligned reads.''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_rmdup_mvicuna_bam(args) :
+    ''' TODO: this needs to be made smarter to operate independently
+        on a per-library basis.'''
     
-    # Filter input BAM 
+    # Convert BAM -> FASTQ pairs per read group and load all read groups
+    tempDir = tempfile.mkdtemp()
+    tools.picard.SamToFastqTool().per_read_group(args.inBam, tempDir,
+        picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
+    read_groups = [x[1:] for x in
+        tools.samtools.SamtoolsTool().getHeader(args.inBam)
+        if x[0]=='@RG']
+    read_groups = [dict(pair.split(':',1) for pair in rg) for rg in read_groups]
+    
+    # Collect FASTQ pairs for each library
+    lb_to_files = {}
+    for rg in read_groups:
+        lb_to_files.setdefault(rg['LB'], set())
+        fname = rg['ID']
+        if 'PU' in rg:
+            fname = rg['PU']
+        lb_to_files[rg['LB']].add(os.path.join(tempDir, fname))
+    log.info("found %d distinct libraries and %d read groups" % (len(lb_to_files), len(read_groups)))
+    
+    # For each library, merge FASTQs and run rmdup for entire library
+    readList = mkstempfname('.keep_reads.txt')
+    for lb, files in lb_to_rg.items():
+        log.info("executing M-Vicuna DupRm on library " + lb)
+        
+        # create merged FASTQs per library
+        infastqs = (mksetmpfname('.1.fastq'), mksetmpfname('.2.fastq'))
+        for d in range(2):
+            with open(infastqs[d], 'wt') as outf:
+                for fprefix in files:
+                    fn = '%s_%d.fastq' % (fprefix, d+1)
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line)
+                    os.unlink(fn)
+        
+        # M-Vicuna DupRm to see what we should keep (append IDs to running file)
+        mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
+        map(os.unlink, infastqs)
+    
+    # Filter original input BAM against keep-list
     tools.picard.FilterSamReadsTool().execute(args.inBam, False, readList, args.outBam)
     return 0
 __commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
