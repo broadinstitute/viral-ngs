@@ -42,7 +42,19 @@ def get_bam_path(lane, well):
         lane['flowcell'] + '.' + lane['lane'],
         run_id + ".bam")
 
-rule all_demux:
+
+def all_basecalls_inputs(wildcards):
+    for lane in read_tab_file('samples/runs.txt'):
+        yield os.path.join('bams', 'per_lane', lane['flowcell']+'.'+lane['lane'],
+            'Umatched.bam')
+
+rule all_demux_basecall:
+    input:  all_basecalls_inputs
+    params: LSF="-N"
+    run:
+            print("echo all done!")
+
+rule all_demux_merge:
     input:
             expand("bams/combined/{sample}.bam",
                 sample=get_all_samples('samples/runs.txt')),
@@ -63,7 +75,7 @@ rule make_picard_files:
     run:
             for lane in read_tab_file(input[0]):
                 shell("bin/broad_utils.py make_barcodes_file samples/{lane[barcode_file]} samples/barcodeData.{lane[flowcell]}.{lane[lane]}.txt")
-                shell("bin/broad_utils.py make_params_file samples/{lane[barcode_file]} bams/per_lane/{lane[flowcell]}.{lane[lane]} data/library_params.{lane[flowcell]}.{lane[lane]}.txt")
+                shell("bin/broad_utils.py make_params_file samples/{lane[barcode_file]} bams/per_lane/{lane[flowcell]}.{lane[lane]} samples/library_params.{lane[flowcell]}.{lane[lane]}.txt")
 
 rule extract_barcodes:
     input:  'samples/barcodeData.{flowcell}.{lane}.txt'
@@ -77,18 +89,10 @@ rule extract_barcodes:
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
             shell("bin/broad_utils.py extract_barcodes {lane[bustard_dir]} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
 
-def basecalls_output(wildcards):
-    for lane in read_tab_file('samples/runs.txt'):
-        if lane['flowcell'] == wildcards.flowcell and lane['lane'] == wildcards.lane:
-            for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
-                yield get_bam_path(lane, well)
-            yield os.path.join('bams', 'per_lane',
-                wildcards.flowcell + '.' + wildcards.lane, "Unmatched.bam")
-
 rule illumina_basecalls:
     input:  'samples/library_params.{flowcell}.{lane}.txt',
             'barcodes/{flowcell}.{lane}'
-    output: basecalls_output
+    output: expand("bams/per_lane/{{flowcell}}.{{lane}}/{run_id}.bam", run_id = "Unmatched")
     params: LSF='-R "rusage[mem=64]" -q flower',
             logid="{flowcell}.{lane}",
             outdir='barcodes/{flowcell}.{lane}'
