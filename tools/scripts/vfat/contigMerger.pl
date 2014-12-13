@@ -80,8 +80,11 @@ my $orientContOut = shift || die ("Usage : perl contigMerger.pl orientContigsOut
 my $reffile = shift || die ("Usage : perl contigMerger.pl orientContigsOutputName reference.fa outputBaseName\nFor option details and how to incorporate read data use the option -h\n");
 my $output = shift || die ("Usage : perl contigMerger.pl orientContigsOutputName reference.fa outputBaseName\nFor option details and how to incorporate read data use the option -h\n");
 
+# We definitely need the MUSCLE aligner
 my $musclepath = "/seq/annotation/bio_tools/muscle/3.8/";
+# This is to call runMosaik2.pl, which is necessary
 my $scriptpath = "/idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/";
+# We can ignore R (and drawSegments()) if we don't care about the graphical output
 my $Rpath = "/broad/software/free/Linux/redhat_5_x86_64/pkgs/r_2.15.1/bin/";
 
 my $hasreads = '';
