@@ -265,15 +265,15 @@ def parser_merge_bams() :
         description='Merge multiple BAMs into one')
     parser.add_argument('inBams',  help='Input bam files.', nargs='+')
     parser.add_argument('outBam',  help='Output bam file.')
-    parser.add_argument('--JVMmemory', default = tools.picard.MergeSamTool.jvmMemDefault,
+    parser.add_argument('--JVMmemory', default = tools.picard.MergeSamFilesTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--picardOptions', default = [], nargs='*',
-        help='Optional arguments to Picard\'s MergeSam, OPTIONNAME=value ...')
+        help='Optional arguments to Picard\'s MergeSamFiles, OPTIONNAME=value ...')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_merge_bams(args) :
     opts = list(args.picardOptions) + ['USE_THREADING=true']
-    tools.picard.MergeSamTool().execute(
+    tools.picard.MergeSamFilesTool().execute(
         args.inBams, args.outBam,
         picardOptions=opts, JVMmemory=args.JVMmemory)
     return 0

@@ -80,7 +80,7 @@ class SortSamTool(PicardTools) :
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class MergeSamTool(PicardTools) :
-    subtoolName = 'MergeSam'
+    subtoolName = 'MergeSamFiles'
     def execute(self, inBams, outBam,
                 picardOptions=[], JVMmemory=None) :
         opts = ['INPUT='+bam for bam in inBams] + ['OUTPUT='+outBam]
