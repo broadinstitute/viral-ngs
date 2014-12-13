@@ -1,5 +1,8 @@
 {
   "samples_file": "samples.txt",
+
+  "demux_min_baseq":           15,
+  "demux_max_mismatches":       1,
   
   "deplete_bmtagger_nchunks":  10,
   "deplete_blast_nchunks":      5,

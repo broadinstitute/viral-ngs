@@ -166,8 +166,10 @@ class IlluminaBasecallsToSamTool(PicardTools) :
         for k,v in opts_dict.items():
             if v != None:
                 if type(v) in (list, tuple):
-                    v = '[' + ', '.join(v) + ']'
-                opts.append('='.join((k.upper(), str(v))))
+                    for x in v:
+                        opts.append('='.join((k.upper(), str(x))))
+                else:
+                    opts.append('='.join((k.upper(), str(v))))
         opts += ['BASECALLS_DIR='+basecalls_dir,
                 'BARCODES_DIR='+barcodes_dir,
                 'LANE='+str(lane),
