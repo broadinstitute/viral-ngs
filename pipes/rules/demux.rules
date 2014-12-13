@@ -32,14 +32,23 @@ def get_all_samples(runfile):
         for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
             yield well['sample']
 
-rule all:
+def get_bam_path(lane, well):
+    run_id = well['sample']
+    if well.get('library_id_per_sample'):
+        run_id += '.l' + well['library_id_per_sample']
+    if well.get('run_id_per_library'):
+        run_id += '.r' + well['run_id_per_library']
+    return os.path.join('bams', 'per_lane',
+        lane['flowcell'] + '.' + lane['lane'],
+        run_id + ".bam")
+
+rule all_demux:
     input:
             expand("bams/combined/{sample}.bam",
                 sample=get_all_samples('samples/runs.txt')),
     params: LSF="-N"
     run:
             print("echo all done!")
-
 
 rule make_picard_files:
     input:
@@ -68,10 +77,18 @@ rule extract_barcodes:
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
             shell("bin/broad_utils.py extract_barcodes {lane[bustard_dir]} {wildcards.lane} {input} {output} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt")
 
+def basecalls_output(wildcards):
+    for lane in read_tab_file('samples/runs.txt'):
+        if lane['flowcell'] == wildcards.flowcell and lane['lane'] == wildcards.lane:
+            for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
+                yield get_bam_path(lane, well)
+            yield os.path.join('bams', 'per_lane',
+                wildcards.flowcell + '.' + wildcards.lane, "Unmatched.bam")
+
 rule illumina_basecalls:
     input:  'samples/library_params.{flowcell}.{lane}.txt',
             'barcodes/{flowcell}.{lane}'
-    output: 'bams/per_lane/{flowcell}.{lane}/Unmatched.bam'
+    output: basecalls_output
     params: LSF='-R "rusage[mem=64]" -q flower',
             logid="{flowcell}.{lane}",
             outdir='barcodes/{flowcell}.{lane}'
@@ -85,14 +102,7 @@ def merge_bams_inputs(wildcards):
     for lane in read_tab_file('samples/runs.txt'):
         for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
             if well['sample']==wildcards.sample:
-                run_id = wildcards.sample
-                if well.get('library_id_per_sample'):
-                    run_id += '.l' + row['library_id_per_sample']
-                if well.get('run_id_per_library'):
-                    run_id += '.r' + row['run_id_per_library']
-                yield os.path.join('bams', 'per_lane',
-                    lane['flowcell'] + '.' + lane['lane'],
-                    run_id + ".bam")
+                yield get_bam_path(lane, well)
 
 rule merge_bams:
     input:  merge_bams_inputs
