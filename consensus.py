@@ -29,10 +29,15 @@ def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
     raise ("not yet implemented")
     
 
+def unambig_count(seq):
+    unambig = set(('A','T','C','G'))
+    return sum(1 for s in seq if s.upper() in unambig)
+
 def parser_filter_short_seqs():
     parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
+    parser.add_argument("maxAmbig", help="maximum percentage ambiguous bases for contig", type=float)
     parser.add_argument("outFile", help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument("-of", "--output-format",
@@ -45,7 +50,8 @@ def main_filter_short_seqs(args):
         with util.file.open_or_gzopen(args.outFile, 'w') as outf:
             Bio.SeqIO.write(
                 [s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength],
+                    if len(s) >= args.minLength
+                    and unambig_count(s.seq) <= len(s)*args.maxAmbig],
                 outf, args.output_format)
     return 0
 __commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
@@ -153,35 +159,9 @@ def do_call_reference_ns(ref, consensus):
 
 def do_call_reference_ambiguous(ref, consensus):
     log.debug("populating ambiguous bases from reference...")
-    # TO DO: replace all this with Bio.Data.IUPACData.ambiguous_dna_values
     for i in range(len(ref)):
-        if (consensus[i].upper() == "K"):
-            if (ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "M"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "C"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "R"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "Y"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "S"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "W"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "B"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "V"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "C" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "D"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
+        if ref[i].upper() in Bio.Data.IUPACData.ambiguous_dna_values[consensus[i].upper()]:
+            consensus[i] = ref[i]
     return consensus
 
 def do_trim_ends(ref, consensus):
