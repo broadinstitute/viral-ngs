@@ -38,7 +38,11 @@ rule all:
             print("echo all done!")
 
 rule all_demux_basecalls:
-    input:  all_basecalls_inputs
+    input:  
+            expand("{dir}/{flowlane}/{lib}.bam",
+                dir = os.path.join(config['tmpDir'], config['subdirs']['demux'], 'bams_per_lane'),
+                flowlane = get_all_lanes(config['seqruns_demux']),
+                lib = 'Unmatched')
     params: LSF="-N"
     run:
             print("echo all done!")
@@ -47,7 +51,7 @@ rule all_demux_merge:
     input:
             expand("{dir}/{lib}.bam",
                 dir = os.path.join(config['dataDir'], config['subdirs']['source']),
-                lib=get_all_libraries(config['seqruns_demux'])),
+                lib=get_all_libraries(config['seqruns_demux']))
     params: LSF="-N"
     run:
             print("echo all done!")
