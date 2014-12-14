@@ -57,21 +57,6 @@ def all_basecalls_inputs(wildcards):
             'bams_per_lane', lane['flowcell']+'.'+lane['lane'],
             'Unmatched.bam')
 
-rule all_demux_basecalls:
-    input:  all_basecalls_inputs
-    params: LSF="-N"
-    run:
-            print("echo all done!")
-
-rule all_demux_merge:
-    input:
-            expand("{dir}/{lib}.bam",
-                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
-                lib=get_all_libraries(config['seqruns_demux'])),
-    params: LSF="-N"
-    run:
-            print("echo all done!")
-
 rule make_picard_files:
     input:
             config['seqruns_demux'],
