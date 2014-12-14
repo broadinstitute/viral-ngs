@@ -66,7 +66,7 @@ rule all_demux_basecalls:
 rule all_demux_merge:
     input:
             expand("{dir}/{lib}.bam",
-                dir = os.path.join(config['dataDir'], config['subdirs']['demux'], 'bams_per_library'),
+                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
                 lib=get_all_libraries(config['seqruns_demux'])),
     params: LSF="-N"
     run:
