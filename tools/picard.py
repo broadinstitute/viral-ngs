@@ -93,7 +93,7 @@ class FilterSamReadsTool(PicardTools) :
     subtoolName = 'FilterSamReads'
     def execute(self, inBam, exclude, readList, outBam,
                 picardOptions=[], JVMmemory=None) :
-        if exclude os.path.getsize(readList) == 0:
+        if exclude and os.path.getsize(readList) == 0:
             # Picard FilterSamReads cannot excludeReadList an empty READ_LIST_FILE
             shutil.copyfile(inBam, outBam)
         else:
