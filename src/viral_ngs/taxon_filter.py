@@ -13,7 +13,7 @@ import argparse, logging, subprocess, os, tempfile, errno, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 import tools, tools.blast
-import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger
+import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, tools.picard
 from util.file import mkstempfname
 import read_utils
 
@@ -25,18 +25,13 @@ log = logging.getLogger(__name__)
 
 def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         clipFasta):
-    """
-    TODO: docstring here
-    """
-    trimmomaticPath = tools.trimmomatic.TrimmomaticTool() \
-        .install_and_get_path()
+    trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
     tmpUnpaired1 = mkstempfname()
     tmpUnpaired2 = mkstempfname()
-    tempdir = tempfile.gettempdir()
 
     #  This java program has a lot of argments...
-    javaCmd = ' '.join( ['java -Xmx2g',
-        '-Djava.io.tmpdir={}'.format(tempdir),
+    javaCmd = ['java', '-Xmx2g',
+        '-Djava.io.tmpdir='+tempfile.tempdir,
         '-classpath',
         trimmomaticPath,
         'org.usadellab.trimmomatic.TrimmomaticPE',
@@ -46,51 +41,30 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         tmpUnpaired1,
         pairedOutFastq2,
         tmpUnpaired2,
-        'LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30',
+        'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
         'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
-        ])
+        ]
 
-    fullCmd = "{javaCmd} && rm {tmpUnpaired1} {tmpUnpaired2}".format(**locals())
-    log.info("Running command: {}".format(fullCmd))
-    assert not os.system(fullCmd)
+    log.debug(' '.join(javaCmd))
+    subprocess.check_call(javaCmd)
+    os.unlink(tmpUnpaired1)
+    os.unlink(tmpUnpaired2)
 
 def parser_trim_trimmomatic():
-    """
-    TODO: docstring here
-    original clipFasta =
-        /idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta
-    """
     parser = argparse.ArgumentParser(
         description='''Trim read sequences with Trimmomatic.''')
     parser.add_argument("inFastq1", help = "Input reads 1")
     parser.add_argument("inFastq2", help = "Input reads 2")
     parser.add_argument("pairedOutFastq1", help = "Paired output 1")
     parser.add_argument("pairedOutFastq2", help = "Paired output 2")
-    parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR "
-                        + "sequences, etc. to clip off")
-
+    parser.add_argument("clipFasta",
+        help = "Fasta file with adapters, PCR sequences, etc. to clip off")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
-
-    # Future: handle BAM input and output; handle multiple databases.
-    # Will need to implement bam->fastq->bam wrappers that maintain the read
-    # metadata
-    #parser.add_argument("inBam", help="Input BAM file")
-    #parser.add_argument("outBam", help="Output BAM file")
-
 def main_trim_trimmomatic(args):
-    '''
-        Perhaps move this to a separate script of general bam/alignment utility
-        functions?...
-    '''
-    inFastq1 = args.inFastq1
-    inFastq2 = args.inFastq2
-    pairedOutFastq1 = args.pairedOutFastq1
-    pairedOutFastq2 = args.pairedOutFastq2
-    clipFasta = args.clipFasta
-    trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
+    trimmomatic(args.inFastq1, args.inFastq2,
+        args.pairedOutFastq1, args.pairedOutFastq2, args.clipFasta)
     return 0
-
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
                      parser_trim_trimmomatic))
 
@@ -100,7 +74,7 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
 
 def filter_lastal(inFastq, refDbs, outFastq):
     """
-    TODO: docstring here
+    TODO: make this operate on BAM files
     """
     assert outFastq.endswith('.fastq')
     outFastq = outFastq[:-6]
@@ -169,6 +143,45 @@ __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 # ============================
 # ***  partition_bmtagger  ***
 # ============================
+
+def deplete_bmtagger_bam(inBam, db, outBam) :
+    """
+    Use bmtagger to partition the input reads into ones that match at least one
+        of the databases and ones that don't match any of the databases.
+    inBam: paired-end input reads in BAM format.
+    db: bmtagger expects files
+        db.bitmask created by bmtool, and
+        db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
+    outBam: the output BAM files to hold the unmatched reads.
+    """
+    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
+    
+    # bmtagger calls several executables in the same directory, and blastn;
+    # make sure they are accessible through $PATH
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    path = os.environ['PATH'].split(os.pathsep)
+    for t in (bmtaggerPath, blastnPath):
+        d = os.path.dirname(t)
+        if d not in path:
+            path = [d] + path
+    path = os.pathsep.join(path)
+    os.environ['PATH'] = path
+    
+    inReads1 = mkstempfname('.1.fastq')
+    inReads2 = mkstempfname('.2.fastq')
+    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    
+    tempDir = tempfile.mkdtemp()
+    matchesFile = mkstempfname('.txt')
+    cmdline = [bmtaggerPath,
+               '-b', db+'.bitmask', '-x', db+'.srprism', '-T', tempDir,
+               '-q1', '-1', inReads1, '-2', inReads2,
+               '-o', matchesFile]
+    log.debug(' '.join(cmdline))
+    subprocess.check_call(cmdline)
+    
+    tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam)
+    os.unlink(matchesFile)
 
 def select_reads(inFastq, outFastq, selectorFcn) :
     """
@@ -340,6 +353,34 @@ def main_partition_bmtagger(args) :
 __commands__.append(('partition_bmtagger', main_partition_bmtagger,
                      parser_partition_bmtagger))
 
+def parser_deplete_bam_bmtagger() :
+    parser = argparse.ArgumentParser(
+        description='''Use bmtagger to deplete input reads against several databases.''')
+    parser.add_argument('inBam',
+        help='Input BAM file.')
+    parser.add_argument('refDbs', nargs='+',
+        help='''Reference databases (one or more) to deplete from input.
+                For each db, requires prior creation of db.bitmask by bmtool,
+                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
+    parser.add_argument('outBam',
+        help='Output BAM file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_deplete_bam_bmtagger(args) :
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam)
+__commands__.append(('deplete_bam_bmtagger', main_deplete_bam_bmtagger,
+                     parser_deplete_bam_bmtagger))
+
+
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam):
+    tmpBamIn = inBam
+    for db in refDbs:
+        tmpBamOut = mkstempfname('.bam')
+        deplete_method(tmpBamIn, db, tmpBamOut)
+        if tmpBamIn != inBam:
+            os.unlink(tmpBamIn)
+        tmpBamIn = tmpBamOut
+    shutil.copyfile(tmpBamIn, outBam)
 
 
 # ========================
@@ -355,7 +396,7 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
                                       'noBlastHits_v3.py')
     
     ## Convert to fasta
-    inFasta = mkstempfname() + '.fasta'
+    inFasta = mkstempfname('.fasta')
     read_utils.fastq_to_fasta(inFastq, inFasta)
     
     ## Run blastn using each of the databases in turn
@@ -443,6 +484,91 @@ def main_deplete_blastn_paired(args) :
 __commands__.append(('deplete_blastn_paired', main_deplete_blastn_paired,
                      parser_deplete_blastn_paired))
 
+
+def deplete_blastn_bam(inBam, db, outBam):
+    'Use blastn to remove reads that match at least one of the databases.'
+    
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    fastq1 = mkstempfname('.1.fastq')
+    fastq2 = mkstempfname('.2.fastq')
+    fasta = mkstempfname('.1.fasta')
+    blast_hits = mkstempfname('.blast_hits.txt')
+    halfBam = mkstempfname('.half.bam')
+    blastOutFile = mkstempfname('.hits.txt')
+    
+    # Initial BAM -> FASTQ pair
+    tools.picard.SamToFastqTool().execute(inBam, fastq1, fastq2)
+    
+    # Find BLAST hits against FASTQ1
+    read_utils.fastq_to_fasta(fastq1, fasta)
+    os.unlink(fastq1)
+    os.unlink(fastq2)
+    log.info("running blastn on {} pair 1 against {}".format(inBam, db))
+    blastnCmd = [blastnPath, '-db', db,
+                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                '-num_descriptions', '2', '-num_alignments', '2',
+                '-query', fasta, '-out', blastOutFile]
+    log.debug(' '.join(blastnCmd))
+    subprocess.check_call(blastnCmd)
+    with open(blast_hits, 'wt') as outf:
+        with open(blastOutFile, 'rt') as inf:
+            for line in inf:
+                id = line.split('\t')[0].strip()
+                if id.endswith('/1') or id.endswith('/2'):
+                    id = id[:-2]
+                outf.write(id+'\n')
+        os.unlink(blastOutFile)
+    
+    # Deplete BAM of hits in FASTQ1
+    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam)
+    
+    # Depleted BAM -> FASTQ pair
+    tools.picard.SamToFastqTool().execute(halfBam, fastq1, fastq2)
+    
+    # Find BLAST hits against FASTQ2 (which is already smaller than before)
+    read_utils.fastq_to_fasta(fastq2, fasta)
+    os.unlink(fastq1)
+    os.unlink(fastq2)
+    log.info("running blastn on {} pair 2 against {}".format(inBam, db))
+    blastnCmd = [blastnPath, '-db', db,
+                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                '-num_descriptions', '2', '-num_alignments', '2',
+                '-query', fasta, '-out', blastOutFile]
+    log.debug(' '.join(blastnCmd))
+    subprocess.check_call(blastnCmd)
+    with open(blast_hits, 'wt') as outf:
+        with open(blastOutFile, 'rt') as inf:
+            for line in inf:
+                id = line.split('\t')[0].strip()
+                if id.endswith('/1') or id.endswith('/2'):
+                    id = id[:-2]
+                outf.write(id+'\n')
+        os.unlink(blastOutFile)
+    
+    # Deplete BAM of hits against FASTQ2
+    tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam)
+    
+    # Clean up
+    map(os.unlink, (fasta, blast_hits, halfBam))
+    
+def parser_deplete_blastn_bam() :
+    parser = argparse.ArgumentParser(
+        description='''Use blastn to remove reads that match at least
+                       one of the specified databases.''')
+    parser.add_argument('inBam',
+        help='Input BAM file.')
+    parser.add_argument('refDbs', nargs='+',
+        help='One or more reference databases for blast.')
+    parser.add_argument('outBam',
+        help='Output BAM file with matching reads removed.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_deplete_blastn_bam(args) :
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam)
+    return 0
+__commands__.append(('deplete_blastn_bam', main_deplete_blastn_bam,
+                     parser_deplete_blastn_bam))
+                     
 # ========================
 
 if __name__ == '__main__':
