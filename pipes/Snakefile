@@ -1,5 +1,6 @@
 configfile: "config.json"
 
+include: config["binDir"]+"/pipes/rules/demux.rules"
 include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
 include: config["binDir"]+"/pipes/rules/assembly.rules"
 include: config["binDir"]+"/pipes/rules/interhost.rules"
@@ -15,11 +16,11 @@ rule all:
         # create final assemblies for all samples
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus and to common ref
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create reference-guided analyses of diversity (quick outputs)
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
@@ -42,7 +43,7 @@ rule all_deplete:
             dataDir=config["dataDir"],
             subdir=config["subdirs"]["depletion"],
             adjective=['raw','cleaned'],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
 
 rule all_assemble:
@@ -50,11 +51,11 @@ rule all_assemble:
         # create final assemblies for all samples
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
-            sample=read_samples_file(config["samples_file"]))
+            sample=read_samples_file(config["samples_assembly"]))
 
 rule all_reports:
     input:

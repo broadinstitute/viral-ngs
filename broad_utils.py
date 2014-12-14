@@ -59,6 +59,41 @@ def main_get_run_date(args) :
 __commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
 
 
+# ===============
+# ***  misc   ***
+# ===============
+
+def get_all_samples(runfile):
+    for lane in util.file.read_tabfile_dict(runfile):
+        for well in read_tab_file(lane['barcode_file']):
+            yield well['sample']
+
+def get_all_libraries(runfile):
+    for lane in util.file.read_tabfile_dict(runfile):
+        for well in read_tab_file(lane['barcode_file']):
+            yield well['sample'] + '.l' + well['library_id_per_sample']
+
+def parser_get_samples() :
+    parser = argparse.ArgumentParser(description='Get all samples')
+    parser.add_argument('runfile', help='File with seq run information')
+    util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    return parser
+def main_get_samples(args) :
+    print(get_all_samples(args.runfile))
+    return 0
+__commands__.append(('get_samples', main_get_samples, parser_get_samples))
+
+def parser_get_libraries() :
+    parser = argparse.ArgumentParser(description='Get all libraries')
+    parser.add_argument('runfile', help='File with seq run information')
+    util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    return parser
+def main_get_libraries(args) :
+    print(get_all_libraries(args.runfile))
+    return 0
+__commands__.append(('get_libraries', main_get_libraries, parser_get_libraries))
+
+
 # =============================
 # ***  make_barcodes_file   ***
 # =============================

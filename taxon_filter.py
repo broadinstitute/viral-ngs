@@ -531,6 +531,7 @@ def deplete_blastn_bam(inBam, db, outBam):
     fasta = mkstempfname('.1.fasta')
     blast_hits = mkstempfname('.blast_hits.txt')
     halfBam = mkstempfname('.half.bam')
+    blastOutFile = mkstempfname('.hits.txt')
     
     # Initial BAM -> FASTQ pair
     tools.picard.SamToFastqTool().execute(inBam, fastq1, fastq2)
@@ -540,7 +541,6 @@ def deplete_blastn_bam(inBam, db, outBam):
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on {} pair 1 against {}".format(inBam, db))
-    blastOutfile = mkstempfname('.hits.txt')
     blastnCmd = [blastnPath, '-db', db,
                 '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
                 '-num_descriptions', '2', '-num_alignments', '2',
@@ -569,7 +569,6 @@ def deplete_blastn_bam(inBam, db, outBam):
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on {} pair 2 against {}".format(inBam, db))
-    blastOutfile = mkstempfname('.hits.txt')
     blastnCmd = [blastnPath, '-db', db,
                 '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
                 '-num_descriptions', '2', '-num_alignments', '2',
