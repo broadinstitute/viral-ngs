@@ -64,14 +64,18 @@ __commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
 # ===============
 
 def get_all_samples(runfile):
+    samples = set()
     for lane in util.file.read_tabfile_dict(runfile):
-        for well in read_tab_file(lane['barcode_file']):
-            yield well['sample']
+        for well in util.file.read_tabfile_dict(lane['barcode_file']):
+            samples.add(well['sample'])
+    return list(sorted(samples))
 
 def get_all_libraries(runfile):
+    libs = set()
     for lane in util.file.read_tabfile_dict(runfile):
-        for well in read_tab_file(lane['barcode_file']):
-            yield well['sample'] + '.l' + well['library_id_per_sample']
+        for well in util.file.read_tabfile_dict(lane['barcode_file']):
+            libs.add(well['sample'] + '.l' + well['library_id_per_sample'])
+    return list(sorted(libs))
 
 def parser_get_samples() :
     parser = argparse.ArgumentParser(description='Get all samples')
@@ -79,7 +83,8 @@ def parser_get_samples() :
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
 def main_get_samples(args) :
-    print(get_all_samples(args.runfile))
+    for s in get_all_samples(args.runfile):
+        print(s)
     return 0
 __commands__.append(('get_samples', main_get_samples, parser_get_samples))
 
@@ -89,7 +94,8 @@ def parser_get_libraries() :
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
 def main_get_libraries(args) :
-    print(get_all_libraries(args.runfile))
+    for s in get_all_libraries(args.runfile):
+        print(s)
     return 0
 __commands__.append(('get_libraries', main_get_libraries, parser_get_libraries))
 
