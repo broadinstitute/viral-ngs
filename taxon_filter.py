@@ -41,7 +41,7 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         tmpUnpaired1,
         pairedOutFastq2,
         tmpUnpaired2,
-        'LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30',
+        'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
         'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
         ]
 
