@@ -77,8 +77,8 @@ rule extract_barcodes:
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
     params: LSF='-R "rusage[mem=16]" -W 4:00 -sp 60',
             logid="{flowcell}.{lane}",
-            minimum_base_quality=config["demux_min_baseq"],
-            max_mismatches=config["demux_max_mismatches"]
+            minimum_base_quality=str(config["demux_min_baseq"]),
+            max_mismatches=str(config["demux_max_mismatches"])
     run:
             makedirs(config['reportsDir']+'/barcodes')
             shutil.rmtree(output[0], ignore_errors=True)
