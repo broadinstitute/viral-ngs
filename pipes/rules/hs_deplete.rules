@@ -48,7 +48,7 @@ rule rmdup_mvicuna:
             expand('{{dir}}/{{sample}}.rmdup.{split_id:03d}.bam',
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
     params:
-            LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 75',
+            LSF='-q forest -M 16 -R "rusage[mem=8]" -sp 75',
             logid="{sample}",
             tmpf_input = '{dir}/{sample}.bmtagger_depleted.bam',
             tmpf_output = '{dir}/{sample}.rmdup.bam'
