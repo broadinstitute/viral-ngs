@@ -96,6 +96,10 @@ class FilterSamReadsTool(PicardTools) :
         opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
             'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        for bam in (inBam, outBam):
+            junk = bam[:-3]+'reads'
+            if os.path.isfile(junk):
+                os.unlink(junk)
 
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
