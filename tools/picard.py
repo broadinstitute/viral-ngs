@@ -1,5 +1,5 @@
 "Tools in the 'Picard' suite."
-import logging, os, os.path, subprocess, tempfile
+import logging, os, os.path, subprocess, tempfile, shutil
 import tools, util.file
 
 tool_version = '1.126'
@@ -93,13 +93,17 @@ class FilterSamReadsTool(PicardTools) :
     subtoolName = 'FilterSamReads'
     def execute(self, inBam, exclude, readList, outBam,
                 picardOptions=[], JVMmemory=None) :
-        opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
-            'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-        for bam in (inBam, outBam):
-            junk = bam[:-3]+'reads'
-            if os.path.isfile(junk):
-                os.unlink(junk)
+        if exclude os.path.getsize(readList) == 0:
+            # Picard FilterSamReads cannot excludeReadList an empty READ_LIST_FILE
+            shutil.copyfile(inBam, outBam)
+        else:
+            opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
+                'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+            for bam in (inBam, outBam):
+                junk = bam[:-3]+'reads'
+                if os.path.isfile(junk):
+                    os.unlink(junk)
 
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
