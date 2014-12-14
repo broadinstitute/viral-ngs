@@ -69,9 +69,11 @@ rule consolidate_bamstats:
     input:
             expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
                 adjective=['raw','cleaned',
-                    'self_align', 'self_mapped', 'self_rmdup', 'self_realigned',
                     'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
-                sample=read_samples_file(config["samples_file"]))
+                sample=read_samples_file(config["samples_depletion"])) + \
+            expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
+                adjective=['self_align', 'self_mapped', 'self_rmdup', 'self_realigned'],
+                sample=read_samples_file(config["samples_assembly"]))
     output: '{dir}/summary.bamstats.txt'
     params: logid="all"
     shell:  "{config[binDir]}/reports.py consolidate_bamstats {input} {output}"
@@ -94,7 +96,7 @@ rule fastqc_report:
 rule consolidate_fastqc:
     input:
             expand("{{dir}}/fastqc/{sample}_fastqc",
-                sample=read_samples_file(config["samples_file"]))
+                sample=read_samples_file(config["samples_assembly"]))
     output: '{dir}/summary.fastqc.txt'
     params: logid="all"
     shell:  "{config[binDir]}/reports.py consolidate_fastqc {input} {output}"
@@ -121,10 +123,18 @@ rule coverage_report:
             makedirs(os.path.join(config["reportsDir"], 'coverage'))
             shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[1]} -g {input[0]} > {output}")
 
+def consolidate_coverage_inputs(wildcards):
+    if wildcards.adjective == 'ref':
+        samples = config['samples_depletion']
+    elif wildcards.adjective == 'self':
+        samples = config['samples_assembly']
+    else:
+        raise Exception()
+    return [wildcards.dir+'/coverage/'+sample+'.coverage_'+wildcards.adjective+'.txt'
+        for sample in read_samples_file(samples)]
+
 rule consolidate_coverage:
-    input:
-            expand("{{dir}}/coverage/{sample}.coverage_{{adjective}}.txt",
-                sample=read_samples_file(config["samples_file"]))
+    input:  consolidate_coverage_inputs
     output: '{dir}/summary.coverage_{adjective}.txt.gz'
     params: LSF='-W 4:00',
             logid="all"
@@ -142,6 +152,7 @@ rule spikein_report:
             tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
     run:
             makedirs(os.path.join(config["reportsDir"], 'spike_count'))
+            makedirs(os.path.join(config["tmpDir"], config["subdirs"]["depletion"]))
             novoalign(input, params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output}")
             os.unlink(params.tmpf_spike_bam)
@@ -149,7 +160,7 @@ rule spikein_report:
 
 rule consolidate_spike_count:
     input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
-                sample=read_samples_file(config["samples_file"]))
+                sample=read_samples_file(config["samples_depletion"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
     shell:  "{config[binDir]}/reports.py consolidate_spike_count {input} {output}"

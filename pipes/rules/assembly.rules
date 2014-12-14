@@ -7,7 +7,13 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import os, os.path, time, pysam
+import os, os.path, time, shutil
+
+def read_tab_file(fname):
+    with open(fname, 'rt') as inf:
+        header = inf.readline().rstrip('\n').split('\t')
+        for line in inf:
+            yield dict(zip(header, line.rstrip('\n').split('\t')))
 
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
@@ -28,10 +34,27 @@ def update_timestamps(files):
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
 
+
+def merge_one_per_sample_inputs(wildcards):
+    libs = set()
+    for lane in read_tab_file(config['seqruns_demux']):
+        for well in read_tab_file(lane['barcode_file']):
+            if well['sample'] == wildcards.sample:
+                libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam'))
+    return sorted(libs)
+rule merge_one_per_sample:
+    input:  merge_one_per_sample_inputs
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"] +'/{sample}.{adjective,\w+}.bam'
+    params: LSF='-R "rusage[mem=2]"',
+            logid="{sample}",
+    shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+
+
 rule trim_reads:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.1.fastq', 
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.2.fastq'
+    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.1.fastq', 
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.2.fastq'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}",
             tmpf_fastq = [
@@ -74,11 +97,13 @@ rule assemble_trinity:
             tmpd_trinity='{dir}/{sample}.trinity'
     #shell:  "{config[binDir]}/consensus.py assemble_trinity {input} {output}"
     run:
-            shell("rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}")
+            os.unlink(params.tmpf_subsamp)
+            shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
             shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {input} -out {params.tmpf_subsamp}")
             shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-            shell("mv {params.tmpd_trinity}/Trinity.fasta {output}")
-            shell("rm -rf {params.tmpf_subsamp} {params.tmpd_trinity}")
+            shutil.copyfile("{params.tmpd_trinity}/Trinity.fasta", output[0])
+            os.unlink(params.tmpf_subsamp)
+            shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
 
 rule align_and_orient:
     # VFAT / Bellini
@@ -88,7 +113,8 @@ rule align_and_orient:
     output: '{dir}/{sample}.assembly2.fasta'
     params: LSF='-R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
-            length="15000",
+            length = str(config["assembly_min_length"][0]),
+            max_ambig = str(config["assembly_max_ambig"]),
             logid="{sample}",
             tmpf_prefix='{dir}/{sample}.assembly1.5'
     run:
@@ -98,7 +124,7 @@ rule align_and_orient:
             shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
             shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
             shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
-            shell("{config[binDir]}/consensus.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {output}")
+            shell("{config[binDir]}/consensus.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.max_ambig} {output}")
             assert_nonempty_file(output[0])
             shell("rm -rf {params.tmpf_prefix}*")
 
@@ -111,17 +137,19 @@ def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qua
     cmd = "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f {inBam} {options} -F BAMPE -d {refFastaIdx} -o SAM "
     if min_qual>0:
       cmd += "| /idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -buS -q {min_qual} - "
-    cmd += "| java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
+    cmd += "| java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
     shell(cmd)
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
-    if outVcf.endswith('.gz'):
-        pysam.tabix_index(outVcf, preset='vcf', force=True)
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} -glm BOTH --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
+def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
+def filter_bam_mapped_only(inBam, outBam):
+    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
 def first_fasta_header(inFasta):
     # this method can go away when refine_assembly_with_reads gets turned into a script
     with open(inFasta, 'rt') as inf:
         return inf.readline().rstrip('\n').lstrip('>')
-
 
 # TO DO: a lot of this novoalign -> GATK -> vcf_to_fasta business could be vastly
 # simplified (and sped up) by just writing a python script that goes from BAM -> FASTA
@@ -129,7 +157,7 @@ def first_fasta_header(inFasta):
 
 rule refine_assembly_1:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_deambig.fasta',
@@ -138,7 +166,10 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
             refGenome=config["ref_genome"], renamed_prefix="EBOV_2014_",
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.intervals',
+            tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify_pre_rmdup.bam',
+            tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify_pre_indel_realign.bam'
     run:
             update_timestamps(input)
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[0]} -quiet")
@@ -152,19 +183,26 @@ rule refine_assembly_1:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[2]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[2]}")
-            novoalign(input[1], output[1], wildcards.sample, output[3], options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
+            novoalign(input[1], output[1], wildcards.sample, params.tmpf_bam1, options="-r Random -l 30 -g 40 -x 20 -t 502", min_qual=1)
+            shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
+            gatk_local_realign(params.tmpf_bam2, output[2], output[3], params.tmpf_intervals)
             gatk_ug(output[3], output[2], output[4])
             shell("{config[binDir]}/consensus.py vcf_to_fasta {output[4]} {output[5]} --trim_ends --min_coverage 2")
+            os.unlink(tmpf_bam1)
+            os.unlink(tmpf_bam2)
 
 rule refine_assembly_2:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
-            logid="{sample}"
+            logid="{sample}",
+            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.intervals',
+            tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_pre_rmdup.bam',
+            tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_pre_indel_realign.bam'
     run:
             update_timestamps(input)
             shell("{config[binDir]}/consensus.py deambig_fasta {input[0]} {output[0]}")
@@ -173,22 +211,21 @@ rule refine_assembly_2:
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {input[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-            novoalign(input[1], input[0], wildcards.sample, output[1], options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
+            novoalign(input[1], input[0], wildcards.sample, params.tmpf_bam1, options="-r Random -l 40 -g 40 -x 20 -t 100", min_qual=1)
+            shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
+            gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
             gatk_ug(output[1], output[0], output[2])
             shell("{config[binDir]}/consensus.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
             index_novoalign(output[3])
+            os.unlink(tmpf_bam1)
+            os.unlink(tmpf_bam2)
 
-def filter_bam_mapped_only(inBam, outBam):
-    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/current/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
-def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
 
 rule map_reads_to_self:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.raw.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
@@ -212,7 +249,7 @@ rule map_reads_to_ref:
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8 -sp 30',
+    params: LSF='-q week -R "rusage[mem=4]" -M 8 -sp 30',
             logid="{sample}",
             refGenome=config["ref_genome"],
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.intervals'

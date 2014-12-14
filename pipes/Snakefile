@@ -1,5 +1,6 @@
 configfile: "config.json"
 
+include: config["binDir"]+"/pipes/rules/demux.rules"
 include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
 include: config["binDir"]+"/pipes/rules/assembly.rules"
 include: config["binDir"]+"/pipes/rules/interhost.rules"
@@ -15,11 +16,11 @@ rule all:
         # create final assemblies for all samples
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus and to common ref
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create reference-guided analyses of diversity (quick outputs)
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
@@ -36,13 +37,28 @@ rule all:
                 shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
             print("echo all done!")
 
+rule all_demux_basecalls:
+    input:  
+            expand("{dir}/{flowlane}/{lib}.bam",
+                dir = os.path.join(config['tmpDir'], config['subdirs']['demux'], 'bams_per_lane'),
+                flowlane = get_all_lanes(config['seqruns_demux']),
+                lib = 'Unmatched')
+    params: LSF="-N"
+
+rule all_demux_merge:
+    input:
+            expand("{dir}/{lib}.bam",
+                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
+                lib=get_all_libraries(config['seqruns_demux']))
+    params: LSF="-N"
+
 rule all_deplete:
     input:
         expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
             dataDir=config["dataDir"],
             subdir=config["subdirs"]["depletion"],
             adjective=['raw','cleaned'],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
 
 rule all_assemble:
@@ -50,11 +66,12 @@ rule all_assemble:
         # create final assemblies for all samples
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_file"])),
+            sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
-            sample=read_samples_file(config["samples_file"]))
+            sample=read_samples_file(config["samples_assembly"]))
+    params: LSF="-N"
 
 rule all_reports:
     input:
