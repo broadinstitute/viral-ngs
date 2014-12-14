@@ -40,6 +40,10 @@ def get_all_libraries(runfile):
             libs.add(well['sample'] + '.l' + well['library_id_per_sample'])
     return list(sorted(libs))
 
+def get_all_lanes(runfile):
+    for lane in read_tab_file(runfile):
+        yield '.'.join((lane['flowcell'], lane['lane']))
+    
 def get_bam_path(lane, well):
     run_id = well['sample']
     if well.get('library_id_per_sample'):
@@ -49,13 +53,6 @@ def get_bam_path(lane, well):
     return os.path.join(config['tmpDir'], config['subdirs']['demux'],
         'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         run_id + ".bam")
-
-
-def all_basecalls_inputs(wildcards):
-    for lane in read_tab_file(config['seqruns_demux']):
-        yield os.path.join(config['tmpDir'], config['subdirs']['demux'],
-            'bams_per_lane', lane['flowcell']+'.'+lane['lane'],
-            'Unmatched.bam')
 
 rule make_picard_files:
     input:
