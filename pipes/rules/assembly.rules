@@ -36,14 +36,18 @@ def update_timestamps(files):
 
 
 def merge_one_per_sample_inputs(wildcards):
+    libs = set()
     for lane in read_tab_file(config['seqruns_demux']):
         for well in read_tab_file(lane['barcode_file']):
             if well['sample'] == wildcards.sample:
-                yield os.path.join(config["dataDir"], config["subdirs"]["depletion"],
-                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam')
+                libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam'))
+    return sorted(libs)
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"] +'/{sample}.{adjective,\w+}.bam'
+    params: LSF='-R "rusage[mem=2]"',
+            logid="{sample}",
     shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
 
 
