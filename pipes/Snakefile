@@ -37,6 +37,21 @@ rule all:
                 shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
             print("echo all done!")
 
+rule all_demux_basecalls:
+    input:  all_basecalls_inputs
+    params: LSF="-N"
+    run:
+            print("echo all done!")
+
+rule all_demux_merge:
+    input:
+            expand("{dir}/{lib}.bam",
+                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
+                lib=get_all_libraries(config['seqruns_demux'])),
+    params: LSF="-N"
+    run:
+            print("echo all done!")
+
 rule all_deplete:
     input:
         expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
