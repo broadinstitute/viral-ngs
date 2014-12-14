@@ -9,6 +9,12 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time
 
+def read_tab_file(fname):
+    with open(fname, 'rt') as inf:
+        header = inf.readline().rstrip('\n').split('\t')
+        for line in inf:
+            yield dict(zip(header, line.rstrip('\n').split('\t')))
+
 def read_samples_file(fname):
     with open(fname, 'rt') as inf:
         for line in inf:
@@ -28,10 +34,23 @@ def update_timestamps(files):
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
 
+
+def merge_one_per_sample_inputs(wildcards):
+    for lane in read_tab_file(config['seqruns_demux']):
+        for well in read_tab_file(lane['barcode_file']):
+            if well['sample'] == wildcards.sample:
+                yield os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam')
+rule merge_one_per_sample:
+    input:  merge_one_per_sample_inputs
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"] +'/{sample}.{adjective,\w+}.bam'
+    shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+
+
 rule trim_reads:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.1.fastq', 
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.trimmed.2.fastq'
+    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.1.fastq', 
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.2.fastq'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}",
             tmpf_fastq = [
@@ -131,7 +150,7 @@ def first_fasta_header(inFasta):
 
 rule refine_assembly_1:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_align.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_deambig.fasta',
@@ -163,7 +182,7 @@ rule refine_assembly_1:
 
 rule refine_assembly_2:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined_deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.vcf.gz',
@@ -191,7 +210,7 @@ rule refine_assembly_2:
 
 rule map_reads_to_self:
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.raw.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',

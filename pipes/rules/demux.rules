@@ -15,9 +15,6 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time, shutil
 
-
-configfile: "config.json"
-
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
         header = inf.readline().rstrip('\n').split('\t')
@@ -31,8 +28,13 @@ def get_bustard_dir(flowcell, lane, runfile):
 
 def get_all_samples(runfile):
     for lane in read_tab_file(runfile):
-        for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
+        for well in read_tab_file(lane['barcode_file']):
             yield well['sample']
+
+def get_all_libraries(runfile):
+    for lane in read_tab_file(runfile):
+        for well in read_tab_file(lane['barcode_file']):
+            yield well['sample'] + '.l' + well['library_id_per_sample']
 
 def get_bam_path(lane, well):
     run_id = well['sample']
@@ -40,14 +42,15 @@ def get_bam_path(lane, well):
         run_id += '.l' + well['library_id_per_sample']
     if well.get('run_id_per_library'):
         run_id += '.r' + well['run_id_per_library']
-    return os.path.join('bams', 'per_lane',
-        lane['flowcell'] + '.' + lane['lane'],
+    return os.path.join(config['tmpDir'], config['subdirs']['demux'],
+        'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         run_id + ".bam")
 
 
 def all_basecalls_inputs(wildcards):
-    for lane in read_tab_file('samples/runs.txt'):
-        yield os.path.join('bams', 'per_lane', lane['flowcell']+'.'+lane['lane'],
+    for lane in read_tab_file(config['seqruns_demux']):
+        yield os.path.join(config['tmpDir'], config['subdirs']['demux'],
+            'bams_per_lane', lane['flowcell']+'.'+lane['lane'],
             'Unmatched.bam')
 
 rule all_demux_basecalls:
@@ -58,67 +61,70 @@ rule all_demux_basecalls:
 
 rule all_demux_merge:
     input:
-            expand("bams/combined/{sample}.bam",
-                sample=get_all_samples('samples/runs.txt')),
+            expand("{dir}/{lib}.bam",
+                dir = os.path.join(config['dataDir'], config['subdirs']['demux'], 'bams_per_library'),
+                lib=get_all_libraries(config['seqruns_demux'])),
     params: LSF="-N"
     run:
             print("echo all done!")
 
 rule make_picard_files:
     input:
-            'samples/runs.txt',
-            expand("samples/{file}",
-                file = [x['barcode_file'] for x in read_tab_file('samples/runs.txt')])
+            config['seqruns_demux'],
+            expand("{run[barcode_file]}", run=read_tab_file(config['seqruns_demux']))
     output:
-            expand("samples/{file_type}.{lane_id}.txt",
+            expand("{dir}/{file_type}.{lane_id}.txt",
+                dir = os.path.join(config['dataDir'], config['subdirs']['demux'], 'inputs'),
                 file_type = ['barcodeData','library_params'],
-                lane_id = ['.'.join((x['flowcell'],x['lane'])) for x in read_tab_file('samples/runs.txt')])
+                lane_id = ['.'.join((x['flowcell'],x['lane'])) for x in read_tab_file(config['seqruns_demux'])])
     params: logid="all"
     run:
+            dir = os.path.join(config['dataDir'], config['subdirs']['demux'], 'inputs')
+            makedirs(dir)
             for lane in read_tab_file(input[0]):
-                shell("bin/broad_utils.py make_barcodes_file samples/{lane[barcode_file]} samples/barcodeData.{lane[flowcell]}.{lane[lane]}.txt")
-                shell("bin/broad_utils.py make_params_file samples/{lane[barcode_file]} bams/per_lane/{lane[flowcell]}.{lane[lane]} samples/library_params.{lane[flowcell]}.{lane[lane]}.txt")
+                shell("{config[binDir]}/broad_utils.py make_barcodes_file {lane[barcode_file]} {dir}/barcodeData.{lane[flowcell]}.{lane[lane]}.txt")
+                shell("{config[binDir]}/broad_utils.py make_params_file {lane[barcode_file]} {config[tmpDir]}/{config[subdirs][demux]}/bams_per_lane/{lane[flowcell]}.{lane[lane]} {dir}/library_params.{lane[flowcell]}.{lane[lane]}.txt")
 
 rule extract_barcodes:
-    input:  'samples/barcodeData.{flowcell}.{lane}.txt'
-    output: 'barcodes/{flowcell}.{lane}', 'barcodes/{flowcell}.{lane}/keepme.txt'
+    input:  config['dataDir']+'/'+config['subdirs']['demux']+'/inputs/barcodeData.{flowcell}.{lane}.txt'
+    output: config['tmpDir']+'/'+config['subdirs']['demux']+'/barcodes/{flowcell}.{lane}',
+            config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
     params: LSF='-R "rusage[mem=16]" -W 4:00 -sp 60',
             logid="{flowcell}.{lane}",
             minimum_base_quality=config["demux_min_baseq"],
             max_mismatches=config["demux_max_mismatches"]
     run:
-            makedirs('reports')
+            makedirs(config['reportsDir']+'/barcodes')
             shutil.rmtree(output[0], ignore_errors=True)
             makedirs(output[0])
-            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
-            shell("bin/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input} {output[0]} --outMetrics=reports/barcodes-metrics-{wildcards.flowcell}.{wildcards.lane}.txt --max_mismatches={params.max_mismatches} --minimum_base_quality={params.minimum_base_quality}")
-            shell("touch {output[1]}")
+            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+            shell("{config[binDir]}/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input} {output[0]} --outMetrics={output[1]} --max_mismatches={params.max_mismatches} --minimum_base_quality={params.minimum_base_quality}")
 
 rule illumina_basecalls:
-    input:  'samples/library_params.{flowcell}.{lane}.txt',
-            'barcodes/{flowcell}.{lane}'
-    output: expand("bams/per_lane/{{flowcell}}.{{lane}}/{run_id}.bam", run_id = "Unmatched")
+    input:  config['dataDir']+'/'+config['subdirs']['demux']+'/inputs/library_params.{flowcell}.{lane}.txt',
+            config['tmpDir']+'/'+config['subdirs']['demux']+'/barcodes/{flowcell}.{lane}'
+    output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam'
     params: LSF='-R "rusage[mem=64]" -q flower',
             logid="{flowcell}.{lane}",
-            outdir='bams/per_lane/{flowcell}.{lane}'
+            outdir=config['tmpDir']+'/'+config['subdirs']['demux']+'/per_lane/{flowcell}.{lane}'
     run:
             shutil.rmtree(params.outdir, ignore_errors=True)
             makedirs(params.outdir)
-            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, 'samples/runs.txt')
-            shell("bin/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false")
+            dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false")
 
 def merge_bams_inputs(wildcards):
-    for lane in read_tab_file('samples/runs.txt'):
-        for well in read_tab_file(os.path.join('samples', lane['barcode_file'])):
-            if well['sample']==wildcards.sample:
+    for lane in read_tab_file(config['seqruns_demux']):
+        for well in read_tab_file(lane['barcode_file']):
+            if well['sample']==wildcards.sample and well['library_id_per_sample']==wildcards.library:
                 yield get_bam_path(lane, well)
 
-rule merge_bams:
+rule merge_bams_demux:
     input:  merge_bams_inputs
-    output: 'bams/combined/{sample}.bam'
+    output: config['dataDir']+'/'+config['subdirs']['demux']+'/bams_per_library/{sample}.l{library}.bam'
     params: LSF='-R "rusage[mem=7]" -W 4:00',
-            logid="{sample}"
+            logid="{sample}.l{library}"
     run:
-            makedirs('bams/combined')
-            shell("bin/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
+            makedirs(os.path.join(config['dataDir'], config['subdirs']['demux'], 'bams_per_library'))
+            shell("{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
 
