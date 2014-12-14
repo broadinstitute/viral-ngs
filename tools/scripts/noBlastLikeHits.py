@@ -72,7 +72,7 @@ if args.hit == "nohit":
   for i in range(0, len(offsets)):
     FILE.seek(offsets[i])
     line = FILE.readline()
-    if not(line[1:line.find('\n')] in blastReads):
+    if not(line.split()[0][1:] in blastReads):
       if i == count-1:
         FILE.seek(offsets[i])
         while True:
@@ -92,7 +92,7 @@ else:
   for i in range(0, len(offsets)):
     FILE.seek(offsets[i])
     line = FILE.readline()
-    if line[1:line.find('\n')] in blastReads:
+    if line.split()[0][1:] in blastReads:
       if i == count-1:
         FILE.seek(offsets[i])
         while True:
