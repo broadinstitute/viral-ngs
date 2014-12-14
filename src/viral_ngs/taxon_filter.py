@@ -25,18 +25,13 @@ log = logging.getLogger(__name__)
 
 def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         clipFasta):
-    """
-    TODO: docstring here
-    """
-    trimmomaticPath = tools.trimmomatic.TrimmomaticTool() \
-        .install_and_get_path()
+    trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
     tmpUnpaired1 = mkstempfname()
     tmpUnpaired2 = mkstempfname()
-    tempdir = tempfile.gettempdir()
 
     #  This java program has a lot of argments...
-    javaCmd = ' '.join( ['java -Xmx2g',
-        '-Djava.io.tmpdir={}'.format(tempdir),
+    javaCmd = ['java', '-Xmx2g',
+        '-Djava.io.tmpdir='+tempfile.tempdir,
         '-classpath',
         trimmomaticPath,
         'org.usadellab.trimmomatic.TrimmomaticPE',
@@ -48,49 +43,28 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
         tmpUnpaired2,
         'LEADING:20 TRAILING:20 SLIDINGWINDOW:4:25 MINLEN:30',
         'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
-        ])
+        ]
 
-    fullCmd = "{javaCmd} && rm {tmpUnpaired1} {tmpUnpaired2}".format(**locals())
-    log.info("Running command: {}".format(fullCmd))
-    assert not os.system(fullCmd)
+    log.debug(' '.join(javaCmd))
+    subprocess.check_call(javaCmd)
+    os.unlink(tmpUnpaired1)
+    os.unlink(tmpUnpaired2)
 
 def parser_trim_trimmomatic():
-    """
-    TODO: docstring here
-    original clipFasta =
-        /idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta
-    """
     parser = argparse.ArgumentParser(
         description='''Trim read sequences with Trimmomatic.''')
     parser.add_argument("inFastq1", help = "Input reads 1")
     parser.add_argument("inFastq2", help = "Input reads 2")
     parser.add_argument("pairedOutFastq1", help = "Paired output 1")
     parser.add_argument("pairedOutFastq2", help = "Paired output 2")
-    parser.add_argument("clipFasta", help = "Fasta file with adapters, PCR "
-                        + "sequences, etc. to clip off")
-
+    parser.add_argument("clipFasta",
+        help = "Fasta file with adapters, PCR sequences, etc. to clip off")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
-
-    # Future: handle BAM input and output; handle multiple databases.
-    # Will need to implement bam->fastq->bam wrappers that maintain the read
-    # metadata
-    #parser.add_argument("inBam", help="Input BAM file")
-    #parser.add_argument("outBam", help="Output BAM file")
-
 def main_trim_trimmomatic(args):
-    '''
-        Perhaps move this to a separate script of general bam/alignment utility
-        functions?...
-    '''
-    inFastq1 = args.inFastq1
-    inFastq2 = args.inFastq2
-    pairedOutFastq1 = args.pairedOutFastq1
-    pairedOutFastq2 = args.pairedOutFastq2
-    clipFasta = args.clipFasta
-    trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
+    trimmomatic(args.inFastq1, args.inFastq2,
+        args.pairedOutFastq1, args.pairedOutFastq2, args.clipFasta)
     return 0
-
 __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
                      parser_trim_trimmomatic))
 
@@ -100,7 +74,7 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
 
 def filter_lastal(inFastq, refDbs, outFastq):
     """
-    TODO: docstring here
+    TODO: make this operate on BAM files
     """
     assert outFastq.endswith('.fastq')
     outFastq = outFastq[:-6]
@@ -206,19 +180,8 @@ def deplete_bmtagger_bam(inBam, db, outBam) :
     log.debug(' '.join(cmdline))
     subprocess.check_call(cmdline)
     
-    matchesFile_adjust = mkstempfname('.txt')
-    with open(matchesFile, 'rt') as inf:
-        with open(matchesFile_adjust, 'wt') as outf:
-            for line in inf:
-                id = line.strip()
-                outf.write(id+'\n')
-                outf.write(id+'/1\n')
-                outf.write(id+'/2\n')
+    tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam)
     os.unlink(matchesFile)
-    
-    tools.picard.FilterSamReadsTool().execute(
-        inBam, True, matchesFile_adjust, outBam)
-    os.unlink(matchesFile_adjust)
 
 def select_reads(inFastq, outFastq, selectorFcn) :
     """
@@ -554,8 +517,6 @@ def deplete_blastn_bam(inBam, db, outBam):
                 if id.endswith('/1') or id.endswith('/2'):
                     id = id[:-2]
                 outf.write(id+'\n')
-                outf.write(id+'/1\n')
-                outf.write(id+'/2\n')
         os.unlink(blastOutFile)
     
     # Deplete BAM of hits in FASTQ1
@@ -582,8 +543,6 @@ def deplete_blastn_bam(inBam, db, outBam):
                 if id.endswith('/1') or id.endswith('/2'):
                     id = id[:-2]
                 outf.write(id+'\n')
-                outf.write(id+'/1\n')
-                outf.write(id+'/2\n')
         os.unlink(blastOutFile)
     
     # Deplete BAM of hits against FASTQ2
