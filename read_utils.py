@@ -563,7 +563,9 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
                 line_num = 0
                 for line in inf:
                     if (line_num % 4) == 0:
-                        outf.write(line[1:])
+                        id = line.rstrip('\n')[1:]
+                        if id.endswith('/1'):
+                            outf.write(id[:-2]+'\n')
                     line_num += 1
     os.unlink(outFastq1)
     os.unlink(outFastq2)
