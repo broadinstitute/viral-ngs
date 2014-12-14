@@ -27,14 +27,18 @@ def get_bustard_dir(flowcell, lane, runfile):
     return lanes[0]['bustard_dir']
 
 def get_all_samples(runfile):
+    samples = set()
     for lane in read_tab_file(runfile):
         for well in read_tab_file(lane['barcode_file']):
-            yield well['sample']
+            samples.add(well['sample'])
+    return list(sorted(samples))
 
 def get_all_libraries(runfile):
+    libs = set()
     for lane in read_tab_file(runfile):
         for well in read_tab_file(lane['barcode_file']):
-            yield well['sample'] + '.l' + well['library_id_per_sample']
+            libs.add(well['sample'] + '.l' + well['library_id_per_sample'])
+    return list(sorted(libs))
 
 def get_bam_path(lane, well):
     run_id = well['sample']
