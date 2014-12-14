@@ -1,8 +1,13 @@
 {
-  "samples_file": "samples.txt",
+  "seqruns_demux":     "seqruns.txt",
+  "samples_depletion": "samples-depletion.txt",
+  "samples_assembly":  "samples-assembly.txt",
+
+  "demux_min_baseq":           15,
+  "demux_max_mismatches":       1,
   
-  "deplete_bmtagger_nchunks":  10,
-  "deplete_blast_nchunks":      5,
+  "deplete_bmtagger_nchunks":   8,
+  "deplete_blast_nchunks":      3,
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",
@@ -17,14 +22,16 @@
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
   
+  "assembly_min_length":    [15000],
+  "assembly_max_ambig":        0.95,
+  
   "align_outgroups": {
     "ebov_2014":    "",
-    "ebov":         "",
-    "ebolavirus":   "",
-    "filovirus":    ""
+    "ebov":         ""
   },
 
   "subdirs": {
+    "demux":        "00_demux",
     "source":       "00_raw",
     "depletion":    "01_cleaned",
     "assembly":     "02_assembly",

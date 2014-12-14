@@ -124,7 +124,7 @@ def parser_consolidate_spike_count() :
     parser.add_argument('outFile', help='Output report file.')
     return parser
 def main_consolidate_spike_count(args) :
-    consolidate_spike_count(args.inDirs, args.outFile)
+    consolidate_spike_count(args.inFiles, args.outFile)
     return 0
 __commands__.append(('consolidate_spike_count',
     main_consolidate_spike_count, parser_consolidate_spike_count))

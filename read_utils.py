@@ -225,8 +225,7 @@ __commands__.append(('picard', main_picard, parser_picard))
 
 def parser_sort_bam() :
     parser = argparse.ArgumentParser(
-        description='Convert a bam file to a pair of fastq paired-end '\
-                    'read files and optional text header.')
+        description='Sort BAM file')
     parser.add_argument('inBam',   help='Input bam file.')
     parser.add_argument('outBam',  help='Output bam file, sorted.')
     parser.add_argument('sortOrder',
@@ -256,6 +255,57 @@ def main_sort_bam(args) :
         picardOptions=opts, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('sort_bam', main_sort_bam, parser_sort_bam))
+
+# ====================
+# ***  merge_bams  ***
+# ====================
+
+def parser_merge_bams() :
+    parser = argparse.ArgumentParser(
+        description='Merge multiple BAMs into one')
+    parser.add_argument('inBams',  help='Input bam files.', nargs='+')
+    parser.add_argument('outBam',  help='Output bam file.')
+    parser.add_argument('--JVMmemory', default = tools.picard.MergeSamFilesTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s MergeSamFiles, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_merge_bams(args) :
+    opts = list(args.picardOptions) + ['USE_THREADING=true']
+    tools.picard.MergeSamFilesTool().execute(
+        args.inBams, args.outBam,
+        picardOptions=opts, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('merge_bams', main_merge_bams, parser_merge_bams))
+
+# ====================
+# ***  filter_bam  ***
+# ====================
+
+def parser_filter_bam() :
+    parser = argparse.ArgumentParser(
+        description='Filter BAM file by read name')
+    parser.add_argument('inBam',  help='Input bam file.')
+    parser.add_argument('readList',  help='Input file of read IDs.')
+    parser.add_argument('outBam',  help='Output bam file.')
+    parser.add_argument("--exclude",
+        help="""If specified, readList is a list of reads to remove from input.
+            Default behavior is to treat readList as an inclusion list (all unnamed
+            reads are removed).""",
+        default=False, action="store_true", dest="exclude")
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--picardOptions', default = [], nargs='*',
+        help='Optional arguments to Picard\'s FilterSamReads, OPTIONNAME=value ...')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_filter_bam(args) :
+    tools.picard.FilterSamReadsTool().execute(
+        args.inBam, args.exclude, args.readList, args.outBam,
+        picardOptions=args.picardOptions, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('filter_bam', main_filter_bam, parser_filter_bam))
 
 # =======================
 # ***  bam_to_fastq   ***
@@ -453,11 +503,9 @@ def split_bam(inBam, outBams) :
         totalReadCount, len(outBams), maxReads))
     
     # load BAM header into memory
-    headerFile = mkstempfname('.txt')
-    samtools.dumpHeader(inBam, headerFile)
-    with open(headerFile, 'rt') as inf:
-        header = inf.readlines()
-    os.unlink(headerFile)
+    header = samtools.getHeader(inBam)
+    if 'SO:queryname' not in header[0]:
+        raise Exception('Input BAM file must be sorted in queryame order')
     
     # dump to bigsam
     bigsam = mkstempfname('.sam')
@@ -469,8 +517,8 @@ def split_bam(inBam, outBams) :
             log.info("preparing file "+outBam)
             tmp_sam_reads = mkstempfname('.sam')
             with open(tmp_sam_reads, 'wt') as outf:
-                for line in header:
-                    outf.write(line)
+                for row in header:
+                    outf.write('\t'.join(row)+'\n')
                 for i in range(maxReads):
                     line = inf.readline()
                     if not line:
@@ -501,6 +549,85 @@ __commands__.append(('split_bam', main_split_bam, parser_split_bam))
 # ============================
 # ***  dup_remove_mvicuna  ***
 # ============================
+
+def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
+    # Run M-Vicuna on FASTQ files
+    outFastq1 = mkstempfname('.1.fastq')
+    outFastq2 = mkstempfname('.2.fastq')
+    tools.mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
+    
+    # Make a list of reads to keep
+    with open(readList, 'at') as outf:
+        for fq in (outFastq1, outFastq2):
+            with util.file.open_or_gzopen(fq, 'rt') as inf:
+                line_num = 0
+                for line in inf:
+                    if (line_num % 4) == 0:
+                        id = line.rstrip('\n')[1:]
+                        if id.endswith('/1'):
+                            outf.write(id[:-2]+'\n')
+                    line_num += 1
+    os.unlink(outFastq1)
+    os.unlink(outFastq2)
+
+def parser_rmdup_mvicuna_bam() :
+    parser = argparse.ArgumentParser(
+        description='''Remove duplicate reads from BAM file using M-Vicuna. The
+            primary advantage to this approach over Picard's MarkDuplicates tool
+            is that Picard requires that input reads are aligned to a reference,
+            and M-Vicuna can operate on unaligned reads.''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_rmdup_mvicuna_bam(args) :
+    ''' TODO: this needs to be made smarter to operate independently
+        on a per-library basis.'''
+    
+    # Convert BAM -> FASTQ pairs per read group and load all read groups
+    tempDir = tempfile.mkdtemp()
+    tools.picard.SamToFastqTool().per_read_group(args.inBam, tempDir,
+        picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
+    read_groups = [x[1:] for x in
+        tools.samtools.SamtoolsTool().getHeader(args.inBam)
+        if x[0]=='@RG']
+    read_groups = [dict(pair.split(':',1) for pair in rg) for rg in read_groups]
+    
+    # Collect FASTQ pairs for each library
+    lb_to_files = {}
+    for rg in read_groups:
+        lb_to_files.setdefault(rg['LB'], set())
+        fname = rg['ID']
+        if 'PU' in rg:
+            fname = rg['PU']
+        lb_to_files[rg['LB']].add(os.path.join(tempDir, fname))
+    log.info("found %d distinct libraries and %d read groups" % (len(lb_to_files), len(read_groups)))
+    
+    # For each library, merge FASTQs and run rmdup for entire library
+    readList = mkstempfname('.keep_reads.txt')
+    for lb, files in lb_to_files.items():
+        log.info("executing M-Vicuna DupRm on library " + lb)
+        
+        # create merged FASTQs per library
+        infastqs = (mkstempfname('.1.fastq'), mkstempfname('.2.fastq'))
+        for d in range(2):
+            with open(infastqs[d], 'wt') as outf:
+                for fprefix in files:
+                    fn = '%s_%d.fastq' % (fprefix, d+1)
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line)
+                    os.unlink(fn)
+        
+        # M-Vicuna DupRm to see what we should keep (append IDs to running file)
+        mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
+        map(os.unlink, infastqs)
+    
+    # Filter original input BAM against keep-list
+    tools.picard.FilterSamReadsTool().execute(args.inBam, False, readList, args.outBam)
+    return 0
+__commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
+
 
 def parser_dup_remove_mvicuna() :
     parser = argparse.ArgumentParser(

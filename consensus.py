@@ -16,40 +16,9 @@ log = logging.getLogger(__name__)
 
 
 def assemble_trinity(inFastq1, inFastq2):
-    ''' KGA "recipe" follows
-
-# DE NOVO ASSEMBLY USING TRINITY
-use Java-1.6
-for sample in
-do
-for directory in
-do
-bsub -R "rusage[mem=2]" -n 1 -R "span[hosts=1]" -q hour -W 4:00 -o $directory/_logs/$sample.log.denovo.txt -P sabeti_meta -J $sample.dn "/idi/sabeti-scratch/kandersen/bin/scripts/mergeShuffledFastqSeqs.pl -t -r '^@(\S+)/[1|2]$' -f1 $directory/_temp/$sample.lastal.1.fastq -f2 $directory/_temp/$sample.lastal.2.fastq -o $directory/_temp/$sample.clean && /idi/sabeti-scratch/kandersen/bin/scripts/subsampler.py -n 100000 -mode p -in $directory/_temp/$sample.clean.1.fastq $directory/_temp/$sample.clean.2.fastq -out $directory/_temp/$sample.reads1.sub.fastq $directory/_temp/$sample.reads2.sub.fastq && wc -l $directory/_temp/$sample.clean.?.fastq > $directory/_logs/$sample.log.lastal.txt && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left $directory/_temp/$sample.reads1.sub.fastq --right $directory/_temp/$sample.reads2.sub.fastq --output $directory/_temp/$sample.trinity && mv $directory/_temp/$sample.trinity/Trinity.fasta $directory/_pileup/$sample.contigs.fasta && rm $directory/_temp/$sample.clean.nomatch.fastq && rm $directory/_temp/$sample.reads?.sub.fastq"
-done
-done
-    '''
     raise ("not yet implemented")
 
 def align_and_orient_vfat(contigs):
-    ''' KGA "recipe" follows
-
-# ALIGN AND ORIENT CONTIGS TO REFERENCES
-for sample in
-do
-for directory in
-do
-for country in NG # SL
-do
-
-# Note, vfat stuff has moved to /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/orientContig.pl and
-#       /idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/contigMerger.pl
-
-bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c1 "touch $directory/_temp/$sample.s_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta $directory/_temp/$sample.s_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.s_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.s.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.s_segment1 && cat $directory/_temp/$sample.s_segment1*assembly.fa > $directory/_temp/$sample.s_segment1.fasta"
-bsub -W 4:00 -q hour -R "rusage[mem=2]" -o $directory/_logs/$sample.log.bsub.txt -P sabeti_meta -J $sample.c2 "touch $directory/_temp/$sample.l_segment1_merger_assembly.fa && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/orientContig.pl $directory/_pileup/$sample.contigs.fasta /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta $directory/_temp/$sample.l_segment1 && perl /seq/viral/analysis/xyang/scripts/others/VfatSoftwarePackage_201401/contigMerger.pl $directory/_temp/$sample.l_segment1_orientedContigs /idi/sabeti-scratch/kandersen/references/annotations/lasv/$country.l.fasta -readfq $directory/_temp/$sample.clean.1.fastq -readfq2 $directory/_temp/$sample.clean.2.fastq -fakequals 30 $directory/_temp/$sample.l_segment1 && cat $directory/_temp/$sample.l_segment1*assembly.fa > $directory/_temp/$sample.l_segment1.fasta"
-done
-done
-done
-    '''
     raise ("not yet implemented")
 
 def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
@@ -60,10 +29,15 @@ def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
     raise ("not yet implemented")
     
 
+def unambig_count(seq):
+    unambig = set(('A','T','C','G'))
+    return sum(1 for s in seq if s.upper() in unambig)
+
 def parser_filter_short_seqs():
     parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
+    parser.add_argument("maxAmbig", help="maximum percentage ambiguous bases for contig", type=float)
     parser.add_argument("outFile", help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument("-of", "--output-format",
@@ -76,7 +50,8 @@ def main_filter_short_seqs(args):
         with util.file.open_or_gzopen(args.outFile, 'w') as outf:
             Bio.SeqIO.write(
                 [s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength],
+                    if len(s) >= args.minLength
+                    and unambig_count(s.seq) <= len(s)*args.maxAmbig],
                 outf, args.output_format)
     return 0
 __commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
@@ -184,35 +159,9 @@ def do_call_reference_ns(ref, consensus):
 
 def do_call_reference_ambiguous(ref, consensus):
     log.debug("populating ambiguous bases from reference...")
-    # TO DO: replace all this with Bio.Data.IUPACData.ambiguous_dna_values
     for i in range(len(ref)):
-        if (consensus[i].upper() == "K"):
-            if (ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "M"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "C"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "R"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "Y"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "S"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "W"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "B"):
-            if (ref[i].upper() == "C" or ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "V"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "C" or ref[i].upper() == "G"):
-                consensus[i] = ref[i]
-        if (consensus[i].upper() == "D"):
-            if (ref[i].upper() == "A" or ref[i].upper() == "G" or ref[i].upper() == "T"):
-                consensus[i] = ref[i]
+        if ref[i].upper() in Bio.Data.IUPACData.ambiguous_dna_values[consensus[i].upper()]:
+            consensus[i] = ref[i]
     return consensus
 
 def do_trim_ends(ref, consensus):
@@ -305,6 +254,24 @@ class MutableSequence:
             raise Exception("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
+    def replace(self, start, stop, new_seq):
+        if not (self.start <= start <= stop <= self.stop):
+            raise Exception("positions out of bounds")
+        start -= self.start
+        stop  -= self.start
+        if start==stop:
+            self.seq[start] = new_seq
+        for i in range(max(stop-start+1, len(new_seq))):
+            if start+i <= stop:
+                if i<len(new_seq):
+                    if start+i==stop:
+                        # new allele is >= ref length, fill out the rest of the bases
+                        self.seq[start+i] = new_seq[i:]
+                    else:
+                        self.seq[start+i] = new_seq[i]
+                else:
+                    # new allele is shorter than ref, so delete extra bases
+                    self.seq[start+i] = ''
     def emit(self):
         return (self.name, ''.join(self.seq))
 
@@ -317,8 +284,6 @@ def alleles_to_ambiguity(allelelist):
     if len(allelelist)==1:
         return allelelist[0]
     else:
-        # if you want to eliminate the dependency on BioPython, use this hardcoded line instead of the following one:
-        #convert = {('C', 'G', 'T'): 'B', ('T',): 'T', ('A',): 'A', ('A', 'T'): 'W', ('A', 'C', 'T'): 'H', ('C',): 'C', ('A', 'G', 'T'): 'D', ('A', 'C', 'G'): 'V', ('G', 'T'): 'K', ('A', 'G'): 'R', ('C', 'G'): 'S', ('G',): 'G', ('A', 'C', 'G', 'T'): 'N', ('A', 'C'): 'M', ('C', 'T'): 'Y'}
         convert = dict([(tuple(sorted(v)),k) for k,v in Bio.Data.IUPACData.ambiguous_dna_values.items() if k!='X'])
         key = tuple(sorted(set(a.upper() for a in allelelist)))
         return convert[key]
@@ -394,7 +359,15 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                         seqs[s] = MutableSequence(name, 1, chrlens[c])
 
                 # modify sequence for this chromosome/sample/position
-                seqs[s].modify(p, alleles_to_ambiguity(alleles))
+                if len(alleles)==1:
+                    # call a single allele
+                    seqs[s].modify(p, alleles[0])
+                elif all(len(a)==1 for a in alleles):
+                    # call an ambiguous SNP
+                    seqs[s].modify(p, alleles_to_ambiguity(alleles))
+                else:
+                    # mix of indels with no clear winner... force the most popular one
+                    seqs[s].modify(p, alleles[0])
         except:
             log.exception("Exception occurred while parsing VCF file.  Row: '%s'" % vcfrow)
             raise
