@@ -81,6 +81,7 @@ def coverage_summary(inFiles, ending, outFile):
     thresholds = (1,5,20,100)
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
         header = ['sample'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov']
+        outf.write('\t'.join(header)+'\n')
         for fn in inFiles:
             if not fn.endswith(ending):
                 raise Exception()
