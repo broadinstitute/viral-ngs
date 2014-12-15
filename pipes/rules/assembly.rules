@@ -113,7 +113,7 @@ rule align_and_orient:
     params: LSF='-R "rusage[mem=3]" -M 6',
             refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
-            max_ambig = str(config["assembly_max_ambig"]),
+            min_unambig = str(config["assembly_min_unambig"]),
             logid="{sample}",
             tmpf_prefix='{dir}/{sample}.assembly1.5'
     run:
@@ -123,7 +123,7 @@ rule align_and_orient:
             shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
             shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
             shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
-            shell("{config[binDir]}/consensus.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.max_ambig} {output}")
+            shell("{config[binDir]}/consensus.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.min_unambig} {output}")
             assert_nonempty_file(output[0])
             shell("rm -rf {params.tmpf_prefix}*")
 
