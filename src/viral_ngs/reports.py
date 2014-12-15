@@ -5,7 +5,7 @@
 __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, subprocess, glob, os, os.path
+import argparse, logging, subprocess, glob, os, os.path, time
 import pysam, numpy
 import util.cmd, util.file, util.misc
 
@@ -89,16 +89,21 @@ def get_lib_info(runfile):
             dat = [lane['flowcell']+'.'+lane['lane'],
                 well['barcode_1']+'-'+well['barcode_2'],
                 plate.strip()+':'+well['Well'].upper(),
+                get_earliest_date(lane['bustard_dir']),
                 well['Tube_ID']]
             lib[libname].append(dat)
     return libs
+def get_earliest_date(inDir):
+    fnames = [inDir] + [os.path.join(inDir, x) for x in os.listdir(inDir)]
+    earliest = min(os.path.getmtime(fn) for fn in fnames)
+    return time.strftime("%Y-%m-%d", time.localtime(earliest))
 
 def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,100)):
     joindat = runFile and get_lib_info(runFile) or {}
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
         header = ['sample'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov']
         if runFile:
-            header += ['seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'KGH_Tube_ID']
+            header += ['seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
         outf.write('\t'.join(header)+'\n')
         for fn in inFiles:
             if not fn.endswith(ending):
@@ -107,13 +112,13 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,
             with util.file.open_or_gzopen(fn, 'rt') as inf:
                 coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
-            out = [s] + out + [numpy.median(coverages), numpy.mean(coverages)]
+            out = [s] + out + [numpy.median(coverages), "%0.3f"%numpy.mean(coverages)]
             if runFile:
                 if s in joindat:
                     extra = [','.join(util.misc.unique(run[i] for run in joindat[s]))
-                        for i in range(4)]
+                        for i in range(5)]
                 else:
-                    out += ['','','','']
+                    out += ['','','','','']
             outf.write('\t'.join(map(str,out))+'\n')
 def parser_coverage_summary() :
     parser = argparse.ArgumentParser(
