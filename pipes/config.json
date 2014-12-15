@@ -23,7 +23,7 @@
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
   
   "assembly_min_length":    [15000],
-  "assembly_max_ambig":        0.95,
+  "assembly_min_unambig":      0.95,
   
   "align_outgroups": {
     "ebov_2014":    "",
