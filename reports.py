@@ -6,7 +6,7 @@ __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, subprocess, glob, os, os.path
-import pysam
+import pysam, numpy
 import util.cmd, util.file
 
 log = logging.getLogger(__name__)
@@ -77,6 +77,31 @@ __commands__.append(('consolidate_fastqc',
     main_consolidate_fastqc, parser_consolidate_fastqc))
 
 
+def coverage_summary(inFiles, ending, outFile):
+    thresholds = (1,5,20,100)
+    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+        header = ['sample'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov']
+        for fn in inFiles:
+            if not fn.endswith(ending):
+                raise Exception()
+            s = fn.split('/')[-1][:-len(ending)]
+            with util.file.open_or_gzopen(fn, 'rt') as inf:
+                coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
+            out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
+            out = [s] + out + [numpy.median(coverages), numpy.mean(coverages)]
+            outf.write('\t'.join(map(str,out))+'\n')
+def parser_coverage_summary() :
+    parser = argparse.ArgumentParser(
+        description='''Produce summary stats of genome coverage.''')
+    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
+    parser.add_argument('suffix', help='Suffix of all coverage files.')
+    parser.add_argument('outFile', help='Output report file.')
+    return parser
+def main_coverage_summary(args) :
+    coverage_summary(args.inFiles, args.suffix, args.outFile)
+    return 0
+__commands__.append(('coverage_summary',
+    main_coverage_summary, parser_coverage_summary))
 
 def consolidate_coverage(inFiles, adj, outFile):
     ending = '.coverage_%s.txt' % adj
