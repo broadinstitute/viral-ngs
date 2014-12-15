@@ -101,7 +101,7 @@ rule assemble_trinity:
             shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {input} -out {params.tmpf_subsamp}")
             shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
             shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
-            os.unlink(params.tmpf_subsamp)
+            map(os.unlink, params.tmpf_subsamp)
             shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
 
 rule align_and_orient:
