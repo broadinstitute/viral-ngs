@@ -77,6 +77,18 @@ __commands__.append(('consolidate_fastqc',
     main_consolidate_fastqc, parser_consolidate_fastqc))
 
 
+def get_bam_info(bamstats_dir):
+    libs = {}
+    for fn in glob.glob(os.path.join(bamstats_dir, "*.txt")):
+        with util.file.open_or_gzopen(fn, 'rt') as inf:
+            bam = {}
+            for line in inf:
+                k,v = line.rstrip('\n').split('\t')
+                bam[k] = v
+        libs.setdefault(bam['Sample'], {})
+        libs[bam['Sample']][bam['BAM']] = bam['Total reads']
+    return libs
+
 def get_lib_info(runfile):
     libs = {}
     for lane in util.file.read_tabfile_dict(runfile):
@@ -86,24 +98,31 @@ def get_lib_info(runfile):
             plate = well['Plate']
             if plate.lower().startswith('plate'):
                 plate = plate[5:]
-            dat = [lane['flowcell']+'.'+lane['lane'],
+            dat = [well['sample'],
+                lane['flowcell']+'.'+lane['lane'],
                 well['barcode_1']+'-'+well['barcode_2'],
                 plate.strip()+':'+well['Well'].upper(),
                 get_earliest_date(lane['bustard_dir']),
                 well.get('Tube_ID','')]
             libs[libname].append(dat)
     return libs
+
 def get_earliest_date(inDir):
     fnames = [inDir] + [os.path.join(inDir, x) for x in os.listdir(inDir)]
     earliest = min(os.path.getmtime(fn) for fn in fnames)
     return time.strftime("%Y-%m-%d", time.localtime(earliest))
 
-def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,100)):
-    joindat = runFile and get_lib_info(runFile) or {}
+def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thresholds=(1,5,20,100)):
+    seqinfo = runFile and get_lib_info(runFile) or {}
+    baminfo = statsDir and get_bam_info(statsDir) or {}
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        header = ['sample'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov']
-        if runFile:
-            header += ['seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
+        header = ['library'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov', 'mean_non0_cov']
+        header_bam = ['reads_total', 'reads_non_Hs', 'reads_EBOV', 'reads_EBOV_rmdup']
+        header_seq = ['sample','seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
+        if baminfo:
+            header += header_bam
+        if seqinfo:
+            header += header_seq
         outf.write('\t'.join(header)+'\n')
         for fn in inFiles:
             if not fn.endswith(ending):
@@ -112,13 +131,20 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,
             with util.file.open_or_gzopen(fn, 'rt') as inf:
                 coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
-            out = [s] + out + [numpy.median(coverages), "%0.3f"%numpy.mean(coverages)]
-            if runFile:
-                if s in joindat:
-                    out += [','.join(util.misc.unique(run[i] for run in joindat[s]))
-                        for i in range(5)]
+            out = [s] + out
+            out +=[numpy.median(coverages), "%0.3f"%numpy.mean(coverages),
+                "%0.3f"%numpy.mean(n for n in coverages if n>0)]
+            if baminfo:
+                if s in baminfo:
+                    out += [baminfo[s].get(adj,'') for adj in ('raw', 'cleaned', 'ref_mapped', 'ref_rmdup')]
                 else:
-                    out += ['','','','','']
+                    out += ['' for h in header_bam]
+            if seqinfo:
+                if s in seqinfo:
+                    out += [','.join(util.misc.unique(run[i] for run in seqinfo[s]))
+                        for i in range(len(header_seq))]
+                else:
+                    out += ['' for h in header_seq]
             outf.write('\t'.join(map(str,out))+'\n')
 def parser_coverage_summary() :
     parser = argparse.ArgumentParser(
@@ -127,9 +153,10 @@ def parser_coverage_summary() :
     parser.add_argument('suffix', help='Suffix of all coverage files.')
     parser.add_argument('outFile', help='Output report file.')
     parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
+    parser.add_argument('--bamstatsDir', help='Link in read info from BAM alignments.', default=None)
     return parser
 def main_coverage_summary(args) :
-    coverage_summary(args.inFiles, args.suffix, args.outFile, args.runFile)
+    coverage_summary(args.inFiles, args.suffix, args.outFile, args.runFile, args.bamstatsDir)
     return 0
 __commands__.append(('coverage_summary',
     main_coverage_summary, parser_coverage_summary))
