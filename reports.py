@@ -7,7 +7,7 @@ __commands__ = []
 
 import argparse, logging, subprocess, glob, os, os.path
 import pysam, numpy
-import util.cmd, util.file
+import util.cmd, util.file, util.misc
 
 log = logging.getLogger(__name__)
 
@@ -77,10 +77,28 @@ __commands__.append(('consolidate_fastqc',
     main_consolidate_fastqc, parser_consolidate_fastqc))
 
 
-def coverage_summary(inFiles, ending, outFile):
-    thresholds = (1,5,20,100)
+def get_lib_info(runfile):
+    libs = {}
+    for lane in util.file.read_tabfile_dict(runfile):
+        for well in util.file.read_tabfile_dict(lane['barcode_file']):
+            libname = well['sample'] + '.l' + well['library_id_per_sample']
+            lib.setdefault(libname, [])
+            plate = well['Plate']
+            if plate.lower().startswith('plate'):
+                plate = plate[5:]
+            dat = [lane['flowcell']+'.'+lane['lane'],
+                well['barcode_1']+'-'+well['barcode_2'],
+                plate.strip()+':'+well['Well'].upper(),
+                well['Tube_ID']]
+            lib[libname].append(dat)
+    return libs
+
+def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,100)):
+    joindat = runFile and get_lib_info(runFile) or {}
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
         header = ['sample'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov']
+        if runFile:
+            header += ['seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'KGH_Tube_ID']
         outf.write('\t'.join(header)+'\n')
         for fn in inFiles:
             if not fn.endswith(ending):
@@ -90,6 +108,12 @@ def coverage_summary(inFiles, ending, outFile):
                 coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
             out = [s] + out + [numpy.median(coverages), numpy.mean(coverages)]
+            if runFile:
+                if s in joindat:
+                    extra = [','.join(util.misc.unique(run[i] for run in joindat[s]))
+                        for i in range(4)]
+                else:
+                    out += ['','','','']
             outf.write('\t'.join(map(str,out))+'\n')
 def parser_coverage_summary() :
     parser = argparse.ArgumentParser(
@@ -97,9 +121,10 @@ def parser_coverage_summary() :
     parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
     parser.add_argument('suffix', help='Suffix of all coverage files.')
     parser.add_argument('outFile', help='Output report file.')
+    parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
     return parser
 def main_coverage_summary(args) :
-    coverage_summary(args.inFiles, args.suffix, args.outFile)
+    coverage_summary(args.inFiles, args.suffix, args.outFile, args.runFile)
     return 0
 __commands__.append(('coverage_summary',
     main_coverage_summary, parser_coverage_summary))
