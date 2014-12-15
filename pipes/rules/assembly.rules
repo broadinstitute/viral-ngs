@@ -187,8 +187,8 @@ rule refine_assembly_1:
             gatk_local_realign(params.tmpf_bam2, output[2], output[3], params.tmpf_intervals)
             gatk_ug(output[3], output[2], output[4])
             shell("{config[binDir]}/consensus.py vcf_to_fasta {output[4]} {output[5]} --trim_ends --min_coverage 2")
-            os.unlink(tmpf_bam1)
-            os.unlink(tmpf_bam2)
+            os.unlink(params.tmpf_bam1)
+            os.unlink(params.tmpf_bam2)
 
 rule refine_assembly_2:
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta',
@@ -218,8 +218,8 @@ rule refine_assembly_2:
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
             index_novoalign(output[3])
-            os.unlink(tmpf_bam1)
-            os.unlink(tmpf_bam2)
+            os.unlink(params.tmpf_bam1)
+            os.unlink(params.tmpf_bam2)
 
 
 rule map_reads_to_self:
