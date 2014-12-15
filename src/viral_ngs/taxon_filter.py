@@ -79,8 +79,7 @@ def filter_lastal(inFastq, refDbs, outFastq):
         BAM/fastq conversions and subclasses for bmtagger, blastn, and lastal
     """
     assert outFastq.endswith('.fastq')
-    outFastq = outFastq[:-6]
-    tempFilePath = mkstempfname()
+    tempFilePath = mkstempfname('.hits')
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
     mafConvertPath = tools.last.MafConvert().install_and_get_path()
@@ -104,13 +103,14 @@ def filter_lastal(inFastq, refDbs, outFastq):
     with open(filteredFastq, 'wt') as outf:
         noBlastLikeHitsCmd = [
             noBlastLikeHitsPath, '-b', tempFilePath, '-r', inFastq, '-m', 'hit']
-        log.debug(' '.join(noBlastLikeHitsCmd) + ' >' + filteredFastq)
+        log.debug(' '.join(noBlastLikeHitsCmd) + ' > ' + filteredFastq)
         subprocess.check_call(noBlastLikeHitsCmd, stdout=outf)
     
     # remove duplicate reads and reads with multiple Ns
     if os.path.getsize(filteredFastq) == 0:
         # prinseq-lite fails on empty file input (which can happen in real life
         # if no reads match the refDbs) so handle this scenario specially
+        log.info("output is empty: no reads in input match refDb")
         shutil.copyfile(filteredFastq, outFastq)
     else:
         prinseqCmd = [
@@ -120,7 +120,7 @@ def filter_lastal(inFastq, refDbs, outFastq):
                 '-fastq', filteredFastq,
                 '-out_bad', 'null',
                 '-line_width', '0',
-                '-out_good', outFastq
+                '-out_good', outFastq[:-6]
             ]
         log.debug(' '.join(prinseqCmd))
         subprocess.check_call(prinseqCmd)
