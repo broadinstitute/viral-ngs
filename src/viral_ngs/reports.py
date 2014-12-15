@@ -82,15 +82,15 @@ def get_lib_info(runfile):
     for lane in util.file.read_tabfile_dict(runfile):
         for well in util.file.read_tabfile_dict(lane['barcode_file']):
             libname = well['sample'] + '.l' + well['library_id_per_sample']
-            lib.setdefault(libname, [])
+            libs.setdefault(libname, [])
             plate = well['Plate']
             if plate.lower().startswith('plate'):
                 plate = plate[5:]
             dat = [lane['flowcell']+'.'+lane['lane'],
                 well['barcode_1']+'-'+well['barcode_2'],
                 plate.strip()+':'+well['Well'].upper(),
-                well['Tube_ID']]
-            lib[libname].append(dat)
+                well.get('Tube_ID','')]
+            libs[libname].append(dat)
     return libs
 
 def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,100)):
@@ -110,7 +110,7 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, thresholds=(1,5,20,
             out = [s] + out + [numpy.median(coverages), numpy.mean(coverages)]
             if runFile:
                 if s in joindat:
-                    extra = [','.join(util.misc.unique(run[i] for run in joindat[s]))
+                    out += [','.join(util.misc.unique(run[i] for run in joindat[s]))
                         for i in range(4)]
                 else:
                     out += ['','','','']
