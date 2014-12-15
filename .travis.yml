@@ -11,6 +11,8 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda/bin:$PATH
   - conda update --yes conda
+  - mkdir -p /opt/anaconda1anaconda2anaconda3
+  - ln -s /etc/ssl/certs /opt/anaconda1anaconda2anaconda3/ssl
 
 install:
   - conda create -n env-conda --yes "python=$TRAVIS_PYTHON_VERSION"
