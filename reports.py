@@ -98,10 +98,11 @@ def get_lib_info(runfile):
             plate = well['Plate']
             if plate.lower().startswith('plate'):
                 plate = plate[5:]
+            well_id = well['Well'][0].upper() + "%02d" % int(well['Well'][1:])
             dat = [well['sample'],
                 lane['flowcell']+'.'+lane['lane'],
                 well['barcode_1']+'-'+well['barcode_2'],
-                plate.strip()+':'+well['Well'].upper(),
+                plate.strip()+':'+well_id,
                 get_earliest_date(lane['bustard_dir']),
                 well.get('Tube_ID','')]
             libs[libname].append(dat)
@@ -117,7 +118,7 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thre
     baminfo = statsDir and get_bam_info(statsDir) or {}
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
         header = ['library'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov', 'mean_non0_cov']
-        header_bam = ['reads_total', 'reads_non_Hs', 'reads_EBOV', 'reads_EBOV_rmdup']
+        header_bam = ['reads_total', 'reads_non_Hs_rmdup', 'reads_EBOV', 'reads_EBOV_rmdup']
         header_seq = ['sample','seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
         if baminfo:
             header += header_bam
@@ -133,7 +134,7 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thre
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
             out = [s] + out
             out +=[numpy.median(coverages), "%0.3f"%numpy.mean(coverages),
-                "%0.3f"%numpy.mean(n for n in coverages if n>0)]
+                "%0.3f"%numpy.mean([n for n in coverages if n>0])]
             if baminfo:
                 if s in baminfo:
                     out += [baminfo[s].get(adj,'') for adj in ('raw', 'cleaned', 'ref_mapped', 'ref_rmdup')]
@@ -149,14 +150,15 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thre
 def parser_coverage_summary() :
     parser = argparse.ArgumentParser(
         description='''Produce summary stats of genome coverage.''')
-    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
-    parser.add_argument('suffix', help='Suffix of all coverage files.')
+    parser.add_argument('coverageDir', help='Input coverage report directory.')
+    parser.add_argument('coverageSuffix', help='Suffix of all coverage files.')
     parser.add_argument('outFile', help='Output report file.')
     parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
     parser.add_argument('--bamstatsDir', help='Link in read info from BAM alignments.', default=None)
     return parser
 def main_coverage_summary(args) :
-    coverage_summary(args.inFiles, args.suffix, args.outFile, args.runFile, args.bamstatsDir)
+    inFiles = list(glob.glob(os.path.join(args.coverageDir, "*"+args.coverageSuffix)))
+    coverage_summary(inFiles, args.coverageSuffix, args.outFile, args.runFile, args.bamstatsDir)
     return 0
 __commands__.append(('coverage_summary',
     main_coverage_summary, parser_coverage_summary))
