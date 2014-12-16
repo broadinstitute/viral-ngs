@@ -164,7 +164,9 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.vcf.gz',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.refined.fasta'
     params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
-            refGenome=config["ref_genome"], renamed_prefix="EBOV_2014_",
+            refGenome=config["ref_genome"],
+            renamed_prefix="EBOV_2014_",
+            replace_length="55",
             logid="{sample}",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify.intervals',
             tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.muscle_modify_pre_rmdup.bam',
@@ -174,7 +176,7 @@ rule refine_assembly_1:
             shell("cat {input[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {output[0]} -quiet")
             assert_nonempty_file(output[0])
             refName = first_fasta_header(params.refGenome)
-            shell("{config[binDir]}/consensus.py modify_contig {output[0]} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length 20 --replace-end-gaps")
+            shell("{config[binDir]}/consensus.py modify_contig {output[0]} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
             assert_nonempty_file(output[1])
             shell("{config[binDir]}/consensus.py deambig_fasta {output[1]} {output[2]}")
             index_novoalign(output[1])
@@ -257,7 +259,7 @@ rule map_reads_to_ref:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"], config["tmpDir"]],
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
-            novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3")
+            novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 30 -g 40 -x 20 -t 502")
             filter_bam_mapped_only(output[0], output[1])
             shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
             gatk_local_realign(output[2], params.refGenome, output[3], params.tmpf_intervals)
