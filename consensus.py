@@ -37,7 +37,7 @@ def parser_filter_short_seqs():
     parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
-    parser.add_argument("maxAmbig", help="maximum percentage ambiguous bases for contig", type=float)
+    parser.add_argument("minUnambig", help="minimum percentage unambiguous bases for contig", type=float)
     parser.add_argument("outFile", help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument("-of", "--output-format",
@@ -46,12 +46,13 @@ def parser_filter_short_seqs():
     return parser
 def main_filter_short_seqs(args):
     # orig by rsealfon, edited by dpark
+    # TO DO: make this more generalized to accept multiple minLengths (for multiple chromosomes/segments)
     with util.file.open_or_gzopen(args.inFile) as inf:
         with util.file.open_or_gzopen(args.outFile, 'w') as outf:
             Bio.SeqIO.write(
                 [s for s in Bio.SeqIO.parse(inf, args.format)
                     if len(s) >= args.minLength
-                    and unambig_count(s.seq) <= len(s)*args.maxAmbig],
+                    and unambig_count(s.seq) >= len(s)*args.minUnambig],
                 outf, args.output_format)
     return 0
 __commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))

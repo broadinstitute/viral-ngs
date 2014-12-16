@@ -74,11 +74,12 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
 
 def filter_lastal(inFastq, refDbs, outFastq):
     """
-    TODO: make this operate on BAM files
+    TODO: make the prinseq step separate (it's mostly an rmdup),
+        generalize the deplete/filter/partition steps into a base class that handles
+        BAM/fastq conversions and subclasses for bmtagger, blastn, and lastal
     """
     assert outFastq.endswith('.fastq')
-    outFastq = outFastq[:-6]
-    tempFilePath = mkstempfname()
+    tempFilePath = mkstempfname('.hits')
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
     mafConvertPath = tools.last.MafConvert().install_and_get_path()
@@ -97,33 +98,38 @@ def filter_lastal(inFastq, refDbs, outFastq):
     log.debug(lastalCmd)
     assert not os.system(lastalCmd)
 
-    # each option/flag on own line
-    noBlastLikeHitsCmd = ' '.join([
-        'python', noBlastLikeHitsPath,
-            '-b', tempFilePath,
-            '-r', inFastq,
-            '-m hit' ])
-
-    prinseqCmd = ' '.join([
-        'perl', prinseqPath,
-            '-ns_max_n 1',
-            '-derep 1',
-            '-fastq stdin',
-            '-out_bad null',
-            '-line_width 0',
-            '-out_good', outFastq
-        ])
-
-    fullCmd = "{noBlastLikeHitsCmd} | {prinseqCmd}".format(**locals())
-    log.debug(fullCmd)
-    assert not os.system(fullCmd)
+    # filter inFastq against lastal hits
+    filteredFastq = mkstempfname('.filtered.fastq')
+    with open(filteredFastq, 'wt') as outf:
+        noBlastLikeHitsCmd = [
+            noBlastLikeHitsPath, '-b', tempFilePath, '-r', inFastq, '-m', 'hit']
+        log.debug(' '.join(noBlastLikeHitsCmd) + ' > ' + filteredFastq)
+        subprocess.check_call(noBlastLikeHitsCmd, stdout=outf)
     
-    log.debug("done")
+    # remove duplicate reads and reads with multiple Ns
+    if os.path.getsize(filteredFastq) == 0:
+        # prinseq-lite fails on empty file input (which can happen in real life
+        # if no reads match the refDbs) so handle this scenario specially
+        log.info("output is empty: no reads in input match refDb")
+        shutil.copyfile(filteredFastq, outFastq)
+    else:
+        prinseqCmd = [
+            'perl', prinseqPath,
+                '-ns_max_n', '1',
+                '-derep', '1',
+                '-fastq', filteredFastq,
+                '-out_bad', 'null',
+                '-line_width', '0',
+                '-out_good', outFastq[:-6]
+            ]
+        log.debug(' '.join(prinseqCmd))
+        subprocess.check_call(prinseqCmd)
+    os.unlink(filteredFastq)
 
 def parser_filter_lastal():
     parser = argparse.ArgumentParser(
         description = '''Restrict input reads to those that align to the given
-        reference database using LASTAL.''')
+        reference database using LASTAL.  Also, remove duplicates with prinseq.''')
     parser.add_argument("inFastq", help="Input fastq file")
     parser.add_argument("refDbs",
                         help="Reference database to retain from input")

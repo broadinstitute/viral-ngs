@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
 Utilities for getting sequences out of the Broad walk-up sequencing pipeline.
+These utilities are probably not of much use outside the Broad.
 """
 
 __author__ = "dpark@broadinstitute.org"
