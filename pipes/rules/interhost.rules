@@ -34,7 +34,7 @@ def merge_vcfs(inFiles, refFasta, outFile):
     inFilesString = ' '.join(['--variant '+i for i in inFiles])
     shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar" \
         + " -T CombineVariants -R {refFasta} {inFilesString} -o {outFile}" \
-        + " --genotypemergeoption REQUIRE_UNIQUE")
+        + " --genotypemergeoption UNIQUIFY")
 
 rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
