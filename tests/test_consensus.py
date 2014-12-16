@@ -92,6 +92,10 @@ class TestMutableSequence(unittest.TestCase):
         self.assertEqual(x.emit(), ('chr', 'Ay123G'))
         x.modify(7, 'z')
         self.assertEqual(x.emit(), ('chr', 'AyzG'))
+    def test_modify_deletions_simple(self):
+        x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
+        x.replace(6, 7, 'T')
+        self.assertEqual(x.emit(), ('chr', 'ATG'))
  
 
 class TestManualSnpCaller(unittest.TestCase):
@@ -105,10 +109,10 @@ class TestManualSnpCaller(unittest.TestCase):
         ''' The DP might not equal the sum of the ADs and that's okay apparently. '''
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:5:2,2']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
-        self.assertEqual(set(out[0][3]), set(['G','A']))
+        self.assertEqual(set(out[0][4]), set(['G','A']))
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:2:3,3']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['G','A']))
+        self.assertEqual(set(out[0][4]), set(['G','A']))
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:10:2,0']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out, [])
@@ -116,10 +120,10 @@ class TestManualSnpCaller(unittest.TestCase):
         ''' Invariant site handling is slightly different in code, so test it specially. '''
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT:DP', '0/0:3']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(out, [('LASV.l',1,'s1',['T'])])
+        self.assertEqual(out, [('LASV.l',1,1,'s1',['T'])])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT', '0/0']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=0))
-        self.assertEqual(out, [('LASV.l',1,'s1',['T'])])
+        self.assertEqual(out, [('LASV.l',1,1,'s1',['T'])])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT', '0/0']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(out, [])
@@ -128,7 +132,7 @@ class TestManualSnpCaller(unittest.TestCase):
         self.assertEqual(out, [])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT:DP', './.:10']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
-        self.assertEqual(out, [('LASV.l',1,'s1',['T'])])
+        self.assertEqual(out, [('LASV.l',1,1,'s1',['T'])])
     def test_het_edgecases(self):
         ''' The interplay between min_coverage and major_cutoff is not obvious, here's
             what I understand from Kristian about the desired behavior.
@@ -143,34 +147,55 @@ class TestManualSnpCaller(unittest.TestCase):
          '''
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:3,4,5,0']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['G','A','C']))
+        self.assertEqual(set(out[0][4]), set(['G','A','C']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:2,3,0,3']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['A','T']))
+        self.assertEqual(set(out[0][4]), set(['A','T']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,0,2']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out, [])
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,0,2']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=2))
-        self.assertEqual(set(out[0][3]), set(['A','T']))
+        self.assertEqual(set(out[0][4]), set(['A','T']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:2,0,3,0']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(out[0][3], ['C'])
+        self.assertEqual(out[0][4], ['C'])
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,3,4']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(out[0][3], ['T'])
+        self.assertEqual(out[0][4], ['T'])
     def test_indels(self):
         ''' Indel handling '''
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,10,1']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['GA']))
+        self.assertEqual(set(out[0][4]), set(['GA']))
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,2']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['G','GA']))
+        self.assertEqual(set(out[0][4]), set(['G','GA']))
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,3']
         out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
-        self.assertEqual(set(out[0][3]), set(['G','GA','T']))
-        
+        self.assertEqual(set(out[0][4]), set(['G','GA','T']))
+        row = ['thecontig', '105000', '.', 'AT', 'A', '.', '.', '.', 'GT:AD', '0/1:2,10']
+        out = list(consensus.vcfrow_parse_and_call_snps(row, ['s1']))
+        self.assertEqual(out, [('thecontig',105000,105001,'s1',['A'])])
+    def test_vcf_to_seqs_indels1(self):
+        input = ['thecontig', '5', '.', 'AT', 'A', '.', '.', '.', 'GT:AD', '0/1:2,10']
+        actual = consensus.vcf_to_seqs([input], {'thecontig':10}, ['s1'], min_dp=2)
+        actual = actual.__next__()[1].strip('N')
+        self.assertEqual(actual, 'A')
+        actual = consensus.vcf_to_seqs([input], {'thecontig':10}, ['s1'], min_dp=2)
+        actual = actual.__next__()[1]
+        self.assertEqual(actual, 'NNNNANNNN')
+    def test_vcf_to_seqs_indels2(self):
+        ''' More end-to-end indel handling '''
+        myInputDir = util.file.get_test_input_path(self)
+        input    = os.path.join(myInputDir, 'indel.vcf.gz')
+        expected = os.path.join(myInputDir, 'output.fasta')
+        chrlens = {'EBOV_2014_G6060.1':18962}
+        samples = ['G6060.1']
+        expected = str(Bio.SeqIO.read(expected, 'fasta').seq)
+        actual = consensus.vcf_to_seqs(util.file.read_tabfile(input), chrlens, samples, min_dp=2)
+        actual = actual.__next__()[1].strip('N')
+        self.assertEqual(actual, expected)
 
 
 

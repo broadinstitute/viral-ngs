@@ -242,12 +242,17 @@ class MutableSequence:
         self.start = start
         self.stop = stop
         self.name = name
+        self.deletions = []
     def modify(self, p, new_base):
         if not (self.start <= p <= self.stop):
             raise Exception("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
     def replace(self, start, stop, new_seq):
+        if stop>start:
+            self.deletions.append((start, stop, new_seq))
+        self.__change__(start, stop, new_seq)
+    def __change__(self, start, stop, new_seq):
         if not (self.start <= start <= stop <= self.stop):
             raise Exception("positions out of bounds")
         start -= self.start
@@ -265,7 +270,11 @@ class MutableSequence:
                 else:
                     # new allele is shorter than ref, so delete extra bases
                     self.seq[start+i] = ''
+    def __replay_deletions__(self):
+        for start, stop, new_seq in self.deletions:
+            self.__change__(start, stop, new_seq)
     def emit(self):
+        self.__replay_deletions__()
         return (self.name, ''.join(self.seq))
 
 def alleles_to_ambiguity(allelelist):
@@ -287,13 +296,15 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
     '''
     # process this row
     c = vcfrow[0]
-    p = int(vcfrow[1])
     alleles = [vcfrow[3]] + [a for a in vcfrow[4].split(',') if a not in '.']
+    start = int(vcfrow[1])
+    stop = start + len(vcfrow[3]) - 1
     format = vcfrow[8].split(':')
     format = dict((format[i], i) for i in range(len(format)))
     assert 'GT' in format and format['GT']==0  # required by VCF spec
     assert len(vcfrow)==9+len(samples)
-    info = dict(x.split('=') for x in vcfrow[7].split(';') if x != '.')
+    info = [x.split('=') for x in vcfrow[7].split(';') if x != '.']
+    info = dict(x for x in info if len(x)==2)
     info_dp = int(info.get('DP',0))
 
     # process each sample
@@ -329,7 +340,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
                 # call multiple alleles at this position if there is no clear winner
                 geno = [a for n,a in allele_depths]
         if geno:
-            yield (c, p, sample, geno)
+            yield (c, start, stop, sample, geno)
 
 def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ratio=0.0):
     ''' Take a VCF iterator and produce an iterator of chromosome x sample full sequences.'''
@@ -337,7 +348,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     cur_c = None
     for vcfrow in vcfIter:
         try:
-            for c,p,s,alleles in vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio):
+            for c,start,stop,s,alleles in vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio):
                 # changing chromosome?
                 if c != cur_c:
                     if cur_c!=None:
@@ -354,13 +365,13 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                 # modify sequence for this chromosome/sample/position
                 if len(alleles)==1:
                     # call a single allele
-                    seqs[s].modify(p, alleles[0])
+                    seqs[s].replace(start, stop, alleles[0])
                 elif all(len(a)==1 for a in alleles):
                     # call an ambiguous SNP
-                    seqs[s].modify(p, alleles_to_ambiguity(alleles))
+                    seqs[s].replace(start, stop, alleles_to_ambiguity(alleles))
                 else:
                     # mix of indels with no clear winner... force the most popular one
-                    seqs[s].modify(p, alleles[0])
+                    seqs[s].replace(start, stop, alleles[0])
         except:
             log.exception("Exception occurred while parsing VCF file.  Row: '%s'" % vcfrow)
             raise
