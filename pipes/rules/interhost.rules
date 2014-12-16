@@ -28,7 +28,7 @@ def update_timestamps(files):
             os.utime(f)
 
 def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
+    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} -glm BOTH --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
 
 def merge_vcfs(inFiles, refFasta, outFile):
     inFilesString = ' '.join(['--variant '+i for i in inFiles])
