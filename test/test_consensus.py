@@ -189,10 +189,10 @@ class TestManualSnpCaller(unittest.TestCase):
     def test_vcf_to_seqs_indels1(self):
         input = ['thecontig', '5', '.', 'AT', 'A', '.', '.', '.', 'GT:AD', '0/1:2,10']
         actual = consensus.vcf_to_seqs([input], {'thecontig':10}, ['s1'], min_dp=2)
-        actual = actual.__next__()[1].strip('N')
+        actual = list(actual)[0][1].strip('N')
         self.assertEqual(actual, 'A')
         actual = consensus.vcf_to_seqs([input], {'thecontig':10}, ['s1'], min_dp=2)
-        actual = actual.__next__()[1]
+        actual = list(actual)[0][1]
         self.assertEqual(actual, 'NNNNANNNN')
     def test_vcf_to_seqs_indels2(self):
         ''' More end-to-end indel handling '''
@@ -203,7 +203,7 @@ class TestManualSnpCaller(unittest.TestCase):
         samples = ['G6060.1']
         expected = str(Bio.SeqIO.read(expected, 'fasta').seq)
         actual = consensus.vcf_to_seqs(util.file.read_tabfile(input), chrlens, samples, min_dp=2)
-        actual = actual.__next__()[1].strip('N')
+        actual = list(actual)[0][1].strip('N')
         self.assertEqual(actual, expected)
 
 
