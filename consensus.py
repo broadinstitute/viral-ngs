@@ -270,11 +270,10 @@ class MutableSequence:
                 else:
                     # new allele is shorter than ref, so delete extra bases
                     self.seq[start+i] = ''
-    def __replay_deletions__(self):
+    def replay_deletions(self):
         for start, stop, new_seq in self.deletions:
             self.__change__(start, stop, new_seq)
     def emit(self):
-        self.__replay_deletions__()
         return (self.name, ''.join(self.seq))
 
 def alleles_to_ambiguity(allelelist):
@@ -354,6 +353,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                     if cur_c!=None:
                         # dump the previous chromosome before starting a new one
                         for s in samples:
+                            seqs[s].replay_deletions() # because of the order of VCF rows with indels
                             yield seqs[s].emit()
 
                     # prepare base sequences for this chromosome
@@ -379,6 +379,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     # at the end, dump the last chromosome
     if cur_c!=None:
         for s in samples:
+            seqs[s].replay_deletions() # because of the order of VCF rows with indels
             yield seqs[s].emit()
 
 

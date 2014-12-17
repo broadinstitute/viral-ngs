@@ -96,6 +96,15 @@ class TestMutableSequence(unittest.TestCase):
         x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
         x.replace(6, 7, 'T')
         self.assertEqual(x.emit(), ('chr', 'ATG'))
+    def test_modify_deletions_remember(self):
+        x = consensus.MutableSequence('chr', 5, 8, 'ATCG')
+        x.replace(6, 7, 'T')
+        self.assertEqual(x.emit(), ('chr', 'ATG'))
+        x.modify(7, 'x')
+        self.assertEqual(x.emit(), ('chr', 'ATxG'))
+        x.replay_deletions()
+        self.assertEqual(x.emit(), ('chr', 'ATG'))
+        
  
 
 class TestManualSnpCaller(unittest.TestCase):
