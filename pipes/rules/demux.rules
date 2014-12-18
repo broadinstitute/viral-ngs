@@ -20,6 +20,11 @@ def get_bustard_dir(flowcell, lane, runfile):
     assert len(lanes)==1
     return lanes[0]['bustard_dir']
 
+def get_run_date(flowcell, lane, runfile):
+    lanes = [x for x in read_tab_file(runfile) if x['flowcell']==flowcell and x['lane']==lane]
+    assert len(lanes)==1
+    return lanes[0].get('seq_run_date')
+
 def get_all_samples(runfile):
     samples = set()
     for lane in read_tab_file(runfile):
@@ -106,7 +111,8 @@ rule illumina_basecalls:
             shutil.rmtree(params.outdir, ignore_errors=True)
             makedirs(params.outdir)
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
-            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false")
+            run_date = get_run_date(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false --run_start_date={run_date}")
 
 def merge_bams_inputs(wildcards):
     for lane in read_tab_file(config['seqruns_demux']):
