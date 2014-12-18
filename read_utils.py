@@ -5,7 +5,7 @@ fixing mate pairs.
 """
 from __future__ import division
 
-__author__ = "irwin@broadinstitute.org"
+__author__ = "irwin@broadinstitute.org, dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 __commands__ = []

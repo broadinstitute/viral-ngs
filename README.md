@@ -11,7 +11,7 @@ details to come.
 Scripts:
  1. taxon_filter.py - filter reads for or against certain species, genera,
    or other taxonomic classifications
- 2. consensus.py - assemble reads, clean contigs, re-map and refine
+ 2. assembly.py - assemble reads, clean contigs, re-map and refine
    consensus assemblies
  3. interhost.py - align consensus sequences, call SNPs, annotate, produce
    trees
