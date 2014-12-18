@@ -598,7 +598,7 @@ def main_rmdup_mvicuna_bam(args) :
         fname = rg['ID']
         if 'PU' in rg:
             fname = rg['PU']
-        lb_to_files[rg['LB']].add(os.path.join(tempDir, fname))
+        lb_to_files[rg.get('LB','none')].add(os.path.join(tempDir, fname))
     log.info("found %d distinct libraries and %d read groups" % (len(lb_to_files), len(read_groups)))
     
     # For each library, merge FASTQs and run rmdup for entire library
