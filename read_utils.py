@@ -581,8 +581,6 @@ def parser_rmdup_mvicuna_bam() :
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_rmdup_mvicuna_bam(args) :
-    ''' TODO: this needs to be made smarter to operate independently
-        on a per-library basis.'''
     
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
@@ -596,7 +594,7 @@ def main_rmdup_mvicuna_bam(args) :
     # Collect FASTQ pairs for each library
     lb_to_files = {}
     for rg in read_groups:
-        lb_to_files.setdefault(rg['LB'], set())
+        lb_to_files.setdefault(rg.get('LB','none'), set())
         fname = rg['ID']
         if 'PU' in rg:
             fname = rg['PU']

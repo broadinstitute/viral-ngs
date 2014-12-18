@@ -7,11 +7,15 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, gzip, shutil
 
-def read_samples_file(fname):
-    with open(fname, 'rt') as inf:
-        for line in inf:
-            yield line.strip()
 
+rule all_reports:
+    input:
+        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
+        config["reportsDir"]+'/summary.coverage_self.txt.gz',
+        config["reportsDir"]+'/summary.fastqc.txt',
+        config["reportsDir"]+'/summary.bamstats.txt',
+        config["reportsDir"]+'/summary.spike_count.txt'
+    params: LSF="-N"
 
 #-----------BAMSTATS-------------------
 
