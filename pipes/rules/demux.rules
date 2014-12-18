@@ -15,16 +15,15 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time, shutil
 
-def read_tab_file(fname):
-    with open(fname, 'rt') as inf:
-        header = inf.readline().rstrip('\n').split('\t')
-        for line in inf:
-            yield dict(zip(header, line.rstrip('\n').split('\t')))
-
 def get_bustard_dir(flowcell, lane, runfile):
     lanes = [x for x in read_tab_file(runfile) if x['flowcell']==flowcell and x['lane']==lane]
     assert len(lanes)==1
     return lanes[0]['bustard_dir']
+
+def get_run_date(flowcell, lane, runfile):
+    lanes = [x for x in read_tab_file(runfile) if x['flowcell']==flowcell and x['lane']==lane]
+    assert len(lanes)==1
+    return lanes[0].get('seq_run_date')
 
 def get_all_samples(runfile):
     samples = set()
@@ -53,6 +52,21 @@ def get_bam_path(lane, well):
     return os.path.join(config['tmpDir'], config['subdirs']['demux'],
         'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         run_id + ".bam")
+
+rule all_demux_basecalls:
+    input:  
+            expand("{dir}/{flowlane}/{lib}.bam",
+                dir = os.path.join(config['tmpDir'], config['subdirs']['demux'], 'bams_per_lane'),
+                flowlane = get_all_lanes(config['seqruns_demux']),
+                lib = 'Unmatched')
+    params: LSF="-N"
+
+rule all_demux_merge:
+    input:
+            expand("{dir}/{lib}.bam",
+                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
+                lib=get_all_libraries(config['seqruns_demux']))
+    params: LSF="-N"
 
 rule make_picard_files:
     input:
@@ -97,7 +111,8 @@ rule illumina_basecalls:
             shutil.rmtree(params.outdir, ignore_errors=True)
             makedirs(params.outdir)
             dir = get_bustard_dir(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
-            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false")
+            run_date = get_run_date(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false --run_start_date={run_date}")
 
 def merge_bams_inputs(wildcards):
     for lane in read_tab_file(config['seqruns_demux']):
