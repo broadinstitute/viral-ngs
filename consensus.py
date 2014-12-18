@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-'''This script contains a number of utilities for a viral analysis pipeline
-for Lassa virus sequence analysis, primarily used by Kristian Andersen.
+''' This script contains a number of utilities for viral sequence assembly
+    from NGS reads.  Primarily used for Lassa and Ebola virus analysis in
+    the Sabeti Lab / Broad Institute Viral Genomics.
 '''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
@@ -16,17 +17,20 @@ log = logging.getLogger(__name__)
 
 
 def assemble_trinity(inFastq1, inFastq2):
-    raise ("not yet implemented")
+    raise NotImplementedError()
 
-def align_and_orient_vfat(contigs):
-    raise ("not yet implemented")
+def align_and_orient_vfat(inFasta, inReference, outFasta):
+    raise NotImplementedError()
 
-def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
+def refine_assembly_with_reads(inFasta, inReads, outFasta):
+    raise NotImplementedError()
+
+def align_novoalign(inBam, inFasta, outBam):
     # make sure inFasta is indexed for Novoalign, create them if they don't exist
     # run Novoalign to align input fastqs to inFasta
     # convert outputs to BAM using Picard and other tools
     # index/sort BAM file
-    raise ("not yet implemented")
+    raise NotImplementedError()
     
 
 def unambig_count(seq):
@@ -117,7 +121,7 @@ def main_modify_contig(args):
         ref_idx = 1
         consensus_idx = 0
     else:
-        raise Exception("reference name '%s' not in alignment" % args.ref)
+        raise NameError("reference name '%s' not in alignment" % args.ref)
     
     mc = ContigModifier(str(aln[ref_idx].seq), str(aln[consensus_idx].seq))
     if args.remove_end_ns:
@@ -232,7 +236,7 @@ class ContigModifier:
 class MutableSequence:
     def __init__(self, name, start, stop, init_seq=None):
         if not (stop>=start>=1):
-            raise Exception("coords out of bounds")
+            raise IndexError("coords out of bounds")
         if init_seq==None:
             self.seq = list('N' * (stop-start+1))
         else:
@@ -245,7 +249,7 @@ class MutableSequence:
         self.deletions = []
     def modify(self, p, new_base):
         if not (self.start <= p <= self.stop):
-            raise Exception("position out of bounds")
+            raise IndexError("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
     def replace(self, start, stop, new_seq):
@@ -254,7 +258,7 @@ class MutableSequence:
         self.__change__(start, stop, new_seq)
     def __change__(self, start, stop, new_seq):
         if not (self.start <= start <= stop <= self.stop):
-            raise Exception("positions out of bounds")
+            raise IndexError("positions out of bounds")
         start -= self.start
         stop  -= self.start
         if start==stop:
