@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-'''This script contains a number of utilities for a viral analysis pipeline
-for Lassa virus sequence analysis, primarily used by Kristian Andersen.
+''' This script contains a number of utilities for viral sequence assembly
+    from NGS reads.  Primarily used for Lassa and Ebola virus analysis in
+    the Sabeti Lab / Broad Institute Viral Genomics.
 '''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
@@ -16,17 +17,20 @@ log = logging.getLogger(__name__)
 
 
 def assemble_trinity(inFastq1, inFastq2):
-    raise ("not yet implemented")
+    raise NotImplementedError()
 
-def align_and_orient_vfat(contigs):
-    raise ("not yet implemented")
+def align_and_orient_vfat(inFasta, inReference, outFasta):
+    raise NotImplementedError()
 
-def align_novoalign(inFasta, inFastq1, inFastq2, outBam):
+def refine_assembly_with_reads(inFasta, inReads, outFasta):
+    raise NotImplementedError()
+
+def align_novoalign(inBam, inFasta, outBam):
     # make sure inFasta is indexed for Novoalign, create them if they don't exist
     # run Novoalign to align input fastqs to inFasta
     # convert outputs to BAM using Picard and other tools
     # index/sort BAM file
-    raise ("not yet implemented")
+    raise NotImplementedError()
     
 
 def unambig_count(seq):
@@ -107,140 +111,132 @@ def parser_modify_contig():
 def main_modify_contig(args):
     # by rsealfon
     aln = Bio.AlignIO.read(args.input, args.format)
-    ref_idx = find_ref_idx(aln,args.ref)
-    if ref_idx < 0:
-        raise Exception("reference name '%s' not in alignment" % args.ref)
-    if ref_idx > 1:
-        raise Exception("alignment contains more than 2 sequences")
-
-    consensus_idx = (ref_idx + 1) % 2
-
-    ref = list(str(aln[ref_idx].seq))
-    consensus = list(str(aln[consensus_idx].seq))
-
-    if len(ref) != len(consensus):
-        raise Exception("improper alignment")
-
-    if (args.name == None):
-        args.name = aln[consensus_idx].name
-
+    
+    if len(aln) != 2:
+        raise Exception("alignment does not contain exactly 2 sequences")
+    elif aln[0].name == args.ref:
+        ref_idx = 0
+        consensus_idx = 1
+    elif aln[1].name == args.ref:
+        ref_idx = 1
+        consensus_idx = 0
+    else:
+        raise NameError("reference name '%s' not in alignment" % args.ref)
+    
+    mc = ContigModifier(str(aln[ref_idx].seq), str(aln[consensus_idx].seq))
     if args.remove_end_ns:
-        consensus = do_remove_end_ns(consensus)
+        mc.remove_end_ns()
     if args.call_reference_ns:
-        consensus = do_call_reference_ns(ref, consensus)
+        mc.call_reference_ns()
     if args.call_reference_ambiguous:
-        consensus = do_call_reference_ambiguous(ref, consensus)
+        mc.call_reference_ambiguous()
     if args.trim_ends:
-        consensus = do_trim_ends(ref, consensus)
+        mc.trim_ends()
     if args.replace_end_gaps:
-        consensus = do_replace_end_gaps(ref, consensus)
+        mc.replace_end_gaps()
     if args.replace_5ends:
-        consensus = do_replace_5ends(ref, consensus, args.replace_length)
+        mc.replace_5ends(args.replace_length)
     if args.replace_3ends:
-        consensus = do_replace_3ends(ref, consensus, args.replace_length)
-
-    print_output(args.output, args.name, consensus)
+        mc.replace_3ends(args.replace_length)
+    
+    with open(args.output, "wt") as f:
+        name = args.name and args.name or aln[consensus_idx].name
+        for line in util.file.fastaMaker([(name, mc.get_stripped_consensus())]):
+            f.write(line)
     return 0
 __commands__.append(('modify_contig', main_modify_contig, parser_modify_contig))
 
 
-def find_ref_idx(aln,ref):
-    if (aln[0].name == ref):
-        return 0
-    elif (aln[1].name == ref):
-        return 1
-    return -1
+class ContigModifier:
+    ''' Initial modifications to Trinity+VFAT assembly output based on
+        MUSCLE alignment to known reference genome
+        author: rsealfon
+    '''
+    def __init__(self, ref, consensus):
+        if len(ref) != len(consensus):
+            raise Exception("improper alignment")
+        self.ref       = list(ref)
+        self.consensus = list(consensus)
+        self.len = len(ref)
+    
+    def get_stripped_consensus(self):
+        return ''.join(self.consensus).replace('-','')
 
-def do_call_reference_ns(ref, consensus):
-    log.debug("populating N's from reference...")
-    for i in range(len(ref)):
-        if (consensus[i].upper() == "N"):
-            consensus[i] = ref[i]
-    return consensus
+    def call_reference_ns(self):
+        log.debug("populating N's from reference...")
+        for i in range(self.len):
+            if self.consensus[i].upper() == "N":
+                self.consensus[i] = self.ref[i]
 
-def do_call_reference_ambiguous(ref, consensus):
-    log.debug("populating ambiguous bases from reference...")
-    for i in range(len(ref)):
-        if ref[i].upper() in Bio.Data.IUPACData.ambiguous_dna_values[consensus[i].upper()]:
-            consensus[i] = ref[i]
-    return consensus
+    def call_reference_ambiguous(self):
+        ''' This is not normally used by default in our pipeline '''
+        log.debug("populating ambiguous bases from reference...")
+        for i in range(self.len):
+            if self.ref[i].upper() in Bio.Data.IUPACData.ambiguous_dna_values.get(self.consensus[i].upper(), []):
+                self.consensus[i] = self.ref[i]
 
-def do_trim_ends(ref, consensus):
-    log.debug("trimming ends...")
-    for i in range(len(ref)):
-        if (ref[i] != "-"):
-            break
-        else:
-            consensus[i] = "-"
-    for i in range(len(ref)):
-        if (ref[len(ref) - i - 1] != "-"):
-            break
-        else:
-            consensus[i] = "-"
-    return consensus
+    def trim_ends(self):
+        ''' This trims down the consensus so it cannot go beyond the given reference genome '''
+        log.debug("trimming ends...")
+        for end_iterator in (range(self.len), reversed(range(self.len))):
+            for i in end_iterator:
+                if self.ref[i] != "-":
+                    break
+                else:
+                    self.consensus[i] = "-"
 
-def do_replace_end_gaps(ref, consensus):
-    log.debug("populating leading and trailing gaps from reference...")
-    for i in range(len(ref)):
-        if (consensus[i] != "-"):
-            break
-        consensus[i] = ref[i]
-    for i in range(len(ref)):
-        if (consensus[len(ref) - i - 1] != "-"):
-            break
-        consensus[len(ref) - i - 1] = ref[len(ref) - i - 1]
-    return consensus
+    def replace_end_gaps(self):
+        ''' This fills out the ends of the consensus with reference sequence '''
+        log.debug("populating leading and trailing gaps from reference...")
+        for end_iterator in (range(self.len), reversed(range(self.len))):
+            for i in end_iterator:
+                if self.consensus[i] != "-":
+                    break
+                self.consensus[i] = self.ref[i]
 
-def do_replace_5ends(ref, consensus, replace_length):
-    log.debug("replacing 5' ends...")
-    ct = 0
-    for i in range(len(ref)):
-        if (ref[i] != "-"):
-            ct = ct + 1
-        if (ct == replace_length):
-            for j in range(0, i+1):
-                consensus[j] = ref[j]
-            break
-    return consensus
+    def replace_5ends(self, replace_length):
+        ''' This replaces everything within <replace_length> of the ends of the
+            reference genome with the reference genome.
+        '''
+        log.debug("replacing 5' ends...")
+        ct = 0
+        for i in range(self.len):
+            if self.ref[i] != "-":
+                ct = ct + 1
+            if ct == replace_length:
+                for j in range(i+1):
+                    self.consensus[j] = self.ref[j]
+                break
 
-def do_replace_3ends(ref, consensus, replace_length):
-    log.debug("replacing 3' ends...")
-    ct = 0
-    for i in range(len(ref)):
-        if (ref[len(ref) - i - 1] != "-"):
-            ct = ct + 1
-        if (ct == replace_length):
-            for j in range(0, i+1):
-                consensus[len(ref)-j-1] = ref[len(ref)-j-1]
-            break
-    return consensus
+    def replace_3ends(self, replace_length):
+        log.debug("replacing 3' ends...")
+        ct = 0
+        for i in reversed(range(self.len)):
+            if self.ref[i] != "-":
+                ct = ct + 1
+            if ct == replace_length:
+                for j in range(i, self.len):
+                    self.consensus[j] = self.ref[j]
+                break
 
-def do_remove_end_ns(consensus):
-    log.debug("removing leading and trailing N's...")
-    for i in range(len(consensus)):
-        if (consensus[i].upper() == "N" or consensus[i] == "-"):
-            consensus[i] = "-"
-        else:
-            break
-    for i in range(len(consensus)):
-        if (consensus[len(consensus) - i - 1].upper() == "N" or consensus[len(consensus) - i - 1] == "-"):
-            consensus[len(consensus) - i - 1] = "-"
-        else:
-            break
-    return consensus
-
-def print_output(outfile, header, consensus):
-    with open(outfile, "wt") as f:
-        outseq = "".join([x for x in consensus if not '-' in x])
-        for line in util.file.fastaMaker([(header, outseq)]):
-            f.write(line)
+    def remove_end_ns(self):
+        ''' This clips off any N's that begin or end the consensus.
+            Not normally used in our pipeline
+        '''
+        log.debug("removing leading and trailing N's...")
+        for end_iterator in (range(self.len), reversed(range(self.len))):
+            for i in end_iterator:
+                if (self.consensus[i].upper() == "N" or self.consensus[i] == "-"):
+                    self.consensus[i] = "-"
+                else:
+                    break
 
 
 
 class MutableSequence:
     def __init__(self, name, start, stop, init_seq=None):
         if not (stop>=start>=1):
-            raise Exception("coords out of bounds")
+            raise IndexError("coords out of bounds")
         if init_seq==None:
             self.seq = list('N' * (stop-start+1))
         else:
@@ -250,14 +246,19 @@ class MutableSequence:
         self.start = start
         self.stop = stop
         self.name = name
+        self.deletions = []
     def modify(self, p, new_base):
         if not (self.start <= p <= self.stop):
-            raise Exception("position out of bounds")
+            raise IndexError("position out of bounds")
         i = p-self.start
         self.seq[i] = new_base
     def replace(self, start, stop, new_seq):
+        if stop>start:
+            self.deletions.append((start, stop, new_seq))
+        self.__change__(start, stop, new_seq)
+    def __change__(self, start, stop, new_seq):
         if not (self.start <= start <= stop <= self.stop):
-            raise Exception("positions out of bounds")
+            raise IndexError("positions out of bounds")
         start -= self.start
         stop  -= self.start
         if start==stop:
@@ -273,6 +274,9 @@ class MutableSequence:
                 else:
                     # new allele is shorter than ref, so delete extra bases
                     self.seq[start+i] = ''
+    def replay_deletions(self):
+        for start, stop, new_seq in self.deletions:
+            self.__change__(start, stop, new_seq)
     def emit(self):
         return (self.name, ''.join(self.seq))
 
@@ -295,13 +299,15 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
     '''
     # process this row
     c = vcfrow[0]
-    p = int(vcfrow[1])
     alleles = [vcfrow[3]] + [a for a in vcfrow[4].split(',') if a not in '.']
+    start = int(vcfrow[1])
+    stop = start + len(vcfrow[3]) - 1
     format = vcfrow[8].split(':')
     format = dict((format[i], i) for i in range(len(format)))
     assert 'GT' in format and format['GT']==0  # required by VCF spec
     assert len(vcfrow)==9+len(samples)
-    info = dict(x.split('=') for x in vcfrow[7].split(';') if x != '.')
+    info = [x.split('=') for x in vcfrow[7].split(';') if x != '.']
+    info = dict(x for x in info if len(x)==2)
     info_dp = int(info.get('DP',0))
 
     # process each sample
@@ -337,7 +343,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
                 # call multiple alleles at this position if there is no clear winner
                 geno = [a for n,a in allele_depths]
         if geno:
-            yield (c, p, sample, geno)
+            yield (c, start, stop, sample, geno)
 
 def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ratio=0.0):
     ''' Take a VCF iterator and produce an iterator of chromosome x sample full sequences.'''
@@ -345,12 +351,13 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     cur_c = None
     for vcfrow in vcfIter:
         try:
-            for c,p,s,alleles in vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio):
+            for c,start,stop,s,alleles in vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio):
                 # changing chromosome?
                 if c != cur_c:
                     if cur_c!=None:
                         # dump the previous chromosome before starting a new one
                         for s in samples:
+                            seqs[s].replay_deletions() # because of the order of VCF rows with indels
                             yield seqs[s].emit()
 
                     # prepare base sequences for this chromosome
@@ -362,13 +369,13 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                 # modify sequence for this chromosome/sample/position
                 if len(alleles)==1:
                     # call a single allele
-                    seqs[s].modify(p, alleles[0])
+                    seqs[s].replace(start, stop, alleles[0])
                 elif all(len(a)==1 for a in alleles):
                     # call an ambiguous SNP
-                    seqs[s].modify(p, alleles_to_ambiguity(alleles))
+                    seqs[s].replace(start, stop, alleles_to_ambiguity(alleles))
                 else:
                     # mix of indels with no clear winner... force the most popular one
-                    seqs[s].modify(p, alleles[0])
+                    seqs[s].replace(start, stop, alleles[0])
         except:
             log.exception("Exception occurred while parsing VCF file.  Row: '%s'" % vcfrow)
             raise
@@ -376,6 +383,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     # at the end, dump the last chromosome
     if cur_c!=None:
         for s in samples:
+            seqs[s].replay_deletions() # because of the order of VCF rows with indels
             yield seqs[s].emit()
 
 

@@ -3,10 +3,19 @@
     reads from NGS data.  All non-human reads should remain behind.
 """
 
-__author__ = 'Kristian Andersen <andersen@broadinstitute.org>'
+__author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
 import os
+
+rule all_deplete:
+    input:
+        expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
+            dataDir=config["dataDir"],
+            subdir=config["subdirs"]["depletion"],
+            adjective=['raw','cleaned'],
+            sample=read_samples_file(config["samples_depletion"])),
+    params: LSF="-N"
 
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
@@ -20,15 +29,20 @@ rule revert_bam:
             shell("{config[binDir]}/read_utils.py revert_bam_picard {input} {output} --picardOptions SORT_ORDER=queryname SANITIZE=true")
 
 rule split_bam:
+    ''' As many of the depletion steps are computationally slow, we split
+        and remerge the BAMs at various points.
+    '''
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     output: expand('{dir}/{{sample}}.raw.{split_id:03d}.bam', \
-    			dir = config["tmpDir"] + '/' + config["subdirs"]["depletion"], \
+                dir = config["tmpDir"] + '/' + config["subdirs"]["depletion"], \
                 split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
     params: LSF='-M 6 -R "rusage[mem=3]" -W 4:00',
             logid="{sample}"
-    shell:	"{config[binDir]}/read_utils.py split_bam {input} {output}"
+    shell:  "{config[binDir]}/read_utils.py split_bam {input} {output}"
 
 rule deplete_bmtagger:
+    ''' This step depletes human reads using BMTagger
+    '''
     input:  '{dir}/{sample}.raw.{split_id}.bam'
     #       expand("{dbdir}/{db}.{suffix}",
     #           dbdir=config["bmTaggerDbDir"],
@@ -41,6 +55,14 @@ rule deplete_bmtagger:
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
 
 rule rmdup_mvicuna:
+    ''' This step removes PCR duplicate reads using M-Vicuna (our custom
+        tool included here).  
+        Unlike Picard MarkDuplicates, M-Vicuna does not require reads to be
+        previously aligned.
+        Note that this requires that we see all reads for a given library
+        at once, so we have to re-merge all of the split files, and then
+        split them out again when we're done.
+    '''
     input:
             expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:03d}.bam',
                 split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
@@ -60,6 +82,9 @@ rule rmdup_mvicuna:
             os.unlink(params.tmpf_output)
 
 rule deplete_blastn:
+    ''' This step depletes human reads using BLASTN, which is more sensitive,
+        but much slower than BMTagger, so we run it last.
+    '''
     input:  '{dir}/{sample}.rmdup.{split_id}.bam'
     output: '{dir}/{sample}.cleaned.{split_id,\d+}.bam'
     params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
@@ -69,10 +94,10 @@ rule deplete_blastn:
 
 rule merge_to_clean_bam:
     input:
-    	    expand('{dir}/{{sample}}.cleaned.{split_id:03d}.bam',
+            expand('{dir}/{{sample}}.cleaned.{split_id:03d}.bam',
                 dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     params: LSF='-M 6 -R "rusage[mem=3]"',
             logid="{sample}"
-    shell:	"{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+    shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
