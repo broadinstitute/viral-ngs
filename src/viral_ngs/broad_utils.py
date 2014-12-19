@@ -29,11 +29,11 @@ def get_json_from_picard(picardDir):
     if len(jsonfile) != 1:
         raise Exception("error")
     return jsonfile[0]
-def get_run_date(jsonFile):
+def get_run_date(jsonfile):
     with open(jsonfile, 'rt') as inf:
         runDate = json.load(inf)['workflow']['runDate']
     return runDate
-def get_bustard_dir(jsonFile):
+def get_bustard_dir(jsonfile):
     with open(jsonfile, 'rt') as inf:
         bustard = json.load(inf)['workflow']['runFolder']
     return bustard
