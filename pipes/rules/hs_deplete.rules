@@ -20,7 +20,8 @@ rule all_deplete:
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    params: LSF='-M 12 -R "rusage[mem=6]" -W 4:00',
+    resources: mem=6
+    params: LSF='-W 4:00',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -36,7 +37,8 @@ rule split_bam:
     output: expand('{dir}/{{sample}}.raw.{split_id:03d}.bam', \
                 dir = config["tmpDir"] + '/' + config["subdirs"]["depletion"], \
                 split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
-    params: LSF='-M 6 -R "rusage[mem=3]" -W 4:00',
+    resources: mem=3
+    params: LSF='-W 4:00',
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py split_bam {input} {output}"
 
@@ -49,7 +51,8 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: '{dir}/{sample}.bmtagger_depleted.{split_id,\d+}.bam'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+    resources: mem=8
+    params: LSF='-W 4:00 -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
@@ -69,8 +72,9 @@ rule rmdup_mvicuna:
     output: 
             expand('{{dir}}/{{sample}}.rmdup.{split_id:03d}.bam',
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
+    resources: mem=8
     params:
-            LSF='-q forest -M 16 -R "rusage[mem=8]" -sp 75',
+            LSF='-q forest -sp 75',
             logid="{sample}",
             tmpf_input = '{dir}/{sample}.bmtagger_depleted.bam',
             tmpf_output = '{dir}/{sample}.rmdup.bam'
@@ -87,7 +91,8 @@ rule deplete_blastn:
     '''
     input:  '{dir}/{sample}.rmdup.{split_id}.bam'
     output: '{dir}/{sample}.cleaned.{split_id,\d+}.bam'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+    resources: mem=8
+    params: LSF='-W 4:00 -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_bam {input} {params.refDbs} {output}"
@@ -98,6 +103,6 @@ rule merge_to_clean_bam:
                 dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    params: LSF='-M 6 -R "rusage[mem=3]"',
-            logid="{sample}"
+    resources: mem=3
+    params: logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
