@@ -107,8 +107,8 @@ rule extract_barcodes:
             dir = lane['bustard_dir']
             opts = ''
             for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality'):
-                if dir.get(opt):
-                    opts += ' --%s=%s' % (opt, dir[opt])
+                if lane.get(opt):
+                    opts += ' --%s=%s' % (opt, lane[opt])
             shell("{config[binDir]}/broad_utils.py extract_barcodes {dir} {wildcards.lane} {input[0]} {output[0]} --outMetrics={output[1]} {opts}")
 
 rule illumina_basecalls:
