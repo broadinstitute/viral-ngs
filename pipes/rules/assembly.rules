@@ -42,8 +42,8 @@ def merge_one_per_sample_inputs(wildcards):
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective,\w+}.bam'
-    params: LSF='-R "rusage[mem=2]"',
-            logid="{sample}",
+    resources: mem=2
+    params: logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
 
 rule trim_reads:
@@ -54,8 +54,8 @@ rule trim_reads:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.1.fastq', 
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.2.fastq'
-    params: LSF='-M 6 -R "rusage[mem=3]"',
-            logid="{sample}",
+    resources: mem=3
+    params: logid="{sample}",
             tmpf_fastq = [
                 config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.1.fastq',
                 config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.2.fastq'],
@@ -74,7 +74,8 @@ rule filter_to_taxon:
     '''
     input:  '{dir}/{sample}.trimmed.{direction}.fastq'
     output: '{dir}/{sample}.filtered.{direction,[12]}.fastq'
-    params: LSF='-W 4:00 -R "rusage[mem=12]" -M 24',
+    resources: mem=12
+    params: LSF='-W 4:00',
             refDbs=config["lastal_refDb"],
             logid="{sample}-{direction}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal {input} {params.refDbs} {output}"
@@ -84,8 +85,8 @@ rule fix_lastal_output:
             '{dir}/{sample}.filtered.2.fastq'
     output: '{dir}/{sample}.filtered.fix.1.fastq',
             '{dir}/{sample}.filtered.fix.2.fastq'
-    params: LSF='-R "rusage[mem=3]" -M 6',
-            logid="{sample}"
+    resources: mem=3
+    params: logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
 
 rule assemble_trinity:
@@ -95,8 +96,8 @@ rule assemble_trinity:
     input:  '{dir}/{sample}.filtered.fix.1.fastq',
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly1-trinity.fasta'
-    params: LSF='-R "rusage[mem=4]" -M 8',
-            n_reads="100000",
+    resources: mem=4
+    params: n_reads="100000",
             logid="{sample}",
             tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
                 '{dir}/{sample}.filtered.fix.sub.2.fastq'],
@@ -137,8 +138,8 @@ rule align_and_orient:
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly2-vfat.fasta',
             '{dir}/{sample}.assembly3-modify.fasta'
-    params: LSF='-R "rusage[mem=3]" -M 6',
-            refGenome=config["ref_genome"],
+    resources: mem=3
+    params: refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="EBOV_2014_",
@@ -185,7 +186,8 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    resources: mem=8
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.intervals',
@@ -222,7 +224,8 @@ rule refine_assembly_2:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    resources: mem=8
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.intervals',
@@ -258,7 +261,8 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam'
-    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
+    resources: mem=4
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_self.intervals'

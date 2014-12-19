@@ -21,7 +21,12 @@ if "-N" not in props["params"].get("LSF",""):
     cmdline += "-oo {logdir}/LSF-{jobname}.txt ".format(
         logdir=LOGDIR, jobname=jobname)
 
-# rule-specific LSF parameters (e.g. queue, runtime, memory)
+# pass memory resource request to LSF
+mem = props.get('resources',{}).get('mem')
+if mem:
+    cmdline += '-R "rusage[mem={}]" '.format(mem)
+
+# rule-specific LSF parameters (e.g. queue, runtime)
 cmdline += props["params"].get("LSF","") + " "
 
 # figure out job dependencies
