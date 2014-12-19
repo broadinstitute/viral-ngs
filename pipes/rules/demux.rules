@@ -88,7 +88,7 @@ rule make_picard_files:
             bamDir=config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}'
     run:
             makedirs(set(map(os.path.dirname, output)))
-            barcode_file = get_one_lane_from_flowcell(input[0], wildcards.flowcell, wildcards.lane)['barcode_file']
+            barcode_file = get_one_lane_from_flowcell(wildcards.flowcell, wildcards.lane, input[0])['barcode_file']
             shell("{config[binDir]}/broad_utils.py make_barcodes_file {barcode_file} {output[0]}")
             shell("{config[binDir]}/broad_utils.py make_params_file {barcode_file} {params.bamDir} {output[1]}")
 
