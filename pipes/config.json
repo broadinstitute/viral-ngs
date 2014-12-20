@@ -15,7 +15,7 @@
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
-  "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
+  "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
   
