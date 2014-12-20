@@ -3,8 +3,8 @@
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
 
-  "deplete_bmtagger_nchunks":   8,
-  "deplete_blast_nchunks":      3,
+  "deplete_bmtagger_nchunks":   4,
+  "deplete_blast_nchunks":      2,
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",

@@ -21,7 +21,7 @@ rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF='-W 4:00 -sp 60',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -29,6 +29,7 @@ rule revert_bam:
                 subdir=config["subdirs"]["depletion"]))
             shell("{config[binDir]}/read_utils.py revert_bam_picard {input} {output} --picardOptions SORT_ORDER=queryname SANITIZE=true")
 
+"""
 rule split_bam:
     ''' As many of the depletion steps are computationally slow, we split
         and remerge the BAMs at various points.
@@ -42,7 +43,7 @@ rule split_bam:
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py split_bam {input} {output}"
 
-rule deplete_bmtagger:
+rule deplete_bmtagger_split:
     ''' This step depletes human reads using BMTagger
     '''
     input:  '{dir}/{sample}.raw.{split_id}.bam'
@@ -57,7 +58,7 @@ rule deplete_bmtagger:
             logid="{sample}-{split_id}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
 
-rule rmdup_mvicuna:
+rule rmdup_mvicuna_split:
     ''' This step removes PCR duplicate reads using M-Vicuna (our custom
         tool included here).  
         Unlike Picard MarkDuplicates, M-Vicuna does not require reads to be
@@ -85,7 +86,7 @@ rule rmdup_mvicuna:
             os.unlink(params.tmpf_input)
             os.unlink(params.tmpf_output)
 
-rule deplete_blastn:
+rule deplete_blastn_split:
     ''' This step depletes human reads using BLASTN, which is more sensitive,
         but much slower than BMTagger, so we run it last.
     '''
@@ -106,3 +107,47 @@ rule merge_to_clean_bam:
     resources: mem=3
     params: logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+"""
+
+rule deplete_bmtagger:
+    ''' This step depletes human reads using BMTagger
+    '''
+    input:  '{dir}/{sample}.raw.bam'
+    #       expand("{dbdir}/{db}.{suffix}",
+    #           dbdir=config["bmTaggerDbDir"],
+    #           db=config["bmTaggerDbs_remove"],
+    #           suffix=["bitmask","srprism.idx","srprism.map"])
+    output: '{dir}/{sample}.bmtagger_depleted.bam'
+    resources: mem=10
+    params: LSF='-q forest',
+            refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
+            logid="{sample}"
+    shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
+
+rule rmdup_mvicuna:
+    ''' This step removes PCR duplicate reads using M-Vicuna (our custom
+        tool included here).  
+        Unlike Picard MarkDuplicates, M-Vicuna does not require reads to be
+        previously aligned.
+        Note that this requires that we see all reads for a given library
+        at once, so we have to re-merge all of the split files, and then
+        split them out again when we're done.
+    '''
+    input:  '{dir}/{sample}.bmtagger_depleted.bam'
+    output: '{dir}/{sample}.rmdup.bam'
+    resources: mem=7
+    params: LSF='-q forest',
+            logid="{sample}"
+    shell:  "{config[binDir]}/read_utils.py rmdup_mvicuna_bam {input} {output}"
+
+rule deplete_blastn:
+    ''' This step depletes human reads using BLASTN, which is more sensitive,
+        but much slower than BMTagger, so we run it last.
+    '''
+    input:  '{dir}/{sample}.rmdup.bam'
+    output: '{dir}/{sample}.cleaned.bam'
+    resources: mem=4
+    params: LSF='-W 4:00',
+            refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
+            logid="{sample}"
+    shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_bam {input} {params.refDbs} {output}"
