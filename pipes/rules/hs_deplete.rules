@@ -112,12 +112,12 @@ rule merge_to_clean_bam:
 rule deplete_bmtagger:
     ''' This step depletes human reads using BMTagger
     '''
-    input:  '{dir}/{sample}.raw.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     #       expand("{dbdir}/{db}.{suffix}",
     #           dbdir=config["bmTaggerDbDir"],
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
-    output: '{dir}/{sample}.bmtagger_depleted.bam'
+    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
     resources: mem=10
     params: LSF='-q forest',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
@@ -144,8 +144,8 @@ rule deplete_blastn:
     ''' This step depletes human reads using BLASTN, which is more sensitive,
         but much slower than BMTagger, so we run it last.
     '''
-    input:  '{dir}/{sample}.rmdup.bam'
-    output: '{dir}/{sample}.cleaned.bam'
+    input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=4
     params: LSF='-W 4:00',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
