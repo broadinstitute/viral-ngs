@@ -30,14 +30,15 @@ rule all_assemble_failures:
     params: LSF="-N"
 
 def merge_one_per_sample_inputs(wildcards):
-    if 'seqruns_demux' not in config:
+    if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
         return "unreachable/" + wildcards.sample + '.' + wildcards.adjective + '.bam'
     libs = set()
-    for lane in read_tab_file(config['seqruns_demux']):
-        for well in read_tab_file(lane['barcode_file']):
-            if well['sample'] == wildcards.sample:
-                libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
-                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam'))
+    for flowcell in read_samples_file(config['seqruns_demux']):
+        for lane in read_tab_file(flowcell):
+            for well in read_tab_file(lane['barcode_file']):
+                if well['sample'] == wildcards.sample:
+                    libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                        well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam'))
     return sorted(libs)
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
