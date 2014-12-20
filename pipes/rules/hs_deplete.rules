@@ -20,7 +20,7 @@ rule all_deplete:
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    resources: mem=6
+    resources: mem=3
     params: LSF='-W 4:00',
             logid="{sample}"
     run:
@@ -51,7 +51,7 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: '{dir}/{sample}.bmtagger_depleted.{split_id,\d+}.bam'
-    resources: mem=8
+    resources: mem=9
     params: LSF='-W 4:00 -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}-{split_id}"
@@ -72,7 +72,7 @@ rule rmdup_mvicuna:
     output: 
             expand('{{dir}}/{{sample}}.rmdup.{split_id:03d}.bam',
                 split_id = range(1,1+config["deplete_blast_nchunks"]))
-    resources: mem=8
+    resources: mem=7
     params:
             LSF='-q forest -sp 75',
             logid="{sample}",
@@ -91,7 +91,7 @@ rule deplete_blastn:
     '''
     input:  '{dir}/{sample}.rmdup.{split_id}.bam'
     output: '{dir}/{sample}.cleaned.{split_id,\d+}.bam'
-    resources: mem=8
+    resources: mem=4
     params: LSF='-W 4:00 -sp 40',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}-{split_id}"
