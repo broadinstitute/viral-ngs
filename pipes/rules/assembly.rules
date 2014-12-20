@@ -42,7 +42,7 @@ def merge_one_per_sample_inputs(wildcards):
     return sorted(libs)
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective,\w+}.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective,raw|cleaned}.bam'
     resources: mem=2
     params: logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
