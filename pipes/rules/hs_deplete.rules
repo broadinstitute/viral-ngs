@@ -133,8 +133,8 @@ rule rmdup_mvicuna:
         at once, so we have to re-merge all of the split files, and then
         split them out again when we're done.
     '''
-    input:  '{dir}/{sample}.bmtagger_depleted.bam'
-    output: '{dir}/{sample}.rmdup.bam'
+    input:  config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
+    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     resources: mem=7
     params: LSF='-q forest',
             logid="{sample}"
