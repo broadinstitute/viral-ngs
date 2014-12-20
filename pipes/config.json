@@ -31,6 +31,7 @@
     "demux":        "00_demux",
     "source":       "00_raw",
     "depletion":    "01_cleaned",
+    "per_sample":   "01_per_sample",
     "assembly":     "02_assembly",
     "align_self":   "02_align_to_self",
     "align_ref":    "03_align_to_ref",
