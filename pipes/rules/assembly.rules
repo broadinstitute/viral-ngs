@@ -75,7 +75,7 @@ rule filter_to_taxon:
     '''
     input:  '{dir}/{sample}.trimmed.{direction}.fastq'
     output: '{dir}/{sample}.filtered.{direction,[12]}.fastq'
-    resources: mem=12
+    resources: mem=8
     params: LSF='-W 4:00',
             refDbs=config["lastal_refDb"],
             logid="{sample}-{direction}"
@@ -97,7 +97,7 @@ rule assemble_trinity:
     input:  '{dir}/{sample}.filtered.fix.1.fastq',
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly1-trinity.fasta'
-    resources: mem=4
+    resources: mem=3
     params: n_reads="100000",
             logid="{sample}",
             tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
@@ -187,7 +187,7 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta'
-    resources: mem=8
+    resources: mem=6
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
@@ -225,7 +225,7 @@ rule refine_assembly_2:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    resources: mem=8
+    resources: mem=6
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
