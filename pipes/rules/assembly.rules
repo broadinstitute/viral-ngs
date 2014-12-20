@@ -31,7 +31,7 @@ rule all_assemble_failures:
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
-        return "unreachable/" + wildcards.sample + '.' + wildcards.adjective + '.bam'
+        return config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     libs = set()
     for flowcell in read_samples_file(config['seqruns_demux']):
         for lane in read_tab_file(flowcell):
@@ -42,17 +42,19 @@ def merge_one_per_sample_inputs(wildcards):
     return sorted(libs)
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective,raw|cleaned}.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned}.bam'
     resources: mem=2
     params: logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+    run:
+            makedirs(config["dataDir"]+'/'+config["subdirs"]["per_sample"])
+            shell("{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
 
 rule trim_reads:
     ''' Since Trinity operates on fastq input, it cannot see the clipping
         information in the BAM files, so we must clip adapter sequences
         manually.
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.1.fastq', 
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.2.fastq'
     resources: mem=3
@@ -182,7 +184,7 @@ rule refine_assembly_1:
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
@@ -220,7 +222,7 @@ rule refine_assembly_2:
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
@@ -257,7 +259,7 @@ rule map_reads_to_self:
             {sample}.realigned.bam - mapped/rmdup reads, realigned with GATK IndelRealigner
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
