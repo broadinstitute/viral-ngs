@@ -50,4 +50,4 @@ rule all:
 
 rule clean:
     params: LSF="-N"
-    shell: "rm -rf {config[tmpDir]}/* .snakemake.tmp.*"
+    shell: "rm -rf {config[tmpDir]}/* .snakemake/tmp.*"
