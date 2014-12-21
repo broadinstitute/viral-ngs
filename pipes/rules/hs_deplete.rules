@@ -146,7 +146,7 @@ rule deplete_blastn:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=4
+    resources: mem=5
     params: LSF='-W 4:00',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
