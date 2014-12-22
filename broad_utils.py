@@ -66,7 +66,7 @@ __commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
 
 def iterate_lanes(runfile):
     for flowcellfile in util.file.read_tabfile(runfile):
-        for lane in util.file.read_tabfile_dict(flowcellfile):
+        for lane in util.file.read_tabfile_dict(flowcellfile[0]):
             yield lane
 def iterate_wells(runfile):
     for lane in iterate_lanes(runfile):
@@ -90,8 +90,8 @@ def get_run_id(well):
     return run_id
 
 def get_all_runs(runfile):
-    for lane, well in iterate_wells(runfile):
-        yield get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane']
+    return list(sorted(get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane']
+        for lane, well in iterate_wells(runfile)))
 
 def parser_get_all_names():
     parser = argparse.ArgumentParser(description='Get all samples')
