@@ -16,22 +16,82 @@ import util.cmd, util.file, util.vcf
 log = logging.getLogger(__name__)
 
 
-def assemble_trinity(inFastq1, inFastq2):
+def assemble_trinity(inBam, clipDb, n_reads):
+    ''' This step runs the Trinity assembler.
+        First trim reads with trimmomatic, rmdup with prinseq,
+        and random subsample to no more than 100k reads.
+    '''
+    '''
+    shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_infq}")
+    shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_infq} {params.tmpf_trim} {params.clipDb}")
+    shell("{config[binDir]}/read_utils.py rmdup_prinseq_fastq {params.tmpf_trim} {params.tmpf_rmdup}")
+    shell("{config[binDir]}/read_utils.py purge_unmated {params.tmpf_rmdup} {output[1]} {output[2]}")
+    shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
+    shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
+    shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
+    '''
     raise NotImplementedError()
 
-def align_and_orient_vfat(inFasta, inReference, outFasta):
-    raise NotImplementedError()
-
-def refine_assembly_with_reads(inFasta, inReads, outFasta):
-    raise NotImplementedError()
-
-def align_novoalign(inBam, inFasta, outBam):
-    # make sure inFasta is indexed for Novoalign, create them if they don't exist
-    # run Novoalign to align input fastqs to inFasta
-    # convert outputs to BAM using Picard and other tools
-    # index/sort BAM file
-    raise NotImplementedError()
+def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
+    ''' This step cleans up the Trinity assembly with a known reference genome.
+        VFAT (maybe Bellini later): take the Trinity contigs, align them to
+            the known reference genome, switch it to the same strand as the
+            reference, and produce chromosome-level assemblies (with runs of
+            N's in between the Trinity contigs).
+        filter_short_seqs: We then toss out all assemblies that come out to
+            < 15kb or < 95% unambiguous and fail otherwise.
+        modify_contig: Finally, we trim off anything at the end that exceeds
+            the length of the known reference assembly.  We also replace all
+            Ns and everything within 55bp of the chromosome ends with the
+            reference sequence.  This is clearly incorrect consensus sequence,
+            but it allows downstream steps to map reads in parts of the genome
+            that would otherwise be Ns, and we will correct all of the inferred
+            positions with two steps of read-based refinement (below), and
+            revert positions back to Ns where read support is lacking.
+    '''
+    '''
+    shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
+    shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
+    shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
     
+    shell("{config[binDir]}/assembly.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.min_unambig} {output[0]}")
+    
+    shell("cat {output[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {params.tmpf_muscle} -quiet")
+    refName = first_fasta_header(params.refGenome)
+    shell("{config[binDir]}/assembly.py modify_contig {params.tmpf_muscle} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
+    index_novoalign(output[1])
+    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[1]}")
+    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
+    '''
+    raise NotImplementedError()
+
+def refine_assembly_with_reads(inFasta, inBam, outFasta, outVcf=None, outBam=None, novo_params=''):
+    ''' This a refinement step where we take the VFAT assembly,
+        align all reads back to it, and modify the assembly to the majority
+        allele at each position based on read pileups.
+        This step considers both SNPs as well as indels called by GATK
+        and will correct the consensus based on GATK calls.
+        Reads are aligned with Novoalign, then PCR duplicates are removed
+        with Picard (in order to debias the allele counts in the pileups),
+        and realigned with GATK's IndelRealigner (in order to call indels).
+        Output FASTA file is indexed for Picard, Samtools, and Novoalign.
+    '''
+    '''
+    shell("{config[binDir]}/assembly.py deambig_fasta {input[0]} {output[0]}")
+    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
+    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
+    novoalign(input[1], input[0], wildcards.sample, params.tmpf_bam1, options=params.novoalign_options, min_qual=1)
+    shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
+    gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
+    gatk_ug(output[1], output[0], output[2])
+    shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
+    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
+    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
+    index_novoalign(output[3])
+    '''
+    raise NotImplementedError()
+
+
 
 def unambig_count(seq):
     unambig = set(('A','T','C','G'))
