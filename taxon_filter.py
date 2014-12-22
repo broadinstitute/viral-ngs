@@ -94,7 +94,7 @@ def lastal_get_hits(inFastq, db, outList):
         with open(lastalOut, 'rt') as inf:
             cmd = [mafSortPath, '-n2']
             log.debug('cat ' + lastalOut + ' | ' + ' '.join(cmd) + ' > ' + mafSortOut)
-            subprocess.check_call(cmd, stdin=lastalOut, stdout=outf)
+            subprocess.check_call(cmd, stdin=inf, stdout=outf)
     os.unlink(lastalOut)
     
     mafConvertOut = mkstempfname('.mafconvert')
@@ -130,7 +130,7 @@ def filter_lastal_bam(inBam, db, outBam) :
     
     # look for hits in inReads1 and inReads2
     hitList1 = mkstempfname('.1.hits')
-    hitList1 = mkstempfname('.2.hits')
+    hitList2 = mkstempfname('.2.hits')
     lastal_get_hits(inReads1, db, hitList1)
     os.unlink(inReads1)
     lastal_get_hits(inReads2, db, hitList2)
@@ -145,7 +145,7 @@ def filter_lastal_bam(inBam, db, outBam) :
     
     # filter original BAM file against keep list
     tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam)
-    os.unlink(matchesFile)
+    os.unlink(hitList)
 
 def parser_filter_lastal_bam():
     parser = argparse.ArgumentParser(
