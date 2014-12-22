@@ -101,7 +101,7 @@ rule merge_one_per_sample:
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=7
     params: LSF='-q forest',
-            logid="{sample}",
+            logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
             makedirs(config["dataDir"]+'/'+config["subdirs"]["per_sample"])
