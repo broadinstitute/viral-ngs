@@ -38,8 +38,8 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
-    resources: mem=9
-    params: LSF='-W 4:00',
+    resources: mem=10
+    params: LSF='-q forest',  # the longest run takes about 3.5 hrs
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
@@ -78,7 +78,7 @@ rule filter_to_taxon:
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
-    resources: mem=7
+    resources: mem=4
     params: LSF='-W 4:00',
             refDb=config["lastal_refDb"],
             logid="{sample}"
@@ -99,8 +99,8 @@ def merge_one_per_sample_inputs(wildcards):
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=7
-    params: LSF='-q forest',
+    resources: mem=4
+    params: LSF='-W 4:00',
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
