@@ -72,6 +72,95 @@ __commands__.append(('trim_trimmomatic', main_trim_trimmomatic,
 # ***  filter_lastal  ***
 # =======================
 
+
+def lastal_get_hits(inFastq, db, outList):
+    lastalPath = tools.last.Lastal().install_and_get_path()
+    mafSortPath = tools.last.MafSort().install_and_get_path()
+    mafConvertPath = tools.last.MafConvert().install_and_get_path()
+    prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
+    noBlastLikeHitsPath = os.path.join( util.file.get_scripts_path(),
+                                        'noBlastLikeHits.py')
+    
+    lastalOut = mkstempfname('.lastal')
+    with open(lastalOut, 'wt') as outf:
+        cmd = [lastalPath, '-Q1', db, inFastq]
+        log.debug(' '.join(cmd) + ' > ' + lastalOut)
+        subprocess.check_call(cmd, stdout=outf)
+    # everything below this point in this method should be replaced with
+    # our own code that just reads lastal output and makes a list of read names
+    
+    mafSortOut = mkstempfname('.mafsort')
+    with open(mafSortOut, 'wt') as outf:
+        cmd = [mafSortPath, '-n2']
+        log.debug(' '.join(cmd) + ' > ' + mafSortOut)
+        subprocess.check_call(cmd, stdin=lastalOut, stdout=outf)
+    os.unlink(lastalOut)
+    
+    mafConvertOut = mkstempfname('.mafconvert')
+    with open(mafConvertOut, 'wt') as outf:
+        cmd = [mafConvertPath, 'tab', mafSortOut]
+        log.debug(' '.join(cmd) + ' > ' + mafConvertOut)
+        subprocess.check_call(cmd, stdout=outf)
+    os.unlink(mafSortOut)
+    
+    filteredFastq = mkstempfname('.filtered.fastq')
+    with open(filteredFastq, 'wt') as outf:
+        cmd = [noBlastLikeHitsPath, '-b', mafConvertOut, '-r', inFastq, '-m', 'hit']
+        log.debug(' '.join(cmd) + ' > ' + filteredFastq)
+        subprocess.check_call(cmd, stdout=outf)
+    os.unlink(mafConvertOut)
+    
+    with open(outList, 'wt') as outf:
+        with open(filteredFastq, 'rt') as inf:
+            line_num = 0
+            for line in inf:
+                if (line_num % 4) == 0:
+                    id = line.rstrip('\n\r')[1:]
+                    if id.endswith('/1') or id.endswith('/2'):
+                        id = id[:-2]
+                    outf.write(id+'\n')
+                line_num += 1
+
+def filter_lastal_bam(inBam, db, outBam) :
+    # convert BAM to paired FASTQ
+    inReads1 = mkstempfname('.1.fastq')
+    inReads2 = mkstempfname('.2.fastq')
+    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    
+    # look for hits in inReads1 and inReads2
+    hitList1 = mkstempfname('.1.hits')
+    hitList1 = mkstempfname('.2.hits')
+    lastal_get_hits(inReads1, db, hitList1)
+    os.unlink(inReads1)
+    lastal_get_hits(inReads2, db, hitList2)
+    os.unlink(inReads2)
+    
+    # merge hits
+    hitList = mkstempfname('.hits')
+    with open(hitList, 'wt') as outf:
+        subprocess.check_call(['sort', '-u', hitList1, hitList2], stdout=outf)
+    os.unlink(hitList1)
+    os.unlink(hitList2)
+    
+    # filter original BAM file against keep list
+    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam)
+    os.unlink(matchesFile)
+
+def parser_filter_lastal_bam():
+    parser = argparse.ArgumentParser(
+        description = '''Restrict input reads to those that align to the given
+        reference database using LASTAL.''')
+    parser.add_argument("inBam",  help="Input reads")
+    parser.add_argument("refDb",  help="Database of taxa we keep")
+    parser.add_argument("outBam", help="Output reads, filtered to refDb")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_filter_lastal_bam(args):
+    filter_lastal_bam(args.inBam, args.refDb, args.outBam)
+    return 0
+__commands__.append(('filter_lastal_bam', main_filter_lastal_bam, parser_filter_lastal_bam))
+
+
 def filter_lastal(inFastq, refDbs, outFastq):
     """
     TODO: make the prinseq step separate (it's mostly an rmdup),

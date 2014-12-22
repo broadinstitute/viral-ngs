@@ -14,7 +14,7 @@ import argparse, logging, math, os, tempfile, shutil, subprocess
 from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
-import tools.picard, tools.samtools, tools.mvicuna
+import tools.picard, tools.samtools, tools.mvicuna, tools.prinseq
 
 log = logging.getLogger(__name__)
 
@@ -652,6 +652,49 @@ def main_dup_remove_mvicuna(args) :
     return 0
 __commands__.append(('dup_remove_mvicuna', main_dup_remove_mvicuna,
                      parser_dup_remove_mvicuna))
+
+
+def rmdup_prinseq_fastq(inFastq, outFastq):
+    # remove duplicate reads and reads with multiple Ns
+    if not outFastq.endswith('.fastq'):
+        raise Exception()
+    if os.path.getsize(inFastq) == 0:
+        # prinseq-lite fails on empty file input (which can happen in real life
+        # if no reads match the refDbs) so handle this scenario specially
+        log.info("output is empty: no reads in input match refDb")
+        shutil.copyfile(inFastq, outFastq)
+    else:
+        prinseqCmd = [
+            'perl', prinseqPath,
+                '-ns_max_n', '1',
+                '-derep', '1',
+                '-fastq', inFastq,
+                '-out_bad', 'null',
+                '-line_width', '0',
+                '-out_good', outFastq[:-6]
+            ]
+        log.debug(' '.join(prinseqCmd))
+        subprocess.check_call(prinseqCmd)
+def parser_rmdup_prinseq_fastq() :
+    parser = argparse.ArgumentParser(
+        description='''Run prinseq-lite's duplicate removal operation on paired-end 
+                       reads.  Also removes reads with more than one N.''')
+    parser.add_argument('inFastq1',
+        help='Input fastq file; 1st end of paired-end reads.')
+    parser.add_argument('inFastq2',
+        help='Input fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('pairedOutFastq1',
+        help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('pairedOutFastq2',
+        help='Output fastq file; 2nd end of paired-end reads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_rmdup_prinseq_fastq(args):
+    rmdup_prinseq_fastq(args.inFastq1, args.outFastq1)
+    rmdup_prinseq_fastq(args.inFastq2, args.outFastq2)
+    return 0
+__commands__.append(('rmdup_prinseq_fastq',
+    main_rmdup_prinseq_fastq, parser_rmdup_prinseq_fastq))
 
 
 # =======================
