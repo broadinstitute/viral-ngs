@@ -20,8 +20,6 @@ include: config["binDir"]+"/pipes/rules/assembly.rules"
 include: config["binDir"]+"/pipes/rules/interhost.rules"
 include: config["binDir"]+"/pipes/rules/reports.rules"
 
-#ruleorder: revert_bam > deplete_blastn > merge_one_per_sample
-
 rule all:
     input:
         # create final assemblies for all samples

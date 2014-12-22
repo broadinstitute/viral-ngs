@@ -12,8 +12,8 @@ rule all_deplete:
     input:
         expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
             dataDir=config["dataDir"],
-            subdir=config["subdirs"]["depletion"],
-            adjective=['raw','cleaned'],
+            subdir=config["subdirs"]["per_sample"],
+            adjective=['raw','cleaned','taxfilt'],
             sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
 
@@ -38,7 +38,7 @@ rule deplete_bmtagger:
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
-    resources: mem=10
+    resources: mem=9
     params: LSF='-q forest',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}"
@@ -56,7 +56,7 @@ rule rmdup_mvicuna:
     input:  config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     resources: mem=7
-    params: LSF='-q forest',
+    params: LSF='-W 4:00',
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py rmdup_mvicuna_bam {input} {output}"
 
@@ -78,7 +78,7 @@ rule filter_to_taxon:
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
-    resources: mem=8
+    resources: mem=7
     params: LSF='-W 4:00',
             refDb=config["lastal_refDb"],
             logid="{sample}"
@@ -93,13 +93,13 @@ def merge_one_per_sample_inputs(wildcards):
         for lane in read_tab_file(flowcell):
             for well in read_tab_file(lane['barcode_file']):
                 if well['sample'] == wildcards.sample:
-                    libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                    runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
                         get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=8
+    resources: mem=7
     params: LSF='-q forest',
             logid="{sample}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
