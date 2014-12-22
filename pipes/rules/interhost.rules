@@ -33,7 +33,8 @@ rule map_reads_to_ref:
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    params: LSF='-q week -R "rusage[mem=4]" -M 8 -sp 30',
+    resources: mem=8
+    params: LSF='-q week',
             logid="{sample}",
             refGenome=config["ref_genome"],
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.intervals'
@@ -52,7 +53,8 @@ rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    resources: mem=8
+    params: LSF='-W 4:00',
             logid="{sample}",
             refGenome=config["ref_genome"]
     run:
@@ -93,9 +95,9 @@ rule multi_align_mafft:
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_assembly"])),
-
     output: config["dataDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.pruned.phy'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+    resources: mem=3
+    params: LSF='-W 4:00',
             logid="all",
             tmpf_mafft=config["tmpDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.mafft.fasta',
             log_trimal=config["tmpDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.log.trimal.html'

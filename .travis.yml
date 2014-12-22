@@ -16,8 +16,8 @@ install:
   - conda create -n env-conda --yes "python=$TRAVIS_PYTHON_VERSION"
   - source activate env-conda
   - conda install --yes cython numpy scipy pandas pip
-  - pip install `cat requirements.txt | grep -v numpy | grep -v scipy | grep -v Cython`
-  - pip install coveralls nose-cov
+  - pip install -q `cat requirements.txt | grep -v numpy | grep -v scipy | grep -vi cython`
+  - pip install -q coveralls nose-cov
 
 # command to run tests
 script:

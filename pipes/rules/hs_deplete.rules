@@ -12,15 +12,16 @@ rule all_deplete:
     input:
         expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
             dataDir=config["dataDir"],
-            subdir=config["subdirs"]["depletion"],
-            adjective=['raw','cleaned'],
+            subdir=config["subdirs"]["per_sample"],
+            adjective=['raw','cleaned','taxfilt'],
             sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
 
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    params: LSF='-M 12 -R "rusage[mem=6]" -W 4:00',
+    resources: mem=3
+    params: LSF='-W 4:00 -sp 60',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -28,30 +29,19 @@ rule revert_bam:
                 subdir=config["subdirs"]["depletion"]))
             shell("{config[binDir]}/read_utils.py revert_bam_picard {input} {output} --picardOptions SORT_ORDER=queryname SANITIZE=true")
 
-rule split_bam:
-    ''' As many of the depletion steps are computationally slow, we split
-        and remerge the BAMs at various points.
-    '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    output: expand('{dir}/{{sample}}.raw.{split_id:03d}.bam', \
-                dir = config["tmpDir"] + '/' + config["subdirs"]["depletion"], \
-                split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
-    params: LSF='-M 6 -R "rusage[mem=3]" -W 4:00',
-            logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py split_bam {input} {output}"
-
 rule deplete_bmtagger:
     ''' This step depletes human reads using BMTagger
     '''
-    input:  '{dir}/{sample}.raw.{split_id}.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     #       expand("{dbdir}/{db}.{suffix}",
     #           dbdir=config["bmTaggerDbDir"],
     #           db=config["bmTaggerDbs_remove"],
     #           suffix=["bitmask","srprism.idx","srprism.map"])
-    output: '{dir}/{sample}.bmtagger_depleted.{split_id,\d+}.bam'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
+    resources: mem=10
+    params: LSF='-q forest',  # the longest run takes about 3.5 hrs
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
-            logid="{sample}-{split_id}"
+            logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
 
 rule rmdup_mvicuna:
@@ -63,41 +53,61 @@ rule rmdup_mvicuna:
         at once, so we have to re-merge all of the split files, and then
         split them out again when we're done.
     '''
-    input:
-            expand('{{dir}}/{{sample}}.bmtagger_depleted.{split_id:03d}.bam',
-                split_id = range(1,1+config["deplete_bmtagger_nchunks"]))
-    output: 
-            expand('{{dir}}/{{sample}}.rmdup.{split_id:03d}.bam',
-                split_id = range(1,1+config["deplete_blast_nchunks"]))
-    params:
-            LSF='-q forest -M 16 -R "rusage[mem=8]" -sp 75',
-            logid="{sample}",
-            tmpf_input = '{dir}/{sample}.bmtagger_depleted.bam',
-            tmpf_output = '{dir}/{sample}.rmdup.bam'
-    run:
-            shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_input} --picardOptions SORT_ORDER=queryname")
-            shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_input} {params.tmpf_output}")
-            shell("{config[binDir]}/read_utils.py split_bam {params.tmpf_output} {output}")
-            os.unlink(params.tmpf_input)
-            os.unlink(params.tmpf_output)
+    input:  config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
+    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
+    resources: mem=3
+    params: LSF='-W 4:00',
+            logid="{sample}"
+    shell:  "{config[binDir]}/read_utils.py rmdup_mvicuna_bam {input} {output}"
 
 rule deplete_blastn:
     ''' This step depletes human reads using BLASTN, which is more sensitive,
         but much slower than BMTagger, so we run it last.
     '''
-    input:  '{dir}/{sample}.rmdup.{split_id}.bam'
-    output: '{dir}/{sample}.cleaned.{split_id,\d+}.bam'
-    params: LSF='-W 4:00 -M 16 -R "rusage[mem=8]" -sp 40',
+    input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    resources: mem=8
+    params: LSF='-q forest',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
-            logid="{sample}-{split_id}"
+            logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_bam {input} {params.refDbs} {output}"
 
-rule merge_to_clean_bam:
-    input:
-            expand('{dir}/{{sample}}.cleaned.{split_id:03d}.bam',
-                dir = config["tmpDir"]+'/'+config["subdirs"]["depletion"],
-                split_id = range(1,1+config["deplete_blast_nchunks"]))
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    params: LSF='-M 6 -R "rusage[mem=3]"',
+rule filter_to_taxon:
+    ''' This step reduces the read set to a specific taxon (usually the genus
+        level or greater for the virus of interest).
+    '''
+    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
+    resources: mem=4
+    params: LSF='-W 4:00',
+            refDb=config["lastal_refDb"],
             logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
+    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
+
+
+def merge_one_per_sample_inputs(wildcards):
+    if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
+        return config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
+    runs = set()
+    for flowcell in read_samples_file(config['seqruns_demux']):
+        for lane in read_tab_file(flowcell):
+            for well in read_tab_file(lane['barcode_file']):
+                if well['sample'] == wildcards.sample:
+                    runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                        get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
+    return sorted(runs)
+rule merge_one_per_sample:
+    input:  merge_one_per_sample_inputs
+    output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
+    resources: mem=4
+    params: LSF='-W 4:00',
+            logid="{sample}-{adjective}",
+            tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
+    run:
+            makedirs(config["dataDir"]+'/'+config["subdirs"]["per_sample"])
+            if wildcards.adjective == 'raw':
+                shell("{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
+            else:
+                shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
+                shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output}")
+

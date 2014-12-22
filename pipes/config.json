@@ -1,13 +1,11 @@
 {
-  "seqruns_demux":     "seqruns.txt",
+  "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
+  "samples_per_run":   "samples-runs.txt",
 
-  "demux_min_baseq":           15,
-  "demux_max_mismatches":       1,
-  
-  "deplete_bmtagger_nchunks":   8,
-  "deplete_blast_nchunks":      3,
+  "deplete_bmtagger_nchunks":   4,
+  "deplete_blast_nchunks":      2,
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",
@@ -18,7 +16,7 @@
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
-  "lastal_refDb":   "/idi/sabeti-scratch/dpark/viral_test/lastal/ebola",
+  "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
   
@@ -34,6 +32,7 @@
     "demux":        "00_demux",
     "source":       "00_raw",
     "depletion":    "01_cleaned",
+    "per_sample":   "01_per_sample",
     "assembly":     "02_assembly",
     "align_self":   "02_align_to_self",
     "align_ref":    "03_align_to_ref",

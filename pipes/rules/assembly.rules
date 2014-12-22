@@ -29,82 +29,48 @@ rule all_assemble_failures:
             sample=read_samples_file(config.get("samples_assembly_failures"))),
     params: LSF="-N"
 
-def merge_one_per_sample_inputs(wildcards):
-    if 'seqruns_demux' not in config:
-        return "unreachable/" + wildcards.sample + '.' + wildcards.adjective + '.bam'
-    libs = set()
-    for lane in read_tab_file(config['seqruns_demux']):
-        for well in read_tab_file(lane['barcode_file']):
-            if well['sample'] == wildcards.sample:
-                libs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
-                    well['sample'] + '.l' + well['library_id_per_sample'] + '.' + wildcards.adjective + '.bam'))
-    return sorted(libs)
-rule merge_one_per_sample:
-    input:  merge_one_per_sample_inputs
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective,\w+}.bam'
-    params: LSF='-R "rusage[mem=2]"',
-            logid="{sample}",
-    shell:  "{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname"
 
-rule trim_reads:
-    ''' Since Trinity operates on fastq input, it cannot see the clipping
-        information in the BAM files, so we must clip adapter sequences
-        manually.
+
+rule assemble_trinity:
+    ''' This step runs the Trinity assembler.
+        First trim reads with trimmomatic, rmdup with prinseq,
+        and random subsample to no more than 100k reads.
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.1.fastq', 
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.trimmed.2.fastq'
-    params: LSF='-M 6 -R "rusage[mem=3]"',
+    input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.1.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.2.fastq'
+    resources: mem=4
+    params: LSF='-W 4:00',
+            n_reads="100000",
             logid="{sample}",
-            tmpf_fastq = [
-                config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.1.fastq',
-                config["tmpDir"] +'/'+config["subdirs"]["assembly"] +'/{sample}.cleaned.2.fastq'],
+            tmpf_infq=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
+                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
+                adjective='taxfilt'),
+            tmpf_trim=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
+                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
+                adjective='trim'),
+            tmpf_rmdup=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
+                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
+                adjective='prinseq'),
+            tmpf_subsamp=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
+                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
+                adjective='subsamp'),
+            tmpd_trinity=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.trinity',
             clipDb=config["trim_clipDb"]
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_fastq}")
-            shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_fastq} {output} {params.clipDb}")
-
-rule filter_to_taxon:
-    ''' This step reduces the read set to a specific taxon (usually the genus
-        level or greater for the virus of interest).
-        Additionally, this step also runs a prinseq-based duplicate removal.
-    '''
-    input:  '{dir}/{sample}.trimmed.{direction}.fastq'
-    output: '{dir}/{sample}.filtered.{direction,[12]}.fastq'
-    params: LSF='-W 4:00 -R "rusage[mem=12]" -M 24',
-            refDbs=config["lastal_refDb"],
-            logid="{sample}-{direction}"
-    shell:  "{config[binDir]}/taxon_filter.py filter_lastal {input} {params.refDbs} {output}"
-
-rule fix_lastal_output:
-    input:  '{dir}/{sample}.filtered.1.fastq',
-            '{dir}/{sample}.filtered.2.fastq'
-    output: '{dir}/{sample}.filtered.fix.1.fastq',
-            '{dir}/{sample}.filtered.fix.2.fastq'
-    params: LSF='-R "rusage[mem=3]" -M 6',
-            logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py purge_unmated {input} {output}"
-
-rule assemble_trinity:
-    ''' This step runs the Trinity assembler on no more than 100k reads (random
-        subsample if necessary).
-    '''
-    input:  '{dir}/{sample}.filtered.fix.1.fastq',
-            '{dir}/{sample}.filtered.fix.2.fastq'
-    output: '{dir}/{sample}.assembly1-trinity.fasta'
-    params: LSF='-R "rusage[mem=4]" -M 8',
-            n_reads="100000",
-            logid="{sample}",
-            tmpf_subsamp=['{dir}/{sample}.filtered.fix.sub.1.fastq',
-                '{dir}/{sample}.filtered.fix.sub.2.fastq'],
-            tmpd_trinity='{dir}/{sample}.trinity'
-    #shell:  "{config[binDir]}/assembly.py assemble_trinity {input} {output}"
-    run:
+            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_infq}")
+            shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_infq} {params.tmpf_trim} {params.clipDb}")
+            map(os.unlink, params.tmpf_infq)
+            shell("{config[binDir]}/read_utils.py rmdup_prinseq_fastq {params.tmpf_trim} {params.tmpf_rmdup}")
+            map(os.unlink, params.tmpf_trim)
+            shell("{config[binDir]}/read_utils.py purge_unmated {params.tmpf_rmdup} {output[1]} {output[2]}")
+            map(os.unlink, params.tmpf_rmdup)
+            shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
             shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
-            shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {input} -out {params.tmpf_subsamp}")
             shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
             shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
             map(os.unlink, params.tmpf_subsamp)
@@ -137,8 +103,8 @@ rule align_and_orient:
             '{dir}/{sample}.filtered.fix.2.fastq'
     output: '{dir}/{sample}.assembly2-vfat.fasta',
             '{dir}/{sample}.assembly3-modify.fasta'
-    params: LSF='-R "rusage[mem=3]" -M 6',
-            refGenome=config["ref_genome"],
+    resources: mem=3
+    params: refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="EBOV_2014_",
@@ -180,12 +146,13 @@ rule refine_assembly_1:
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    resources: mem=6
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.intervals',
@@ -217,12 +184,13 @@ rule refine_assembly_2:
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-deambig.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    params: LSF='-W 4:00 -R "rusage[mem=8]" -M 16',
+    resources: mem=6
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.intervals',
@@ -253,12 +221,13 @@ rule map_reads_to_self:
             {sample}.realigned.bam - mapped/rmdup reads, realigned with GATK IndelRealigner
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam'
-    params: LSF='-W 4:00 -R "rusage[mem=4]" -M 8',
+    resources: mem=4
+    params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
             tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_self.intervals'

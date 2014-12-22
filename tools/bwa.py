@@ -30,7 +30,7 @@ class Bwa(tools.Tool) :
             install_methods = []
             install_methods.append( tools.DownloadPackage(
                 URL, "{}/bwa".format(BWA_DIR),
-                post_download_command="cd {}; make".format(BWA_DIR)))
+                post_download_command="cd {}; make -s".format(BWA_DIR)))
             tools.Tool.__init__(self, install_methods = install_methods)
 
     def version(self) :

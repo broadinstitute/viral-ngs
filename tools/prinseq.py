@@ -3,7 +3,6 @@
 import os
 import tools, util.file
 
-# BroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/prinseq/prinseq-lite.pl'
 url = 'http://sourceforge.net/projects/prinseq/files/standalone/' \
       'prinseq-lite-0.19.3.tar.gz'
 

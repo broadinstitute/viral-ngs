@@ -1,11 +1,15 @@
+'''
+    The Samtools package.
+    
+    TO DO: much of this stuff can be all eliminated by using pysam instead, as
+    pysam (in its current versions) is meant to be the complete python
+    implementation of htslib/samtools.
+    
+    http://pysam.readthedocs.org/en/latest/usage.html#using-samtools-commands-within-python
+'''
+
 import logging, tools, util.file
 import os, os.path, subprocess
-
-'''
-TO DO: much of this stuff can be all eliminated by using pysam instead:
-http://pysam.readthedocs.org/en/latest/usage.html#using-samtools-commands-within-python
-'''
-
 
 tool_version = '0.1.19'
 url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
@@ -18,9 +22,7 @@ class SamtoolsTool(tools.Tool) :
         if install_methods == None :
             install_methods = [
                 tools.DownloadPackage(url, 'samtools-{}/samtools'.format(tool_version),
-                    post_download_command='cd samtools-{}; make'.format(tool_version))]
-            #path = '/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools',
-            #install_methods.append(tools.PrexistingUnixCommand(path))
+                    post_download_command='cd samtools-{}; make -s'.format(tool_version))]
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
