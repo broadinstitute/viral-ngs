@@ -64,41 +64,53 @@ __commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
 # ***  misc   ***
 # ===============
 
-def get_all_samples(runfile):
-    samples = set()
-    for lane in util.file.read_tabfile_dict(runfile):
+def iterate_lanes(runfile):
+    for flowcellfile in util.file.read_tabfile(runfile):
+        for lane in util.file.read_tabfile_dict(flowcellfile):
+            yield lane
+def iterate_wells(runfile):
+    for lane in iterate_lanes(runfile):
         for well in util.file.read_tabfile_dict(lane['barcode_file']):
-            samples.add(well['sample'])
-    return list(sorted(samples))
+            yield (lane,well)
+
+def get_all_samples(runfile):
+    return list(sorted(set(well['sample']
+        for lane, well in iterate_wells(runfile))))
 
 def get_all_libraries(runfile):
-    libs = set()
-    for lane in util.file.read_tabfile_dict(runfile):
-        for well in util.file.read_tabfile_dict(lane['barcode_file']):
-            libs.add(well['sample'] + '.l' + well['library_id_per_sample'])
-    return list(sorted(libs))
+    return list(sorted(set(well['sample'] + '.l' + well['library_id_per_sample']
+        for lane, well in iterate_wells(runfile))))
 
-def parser_get_samples() :
+def get_run_id(well):    
+    run_id = well['sample']
+    if well.get('library_id_per_sample'):
+        run_id += '.l' + well['library_id_per_sample']
+    if well.get('run_id_per_library'):
+        run_id += '.r' + well['run_id_per_library']
+    return run_id
+
+def get_all_runs(runfile):
+    for lane, well in iterate_wells(runfile):
+        yield get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane']
+
+def parser_get_all_names():
     parser = argparse.ArgumentParser(description='Get all samples')
+    parser.add_argument('type', help='Type of name',
+        choices=['samples', 'libraries', 'runs'])
     parser.add_argument('runfile', help='File with seq run information')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
-def main_get_samples(args) :
-    for s in get_all_samples(args.runfile):
+def main_get_all_names(args) :
+    if args.type=='samples':
+        method = get_all_samples
+    elif args.type=='libraries':
+        method = get_all_libraries
+    elif args.type=='runs':
+        method = get_all_runs
+    for s in method(args.runfile):
         print(s)
     return 0
-__commands__.append(('get_samples', main_get_samples, parser_get_samples))
-
-def parser_get_libraries() :
-    parser = argparse.ArgumentParser(description='Get all libraries')
-    parser.add_argument('runfile', help='File with seq run information')
-    util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
-    return parser
-def main_get_libraries(args) :
-    for s in get_all_libraries(args.runfile):
-        print(s)
-    return 0
-__commands__.append(('get_libraries', main_get_libraries, parser_get_libraries))
+__commands__.append(('get_all_names', main_get_all_names, parser_get_all_names))
 
 
 # =============================
