@@ -3,8 +3,6 @@
 import tools, util.file
 import os
 
-#lastBroadUnixPath = '/idi/sabeti-scratch/kandersen/bin/last'
-
 class LastTools(tools.Tool) :
     """
     "Abstract" base class for tools in the 'last' suite.
@@ -28,7 +26,7 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
         tools.DownloadPackage.__init__(self, url, target_rel_path)
     def post_download(self) :
         path = os.path.join(self.destination_dir, self.lastWithVersion)
-        os.system('cd {}; make; make install prefix=.'.format(path))
+        os.system('cd {}; make -s; make -s install prefix=.'.format(path))
 
         # maf_convert doesn't run in Python 3.x. Fix it (in place).
         binpath = os.path.join(path, 'bin')
