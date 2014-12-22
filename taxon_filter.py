@@ -91,9 +91,10 @@ def lastal_get_hits(inFastq, db, outList):
     
     mafSortOut = mkstempfname('.mafsort')
     with open(mafSortOut, 'wt') as outf:
-        cmd = [mafSortPath, '-n2']
-        log.debug(' '.join(cmd) + ' > ' + mafSortOut)
-        subprocess.check_call(cmd, stdin=lastalOut, stdout=outf)
+        with open(lastalOut, 'rt') as inf:
+            cmd = [mafSortPath, '-n2']
+            log.debug('cat ' + lastalOut + ' | ' + ' '.join(cmd) + ' > ' + mafSortOut)
+            subprocess.check_call(cmd, stdin=lastalOut, stdout=outf)
     os.unlink(lastalOut)
     
     mafConvertOut = mkstempfname('.mafconvert')
