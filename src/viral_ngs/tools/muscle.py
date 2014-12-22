@@ -57,6 +57,6 @@ class MuscleTool(tools.Tool) :
 
 def get_muscle_os():
     uname = os.uname()
-    if uname.machine.startswith('x86') and uname.sysname in ('Darwin','Linux'):
-        return 'i86' + uname.sysname.lower() + uname.machine[-2:]
+    if uname[4].startswith('x86') and uname[0] in ('Darwin','Linux'):
+        return 'i86' + uname[0].lower() + uname.machine[-2:]
     return 'src'
