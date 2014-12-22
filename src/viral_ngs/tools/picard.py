@@ -1,4 +1,7 @@
-"Tools in the 'Picard' suite."
+'''
+    Tools in the Picard suite
+'''
+
 import logging, os, os.path, subprocess, tempfile, shutil
 import tools, util.file
 
