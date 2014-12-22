@@ -2,6 +2,7 @@
   "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
+  "samples_per_run":   "samples-runs.txt",
 
   "deplete_bmtagger_nchunks":   4,
   "deplete_blast_nchunks":      2,
