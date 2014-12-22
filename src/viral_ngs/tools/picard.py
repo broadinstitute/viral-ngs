@@ -1,4 +1,7 @@
-"Tools in the 'Picard' suite."
+'''
+    Tools in the Picard suite
+'''
+
 import logging, os, os.path, subprocess, tempfile, shutil
 import tools, util.file
 
@@ -91,6 +94,7 @@ class MergeSamFilesTool(PicardTools) :
 
 class FilterSamReadsTool(PicardTools) :
     subtoolName = 'FilterSamReads'
+    jvmMemDefault = '4g'
     def execute(self, inBam, exclude, readList, outBam,
                 picardOptions=[], JVMmemory=None) :
         if exclude and os.path.getsize(readList) == 0:

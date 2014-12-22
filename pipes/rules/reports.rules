@@ -88,7 +88,8 @@ rule consolidate_bamstats:
 rule fastqc_report:
     input:  config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam'
     output: config["reportsDir"]+'/fastqc/{sample}_fastqc'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+    resources: mem=3
+    params: LSF='-W 4:00',
             logid="{sample}"
     run:
             makedirs(config["reportsDir"])
@@ -121,7 +122,8 @@ def coverage_input_files(wildcards):
 rule coverage_report:
     input:  coverage_input_files
     output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6 -sp 40',
+    resources: mem=3
+    params: LSF='-W 4:00 -sp 40',
             logid="{sample}-{adjective}"
     run:
             makedirs(os.path.join(config["reportsDir"], 'coverage'))
@@ -150,7 +152,8 @@ rule consolidate_coverage:
 rule spikein_report:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
-    params: LSF='-W 4:00 -R "rusage[mem=3]" -M 6',
+    resources: mem=3
+    params: LSF='-W 4:00',
             logid="{sample}",
             spike_in_fasta=config["spikeinsDb"],
             tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
