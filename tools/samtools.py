@@ -9,11 +9,12 @@
     
     Current bug with pysam 0.8.1: nosetests does not work unless you use --nocapture.
     python -m unittest works. Something about redirecting stdout.
+    Actually, Travis CI still has issues with pysam and stdout even with --nocapture.
 '''
 
 import logging, tools, util.file
 import os, os.path, subprocess
-import pysam
+#import pysam
 
 tool_version = '0.1.19'
 url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
@@ -53,25 +54,29 @@ class SamtoolsTool(tools.Tool) :
                 os.unlink(outfname)
             else:
                 return
-        pysam.faidx(inFasta)
+        #pysam.faidx(inFasta)
+        self.execute('faidx', [inFasta])
     
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
     
-    def dumpHeader(self, inBam, outHeader):
-        with open(outHeader, 'wt') as outf:
-            for row in self.getHeader(inBam):
-                outf.write('\t'.join(row)+'\n')
+    def dumpHeader(self, inBam, outHeader) :
+        if inBam.endswith('.bam'):
+            opts = ['-H', inBam]
+        elif inBam.endswith('.sam'):
+            opts = ['-H', '-S', inBam]
+        #header = pysam.view(*opts)
+        self.execute('view', opts, stdout=outHeader)
     
     def getHeader(self, inBam):
-        if inBam.endswith('.bam'):
-            header = pysam.view('-H', inBam)
-        elif inBam.endswith('.sam'):
-            header = pysam.view('-H', '-S', inBam)
-        return list(line.rstrip('\n').split('\t') for line in header)
+        tmpf = util.file.mkstempfname('.txt')
+        self.dumpHeader(inBam, tmpf)
+        with open(tmpf, 'rt') as inf:
+            header = list(line.rstrip('\n').split('\t') for line in inf)
+        os.unlink(tmpf)
+        return header
     
     def count(self, inBam, opts=[], regions=[]):
-        cmd = opts + ['-c', inBam] + regions
-        if inBam.endswith('.sam') and '-S' not in opts:
-            cmd = ['-S'] + cmd
-        return int(pysam.view(*cmd)[0].strip())
+        cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
+        #return int(pysam.view(*cmd)[0].strip())
+        return int(subprocess.check_output(cmd).strip())
