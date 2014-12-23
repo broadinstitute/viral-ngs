@@ -1,6 +1,12 @@
 """
     This is a basic framework for depleting human and other contaminant 
     reads from NGS data.  All non-human reads should remain behind.
+	
+	note: the length of runtime per step is highly variable depending on
+	the input data.  It's probably worth trying to consolidate some steps
+	in python anyway, given that we're already past the 4hr mark and are
+	asking for 10GB RAM for many steps.  Eventually replace with something
+	TANGO-based.
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
@@ -66,7 +72,7 @@ rule deplete_blastn:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=8
+    resources: mem=10
     params: LSF='-q forest',
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
@@ -78,12 +84,36 @@ rule filter_to_taxon:
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
-    resources: mem=4
+    resources: mem=3
     params: LSF='-W 4:00',
             refDb=config["lastal_refDb"],
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
 
+
+"""
+rule depletion:
+	''' This runs a full human read depletion pipeline, does PCR duplicate removal,
+		and filters reads to a taxon of interest.
+	'''
+    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
+            config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
+            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
+            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
+            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
+    resources: mem=10
+    params: LSF='-q forest',
+            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
+            blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
+            lastDb=config["lastal_refDb"],
+            logid="{sample}"
+	run:
+            makedirs(expand("{dir}/{subdir}",
+                dir=[config["dataDir"],config["tmpDir"]],
+                subdir=config["subdirs"]["depletion"]))
+            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --lastDb {params.lastDb}")
+"""
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):

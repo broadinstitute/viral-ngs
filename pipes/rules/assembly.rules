@@ -2,6 +2,11 @@
     This is a basic framework for assembly of viral genomes, currently
     tailored for EBOV. Some generalization work needed to expand this
     to generic viral genomes with an arbitrary number of segments/chromosomes.
+    
+    note: all this runs in ~3hrs, no step takes more than 4GB RAM, and the
+    DAG is linear per sample, so we could conslidate most of this into a
+    single Bellini-like script (once we actually Tool-ify all of the critical
+    pieces like Trinity, MOSIAK, VFAT, Novoalign, GATK)
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
@@ -40,7 +45,7 @@ rule assemble_trinity:
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.1.fastq',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.2.fastq'
-    resources: mem=4
+    resources: mem=3
     params: LSF='-W 4:00',
             n_reads="100000",
             logid="{sample}",
@@ -153,7 +158,7 @@ rule refine_assembly_1:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta'
-    resources: mem=6
+    resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
@@ -191,7 +196,7 @@ rule refine_assembly_2:
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    resources: mem=6
+    resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
