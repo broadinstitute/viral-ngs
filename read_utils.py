@@ -570,24 +570,13 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     os.unlink(outFastq1)
     os.unlink(outFastq2)
 
-def parser_rmdup_mvicuna_bam() :
-    parser = argparse.ArgumentParser(
-        description='''Remove duplicate reads from BAM file using M-Vicuna. The
-            primary advantage to this approach over Picard's MarkDuplicates tool
-            is that Picard requires that input reads are aligned to a reference,
-            and M-Vicuna can operate on unaligned reads.''')
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
-    return parser
-def main_rmdup_mvicuna_bam(args) :
-    
+def rmdup_mvicuna_bam(inBam, outBam):
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
-    tools.picard.SamToFastqTool().per_read_group(args.inBam, tempDir,
+    tools.picard.SamToFastqTool().per_read_group(inBam, tempDir,
         picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
     read_groups = [x[1:] for x in
-        tools.samtools.SamtoolsTool().getHeader(args.inBam)
+        tools.samtools.SamtoolsTool().getHeader(inBam)
         if x[0]=='@RG']
     read_groups = [dict(pair.split(':',1) for pair in rg) for rg in read_groups]
     
@@ -625,7 +614,20 @@ def main_rmdup_mvicuna_bam(args) :
         map(os.unlink, infastqs)
     
     # Filter original input BAM against keep-list
-    tools.picard.FilterSamReadsTool().execute(args.inBam, False, readList, args.outBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam)
+
+def parser_rmdup_mvicuna_bam() :
+    parser = argparse.ArgumentParser(
+        description='''Remove duplicate reads from BAM file using M-Vicuna. The
+            primary advantage to this approach over Picard's MarkDuplicates tool
+            is that Picard requires that input reads are aligned to a reference,
+            and M-Vicuna can operate on unaligned reads.''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_rmdup_mvicuna_bam(args) :
+    rmdup_mvicuna_bam(args.inBam, args.outBam)
     return 0
 __commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
 

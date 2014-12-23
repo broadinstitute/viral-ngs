@@ -19,6 +19,49 @@ import read_utils
 
 log = logging.getLogger(__name__)
 
+# =======================
+# ***  deplete_human  ***
+# =======================
+
+def parser_deplete_human() :
+    parser = argparse.ArgumentParser(
+        description='''Run the entire depletion pipeline:
+        bmtagger, mvicuna, blastn, and maybe lastal''')
+    parser.add_argument('inBam',
+        help='Input BAM file.')
+    parser.add_argument('revertBam',
+        help='Output BAM file.')
+    parser.add_argument('bmtaggerBam',
+        help='Output BAM file.')
+    parser.add_argument('rmdupBam',
+        help='Output BAM file.')
+    parser.add_argument('blastnBam',
+        help='Output BAM file.')
+    parser.add_argument('taxfiltBam',
+        help='Output BAM file.')
+    parser.add_argument('bmtaggerDbs', nargs='+',
+        help='''Reference databases (one or more) to deplete from input.
+                For each db, requires prior creation of db.bitmask by bmtool,
+                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
+    parser.add_argument('blastDbs', nargs='+',
+        help='One or more reference databases for blast.')
+    parser.add_argument('lastDb',
+        help='One reference database for last.',
+        default=None)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_deplete_human(args) :
+    tools.picard.RevertSamTool().execute(args.inBam, args.revertBam,
+        picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true'])
+    multi_db_deplete_bam(args.revertBam, args.bmtaggerDbs, deplete_bmtagger_bam, args.bmtaggerBam)
+    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam)
+    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam)
+    if args.taxfiltBam and args.lastDb:
+        filter_lastal_bam(args.blastnBam, args.lastalDb, args.taxfiltBam)
+    return 0
+__commands__.append(('deplete_human', main_deplete_human, parser_deplete_human))
+
+
 # ==========================
 # ***  trim_trimmomatic  ***
 # ==========================
