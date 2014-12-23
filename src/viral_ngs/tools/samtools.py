@@ -6,10 +6,14 @@
     implementation of htslib/samtools.
     
     http://pysam.readthedocs.org/en/latest/usage.html#using-samtools-commands-within-python
+    
+    Current bug with pysam 0.8.1: nosetests does not work unless you use --nocapture.
+    python -m unittest works. Something about redirecting stdout.
 '''
 
 import logging, tools, util.file
 import os, os.path, subprocess
+import pysam
 
 tool_version = '0.1.19'
 url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
@@ -41,7 +45,7 @@ class SamtoolsTool(tools.Tool) :
         if stdout:
             stdout.close()
     
-    def faidx(self, inFasta, overwrite=False) :
+    def faidx(self, inFasta, overwrite=False):
         ''' Index reference genome for samtools '''
         outfname = inFasta + '.fai'
         if os.path.isfile(outfname):
@@ -49,22 +53,25 @@ class SamtoolsTool(tools.Tool) :
                 os.unlink(outfname)
             else:
                 return
-        self.execute('faidx', [inFasta])
+        pysam.faidx(inFasta)
     
-    def reheader(self, inBam, headerFile, outBam) :
+    def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
     
-    def dumpHeader(self, inBam, outHeader) :
-        self.execute('view', ['-H', inBam], stdout=outHeader)
+    def dumpHeader(self, inBam, outHeader):
+        with open(outHeader, 'wt') as outf:
+            for row in self.getHeader(inBam):
+                outf.write('\t'.join(row)+'\n')
     
     def getHeader(self, inBam):
-        fname = util.file.mkstempfname('.header.txt')
-        self.dumpHeader(inBam, fname)
-        with open(fname, 'rt') as inf:
-            header = [line.rstrip('\n').split('\t') for line in inf]
-        os.unlink(fname)
-        return header
+        if inBam.endswith('.bam'):
+            header = pysam.view('-H', inBam)
+        elif inBam.endswith('.sam'):
+            header = pysam.view('-H', '-S', inBam)
+        return list(line.rstrip('\n').split('\t') for line in header)
     
-    def count(self, inBam, opts=[]) :
-        cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam]
-        return int(subprocess.check_output(cmd).strip())
+    def count(self, inBam, opts=[], regions=[]):
+        cmd = opts + ['-c', inBam] + regions
+        if inBam.endswith('.sam') and '-S' not in opts:
+            cmd = ['-S'] + cmd
+        return int(pysam.view(*cmd)[0].strip())
