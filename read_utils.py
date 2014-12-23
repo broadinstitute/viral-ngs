@@ -612,10 +612,13 @@ def main_rmdup_mvicuna_bam(args) :
             with open(infastqs[d], 'wt') as outf:
                 for fprefix in files:
                     fn = '%s_%d.fastq' % (fprefix, d+1)
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            outf.write(line)
-                    os.unlink(fn)
+                    if os.path.isfile(fn):
+                        with open(fn, 'rt') as inf:
+                            for line in inf:
+                                outf.write(line)
+                        os.unlink(fn)
+                    else:
+                        log.warn("no reads found in %s, assuming that's because there's no reads in that read group" % fn)
         
         # M-Vicuna DupRm to see what we should keep (append IDs to running file)
         mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
@@ -683,9 +686,9 @@ def parser_rmdup_prinseq_fastq() :
         help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2',
         help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('pairedOutFastq1',
+    parser.add_argument('outFastq1',
         help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('pairedOutFastq2',
+    parser.add_argument('outFastq2',
         help='Output fastq file; 2nd end of paired-end reads.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
