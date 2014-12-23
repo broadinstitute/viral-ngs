@@ -667,8 +667,8 @@ def rmdup_prinseq_fastq(inFastq, outFastq):
         log.info("output is empty: no reads in input match refDb")
         shutil.copyfile(inFastq, outFastq)
     else:
-        prinseqCmd = [
-            'perl', prinseqPath,
+        cmd = [
+            'perl', tools.prinseq.PrinseqTool().install_and_get_path(),
                 '-ns_max_n', '1',
                 '-derep', '1',
                 '-fastq', inFastq,
@@ -676,8 +676,8 @@ def rmdup_prinseq_fastq(inFastq, outFastq):
                 '-line_width', '0',
                 '-out_good', outFastq[:-6]
             ]
-        log.debug(' '.join(prinseqCmd))
-        subprocess.check_call(prinseqCmd)
+        log.debug(' '.join(cmd))
+        subprocess.check_call(cmd)
 def parser_rmdup_prinseq_fastq() :
     parser = argparse.ArgumentParser(
         description='''Run prinseq-lite's duplicate removal operation on paired-end 
