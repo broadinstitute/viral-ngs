@@ -74,7 +74,7 @@ rule consolidate_bamstats:
             expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
                 adjective=['raw','cleaned',
                     'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
-                sample=read_samples_file(config["samples_depletion"])) + \
+                sample=read_samples_file(config["samples_per_run"])) + \
             expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
                 adjective=['self_align', 'self_mapped', 'self_rmdup', 'self_realigned'],
                 sample=read_samples_file(config["samples_assembly"]))
@@ -131,7 +131,7 @@ rule coverage_report:
 
 def consolidate_coverage_inputs(wildcards):
     if wildcards.adjective == 'ref':
-        samples = config['samples_depletion']
+        samples = config['samples_per_run']
     elif wildcards.adjective == 'self':
         samples = config['samples_assembly']
     else:
@@ -167,7 +167,7 @@ rule spikein_report:
 
 rule consolidate_spike_count:
     input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
-                sample=read_samples_file(config["samples_depletion"]))
+                sample=read_samples_file(config["samples_per_run"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
     shell:  "{config[binDir]}/reports.py consolidate_spike_count {input} {output}"

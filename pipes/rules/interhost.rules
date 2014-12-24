@@ -24,7 +24,7 @@ rule all_ref_guided:
                 dir=config["reportsDir"],
                 adjective=['raw','cleaned',
                     'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
-                sample=read_samples_file(config["samples_depletion"])),
+                sample=read_samples_file(config["samples_per_run"])),
             config["reportsDir"]+'/summary.coverage_ref.txt.gz'
 
 rule map_reads_to_ref:
@@ -68,17 +68,17 @@ rule ref_guided_diversity:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["align_ref"],
                 ext = ['fasta', 'vcf.gz'],
-                sample=read_samples_file(config["samples_depletion"]))
+                sample=read_samples_file(config["samples_per_run"]))
     output: os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     params: logid="all",
             refGenome=config["ref_genome"],
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
                 dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
-                sample=read_samples_file(config["samples_depletion"])),
+                sample=read_samples_file(config["samples_per_run"])),
             inVcfs = expand("{dataDir}/{subdir}/{sample}.vcf.gz",
                 dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
-                sample=read_samples_file(config["samples_depletion"]))
+                sample=read_samples_file(config["samples_per_run"]))
     run:
             update_timestamps(input)
             shell("cat {params.inFastas} > {output[0]}")
