@@ -116,7 +116,7 @@ rule depletion:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --lastDb {params.lastDb}")
+            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {output[0]} {output[1]} {output[2]} {output[3]} --taxfiltBam {output[4]} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --lastDb {params.lastDb}")
 
 
 def merge_one_per_sample_inputs(wildcards):

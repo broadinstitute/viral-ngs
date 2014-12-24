@@ -37,15 +37,16 @@ def parser_deplete_human() :
         help='Output BAM file.')
     parser.add_argument('blastnBam',
         help='Output BAM file.')
-    parser.add_argument('taxfiltBam',
-        help='Output BAM file.')
-    parser.add_argument('bmtaggerDbs', nargs='+',
+    parser.add_argument('--taxfiltBam',
+        help='Output BAM file.',
+        default=None)
+    parser.add_argument('--bmtaggerDbs', nargs='+', required=True,
         help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
-    parser.add_argument('blastDbs', nargs='+',
+    parser.add_argument('--blastDbs', nargs='+', required=True,
         help='One or more reference databases for blast.')
-    parser.add_argument('lastDb',
+    parser.add_argument('--lastDb',
         help='One reference database for last.',
         default=None)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
