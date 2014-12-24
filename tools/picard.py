@@ -3,6 +3,7 @@
 '''
 
 import logging, os, os.path, subprocess, tempfile, shutil
+import pysam
 import tools, util.file
 
 tool_version = '1.126'
@@ -97,9 +98,24 @@ class FilterSamReadsTool(PicardTools) :
     jvmMemDefault = '4g'
     def execute(self, inBam, exclude, readList, outBam,
                 picardOptions=[], JVMmemory=None) :
-        if exclude and os.path.getsize(readList) == 0:
-            # Picard FilterSamReads cannot excludeReadList an empty READ_LIST_FILE
-            shutil.copyfile(inBam, outBam)
+        if os.path.getsize(readList) == 0:
+            # Picard FilterSamReads cannot deal with an empty READ_LIST_FILE
+            if exclude:
+                shutil.copyfile(inBam, outBam)
+            else:
+                tmpf = util.file.mkstempfname('.sam')
+                with open(tmpf, 'wt') as outf:
+                    if inBam.endswith('.sam'):
+                        header = pysam.view('-H', '-S', inBam)
+                    else:
+                        header = pysam.view('-H', inBam)
+                    for line in header:
+                        outf.write(line)
+                # pysam.AlignmentFile cannot write an empty file
+                # samtools cannot convert SAM -> BAM on an empty file
+                # but Picard SamFormatConverter can deal with empty files
+                opts = ['INPUT='+tmpf, 'OUTPUT='+outBam, 'VERBOSITY=ERROR']
+                PicardTools.execute(self, 'SamFormatConverter', opts, JVMmemory='50m')
         else:
             opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
                 'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
