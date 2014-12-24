@@ -23,6 +23,8 @@ rule all_deplete:
             sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
 
+
+"""
 rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
@@ -37,6 +39,7 @@ rule revert_bam:
 
 rule deplete_bmtagger:
     ''' This step depletes human reads using BMTagger
+        This sometimes takes just over 4 hrs for highly dense lanes
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     #       expand("{dbdir}/{db}.{suffix}",
@@ -45,7 +48,7 @@ rule deplete_bmtagger:
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
     resources: mem=10
-    params: LSF='-q forest',  # the longest run takes about 3.5 hrs
+    params: LSF='-q forest',
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
@@ -69,6 +72,7 @@ rule rmdup_mvicuna:
 rule deplete_blastn:
     ''' This step depletes human reads using BLASTN, which is more sensitive,
         but much slower than BMTagger, so we run it last.
+        This sometimes takes just over 4 hrs for highly dense lanes.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
@@ -89,13 +93,13 @@ rule filter_to_taxon:
             refDb=config["lastal_refDb"],
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
-
-
 """
+
+
 rule depletion:
-	''' This runs a full human read depletion pipeline, does PCR duplicate removal,
-		and filters reads to a taxon of interest.
-	'''
+    ''' This runs a full human read depletion pipeline, does PCR duplicate removal,
+        and filters reads to a taxon of interest.
+    '''
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
             config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
@@ -108,12 +112,12 @@ rule depletion:
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             lastDb=config["lastal_refDb"],
             logid="{sample}"
-	run:
+    run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["depletion"]))
             shell("{config[binDir]}/taxon_filter.py deplete_human {input} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --lastDb {params.lastDb}")
-"""
+
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
@@ -127,6 +131,13 @@ def merge_one_per_sample_inputs(wildcards):
                         get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
+    ''' All of the above depletion steps are run once per flowcell per lane per
+        multiplexed sample.  This reduces recomputation on the same data when
+        additional sequencing runs are performed on the same samples.  This
+        step merges reads down to one-per-sample, which all downstream
+        analysis steps require.  For cleaned and taxfilt outputs, we re-run
+        the rmdup step on a per-library basis after merging.
+    '''
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=4
