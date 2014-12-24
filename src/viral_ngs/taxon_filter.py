@@ -58,7 +58,7 @@ def main_deplete_human(args) :
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam)
     multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam)
     if args.taxfiltBam and args.lastDb:
-        filter_lastal_bam(args.blastnBam, args.lastalDb, args.taxfiltBam)
+        filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam)
     return 0
 __commands__.append(('deplete_human', main_deplete_human, parser_deplete_human))
 
