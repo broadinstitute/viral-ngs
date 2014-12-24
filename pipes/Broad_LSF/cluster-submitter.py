@@ -13,7 +13,7 @@ props = read_job_properties(jobscript)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "bsub -P {proj_name} -J {jobname} ".format(
+cmdline = "bsub -P {proj_name} -J {jobname} -r ".format(
     proj_name='viral_ngs', jobname=jobname)
 
 # log file output
