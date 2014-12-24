@@ -21,7 +21,8 @@ install:
 
 # command to run tests
 script:
-  - nosetests -v --with-xunit --with-coverage --cover-package broad_utils,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util --cover-erase --cover-inclusive --cover-branches --cover-tests
+  - nosetests -v test.test_tools.TestToolsInstallation
+  - nosetests -v --with-xunit --with-coverage --cover-package broad_utils,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util --cover-erase --cover-inclusive --cover-branches --cover-tests --nocapture
 
 # post-tests
 after_success:
