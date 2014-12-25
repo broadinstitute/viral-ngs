@@ -71,7 +71,9 @@ rule ref_guided_diversity:
                 sample=read_samples_file(config["samples_per_run"]))
     output: os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
-    params: logid="all",
+    resources: mem=8
+    params: LSF='-W 4:00',
+            logid="all",
             refGenome=config["ref_genome"],
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
                 dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
