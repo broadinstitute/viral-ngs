@@ -111,7 +111,8 @@ rule align_and_orient:
     output: '{dir}/{sample}.assembly2-vfat.fasta',
             '{dir}/{sample}.assembly3-modify.fasta'
     resources: mem=3
-    params: refGenome=config["ref_genome"],
+    params: LSF='-W 4:00',
+            refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
