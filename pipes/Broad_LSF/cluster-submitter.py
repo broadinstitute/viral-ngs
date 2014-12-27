@@ -30,7 +30,7 @@ if mem:
 cmdline += props["params"].get("LSF","") + " "
 
 # figure out job dependencies
-dependencies = sys.argv[1:-2]
+dependencies = set(sys.argv[1:-2])
 if dependencies:
     cmdline += "-w '{}' ".format(" && ".join(dependencies))
 
