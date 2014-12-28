@@ -49,16 +49,18 @@ def parser_deplete_human() :
     parser.add_argument('--lastDb',
         help='One reference database for last.',
         default=None)
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_human(args) :
     tools.picard.RevertSamTool().execute(args.inBam, args.revertBam,
         picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true'])
-    multi_db_deplete_bam(args.revertBam, args.bmtaggerDbs, deplete_bmtagger_bam, args.bmtaggerBam)
-    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam)
-    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam)
+    multi_db_deplete_bam(args.revertBam, args.bmtaggerDbs, deplete_bmtagger_bam, args.bmtaggerBam, JVMmemory=args.JVMmemory)
+    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, JVMmemory=args.JVMmemory)
     if args.taxfiltBam and args.lastDb:
-        filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam)
+        filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('deplete_human', main_deplete_human, parser_deplete_human))
 
@@ -166,7 +168,7 @@ def lastal_get_hits(inFastq, db, outList):
                     outf.write(id+'\n')
                 line_num += 1
 
-def filter_lastal_bam(inBam, db, outBam) :
+def filter_lastal_bam(inBam, db, outBam, JVMmemory=None) :
     # convert BAM to paired FASTQ
     inReads1 = mkstempfname('.1.fastq')
     inReads2 = mkstempfname('.2.fastq')
@@ -188,7 +190,7 @@ def filter_lastal_bam(inBam, db, outBam) :
     os.unlink(hitList2)
     
     # filter original BAM file against keep list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
     os.unlink(hitList)
 
 def parser_filter_lastal_bam():
@@ -198,10 +200,12 @@ def parser_filter_lastal_bam():
     parser.add_argument("inBam",  help="Input reads")
     parser.add_argument("refDb",  help="Database of taxa we keep")
     parser.add_argument("outBam", help="Output reads, filtered to refDb")
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_filter_lastal_bam(args):
-    filter_lastal_bam(args.inBam, args.refDb, args.outBam)
+    filter_lastal_bam(args.inBam, args.refDb, args.outBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('filter_lastal_bam', main_filter_lastal_bam, parser_filter_lastal_bam))
 
@@ -284,7 +288,7 @@ __commands__.append(('filter_lastal', main_filter_lastal, parser_filter_lastal))
 # ***  partition_bmtagger  ***
 # ============================
 
-def deplete_bmtagger_bam(inBam, db, outBam) :
+def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None) :
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -320,7 +324,7 @@ def deplete_bmtagger_bam(inBam, db, outBam) :
     log.debug(' '.join(cmdline))
     subprocess.check_call(cmdline)
     
-    tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
     os.unlink(matchesFile)
 
 def select_reads(inFastq, outFastq, selectorFcn) :
@@ -504,19 +508,21 @@ def parser_deplete_bam_bmtagger() :
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
     parser.add_argument('outBam',
         help='Output BAM file.')
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_bam_bmtagger(args) :
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, JVMmemory=args.JVMmemory)
 __commands__.append(('deplete_bam_bmtagger', main_deplete_bam_bmtagger,
                      parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
     tmpBamIn = inBam
     for db in refDbs:
         tmpBamOut = mkstempfname('.bam')
-        deplete_method(tmpBamIn, db, tmpBamOut)
+        deplete_method(tmpBamIn, db, tmpBamOut, JVMmemory=JVMmemory)
         if tmpBamIn != inBam:
             os.unlink(tmpBamIn)
         tmpBamIn = tmpBamOut
@@ -625,7 +631,7 @@ __commands__.append(('deplete_blastn_paired', main_deplete_blastn_paired,
                      parser_deplete_blastn_paired))
 
 
-def deplete_blastn_bam(inBam, db, outBam):
+def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
     
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
@@ -660,7 +666,7 @@ def deplete_blastn_bam(inBam, db, outBam):
         os.unlink(blastOutFile)
     
     # Deplete BAM of hits in FASTQ1
-    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam, JVMmemory=JVMmemory)
     
     # Depleted BAM -> FASTQ pair
     tools.picard.SamToFastqTool().execute(halfBam, fastq1, fastq2)
@@ -686,7 +692,7 @@ def deplete_blastn_bam(inBam, db, outBam):
         os.unlink(blastOutFile)
     
     # Deplete BAM of hits against FASTQ2
-    tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam)
+    tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
     
     # Clean up
     map(os.unlink, (fasta, blast_hits, halfBam))
@@ -701,10 +707,12 @@ def parser_deplete_blastn_bam() :
         help='One or more reference databases for blast.')
     parser.add_argument('outBam',
         help='Output BAM file with matching reads removed.')
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_deplete_blastn_bam(args) :
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('deplete_blastn_bam', main_deplete_blastn_bam,
                      parser_deplete_blastn_bam))
