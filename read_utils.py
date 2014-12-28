@@ -564,7 +564,7 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     os.unlink(outFastq1)
     os.unlink(outFastq2)
 
-def rmdup_mvicuna_bam(inBam, outBam):
+def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
     tools.picard.SamToFastqTool().per_read_group(inBam, tempDir,
@@ -608,7 +608,7 @@ def rmdup_mvicuna_bam(inBam, outBam):
         map(os.unlink, infastqs)
     
     # Filter original input BAM against keep-list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam, JVMmemory=JVMmemory)
 
 def parser_rmdup_mvicuna_bam() :
     parser = argparse.ArgumentParser(
@@ -618,10 +618,12 @@ def parser_rmdup_mvicuna_bam() :
             and M-Vicuna can operate on unaligned reads.''')
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_rmdup_mvicuna_bam(args) :
-    rmdup_mvicuna_bam(args.inBam, args.outBam)
+    rmdup_mvicuna_bam(args.inBam, args.outBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
 
