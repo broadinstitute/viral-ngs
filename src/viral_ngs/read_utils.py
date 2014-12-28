@@ -107,13 +107,10 @@ def parser_index_fasta_samtools() :
     parser = argparse.ArgumentParser(
         description='''Index a reference genome for Samtools.''')
     parser.add_argument('inFasta', help='Reference genome, FASTA format.')
-    parser.add_argument("--overwrite",
-        help="If index exists, remove it and regenerate it (default: %(default)s)",
-        default=False, action="store_true", dest="overwrite")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     return parser
 def main_index_fasta_samtools(args) :
-    tools.samtools.SamtoolsTool().faidx(args.inFasta, overwrite=args.overwrite)
+    tools.samtools.SamtoolsTool().faidx(args.inFasta, overwrite=True)
     return 0
 __commands__.append(('index_fasta_samtools',
     main_index_fasta_samtools, parser_index_fasta_samtools))
@@ -127,9 +124,6 @@ def parser_index_fasta_picard() :
         description='''Create an index file for a reference genome suitable
                     for Picard/GATK.''')
     parser.add_argument('inFasta', help='Input reference genome, FASTA format.')
-    parser.add_argument("--overwrite",
-        help="If index exists, remove it and regenerate it (default: %(default)s)",
-        default=False, action="store_true", dest="overwrite")
     parser.add_argument('--JVMmemory', default = tools.picard.CreateSequenceDictionaryTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--picardOptions', default = [], nargs='*',
@@ -138,7 +132,7 @@ def parser_index_fasta_picard() :
     return parser
 def main_index_fasta_picard(args) :
     tools.picard.CreateSequenceDictionaryTool().execute(
-        args.inFasta, overwrite=args.overwrite,
+        args.inFasta, overwrite=True,
         picardOptions=args.picardOptions, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('index_fasta_picard',
