@@ -111,10 +111,12 @@ rule align_and_orient:
     output: '{dir}/{sample}.assembly2-vfat.fasta',
             '{dir}/{sample}.assembly3-modify.fasta'
     resources: mem=3
-    params: refGenome=config["ref_genome"],
+    params: LSF='-W 4:00',
+            refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
-            renamed_prefix="EBOV_2014_",
+            renamed_prefix="",
+            #renamed_prefix="EBOV_2014_",
             replace_length="55",
             logid="{sample}",
             tmpf_prefix='{dir}/{sample}.assembly1.5',
@@ -162,6 +164,7 @@ rule refine_assembly_1:
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
+            min_coverage = "1",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.intervals',
             tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_rmdup.bam',
             tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_indel_realign.bam'
@@ -174,7 +177,7 @@ rule refine_assembly_1:
             shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
             gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
             gatk_ug(output[1], output[0], output[2])
-            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
+            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --min_coverage {params.min_coverage} --trim_ends")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
             index_novoalign(output[3])
@@ -186,7 +189,9 @@ rule refine_assembly_2:
         The only differences are that Novoalign mapping parameters are
         more conservative and the input consensus sequence has already
         been refined once and the input reads are the full raw read
-        set (instead of the cleaned read set).
+        set (instead of the cleaned read set). We also require higher
+        minimum read coverage (3 instead of 1) in order to call a
+        non-ambiguous base.
         The output of this step is the final assembly for this sample.
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
@@ -200,6 +205,7 @@ rule refine_assembly_2:
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
+            min_coverage = "3",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.intervals',
             tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4_pre_rmdup.bam',
             tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4_pre_indel_realign.bam'
@@ -212,7 +218,7 @@ rule refine_assembly_2:
             shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
             gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
             gatk_ug(output[1], output[0], output[2])
-            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
+            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --min_coverage {params.min_coverage} --trim_ends")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
             index_novoalign(output[3])

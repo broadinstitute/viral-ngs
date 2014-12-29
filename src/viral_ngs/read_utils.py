@@ -107,13 +107,10 @@ def parser_index_fasta_samtools() :
     parser = argparse.ArgumentParser(
         description='''Index a reference genome for Samtools.''')
     parser.add_argument('inFasta', help='Reference genome, FASTA format.')
-    parser.add_argument("--overwrite",
-        help="If index exists, remove it and regenerate it (default: %(default)s)",
-        default=False, action="store_true", dest="overwrite")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     return parser
 def main_index_fasta_samtools(args) :
-    tools.samtools.SamtoolsTool().faidx(args.inFasta, overwrite=args.overwrite)
+    tools.samtools.SamtoolsTool().faidx(args.inFasta, overwrite=True)
     return 0
 __commands__.append(('index_fasta_samtools',
     main_index_fasta_samtools, parser_index_fasta_samtools))
@@ -127,9 +124,6 @@ def parser_index_fasta_picard() :
         description='''Create an index file for a reference genome suitable
                     for Picard/GATK.''')
     parser.add_argument('inFasta', help='Input reference genome, FASTA format.')
-    parser.add_argument("--overwrite",
-        help="If index exists, remove it and regenerate it (default: %(default)s)",
-        default=False, action="store_true", dest="overwrite")
     parser.add_argument('--JVMmemory', default = tools.picard.CreateSequenceDictionaryTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--picardOptions', default = [], nargs='*',
@@ -138,7 +132,7 @@ def parser_index_fasta_picard() :
     return parser
 def main_index_fasta_picard(args) :
     tools.picard.CreateSequenceDictionaryTool().execute(
-        args.inFasta, overwrite=args.overwrite,
+        args.inFasta, overwrite=True,
         picardOptions=args.picardOptions, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('index_fasta_picard',
@@ -570,7 +564,7 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     os.unlink(outFastq1)
     os.unlink(outFastq2)
 
-def rmdup_mvicuna_bam(inBam, outBam):
+def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
     tools.picard.SamToFastqTool().per_read_group(inBam, tempDir,
@@ -614,7 +608,7 @@ def rmdup_mvicuna_bam(inBam, outBam):
         map(os.unlink, infastqs)
     
     # Filter original input BAM against keep-list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam)
+    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam, JVMmemory=JVMmemory)
 
 def parser_rmdup_mvicuna_bam() :
     parser = argparse.ArgumentParser(
@@ -624,10 +618,12 @@ def parser_rmdup_mvicuna_bam() :
             and M-Vicuna can operate on unaligned reads.''')
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_rmdup_mvicuna_bam(args) :
-    rmdup_mvicuna_bam(args.inBam, args.outBam)
+    rmdup_mvicuna_bam(args.inBam, args.outBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('rmdup_mvicuna_bam', main_rmdup_mvicuna_bam, parser_rmdup_mvicuna_bam))
 

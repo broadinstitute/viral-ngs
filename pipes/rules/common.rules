@@ -33,8 +33,9 @@ def update_timestamps(files):
 
 def index_novoalign(fasta):
     outfname = fasta[:-6] + '.nix'
-    if not os.path.isfile(outfname):
-        shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta} && chmod a-x {outfname}")
+    if os.path.isfile(outfname):
+        os.unlink(outfname)
+    shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta} && chmod a-x {outfname}")
 
 def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
     refFastaIdx = refFasta[:-6] + '.nix'
