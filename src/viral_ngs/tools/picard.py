@@ -94,6 +94,10 @@ class MergeSamFilesTool(PicardTools) :
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 class FilterSamReadsTool(PicardTools) :
+    ''' TO DO: it might be desirable to replace this tool with a
+        non-Picard/non-Java approach that uses samtools/pysam, sqlite,
+        and O(1) memory.
+    '''
     subtoolName = 'FilterSamReads'
     jvmMemDefault = '4g'
     def execute(self, inBam, exclude, readList, outBam,
@@ -118,12 +122,9 @@ class FilterSamReadsTool(PicardTools) :
                 PicardTools.execute(self, 'SamFormatConverter', opts, JVMmemory='50m')
         else:
             opts = ['INPUT='+inBam, 'OUTPUT='+outBam, 'READ_LIST_FILE='+readList,
-                'FILTER='+(exclude and 'excludeReadList' or 'includeReadList')]
+                'FILTER='+(exclude and 'excludeReadList' or 'includeReadList'),
+                'WRITE_READS_FILES=false']
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-            for bam in (inBam, outBam):
-                junk = bam[:-3]+'reads'
-                if os.path.isfile(junk):
-                    os.unlink(junk)
 
 class CreateSequenceDictionaryTool(PicardTools) :
     subtoolName = 'CreateSequenceDictionary'
