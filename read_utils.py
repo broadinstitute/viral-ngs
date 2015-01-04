@@ -23,15 +23,13 @@ log = logging.getLogger(__name__)
 # ***  purge_unmated  ***
 # =======================
 
-def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2) :
+def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex) :
     """Use mergeShuffledFastqSeqs to purge unmated reads, and put corresponding
        reads in the same order."""
     tempOutput = mkstempfname()
     mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(),
                                               'mergeShuffledFastqSeqs.pl')
-    # The regular expression that follow says that the sequence identifiers
-    # of corresponding sequences must be of the form SEQID/1 and SEQID/2
-    cmdline = [mergeShuffledFastqSeqsPath, '-t', '-r', '^@(\S+)/[1|2]$',
+    cmdline = [mergeShuffledFastqSeqsPath, '-t', '-r', regex,
               '-f1', inFastq1, '-f2', inFastq2, '-o', tempOutput]
     log.debug(' '.join(cmdline))
     subprocess.check_call(cmdline)
@@ -45,6 +43,11 @@ def parser_purge_unmated() :
                        Corresponding sequences must have sequence identifiers
                        of the form SEQID/1 and SEQID/2.
                     ''')
+    # The default regular expression says that the sequence identifiers of
+    # corresponding sequences must be of the form SEQID/1 and SEQID/2
+    parser.add_argument("--regex",
+        help="Perl regular expression to parse paired read IDs (default: %(default)s)",
+        default='^@(\S+)/[1|2]$')
     parser.add_argument('inFastq1',
         help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2',
@@ -61,7 +64,8 @@ def main_purge_unmated(args) :
     inFastq2 = args.inFastq2
     outFastq1 = args.outFastq1
     outFastq2 = args.outFastq2
-    purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2)
+    regex = args.regex
+    purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex)
     return 0
 
 __commands__.append(('purge_unmated', main_purge_unmated,
