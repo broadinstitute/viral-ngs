@@ -164,7 +164,7 @@ rule refine_assembly_1:
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
-            min_coverage = "1",
+            min_coverage = "2",
             tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.intervals',
             tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_rmdup.bam',
             tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_indel_realign.bam'
@@ -190,7 +190,7 @@ rule refine_assembly_2:
         more conservative and the input consensus sequence has already
         been refined once and the input reads are the full raw read
         set (instead of the cleaned read set). We also require higher
-        minimum read coverage (3 instead of 1) in order to call a
+        minimum read coverage (3 instead of 2) in order to call a
         non-ambiguous base.
         The output of this step is the final assembly for this sample.
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
