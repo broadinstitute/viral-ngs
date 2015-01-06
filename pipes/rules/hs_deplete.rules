@@ -79,8 +79,7 @@ rule deplete_blastn:
 
 
 rule depletion:
-    ''' This runs a full human read depletion pipeline, does PCR duplicate removal,
-        and filters reads to a taxon of interest.
+    ''' Runs a full human read depletion pipeline and removes PCR duplicates
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
