@@ -1,1 +1,2 @@
-#       'gatk-new':             '/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-2.8-1-g932cd3a',
+
+#  '/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af'

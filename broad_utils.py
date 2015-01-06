@@ -172,7 +172,7 @@ def main_extract_barcodes(args):
         for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
         if hasattr(args, opt) and getattr(args, opt)!=None)
     tools.picard.ExtractIlluminaBarcodesTool().execute(
-        os.path.join(args.inDir, 'Data/Intensities/BaseCalls'), args.lane, args.barcodeFile,
+        os.path.join(args.inDir, 'Data', 'Intensities', 'BaseCalls'), args.lane, args.barcodeFile,
         args.outDir, out_metrics,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0
