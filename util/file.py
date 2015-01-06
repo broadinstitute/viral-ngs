@@ -6,7 +6,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os, gzip, tempfile, shutil, errno, logging
+import os, gzip, tempfile, shutil, errno, logging, json
 import util.cmd
 
 log = logging.getLogger(__name__)
@@ -47,6 +47,13 @@ def get_test_input_path(testClassInstance=None) :
                             type(testClassInstance).__name__)
     else:
         return os.path.join(get_test_path(), 'input')
+
+def get_resources() :
+    ''' Return the project resources dictionary '''
+    jsonfile = os.path.join(get_project_path(), 'resources.json')
+    with open(jsonfile, 'rt') as inf:
+        resources = json.load(inf)
+    return resources
 
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
