@@ -3,11 +3,11 @@ around other commands and presents the ability to serve up multiple
 command-line functions from a single python script.
 '''
 
-__author__ = "dpark@broadinstitute.org"
-__version__ = "PLACEHOLDER"
-__date__ = "PLACEHOLDER"
-
 import os, tempfile, sys, shutil, logging
+import util.version
+
+__author__ = "dpark@broadinstitute.org"
+__version__ = util.version.get_version()
 
 log = logging.getLogger()
 tmpDir = None

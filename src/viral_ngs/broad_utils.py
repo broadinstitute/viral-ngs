@@ -5,7 +5,6 @@ These utilities are probably not of much use outside the Broad.
 """
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "PLACEHOLDER"
 __commands__ = []
 
 import argparse, logging, os, os.path, time, json, glob, hashlib, base64
