@@ -4,8 +4,6 @@ and annotation for viral genomes.
 '''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org"
-__version__ = "PLACEHOLDER"
-__date__ = "PLACEHOLDER"
 __commands__ = []
 
 import argparse, logging, itertools, re, numpy
