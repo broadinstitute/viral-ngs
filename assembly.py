@@ -82,7 +82,7 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
         '--name', fastaheadername,
         '--call-reference-ns', '--trim-ends',
         '--replace-5ends', '--replace-3ends',
-        '--replace-length', replaceLength,
+        '--replace-length', str(replaceLength),
         '--replace-end-gaps',
         ]))
     
@@ -140,7 +140,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     os.unlink(realignBam)
     os.unlink(deambigFasta)
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
-        tmpVcf, outFasta, '--trim_ends', '--min_coverage', min_coverage,
+        tmpVcf, outFasta, '--trim_ends', '--min_coverage', str(min_coverage),
         ]))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
