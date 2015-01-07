@@ -135,6 +135,7 @@ def refine_assembly(inFasta, inBam, outFasta,
         shutil.copyfile(realignBam, outBam)
     
     # Modify original assembly with VCF calls from GATK
+    tmpVcf = util.file.mkstempfname('.vcf.gz')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
