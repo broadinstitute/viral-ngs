@@ -32,7 +32,7 @@ class GATKTool(tools.Tool) :
             '-Xmx' + JVMmemory,
             '-Djava.io.tmpdir=' + tempfile.tempdir,
             '-jar', self.install_and_get_path(),
-            '-T', command] + map(str, gatkOptions)
+            '-T', command] + list(map(str, gatkOptions))
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
     

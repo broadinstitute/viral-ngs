@@ -50,7 +50,7 @@ class NovoalignTool(tools.Tool) :
         '''
         # Novoalign
         tmp_sam = util.file.mkstempfname('.novoalign.sam.gz')
-        cmd = [self.install_and_get_path(), '-f', inBam] + map(str, options)
+        cmd = [self.install_and_get_path(), '-f', inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         log.debug(' '.join(cmd))
         with gzip.open(tmp_sam, 'wt', 1) as outf:
