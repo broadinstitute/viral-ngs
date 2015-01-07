@@ -15,6 +15,7 @@ from Bio import SeqIO
 import util.cmd, util.file
 from util.file import mkstempfname
 import tools.picard, tools.samtools, tools.mvicuna, tools.prinseq
+import tools.novoalign, tools.gatk
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ log = logging.getLogger(__name__)
 # ***  purge_unmated  ***
 # =======================
 
-def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex) :
+def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex='^@(\S+)/[1|2]$') :
     """Use mergeShuffledFastqSeqs to purge unmated reads, and put corresponding
        reads in the same order."""
     tempOutput = mkstempfname()
@@ -702,7 +703,120 @@ __commands__.append(('rmdup_prinseq_fastq',
     main_rmdup_prinseq_fastq, parser_rmdup_prinseq_fastq))
 
 
-# =======================
+def filter_bam_mapped_only(inBam, outBam, JVMmemory=None):
+    # filter to aligned-only with Samtools
+    tmp_bam = util.file.mkstempfname('.bam')
+    cmd = [tools.samtools.SamtoolsTool().install_and_get_path(),
+        'view', '-b', '-1', '-q', 1, inBam]
+    log.debug(' '.join(cmd) +' > '+ tmp_bam)
+    with open(tmp_bam, 'wb') as outf:
+        subprocess.check_call(cmd, stdout=outf)
+    # fix headers and create index with Picard
+    tools.picard.SortSamTool().execute(tmp_bam, outBam, sort_order='coordinate',
+        picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
+        JVMmemory=JVMmemory)
+    os.unlink(tmp_bam)
+    return 0
+def parser_filter_bam_mapped_only():
+    parser = argparse.ArgumentParser(
+        description='''Samtools and Picard to reduce a BAM file to aligned reads only.''')
+    parser.add_argument('inBam',
+        help='Input aligned reads, BAM format.')
+    parser.add_argument('outBam',
+        help='Output sorted indexed reads, filtered to aligned-only, BAM format.')
+    parser.add_argument('--JVMmemory', default = tools.picard.SortSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_filter_bam_mapped_only(args):
+    filter_bam_mapped_only(args.inBam, args.outBam, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('filter_bam_mapped_only',
+    main_filter_bam_mapped_only, parser_filter_bam_mapped_only))
+
+
+# ======= Novoalign ========
+
+def parser_novoalign() :
+    parser = argparse.ArgumentParser(
+        description='''Align reads with Novoalign. Sort and index BAM output.''')
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Novoindex.')
+    parser.add_argument('outBam', help='Output reads, BAM format (aligned).')
+    parser.add_argument('--options', default = '-r Random',
+        help='Novoalign options (default: %(default)s)')
+    parser.add_argument('--min_qual', default = 0,
+        help='Filter outBam to minimum mapping quality (default: %(default)s)')
+    parser.add_argument('--JVMmemory', default = tools.picard.SortSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_novoalign(args) :
+    novoalign = tools.novoalign.NovoalignTool()
+    novoalign.execute(args.inBam, args.refFasta, args.outBam,
+        options=[args.options], min_qual=args.min_qual, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('novoalign', main_novoalign, parser_novoalign))
+
+def parser_novoindex() :
+    parser = argparse.ArgumentParser(
+        description='''Index a reference genome for use with Novoalign.''')
+    parser.add_argument('refFasta', help='Reference genome, FASTA format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    return parser
+def main_novoindex(args) :
+    tools.novoalign.NovoalignTool().index_fasta(args.refFasta)
+    return 0
+__commands__.append(('novoindex', main_novoindex, parser_novoindex))
+
+
+# ========= GATK ==========
+
+def parser_gatk_ug() :
+    parser = argparse.ArgumentParser(
+        description='''Call genotypes using the GATK UnifiedGenotyper.''')
+    parser.add_argument('inBam',
+        help='Input reads, BAM format.')
+    parser.add_argument('refFasta',
+        help='Reference genome, FASTA format, pre-indexed by Picard.')
+    parser.add_argument('outVcf',
+        help='''Output calls in VCF format. If this filename ends with .gz,
+        GATK will BGZIP compress the output and produce a Tabix index file as well.''')
+    parser.add_argument('--options',
+        default = '--min_base_quality_score 15 -ploidy 4',
+        help='UnifiedGenotyper options (default: %(default)s)')
+    parser.add_argument('--JVMmemory', default = tools.gatk.GATKTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_gatk_ug(args) :
+    gatk = tools.gatk.GATKTool()
+    gatk.ug(args.inBam, args.refFasta, args.outVcf,
+        options=[args.options], JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('gatk_ug', main_gatk_ug, parser_gatk_ug))
+
+def parser_gatk_realign() :
+    parser = argparse.ArgumentParser(
+        description='''Local realignment of BAM files with GATK IndelRealigner.''')
+    parser.add_argument('inBam',
+        help='Input reads, BAM format, aligned to refFasta.')
+    parser.add_argument('refFasta',
+        help='Reference genome, FASTA format, pre-indexed by Picard.')
+    parser.add_argument('outBam',
+        help='Realigned reads.')
+    parser.add_argument('--JVMmemory', default = tools.gatk.GATKTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    return parser
+def main_gatk_realign(args) :
+    tools.gatk.GATKTool().local_realign(
+        args.inBam, args.refFasta, args.outBam, JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('gatk_realign', main_gatk_realign, parser_gatk_realign))
+
+
+# =========================
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

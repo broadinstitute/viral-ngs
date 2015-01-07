@@ -13,23 +13,15 @@ import logging, os, os.path, subprocess, stat, gzip
 log = logging.getLogger(__name__)
 
 class NovoalignTool(tools.Tool) :
-    def __init__(self, install_methods = None):
+    def __init__(self, path=None):
         self.tool_version = None
-        if install_methods == None :
-            install_methods = []
-            
-            # check for novoalign in NOVOALIGN_PATH
-            if 'NOVOALIGN_PATH' in os.environ:
-                novocmd = os.path.join(os.environ['NOVOALIGN_PATH'], 'novoalign')
+        install_methods = []
+        for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
+            if novopath != None:
+                novocmd = os.path.join(novopath, 'novoalign')
                 install_methods.append(tools.PrexistingUnixCommand(
                     novocmd, verifycmd=novocmd, verifycode=255,
-                    require_executability=True)
-            
-            # check for novoalign in the default PATH
-            install_methods.append(tools.PrexistingUnixCommand(
-                'novoalign', verifycmd='novoalign', verifycode=255,
-                 require_executability=True)
-            
+                    require_executability=True))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self):
@@ -67,15 +59,15 @@ class NovoalignTool(tools.Tool) :
         
         # Samtools filter (optional)
         if min_qual:
-            tmp_sam2 = util.file.mkstempfname('.filtered.sam.gz')
+            tmp_bam2 = util.file.mkstempfname('.filtered.bam')
             samtools = tools.samtools.SamtoolsTool()
-            cmd = [samtools.install_and_get_path(), 'view', '-buS', '-q', min_qual, '-']
-            log.debug('cat %s | %s > %s' % (tmp_sam, ' '.join(cmd), tmp_sam2))
+            cmd = [samtools.install_and_get_path(), 'view', '-b', '-u', '-1', '-q', min_qual, '-']
+            log.debug('cat %s | %s > %s' % (tmp_sam, ' '.join(cmd), tmp_bam2))
             with gzip.open(tmp_sam, 'rt') as inf:
-                with gzip.open(tmp_sam2, 'wt', 1) as outf:
+                with open(tmp_bam2, 'wb') as outf:
                     subprocess.check_call(cmd, stdin=inf, stdout=outf)
             os.unlink(tmp_sam)
-            tmp_sam = tmp_sam2
+            tmp_sam = tmp_bam2
         
         # Picard SortSam
         sorter = tools.picard.SortSamTool()
