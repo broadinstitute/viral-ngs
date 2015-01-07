@@ -13,17 +13,16 @@ log = logging.getLogger(__name__)
 
 class GATKTool(tools.Tool) :
     jvmMemDefault = '2g'
-    def __init__(self, install_methods = None):
+    def __init__(self, path=None):
         self.tool_version = None
-        if install_methods == None :
-            install_methods = []
-            if 'GATK_PATH' in os.environ:
-                jarpath = os.environ['GATK_PATH']
+        install_methods = []
+        for jarpath in [path, os.environ.get('GATK_PATH')]:
+            if jarpath:
                 if not jarpath.endswith('.jar'):
                     jarpath = os.path.join(jarpath, 'GenomeAnalysisTK.jar')
                 install_methods.append(tools.PrexistingUnixCommand(
                     jarpath, verifycmd='java -jar %s --help' % jarpath,
-                    verifycode=0, require_executability=False)
+                    verifycode=0, require_executability=False))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def execute(self, command, gatkOptions=[], JVMmemory=None) :

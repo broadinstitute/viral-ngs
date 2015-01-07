@@ -10,25 +10,39 @@ __commands__ = []
 import argparse, logging, random
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
+import read_utils, taxon_filter
+import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign, tools.muscle
 
 log = logging.getLogger(__name__)
 
 
-def assemble_trinity(inBam, clipDb, n_reads):
+def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
     '''
+    infq = map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq'])
+    tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
+    
+    trimfq = map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq'])
+    taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
+    map(os.unlink(infq))
+    
+    rmdupfq = map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq'])
+    read_utils.rmdup_prinseq_fastq(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1])
+    map(os.unlink(trimfq))
+
+    purgefq = map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq'])
+    read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
+    map(os.unlink(rmdupfq))
+    
+    raise NotImplementedError()
     '''
-    shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_infq}")
-    shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_infq} {params.tmpf_trim} {params.clipDb}")
-    shell("{config[binDir]}/read_utils.py rmdup_prinseq_fastq {params.tmpf_trim} {params.tmpf_rmdup}")
-    shell("{config[binDir]}/read_utils.py purge_unmated {params.tmpf_rmdup} {output[1]} {output[2]}")
     shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
     shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
     shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
     '''
-    raise NotImplementedError()
+    return 0
 
 def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -47,6 +61,7 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
             positions with two steps of read-based refinement (below), and
             revert positions back to Ns where read support is lacking.
     '''
+    raise NotImplementedError()
     '''
     shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
     shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
@@ -57,15 +72,33 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
     shell("cat {output[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {params.tmpf_muscle} -quiet")
     refName = first_fasta_header(params.refGenome)
     shell("{config[binDir]}/assembly.py modify_contig {params.tmpf_muscle} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
-    index_novoalign(output[1])
-    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[1]}")
-    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
     '''
-    raise NotImplementedError()
+    
+    # Align to known reference and impute missing sequences
+    muscle_align = util.file.mkstempfname('.muscle.fasta')
+    fastaheadername = "??"
+    main_modify_contig(parser_modify_contig().parse_args([
+        muscle_align, outFasta, inReference,
+        '--name', fastaheadername,
+        '--call-reference-ns', '--trim-ends',
+        '--replace-5ends', '--replace-3ends',
+        '--replace-length', replaceLength,
+        '--replace-end-gaps',
+        ]))
+    
+    
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
+    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+    tools.novoalign.NovoalignTool().index_fasta(outFasta)
+    return 0
+    
 
-def refine_assembly_with_reads(inFasta, inBam, outFasta, outVcf=None, outBam=None, novo_params=''):
-    ''' This a refinement step where we take the VFAT assembly,
-        align all reads back to it, and modify the assembly to the majority
+def refine_assembly(inFasta, inBam, outFasta,
+        outVcf=None, outBam=None, novo_params='', min_coverage=2,
+        JVMmemory=None):
+    ''' This a refinement step where we take a crude assembly, align
+        all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
         This step considers both SNPs as well as indels called by GATK
         and will correct the consensus based on GATK calls.
@@ -74,20 +107,82 @@ def refine_assembly_with_reads(inFasta, inBam, outFasta, outVcf=None, outBam=Non
         and realigned with GATK's IndelRealigner (in order to call indels).
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
-    '''
-    shell("{config[binDir]}/assembly.py deambig_fasta {input[0]} {output[0]}")
-    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
-    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-    novoalign(input[1], input[0], wildcards.sample, params.tmpf_bam1, options=params.novoalign_options, min_qual=1)
-    shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
-    gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
-    gatk_ug(output[1], output[0], output[2])
-    shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --trim_ends --min_coverage 2")
-    shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
-    shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
-    index_novoalign(output[3])
-    '''
-    raise NotImplementedError()
+    # Get tools
+    picard_index = tools.picard.CreateSequenceDictionaryTool()
+    picard_mkdup = tools.picard.MarkDuplicatesTool()
+    novoalign = tools.novoalign.NovoalignTool()
+    gatk = tools.gatk.GATKTool()
+    
+    # Create deambiguated genome for GATK
+    deambigFasta = util.file.mkstempfname('.deambig.fasta')
+    deambig_fasta(inFasta, deambigFasta)
+    picard_index.execute(deambigFasta, overwrite=True)
+    
+    # Novoalign reads to self
+    novoBam = util.file.mkstempfname('.novoalign.bam')
+    novoalign.execute(inBam, inFasta, novoBam,
+        options=[novo_params], min_qual=1, JVMmemory=JVMmemory)
+    rmdupBam = util.file.mkstempfname('.rmdup.bam')
+    picard_mkdup.execute([novoBam], rmdupBam,
+        picardOptions=['REMOVE_DUPLICATES=true', 'CREATE_INDEX=true'], JVMmemory=JVMmemory)
+    os.unlink(novoBam)
+    realignBam = util.file.mkstempfname('.realign.bam')
+    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory)
+    os.unlink(rmdupBam)
+    if outBam:
+        shutil.copyfile(realignBam, outBam)
+    
+    # Modify original assembly with VCF calls from GATK
+    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
+    os.unlink(realignBam)
+    os.unlink(deambigFasta)
+    main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
+        tmpVcf, outFasta, '--trim_ends', '--min_coverage', min_coverage,
+        ]))
+    if outVcf:
+        shutil.copyfile(tmpVcf, outVcf)
+        if outVcf.endswith('.gz'):
+            shutil.copyfile(tmpVcf+'.tbi', outVcf+'.tbi')
+    os.unlink(tmpVcf)
+    
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    picard_index.execute(outFasta, overwrite=True)
+    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+    novoalign.index_fasta(outFasta)
+    return 0
+
+def parser_refine_assembly():
+    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+    parser.add_argument('inFasta',
+        help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.')
+    parser.add_argument('inBam',
+        help='Input reads, BAM format.')
+    parser.add_argument('outFasta',
+        help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
+    parser.add_argument('--outBam',
+        default=None,
+        help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed. GATK indel realigned.')
+    parser.add_argument('--outVcf',
+        default=None,
+        help='GATK genotype calls for genome in inFasta coordinate space.')
+    parser.add_argument('--novo_params',
+        default='-r Random -l 40 -g 40 -x 20 -t 100',
+        help='Alignment parameters for Novoalign.')
+    parser.add_argument('--min_coverage',
+        default=3, type=int,
+        help='Minimum read coverage required to call a position unambiguous.')
+    parser.add_argument('--JVMmemory',
+        default=tools.gatk.GATKTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    return parser
+def main_refine_assembly(args):
+    refine_assembly(args.inFasta, args.inBam, args.outFasta,
+        args.outVcf, args.outBam, args.novo_params, args.min_coverage,
+        JVMmemory=args.JVMmemory)
+    return 0
+__commands__.append(('refine_assembly', main_refine_assembly, parser_refine_assembly))
+
 
 
 
@@ -532,6 +627,12 @@ def deambig_base(base):
         non-ambiguous base from among the possibilities '''
     return random.choice(Bio.Data.IUPACData.ambiguous_dna_values[base.upper()])
 
+def deambig_fasta(inFasta, outFasta):
+    with util.file.open_or_gzopen(outFasta, 'wt') as outf:
+        with util.file.open_or_gzopen(inFasta, 'rt') as inf:
+            for record in Bio.SeqIO.parse(inf, 'fasta'):
+                for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
+                    outf.write(line)
 def parser_deambig_fasta():
     parser = argparse.ArgumentParser(
         description='''Take input sequences (fasta) and replace any ambiguity bases with a
@@ -542,12 +643,7 @@ def parser_deambig_fasta():
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_deambig_fasta(args):
-    with open(args.outFasta, 'wt') as outf:
-        with open(args.inFasta, 'rt') as inf:
-            for record in Bio.SeqIO.parse(inf, 'fasta'):
-                for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
-                    outf.write(line)
-    log.info("done")
+    deambig_fasta(args.inFasta, args.outFasta)
     return 0
 __commands__.append(('deambig_fasta', main_deambig_fasta, parser_deambig_fasta))
 

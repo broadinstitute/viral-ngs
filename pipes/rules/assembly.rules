@@ -137,7 +137,7 @@ rule align_and_orient:
             refName = first_fasta_header(params.refGenome)
             shell("{config[binDir]}/assembly.py modify_contig {params.tmpf_muscle} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
             assert_nonempty_file(output[1])
-            index_novoalign(output[1])
+            shell("{config[binDir]}/read_utils.py novoindex {output[1]}")
             shell("{config[binDir]}/read_utils.py index_fasta_picard {output[1]}")
             shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
             os.unlink(params.tmpf_muscle)
@@ -156,33 +156,14 @@ rule refine_assembly_1:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta',
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-deambig.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.bam',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
     resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
-            min_coverage = "2",
-            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.intervals',
-            tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_rmdup.bam',
-            tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3_pre_indel_realign.bam'
-    run:
-            update_timestamps(input)
-            shell("{config[binDir]}/assembly.py deambig_fasta {input[0]} {output[0]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-            novoalign(input[1], input[0], params.tmpf_bam1, options=params.novoalign_options, min_qual=1)
-            shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
-            gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
-            gatk_ug(output[1], output[0], output[2])
-            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --min_coverage {params.min_coverage} --trim_ends")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
-            index_novoalign(output[3])
-            os.unlink(params.tmpf_bam1)
-            os.unlink(params.tmpf_bam2)
+            min_coverage = "2"
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
 
 rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
@@ -197,33 +178,14 @@ rule refine_assembly_2:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-deambig.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.bam',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
+    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
-            min_coverage = "3",
-            tmpf_intervals = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.intervals',
-            tmpf_bam1 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4_pre_rmdup.bam',
-            tmpf_bam2 = config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4_pre_indel_realign.bam'
-    run:
-            update_timestamps(input)
-            shell("{config[binDir]}/assembly.py deambig_fasta {input[0]} {output[0]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[0]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[0]}")
-            novoalign(input[1], input[0], params.tmpf_bam1, options=params.novoalign_options, min_qual=1)
-            shell("{config[binDir]}/read_utils.py mkdup_picard {params.tmpf_bam1} {params.tmpf_bam2} --remove --picardOptions CREATE_INDEX=true")
-            gatk_local_realign(params.tmpf_bam2, output[0], output[1], params.tmpf_intervals)
-            gatk_ug(output[1], output[0], output[2])
-            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[2]} {output[3]} --min_coverage {params.min_coverage} --trim_ends")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[3]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[3]}")
-            index_novoalign(output[3])
-            os.unlink(params.tmpf_bam1)
-            os.unlink(params.tmpf_bam2)
+            min_coverage = "3"
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
@@ -242,14 +204,11 @@ rule map_reads_to_self:
     resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
-            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
-            tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_self.intervals'
+            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:
-            update_timestamps(input)
             makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_self"]))
-            novoalign(input[1], input[0], output[0], options=params.novoalign_options)
-            filter_bam_mapped_only(output[0], output[1])
+            shell("{config[binDir]}/read_utils.py novoalign {input[1]} {input[0]} {output[0]} --options '{params.novoalign_options}'")
+            shell("{config[binDir]}/read_utils.py filter_bam_mapped_only {output[0]} {output[1]}")
             shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
-            gatk_local_realign(output[2], input[0], output[3], params.tmpf_intervals)
-            os.unlink(params.tmpf_intervals)
+            shell("{config[binDir]}/read_utils.py gatk_realign {output[2]} {input[0]} {output[3]}")
 
