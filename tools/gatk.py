@@ -33,7 +33,7 @@ class GATKTool(tools.Tool) :
             '-Djava.io.tmpdir=' + tempfile.tempdir,
             '-jar', self.install_and_get_path(),
             '-T', command] + gatkOptions
-        log.debug(' '.join(toolCmd))
+        log.debug(' '.join(map(str, toolCmd)))
         subprocess.check_call(toolCmd)
     
     def dict_to_gatk_opts(self, options) :
