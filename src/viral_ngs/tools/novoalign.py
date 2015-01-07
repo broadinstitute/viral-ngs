@@ -18,9 +18,8 @@ class NovoalignTool(tools.Tool) :
         install_methods = []
         for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
             if novopath != None:
-                novocmd = os.path.join(novopath, 'novoalign')
                 install_methods.append(tools.PrexistingUnixCommand(
-                    novocmd, verifycmd=novocmd, verifycode=255,
+                    os.path.join(novopath, 'novoalign'),
                     require_executability=True))
         tools.Tool.__init__(self, install_methods = install_methods)
     
