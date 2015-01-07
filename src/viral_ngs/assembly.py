@@ -110,6 +110,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Get tools
     picard_index = tools.picard.CreateSequenceDictionaryTool()
     picard_mkdup = tools.picard.MarkDuplicatesTool()
+    samtools = tools.samtools.SamtoolsTool()
     novoalign = tools.novoalign.NovoalignTool()
     gatk = tools.gatk.GATKTool()
     
@@ -117,6 +118,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     deambigFasta = util.file.mkstempfname('.deambig.fasta')
     deambig_fasta(inFasta, deambigFasta)
     picard_index.execute(deambigFasta, overwrite=True)
+    samtools.faidx(deambigFasta, overwrite=True)
     
     # Novoalign reads to self
     novoBam = util.file.mkstempfname('.novoalign.bam')
@@ -147,7 +149,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+    samtools.faidx(outFasta, overwrite=True)
     novoalign.index_fasta(outFasta)
     return 0
 
