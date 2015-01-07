@@ -21,7 +21,7 @@ class GATKTool(tools.Tool) :
                 if not jarpath.endswith('.jar'):
                     jarpath = os.path.join(jarpath, 'GenomeAnalysisTK.jar')
                 install_methods.append(tools.PrexistingUnixCommand(
-                    jarpath, verifycmd='java -jar %s --help' % jarpath,
+                    jarpath, verifycmd='java -jar %s --version' % jarpath,
                     verifycode=0, require_executability=False))
         tools.Tool.__init__(self, install_methods = install_methods)
     
