@@ -37,7 +37,7 @@ def index_novoalign(fasta):
         os.unlink(outfname)
     shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta} && chmod a-x {outfname}")
 
-def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
+def novoalign(inBam, refFasta, outBam, options="-r Random", min_qual=0):
     refFastaIdx = refFasta[:-6] + '.nix'
     cmd = "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f {inBam} {options} -F BAMPE -d {refFastaIdx} -o SAM "
     if min_qual>0:

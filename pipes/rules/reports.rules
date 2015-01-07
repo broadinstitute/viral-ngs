@@ -160,7 +160,7 @@ rule spikein_report:
     run:
             makedirs(os.path.join(config["reportsDir"], 'spike_count'))
             makedirs(os.path.join(config["tmpDir"], config["subdirs"]["depletion"]))
-            novoalign(input, params.spike_in_fasta, wildcards.sample, params.tmpf_spike_bam, options="-r Random", min_qual=1)
+            novoalign(input, params.spike_in_fasta, params.tmpf_spike_bam, options="-r Random", min_qual=1)
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output}")
             os.unlink(params.tmpf_spike_bam)
             os.unlink(params.tmpf_spike_bam[:-1] + 'i')

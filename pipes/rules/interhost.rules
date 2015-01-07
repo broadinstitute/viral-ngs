@@ -43,7 +43,7 @@ rule map_reads_to_ref:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"], config["tmpDir"]],
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
-            novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 30 -g 40 -x 20 -t 502")
+            novoalign(input[0], params.refGenome, output[0], options="-r Random -l 30 -g 40 -x 20 -t 502")
             filter_bam_mapped_only(output[0], output[1])
             shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
             gatk_local_realign(output[2], params.refGenome, output[3], params.tmpf_intervals)
