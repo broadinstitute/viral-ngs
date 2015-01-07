@@ -5,8 +5,6 @@
 '''
 
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
-__version__ = "PLACEHOLDER"
-__date__ = "PLACEHOLDER"
 __commands__ = []
 
 import argparse, logging, random

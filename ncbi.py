@@ -4,8 +4,6 @@ to NCBI's Genbank and SRA databases.
 '''
 
 __author__ = "PLACEHOLDER"
-__version__ = "PLACEHOLDER"
-__date__ = "PLACEHOLDER"
 __commands__ = []
 
 import argparse, logging

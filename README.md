@@ -9,13 +9,15 @@ details to come.
 
 
 Scripts:
- 1. taxon_filter.py - filter reads for or against certain species, genera,
+ 1. read_utils.py - various utilities for operating on reads
+ 2. taxon_filter.py - filter reads for or against certain species, genera,
    or other taxonomic classifications
- 2. assembly.py - assemble reads, clean contigs, re-map and refine
+ 3. assembly.py - assemble reads, clean contigs, re-map and refine
    consensus assemblies
- 3. interhost.py - align consensus sequences, call SNPs, annotate, produce
+ 4. interhost.py - align consensus sequences, call SNPs, annotate, produce
    trees
- 4. intrahost.py - align reads back to consensus and call intrahost
+ 5. intrahost.py - align reads back to consensus and call intrahost
    variants
- 5. ncbi.py - submission scripts for Genbank and SRA
-
+ 6. reports.py - various statistics
+ 7. broad_utils.py - tools specifically for handling Broad Institute
+   walk-up sequencing outputs
