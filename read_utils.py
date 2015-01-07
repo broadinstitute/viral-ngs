@@ -754,7 +754,7 @@ def parser_novoalign() :
 def main_novoalign(args) :
     novoalign = tools.novoalign.NovoalignTool()
     novoalign.execute(args.inBam, args.refFasta, args.outBam,
-        options=[args.options], min_qual=args.min_qual, JVMmemory=args.JVMmemory)
+        options=args.options.split(), min_qual=args.min_qual, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('novoalign', main_novoalign, parser_novoalign))
 
@@ -792,7 +792,7 @@ def parser_gatk_ug() :
 def main_gatk_ug(args) :
     gatk = tools.gatk.GATKTool()
     gatk.ug(args.inBam, args.refFasta, args.outVcf,
-        options=[args.options], JVMmemory=args.JVMmemory)
+        options=args.options.split(), JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('gatk_ug', main_gatk_ug, parser_gatk_ug))
 
