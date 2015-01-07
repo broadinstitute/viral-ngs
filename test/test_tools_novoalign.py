@@ -19,9 +19,6 @@ class TestToolNovoalign(TestCaseWithTmp) :
         inRef = util.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
-        actual_nix = inRef[:-6] + '.nix'
-        expected_nix = os.path.join(
-            util.file.get_test_input_path(self),
-            'ebola_expected.nix')
-        self.assertEqualContents(actual_nix, expected_nix)
-
+        outfile = inRef[:-6] + '.nix'
+        self.assertTrue(os.path.isfile(outfile))
+        self.assertTrue(os.path.getsize(outfile))
