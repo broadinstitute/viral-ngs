@@ -128,7 +128,7 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thre
         for fn in inFiles:
             if not fn.endswith(ending):
                 raise Exception()
-            s = fn.split('/')[-1][:-len(ending)]
+            s = os.path.basename(fn)[:-len(ending)]
             with util.file.open_or_gzopen(fn, 'rt') as inf:
                 coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
@@ -169,7 +169,7 @@ def consolidate_coverage(inFiles, adj, outFile):
         for fn in inFiles:
             if not fn.endswith(ending):
                 raise Exception()
-            s = fn.split('/')[-1][:-len(ending)]
+            s = os.path.basename(fn)[:-len(ending)]
             with open(fn, 'rt') as inf:
                 for line in inf:
                     outf.write(line.rstrip('\n') + '\t' + s + '\n')
@@ -192,7 +192,7 @@ __commands__.append(('consolidate_coverage',
 def consolidate_spike_count(inFiles, outFile):
     with open(outFile, 'wt') as outf:
         for fn in inFiles:
-            s = fn.split('/')[-1]
+            s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
             s = s[:-len('.spike_count.txt')]
