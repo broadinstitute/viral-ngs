@@ -53,7 +53,7 @@ class NovoalignTool(tools.Tool) :
         cmd = [self.install_and_get_path(), '-f', inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         log.debug(' '.join(cmd))
-        with gzip.open(tmp_sam, 'wt', 1) as outf:
+        with gzip.open(tmp_sam, 'wb', 1) as outf:
             subprocess.check_call(cmd, stdout=outf)
         
         # Samtools filter (optional)
@@ -62,7 +62,7 @@ class NovoalignTool(tools.Tool) :
             samtools = tools.samtools.SamtoolsTool()
             cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), '-']
             log.debug('cat %s | %s > %s' % (tmp_sam, ' '.join(cmd), tmp_bam2))
-            with gzip.open(tmp_sam, 'rt') as inf:
+            with gzip.open(tmp_sam, 'rb') as inf:
                 with open(tmp_bam2, 'wb') as outf:
                     subprocess.check_call(cmd, stdin=inf, stdout=outf)
             os.unlink(tmp_sam)
