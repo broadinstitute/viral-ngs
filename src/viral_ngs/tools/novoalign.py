@@ -43,7 +43,7 @@ class NovoalignTool(tools.Tool) :
     
     
     def execute(self, inBam, refFasta, outBam,
-        options=["-r Random"], min_qual=0, JVMmemory=None):
+        options=["-r", "Random"], min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             Use Picard to sort and index the output BAM.
             If min_qual>0, use Samtools to filter on mapping quality.
