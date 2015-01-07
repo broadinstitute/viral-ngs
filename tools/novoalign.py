@@ -49,22 +49,21 @@ class NovoalignTool(tools.Tool) :
             If min_qual>0, use Samtools to filter on mapping quality.
         '''
         # Novoalign
-        tmp_sam = util.file.mkstempfname('.novoalign.sam.gz')
+        tmp_sam = util.file.mkstempfname('.novoalign.sam')
         cmd = [self.install_and_get_path(), '-f', inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         log.debug(' '.join(cmd))
-        with gzip.open(tmp_sam, 'wb', 1) as outf:
+        with open(tmp_sam, 'wt') as outf:
             subprocess.check_call(cmd, stdout=outf)
         
         # Samtools filter (optional)
         if min_qual:
             tmp_bam2 = util.file.mkstempfname('.filtered.bam')
             samtools = tools.samtools.SamtoolsTool()
-            cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), '-']
-            log.debug('cat %s | %s > %s' % (tmp_sam, ' '.join(cmd), tmp_bam2))
-            with gzip.open(tmp_sam, 'rb') as inf:
-                with open(tmp_bam2, 'wb') as outf:
-                    subprocess.check_call(cmd, stdin=inf, stdout=outf)
+            cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
+            log.debug('%s > %s' % (' '.join(cmd), tmp_bam2))
+            with open(tmp_bam2, 'wb') as outf:
+                subprocess.check_call(cmd, stdin=inf, stdout=outf)
             os.unlink(tmp_sam)
             tmp_sam = tmp_bam2
         
