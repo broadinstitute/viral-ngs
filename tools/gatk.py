@@ -32,8 +32,8 @@ class GATKTool(tools.Tool) :
             '-Xmx' + JVMmemory,
             '-Djava.io.tmpdir=' + tempfile.tempdir,
             '-jar', self.install_and_get_path(),
-            '-T', command] + gatkOptions
-        log.debug(' '.join(map(str, toolCmd)))
+            '-T', command] + map(str, gatkOptions)
+        log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
     
     def dict_to_gatk_opts(self, options) :
