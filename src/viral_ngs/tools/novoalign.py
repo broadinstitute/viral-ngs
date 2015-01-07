@@ -60,7 +60,7 @@ class NovoalignTool(tools.Tool) :
         if min_qual:
             tmp_bam2 = util.file.mkstempfname('.filtered.bam')
             samtools = tools.samtools.SamtoolsTool()
-            cmd = [samtools.install_and_get_path(), 'view', '-b', '-u', '-1', '-q', str(min_qual), '-']
+            cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), '-']
             log.debug('cat %s | %s > %s' % (tmp_sam, ' '.join(cmd), tmp_bam2))
             with gzip.open(tmp_sam, 'rt') as inf:
                 with open(tmp_bam2, 'wb') as outf:
