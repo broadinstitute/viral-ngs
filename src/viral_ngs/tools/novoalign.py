@@ -63,7 +63,7 @@ class NovoalignTool(tools.Tool) :
             cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
             log.debug('%s > %s' % (' '.join(cmd), tmp_bam2))
             with open(tmp_bam2, 'wb') as outf:
-                subprocess.check_call(cmd, stdin=inf, stdout=outf)
+                subprocess.check_call(cmd, stdout=outf)
             os.unlink(tmp_sam)
             tmp_sam = tmp_bam2
         
