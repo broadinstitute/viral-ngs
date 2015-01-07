@@ -65,7 +65,7 @@ class GATKTool(tools.Tool) :
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None):
-        intervals = util.file.mkstempfname('.intervals.txt')
+        intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
         opts = ['-I', inBam, '-R', refFasta, '-targetIntervals', intervals, '-o', outBam]
