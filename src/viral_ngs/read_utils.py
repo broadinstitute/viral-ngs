@@ -707,7 +707,7 @@ def filter_bam_mapped_only(inBam, outBam, JVMmemory=None):
     # filter to aligned-only with Samtools
     tmp_bam = util.file.mkstempfname('.bam')
     cmd = [tools.samtools.SamtoolsTool().install_and_get_path(),
-        'view', '-b', '-1', '-q', 1, inBam]
+        'view', '-b', '-1', '-q', '1', inBam]
     log.debug(' '.join(cmd) +' > '+ tmp_bam)
     with open(tmp_bam, 'wb') as outf:
         subprocess.check_call(cmd, stdout=outf)
