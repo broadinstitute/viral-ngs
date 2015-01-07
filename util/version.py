@@ -4,23 +4,35 @@
 __author__ = "dpark@broadinstitute.org"
 __version__ = None
 
-import subprocess, os.path
+import subprocess, os, os.path
  
+def get_project_path() :
+    '''Return the absolute path of the top-level project, assumed to be the
+       parent of the directory containing this script.'''
+    # abspath converts relative to absolute path; expanduser interprets ~
+    path = __file__                  # path to this script
+    path = os.path.expanduser(path)  # interpret ~
+    path = os.path.abspath(path)     # convert to absolute path
+    path = os.path.dirname(path)     # containing directory: util
+    path = os.path.dirname(path)     # containing directory: main project dir
+    return path
+
 def call_git_describe():
+    cwd = os.getcwd()
     try:
+        os.chdir(get_project_path())
         cmd = ['git', 'describe', '--tags', '--always', '--dirty']
         out = subprocess.check_output(cmd)
         if type(out) != str:
             out = out.decode('utf-8')
-        return out.strip()
+        ver = out.strip()
     except:
-        return None
+        ver = None
+    os.chdir(cwd)
+    return ver
 
 def release_file():
-    path = __file__                  # path to this script
-    path = os.path.dirname(path)     # containing directory: util
-    path = os.path.dirname(path)     # containing directory: main project dir
-    return os.path.join(path, 'VERSION') # the VERSION file
+    return os.path.join(get_project_path(), 'VERSION')
  
 def read_release_version():
     try:
