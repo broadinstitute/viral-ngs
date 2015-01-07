@@ -121,7 +121,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Novoalign reads to self
     novoBam = util.file.mkstempfname('.novoalign.bam')
     novoalign.execute(inBam, inFasta, novoBam,
-        options=[novo_params], min_qual=1, JVMmemory=JVMmemory)
+        options=novo_params.split(), min_qual=1, JVMmemory=JVMmemory)
     rmdupBam = util.file.mkstempfname('.rmdup.bam')
     picard_mkdup.execute([novoBam], rmdupBam,
         picardOptions=['REMOVE_DUPLICATES=true', 'CREATE_INDEX=true'], JVMmemory=JVMmemory)
