@@ -49,7 +49,7 @@ class GATKTool(tools.Tool) :
         self.tool_version = subprocess.check_output(cmd).strip()
     
     def ug(self, inBam, refFasta, outVcf,
-            options=["--min_base_quality_score 15", "-ploidy 4"],
+            options=["--min_base_quality_score", 15, "-ploidy", 4],
             JVMmemory=None):
         opts = ['-I', inBam, '-R', refFasta, '-o', outVcf,
             '-glm', 'BOTH',
