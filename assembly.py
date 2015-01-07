@@ -7,7 +7,7 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, random
+import argparse, logging, random, os, os.path
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
