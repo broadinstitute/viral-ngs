@@ -14,6 +14,8 @@ configfile: "config.json"
 
 include: config["binDir"]+"/pipes/rules/common.rules"
 
+set_env_vars()
+
 include: config["binDir"]+"/pipes/rules/demux.rules"
 include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
 include: config["binDir"]+"/pipes/rules/assembly.rules"

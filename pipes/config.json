@@ -4,8 +4,6 @@
   "samples_assembly":  "samples-assembly.txt",
   "samples_per_run":   "samples-runs.txt",
 
-  "deplete_bmtagger_nchunks":   4,
-  "deplete_blast_nchunks":      2,
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",
@@ -26,6 +24,11 @@
   "align_outgroups": {
     "ebov_2014":    "",
     "ebov":         ""
+  },
+  
+  "env_vars": {
+    "GATK_PATH":       "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af",
+    "NOVOALIGN_PATH":  "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
   },
 
   "subdirs": {

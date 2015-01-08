@@ -1,5 +1,8 @@
 
-
+def set_env_vars():
+    import os
+    for k,v in config.get('env_vars', {}).items():
+        os.environ[k] = v
 
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
@@ -27,30 +30,3 @@ def update_timestamps(files):
         if os.path.isfile(f) and os.path.getmtime(f) > time.time():
             print("input file %s is more recent than present, resetting its modification time to present" % f)
             os.utime(f)
-
-
-# TO DO: everything below should get subsumed into the python codebase and removed from here.
-
-def index_novoalign(fasta):
-    outfname = fasta[:-6] + '.nix'
-    if os.path.isfile(outfname):
-        os.unlink(outfname)
-    shell("/idi/sabeti-scratch/kandersen/bin/novocraft/novoindex {outfname} {fasta} && chmod a-x {outfname}")
-
-def novoalign(inBam, refFasta, sample_name, outBam, options="-r Random", min_qual=0):
-    refFastaIdx = refFasta[:-6] + '.nix'
-    cmd = "/idi/sabeti-scratch/kandersen/bin/novocraft_v3/novoalign -f {inBam} {options} -F BAMPE -d {refFastaIdx} -o SAM "
-    if min_qual>0:
-      cmd += "| /idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -buS -q {min_qual} - "
-    cmd += "| java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT"
-    shell(cmd)
-
-def gatk_ug(inBam, refFasta, outVcf, options="--min_base_quality_score 15 -ploidy 4"):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T UnifiedGenotyper -R {refFasta} -I {inBam} -o {outVcf} {options} -glm BOTH --baq OFF --useOriginalQualities -out_mode EMIT_ALL_SITES -dt NONE --num_threads 1 -stand_call_conf 0 -stand_emit_conf 0 -A AlleleBalance")
-
-def gatk_local_realign(inBam, refFasta, outBam, tmpIntervals):
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T RealignerTargetCreator -R {refFasta} -o {tmpIntervals} -I {inBam}")
-    shell("java -Xmx2g -jar /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af/GenomeAnalysisTK.jar -T IndelRealigner -R {refFasta} -targetIntervals {tmpIntervals} -I {inBam} -o {outBam}")
-
-def filter_bam_mapped_only(inBam, outBam):
-    shell("/idi/sabeti-data/software/samtools/samtools-0.1.19/samtools view -b -q 1 -u {inBam} | java -Xmx2g -jar /seq/software/picard/1.802/bin/SortSam.jar SO=coordinate I=/dev/stdin O={outBam} CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT")
