@@ -7,7 +7,7 @@
 '''
 
 import logging, tools, util.file
-import os, os.path, subprocess
+import os, os.path, subprocess, tempfile
 
 tool_version = "2011-11-26"
 url = "http://sourceforge.net/projects/trinityrnaseq/files/" \
@@ -16,11 +16,9 @@ url = "http://sourceforge.net/projects/trinityrnaseq/files/" \
 log = logging.getLogger(__name__)
 
 
-'''
-Hm, compiling this is a little tricky...
-
 class TrinityTool(tools.Tool) :
     def __init__(self, install_methods = None) :
+        #Hm, compiling this is a little tricky... this installer needs more work
         if install_methods == None :
             install_methods = [tools.DownloadPackage(url,
                 'trinityrnaseq_r{}/Trinity.pl'.format(tool_version),
@@ -30,18 +28,16 @@ class TrinityTool(tools.Tool) :
     def version(self) :
         return tool_version
     
-    def execute(self, inFastq1, inFastq2, outFasta):
-        raise NotImplementedException()
+    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300):
+        outdir = tempfile.mkdtemp(prefix='trinity-')
+        cmd = [self.install_and_get_path(),
+            '--CPU', '1',
+            '--min_contig_length', str(min_contig_length),
+            '--seqType', 'fq',
+            '--left', inFastq1,
+            '--right', inFastq2,
+            '--output', outdir]
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
-
-        """
-        shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
-        shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-        shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
-        map(os.unlink, params.tmpf_subsamp)
-        shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
-        """
-'''
-    
-
+        shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
+        shutil.rmtree(outdir, ignore_errors=True)

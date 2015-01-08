@@ -42,46 +42,17 @@ rule assemble_trinity:
         and random subsample to no more than 100k reads.
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.1.fastq',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.filtered.fix.2.fastq'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=3
     params: LSF='-W 4:00',
             n_reads="100000",
             logid="{sample}",
-            tmpf_infq=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
-                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
-                adjective='taxfilt'),
-            tmpf_trim=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
-                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
-                adjective='trim'),
-            tmpf_rmdup=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
-                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
-                adjective='prinseq'),
-            tmpf_subsamp=expand('{dir}/{{sample}}.{adjective}.{direction}.fastq',
-                dir=config["tmpDir"]+'/'+config["subdirs"]["assembly"], direction=[1,2],
-                adjective='subsamp'),
-            tmpd_trinity=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.trinity',
             clipDb=config["trim_clipDb"]
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/read_utils.py bam_to_fastq {input} {params.tmpf_infq}")
-            shell("{config[binDir]}/taxon_filter.py trim_trimmomatic {params.tmpf_infq} {params.tmpf_trim} {params.clipDb}")
-            map(os.unlink, params.tmpf_infq)
-            shell("{config[binDir]}/read_utils.py rmdup_prinseq_fastq {params.tmpf_trim} {params.tmpf_rmdup}")
-            map(os.unlink, params.tmpf_trim)
-            shell("{config[binDir]}/read_utils.py purge_unmated {params.tmpf_rmdup} {output[1]} {output[2]}")
-            map(os.unlink, params.tmpf_rmdup)
-            shell("echo 'READ COUNTS pre-subsample:'; wc -l {output[1]} {output[2]}")
-            shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
-            shell("echo 'READ COUNTS subsampled:'; wc -l {params.tmpf_subsamp}")
-            shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
-            shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-            shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
-            map(os.unlink, params.tmpf_subsamp)
-            shutil.rmtree(params.tmpd_trinity, ignore_errors=True)
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads}")
 
 def first_fasta_header(inFasta):
     # this method can go away when align_and_orient gets turned into a script
