@@ -37,17 +37,15 @@ rule map_reads_to_ref:
     params: LSF='-W 4:00',
             logid="{sample}",
             refGenome=config["ref_genome"],
-            tmpf_intervals=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.aligned_to_ref.intervals'
+            novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502"
     run:
-            update_timestamps(input)
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"], config["tmpDir"]],
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
-            novoalign(input[0], params.refGenome, wildcards.sample, output[0], options="-r Random -l 30 -g 40 -x 20 -t 502")
-            filter_bam_mapped_only(output[0], output[1])
+            shell("{config[binDir]}/read_utils.py novoalign {input[0]} {params.refGenome} {output[0]} --options '{params.novoalign_options}'")
+            shell("{config[binDir]}/read_utils.py filter_bam_mapped_only {output[0]} {output[1]}")
             shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
-            gatk_local_realign(output[2], params.refGenome, output[3], params.tmpf_intervals)
-            os.unlink(params.tmpf_intervals)
+            shell("{config[binDir]}/read_utils.py gatk_realign {output[2]} {params.refGenome} {output[3]}")
 
 rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
@@ -110,8 +108,6 @@ rule multi_align_mafft:
             shell("/idi/sabeti-scratch/kandersen/bin/mafft/core/mafft --localpair --maxiterate 1000 --reorder --ep 0.123 --preservecase --thread 4 {input} > {params.tmpf_mafft}")
             shell("/idi/sabeti-scratch/kandersen/bin/trimal/trimal -phylip -automated1 -in {params.tmpf_mafft} -out {output} -htmlout {params.log_trimal} -colnumbering")
             update_timestamps(input)
-            os.unlink(params.tmpf_metrics)
-            os.unlink(params.tmpf_intervals)
 
 
 # Make sure all file-names are unique when cut down to 10 characters - e.g. if analysing Lassa 'LASV-' identifier needs to be removed from the input sequence file.
