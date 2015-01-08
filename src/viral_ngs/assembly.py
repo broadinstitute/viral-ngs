@@ -7,7 +7,7 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, random, os, os.path
+import argparse, logging, random, os, os.path, shutil
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
@@ -40,8 +40,8 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     '''
     shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
     shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-    shutil.copyfile(params.tmpd_trinity+"/Trinity.fasta", output[0])
     '''
+    shutil.copyfile(os.path.join(params.tmpd_trinity,"Trinity.fasta"), outFasta)
     return 0
 
 def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
