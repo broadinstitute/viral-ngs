@@ -12,6 +12,7 @@
 use strict;
 use Getopt::Long;
 use warnings;
+use File::Basename;
 
 my %option = (
 	mincontlen 	=> 350,	# Minimum length of contigs that will be analyzed
@@ -30,6 +31,7 @@ my %option = (
 	allcont				=> '',
 	sequencer			=> 'illumina',
 	fakequals			=> 30,
+	musclepath          => "/seq/annotation/bio_tools/muscle/3.8/",
 	h					=> '',
 );
 
@@ -49,6 +51,7 @@ GetOptions(
 	"contigcov=i"		=> \$option{contigcov},
 	"allcont"			=> \$option{allcont},
 	"sequencer=s"		=> \$option{sequencer},
+	"musclepath=s"		=> \$option{musclepath},
   	"fakequals=i"		=> \$option{fakequals},
 	"h"					=> \$option{h},
 ) || die("Problem processing command-line options: $!\n");
@@ -80,12 +83,8 @@ my $orientContOut = shift || die ("Usage : perl contigMerger.pl orientContigsOut
 my $reffile = shift || die ("Usage : perl contigMerger.pl orientContigsOutputName reference.fa outputBaseName\nFor option details and how to incorporate read data use the option -h\n");
 my $output = shift || die ("Usage : perl contigMerger.pl orientContigsOutputName reference.fa outputBaseName\nFor option details and how to incorporate read data use the option -h\n");
 
-# We definitely need the MUSCLE aligner
-my $musclepath = "/seq/annotation/bio_tools/muscle/3.8/";
-# This is to call runMosaik2.pl, which is necessary
-my $scriptpath = "/idi/sabeti-scratch/kandersen/bin/VfatSoftwarePackage/";
-# We can ignore R (and drawSegments()) if we don't care about the graphical output
-my $Rpath = "/broad/software/free/Linux/redhat_5_x86_64/pkgs/r_2.15.1/bin/";
+my $musclepath = $option{musclepath};
+my $scriptpath = dirname(__FILE__);
 
 my $hasreads = '';
 
@@ -121,8 +120,6 @@ my @segMap;
 open(INDELS, ">$output"."_largeDeletions.txt");
 print INDELS "ContigNo\tContigStart\tContigStop\tReferenceStart\tReferenceStop\n";
 buildSegments();
-drawSegments();
-#die;
 buildOverlapMap();
 
 open(OUTPUT, ">$output"."_assembly.fa");
@@ -148,7 +145,7 @@ system($musclepath."muscle -in $output"."_vsRef.mfa -out $output"."_vsRef.afa -q
 
 if($option{readfa} && $option{readq})
 {
-	system("perl $scriptpath"."runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $output"."_assembly.fa -o $output"."_readAlignment -qlx -qlxonly".$mosaikParam);
+	system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $output"."_assembly.fa -o $output"."_readAlignment -qlx -qlxonly".$mosaikParam);
 }
 
 ###### SUBS ######
@@ -173,17 +170,17 @@ sub alignReads
 		{
 			if($option{readfa2} && $option{readq2})
 			{
-				system("perl $scriptpath"."runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -fa2 ".$option{readfa2}." -qual2 ".$option{readq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -fa2 ".$option{readfa2}." -qual2 ".$option{readq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
 			}else{
-				system("perl $scriptpath"."runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
 			}
 		}elsif($option{readfq})
 		{
 			if($option{readfq2})
 			{
-				system("perl $scriptpath"."runMosaik2.pl -fq ".$option{readfq}." -fq2 ".$option{readfq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -fq2 ".$option{readfq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
 			}else{
-				system("perl $scriptpath"."runMosaik2.pl -fq ".$option{readfq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
 			}
 		}
 	}
@@ -973,104 +970,6 @@ sub buildSegments
 			}
 		}
 	}
-#	die;
-}
-
-sub drawSegments
-{
-	my @segcolors = ("blue","green","orange","brown","pink","purple");
-
-	open(ROUTPUT, ">$output"."_contigsMap.R");
-	print ROUTPUT "x=c(";
-
-	#print X axis values
-	for(my $i = 1; $i < length($refseq); $i++)
-	{
-		print ROUTPUT $i.",";
-	}
-	print ROUTPUT length($refseq).")\n";
-	print ROUTPUT "y=c(0";
-	
-	# Fill coverage matrix
-	my $maxycov = 0;
-	my %posCovered;
-	for(my $curpos = 2; $curpos <= length($refseq); $curpos++)
-	{
-#		if($coverages{$curpos})
-#		{
-#			if($coverages{$curpos}{allcov})
-#			{
-#				print ROUTPUT " ,".$coverages{$curpos}{allcov};
-#				if($coverages{$curpos}{allcov} > $maxycov){$maxycov = $coverages{$curpos}{allcov};}
-#			}else{
-		print ROUTPUT " ,0";
-#			}
-#		}else{
-#			print ROUTPUT " ,0";
-#		}
-	}
-	print ROUTPUT ")\n";
-	my $contigSpace = 1;
-#	my $ampSpace = int(0.01 * $maxycov);
-#	if($ampSpace < 3){$ampSpace = 3};
-	my $miny = (scalar(keys %segments)*(-$contigSpace));
-	if($miny > -5){$miny = -5;}
-	print ROUTPUT "plot(x,y,col=\"red\", xlab=\"Position\",ylab=\"Contigs\",type=\"l\",lwd=2,ann=T,cex.lab=0.8, ylim=c(".$miny.",max(y)), main=\"$output\")\n";
-
-	# Draw contigs
-	my $contflag = 1;
-	my $used = 0;
-	foreach my $contno (sort {$segments{$a} <=> $segments{$b}} keys %segments)
-	{
-		my $nbseg = 1;
-		my $lastsegend = 0;
-		foreach my $seg (sort {$segments{$contno}{$a}{start} <=> $segments{$contno}{$b}{start}} keys %{$segments{$contno}})
-		{
-			my $segdelpct = (($segments{$contno}{$seg}{end} - $segments{$contno}{$seg}{start} + 1) - ($segments{$contno}{$seg}{segend} - $segments{$contno}{$seg}{segstart} + 1))/($segments{$contno}{$seg}{end} - $segments{$contno}{$seg}{start} + 1);
-			
-			if(($segments{$contno}{$seg}{end} - $segments{$contno}{$seg}{start} + 1) >= $mincontlen && $segdelpct <= $option{maxsegdel})
-			{
-				if($nbseg > 1)
-				{
-					print INDELS "$contno\t".$contigAlign{$contno}{($lastsegend+1)}."\t".$contigAlign{$contno}{$segments{$contno}{$seg}{start}}."\t".($lastsegend+1)."\t".($segments{$contno}{$seg}{start}-1)."\n";
-				}
-				$used = 1;
-				print ROUTPUT "segments(".$segments{$contno}{$seg}{start}.",".($contflag*(-$contigSpace)).",".$segments{$contno}{$seg}{end}.",".($contflag*(-$contigSpace)).",col=\"".$segcolors[($contflag+5)%6]."\",lwd=2)\n";
-#				print "ContNo : $contno\tsegments(".$segments{$contno}{$seg}{start}.",".($contflag*(-5)).",".$segments{$contno}{$seg}{end}.",".($contflag*(-5)).",col=\"".$segcolors[($contflag+5)%6]."\",lwd=2)\n";
-				for(my $i = $segments{$contno}{$seg}{start}; $i <= $segments{$contno}{$seg}{end}; $i++)
-				{
-					$posCovered{total}{$i}++;
-					$posCovered{$contno}{$i}++;
-					$posCovered{$contno}{length}++;
-				}
-				$lastsegend = $segments{$contno}{$seg}{end};
-				$nbseg++;
-			}
-		}
-		if($used){
-			$contflag++;
-			$used = 0;
-		}
-	}
-
-	# Draw amplicons
-#	$ampno = 0;
-#	foreach my $curamp(@refAmps)
-#	{
-#		print ROUTPUT "segments(".$$curamp{start}.",max(y)+".((scalar(@refAmps) - $ampno) * $ampSpace).",".$$curamp{end}.",max(y)+".((scalar(@refAmps) - $ampno) * $ampSpace).",col=\"black\",lwd=2)\n";
-#		$ampno++;
-#	}
-
-
-	my $pdfname = "$output"."_contigsMap.pdf";
-	print ROUTPUT "pdf(\"$pdfname\")\n";
-	system($Rpath."R < $output"."_contigsMap.R --no-save --slave -q");
-	`mv Rplots.pdf $pdfname`;
-	
-#	foreach my $contig(keys %contigSeqs)
-#	{
-#		system("rm $output"."_$contig"."*");
-#	}
 }
 
 
