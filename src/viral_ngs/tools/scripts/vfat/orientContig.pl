@@ -15,6 +15,7 @@ my %option = (
 	minlongcont		=> 100, # Minimum length of a raw contig. Any contig below this length will be filtered out from the start
 	mincontlen		=> 350,
 	maxorigaplen	=> 10,
+	musclepath      => "/seq/annotation/bio_tools/muscle/3.8/",
 	h				=> '',
 );
 
@@ -22,6 +23,7 @@ GetOptions(
 	"minlongcont=i"		=> \$option{minlongcont},
 	"mincontlen=i"		=> \$option{mincontlen},
 	"maxorigaplen=i"	=> \$option{maxorigaplen},
+	"musclepath=s"      => \$option{musclepath},
 	"h"					=> \$option{h},
 );
 
@@ -39,7 +41,7 @@ my $inputcontIn = shift || die("Usage : perl orientContig.pl inputContigs.fa ref
 my $refIn = shift || die("Usage : perl orientContig.pl inputContigs.fa reference.fa outputBaseName\nFor more details about the options use -h\n");
 my $outputIn = shift || die("Usage : perl orientContig.pl inputContigs.fa reference.fa outputBaseName\nFor more details about the options use -h\n");
 
-my $musclepath = "/seq/annotation/bio_tools/muscle/3.8/";
+my $musclepath = $option{musclepath};
 
 my @contigIDs;
 
