@@ -4,7 +4,7 @@
 __author__ = "dpark@broadinstitute.org"
 __version__ = None
 
-import subprocess, os.path
+import subprocess, os, os.path
  
 def get_project_path() :
     '''Return the absolute path of the top-level project, assumed to be the
@@ -18,14 +18,17 @@ def get_project_path() :
     return path
 
 def call_git_describe():
+    cwd = os.getcwd()
     try:
-        cmd = ['git', '-C', get_project_path(), 'describe', '--tags', '--always', '--dirty']
+        os.chdir(get_project_path())
+        cmd = ['git', 'describe', '--tags', '--always', '--dirty']
         out = subprocess.check_output(cmd)
         if type(out) != str:
             out = out.decode('utf-8')
         ver = out.strip()
     except:
         ver = None
+    os.chdir(cwd)
     return ver
 
 def release_file():
