@@ -1,0 +1,5 @@
+#!/bin/bash
+snakemake --rerun-incomplete --keep-going \
+	--jobs 4 --resources mem=16 \
+	-s "$HOME/viral-ngs/pipes/ref_assisted/Snakefile" \
+	"$@"
