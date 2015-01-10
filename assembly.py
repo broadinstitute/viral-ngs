@@ -96,7 +96,7 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        JVMmemory=None):
+        keep_all_reads=False, JVMmemory=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -122,11 +122,15 @@ def refine_assembly(inFasta, inBam, outFasta,
     
     # Novoalign reads to self
     novoBam = util.file.mkstempfname('.novoalign.bam')
+    min_qual = 0 if keep_all_reads else 1
     novoalign.execute(inBam, inFasta, novoBam,
-        options=novo_params.split(), min_qual=1, JVMmemory=JVMmemory)
+        options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
     rmdupBam = util.file.mkstempfname('.rmdup.bam')
+    opts = ['CREATE_INDEX=true']
+    if not keep_all_reads:
+        opts.append('REMOVE_DUPLICATES=true')
     picard_mkdup.execute([novoBam], rmdupBam,
-        picardOptions=['REMOVE_DUPLICATES=true', 'CREATE_INDEX=true'], JVMmemory=JVMmemory)
+        picardOptions=opts, JVMmemory=JVMmemory)
     os.unlink(novoBam)
     realignBam = util.file.mkstempfname('.realign.bam')
     gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory)
@@ -168,12 +172,15 @@ def parser_refine_assembly():
     parser.add_argument('--outVcf',
         default=None,
         help='GATK genotype calls for genome in inFasta coordinate space.')
-    parser.add_argument('--novo_params',
-        default='-r Random -l 40 -g 40 -x 20 -t 100',
-        help='Alignment parameters for Novoalign.')
     parser.add_argument('--min_coverage',
         default=3, type=int,
         help='Minimum read coverage required to call a position unambiguous.')
+    parser.add_argument('--novo_params',
+        default='-r Random -l 40 -g 40 -x 20 -t 100',
+        help='Alignment parameters for Novoalign.')
+    parser.add_argument("--keep_all_reads",
+        help="""Retain all reads in BAM file? Default is to remove unaligned and duplicate reads.""",
+        default=False, action="store_true", dest="keep_all_reads")
     parser.add_argument('--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
@@ -182,7 +189,7 @@ def parser_refine_assembly():
 def main_refine_assembly(args):
     refine_assembly(args.inFasta, args.inBam, args.outFasta,
         args.outVcf, args.outBam, args.novo_params, args.min_coverage,
-        JVMmemory=args.JVMmemory)
+        keep_all_reads=args.keep_all_reads, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('refine_assembly', main_refine_assembly, parser_refine_assembly))
 

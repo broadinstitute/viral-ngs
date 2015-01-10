@@ -1,0 +1,46 @@
+"""
+    This performs reference-assisted assembly of viral genomes, starting
+    from fastqs produced directly from MiSeq machines.
+    
+    Make copies of this Snakefile and config.json to your analysis directory and
+    customize as needed.
+"""
+
+__author__ = 'Daniel Park <dpark@broadinstitute.org>'
+
+import os.path
+
+configfile: "config.json"
+
+def read_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
+
+rule all:
+    input:
+        expand("{dataDir}/{sample}.fasta",
+            dataDir=config["dataDir"],
+            sample=read_file(config["samples"]))
+
+rule bams_from_fastq:
+    input:  os.path.join(config['dataDir'],'{sample}_R1_{idx}.fastq'),
+            os.path.join(config['dataDir'],'{sample}_R2_{idx}.fastq')
+    output: os.path.join(config['dataDir'],'{sample}_{idx}.bam')
+    resources: mem=4
+    params: logid="{sample}_{idx}",
+            center=config["seq_center"]
+    shell:  "read_utils.py fastq_to_bam {input} {output} --sampleName {wildcards.sample} --picardOptions PLATFORM=illumina SEQUENCING_CENTER={params.center} LIBRARY_NAME={wildcards.sample}_{wildcards.idx} SORT_ORDER=queryname"
+
+rule ref_guided_consensus:
+    input:  os.path.join(config['dataDir'],'{sample}.bam')
+    output: os.path.join(config['dataDir'],'{sample}.realigned.bam'),
+            os.path.join(config['dataDir'],'{sample}.vcf.gz'),
+            os.path.join(config['dataDir'],'{sample}.fasta')
+    resources: mem=4
+    params: LSF='-W 4:00',
+            logid="{sample}",
+            refGenome=config["ref_genome"],
+            novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
+            min_coverage = "2"
+    shell:  "assembly.py refine_assembly {params.refGenome} {input} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads"
