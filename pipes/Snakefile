@@ -9,18 +9,19 @@
 
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
+import os.path
 
 configfile: "config.json"
+pipesDir = os.path.join(os.path.expanduser(config['binDir']), 'pipes', 'rules')
 
-include: config["binDir"]+"/pipes/rules/common.rules"
-
+include: os.path.join(pipesDir, 'common.rules')
 set_env_vars()
 
-include: config["binDir"]+"/pipes/rules/demux.rules"
-include: config["binDir"]+"/pipes/rules/hs_deplete.rules"
-include: config["binDir"]+"/pipes/rules/assembly.rules"
-include: config["binDir"]+"/pipes/rules/interhost.rules"
-include: config["binDir"]+"/pipes/rules/reports.rules"
+include: os.path.join(pipesDir, 'demux.rules')
+include: os.path.join(pipesDir, 'hs_deplete.rules')
+include: os.path.join(pipesDir, 'assembly.rules')
+include: os.path.join(pipesDir, 'interhost.rules')
+include: os.path.join(pipesDir, 'reports.rules')
 
 rule all:
     input:
