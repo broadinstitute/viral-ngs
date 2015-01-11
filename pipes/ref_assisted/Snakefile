@@ -60,7 +60,7 @@ def make_run_hash(fname, length=6):
     if 'flowcell' in config:
         return config['flowcell']
     with open(fname, 'rt') as inf:
-        csv = inf.readlines()
+        csv = ''.join(inf.readlines())
     hash_obj = hashlib.sha1(csv.encode('utf-8'))
     b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
     return b32_str[:length]
