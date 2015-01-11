@@ -1,5 +1,12 @@
 #!/bin/bash
+
+# load config dirs from config.json
+BIN_DIR=`python -c 'import json,os.path;f=open("config.json");print(os.path.expanduser(json.load(f)["binDir"]));f.close()'`
+N_CORES=`python -c 'import json;f=open("config.json");print(json.load(f)["n_cores"]);f.close()'`
+MAX_RAM=`python -c 'import json;f=open("config.json");print(json.load(f)["max_ram"]);f.close()'`
+
+# execute snakemake on this machine with specified resources
 snakemake --rerun-incomplete --keep-going \
-	--jobs 4 --resources mem=16 \
-	-s "$HOME/viral-ngs/pipes/ref_assisted/Snakefile" \
+	--jobs $N_CORES --resources mem=$MAX_RAM \
+	-s $BIN_DIR/pipes/ref_assisted/Snakefile \
 	"$@"
