@@ -87,5 +87,8 @@ class NovoalignTool(tools.Tool) :
         cmd = [novoindex, outfname, fasta]
         log.debug(' '.join(cmd))
         subprocess.check_call(cmd)
-        mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
-        os.chmod(outfname, mode)
+        try:
+            mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
+            os.chmod(outfname, mode)
+        except PermissionError:
+            pass
