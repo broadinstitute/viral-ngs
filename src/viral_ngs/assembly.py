@@ -96,7 +96,7 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        keep_all_reads=False, JVMmemory=None):
+        contig_names=[], keep_all_reads=False, JVMmemory=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -143,9 +143,12 @@ def refine_assembly(inFasta, inBam, outFasta,
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
+    name_opts = []
+    if contig_names:
+        name_opts = ['--name'] + contig_names
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
         tmpVcf, outFasta, '--trim_ends', '--min_coverage', str(min_coverage),
-        ]))
+        ] + name_opts))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
         if outVcf.endswith('.gz'):
@@ -178,6 +181,9 @@ def parser_refine_assembly():
     parser.add_argument('--novo_params',
         default='-r Random -l 40 -g 40 -x 20 -t 100',
         help='Alignment parameters for Novoalign.')
+    parser.add_argument("--chr_names", dest="chr_names", nargs="*",
+        help="Rename all output chromosomes (default: retain original chromosome names)",
+        default=[])
     parser.add_argument("--keep_all_reads",
         help="""Retain all reads in BAM file? Default is to remove unaligned and duplicate reads.""",
         default=False, action="store_true", dest="keep_all_reads")
@@ -189,6 +195,7 @@ def parser_refine_assembly():
 def main_refine_assembly(args):
     refine_assembly(args.inFasta, args.inBam, args.outFasta,
         args.outVcf, args.outBam, args.novo_params, args.min_coverage,
+        contig_names=args.chr_names,
         keep_all_reads=args.keep_all_reads, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('refine_assembly', main_refine_assembly, parser_refine_assembly))
@@ -582,9 +589,9 @@ def parser_vcf_to_fasta():
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
         default=0.0)
-    parser.add_argument("--name", dest="name",
-        help="output sequence name (default: reference name in VCF file)",
-        default=None)
+    parser.add_argument("--name", dest="name", nargs="*",
+        help="output sequence names (default: reference names in VCF file)",
+        default=[])
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
@@ -595,13 +602,14 @@ def main_vcf_to_fasta(args):
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
     with open(args.outFasta, 'wt') as outf:
+        chr_idx = 0
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
             chrlens, samples, min_dp=args.min_dp, major_cutoff=args.major_cutoff,
             min_dp_ratio=args.min_dp_ratio):
             if args.trim_ends:
                 seq = seq.strip('Nn')
-            if args.name!=None:
-                header = args.name
+            if args.name:
+                header = args.name[chr_idx % len(args.name)]
             for line in util.file.fastaMaker([(header, seq)]):
                 outf.write(line)
 
