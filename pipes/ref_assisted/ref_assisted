@@ -6,7 +6,7 @@ N_CORES=`python -c 'import json;f=open("config.json");print(json.load(f)["n_core
 MAX_RAM=`python -c 'import json;f=open("config.json");print(json.load(f)["max_ram"]);f.close()'`
 
 # execute snakemake on this machine with specified resources
-snakemake --rerun-incomplete --keep-going \
+snakemake --timestamp --rerun-incomplete --keep-going \
 	--jobs $N_CORES --resources mem=$MAX_RAM \
 	-s $BIN_DIR/pipes/ref_assisted/Snakefile \
 	"$@"
