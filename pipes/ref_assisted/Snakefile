@@ -116,6 +116,13 @@ rule ref_guided_consensus:
     params: LSF='-W 4:00',
             logid="{sample}",
             refGenome=os.path.expanduser(config["ref_genome"]),
-            novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
-            min_coverage = "2"
-    shell:  "{config[binDir]}/assembly.py refine_assembly {params.refGenome} {input} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads"
+            novoalign_options=config["refine_options"]["novoalign"],
+            min_coverage=config["refine_options"]["min_coverage"]
+    shell:  "{config[binDir]}/assembly.py refine_assembly " \
+                + "{params.refGenome} {input} {output[2]} " \
+                + "--outBam {output[0]} " \
+                + "--outVcf {output[1]} " \
+                + "--keep_all_reads " \
+                + "--chr_names {wildcards.sample} " \
+                + "--min_coverage {params.min_coverage} " \
+                + "--novo_params '{params.novoalign_options}' "
