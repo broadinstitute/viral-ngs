@@ -27,38 +27,22 @@ rule all_ref_guided:
                 sample=read_samples_file(config["samples_per_run"])),
             config["reportsDir"]+'/summary.coverage_ref.txt.gz'
 
-rule map_reads_to_ref:
+rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.mapped.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.rmdup.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    resources: mem=8
+    output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
+            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
+    resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
             refGenome=config["ref_genome"],
-            novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502"
+            novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
+            min_coverage="3"
     run:
             makedirs(expand("{dir}/{subdir}",
-                dir=[config["dataDir"], config["tmpDir"]],
+                dir=[config["dataDir"]],
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
-            shell("{config[binDir]}/read_utils.py novoalign {input[0]} {params.refGenome} {output[0]} --options '{params.novoalign_options}'")
-            shell("{config[binDir]}/read_utils.py filter_bam_mapped_only {output[0]} {output[1]}")
-            shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
-            shell("{config[binDir]}/read_utils.py gatk_realign {output[2]} {params.refGenome} {output[3]}")
-
-rule ref_guided_consensus:
-    input:  config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
-    resources: mem=8
-    params: LSF='-W 4:00',
-            logid="{sample}",
-            refGenome=config["ref_genome"]
-    run:
-            update_timestamps(input)
-            gatk_ug(input[0], params.refGenome, output[0])
-            shell("{config[binDir]}/assembly.py vcf_to_fasta {output[0]} {output[1]} --min_coverage 2 --name {wildcards.sample}")
+            shell("{config[binDir]}/assembly.py refine_assembly {params.refGenome} {input} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads --chr_names {wildcards.sample}")
 
 rule ref_guided_diversity:
     input:  
