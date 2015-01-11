@@ -10,19 +10,19 @@ import logging, tools, util.file
 import os, os.path, subprocess, tempfile
 
 tool_version = "2011-11-26"
-url = "http://sourceforge.net/projects/trinityrnaseq/files/" \
-    + "trinityrnaseq_r{}.tgz/download".format(tool_version)
+trinityVersion = "trinityrnaseq_r{}".format(tool_version)
+url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(
+          trinityVersion)
 
 log = logging.getLogger(__name__)
 
 
 class TrinityTool(tools.Tool) :
     def __init__(self, install_methods = None) :
-        #Hm, compiling this is a little tricky... this installer needs more work
         if install_methods == None :
-            install_methods = [tools.DownloadPackage(url,
-                'trinityrnaseq_r{}/Trinity.pl'.format(tool_version),
-                post_download_command='cd trinityrnaseq_r{}; make'.format(tool_version))]
+            install_methods = [
+                DownloadAndBuildTrinity(url, trinityVersion + '/Trinity.pl')
+                ]
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
@@ -41,3 +41,31 @@ class TrinityTool(tools.Tool) :
         subprocess.check_call(toolCmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
+
+class DownloadAndBuildTrinity(tools.DownloadPackage) :
+    def post_download(self) :
+        trinityDir = os.path.join(self.destination_dir, trinityVersion)
+        if tool_version == "2011-11-26" :
+            # This version doesn't compile. Need to add an include file.
+            badFilePath = os.path.join(trinityDir, 'Chrysalis', 'analysis',
+                                       'RunButterfly.cc')
+            extraLine = '#include <unistd.h>\n'
+            fileContents = open(badFilePath).read()
+            # Save the original in RunButterfly.cc.orig
+            os.rename(badFilePath, badFilePath + '.orig')
+            open(badFilePath, 'w').write(extraLine + fileContents)
+        # Now we can make:
+        os.system('cd "{}" && make -s'.format(trinityDir))
+    def verify_install(self) :
+        if not tools.DownloadPackage.verify_install(self) :
+            return False
+        # Verify that chrysalis and inchworm were built
+        trinityDir = os.path.join(self.destination_dir, trinityVersion)
+        chrysalisPath = os.path.join(trinityDir, 'Chrysalis', 'Chrysalis')
+        inchwormPath  = os.path.join(trinityDir, 'Inchworm', 'src', 'inchworm')
+        for path in [chrysalisPath, inchwormPath] :
+            if not os.access(path, (os.X_OK | os.R_OK)) :
+                log.debug('{} was not built.'.format(path))
+                self.installed = False
+                return False
+        
