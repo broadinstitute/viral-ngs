@@ -34,7 +34,7 @@ for k,v in config.get('env_vars', {}).items():
     os.environ[k] = v
 
 def get_sample_list(fname):
-    with open(fname, 'rt') as inf:
+    with open(fname, 'rU') as inf:
         header = None
         for line in inf:
             if line.startswith('Sample_ID'):
@@ -43,7 +43,7 @@ def get_sample_list(fname):
                 yield line.strip().split(',')[0]
 
 def get_sample_info(sample, fname):
-    with open(fname, 'rt') as inf:
+    with open(fname, 'rU') as inf:
         header = None
         n = 0
         for line in inf:
@@ -62,7 +62,7 @@ def get_file_date(fname):
 def make_run_hash(fname, length=6):
     if 'flowcell' in config:
         return config['flowcell']
-    with open(fname, 'rt') as inf:
+    with open(fname, 'rU') as inf:
         csv = ''.join(inf.readlines())
     hash_obj = hashlib.sha1(csv.encode('utf-8'))
     b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
