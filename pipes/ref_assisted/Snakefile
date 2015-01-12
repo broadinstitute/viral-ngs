@@ -1,0 +1,128 @@
+"""
+    This performs reference-assisted assembly of viral genomes, starting
+    from fastqs produced directly from MiSeq machines.
+    
+    Make copies of this Snakefile and config.json to your analysis directory and
+    customize as needed.
+    
+    This operates on the SampleSheet.csv file that is used as input to the MiSeq
+    machine and all of the fastq files that are emitted by that machine. Put
+    the SampleSheet.csv in the project directory and put the fastq files in a
+    subdirectory called "data". Copy the config.json to the project directory.
+    Then type "ref_assisted" and wait a few hours for aligned BAMs, VCFs, and
+    FASTAs.
+    
+    This is designed for use on a single linux computer (e.g. Ubuntu 14.04 LTS) with:
+        apt-get install:
+         python3 python3-pip python-software-properties
+         zlib zlib1g zlib1g-dev
+         libblas3gf libblas-dev liblapack3gf liblapack-dev
+         libatlas-dev libatlas3-base libatlas3gf-base libatlas-base-dev
+         gfortran git oracle-java8-installer
+         libncurses5-dev python3-nose
+        pip3 install -r requirements.txt
+        pip3 install snakemake==3.2
+"""
+
+__author__ = 'Daniel Park <dpark@broadinstitute.org>'
+
+import os, os.path, time, hashlib, base64
+
+configfile: "config.json"
+
+for k,v in config.get('env_vars', {}).items():
+    os.environ[k] = v
+
+def get_sample_list(fname):
+    with open(fname, 'rU') as inf:
+        header = None
+        for line in inf:
+            if line.startswith('Sample_ID'):
+                header = line.strip().split(',')
+            elif header and line:
+                yield line.strip().split(',')[0]
+
+def get_sample_info(sample, fname):
+    with open(fname, 'rU') as inf:
+        header = None
+        n = 0
+        for line in inf:
+            if line.startswith('Sample_ID'):
+                header = line.strip().split(',')
+            elif header and line:
+                n += 1
+                out = dict(zip(header, line.strip().split(',')))
+                out['n'] = n
+                if out['Sample_ID']==sample:
+                    return out
+
+def get_file_date(fname):
+    return time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(fname)))
+
+def make_run_hash(fname, length=6):
+    if 'flowcell' in config:
+        return config['flowcell']
+    with open(fname, 'rU') as inf:
+        csv = ''.join(inf.readlines())
+    hash_obj = hashlib.sha1(csv.encode('utf-8'))
+    b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
+    return b32_str[:length]
+
+##############################################
+
+rule all:
+    input:
+        expand("{dataDir}/{sample}.fasta",
+            dataDir=config["dataDir"],
+            sample=get_sample_list(config["samples"]))
+
+##############################################
+
+def get_fastq_filenames(wildcards):
+    info = get_sample_info(wildcards.sample, config["samples"])
+    suffix = config.get('fastqs_gzipped', False) and ".gz" or ""
+    return [
+        os.path.join(wildcards.dir,
+            '{sample}_S{idx}_L001_R{dir}_001.fastq{suffix}'.format(
+            sample=wildcards.sample, idx=info['n'], dir=direction,
+            suffix=suffix))
+        for direction in ('1','2')]
+rule bams_from_fastq:
+    input:  get_fastq_filenames
+    output: '{dir}/{sample}.raw.bam'
+    resources: mem=4
+    params: logid="{sample}",
+            center=config["seq_center"]
+    run:
+            run_date = get_file_date(input[0])
+            info = get_sample_info(wildcards.sample, config["samples"])
+            hash = make_run_hash(config["samples"])
+            shell("{config[binDir]}/read_utils.py fastq_to_bam {input} {output} " \
+                + "--sampleName {wildcards.sample} --picardOptions " \
+                + "SEQUENCING_CENTER={params.center} " \
+                + "RUN_DATE={run_date} " \
+                + "PLATFORM_UNIT={hash}.1.{info[index]}-{info[index2]} " \
+                + "READ_GROUP_NAME={hash} " \
+                + "PLATFORM=illumina SORT_ORDER=queryname")
+
+##############################################
+
+rule ref_guided_consensus:
+    input:  '{dir}/{sample}.raw.bam'
+    output: '{dir}/{sample}.realigned.bam',
+            '{dir}/{sample}.vcf.gz',
+            '{dir}/{sample}.fasta'
+    resources: mem=4
+    params: LSF='-W 4:00',
+            logid="{sample}",
+            refGenome=os.path.expanduser(config["ref_genome"]),
+            novoalign_options=config["refine_options"]["novoalign"],
+            min_coverage=config["refine_options"]["min_coverage"]
+    shell:  "{config[binDir]}/assembly.py refine_assembly " \
+                + "{params.refGenome} {input} {output[2]} " \
+                + "--outBam {output[0]} " \
+                + "--outVcf {output[1]} " \
+                + "--keep_all_reads " \
+                + "--chr_names {wildcards.sample} " \
+                + "--min_coverage {params.min_coverage} " \
+                + "--novo_params '{params.novoalign_options}' "

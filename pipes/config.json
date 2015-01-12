@@ -4,6 +4,8 @@
   "samples_assembly":  "samples-assembly.txt",
   "samples_per_run":   "samples-runs.txt",
 
+  "seq_center": "BI",
+
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
   "bmTaggerDbs_remove": [
     "hg19",

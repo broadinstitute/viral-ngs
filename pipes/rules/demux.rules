@@ -118,6 +118,7 @@ rule illumina_basecalls:
     resources: mem=64
     params: LSF='-q flower',
             logid="{flowcell}.{lane}",
+            center=config['seq_center'],
             outdir=config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}'
     run:
             shutil.rmtree(params.outdir, ignore_errors=True)
@@ -125,7 +126,7 @@ rule illumina_basecalls:
             lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
             dir = lane['bustard_dir']
             run_date = lane.get('seq_run_date')
-            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false --run_start_date={run_date}")
+            shell("{config[binDir]}/broad_utils.py illumina_basecalls {dir} {input[1]} {wildcards.flowcell} {wildcards.lane} {input[0]} --include_non_pf_reads=false --run_start_date={run_date} --sequencing_center={params.center}")
 
 def demux_move_bams_inputs(wildcards):
     lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config.get('seqruns_demux',''))
@@ -140,4 +141,16 @@ rule move_bams_demux:
     run:
             makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
             shutil.move(input[0], output[0])
+
+rule bams_from_fastq:
+    input:  os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_R1_{idx}.fastq'),
+            os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_R2_{idx}.fastq')
+    output: os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_{idx}.bam')
+    params: logid="{sample}_{idx}",
+            center=config["seq_center"]
+    run:
+            makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
+            shell("{config[binDir]}/read_utils.py fastq_to_bam {input} {output} --sampleName {wildcards.sample} --picardOptions PLATFORM=illumina SEQUENCING_CENTER={params.center} LIBRARY_NAME={wildcards.sample}_{wildcards.idx} SORT_ORDER=queryname")
+
+ruleorder: move_bams_demux > bams_from_fastq
 

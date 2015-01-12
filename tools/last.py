@@ -31,7 +31,7 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
         # maf_convert doesn't run in Python 3.x. Fix it (in place).
         binpath = os.path.join(path, 'bin')
         mafConvertPath = os.path.join(binpath, 'maf-convert')
-        os.system('2to3 {mafConvertPath} -W --no-diffs'.format(**locals()))
+        os.system('2to3 {mafConvertPath} -w --no-diffs'.format(**locals()))
         # Still more fixes needed: the first for 3.x, the second for 2.7
         fileContents = open(mafConvertPath).read()
         fileContents = fileContents.replace('string.maketrans("", "")', 'None')

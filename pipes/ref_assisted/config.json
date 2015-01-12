@@ -1,0 +1,20 @@
+{
+  "samples":         "SampleSheet.csv",
+  
+  "refine_options": {
+    "novoalign":    "-r Random -l 30 -g 40 -x 20 -t 502",
+    "min_coverage": "3"
+  },
+
+  "seq_center":      "ACEGID_RUN",
+  "fastqs_gzipped":  false,
+  "n_cores":         4,
+  "max_ram":         16,
+  "ref_genome":      "~/resources/ref_genome/genome.fasta",
+
+  "dataDir":         "data",
+  "logDir":          "log",
+  "binDir":          "~/viral-ngs",
+  "venvDir":         "~/venv",
+  "project":         "viral_ngs"
+}
