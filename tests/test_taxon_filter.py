@@ -3,7 +3,7 @@
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
                 + "hlevitin@broadinstitute.org"
 
-import unittest, os, tempfile, shutil
+import unittest, os, tempfile, shutil, subprocess
 import taxon_filter, util.file, tools.last, tools.bmtagger, tools.blast
 from test import assert_equal_contents, TestCaseWithTmp
 
@@ -45,8 +45,7 @@ class TestFilterLastal(TestCaseWithTmp) :
         dbsDir = tempfile.mkdtemp()
         refDbs = os.path.join(dbsDir, 'ebola')
         lastdbPath = tools.last.Lastdb().install_and_get_path()
-        assert not os.system(
-            '{lastdbPath} {refDbs} {refFasta}'.format(**locals()))
+        subprocess.check_call([lastdbPath, refDbs, refFasta])
 
         # Call main_filter_lastal
         inFastq = os.path.join( myInputDir, 'in.fastq')
@@ -78,9 +77,7 @@ class TestBmtagger(TestCaseWithTmp) :
             # .map file is > 100M, so recreate instead of copying
             dbfa = os.path.join(myInputDir, db + '.fa')
             dbsrprism = os.path.join(self.tempDir, db + '.srprism')
-            assert not os.system(
-                '{srprismPath} mkindex -i {dbfa} -o {dbsrprism}'.format(
-                    **locals()))
+            subprocess.check_call([srprismPath, 'mkindex', '-i', dbfa, '-o', dbsrprism])
             # .bitmask and .srprism.* files must be in same dir, so copy
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
 
@@ -143,9 +140,8 @@ class TestDepleteBlastn(TestCaseWithTmp) :
             refDb = os.path.join(tempDir, dbname)
             os.symlink(os.path.join(myInputDir, dbname), refDb)
             refDbs.append(refDb)
-            makeblastdbCmd = '{makeblastdbPath} -dbtype nucl -in {refDb}'.\
-                format(**locals())
-            assert not os.system(makeblastdbCmd)
+            subprocess.check_call([
+                makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
 
         # Run deplete_blastn
         outFile = os.path.join(tempDir, 'out.fastq')
