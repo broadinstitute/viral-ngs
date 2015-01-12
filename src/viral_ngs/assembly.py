@@ -12,6 +12,7 @@ import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
 import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign, tools.muscle
+import tools.trinity
 
 log = logging.getLogger(__name__)
 
@@ -36,13 +37,37 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     map(os.unlink(rmdupfq))
     
-    raise NotImplementedError()
-    '''
-    shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
-    shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-    '''
-    shutil.copyfile(os.path.join(params.tmpd_trinity,"Trinity.fasta"), outFasta)
+    subsampfq = map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq'])
+    cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
+        '-n', str(n_reads),
+        '-mode', 'p',
+        '-in', purgefq[0], purgefq[1],
+        '-out', subsampfq[0], subsampfq[1],
+        ]
+    subprocess.check_call(cmd)
+    map(os.unlink(purgefq))
+    
+    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
+    map(os.unlink(subsampfq))
     return 0
+
+def parser_assemble_trinity():
+    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+    parser.add_argument('inBam',
+        help='Input reads, BAM format.')
+    parser.add_argument('clipDb',
+        help='Trimmomatic clip DB.')
+    parser.add_argument('outFasta',
+        help='Output assembly.')
+    parser.add_argument('--n_reads', default=100000, type=int,
+        help='Subsample reads to no more than this many pairs. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    return parser
+def main_assemble_trinity(args):
+    assemble_trinity(args.inBam, args.outFasta, args.clipDb, args.n_reads)
+    return 0
+__commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
+
 
 def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
     ''' This step cleans up the Trinity assembly with a known reference genome.
