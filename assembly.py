@@ -12,6 +12,7 @@ import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
 import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign, tools.muscle
+import tools.trinity
 
 log = logging.getLogger(__name__)
 
@@ -36,13 +37,37 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     map(os.unlink(rmdupfq))
     
-    raise NotImplementedError()
-    '''
-    shell("{config[binDir]}/tools/scripts/subsampler.py -n {params.n_reads} -mode p -in {output[1]} {output[2]} -out {params.tmpf_subsamp}")
-    shell("reuse -q Java-1.6 && perl /idi/sabeti-scratch/kandersen/bin/trinity_old/Trinity.pl --CPU 1 --min_contig_length 300 --seqType fq --left {params.tmpf_subsamp[0]} --right {params.tmpf_subsamp[1]} --output {params.tmpd_trinity}")
-    '''
-    shutil.copyfile(os.path.join(params.tmpd_trinity,"Trinity.fasta"), outFasta)
+    subsampfq = map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq'])
+    cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
+        '-n', str(n_reads),
+        '-mode', 'p',
+        '-in', purgefq[0], purgefq[1],
+        '-out', subsampfq[0], subsampfq[1],
+        ]
+    subprocess.check_call(cmd)
+    map(os.unlink(purgefq))
+    
+    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
+    map(os.unlink(subsampfq))
     return 0
+
+def parser_assemble_trinity():
+    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+    parser.add_argument('inBam',
+        help='Input reads, BAM format.')
+    parser.add_argument('clipDb',
+        help='Trimmomatic clip DB.')
+    parser.add_argument('outFasta',
+        help='Output assembly.')
+    parser.add_argument('--n_reads', default=100000, type=int,
+        help='Subsample reads to no more than this many pairs. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    return parser
+def main_assemble_trinity(args):
+    assemble_trinity(args.inBam, args.outFasta, args.clipDb, args.n_reads)
+    return 0
+__commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
+
 
 def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -96,7 +121,7 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        JVMmemory=None):
+        contig_names=[], keep_all_reads=False, JVMmemory=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -122,11 +147,15 @@ def refine_assembly(inFasta, inBam, outFasta,
     
     # Novoalign reads to self
     novoBam = util.file.mkstempfname('.novoalign.bam')
+    min_qual = 0 if keep_all_reads else 1
     novoalign.execute(inBam, inFasta, novoBam,
-        options=novo_params.split(), min_qual=1, JVMmemory=JVMmemory)
+        options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
     rmdupBam = util.file.mkstempfname('.rmdup.bam')
+    opts = ['CREATE_INDEX=true']
+    if not keep_all_reads:
+        opts.append('REMOVE_DUPLICATES=true')
     picard_mkdup.execute([novoBam], rmdupBam,
-        picardOptions=['REMOVE_DUPLICATES=true', 'CREATE_INDEX=true'], JVMmemory=JVMmemory)
+        picardOptions=opts, JVMmemory=JVMmemory)
     os.unlink(novoBam)
     realignBam = util.file.mkstempfname('.realign.bam')
     gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory)
@@ -139,9 +168,12 @@ def refine_assembly(inFasta, inBam, outFasta,
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
+    name_opts = []
+    if contig_names:
+        name_opts = ['--name'] + contig_names
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
         tmpVcf, outFasta, '--trim_ends', '--min_coverage', str(min_coverage),
-        ]))
+        ] + name_opts))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
         if outVcf.endswith('.gz'):
@@ -168,12 +200,18 @@ def parser_refine_assembly():
     parser.add_argument('--outVcf',
         default=None,
         help='GATK genotype calls for genome in inFasta coordinate space.')
-    parser.add_argument('--novo_params',
-        default='-r Random -l 40 -g 40 -x 20 -t 100',
-        help='Alignment parameters for Novoalign.')
     parser.add_argument('--min_coverage',
         default=3, type=int,
         help='Minimum read coverage required to call a position unambiguous.')
+    parser.add_argument('--novo_params',
+        default='-r Random -l 40 -g 40 -x 20 -t 100',
+        help='Alignment parameters for Novoalign.')
+    parser.add_argument("--chr_names", dest="chr_names", nargs="*",
+        help="Rename all output chromosomes (default: retain original chromosome names)",
+        default=[])
+    parser.add_argument("--keep_all_reads",
+        help="""Retain all reads in BAM file? Default is to remove unaligned and duplicate reads.""",
+        default=False, action="store_true", dest="keep_all_reads")
     parser.add_argument('--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
@@ -182,7 +220,8 @@ def parser_refine_assembly():
 def main_refine_assembly(args):
     refine_assembly(args.inFasta, args.inBam, args.outFasta,
         args.outVcf, args.outBam, args.novo_params, args.min_coverage,
-        JVMmemory=args.JVMmemory)
+        contig_names=args.chr_names,
+        keep_all_reads=args.keep_all_reads, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('refine_assembly', main_refine_assembly, parser_refine_assembly))
 
@@ -575,9 +614,9 @@ def parser_vcf_to_fasta():
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
         default=0.0)
-    parser.add_argument("--name", dest="name",
-        help="output sequence name (default: reference name in VCF file)",
-        default=None)
+    parser.add_argument("--name", dest="name", nargs="*",
+        help="output sequence names (default: reference names in VCF file)",
+        default=[])
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
@@ -588,13 +627,14 @@ def main_vcf_to_fasta(args):
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
     with open(args.outFasta, 'wt') as outf:
+        chr_idx = 0
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
             chrlens, samples, min_dp=args.min_dp, major_cutoff=args.major_cutoff,
             min_dp_ratio=args.min_dp_ratio):
             if args.trim_ends:
                 seq = seq.strip('Nn')
-            if args.name!=None:
-                header = args.name
+            if args.name:
+                header = args.name[chr_idx % len(args.name)]
             for line in util.file.fastaMaker([(header, seq)]):
                 outf.write(line)
 
