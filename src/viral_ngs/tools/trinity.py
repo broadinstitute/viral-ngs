@@ -6,8 +6,8 @@
     viral genomes.
 '''
 
-import logging, tools, util.file
-import os, os.path, subprocess, tempfile
+import logging, os, os.path, subprocess, tempfile, shutil
+import tools, util.file
 
 tool_version = "2011-11-26"
 trinityVersion = "trinityrnaseq_r{}".format(tool_version)
@@ -56,6 +56,7 @@ class DownloadAndBuildTrinity(tools.DownloadPackage) :
             open(badFilePath, 'w').write(extraLine + fileContents)
         # Now we can make:
         os.system('cd "{}" && make -s'.format(trinityDir))
+        shutil.rmtree(os.path.join(trinityDir, 'sample_data'), ignore_errors=True)
     def verify_install(self) :
         if not tools.DownloadPackage.verify_install(self) :
             return False
