@@ -21,7 +21,7 @@
          gfortran git oracle-java8-installer
          libncurses5-dev python3-nose
         pip3 install -r requirements.txt
-        pip3 install snakemake==3.2
+        pip3 install snakemake==3.2 yappi==0.94
 """
 
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
