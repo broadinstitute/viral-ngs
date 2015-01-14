@@ -15,7 +15,7 @@ my %option = (
 	minlongcont		=> 100, # Minimum length of a raw contig. Any contig below this length will be filtered out from the start
 	mincontlen		=> 350,
 	maxorigaplen	=> 10,
-	musclepath      => "/seq/annotation/bio_tools/muscle/3.8/",
+	musclepath      => "/seq/annotation/bio_tools/muscle/3.8/muscle",
 	h				=> '',
 );
 
@@ -111,7 +111,7 @@ sub orientContig
 		print CURCONTOUT ">$curCont\n".$contList{$curCont}."\n>$reffastaname\n$refseq\n";
 		close CURCONTOUT;
 
-		system($musclepath."muscle -in $output"."_$curCont.orimfa -out $output"."_$curCont.oriafa -quiet");
+		system($musclepath." -in $output"."_$curCont.orimfa -out $output"."_$curCont.oriafa -quiet");
 		my $inputlen = length($contList{$curCont});
 	
 		my $longestcont = 0;
@@ -126,7 +126,7 @@ sub orientContig
 		print CURREVOUT ">$curCont\n$curRevSeq\n>$reffastaname\n$refseq\n";
 		close CURREVOUT;
 		
-		system($musclepath."muscle -in $output"."_$curCont.orirevmfa -out $output"."_$curCont.orirevafa -quiet");
+		system($musclepath." -in $output"."_$curCont.orirevmfa -out $output"."_$curCont.orirevafa -quiet");
 	
 		(my $revpctgap, my $revasspctgap, $longestcont) = calcPctGap($output."_$curCont.orirevafa",$longestcont);
 		my $longestrevcont = $longestcont;
