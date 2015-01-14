@@ -30,7 +30,8 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     map(os.unlink, infq)
     
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
-    read_utils.rmdup_prinseq_fastq(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1])
+    read_utils.rmdup_prinseq_fastq(trimfq[0], rmdupfq[0])
+    read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
     map(os.unlink, trimfq)
 
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
