@@ -27,15 +27,15 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
     taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
-    map(os.unlink(infq))
+    map(os.unlink, infq)
     
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
     read_utils.rmdup_prinseq_fastq(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1])
-    map(os.unlink(trimfq))
+    map(os.unlink, trimfq)
 
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
-    map(os.unlink(rmdupfq))
+    map(os.unlink, rmdupfq)
     
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
@@ -45,10 +45,10 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
         '-out', subsampfq[0], subsampfq[1],
         ]
     subprocess.check_call(cmd)
-    map(os.unlink(purgefq))
+    map(os.unlink, purgefq)
     
     tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
-    map(os.unlink(subsampfq))
+    map(os.unlink, subsampfq)
     return 0
 
 def parser_assemble_trinity():
@@ -101,7 +101,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         ]
     subprocess.check_call(cmd)
     if inReads:
-        map(os.unlink(readsFq))
+        map(os.unlink, readsFq)
     with open(tmp_merged, 'wt') as outf:
         for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
             with open(fn, 'rt') as inf:
