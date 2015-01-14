@@ -16,12 +16,8 @@ use File::Basename;
 
 my %option = (
 	mincontlen 	=> 350,	# Minimum length of contigs that will be analyzed
-	readfa				=> '',		# Input file containing the reads in fasta format
-	readq				=> '',		# Input file containing the read quals
-	readfa2				=> '',		# Input file containing the reads in fasta format
-	readq2				=> '',		# Input file containing the read quals
-	readfq				=> '',		# Input file containing the reads in fasta format
-	readfq2				=> '',		# Input file containing the read quals
+	readfq				=> '',		# Input file containing the reads in fastq format
+	readfq2				=> '',		# Input file containing the 2nd pair of reads
 	maxseggap			=> 30,
 	maxsegins			=> 60,
 	minseglen			=> 50,
@@ -29,18 +25,14 @@ my %option = (
 	longcont			=> 1500,
 	contigcov			=> 2,
 	allcont				=> '',
-	sequencer			=> 'illumina',
-	fakequals			=> 30,
-	musclepath          => "/seq/annotation/bio_tools/muscle/3.8/",
+	musclepath          => "/seq/annotation/bio_tools/muscle/3.8/muscle",
+	mosaikpath          => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin",
+	mosaiknetworkpath   => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile",
 	h					=> '',
 );
 
 GetOptions(
 	"mincontlen=i"	=> \$option{mincontlen},
-	"readfa=s"			=> \$option{readfa},
-	"readq=s"			=> \$option{readq},
-	"readfa2=s"			=> \$option{readfa2},
-	"readq2=s"			=> \$option{readq2},
 	"readfq=s"			=> \$option{readfq},
 	"readfq2=s"			=> \$option{readfq2},
 	"maxseggap=i"		=> \$option{maxseggap},
@@ -50,9 +42,9 @@ GetOptions(
 	"longcont=i"		=> \$option{longcont},
 	"contigcov=i"		=> \$option{contigcov},
 	"allcont"			=> \$option{allcont},
-	"sequencer=s"		=> \$option{sequencer},
 	"musclepath=s"		=> \$option{musclepath},
-  	"fakequals=i"		=> \$option{fakequals},
+    "mosaikpath=s"      => \$option{mosaikpath},
+    "mosaiknetworkpath=s" => \$option{mosaiknetworkpath}
 	"h"					=> \$option{h},
 ) || die("Problem processing command-line options: $!\n");
 
@@ -61,14 +53,8 @@ if($option{h})
 	print "Usage : perl contigMerger.pl orientContigsOutputName reference.fa outputBaseName\n";
 	print "contigMerger.pl requires	MUSCLE to run, and Mosaik if reads are used\n";
 	print "Options:\n";
-	print "-readfa\t\tReads file in fasta format\n";
-	print "-readq\t\tReads quality file in fasta format (spaced integers)\n";
-	print "-readfa2\t\tReads file in fasta format (2nd mate if paired)\n";
-	print "-readq2\t\tReads quality file in fasta format (spaced integers) (2nd mate if paired)\n";
 	print "-readfq\t\tReads file in fastq format\n";
 	print "-readfq2\t\tReads file in fastq format (2nd mate if paired)\n";
-	print "-sequencer(illumina)\tSets which sequencer was used to determine which version of Mosaik to run. Currently supports illumina, 454\n";
-	print "-fakequals()\tFake all quality scores to a given value in qlx files. This won't affect the results of any script in this package and will speed it up, but qlx files will not be valid for other softwares using them like V-Phaser\n";
 	print "-maxseggap(30)\tMaximum gap length before splitting segments\n";
 	print "-maxsegins(60)\tMaximum insertion length before splitting segments\n";
 	print "-minseglen(50)\tMinimum length of a segment\n";
@@ -88,17 +74,10 @@ my $scriptpath = dirname(__FILE__);
 
 my $hasreads = '';
 
-if($option{readfa} || $option{readfq}){$hasreads = 1;}
+if($option{readfq}){$hasreads = 1;}
 
-my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina";
-if($option{sequencer} eq '454')
-{
-	$mosaikParam = " -hgop 4 -gop 15 -gep 6.66 -bw 0 -st 454";
-}
-if($option{fakequals})
-{
-	$mosaikParam .= " -fakequals ".$option{fakequals};
-}
+my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina -fakequals 30"
+$mosaikParam .= " -mosaikpath ".$option{mosaikpath}." -mosaiknetworkpath".$option{mosaiknetworkpath};
 
 my $reffastaname = '';
 (my $refid, my $refseq) = readFasta($reffile);
@@ -141,12 +120,8 @@ print OUTPUT ">Consensus\n$consensusSeq\n";
 print OUTALN ">Consensus\n$consensusSeq\n>$refid\n$refseq\n";
 close OUTALN;
 close OUTPUT;
-system($musclepath."muscle -in $output"."_vsRef.mfa -out $output"."_vsRef.afa -quiet");
+system($musclepath." -in $output"."_vsRef.mfa -out $output"."_vsRef.afa -quiet");
 
-if($option{readfa} && $option{readq})
-{
-	system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $output"."_assembly.fa -o $output"."_readAlignment -qlx -qlxonly".$mosaikParam);
-}
 
 ###### SUBS ######
 
@@ -166,21 +141,13 @@ sub alignReads
 		open(TMPFA, ">$file");
 		print TMPFA ">$contid\n".$contigSeqs{$contid}{seq}."\n";
 		close TMPFA;
-		if($option{readfa} && $option{readq})
-		{
-			if($option{readfa2} && $option{readq2})
-			{
-				system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -fa2 ".$option{readfa2}." -qual2 ".$option{readq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
-			}else{
-				system("perl $scriptpath/runMosaik2.pl -fa ".$option{readfa}." -qual ".$option{readq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
-			}
-		}elsif($option{readfq})
+        if($option{readfq})
 		{
 			if($option{readfq2})
 			{
-				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -fq2 ".$option{readfq2}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -fq2 ".$option{readfq2}." -ref $file -o $output"."_$contid"."_aligned ".$mosaikParam);
 			}else{
-				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -ref $file -o $output"."_$contid"."_aligned -qlx -qlxonly".$mosaikParam);
+				system("perl $scriptpath/runMosaik2.pl -fq ".$option{readfq}." -ref $file -o $output"."_$contid"."_aligned ".$mosaikParam);
 			}
 		}
 	}
@@ -235,7 +202,7 @@ sub mergeContigsReads
 				print TMPOUT ">$curcont\n".$$curseg{contigs}{$curcont}{seq}."\n";
 			}
 			close TMPOUT;
-			system($musclepath."muscle -in $curfilename.mfa -out $curfilename.afa -quiet");
+			system($musclepath." -in $curfilename.mfa -out $curfilename.afa -quiet");
 			
 			my %curpos;
 			my %alnseq;
@@ -568,10 +535,7 @@ sub buildOverlapMap
 		{
 			if($segments{$cursegcont}{$segno}{end} - $segments{$cursegcont}{$segno}{start} + 1 >= $option{minseglen})
 			{	
-				unless($option{readfa} && $option{readq})
-				{
-					if($segments{$cursegcont}{$segno}{start} >= $previousstart && $segments{$cursegcont}{$segno}{end} <= $previousstop){next;}
-				}
+				if($segments{$cursegcont}{$segno}{start} >= $previousstart && $segments{$cursegcont}{$segno}{end} <= $previousstop){next;}
 				$validSegments{$count}{start} = $segments{$cursegcont}{$segno}{start};
 				$validSegments{$count}{end} = $segments{$cursegcont}{$segno}{end};
 				$validSegments{$count}{contig} = $cursegcont;

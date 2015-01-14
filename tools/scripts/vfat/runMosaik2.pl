@@ -35,8 +35,6 @@ my %option = (
 	bw			=> 29,
 	m			=> "unique",
 	st			=> "illumina",	#sequencing technology. Accepted : sanger, 454, illumina, illumina_long, helicos, solid
-	qlxonly 	=> 0,
-	qlx 		=> '',
 	fakequals	=> 0,
 	mfl 		=> 600, 	#median fragment length
 	ref			=> '',
@@ -47,10 +45,11 @@ my %option = (
 	fq			=> '',
 	fq2			=> '',
 	o			=> '',
-	param454	=> '',
 	paramillu	=> '',
 	annpe 		=> '',
 	annse 		=> '',
+	mosaikpath  => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin",
+	mosaiknetworkpath => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile",
 );
 
 GetOptions(
@@ -70,8 +69,6 @@ GetOptions(
   "bw=i"		=> \$option{bw},
   "m=s"			=> \$option{m},
   "st=s"		=> \$option{st},
-  "qlxonly" 	=> \$option{qlxonly},
-  "qlx" 		=> \$option{qlx},
   "fakequals=i" => \$option{fakequals},
   "mfl=s"		=> \$option{mfl},
   "ref=s"		=> \$option{ref},
@@ -82,10 +79,11 @@ GetOptions(
   "fq=s"		=> \$option{fq},
   "fq2=s"		=> \$option{fq2},
   "o=s"			=> \$option{o},
-  "param454" 	=> \$option{param454},
   "paramillu" 	=> \$option{paramillu},
   "annpe=s"		=> \$option{annpe},
-  "annse=s"		=> \$option{annse}
+  "annse=s"		=> \$option{annse},
+  "mosaikpath=s" => \$option{mosaikpath},
+  "mosaiknetworkpath=s" => \$option{mosaiknetworkpath}
 ) || die("Problem processing command-line options: $!\n");
 
 my $output = $option{o};
@@ -100,12 +98,10 @@ if($option{h})
 }
 
 my $scriptpath = dirname(__FILE__);
-my $mosaikpath = "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin/";
-my $samtoolspath = "/broad/software/free/Linux/redhat_5_x86_64/pkgs/samtools/samtools_0.1.16/bin/";
-my $mosaiknetworkpath = "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile/";
+my $mosaikpath = $option{mosaikpath};
+my $mosaiknetworkpath = $option{mosaiknetworkpath};
 
 if($mosaiknetworkpath && substr($mosaiknetworkpath, length($mosaiknetworkpath) - 1) ne '/'){$mosaiknetworkpath .= '/';}
-if($samtoolspath && substr($samtoolspath, length($samtoolspath) - 1) ne '/'){$samtoolspath .= '/';}
 if($mosaikpath && substr($mosaikpath, length($mosaikpath) - 1) ne '/'){$mosaikpath .= '/';}
 if($scriptpath && substr($scriptpath, length($scriptpath) - 1) ne '/'){$scriptpath .= '/';}
 
@@ -119,13 +115,6 @@ unless($option{annse})
 }
 
 
-if($option{param454})
-{
-	$option{gop} = 15;
-	$option{hgop} = 4;
-	$option{gep} = 6.66;
-	$option{st} = '454';
-}
 if($option{paramillu})
 {
 	$option{gop} = 40;
@@ -169,26 +158,14 @@ if($option{fq} && $option{fq2})
 }
 
 system($mosaikpath."MosaikAligner -in $readdat -out $output -ia $refdat -hs ".$option{hs}." -act ".$option{act}." -mm 500 -mmp ".$option{mmp}." -minp ".$option{minp}." -ms ".$option{ms}." -mms ".$option{mms}." -gop ".$option{gop}." -hgop ".$option{hgop}." -gep ".$option{gep}."$bw -m ".$option{m}." -annpe ".$option{annpe}." -annse ".$option{annse});
-system($samtoolspath."samtools sort $output.bam $output.sorted");
-system($samtoolspath."samtools view -h -o $output.sam $output.sorted.bam");
 
 my $sam2qlxopt = '';
 if($option{fakequals})
 {
 	$sam2qlxopt .= " -fakequals ".$option{fakequals};
 }
-if($option{qlx}){
-	system("perl ".$scriptpath."samToQlx.pl $output.sam ".$option{ref}." $output -nqsmq ".$option{nqsmq}." -nqsaq ".$option{nqsaq}." -nqssize ".$option{nqssize}." -nqvalue ".$option{nqvalue}.$sam2qlxopt);
-}
-if($option{qlxonly})
-{
-	system("rm $output.sam");
-	system("rm $output.bam");
-	system("rm $output.sorted.bam");
-	system("rm $output.multiple.bam");
-}else{
-	system("mv $output.sorted.bam $output.bam");
-}
+system("perl ".$scriptpath."samToQlx.pl $output.sam ".$option{ref}." $output -nqsmq ".$option{nqsmq}." -nqsaq ".$option{nqsaq}." -nqssize ".$option{nqssize}." -nqvalue ".$option{nqvalue}.$sam2qlxopt);
+system("rm $output.sam");
 
 system("rm $output.readdat");
 system("rm $output.refdat");
@@ -216,8 +193,6 @@ sub printHelp
 	print "-bw : banded Smith-Waterman bandwith (29 default)\n";
 	print "-m : alignment mode (default unique)\n";
 	print "-st : sequencing technology (default illumina)\n";
-	print "-qlx : generates a qlx output file (requires samToQlx.pl\n";
-	print "-qlxonly : keeps only the qlx output, removes the .sam and .bam outputs\n";
 	print "-fakequals : fakes qualities in the qlx output to a given amount (off by default)\n";
 	print "-mfl : medium fragment length for paired reads\n";
 	print "-ref : reference sequence fasta\n";
@@ -228,7 +203,6 @@ sub printHelp
 	print "-fq : reads fastq format\n";
 	print "-fq2 : reads fastq second mate if paired\n";
 	print "-o : output base name\n";
-	print "-param454 : sets Smith-Waterman parameters for 454 sequencing technology\n";
 	print "-paramillu : sets Smith-Waterman parameters for illumina sequencing technology\n";
 	print "-annpe : Network file. This file is actually included in the Mosaik distribution. It should be located in the networkFile folder. For Mosaik 2.1.26, this file is named: 2.1.26.pe.100.0065.ann\n";
 	print "-annse : Network file. This file is actually included in the Mosaik distribution. It should be located in the networkFile folder. For Mosaik 2.1.26, this file is named: 2.1.26.se.100.005.ann\n";
