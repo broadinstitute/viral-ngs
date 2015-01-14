@@ -7,7 +7,7 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, random, os, os.path, shutil
+import argparse, logging, random, os, os.path, shutil, glob
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
@@ -22,22 +22,22 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
     '''
-    infq = map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq'])
+    infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
     
-    trimfq = map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq'])
+    trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
     taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     map(os.unlink(infq))
     
-    rmdupfq = map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq'])
+    rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
     read_utils.rmdup_prinseq_fastq(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1])
     map(os.unlink(trimfq))
 
-    purgefq = map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq'])
+    purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     map(os.unlink(rmdupfq))
     
-    subsampfq = map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq'])
+    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
         '-n', str(n_reads),
         '-mode', 'p',
@@ -69,12 +69,82 @@ def main_assemble_trinity(args):
 __commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
 
 
-def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig, replaceLength):
+def order_and_orient(inFasta, inReference, outFasta,
+        inReads=None,
+        mosaikpath='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
+        mosaiknetworkpath='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile'):
     ''' This step cleans up the Trinity assembly with a known reference genome.
         VFAT (maybe Bellini later): take the Trinity contigs, align them to
             the known reference genome, switch it to the same strand as the
             reference, and produce chromosome-level assemblies (with runs of
             N's in between the Trinity contigs).
+    '''
+    # VFAT to order, orient, and merge contigs
+    # TO DO: replace with Bellini
+    musclepath = tools.muscle.MuscleTool().install_and_get_path()
+    tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
+    tmp_merged = util.file.mkstempfname('.merged.fasta')
+    cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'),
+        inFasta, inReference, tmp_prefix,
+        '-musclepath', musclepath]
+    subprocess.check_call(cmd)
+    cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
+        tmp_prefix+'_orientedContigs', inReference, tmp_prefix,
+        '-musclepath', musclepath]
+    if inReads:
+        readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
+        tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])
+        cmd = cmd + [
+            '-readfq', readsFq[0], '-readfq2', readsFq[1],
+            '-mosaikpath', mosaikpath,
+            '-mosaiknetworkpath', mosaiknetworkpath,
+        ]
+    subprocess.check_call(cmd)
+    if inReads:
+        map(os.unlink(readsFq))
+    with open(tmp_merged, 'wt') as outf:
+        for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
+            with open(fn, 'rt') as inf:
+                outf.write(inf.readlines())
+            os.unlink(fn)
+
+def parser_order_and_orient():
+    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+    parser.add_argument('inFasta',
+        help='Input assembly/contigs, FASTA format.')
+    parser.add_argument('inReference',
+        help='Reference genome, FASTA format.')
+    parser.add_argument('outFasta',
+        help='Output assembly, FASTA format.')
+    parser.add_argument('--inReads', default=None, help='Input reads in BAM format.')
+    parser.add_argument('--mosaikPath',
+        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
+        help='Path to MOSAIK aligner binaries.')
+    parser.add_argument('--mosaikNetworkPath',
+        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile',
+        help='Path to MOSAIK "network file".')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    return parser
+def main_order_and_orient(args):
+    order_and_orient(args.inFasta, args.inReference, args.outFasta,
+        inReads=args.inReads,
+        mosaikpath=args.mosaikPath, mosaiknetworkpath=args.mosaikNetworkPath)
+    return 0
+__commands__.append(('order_and_orient', main_order_and_orient, parser_order_and_orient))
+
+
+class PoorAssemblyError(Exception):
+    pass
+
+def impute_from_reference(inFasta, inReference, outFasta,
+        minLength, minUnambig, replaceLength, new_name=None):
+    '''
+        This takes a de novo assembly, aligns against a reference genome, and
+        imputes all missing positions (plus some of the chromosome ends)
+        with the reference genome. This provides an assembly with the proper
+        structure (but potentially wrong sequences in areas) from which
+        we can perform further read-based refinement.
+        Two steps:
         filter_short_seqs: We then toss out all assemblies that come out to
             < 15kb or < 95% unambiguous and fail otherwise.
         modify_contig: Finally, we trim off anything at the end that exceeds
@@ -85,39 +155,76 @@ def align_and_orient_vfat(inFasta, inReference, outFasta, minLength, minUnambig,
             that would otherwise be Ns, and we will correct all of the inferred
             positions with two steps of read-based refinement (below), and
             revert positions back to Ns where read support is lacking.
+        FASTA indexing: output assembly is indexed for Picard, Samtools, Novoalign.
     '''
-    raise NotImplementedError()
-    '''
-    shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
-    shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
-    shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
+    muscle = tools.muscle.MuscleTool()
     
-    shell("{config[binDir]}/assembly.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.min_unambig} {output[0]}")
-    
-    shell("cat {output[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {params.tmpf_muscle} -quiet")
-    refName = first_fasta_header(params.refGenome)
-    shell("{config[binDir]}/assembly.py modify_contig {params.tmpf_muscle} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
-    '''
+    # Halt if the assembly looks too poor at this point
+    # TO DO: this can easily be generalized to multi-chr genomes
+    tmp_filtered = util.file.mkstempfname('.filtered.fasta')
+    with open(tmp_filtered, 'wt') as outf:
+        seqs = list([s for s in Bio.SeqIO.parse(inFasta, 'fasta')
+            if len(s) >= minLength and unambig_count(s.seq) >= len(s)*minUnambig])
+        if not seqs:
+            raise PoorAssemblyError()
+        Bio.SeqIO.write(seqs, outf, 'fasta')
+    os.unlink(tmp_merged)
     
     # Align to known reference and impute missing sequences
+    # TO DO: this can be iterated per chromosome
+    concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
     muscle_align = util.file.mkstempfname('.muscle.fasta')
-    fastaheadername = "??"
-    main_modify_contig(parser_modify_contig().parse_args([
-        muscle_align, outFasta, inReference,
-        '--name', fastaheadername,
+    refName = None
+    with open(concat_file, 'wt') as outf:
+        with open(inReference, 'rt') as inf:
+            for line in inf:
+                if not refName and line.startswith('>'):
+                    refName = line[1:]
+                outf.write(line)
+        with open(tmp_filtered, 'rt') as inf:
+            outf.write(inf.readlines())
+    muscle.execute(concat_file, muscle_align, quiet=True)
+    args = [muscle_align, outFasta, inReference,
         '--call-reference-ns', '--trim-ends',
         '--replace-5ends', '--replace-3ends',
         '--replace-length', str(replaceLength),
-        '--replace-end-gaps',
-        ]))
-    
+        '--replace-end-gaps']
+    if new_name:
+        args = args + ['--name', new_name]
+    main_modify_contig(parser_modify_contig().parse_args(args))
+    os.unlink(concat_file)
+    os.unlink(muscle_align)
     
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
     tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
     tools.novoalign.NovoalignTool().index_fasta(outFasta)
+
+def parser_impute_from_reference():
+    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+    parser.add_argument('inFasta',
+        help='Input assembly/contigs, FASTA format.')
+    parser.add_argument('inReference',
+        help='Reference genome, FASTA format.')
+    parser.add_argument('outFasta',
+        help='Output assembly, FASTA format.')
+    parser.add_argument("--newName", default=None,
+        help="rename output chromosome (default: do not rename)")
+    parser.add_argument("--minLength", type=int, default=0,
+        help="minimum length for contig (default: %(default)s)")
+    parser.add_argument("--minUnambig", type=float, default=0.0,
+        help="minimum percentage unambiguous bases for contig (default: %(default)s)")
+    parser.add_argument("--replaceLength", type=int, default=0,
+        help="length of ends to be replaced with reference (default: %(default)s)")
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    return parser
+def main_impute_from_reference(args):
+    impute_from_reference(args.inFasta, args.inReference, args.outFasta,
+        minLength=args.minLength, minUnambig=args.minUnambig,
+        replaceLength=args.replaceLength, new_name=args.newName)
     return 0
-    
+__commands__.append(('impute_from_reference', main_impute_from_reference, parser_impute_from_reference))
+
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
