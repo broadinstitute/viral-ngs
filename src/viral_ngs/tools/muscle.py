@@ -24,7 +24,7 @@ class MuscleTool(tools.Tool) :
             install_methods.append(
                 tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
                     'muscle{}/src/muscle'.format(tool_version),
-                    post_download_command='cd muscle{}/src; make'.format(tool_version),
+                    post_download_command='cd muscle{}/src; make -s'.format(tool_version),
                     verifycmd='{}/muscle{}/src/muscle -version 2> /dev/null'.format(util.file.get_build_path(), tool_version)))
         tools.Tool.__init__(self, install_methods = install_methods)
     

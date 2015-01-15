@@ -12,18 +12,21 @@ log = logging.getLogger(__name__)
 
 class MosaikTool(tools.Tool) :
     def __init__(self) :
-        # set env variable BLD_PLATFORM=macosx or macosx64 (default is linux)
+        if os.uname()[0] == 'Darwin':
+            if os.uname()[4].endswith('_64'):
+                os.environ['BLD_PLATFORM'] = 'macosx64'
+            else:
+                os.environ['BLD_PLATFORM'] = 'macosx'
         tool_dir = 'MOSAIK-{ver}-{os}'.format(ver=tool_version, os='source')
-        self.tool_dir = os.path.join(util.file.get_build_path(), tool_dir)
         install_methods = [
             tools.DownloadPackage(url.format(ver=tool_version, os='source'),
                 os.path.join(tool_dir, 'bin', 'MosaikAligner'),
-                post_download_command='cd {}; make'.format(tool_dir))
-        ]
+                post_download_command='cd {}; make -s'.format(tool_dir))]
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
         return tool_version
     
     def get_networkFile(self):
-        return os.path.join(self.tool_dir, 'networkFile')
+        dir = os.path.dirname(os.path.dirname(self.install_and_get_path()))
+        return os.path.join(dir, 'networkFile')

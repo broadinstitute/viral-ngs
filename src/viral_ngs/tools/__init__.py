@@ -191,12 +191,17 @@ class DownloadPackage(InstallMethod):
 
                 return
             else:
-                os.unlink("%s/%s" % (download_dir, self.download_file))
+                os.unlink(os.path.join(download_dir, self.download_file))
         elif (self.download_file.endswith('.tar.gz') or
               self.download_file.endswith('.tgz') or
-              self.download_file.endswith('.tar.bz2')):
-            compression_option = 'j' if self.download_file.endswith( \
-                    '.tar.bz2') else 'z'
+              self.download_file.endswith('.tar.bz2') or
+              self.download_file.endswith('.tar')):
+            if self.download_file.endswith('.tar'):
+                compression_option = ''
+            elif self.download_file.endswith('.tar.bz2'):
+                compression_option = 'j'
+            else:
+                compression_option = 'z'
             untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir,
                                                         compression_option,
                                                         download_dir,
