@@ -81,7 +81,6 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     # TO DO: replace with Bellini
     musclepath = tools.muscle.MuscleTool().install_and_get_path()
     tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
-    tmp_merged = util.file.mkstempfname('.merged.fasta')
     cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'),
         inFasta, inReference, tmp_prefix,
         '-musclepath', musclepath]
@@ -104,8 +103,9 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     subprocess.check_call(cmd)
     if inReads:
         map(os.unlink, readsFq)
-    with open(tmp_merged, 'wt') as outf:
+    with open(outFasta, 'wt') as outf:
         for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
+            log.debug("appending {} to {}".format(fn, outFasta))
             with open(fn, 'rt') as inf:
                 for line in inf:
                     outf.write(line)
@@ -163,7 +163,6 @@ def impute_from_reference(inFasta, inReference, outFasta,
         if not seqs:
             raise PoorAssemblyError()
         Bio.SeqIO.write(seqs, outf, 'fasta')
-    os.unlink(tmp_merged)
     
     # Align to known reference and impute missing sequences
     # TO DO: this can be iterated per chromosome
