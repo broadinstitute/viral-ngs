@@ -37,8 +37,8 @@ class TrinityTool(tools.Tool) :
             '--left', inFastq1,
             '--right', inFastq2,
             '--output', outdir]
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        log.debug(' '.join(cmd))
+        subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
 

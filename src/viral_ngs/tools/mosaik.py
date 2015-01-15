@@ -17,16 +17,29 @@ class MosaikTool(tools.Tool) :
                 os.environ['BLD_PLATFORM'] = 'macosx64'
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
-        tool_dir = 'MOSAIK-{ver}-{os}'.format(ver=tool_version, os='source')
-        install_methods = [
-            tools.DownloadPackage(url.format(ver=tool_version, os='source'),
-                os.path.join(tool_dir, 'bin', 'MosaikAligner'),
-                post_download_command='cd {}; make -s'.format(tool_dir))]
+            pkg_os = 'source'
+        elif os.uname()[0] == 'Linux' and os.uname()[4] == 'x86_64':
+            pkg_os = 'Linux-x64'
+        else:
+            pkg_os = 'source'
+        install_methods = []
+        if os.uname()[0] == 'Linux' and os.uname()[4] == 'x86_64':
+            install_methods.append(tools.DownloadPackage(url.format(ver=tool_version, os=pkg_os),
+                os.path.join('MOSAIK-{ver}-{os}'.format(ver=tool_version, os=pkg_os), 'MosaikAligner')))
+        install_methods.append(tools.DownloadPackage(url.format(ver=tool_version, os='source'),
+            os.path.join('bin', 'MosaikAligner'),
+            post_download_command='cd MOSAIK-{}-source; make -s'.format(tool_version)))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
         return tool_version
     
     def get_networkFile(self):
-        dir = os.path.dirname(os.path.dirname(self.install_and_get_path()))
-        return os.path.join(dir, 'networkFile')
+        # this is the directory to return
+        dir = os.path.join(util.file.get_build_path(),
+            'MOSAIK-{}-source'.format(tool_version),
+            'networkFile')
+        if not os.path.isdir(dir):
+            # if it doesn't exist, run just the download-unpack portion of the source installer
+            self.get_install_methods()[-1].download()
+        return dir
