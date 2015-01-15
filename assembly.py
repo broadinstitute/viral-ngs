@@ -107,7 +107,7 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
             log.debug("appending {} to {}".format(fn, outFasta))
             out_chr_count += 1
             with open(fn, 'rt') as inf:
-                map(outf.write, inf.readlines())
+                map(outf.write, inf)
             os.unlink(fn)
     with open(inReference, 'rt') as inf:
         ref_chr_count = len([1 for x in inf if x.startswith('>')])
@@ -179,7 +179,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     refName = line[1:]
                 outf.write(line)
         with open(inFasta, 'rt') as inf:
-            map(outf.write, inf.readlines())
+            map(outf.write, inf)
     tools.muscle.MuscleTool().execute(concat_file, muscle_align, quiet=True)
     args = [muscle_align, outFasta, inReference,
         '--call-reference-ns', '--trim-ends',
