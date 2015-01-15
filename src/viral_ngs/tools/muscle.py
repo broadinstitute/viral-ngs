@@ -32,7 +32,7 @@ class MuscleTool(tools.Tool) :
         return tool_version
     
     def execute(self, inFasta, outFasta,
-        maxiters=None, maxhours=None, outFormat='fasta', diags=None, quiet=None, log=None):
+        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=None, log=None):
         toolCmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
         
         if format in ('html', 'msf', 'clw', 'clwstrict'):
