@@ -32,7 +32,7 @@ class MuscleTool(tools.Tool) :
         return tool_version
     
     def execute(self, inFasta, outFasta,
-        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=None, log=None):
+        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=None, logFile=None):
         toolCmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
         
         if format in ('html', 'msf', 'clw', 'clwstrict'):
@@ -48,8 +48,8 @@ class MuscleTool(tools.Tool) :
             toolCmd.append('-maxiters {}'.format(maxiters))
         if maxhours:
             toolCmd.append('-maxhours {}'.format(maxhours))
-        if log:
-            toolCmd.append('-log {}'.format(log))
+        if logFile:
+            toolCmd.append('-log {}'.format(logFile))
         
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
