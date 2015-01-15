@@ -1,5 +1,6 @@
 VERSION
 test/output/
+docs/generated/
 
 # Mac OSX
 .DS_Store

@@ -83,10 +83,11 @@ def main_argparse(commands, description):
         parser = cmd_parser()
         parser.description = cmd_main.__doc__
         parser.set_defaults(func_main=cmd_main)
+        parser.set_defaults(command='')
     else:
         # multiple commands available
         parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers()
+        subparsers = parser.add_subparsers(dest='command')
         for cmd_name in cmdlist:
             cmd_main, cmd_parser = commands[cmd_name]
             p = subparsers.add_parser(cmd_name)
@@ -112,9 +113,9 @@ def main_argparse(commands, description):
             and create a subdirectory within it which we will then destroy at
             the end of execution.
         '''
-        proposed_dir = 'tmp-%s-%s' % (script_name(),command!=None and command or '')
+        proposed_dir = 'tmp-%s-%s' % (script_name(),args.command)
         if 'LSB_JOBID' in os.environ:
-            proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(),command,os.environ['LSB_JOBID'],os.environ['LSB_JOBINDEX'])
+            proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(),args.command,os.environ['LSB_JOBID'],os.environ['LSB_JOBINDEX'])
         tempfile.tempdir = tempfile.mkdtemp(prefix='%s-'%proposed_dir, dir=args.tmpDir)
         log.debug("using tempDir: %s" % tempfile.tempdir)
         os.environ['TMPDIR'] = tempfile.tempdir     # this is for running R
@@ -122,7 +123,7 @@ def main_argparse(commands, description):
             ret = args.func_main(args)
         except:
             if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep and not (tempfile.tempdir.startswith('/tmp') or tempfile.tempdir.startswith('/local')):
-                log.exception("Exception occurred while running %s, saving tmpDir at %s" % (command, tempfile.tempdir))
+                log.exception("Exception occurred while running %s, saving tmpDir at %s" % (args.command, tempfile.tempdir))
             else:
                 shutil.rmtree(tempfile.tempdir)
             raise
@@ -130,7 +131,7 @@ def main_argparse(commands, description):
             shutil.rmtree(tempfile.tempdir)
     else:
         # otherwise just run the command
-        ret = commands[command][0](args)
+        ret = args.func_main(args)
     if ret==None:
         ret = 0
     return ret
