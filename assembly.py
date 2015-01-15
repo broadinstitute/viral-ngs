@@ -113,7 +113,7 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
                 map(outf.write, inf.readlines())
             os.unlink(fn)
     with open(inReference, 'rt') as inf:
-        ref_chr_count = len(1 for x in inf if x.startswith('>'))
+        ref_chr_count = len([1 for x in inf if x.startswith('>')])
     if out_chr_count != ref_chr_count:
         raise Exception("error: expected {} chromosomes, only got {} chromosomes".format(ref_chr_count, out_chr_count))
 
