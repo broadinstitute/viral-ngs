@@ -105,11 +105,17 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
     if inReads:
         map(os.unlink, readsFq)
     with open(outFasta, 'wt') as outf:
+        out_chr_count = 0
         for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
             log.debug("appending {} to {}".format(fn, outFasta))
+            out_chr_count += 1
             with open(fn, 'rt') as inf:
                 map(outf.write, inf.readlines())
             os.unlink(fn)
+    with open(inReference, 'rt') as inf:
+        ref_chr_count = len(1 for x in inf if x.startswith('>'))
+    if out_chr_count != ref_chr_count:
+        raise Exception("error: expected {} chromosomes, only got {} chromosomes".format(ref_chr_count, out_chr_count))
 
 def parser_order_and_orient():
     parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
@@ -131,7 +137,10 @@ __commands__.append(('order_and_orient', main_order_and_orient, parser_order_and
 
 
 class PoorAssemblyError(Exception):
-    pass
+    def __init__(self, chr_idx, seq_len, non_n_count):
+        super(PoorAssemblyError, self).__init__(
+            'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}'.format(
+            chr_idx, seq_len, non_n_count))
 
 def impute_from_reference(inFasta, inReference, outFasta,
         minLength, minUnambig, replaceLength, new_name=None):
@@ -154,17 +163,15 @@ def impute_from_reference(inFasta, inReference, outFasta,
             revert positions back to Ns where read support is lacking.
         FASTA indexing: output assembly is indexed for Picard, Samtools, Novoalign.
     '''
-    muscle = tools.muscle.MuscleTool()
-    
     # Halt if the assembly looks too poor at this point
-    # TO DO: this can easily be generalized to multi-chr genomes
-    tmp_filtered = util.file.mkstempfname('.filtered.fasta')
-    with open(tmp_filtered, 'wt') as outf:
-        seqs = list([s for s in Bio.SeqIO.parse(inFasta, 'fasta')
-            if len(s) >= minLength and unambig_count(s.seq) >= len(s)*minUnambig])
-        if not seqs:
-            raise PoorAssemblyError()
-        Bio.SeqIO.write(seqs, outf, 'fasta')
+    # TO DO: this can easily be generalized to multi-chr genomes by changing minLength to a fraction
+    chr_idx = 0
+    for seq in Bio.SeqIO.parse(inFasta, 'fasta'):
+        chr_idx += 1
+        non_n_count = unambig_count(seq.seq)
+        seq_len = len(seq)
+        if seq_len<minLength or non_n_count<seq_len*minUnambig:
+            raise PoorAssemblyError(chr_idx, seq_len, non_n_count)
     
     # Align to known reference and impute missing sequences
     # TO DO: this can be iterated per chromosome
@@ -177,9 +184,9 @@ def impute_from_reference(inFasta, inReference, outFasta,
                 if not refName and line.startswith('>'):
                     refName = line[1:]
                 outf.write(line)
-        with open(tmp_filtered, 'rt') as inf:
+        with open(inFasta, 'rt') as inf:
             map(outf.write, inf.readlines())
-    muscle.execute(concat_file, muscle_align, quiet=True)
+    tools.muscle.MuscleTool().execute(concat_file, muscle_align, quiet=True)
     args = [muscle_align, outFasta, inReference,
         '--call-reference-ns', '--trim-ends',
         '--replace-5ends', '--replace-3ends',
