@@ -123,7 +123,7 @@ rule coverage_report:
     input:  coverage_input_files
     output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
     resources: mem=3
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00') + " -sp 40',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00') + " -sp 40",
             logid="{sample}-{adjective}"
     run:
             makedirs(os.path.join(config["reportsDir"], 'coverage'))
