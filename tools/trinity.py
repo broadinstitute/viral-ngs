@@ -51,10 +51,10 @@ class DownloadAndBuildTrinity(tools.DownloadPackage) :
                                        'RunButterfly.cc')
             os.rename(badFilePath, badFilePath + '.orig')
             with open(badFilePath, 'wt') as outf:
-                extraLine = '#include <unistd.h>\n'
-                outf.write(extraLine)
+                outf.write('#include <unistd.h>\n')
                 with open(badFilePath+'.orig', 'rt') as inf:
-                    outf.write(inf.readlines())
+                    for line in inf:
+                        outf.write(line)
             
             # Trinity.pl insists on Java 1.6, but Java >= 1.6 is fine
             badFilePath = os.path.join(trinityDir, 'Trinity.pl')
