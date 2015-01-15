@@ -52,7 +52,7 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
 
 def main_command(mainfunc):
     def _main(args):
-        args2 = dict((k,v) for k,v in vars(args).items() if k not in ('loglevel','tmpDir','tmpDirKeep','version'))
+        args2 = dict((k,v) for k,v in vars(args).items() if k not in ('loglevel','tmpDir','tmpDirKeep','version','func_main','command'))
         mainfunc(**args2)
     _main.__doc__ = mainfunc.__doc__
     return _main
