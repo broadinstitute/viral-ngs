@@ -3,7 +3,7 @@ around other commands and presents the ability to serve up multiple
 command-line functions from a single python script.
 '''
 
-import os, tempfile, sys, shutil, logging, argparse
+import os, os.path, tempfile, sys, shutil, logging, argparse
 import util.version
 
 __author__ = "dpark@broadinstitute.org"
@@ -21,7 +21,7 @@ def setup_logger(log_level):
     log.addHandler(h)
 
 def script_name():
-    return sys.argv[0].split('/')[-1].rsplit('.',1)[0]
+    return os.path.basename(sys.argv[0]).rsplit('.',1)[0]
 
 def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
     for k,v in arglist:
@@ -38,18 +38,10 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
             parser.add_argument("--tmpDir", dest="tmpDir",
                 help="Directory for temp files.  [default: %(default)s]",
                 default=v)
-        elif k=='tmpDirKeep':
-            if v==None:
-                v = False
-            else:
-                v = v and True or False
             parser.add_argument("--tmpDirKeep",
                 action="store_true", dest="tmpDirKeep",
-                help="Delete the tmpDir, even if an exception occurs while running. [default: %(default)s]",
-                default=v)
-            parser.add_argument("--noTmpDirKeep",
-                action="store_false", dest="tmpDirKeep",
-                help="Delete the tmpDir if an exception occurs while running. [default: %(default)s]")
+                help="Keep the tmpDir, even if an exception occurs while running. [default is to delete all temp files]",
+                default=False)
         elif k=='version':
             if not v:
                 v=__version__
@@ -60,7 +52,7 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
 
 def main_command(mainfunc):
     def _main(args):
-        args2 = dict((k,v) for k,v in vars(args).items() if k not in ('loglevel','tmpDir','tmpDirKeep','version'))
+        args2 = dict((k,v) for k,v in vars(args).items() if k not in ('loglevel','tmpDir','version'))
         mainfunc(**args2)
     _main.__doc__ = mainfunc.__doc__
     return _main
@@ -145,10 +137,10 @@ def main_argparse(commands, description):
 
 def find_tmpDir():
     ''' This provides a suggested base directory for a temp dir for use in your
-        optparse-based tmpDir option.
+        argparse-based tmpDir option.
     '''
     tmpdir = '/tmp'
-    if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK):
+    if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):
         tmpdir = '/local/scratch'
     if 'LSB_JOBID' in os.environ:
         # this directory often exists for LSF jobs, but not always.
@@ -157,4 +149,6 @@ def find_tmpDir():
         proposed_dir = '/local/scratch/%s.tmpdir' % os.environ['LSB_JOBID']
         if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
             tmpdir = proposed_dir
+    elif 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
+        tmpdir = os.environ['TMPDIR']
     return tmpdir
