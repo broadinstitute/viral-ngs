@@ -15,6 +15,15 @@ def merge_vcfs(inFiles, refFasta, outFile):
         + " -T CombineVariants -R {refFasta} {inFilesString} -o {outFile}" \
         + " --genotypemergeoption UNIQUIFY")
 
+def update_timestamps(files):
+    ''' this dumb function exists because sometimes the different nodes on the
+        cluster have out-of-sync system clocks and snakemake fails if the mtime of
+        any input file is more recent than the mtimes of the output files
+    '''
+    for f in files:
+        if os.path.isfile(f) and os.path.getmtime(f) > time.time():
+            print("input file %s is more recent than present, resetting its modification time to present" % f)
+            os.utime(f)
 
 rule all_ref_guided:
     input:
@@ -33,7 +42,7 @@ rule ref_guided_consensus:
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             refGenome=config["ref_genome"],
             novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
@@ -54,7 +63,7 @@ rule ref_guided_diversity:
     output: os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     resources: mem=8
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=config["ref_genome"],
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
@@ -81,7 +90,7 @@ rule multi_align_mafft:
             sample=read_samples_file(config["samples_assembly"])),
     output: config["dataDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.pruned.phy'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             tmpf_mafft=config["tmpDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.mafft.fasta',
             log_trimal=config["tmpDir"]+'/'+config["subdirs"]["interhost"]+'/{sample}.log.trimal.html'
