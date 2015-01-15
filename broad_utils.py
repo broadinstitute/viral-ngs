@@ -37,23 +37,21 @@ def get_bustard_dir(jsonfile):
         bustard = json.load(inf)['workflow']['runFolder']
     return bustard
 
-def parser_get_bustard_dir() :
-    parser = argparse.ArgumentParser(
-        description='Find the Bustard directory from a Picard directory')
+def parser_get_bustard_dir(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir',  help='Picard directory')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
-def main_get_bustard_dir(args) :
+def main_get_bustard_dir(args):
+    'Find the basecalls directory from a Picard directory'
     print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
 __commands__.append(('get_bustard_dir', main_get_bustard_dir, parser_get_bustard_dir))
-def parser_get_run_date() :
-    parser = argparse.ArgumentParser(
-        description='Find the sequencing run date from a Picard directory')
+def parser_get_run_date(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir',  help='Picard directory')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
-def main_get_run_date(args) :
+def main_get_run_date(args):
+    'Find the sequencing run date from a Picard directory'
     print(get_run_date(get_json_from_picard(args.inDir)))
     return 0
 __commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
@@ -92,14 +90,14 @@ def get_all_runs(runfile):
     return list(sorted(get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane']
         for lane, well in iterate_wells(runfile)))
 
-def parser_get_all_names():
-    parser = argparse.ArgumentParser(description='Get all samples')
+def parser_get_all_names(parser=argparse.ArgumentParser()):
     parser.add_argument('type', help='Type of name',
         choices=['samples', 'libraries', 'runs'])
     parser.add_argument('runfile', help='File with seq run information')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     return parser
 def main_get_all_names(args) :
+    'Get all samples'
     if args.type=='samples':
         method = get_all_samples
     elif args.type=='libraries':
@@ -128,14 +126,14 @@ def make_barcodes_file(inFile, outFile):
             if row.get('library_id_per_sample'):
                 out['library_name'] += '.l' + row['library_id_per_sample']
             outf.write('\t'.join(out[h] for h in header)+'\n')
-def parser_make_barcodes_file() :
-    parser = argparse.ArgumentParser(description='Create input file for extract_barcodes')
+def parser_make_barcodes_file(parser=argparse.ArgumentParser()):
     parser.add_argument('inFile',
         help='''Input tab file w/header and 3-5 named columns (last two are optional):
                 sample, barcode_1, barcode_2, library_id_per_sample, run_id_per_library''')
     parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
     return parser
 def main_make_barcodes_file(args) :
+    'Create input file for extract_barcodes'
     make_barcodes_file(args.inFile, args.outFile)
     return 0
 __commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_barcodes_file))
@@ -144,9 +142,7 @@ __commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_
 # ***  extract_barcodes   ***
 # ===========================
 
-def parser_extract_barcodes():
-    parser = argparse.ArgumentParser(
-        description='''Match every read in a lane against their barcode.''')
+def parser_extract_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir', help='Bustard directory.')
     parser.add_argument('lane', help='Lane number.', type=int)
     parser.add_argument('barcodeFile',
@@ -166,6 +162,7 @@ def parser_extract_barcodes():
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_extract_barcodes(args):
+    'Match every read in a lane against their barcode.'
     out_metrics = (args.outMetrics==None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
@@ -199,8 +196,7 @@ def make_params_file(inFile, bamDir, outFile):
                 run_id += '.r' + row['run_id_per_library']
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
             outf.write('\t'.join(out[h] for h in header)+'\n')
-def parser_make_params_file():
-    parser = argparse.ArgumentParser(description='Create input file for illumina_basecalls')
+def parser_make_params_file(parser=argparse.ArgumentParser()):
     parser.add_argument('barcodeFile',
         help='''Input tab file w/header and four named columns:
                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
@@ -208,6 +204,7 @@ def parser_make_params_file():
     parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
     return parser
 def main_make_params_file(args):
+    'Create input file for illumina_basecalls'
     make_params_file(args.barcodeFile, args.bamDir, args.outFile)
     return 0
 __commands__.append(('make_params_file', main_make_params_file, parser_make_params_file))
@@ -236,9 +233,7 @@ def short_hash(inString, length=None):
         b32_str = b32_str[:length]
     return b32_str
     
-def parser_illumina_basecalls():
-    parser = argparse.ArgumentParser(
-        description='''Demultiplex Illumina runs & produce BAM files, one per sample''')
+def parser_illumina_basecalls(parser=argparse.ArgumentParser()):
     parser.add_argument('inBustardDir', help='Bustard directory.')
     parser.add_argument('inBarcodesDir', help='Barcodes directory.')
     parser.add_argument('flowcell', help='Flowcell ID')
@@ -261,6 +256,7 @@ def parser_illumina_basecalls():
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     return parser
 def main_illumina_basecalls(args):
+    'Demultiplex Illumina runs & produce BAM files, one per sample'
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
         if hasattr(args, opt) and getattr(args, opt)!=None)

@@ -52,8 +52,7 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     map(os.unlink, subsampfq)
     return 0
 
-def parser_assemble_trinity():
-    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
         help='Input reads, BAM format.')
     parser.add_argument('clipDb',
@@ -64,10 +63,8 @@ def parser_assemble_trinity():
         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
-def main_assemble_trinity(args):
-    assemble_trinity(args.inBam, args.outFasta, args.clipDb, args.n_reads)
-    return 0
-__commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
+__commands__.append(('assemble_trinity',
+    util.cmd.main_command(assemble_trinity), parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=None):
@@ -116,9 +113,9 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         ref_chr_count = len([1 for x in inf if x.startswith('>')])
     if out_chr_count != ref_chr_count:
         raise Exception("error: expected {} chromosomes, only got {} chromosomes".format(ref_chr_count, out_chr_count))
+    return 0
 
-def parser_order_and_orient():
-    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
         help='Input assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
@@ -129,11 +126,8 @@ def parser_order_and_orient():
     parser.add_argument('--mosaikDir', default=None, help='Path to MOSAIK directory.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
-def main_order_and_orient(args):
-    order_and_orient(args.inFasta, args.inReference, args.outFasta,
-        inReads=args.inReads, mosaikDir=args.mosaikDir)
-    return 0
-__commands__.append(('order_and_orient', main_order_and_orient, parser_order_and_orient))
+__commands__.append(('order_and_orient',
+    util.cmd.main_command(order_and_orient), parser_order_and_orient))
 
 
 class PoorAssemblyError(Exception):
@@ -143,7 +137,7 @@ class PoorAssemblyError(Exception):
             chr_idx, seq_len, non_n_count))
 
 def impute_from_reference(inFasta, inReference, outFasta,
-        minLength, minUnambig, replaceLength, new_name=None):
+        minLength, minUnambig, replaceLength, newName=None):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -192,8 +186,8 @@ def impute_from_reference(inFasta, inReference, outFasta,
         '--replace-5ends', '--replace-3ends',
         '--replace-length', str(replaceLength),
         '--replace-end-gaps']
-    if new_name:
-        args = args + ['--name', new_name]
+    if newName:
+        args = args + ['--name', newName]
     main_modify_contig(parser_modify_contig().parse_args(args))
     os.unlink(concat_file)
     os.unlink(muscle_align)
@@ -202,9 +196,10 @@ def impute_from_reference(inFasta, inReference, outFasta,
     tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
     tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
     tools.novoalign.NovoalignTool().index_fasta(outFasta)
+    
+    return 0
 
-def parser_impute_from_reference():
-    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
         help='Input assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
@@ -221,17 +216,13 @@ def parser_impute_from_reference():
         help="length of ends to be replaced with reference (default: %(default)s)")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
-def main_impute_from_reference(args):
-    impute_from_reference(args.inFasta, args.inReference, args.outFasta,
-        minLength=args.minLength, minUnambig=args.minUnambig,
-        replaceLength=args.replaceLength, new_name=args.newName)
-    return 0
-__commands__.append(('impute_from_reference', main_impute_from_reference, parser_impute_from_reference))
+__commands__.append(('impute_from_reference',
+    util.cmd.main_command(impute_from_reference), parser_impute_from_reference))
 
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        contig_names=[], keep_all_reads=False, JVMmemory=None):
+        chr_names=[], keep_all_reads=False, JVMmemory=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -279,8 +270,8 @@ def refine_assembly(inFasta, inBam, outFasta,
     os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
-    if contig_names:
-        name_opts = ['--name'] + contig_names
+    if chr_names:
+        name_opts = ['--name'] + chr_names
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
         tmpVcf, outFasta, '--trim_ends', '--min_coverage', str(min_coverage),
         ] + name_opts))
@@ -296,8 +287,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     novoalign.index_fasta(outFasta)
     return 0
 
-def parser_refine_assembly():
-    parser = argparse.ArgumentParser(description = refine_assembly.__doc__)
+def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
         help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.')
     parser.add_argument('inBam',
@@ -327,13 +317,8 @@ def parser_refine_assembly():
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
-def main_refine_assembly(args):
-    refine_assembly(args.inFasta, args.inBam, args.outFasta,
-        args.outVcf, args.outBam, args.novo_params, args.min_coverage,
-        contig_names=args.chr_names,
-        keep_all_reads=args.keep_all_reads, JVMmemory=args.JVMmemory)
-    return 0
-__commands__.append(('refine_assembly', main_refine_assembly, parser_refine_assembly))
+__commands__.append(('refine_assembly',
+    util.cmd.main_command(refine_assembly), parser_refine_assembly))
 
 
 
@@ -342,8 +327,7 @@ def unambig_count(seq):
     unambig = set(('A','T','C','G'))
     return sum(1 for s in seq if s.upper() in unambig)
 
-def parser_filter_short_seqs():
-    parser = argparse.ArgumentParser(description = "Check sequences in inFile, retaining only those that are at least minLength")
+def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
     parser.add_argument("minUnambig", help="minimum percentage unambiguous bases for contig", type=float)
@@ -354,6 +338,7 @@ def parser_filter_short_seqs():
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_filter_short_seqs(args):
+    '''Check sequences in inFile, retaining only those that are at least minLength'''
     # orig by rsealfon, edited by dpark
     # TO DO: make this more generalized to accept multiple minLengths (for multiple chromosomes/segments)
     with util.file.open_or_gzopen(args.inFile) as inf:
@@ -368,13 +353,7 @@ __commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_
 
 
 
-def parser_modify_contig():
-    parser = argparse.ArgumentParser(
-        description='''Modifies an input contig. Depending on the options
-        selected, can replace N calls with reference calls, replace ambiguous
-        calls with reference calls, trim to the length of the reference, replace
-        contig ends with reference calls, and trim leading and trailing Ns.
-        Author: rsealfon.''')
+def parser_modify_contig(parser=argparse.ArgumentParser()):
     parser.add_argument("input", help="input alignment of reference and contig (should contain exactly 2 sequences)")
     parser.add_argument("output", help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
@@ -414,7 +393,12 @@ def parser_modify_contig():
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     return parser
 def main_modify_contig(args):
-    # by rsealfon
+    ''' Modifies an input contig. Depending on the options
+        selected, can replace N calls with reference calls, replace ambiguous
+        calls with reference calls, trim to the length of the reference, replace
+        contig ends with reference calls, and trim leading and trailing Ns.
+        Author: rsealfon.
+    '''
     aln = Bio.AlignIO.read(args.input, args.format)
     
     if len(aln) != 2:
@@ -692,13 +676,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
             yield seqs[s].emit()
 
 
-def parser_vcf_to_fasta():
-    parser = argparse.ArgumentParser(
-        description='''Take input genotypes (VCF) and construct a consensus sequence
-        (fasta) by using majority-read-count alleles in the VCF.
-        Genotypes in the VCF will be ignored--we will use the allele
-        with majority read support (or an ambiguity base if there is no clear majority).
-        Uncalled positions will be emitted as N's.  Author: dpark.''')
+def parser_vcf_to_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outFasta", help="Output FASTA file")
     parser.add_argument("--trim_ends",
@@ -730,6 +708,13 @@ def parser_vcf_to_fasta():
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vcf_to_fasta(args):
+    ''' Take input genotypes (VCF) and construct a consensus sequence
+        (fasta) by using majority-read-count alleles in the VCF.
+        Genotypes in the VCF will be ignored--we will use the allele
+        with majority read support (or an ambiguity base if there is no clear majority).
+        Uncalled positions will be emitted as N's.
+        Author: dpark.
+    '''
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
     
@@ -755,15 +740,15 @@ __commands__.append(('vcf_to_fasta', main_vcf_to_fasta, parser_vcf_to_fasta))
 
 
 
-def parser_trim_fasta():
-    parser = argparse.ArgumentParser(
-        description='''Take input sequences (fasta) and trim any continuous sections of
-        N's from the ends of them.  Write trimmed sequences to an output fasta file.''')
+def parser_trim_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output (trimmed) fasta file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_trim_fasta(args):
+    ''' Take input sequences (fasta) and trim any continuous sections of
+        N's from the ends of them.  Write trimmed sequences to an output fasta file.
+    '''
     with open(args.outFasta, 'wt') as outf:
         with open(args.inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
@@ -776,29 +761,28 @@ __commands__.append(('trim_fasta', main_trim_fasta, parser_trim_fasta))
 
 
 def deambig_base(base):
-    ''' take a single base (possibly a IUPAC ambiguity code) and return a random
+    ''' Take a single base (possibly a IUPAC ambiguity code) and return a random
         non-ambiguous base from among the possibilities '''
     return random.choice(Bio.Data.IUPACData.ambiguous_dna_values[base.upper()])
 
 def deambig_fasta(inFasta, outFasta):
+    ''' Take input sequences (fasta) and replace any ambiguity bases with a
+        random unambiguous base from among the possibilities described by the ambiguity
+        code.  Write output to fasta file.
+    '''
     with util.file.open_or_gzopen(outFasta, 'wt') as outf:
         with util.file.open_or_gzopen(inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
                 for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
                     outf.write(line)
-def parser_deambig_fasta():
-    parser = argparse.ArgumentParser(
-        description='''Take input sequences (fasta) and replace any ambiguity bases with a
-        random unambiguous base from among the possibilities described by the ambiguity
-        code.  Write output to fasta file.''')
+    return 0
+def parser_deambig_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output fasta file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
-def main_deambig_fasta(args):
-    deambig_fasta(args.inFasta, args.outFasta)
-    return 0
-__commands__.append(('deambig_fasta', main_deambig_fasta, parser_deambig_fasta))
+__commands__.append(('deambig_fasta',
+    util.cmd.main_command(deambig_fasta), parser_deambig_fasta))
 
 
 def vcf_dpdiff(vcfs):
@@ -819,16 +803,16 @@ def vcf_dpdiff(vcfs):
             yield (row[0],row[1],samples[0],dp1,dp2,dp1-dp2,ratio)
 
 
-def parser_dpdiff():
-    parser = argparse.ArgumentParser(
-        description='''Take input VCF files (all with only one sample each) and report
-        on the discrepancies between the two DP fields (one in INFO and one in the
-        sample's genotype column).''')
+def parser_dpdiff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcfs", help="Input VCF file", nargs='+')
     parser.add_argument("outFile", help="Output flat file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_dpdiff(args):
+    ''' Take input VCF files (all with only one sample each) and report
+        on the discrepancies between the two DP fields (one in INFO and one in the
+        sample's genotype column).
+    '''
     header = ['chr','pos','sample','dp_info','dp_sample','diff','ratio']
     with open(args.outFile, 'wt') as outf:
         outf.write('#'+'\t'.join(header)+'\n')
