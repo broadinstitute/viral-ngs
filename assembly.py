@@ -72,10 +72,11 @@ __commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_
 
 def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=None):
     ''' This step cleans up the Trinity assembly with a known reference genome.
-        VFAT (maybe Bellini later): take the Trinity contigs, align them to
-            the known reference genome, switch it to the same strand as the
-            reference, and produce chromosome-level assemblies (with runs of
-            N's in between the Trinity contigs).
+        Uses VFAT (switch to Bellini later):
+        Take the Trinity contigs, align them to the known reference genome,
+        switch it to the same strand as the reference, and produce
+        chromosome-level assemblies (with runs of N's in between the Trinity
+        contigs).
     '''
     # VFAT to order, orient, and merge contigs
     # TO DO: replace with Bellini
@@ -93,7 +94,8 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
         tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])
         mosaik = tools.mosaik.MosaikTool()
-        #mosaikDir = os.path.dirname(mosaik.install_and_get_path())
+        if mosaikDir==None:
+            mosaikDir = os.path.dirname(mosaik.install_and_get_path())
         cmd = cmd + [
             '-readfq', readsFq[0], '-readfq2', readsFq[1],
             '-mosaikpath', mosaikDir,
@@ -106,8 +108,7 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
             log.debug("appending {} to {}".format(fn, outFasta))
             with open(fn, 'rt') as inf:
-                for line in inf:
-                    outf.write(line)
+                map(outf.write, inf.readlines())
             os.unlink(fn)
 
 def parser_order_and_orient():
@@ -119,9 +120,7 @@ def parser_order_and_orient():
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
     parser.add_argument('--inReads', default=None, help='Input reads in BAM format.')
-    parser.add_argument('--mosaikDir',
-        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
-        help='Path to MOSAIK directory.')
+    parser.add_argument('--mosaikDir', default=None, help='Path to MOSAIK directory.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
 def main_order_and_orient(args):
@@ -179,7 +178,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     refName = line[1:]
                 outf.write(line)
         with open(tmp_filtered, 'rt') as inf:
-            outf.write(inf.readlines())
+            map(outf.write, inf.readlines())
     muscle.execute(concat_file, muscle_align, quiet=True)
     args = [muscle_align, outFasta, inReference,
         '--call-reference-ns', '--trim-ends',
