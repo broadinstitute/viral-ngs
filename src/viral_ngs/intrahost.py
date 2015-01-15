@@ -27,11 +27,7 @@ def tabfile_values_rename(inFile, mapFile, outFile, col=0):
                 row = line.rstrip('\n').split('\t')
                 row[col] = name_map[row[col]]
                 outf.write('\t'.join(row)+'\n')
-def parser_tabfile_rename():
-    parser = argparse.ArgumentParser(
-        description='''Take input tab file and copy to an output file while changing
-the values in a specific column based on a mapping file.  The first line will pass
-through untouched (it is assumed to be a header).''')
+def parser_tabfile_rename(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="Input flat file")
     parser.add_argument("mapFile",
         help="""Map file.  Two-column headerless file that maps input values to
@@ -44,6 +40,11 @@ through untouched (it is assumed to be a header).''')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_tabfile_rename(args):
+    ''' Take input tab file and copy to an output file while changing
+        the values in a specific column based on a mapping file.
+        The first line will pass through untouched (it is assumed to be
+        a header).
+    '''
     tabfile_values_rename(args.inFile, args.mapFile, args.outFile, args.col_idx)
     return 0
 __commands__.append(('tabfile_rename', main_tabfile_rename, parser_tabfile_rename))
@@ -180,14 +181,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
             outf.write('\t'.join(map(str, out))+'\n')
 
 
-def parser_vphaser_to_vcf():
-    parser = argparse.ArgumentParser(
-        description='''Convert vPhaser2 parsed filtered output text file into VCF format.
-        We require the consensus assemblies for all these samples in a multi-alignment
-        FASTA format as well, in order to resolve the ambiguity in vPhaser's output.
-        All sample names and coordinates must be identical between inFile, inRef, and
-        multiAlign.  We also require the reference genome FASTA (inRef) to determine
-        reference alleles.  Requires a single-chromosome genome.''')
+def parser_vphaser_to_vcf(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="Input vPhaser2 text file")
     parser.add_argument("inRef", help="Reference genome FASTA")
     parser.add_argument("multiAlign", help="Consensus genomes multi-alignment FASTA")
@@ -195,6 +189,13 @@ def parser_vphaser_to_vcf():
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_vphaser_to_vcf(args):
+    ''' Convert vPhaser2 parsed filtered output text file into VCF format.
+        We require the consensus assemblies for all these samples in a multi-alignment
+        FASTA format as well, in order to resolve the ambiguity in vPhaser's output.
+        All sample names and coordinates must be identical between inFile, inRef, and
+        multiAlign.  We also require the reference genome FASTA (inRef) to determine
+        reference alleles.  Requires a single-chromosome genome.
+    '''
     vphaser_to_vcf(args.inFile, args.inRef, args.multiAlign, args.outVcf)
     return 0
 __commands__.append(('vphaser_to_vcf', main_vphaser_to_vcf, parser_vphaser_to_vcf))
@@ -240,15 +241,13 @@ def add_Fws_vcf(inVcf, outVcf):
                         row[7] = row[7] + ";PI=%s;FWS=%s" % Fws
                     outf.write('\t'.join(row)+'\n')
 
-def parser_Fws():
-    parser = argparse.ArgumentParser(
-        description='''Compute the Fws statistic on iSNV data.
-        See Manske, 2012 (Nature)''')
+def parser_Fws(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outVcf", help="Output VCF file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_Fws(args):
+    '''Compute the Fws statistic on iSNV data. See Manske, 2012 (Nature)'''
     add_Fws_vcf(args.inVcf, args.outVcf)
     return 0
 __commands__.append(('Fws', main_Fws, parser_Fws))
@@ -286,14 +285,13 @@ def iSNV_table(vcf_iter):
                     out['Fws_snp'] = info['FWS']
                 yield out
 
-def parser_iSNV_table():
-    parser = argparse.ArgumentParser(
-        description='''Convert VCF iSNV data to tabular text''')
+def parser_iSNV_table(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outFile", help="Output text file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_iSNV_table(args):
+    '''Convert VCF iSNV data to tabular text'''
     header = ['pos','sample','patient','time','alleles','iSNV_freq','Hw',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
     with open(args.outFile, 'wt') as outf:
@@ -322,14 +320,13 @@ def iSNP_per_patient(table, agg_fun=numpy.median):
         else:
             assert len(rows)==1, "error, found multiple rows for %s:%s" % (row['pos'],row['patient'])
         yield row
-def parser_iSNP_per_patient():
-    parser = argparse.ArgumentParser(
-        description='''Aggregate tabular iSNP data per patient x position (all time points averaged)''')
+def parser_iSNP_per_patient(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="Input text file")
     parser.add_argument("outFile", help="Output text file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     return parser
 def main_iSNP_per_patient(args):
+    '''Aggregate tabular iSNP data per patient x position (all time points averaged)'''
     header = ['pos','patient','alleles','iSNV_freq','Hw',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
     with open(args.outFile, 'wt') as outf:
