@@ -88,7 +88,8 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     subprocess.check_call(cmd)
     cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
         tmp_prefix+'_orientedContigs', inReference, tmp_prefix,
-        '-musclepath', musclepath]
+        '-musclepath', musclepath,
+        '-samtoolspath', tools.samtools.Samtools().install_and_get_path()]
     if inReads:
         readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
         tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])

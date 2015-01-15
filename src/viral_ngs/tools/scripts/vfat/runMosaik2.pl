@@ -1,4 +1,4 @@
-#!/usr/bin/perl perl -w
+#!/usr/bin/env perl
 
 # Copyright © 2012 The Broad Institute, Inc.
 # SOFTWARE COPYRIGHT NOTICE 
@@ -48,6 +48,7 @@ my %option = (
 	paramillu	=> '',
 	annpe 		=> '',
 	annse 		=> '',
+	samtoolspath  => "samtools",
 	mosaikpath  => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin",
 	mosaiknetworkpath => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile",
 );
@@ -82,6 +83,7 @@ GetOptions(
   "paramillu" 	=> \$option{paramillu},
   "annpe=s"		=> \$option{annpe},
   "annse=s"		=> \$option{annse},
+  "samtoolspath=s" => \$option{samtoolspath},
   "mosaikpath=s" => \$option{mosaikpath},
   "mosaiknetworkpath=s" => \$option{mosaiknetworkpath}
 ) || die("Problem processing command-line options: $!\n");
@@ -98,6 +100,7 @@ if($option{h})
 }
 
 my $scriptpath = dirname(__FILE__);
+my $samtoolspath = $option{samtoolspath};
 my $mosaikpath = $option{mosaikpath};
 my $mosaiknetworkpath = $option{mosaiknetworkpath};
 
@@ -158,15 +161,19 @@ if($option{fq} && $option{fq2})
 }
 
 system($mosaikpath."MosaikAligner -in $readdat -out $output -ia $refdat -hs ".$option{hs}." -act ".$option{act}." -mm 500 -mmp ".$option{mmp}." -minp ".$option{minp}." -ms ".$option{ms}." -mms ".$option{mms}." -gop ".$option{gop}." -hgop ".$option{hgop}." -gep ".$option{gep}."$bw -m ".$option{m}." -annpe ".$option{annpe}." -annse ".$option{annse});
+system($samtoolspath." sort $output.bam $output.sorted");
+system($samtoolspath." view -h -o $output.sam $output.sorted.bam");
 
 my $sam2qlxopt = '';
 if($option{fakequals})
 {
 	$sam2qlxopt .= " -fakequals ".$option{fakequals};
 }
-system("perl ".$scriptpath."samToQlx.pl $output.sam ".$option{ref}." $output -nqsmq ".$option{nqsmq}." -nqsaq ".$option{nqsaq}." -nqssize ".$option{nqssize}." -nqvalue ".$option{nqvalue}.$sam2qlxopt);
-system("rm $output.sam");
+system($scriptpath."samToQlx.pl $output.sam ".$option{ref}." $output -nqsmq ".$option{nqsmq}." -nqsaq ".$option{nqsaq}." -nqssize ".$option{nqssize}." -nqvalue ".$option{nqvalue}.$sam2qlxopt);
 
+system("rm $output.sam");
+system("rm $output.bam");
+system("rm $output.sorted.bam");
 system("rm $output.readdat");
 system("rm $output.refdat");
 system("rm $output.stat");

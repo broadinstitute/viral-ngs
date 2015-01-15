@@ -1,4 +1,4 @@
-#!/usr/bin/perl perl -w
+#!/usr/bin/env perl
 
 # Copyright © 2012 The Broad Institute, Inc.
 # SOFTWARE COPYRIGHT NOTICE
