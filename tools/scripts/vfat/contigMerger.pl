@@ -25,7 +25,8 @@ my %option = (
 	longcont			=> 1500,
 	contigcov			=> 2,
 	allcont				=> '',
-	musclepath          => "/seq/annotation/bio_tools/muscle/3.8/muscle",
+	musclepath          => "muscle",
+	samtoolspath        => "samtools",
 	mosaikpath          => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin",
 	mosaiknetworkpath   => "/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile",
 	h					=> '',
@@ -41,8 +42,9 @@ GetOptions(
 	"maxsegdel=f"		=> \$option{maxsegdel},
 	"longcont=i"		=> \$option{longcont},
 	"contigcov=i"		=> \$option{contigcov},
-	"allcont"			=> \$option{allcont},
+	"allcont"		=> \$option{allcont},
 	"musclepath=s"		=> \$option{musclepath},
+	"samtoolspath=s"	=> \$option{samtoolspath},
     "mosaikpath=s"      => \$option{mosaikpath},
     "mosaiknetworkpath=s" => \$option{mosaiknetworkpath},
 	"h"					=> \$option{h},
@@ -76,7 +78,7 @@ my $hasreads = '';
 
 if($option{readfq}){$hasreads = 1;}
 
-my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina -fakequals 30 -mosaikpath ".$option{mosaikpath}." -mosaiknetworkpath ".$option{mosaiknetworkpath};
+my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina -fakequals 30 -mosaikpath ".$option{mosaikpath}." -mosaiknetworkpath ".$option{mosaiknetworkpath}." -samtoolspath ".$option{samtoolspath};
 
 my $reffastaname = '';
 (my $refid, my $refseq) = readFasta($reffile);
