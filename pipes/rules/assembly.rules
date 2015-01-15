@@ -44,7 +44,7 @@ rule assemble_trinity:
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             n_reads="100000",
             logid="{sample}",
             clipDb=config["trim_clipDb"]
@@ -76,7 +76,7 @@ rule orient_and_impute:
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly2-vfat.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly3-modify.fasta'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
@@ -105,7 +105,7 @@ rule refine_assembly_1:
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage = "2"
@@ -127,7 +127,7 @@ rule refine_assembly_2:
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             min_coverage = "3"
@@ -148,7 +148,7 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:

@@ -32,6 +32,12 @@
     "GATK_PATH":       "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af",
     "NOVOALIGN_PATH":  "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
   },
+  
+  "LSF_queues": {
+    "short":   "-W 4:00",
+    "long":    "-q forest",
+    "bigmem":  "-q flower"
+  },
 
   "subdirs": {
     "demux":        "00_demux",
