@@ -93,9 +93,11 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
         readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
         tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])
         mosaik = tools.mosaik.MosaikTool()
+        mosaikpath = '/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin'
+        #mosaikpath = os.path.dirname(mosaik.install_and_get_path())
         cmd = cmd + [
             '-readfq', readsFq[0], '-readfq2', readsFq[1],
-            '-mosaikpath', mosaik.install_and_get_path(),
+            '-mosaikpath', mosaikpath,
             '-mosaiknetworkpath', mosaik.get_networkFile(),
         ]
     subprocess.check_call(cmd)
@@ -104,7 +106,8 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     with open(tmp_merged, 'wt') as outf:
         for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
             with open(fn, 'rt') as inf:
-                outf.write(inf.readlines())
+                for line in inf:
+                    outf.write(line)
             os.unlink(fn)
 
 def parser_order_and_orient():

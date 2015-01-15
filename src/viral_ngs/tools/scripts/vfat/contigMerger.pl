@@ -44,7 +44,7 @@ GetOptions(
 	"allcont"			=> \$option{allcont},
 	"musclepath=s"		=> \$option{musclepath},
     "mosaikpath=s"      => \$option{mosaikpath},
-    "mosaiknetworkpath=s" => \$option{mosaiknetworkpath}
+    "mosaiknetworkpath=s" => \$option{mosaiknetworkpath},
 	"h"					=> \$option{h},
 ) || die("Problem processing command-line options: $!\n");
 
@@ -76,8 +76,7 @@ my $hasreads = '';
 
 if($option{readfq}){$hasreads = 1;}
 
-my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina -fakequals 30"
-$mosaikParam .= " -mosaikpath ".$option{mosaikpath}." -mosaiknetworkpath".$option{mosaiknetworkpath};
+my $mosaikParam = " -hgop 20 -gop 40 -gep 10 -bw 29 -st illumina -fakequals 30 -mosaikpath ".$option{mosaikpath}." -mosaiknetworkpath ".$option{mosaiknetworkpath};
 
 my $reffastaname = '';
 (my $refid, my $refseq) = readFasta($reffile);

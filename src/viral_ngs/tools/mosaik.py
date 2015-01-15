@@ -17,15 +17,7 @@ class MosaikTool(tools.Tool) :
                 os.environ['BLD_PLATFORM'] = 'macosx64'
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
-            pkg_os = 'source'
-        elif os.uname()[0] == 'Linux' and os.uname()[4] == 'x86_64':
-            pkg_os = 'Linux-x64'
-        else:
-            pkg_os = 'source'
         install_methods = []
-        if os.uname()[0] == 'Linux' and os.uname()[4] == 'x86_64':
-            install_methods.append(tools.DownloadPackage(url.format(ver=tool_version, os=pkg_os),
-                os.path.join('MOSAIK-{ver}-{os}'.format(ver=tool_version, os=pkg_os), 'MosaikAligner')))
         install_methods.append(tools.DownloadPackage(url.format(ver=tool_version, os='source'),
             os.path.join('bin', 'MosaikAligner'),
             post_download_command='cd MOSAIK-{}-source; make -s'.format(tool_version)))
