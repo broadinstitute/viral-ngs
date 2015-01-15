@@ -70,7 +70,7 @@ def main_assemble_trinity(args):
 __commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta, inReads=None):
+def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=None):
     ''' This step cleans up the Trinity assembly with a known reference genome.
         VFAT (maybe Bellini later): take the Trinity contigs, align them to
             the known reference genome, switch it to the same strand as the
@@ -93,11 +93,10 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
         readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
         tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])
         mosaik = tools.mosaik.MosaikTool()
-        mosaikpath = '/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin'
-        #mosaikpath = os.path.dirname(mosaik.install_and_get_path())
+        #mosaikDir = os.path.dirname(mosaik.install_and_get_path())
         cmd = cmd + [
             '-readfq', readsFq[0], '-readfq2', readsFq[1],
-            '-mosaikpath', mosaikpath,
+            '-mosaikpath', mosaikDir,
             '-mosaiknetworkpath', mosaik.get_networkFile(),
         ]
     subprocess.check_call(cmd)
@@ -120,10 +119,14 @@ def parser_order_and_orient():
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
     parser.add_argument('--inReads', default=None, help='Input reads in BAM format.')
+    parser.add_argument('--mosaikDir',
+        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
+        help='Path to MOSAIK directory.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
 def main_order_and_orient(args):
-    order_and_orient(args.inFasta, args.inReference, args.outFasta, inReads=args.inReads)
+    order_and_orient(args.inFasta, args.inReference, args.outFasta,
+        inReads=args.inReads, mosaikDir=args.mosaikDir)
     return 0
 __commands__.append(('order_and_orient', main_order_and_orient, parser_order_and_orient))
 
