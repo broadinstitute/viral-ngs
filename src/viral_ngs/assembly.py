@@ -11,8 +11,8 @@ import argparse, logging, random, os, os.path, shutil, glob, subprocess
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
-import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign, tools.muscle
-import tools.trinity
+import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign
+import tools.trinity, tools.mosaik, tools.muscle
 
 log = logging.getLogger(__name__)
 
@@ -70,10 +70,7 @@ def main_assemble_trinity(args):
 __commands__.append(('assemble_trinity', main_assemble_trinity, parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta,
-        inReads=None,
-        mosaikpath='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
-        mosaiknetworkpath='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile'):
+def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     ''' This step cleans up the Trinity assembly with a known reference genome.
         VFAT (maybe Bellini later): take the Trinity contigs, align them to
             the known reference genome, switch it to the same strand as the
@@ -95,10 +92,11 @@ def order_and_orient(inFasta, inReference, outFasta,
     if inReads:
         readsFq = list(map(util.file.mkstempfname, ('.1.fastq', '.2.fastq')))
         tools.picard.SamToFastqTool().execute(inReads, readsFq[0], readsFq[1])
+        mosaik = tools.mosaik.MosaikTool()
         cmd = cmd + [
             '-readfq', readsFq[0], '-readfq2', readsFq[1],
-            '-mosaikpath', mosaikpath,
-            '-mosaiknetworkpath', mosaiknetworkpath,
+            '-mosaikpath', mosaik.install_and_get_path(),
+            '-mosaiknetworkpath', mosaik.get_networkFile(),
         ]
     subprocess.check_call(cmd)
     if inReads:
@@ -118,18 +116,10 @@ def parser_order_and_orient():
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
     parser.add_argument('--inReads', default=None, help='Input reads in BAM format.')
-    parser.add_argument('--mosaikPath',
-        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
-        help='Path to MOSAIK aligner binaries.')
-    parser.add_argument('--mosaikNetworkPath',
-        default='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/networkFile',
-        help='Path to MOSAIK "network file".')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     return parser
 def main_order_and_orient(args):
-    order_and_orient(args.inFasta, args.inReference, args.outFasta,
-        inReads=args.inReads,
-        mosaikpath=args.mosaikPath, mosaiknetworkpath=args.mosaikNetworkPath)
+    order_and_orient(args.inFasta, args.inReference, args.outFasta, inReads=args.inReads)
     return 0
 __commands__.append(('order_and_orient', main_order_and_orient, parser_order_and_orient))
 
