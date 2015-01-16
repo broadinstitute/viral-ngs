@@ -38,23 +38,25 @@ def get_bustard_dir(jsonfile):
     return bustard
 
 def parser_get_bustard_dir(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir',  help='Picard directory')
+    parser.add_argument('inDir', help='Picard directory')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    util.cmd.attach_main(parser, main_get_bustard_dir)
     return parser
 def main_get_bustard_dir(args):
     'Find the basecalls directory from a Picard directory'
     print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
-__commands__.append(('get_bustard_dir', main_get_bustard_dir, parser_get_bustard_dir))
+__commands__.append(('get_bustard_dir', parser_get_bustard_dir))
 def parser_get_run_date(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir',  help='Picard directory')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    util.cmd.attach_main(parser, main_get_run_date)
     return parser
 def main_get_run_date(args):
     'Find the sequencing run date from a Picard directory'
     print(get_run_date(get_json_from_picard(args.inDir)))
     return 0
-__commands__.append(('get_run_date', main_get_run_date, parser_get_run_date))
+__commands__.append(('get_run_date', parser_get_run_date))
 
 
 # ===============
@@ -95,6 +97,7 @@ def parser_get_all_names(parser=argparse.ArgumentParser()):
         choices=['samples', 'libraries', 'runs'])
     parser.add_argument('runfile', help='File with seq run information')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
+    util.cmd.attach_main(parser, main_get_all_names)
     return parser
 def main_get_all_names(args) :
     'Get all samples'
@@ -107,7 +110,7 @@ def main_get_all_names(args) :
     for s in method(args.runfile):
         print(s)
     return 0
-__commands__.append(('get_all_names', main_get_all_names, parser_get_all_names))
+__commands__.append(('get_all_names', parser_get_all_names))
 
 
 # =============================
@@ -115,6 +118,7 @@ __commands__.append(('get_all_names', main_get_all_names, parser_get_all_names))
 # =============================
 
 def make_barcodes_file(inFile, outFile):
+    'Create input file for extract_barcodes'
     header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
@@ -131,12 +135,9 @@ def parser_make_barcodes_file(parser=argparse.ArgumentParser()):
         help='''Input tab file w/header and 3-5 named columns (last two are optional):
                 sample, barcode_1, barcode_2, library_id_per_sample, run_id_per_library''')
     parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
+    util.cmd.attach_main(parser, make_barcodes_file, split_args=True)
     return parser
-def main_make_barcodes_file(args) :
-    'Create input file for extract_barcodes'
-    make_barcodes_file(args.inFile, args.outFile)
-    return 0
-__commands__.append(('make_barcodes_file', main_make_barcodes_file, parser_make_barcodes_file))
+__commands__.append(('make_barcodes_file', parser_make_barcodes_file))
 
 # ===========================
 # ***  extract_barcodes   ***
@@ -160,6 +161,7 @@ def parser_extract_barcodes(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)',
         default = tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_extract_barcodes)
     return parser
 def main_extract_barcodes(args):
     'Match every read in a lane against their barcode.'
@@ -172,13 +174,14 @@ def main_extract_barcodes(args):
         args.outDir, out_metrics,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('extract_barcodes', main_extract_barcodes, parser_extract_barcodes))
+__commands__.append(('extract_barcodes', parser_extract_barcodes))
 
 # ==============================
 # ***  make_library_params   ***
 # ==============================
 
 def make_params_file(inFile, bamDir, outFile):
+    'Create input file for illumina_basecalls'
     header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
@@ -197,17 +200,14 @@ def make_params_file(inFile, bamDir, outFile):
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
             outf.write('\t'.join(out[h] for h in header)+'\n')
 def parser_make_params_file(parser=argparse.ArgumentParser()):
-    parser.add_argument('barcodeFile',
+    parser.add_argument('inFile',
         help='''Input tab file w/header and four named columns:
                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
     parser.add_argument('bamDir', help='Directory for output bams')
     parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
+    util.cmd.attach_main(parser, make_params_file, split_args=True)
     return parser
-def main_make_params_file(args):
-    'Create input file for illumina_basecalls'
-    make_params_file(args.barcodeFile, args.bamDir, args.outFile)
-    return 0
-__commands__.append(('make_params_file', main_make_params_file, parser_make_params_file))
+__commands__.append(('make_params_file', parser_make_params_file))
 
 # =============================
 # ***  illumina_basecalls   ***
@@ -254,6 +254,7 @@ def parser_illumina_basecalls(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)',
         default = tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_illumina_basecalls)
     return parser
 def main_illumina_basecalls(args):
     'Demultiplex Illumina runs & produce BAM files, one per sample'
@@ -270,8 +271,7 @@ def main_illumina_basecalls(args):
         args.inBarcodesDir, args.flowcell, args.lane, args.paramsFile,
         picardOptions=picardOpts, JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('illumina_basecalls',
-    main_illumina_basecalls, parser_illumina_basecalls))
+__commands__.append(('illumina_basecalls', parser_illumina_basecalls))
 
 
 
