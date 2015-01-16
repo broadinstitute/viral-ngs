@@ -33,9 +33,9 @@ def consolidate_bamstats(inFiles, outFile):
 def parser_consolidate_bamstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inFiles', help='Input report files.', nargs='+')
     parser.add_argument('outFile', help='Output report file.')
+    util.cmd.attach_main(parser, consolidate_bamstats, split_args=True)
     return parser
-__commands__.append(('consolidate_bamstats',
-    util.cmd.main_command(consolidate_bamstats), parser_consolidate_bamstats))
+__commands__.append(('consolidate_bamstats', parser_consolidate_bamstats))
 
 
 
@@ -62,9 +62,9 @@ def consolidate_fastqc(inDirs, outFile):
 def parser_consolidate_fastqc(parser=argparse.ArgumentParser()):
     parser.add_argument('inDirs', help='Input FASTQC directories.', nargs='+')
     parser.add_argument('outFile', help='Output report file.')
+    util.cmd.attach_main(parser, consolidate_fastqc, split_args=True)
     return parser
-__commands__.append(('consolidate_fastqc',
-    util.cmd.main_command(consolidate_fastqc), parser_consolidate_fastqc))
+__commands__.append(('consolidate_fastqc', parser_consolidate_fastqc))
 
 
 def get_bam_info(bamstats_dir):
@@ -143,14 +143,14 @@ def parser_coverage_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('outFile', help='Output report file.')
     parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
     parser.add_argument('--bamstatsDir', help='Link in read info from BAM alignments.', default=None)
+    util.cmd.attach_main(parser, main_coverage_summary)
     return parser
 def main_coverage_summary(args):
     '''Produce summary stats of genome coverage.'''
     inFiles = list(glob.glob(os.path.join(args.coverageDir, "*"+args.coverageSuffix)))
     coverage_summary(inFiles, args.coverageSuffix, args.outFile, args.runFile, args.bamstatsDir)
     return 0
-__commands__.append(('coverage_summary',
-    main_coverage_summary, parser_coverage_summary))
+__commands__.append(('coverage_summary', parser_coverage_summary))
 
 def consolidate_coverage(inFiles, adj, outFile):
     '''Consolidate multiple coverage reports into one.'''
@@ -167,9 +167,9 @@ def parser_consolidate_coverage(parser=argparse.ArgumentParser()):
     parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
     parser.add_argument('adj', help='Report adjective.')
     parser.add_argument('outFile', help='Output report file.')
+    util.cmd.attach_main(parser, consolidate_coverage, split_args=True)
     return parser
-__commands__.append(('consolidate_coverage',
-    util.cmd.main_command(consolidate_coverage), parser_consolidate_coverage))
+__commands__.append(('consolidate_coverage', parser_consolidate_coverage))
 
 
 
@@ -189,9 +189,9 @@ def consolidate_spike_count(inFiles, outFile):
 def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
     parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
     parser.add_argument('outFile', help='Output report file.')
+    util.cmd.attach_main(parser, consolidate_spike_count, split_args=True)
     return parser
-__commands__.append(('consolidate_spike_count',
-    util.cmd.main_command(consolidate_spike_count), parser_consolidate_spike_count))
+__commands__.append(('consolidate_spike_count', parser_consolidate_spike_count))
 
 
 

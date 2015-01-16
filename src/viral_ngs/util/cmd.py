@@ -36,69 +36,75 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
             if not v:
                 v = find_tmpDir()
             parser.add_argument("--tmpDir", dest="tmpDir",
-                help="Directory for temp files.  [default: %(default)s]",
+                help="Base directory for temp files. [default: %(default)s]",
                 default=v)
             parser.add_argument("--tmpDirKeep",
                 action="store_true", dest="tmpDirKeep",
-                help="Keep the tmpDir, even if an exception occurs while running. [default is to delete all temp files]",
+                help="""Keep the tmpDir, even if an exception occurs while
+                    running. Default is to delete all temp files at the end,
+                    regardless of exit code.""",
                 default=False)
         elif k=='version':
             if not v:
                 v=__version__
-            parser.add_argument("--version", action='version', version=v)
+            parser.add_argument('--version', '-V', action='version', version=v)
         else:
             raise Exception("unrecognized argument %s" % arg)
     return parser
 
 def main_command(mainfunc):
+    ''' This wraps a python method in another method that can be called
+        with an argparse.Namespace object. When called, it will pass all
+        the values of the object on as parameters to the function call.
+    '''
     def _main(args):
         args2 = dict((k,v) for k,v in vars(args).items() if k not in ('loglevel','tmpDir','tmpDirKeep','version','func_main','command'))
         mainfunc(**args2)
     _main.__doc__ = mainfunc.__doc__
     return _main
 
-def main_argparse(commands, description):
-    ''' commands: a list of 3-tuples containing the following:
+def attach_main(parser, cmd_main, split_args=False):
+    ''' This attaches the main function call to a parser object.
+    '''
+    if split_args:
+        cmd_main = main_command(cmd_main)
+    parser.description = cmd_main.__doc__
+    parser.set_defaults(func_main=cmd_main)
+    return parser
+
+def make_parser(commands, description):
+    ''' commands: a list of pairs containing the following:
             1. name of command (string, no whitespace)
-            2. method to call that takes one argument (an argparse construct),
-                and returns the desired exit code
-            3. method to call (no arguments) that returns an argparse parser.
+            2. method to call (no arguments) that returns an argparse parser.
             If commands contains exactly one member and the name of the
             only command is None, then we get rid of the whole multi-command
             thing and just present the options for that one function.
-        tool_paths: a dict.  we will set the 'tmpDir' value so that your
-            commands will have access to a suggested temp directory
         description: a long string to present as a description of your script
             as a whole if the script is run with no arguments
     '''
-    assert description, "docstring cannot be absent!"
-    tmpDir = find_tmpDir()
-
-    cmdlist = [x[0] for x in commands]
-    commands = dict([(x[0],x[1:]) for x in commands])
-
-    if len(cmdlist)==1 and cmdlist[0]==None:
+    if len(commands)==1 and commands[0][0]==None:
         # only one (nameless) command in this script, simplify
-        cmd_main, cmd_parser = commands[None]
-        parser = cmd_parser()
-        parser.description = cmd_main.__doc__
-        parser.set_defaults(func_main=cmd_main)
+        parser = commands[0][1]()
         parser.set_defaults(command='')
     else:
         # multiple commands available
-        parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers(dest='command')
-        for cmd_name in cmdlist:
-            cmd_main, cmd_parser = commands[cmd_name]
+        parser = argparse.ArgumentParser(description=description,
+            usage='%(prog)s subcommand', add_help=False)
+        parser.add_argument('--help', '-h', action='help', help=argparse.SUPPRESS)
+        parser.add_argument('--version', '-V', action='version', version=__version__, help=argparse.SUPPRESS)
+        subparsers = parser.add_subparsers(title='subcommands', dest='command')
+        for cmd_name, cmd_parser in commands:
             p = subparsers.add_parser(cmd_name)
-            p = cmd_parser(p)
-            p.description = cmd_main.__doc__
-            p.set_defaults(func_main=cmd_main)
+            cmd_parser(p)
+    return parser
+
+def main_argparse(commands, description):
+    parser = make_parser(commands, description)
     
     # if called with no arguments, print help
     if len(sys.argv)==1:
         parser.parse_args(['--help'])
-    elif len(sys.argv)==2 and (len(cmdlist)>1 or cmdlist[0]!=None):
+    elif len(sys.argv)==2 and (len(commands)>1 or commands[0][0]!=None):
         parser.parse_args([sys.argv[1], '--help'])
     args = parser.parse_args()
     

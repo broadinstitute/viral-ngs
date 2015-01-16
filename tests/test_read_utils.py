@@ -2,9 +2,15 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import unittest, os, tempfile
+import unittest, os, tempfile, argparse
 import util, util.file, read_utils, tools, tools.samtools
 from test import TestCaseWithTmp
+
+class TestCommandHelp(unittest.TestCase):
+    def test_help_parser_for_each_command(self):
+        for cmd_name, parser_fun in read_utils.__commands__:
+            parser = parser_fun(argparse.ArgumentParser())
+            helpstring = parser.format_help()
 
 class TestPurgeUnmated(TestCaseWithTmp) :
     def test_purge_unmated(self) :
@@ -13,9 +19,9 @@ class TestPurgeUnmated(TestCaseWithTmp) :
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         outFastq1 = util.file.mkstempfname('.fastq')
         outFastq2 = util.file.mkstempfname('.fastq')
-        parser = read_utils.parser_purge_unmated()
+        parser = read_utils.parser_purge_unmated(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
-        read_utils.main_purge_unmated(args)
+        args.func_main(args)
 
         # Check that results match expected
         expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
@@ -30,9 +36,9 @@ class TestPurgeUnmated(TestCaseWithTmp) :
         inFastq2 = os.path.join(myInputDir, 'in_sra2.fastq')
         outFastq1 = util.file.mkstempfname('.fastq')
         outFastq2 = util.file.mkstempfname('.fastq')
-        parser = read_utils.parser_purge_unmated()
+        parser = read_utils.parser_purge_unmated(argparse.ArgumentParser())
         args = parser.parse_args(['--regex', '^@(\S+).[1|2] .*', inFastq1, inFastq2, outFastq1, outFastq2])
-        read_utils.main_purge_unmated(args)
+        args.func_main(args)
 
         # The expected outputs are identical to the previous case.
         expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
@@ -45,9 +51,9 @@ class TestFastqToFasta(TestCaseWithTmp) :
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
         outFasta = util.file.mkstempfname('.fasta')
-        parser = read_utils.parser_fastq_to_fasta()
+        parser = read_utils.parser_fastq_to_fasta(argparse.ArgumentParser())
         args = parser.parse_args([inFastq, outFasta])
-        read_utils.main_fastq_to_fasta(args)
+        args.func_main(args)
 
         # Check that results match expected
         expectedFasta = os.path.join(myInputDir, 'expected.fasta')
@@ -72,7 +78,7 @@ class TestFastqBam(TestCaseWithTmp) :
         outHeader = util.file.mkstempfname('.txt')
         
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
-        parser = read_utils.parser_fastq_to_bam()
+        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamCmd,
             '--sampleName', 'FreeSample',
             '--JVMmemory', '1g',
@@ -81,7 +87,7 @@ class TestFastqBam(TestCaseWithTmp) :
             'PLATFORM=9.75',
             'SEQUENCING_CENTER=KareemAbdul-Jabbar',
             ])
-        read_utils.main_fastq_to_bam(args)
+        args.func_main(args)
 
         # samtools view for out.sam and compare to expected
         samtools = tools.samtools.SamtoolsTool()
@@ -89,19 +95,19 @@ class TestFastqBam(TestCaseWithTmp) :
         self.assertEqualContents(outSam, expectedSam)
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
-        parser = read_utils.parser_fastq_to_bam()
+        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt,
             '--header', inHeader])
-        read_utils.main_fastq_to_bam(args)
+        args.func_main(args)
 
         # out.bam -> out1.fastq, out2.fastq, outHeader.txt; trim 1 base from 1
-        parser = read_utils.parser_bam_to_fastq()
+        parser = read_utils.parser_bam_to_fastq(argparse.ArgumentParser())
         args = parser.parse_args([outBamTxt, outFastq1, outFastq2,
             '--outHeader', outHeader,
             '--JVMmemory', '1g',
             '--picardOptions', 'READ1_TRIM=1',
             ])
-        read_utils.main_bam_to_fastq(args)
+        args.func_main(args)
 
         # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
         self.assertEqualContents(outFastq1, expectedFastq1) # 1 base trimmed
@@ -118,10 +124,10 @@ class TestSplitReads(TestCaseWithTmp) :
         outPrefix = util.file.mkstempfname()
         
         # Split
-        parser = read_utils.parser_split_reads()
+        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
         args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4',
                                   '--indexLen', '1'])
-        read_utils.main_split_reads(args)
+        args.func_main(args)
         
         # Check that results match expected
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.1')
@@ -136,9 +142,9 @@ class TestSplitReads(TestCaseWithTmp) :
         outPrefix = util.file.mkstempfname()
 
         # Split
-        parser = read_utils.parser_split_reads()
+        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
         args = parser.parse_args([inFastq, outPrefix, '--numChunks', '3'])
-        read_utils.main_split_reads(args)
+        args.func_main(args)
         
         # Check that results match expected
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.01')
@@ -155,10 +161,10 @@ class TestSplitReads(TestCaseWithTmp) :
         outPrefix = util.file.mkstempfname()
 
         # Split
-        parser = read_utils.parser_split_reads()
+        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
         args = parser.parse_args([inFasta, outPrefix, '--numChunks', '2',
                                   '--format', 'fasta'])
-        read_utils.main_split_reads(args)
+        args.func_main(args)
         
         # Check that results match expected
         expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.01')
@@ -189,11 +195,11 @@ class TestMvicuna(TestCaseWithTmp) :
         pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
         pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
         unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
-        args = read_utils.parser_dup_remove_mvicuna().parse_args(
+        args = read_utils.parser_dup_remove_mvicuna(argparse.ArgumentParser()).parse_args(
             [inFastq1, inFastq2,
              pairedOutFastq1, pairedOutFastq2,
              '--unpairedOutFastq', unpairedOutFastq])
-        read_utils.main_dup_remove_mvicuna(args)
+        args.func_main(args)
         
         # Compare to expected
         for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq',

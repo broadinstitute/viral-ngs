@@ -62,9 +62,9 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('--n_reads', default=100000, type=int,
         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
-__commands__.append(('assemble_trinity',
-    util.cmd.main_command(assemble_trinity), parser_assemble_trinity))
+__commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=None):
@@ -125,9 +125,9 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('--inReads', default=None, help='Input reads in BAM format.')
     parser.add_argument('--mosaikDir', default=None, help='Path to MOSAIK directory.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
-__commands__.append(('order_and_orient',
-    util.cmd.main_command(order_and_orient), parser_order_and_orient))
+__commands__.append(('order_and_orient', parser_order_and_orient))
 
 
 class PoorAssemblyError(Exception):
@@ -215,9 +215,9 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument("--replaceLength", type=int, default=0,
         help="length of ends to be replaced with reference (default: %(default)s)")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
-__commands__.append(('impute_from_reference',
-    util.cmd.main_command(impute_from_reference), parser_impute_from_reference))
+__commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 
 def refine_assembly(inFasta, inBam, outFasta,
@@ -316,9 +316,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
-__commands__.append(('refine_assembly',
-    util.cmd.main_command(refine_assembly), parser_refine_assembly))
+__commands__.append(('refine_assembly', parser_refine_assembly))
 
 
 
@@ -336,6 +336,7 @@ def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
     parser.add_argument("-of", "--output-format",
                         help="Format for output sequence (default: %(default)s)", default="fasta")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, main_filter_short_seqs)
     return parser
 def main_filter_short_seqs(args):
     '''Check sequences in inFile, retaining only those that are at least minLength'''
@@ -349,7 +350,7 @@ def main_filter_short_seqs(args):
                     and unambig_count(s.seq) >= len(s)*args.minUnambig],
                 outf, args.output_format)
     return 0
-__commands__.append(('filter_short_seqs', main_filter_short_seqs, parser_filter_short_seqs))
+__commands__.append(('filter_short_seqs', parser_filter_short_seqs))
 
 
 
@@ -391,6 +392,7 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
         (ie Y->C) (default: %(default)s)""",
         default=False, action="store_true", dest="call_reference_ambiguous")
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, main_modify_contig)
     return parser
 def main_modify_contig(args):
     ''' Modifies an input contig. Depending on the options
@@ -433,7 +435,7 @@ def main_modify_contig(args):
         for line in util.file.fastaMaker([(name, mc.get_stripped_consensus())]):
             f.write(line)
     return 0
-__commands__.append(('modify_contig', main_modify_contig, parser_modify_contig))
+__commands__.append(('modify_contig', parser_modify_contig))
 
 
 class ContigModifier:
@@ -706,6 +708,7 @@ def parser_vcf_to_fasta(parser=argparse.ArgumentParser()):
         help="output sequence names (default: reference names in VCF file)",
         default=[])
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, main_vcf_to_fasta)
     return parser
 def main_vcf_to_fasta(args):
     ''' Take input genotypes (VCF) and construct a consensus sequence
@@ -736,7 +739,7 @@ def main_vcf_to_fasta(args):
     # done
     log.info("done")
     return 0
-__commands__.append(('vcf_to_fasta', main_vcf_to_fasta, parser_vcf_to_fasta))
+__commands__.append(('vcf_to_fasta', parser_vcf_to_fasta))
 
 
 
@@ -744,19 +747,20 @@ def parser_trim_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output (trimmed) fasta file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, trim_fasta, split_args=True)
     return parser
-def main_trim_fasta(args):
+def trim_fasta(inFasta, outFasta):
     ''' Take input sequences (fasta) and trim any continuous sections of
         N's from the ends of them.  Write trimmed sequences to an output fasta file.
     '''
-    with open(args.outFasta, 'wt') as outf:
-        with open(args.inFasta, 'rt') as inf:
+    with open(outFasta, 'wt') as outf:
+        with open(inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
                 for line in util.file.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
                     outf.write(line)
     log.info("done")
     return 0
-__commands__.append(('trim_fasta', main_trim_fasta, parser_trim_fasta))
+__commands__.append(('trim_fasta', parser_trim_fasta))
 
 
 
@@ -780,9 +784,9 @@ def parser_deambig_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output fasta file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, deambig_fasta, split_args=True)
     return parser
-__commands__.append(('deambig_fasta',
-    util.cmd.main_command(deambig_fasta), parser_deambig_fasta))
+__commands__.append(('deambig_fasta', parser_deambig_fasta))
 
 
 def vcf_dpdiff(vcfs):
@@ -807,19 +811,20 @@ def parser_dpdiff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcfs", help="Input VCF file", nargs='+')
     parser.add_argument("outFile", help="Output flat file")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, dpdiff, split_args=True)
     return parser
-def main_dpdiff(args):
+def dpdiff(inVcfs, outFile):
     ''' Take input VCF files (all with only one sample each) and report
         on the discrepancies between the two DP fields (one in INFO and one in the
         sample's genotype column).
     '''
     header = ['chr','pos','sample','dp_info','dp_sample','diff','ratio']
-    with open(args.outFile, 'wt') as outf:
+    with open(outFile, 'wt') as outf:
         outf.write('#'+'\t'.join(header)+'\n')
-        for row in vcf_dpdiff(args.inVcfs):
+        for row in vcf_dpdiff(inVcfs):
             outf.write('\t'.join(map(str, row))+'\n')
     return 0
-__commands__.append(('dpdiff', main_dpdiff, parser_dpdiff))
+__commands__.append(('dpdiff', parser_dpdiff))
 
 
 if __name__ == '__main__':

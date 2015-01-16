@@ -4,7 +4,7 @@ __author__ = "dpark@broadinstitute.org"
 
 import assembly, util.cmd, util.file
 import Bio.SeqIO, Bio.Data.IUPACData
-import unittest
+import unittest, argparse
 import os, shutil, tempfile, argparse, itertools
 from test import TestCaseWithTmp
 
@@ -15,8 +15,8 @@ def makeFasta(seqs, outFasta):
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
-        for cmd_name, main_fun, parser_fun in assembly.__commands__:
-            parser = parser_fun()
+        for cmd_name, parser_fun in assembly.__commands__:
+            parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
 
@@ -210,19 +210,19 @@ class TestManualSnpCaller(unittest.TestCase):
 
 class TestDeambigAndTrimFasta(TestCaseWithTmp):
     ''' Test the deambig_fasta and trim_fasta commands. '''
-    def run_method(self, inseqs, parser_fun, main_fun):
+    def run_method(self, inseqs, parser_fun):
         fasta_in = util.file.mkstempfname()
         fasta_out = util.file.mkstempfname()
         makeFasta([(str(i), inseqs[i]) for i in range(len(inseqs))], fasta_in)
-        args = parser_fun().parse_args([fasta_in, fasta_out])
-        main_fun(args)
+        args = parser_fun(argparse.ArgumentParser()).parse_args([fasta_in, fasta_out])
+        args.func_main(args)
         return (fasta_in, fasta_out)
     def test_trim_fasta(self):
         ''' Simple test of the trim_fasta command '''
         inseqs = ['NNnnNNnNaslkdfjasdkfNNNN','NNNnnN','NNN123','ATCG']
         expected = ['aslkdfjasdkf','','123','ATCG']
         expected = dict((str(i), expected[i]) for i in range(len(expected)))
-        fasta_in, fasta_out = self.run_method(inseqs, assembly.parser_trim_fasta, assembly.main_trim_fasta)
+        fasta_in, fasta_out = self.run_method(inseqs, assembly.parser_trim_fasta)
         with open(fasta_out, 'rt') as fa:
             for record in Bio.SeqIO.parse(fa, 'fasta'):
                 self.assertIn(record.id, expected)
@@ -235,7 +235,7 @@ class TestDeambigAndTrimFasta(TestCaseWithTmp):
         keys = keys + [k.lower() for k in keys]
         vals = vals + vals
         inseq = ''.join(keys)
-        fasta_in, fasta_out = self.run_method([inseq], assembly.parser_deambig_fasta, assembly.main_deambig_fasta)
+        fasta_in, fasta_out = self.run_method([inseq], assembly.parser_deambig_fasta)
         with open(fasta_out, 'rt') as fa:
             for rec in Bio.SeqIO.parse(fa, 'fasta'):
                 self.assertEqual(rec.id, '0')
