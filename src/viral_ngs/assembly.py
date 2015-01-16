@@ -179,7 +179,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
         with open(inReference, 'rt') as inf:
             for line in inf:
                 if not refName and line.startswith('>'):
-                    refName = line[1:]
+                    refName = line[1:].strip()
                 outf.write(line)
         with open(inFasta, 'rt') as inf:
             for line in inf:
