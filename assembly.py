@@ -185,14 +185,15 @@ def impute_from_reference(inFasta, inReference, outFasta,
             for line in inf:
                 outf.write(line)
     tools.muscle.MuscleTool().execute(concat_file, muscle_align, quiet=True)
-    args = [muscle_align, outFasta, inReference,
+    args = [muscle_align, outFasta, refName,
         '--call-reference-ns', '--trim-ends',
         '--replace-5ends', '--replace-3ends',
         '--replace-length', str(replaceLength),
         '--replace-end-gaps']
     if newName:
         args = args + ['--name', newName]
-    main_modify_contig(parser_modify_contig().parse_args(args))
+    args = parser_modify_contig().parse_args(args)
+    args.func_main(args)
     os.unlink(concat_file)
     os.unlink(muscle_align)
     
