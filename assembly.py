@@ -7,7 +7,7 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, random, os, os.path, shutil, subprocess
+import argparse, logging, random, os, os.path, shutil, subprocess, glob
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
@@ -108,6 +108,8 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         os.unlink(readsFq[0])
         os.unlink(readsFq[1])
     shutil.move(tmp_prefix+'_assembly.fa', outFasta)
+    for fn in glob.glob(tmp_prefix+'*'):
+        os.unlink(fn)
     with open(outFasta, 'rt') as inf:
         out_chr_count = len([1 for x in inf if x.startswith('>')])
     with open(inReference, 'rt') as inf:
