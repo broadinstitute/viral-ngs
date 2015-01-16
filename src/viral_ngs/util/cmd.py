@@ -40,9 +40,9 @@ def common_args(parser, arglist=(('tmpDir',None), ('loglevel',None))):
                 default=v)
             parser.add_argument("--tmpDirKeep",
                 action="store_true", dest="tmpDirKeep",
-                help="""Keep the tmpDir, even if an exception occurs while
-                    running. Default is to delete all temp files at the end,
-                    regardless of exit code.""",
+                help="""Keep the tmpDir if an exception occurs while
+                    running. Default is to delete all temp files at
+                    the end, even if there's a failure.""",
                 default=False)
         elif k=='version':
             if not v:

@@ -679,5 +679,7 @@ __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
                      
 # ========================
 
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

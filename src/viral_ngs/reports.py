@@ -197,5 +197,7 @@ __commands__.append(('consolidate_spike_count', parser_consolidate_spike_count))
 
 # =======================
 
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
