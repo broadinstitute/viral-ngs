@@ -277,5 +277,7 @@ __commands__.append(('illumina_basecalls', parser_illumina_basecalls))
 
 # =======================
 
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

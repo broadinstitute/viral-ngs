@@ -331,5 +331,7 @@ def main_iSNP_per_patient(args):
 __commands__.append(('iSNP_per_patient', parser_iSNP_per_patient))
 
 
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
