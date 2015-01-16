@@ -562,7 +562,8 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
         
         # M-Vicuna DupRm to see what we should keep (append IDs to running file)
         mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
-        map(os.unlink, infastqs)
+        for fn in infastqs:
+            os.unlink(fn)
     
     # Filter original input BAM against keep-list
     tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam, JVMmemory=JVMmemory)

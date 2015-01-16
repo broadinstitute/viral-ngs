@@ -434,7 +434,8 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
     shutil.copyfile(curReads2, outFastq2)
-    map(os.unlink, tempfiles)
+    for fn in tempfile:
+        os.unlink(fn)
     log.debug("deplete_bmtagger complete")
 
 def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
@@ -657,7 +658,8 @@ def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
     tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
     
     # Clean up
-    map(os.unlink, (fasta, blast_hits, halfBam))
+    for fn in (fasta, blast_hits, halfBam):
+        os.unlink(fn)
     
 def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
