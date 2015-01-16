@@ -16,17 +16,3 @@ def read_samples_file(fname):
     with open(fname, 'rt') as inf:
         for line in inf:
             yield line.strip()
-
-def assert_nonempty_file(fname):
-    if not (os.path.isfile(fname) and os.path.getsize(fname)):
-        raise Exception()
-
-def update_timestamps(files):
-    ''' this dumb function exists because sometimes the different nodes on the
-        cluster have out-of-sync system clocks and snakemake fails if the mtime of
-        any input file is more recent than the mtimes of the output files
-    '''
-    for f in files:
-        if os.path.isfile(f) and os.path.getmtime(f) > time.time():
-            print("input file %s is more recent than present, resetting its modification time to present" % f)
-            os.utime(f)

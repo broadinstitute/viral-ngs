@@ -24,7 +24,7 @@ class MuscleTool(tools.Tool) :
             install_methods.append(
                 tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
                     'muscle{}/src/muscle'.format(tool_version),
-                    post_download_command='cd muscle{}/src; make'.format(tool_version),
+                    post_download_command='cd muscle{}/src; make -s'.format(tool_version),
                     verifycmd='{}/muscle{}/src/muscle -version 2> /dev/null'.format(util.file.get_build_path(), tool_version)))
         tools.Tool.__init__(self, install_methods = install_methods)
     
@@ -32,7 +32,7 @@ class MuscleTool(tools.Tool) :
         return tool_version
     
     def execute(self, inFasta, outFasta,
-        maxiters=None, maxhours=None, outFormat='fasta', diags=None, quiet=None, log=None):
+        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=None, logFile=None):
         toolCmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
         
         if format in ('html', 'msf', 'clw', 'clwstrict'):
@@ -48,8 +48,8 @@ class MuscleTool(tools.Tool) :
             toolCmd.append('-maxiters {}'.format(maxiters))
         if maxhours:
             toolCmd.append('-maxhours {}'.format(maxhours))
-        if log:
-            toolCmd.append('-log {}'.format(log))
+        if logFile:
+            toolCmd.append('-log {}'.format(logFile))
         
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)

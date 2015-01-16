@@ -44,7 +44,7 @@ rule assemble_trinity:
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             n_reads="100000",
             logid="{sample}",
             clipDb=config["trim_clipDb"]
@@ -54,12 +54,7 @@ rule assemble_trinity:
                 subdir=config["subdirs"]["assembly"]))
             shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads}")
 
-def first_fasta_header(inFasta):
-    # this method can go away when align_and_orient gets turned into a script
-    with open(inFasta, 'rt') as inf:
-        return inf.readline().rstrip('\n').lstrip('>')
-
-rule align_and_orient:
+rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
         VFAT (maybe Bellini later): take the Trinity contigs, align them to
             the known reference genome, switch it to the same strand as the
@@ -76,42 +71,22 @@ rule align_and_orient:
             positions with two steps of read-based refinement (below), and
             revert positions back to Ns where read support is lacking.
     '''
-    input:  '{dir}/{sample}.assembly1-trinity.fasta',
-            '{dir}/{sample}.filtered.fix.1.fastq',
-            '{dir}/{sample}.filtered.fix.2.fastq'
-    output: '{dir}/{sample}.assembly2-vfat.fasta',
-            '{dir}/{sample}.assembly3-modify.fasta'
+    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly1-trinity.fasta',
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly2-vfat.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly3-modify.fasta'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refGenome=config["ref_genome"],
             length = str(config["assembly_min_length"][0]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
-            #renamed_prefix="EBOV_2014_",
             replace_length="55",
-            logid="{sample}",
-            tmpf_prefix='{dir}/{sample}.assembly1.5',
-            tmpf_muscle='{dir}/{sample}.muscle_align.fasta'
+            mosaikDir='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
+            logid="{sample}"
     run:
-            update_timestamps(input)
-            shell("touch {params.tmpf_prefix}_dummy && rm -rf {params.tmpf_prefix}*")
-            shell("touch {params.tmpf_prefix}_merger_assembly.fa")
-            shell("{config[binDir]}/tools/scripts/vfat/orientContig.pl {input[0]} {params.refGenome} {params.tmpf_prefix}")
-            shell("{config[binDir]}/tools/scripts/vfat/contigMerger.pl {params.tmpf_prefix}_orientedContigs {params.refGenome} -readfq {input[1]} -readfq2 {input[2]} -fakequals 30 {params.tmpf_prefix}")
-            shell("cat {params.tmpf_prefix}*assembly.fa > {params.tmpf_prefix}_prefilter.fasta")
-            
-            shell("{config[binDir]}/assembly.py filter_short_seqs {params.tmpf_prefix}_prefilter.fasta {params.length} {params.min_unambig} {output[0]}")
-            assert_nonempty_file(output[0])
-            shell("rm -rf {params.tmpf_prefix}*")
-            
-            shell("cat {output[0]} {params.refGenome} | /idi/sabeti-scratch/kandersen/bin/muscle/muscle -out {params.tmpf_muscle} -quiet")
-            refName = first_fasta_header(params.refGenome)
-            shell("{config[binDir]}/assembly.py modify_contig {params.tmpf_muscle} {output[1]} {refName} --name {params.renamed_prefix}{wildcards.sample} --call-reference-ns --trim-ends --replace-5ends --replace-3ends --replace-length {params.replace_length} --replace-end-gaps")
-            assert_nonempty_file(output[1])
-            shell("{config[binDir]}/read_utils.py novoindex {output[1]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_picard {output[1]}")
-            shell("{config[binDir]}/read_utils.py index_fasta_samtools {output[1]}")
-            os.unlink(params.tmpf_muscle)
+            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]} --mosaikDir {params.mosaikDir}")
+            shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the VFAT assembly,
@@ -130,7 +105,7 @@ rule refine_assembly_1:
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage = "2"
@@ -152,7 +127,7 @@ rule refine_assembly_2:
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             min_coverage = "3"
@@ -173,7 +148,7 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:

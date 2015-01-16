@@ -26,7 +26,7 @@ rule revert_bam:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
     resources: mem=3
-    params: LSF='-W 4:00 -sp 60',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
@@ -45,7 +45,7 @@ rule deplete_bmtagger:
     #           suffix=["bitmask","srprism.idx","srprism.map"])
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
     resources: mem=10
-    params: LSF='-q forest',
+    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
@@ -59,7 +59,7 @@ rule rmdup_mvicuna:
     input:  config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
     output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
     shell:  "{config[binDir]}/read_utils.py rmdup_mvicuna_bam {input} {output}"
 
@@ -71,7 +71,7 @@ rule deplete_blastn:
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=10
-    params: LSF='-q forest',
+    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_bam {input} {params.refDbs} {output}"
@@ -87,7 +87,7 @@ rule depletion:
             config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=10
-    params: LSF='-q forest',
+    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
@@ -104,7 +104,7 @@ rule filter_to_taxon:
     input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=3
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refDb=config["lastal_refDb"],
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
@@ -131,7 +131,7 @@ rule merge_one_per_sample:
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=4
-    params: LSF='-W 4:00',
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:

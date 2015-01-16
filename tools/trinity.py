@@ -6,8 +6,8 @@
     viral genomes.
 '''
 
-import logging, tools, util.file
-import os, os.path, subprocess, tempfile
+import logging, os, os.path, subprocess, tempfile, shutil
+import tools, util.file
 
 tool_version = "2011-11-26"
 trinityVersion = "trinityrnaseq_r{}".format(tool_version)
@@ -37,8 +37,8 @@ class TrinityTool(tools.Tool) :
             '--left', inFastq1,
             '--right', inFastq2,
             '--output', outdir]
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        log.debug(' '.join(cmd))
+        subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
 
@@ -46,16 +46,33 @@ class DownloadAndBuildTrinity(tools.DownloadPackage) :
     def post_download(self) :
         trinityDir = os.path.join(self.destination_dir, trinityVersion)
         if tool_version == "2011-11-26" :
-            # This version doesn't compile. Need to add an include file.
+            # Chrysalis doesn't compile. Need to add an include file.
             badFilePath = os.path.join(trinityDir, 'Chrysalis', 'analysis',
                                        'RunButterfly.cc')
-            extraLine = '#include <unistd.h>\n'
-            fileContents = open(badFilePath).read()
-            # Save the original in RunButterfly.cc.orig
             os.rename(badFilePath, badFilePath + '.orig')
-            open(badFilePath, 'w').write(extraLine + fileContents)
+            with open(badFilePath, 'wt') as outf:
+                outf.write('#include <unistd.h>\n')
+                with open(badFilePath+'.orig', 'rt') as inf:
+                    for line in inf:
+                        outf.write(line)
+            
+            # Trinity.pl insists on Java 1.6, but Java >= 1.6 is fine
+            badFilePath = os.path.join(trinityDir, 'Trinity.pl')
+            os.rename(badFilePath, badFilePath + '.orig')
+            with open(badFilePath, 'wt') as outf:
+                with open(badFilePath+'.orig', 'rt') as inf:
+                    for line in inf:
+                        if line.startswith('unless ($java_version =~ /java version'):
+                            outf.write('$java_version =~ /java version \"1\.(\d+)\./;\n')
+                            outf.write('unless ($1 >= 6) {\n')
+                        else:
+                            outf.write(line)
+            shutil.copymode(badFilePath+'.orig', badFilePath)
+            
         # Now we can make:
         os.system('cd "{}" && make -s'.format(trinityDir))
+        shutil.rmtree(os.path.join(trinityDir, 'sample_data'), ignore_errors=True)
+    
     def verify_install(self) :
         if not tools.DownloadPackage.verify_install(self) :
             return False
@@ -67,5 +84,5 @@ class DownloadAndBuildTrinity(tools.DownloadPackage) :
             if not os.access(path, (os.X_OK | os.R_OK)) :
                 log.debug('{} was not built.'.format(path))
                 self.installed = False
-                return False
-        
+        self.installed = True
+        return self.installed

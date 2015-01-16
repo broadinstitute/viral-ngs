@@ -57,6 +57,7 @@ def make_vcf(a, ref_idx, chrom):
             yield row+vars
             
 
-
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
