@@ -70,7 +70,7 @@ rule deplete_blastn:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=10
+    resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
@@ -86,7 +86,7 @@ rule depletion:
             config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
             config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=10
+    resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
