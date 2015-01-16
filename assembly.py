@@ -7,7 +7,7 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, random, os, os.path, shutil, glob, subprocess
+import argparse, logging, random, os, os.path, shutil, subprocess
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
@@ -27,16 +27,19 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
     
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
     taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
-    map(os.unlink, infq)
+    os.unlink(infq[0])
+    os.unlink(infq[1])
     
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
     read_utils.rmdup_prinseq_fastq(trimfq[0], rmdupfq[0])
     read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
-    map(os.unlink, trimfq)
+    os.unlink(trimfq[0])
+    os.unlink(trimfq[1])
 
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
-    map(os.unlink, rmdupfq)
+    os.unlink(rmdupfq[0])
+    os.unlink(rmdupfq[1])
     
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
@@ -46,10 +49,12 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000):
         '-out', subsampfq[0], subsampfq[1],
         ]
     subprocess.check_call(cmd)
-    map(os.unlink, purgefq)
+    os.unlink(purgefq[0])
+    os.unlink(purgefq[1])
     
     tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
-    map(os.unlink, subsampfq)
+    os.unlink(subsampfq[0])
+    os.unlink(subsampfq[1])
     return 0
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
@@ -100,15 +105,11 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         ]
     subprocess.check_call(cmd)
     if inReads:
-        map(os.unlink, readsFq)
-    with open(outFasta, 'wt') as outf:
-        out_chr_count = 0
-        for fn in sorted(glob.glob(tmp_prefix+'*assembly.fa')):
-            log.debug("appending {} to {}".format(fn, outFasta))
-            out_chr_count += 1
-            with open(fn, 'rt') as inf:
-                map(outf.write, inf)
-            os.unlink(fn)
+        os.unlink(readsFq[0])
+        os.unlink(readsFq[1])
+    shutil.move(tmp_prefix+'_assembly.fa', outFasta)
+    with open(outFasta, 'rt') as inf:
+        out_chr_count = len([1 for x in inf if x.startswith('>')])
     with open(inReference, 'rt') as inf:
         ref_chr_count = len([1 for x in inf if x.startswith('>')])
     if out_chr_count != ref_chr_count:
@@ -179,7 +180,8 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     refName = line[1:]
                 outf.write(line)
         with open(inFasta, 'rt') as inf:
-            map(outf.write, inf)
+            for line in inf:
+                outf.write(line)
     tools.muscle.MuscleTool().execute(concat_file, muscle_align, quiet=True)
     args = [muscle_align, outFasta, inReference,
         '--call-reference-ns', '--trim-ends',
