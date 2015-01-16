@@ -47,6 +47,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_deplete_human)
     return parser
 def main_deplete_human(args):
     '''Run the entire depletion pipeline: bmtagger, mvicuna, blastn, and maybe lastal'''
@@ -58,7 +59,7 @@ def main_deplete_human(args):
     if args.taxfiltBam and args.lastDb:
         filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('deplete_human', main_deplete_human, parser_deplete_human))
+__commands__.append(('deplete_human', parser_deplete_human))
 
 
 # ==========================
@@ -101,9 +102,9 @@ def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
     parser.add_argument("clipFasta",
         help = "Fasta file with adapters, PCR sequences, etc. to clip off")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, trimmomatic, split_args=True)
     return parser
-__commands__.append(('trim_trimmomatic',
-    util.cmd.main_command(trimmomatic), parser_trim_trimmomatic))
+__commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 
 # =======================
 # ***  filter_lastal  ***
@@ -193,9 +194,9 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
-__commands__.append(('filter_lastal_bam',
-    util.cmd.main_command(filter_lastal_bam), parser_filter_lastal_bam))
+__commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
 
 def filter_lastal(inFastq, refDb, outFastq):
@@ -256,9 +257,9 @@ def parser_filter_lastal(parser=argparse.ArgumentParser()):
                         help="Reference database to retain from input")
     parser.add_argument("outFastq", help = "Output fastq file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, filter_lastal, split_args=True)
     return parser
-__commands__.append(('filter_lastal',
-    util.cmd.main_command(filter_lastal), parser_filter_lastal))
+__commands__.append(('filter_lastal', parser_filter_lastal))
 
 
 # ============================
@@ -452,6 +453,7 @@ def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('--outNoMatch', nargs = 2,
         help='Filenames for fastq output of unmatched reads.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_partition_bmtagger)
     return parser
 def main_partition_bmtagger(args) :
     ''' Use bmtagger to partition input reads into ones that 
@@ -471,8 +473,7 @@ def main_partition_bmtagger(args) :
     #    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
     #return 0
     partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
-__commands__.append(('partition_bmtagger', main_partition_bmtagger,
-                     parser_partition_bmtagger))
+__commands__.append(('partition_bmtagger', parser_partition_bmtagger))
 
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
@@ -486,12 +487,12 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
     return parser
 def main_deplete_bam_bmtagger(args) :
     '''Use bmtagger to deplete input reads against several databases.'''
     multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, JVMmemory=args.JVMmemory)
-__commands__.append(('deplete_bam_bmtagger', main_deplete_bam_bmtagger,
-                     parser_deplete_bam_bmtagger))
+__commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
@@ -555,9 +556,9 @@ def parser_deplete_blastn(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+',
         help='One or more reference databases for blast.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, deplete_blastn, split_args=True)
     return parser
-__commands__.append(('deplete_blastn',
-    util.cmd.main_command(deplete_blastn), parser_deplete_blastn))
+__commands__.append(('deplete_blastn', parser_deplete_blastn))
 
 def deplete_blastn_paired(infq1, infq2, outfq1, outfq2, refDbs):
     'Use blastn to remove reads that match at least one of the databases.'
@@ -587,9 +588,9 @@ def parser_deplete_blastn_paired(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+',
         help='One or more reference databases for blast.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, deplete_blastn_paired, split_args=True)
     return parser
-__commands__.append(('deplete_blastn_paired',
-    util.cmd.main_command(deplete_blastn_paired), parser_deplete_blastn_paired))
+__commands__.append(('deplete_blastn_paired', parser_deplete_blastn_paired))
 
 
 def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
@@ -668,13 +669,13 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
 def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
     multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam, JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('deplete_blastn_bam', main_deplete_blastn_bam,
-                     parser_deplete_blastn_bam))
+__commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
                      
 # ========================
 
