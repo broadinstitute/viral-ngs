@@ -23,6 +23,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath('.')))
 
 import util.version
 
+# -- Mock out the heavyweight pip packages that require C ----
+import mock
+MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'pysam',
+  'Bio', 'Bio.AlignIO', 'Bio.SeqIO', 'Bio.Data.IUPACData']
+for mod_name in MOCK_MODUES:
+   sys.modules[mod_name] = mock.Mock()
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
