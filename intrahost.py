@@ -6,9 +6,16 @@ and annotation for viral genomes.
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, itertools, re, numpy
+import argparse, logging, itertools, re
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
+
+try:
+    # Python 3.4
+    from statistics import mean, median
+except ImportError:
+    from numpy import mean, median
+
 
 log = logging.getLogger(__name__)
 
@@ -299,7 +306,7 @@ def main_iSNV_table(args):
 __commands__.append(('iSNV_table', parser_iSNV_table))
 
 
-def iSNP_per_patient(table, agg_fun=numpy.median):
+def iSNP_per_patient(table, agg_fun=median):
     data = sorted(table, key=lambda row: (int(row['pos']), row['patient']))
     data = itertools.groupby(data, lambda row: (int(row['pos']), row['patient']))
     for x, rows in data:
