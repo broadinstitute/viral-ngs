@@ -2,7 +2,7 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import unittest, os, tempfile, argparse
+import unittest, os, tempfile, argparse, filecmp
 import util, util.file, read_utils, tools, tools.samtools
 from test import TestCaseWithTmp
 
@@ -68,7 +68,8 @@ class TestFastqBam(TestCaseWithTmp) :
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         inHeader = os.path.join(myInputDir, 'inHeader.txt')
-        expectedSam = os.path.join(myInputDir, 'expected.sam')
+        expected1_7Sam = os.path.join(myInputDir, 'expected.java1_7.sam')
+        expected1_8Sam = os.path.join(myInputDir, 'expected.java1_8.sam')
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq1')
         outBamCmd = util.file.mkstempfname('.bam')
         outBamTxt = util.file.mkstempfname('.bam')
@@ -92,8 +93,11 @@ class TestFastqBam(TestCaseWithTmp) :
         # samtools view for out.sam and compare to expected
         samtools = tools.samtools.SamtoolsTool()
         samtools.execute('view', ['-h', outBamCmd], stdout=outSam)
-        self.assertEqualContents(outSam, expectedSam)
-
+        # picard.sam.FastqToSam outputs header fields in different order for
+        #    java version 1.8 vs 1.7/1.6, so compare both
+        self.assertTrue(filecmp.cmp(outSam, expected1_7Sam, shallow=False) or
+                        filecmp.cmp(outSam, expected1_8Sam, shallow=False))
+ 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt,
