@@ -23,11 +23,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath('.')))
 
 import util.version
 
-# -- Mock out the heavyweight pip packages that require C ----
+# -- Mock out the heavyweight pip packages, esp those that require C ----
 import mock
 MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'pysam',
   'Bio', 'Bio.AlignIO', 'Bio.SeqIO', 'Bio.Data.IUPACData']
-for mod_name in MOCK_MODUES:
+for mod_name in MOCK_MODULES:
    sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
