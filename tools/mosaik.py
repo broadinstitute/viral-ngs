@@ -18,9 +18,9 @@ class MosaikTool(tools.Tool) :
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
         install_methods = []
-        install_methods.append(tools.DownloadPackage(url.format(ver=tool_version, os='source'),
-            os.path.join('bin', 'MosaikAligner'),
-            post_download_command='cd MOSAIK-{}-source; make -s'.format(tool_version)))
+        install_methods.append(
+            DownloadAndBuildMosaik(url.format(ver=tool_version, os='source'),
+                                   os.path.join('bin', 'MosaikAligner')))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
@@ -32,6 +32,24 @@ class MosaikTool(tools.Tool) :
             'MOSAIK-{}-source'.format(tool_version),
             'networkFile')
         if not os.path.isdir(dir):
-            # if it doesn't exist, run just the download-unpack portion of the source installer
+            # if it doesn't exist, run just the download-unpack portion of the
+            #     source installer
             self.get_install_methods()[-1].download()
         return dir
+
+class DownloadAndBuildMosaik(tools.DownloadPackage) :
+    def post_download(self) :
+        mosaikDir = os.path.join(self.destination_dir,
+                                 'MOSAIK-{}-source'.format(tool_version))
+        if tool_version == "2.1.33" :
+            # In this version, obsolete LDFLAGS breaks make. Remove it
+            makeFilePath = os.path.join(mosaikDir, 'Makefile')
+            os.rename(makeFilePath, makeFilePath + '.orig')
+            with open(makeFilePath + '.orig') as inf :
+                makeText = inf.read()
+            with open(makeFilePath, 'wt') as outf :
+                outf.write(makeText.replace('export LDFLAGS = -Wl',
+                                            '#export LDFLAGS = -Wl'))
+    
+        # Now we can make:
+        os.system('cd "{}" && make -s'.format(mosaikDir))
