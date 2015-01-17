@@ -6,11 +6,15 @@ __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, subprocess, glob, os, os.path, time
-import pysam, numpy
 import util.cmd, util.file, util.misc
 
 log = logging.getLogger(__name__)
 
+try:
+    # Python 3.4
+    from statistics import mean, median
+except ImportError:
+    from numpy import mean, median
 
 
 def consolidate_bamstats(inFiles, outFile):
@@ -123,8 +127,8 @@ def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thre
                 coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
             out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
             out = [s] + out
-            out +=[numpy.median(coverages), "%0.3f"%numpy.mean(coverages),
-                "%0.3f"%numpy.mean([n for n in coverages if n>0])]
+            out +=[median(coverages), "%0.3f"%mean(coverages),
+                "%0.3f"%mean([n for n in coverages if n>0])]
             if baminfo:
                 if s in baminfo:
                     out += [baminfo[s].get(adj,'') for adj in ('raw', 'cleaned', 'ref_mapped', 'ref_rmdup')]

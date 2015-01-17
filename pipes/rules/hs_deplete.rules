@@ -70,7 +70,7 @@ rule deplete_blastn:
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=10
+    resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             logid="{sample}"
@@ -86,7 +86,7 @@ rule depletion:
             config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
             config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=10
+    resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
@@ -130,7 +130,7 @@ rule merge_one_per_sample:
     '''
     input:  merge_one_per_sample_inputs
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=4
+    resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
@@ -140,5 +140,5 @@ rule merge_one_per_sample:
                 shell("{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
             else:
                 shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
-                shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output}")
+                shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory 8g")
 

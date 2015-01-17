@@ -42,7 +42,9 @@ rule assemble_trinity:
         and random subsample to no more than 100k reads.
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.1.fastq',
+            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.2.fastq'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             n_reads="100000",
@@ -52,7 +54,7 @@ rule assemble_trinity:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads}")
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output[0]} --n_reads={params.n_reads} --outFq {output[1]} {output[2]}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -71,10 +73,11 @@ rule orient_and_impute:
             positions with two steps of read-based refinement (below), and
             revert positions back to Ns where read support is lacking.
     '''
-    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly1-trinity.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly2-vfat.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]  +'/{sample}.assembly3-modify.fasta'
+    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.1.fastq',
+            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.2.fastq'
+    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
+            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refGenome=config["ref_genome"],
@@ -85,7 +88,7 @@ rule orient_and_impute:
             mosaikDir='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
             logid="{sample}"
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]} --mosaikDir {params.mosaikDir}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]} {input[2]} --mosaikDir {params.mosaikDir}")
             shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
