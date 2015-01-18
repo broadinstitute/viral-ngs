@@ -85,10 +85,9 @@ rule orient_and_impute:
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
             replace_length="55",
-            mosaikDir='/gsap/garage-viral/viral/analysis/xyang/external_programs/MOSAIK-2.1.33-source/bin',
             logid="{sample}"
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]} {input[2]} --mosaikDir {params.mosaikDir}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]} {input[2]}")
             shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:

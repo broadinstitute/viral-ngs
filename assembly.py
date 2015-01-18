@@ -82,7 +82,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=None):
+def order_and_orient(inFasta, inReference, outFasta, inReads=None):
     ''' This step cleans up the Trinity assembly with a known reference genome.
         Uses VFAT (switch to Bellini later):
         Take the Trinity contigs, align them to the known reference genome,
@@ -106,8 +106,7 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None, mosaikDir=Non
         if len(inReads)!=2:
             raise ValueError("inReads must have exactly two values")
         mosaik = tools.mosaik.MosaikTool()
-        if mosaikDir==None:
-            mosaikDir = os.path.dirname(mosaik.install_and_get_path())
+        mosaikDir = os.path.dirname(mosaik.install_and_get_path())
         cmd = cmd + [
             '-readfq', inReads[0], '-readfq2', inReads[1],
             '-mosaikpath', mosaikDir,
@@ -133,7 +132,6 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
     parser.add_argument('--inReads', default=None, nargs=2, help='Input reads in FASTQ format.')
-    parser.add_argument('--mosaikDir', default=None, help='Path to MOSAIK directory.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
