@@ -1,6 +1,10 @@
 Installation
 ============
 
+
+System dependencies
+-------------------
+
 This is known to install cleanly on most modern Linux systems with Python,
 Java, and some basic development libraries.  On Ubuntu 14.04 LTS, the
 following APT packages should be installed on top of the vanilla setup::
