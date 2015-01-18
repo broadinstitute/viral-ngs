@@ -1,5 +1,5 @@
-Intrahost genetic variation (iSNVs)
-=====================================
+intrahost.py - within-host genetic variation (iSNVs)
+====================================================
 
 .. argparse::
     :module:  intrahost

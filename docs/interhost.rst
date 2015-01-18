@@ -1,4 +1,4 @@
-Interhost genetic variation
+interhost.py - species and population-level genetic variation
 =====================================
 
 .. argparse::

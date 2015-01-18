@@ -17,26 +17,34 @@ import tools.trinity, tools.mosaik, tools.muscle
 log = logging.getLogger(__name__)
 
 
-def bam_to_trim_rmdup_subsamp_fastqs(inBam, clipDb, n_reads=100000):
+def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outFastqs=None):
+    ''' Take reads through Trimmomatic, Prinseq, and subsampling.
+    '''
+    
+    # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
     
+    # Trimmomatic
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
     taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     os.unlink(infq[0])
     os.unlink(infq[1])
     
+    # Prinseq
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
     read_utils.rmdup_prinseq_fastq(trimfq[0], rmdupfq[0])
     read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
-
+    
+    # Purge unmated
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
     
+    # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
         '-n', str(n_reads),
@@ -47,21 +55,40 @@ def bam_to_trim_rmdup_subsamp_fastqs(inBam, clipDb, n_reads=100000):
     subprocess.check_call(cmd)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
-    return subsampfq
+    
+    # Fastq -> BAM
+    tmp_bam = util.file.mkstempfname('.subsamp.bam')
+    tmp_header = util.file.mkstempfname('.header.sam')
+    tools.picard.FastqToSamTool().execute(
+        subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
+    tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
+    tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
+    os.unlink(tmp_bam)
+    os.unlink(tmp_header)
+    
+    # Save fastqs if requested
+    if outFastqs:
+        shutil.copyfile(subsampfq[0], outFastqs[0])
+        shutil.copyfile(subsampfq[1], outFastqs[1])
+    os.unlink(subsampfq[0])
+    os.unlink(subsampfq[1])
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outFq=None):
+def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
     '''
-    subsampfq = bam_to_trim_rmdup_subsamp_fastqs(inBam, clipDb, n_reads)
+    if outReads:
+        subsamp_bam = outReads
+    else:
+        subsamp_bam = util.file.mkstempfname('.subsamp.bam')
+    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
+    trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam,
+        n_reads=n_reads, outFastqs=subsampfq)
     tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
-    if outFq:
-        if len(outFq)!=2:
-            raise ValueError("outFq must have exactly two values")
-        shutil.copyfile(subsampfq[0], outFq[0])
-        shutil.copyfile(subsampfq[1], outFq[1])
+    if not outReads:
+        os.unlink(subsamp_bam)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -74,8 +101,8 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
         help='Output assembly.')
     parser.add_argument('--n_reads', default=100000, type=int,
         help='Subsample reads to no more than this many pairs. (default %(default)s)')
-    parser.add_argument('--outFq', default=None, nargs=2,
-        help='Save the trimmomatic/prinseq/subsamp reads to a pair of output fastq files')
+    parser.add_argument('--outReads', default=None,
+        help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
@@ -103,13 +130,12 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
         '-musclepath', musclepath,
         '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
     if inReads:
-        if len(inReads)!=2:
-            raise ValueError("inReads must have exactly two values")
+        infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
+        tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
         mosaik = tools.mosaik.MosaikTool()
-        mosaikDir = os.path.dirname(mosaik.install_and_get_path())
         cmd = cmd + [
-            '-readfq', inReads[0], '-readfq2', inReads[1],
-            '-mosaikpath', mosaikDir,
+            '-readfq', infq[0], '-readfq2', infq[1],
+            '-mosaikpath', os.path.dirname(mosaik.install_and_get_path()),
             '-mosaiknetworkpath', mosaik.get_networkFile(),
         ]
     subprocess.check_call(cmd)
@@ -131,7 +157,8 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
         help='Reference genome, FASTA format.')
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
-    parser.add_argument('--inReads', default=None, nargs=2, help='Input reads in FASTQ format.')
+    parser.add_argument('--inReads', default=None,
+        help='Input reads in BAM format.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser

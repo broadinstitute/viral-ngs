@@ -5,11 +5,10 @@
 viral-ngs
 =========
 
-A set of scripts and tools for the analysis of viral NGS data.  More 
-details to come.
+A set of scripts and tools for the analysis of viral NGS data.
 
 
-Usage
-=========
-
-Detailed command line help can be found at http://viral-ngs.readthedocs.org/
+More detailed documentation can be found at http://viral-ngs.readthedocs.org/
+This includes installation instructions,
+usage instructions for the command line tools,
+and usage of the pipeline infrastructure.

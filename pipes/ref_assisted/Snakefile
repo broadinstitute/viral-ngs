@@ -12,16 +12,7 @@
     Then type "ref_assisted" and wait a few hours for aligned BAMs, VCFs, and
     FASTAs.
     
-    This is designed for use on a single linux computer (e.g. Ubuntu 14.04 LTS) with:
-        apt-get install:
-         python3 python3-pip python-software-properties
-         zlib zlib1g zlib1g-dev
-         libblas3gf libblas-dev liblapack3gf liblapack-dev
-         libatlas-dev libatlas3-base libatlas3gf-base libatlas-base-dev
-         gfortran git oracle-java8-installer
-         libncurses5-dev python3-nose
-        pip3 install -r requirements.txt
-        pip3 install snakemake==3.2 yappi==0.94
+    This is designed for use on a single linux computer.
 """
 
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
