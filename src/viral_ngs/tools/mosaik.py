@@ -18,9 +18,12 @@ class MosaikTool(tools.Tool) :
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
         install_methods = []
+        destination_dir = os.path.join(
+            util.file.get_build_path(), 'mosaik-{}'.format(tool_version))
         install_methods.append(
             DownloadAndBuildMosaik(url.format(ver=tool_version, os='source'),
-                                   os.path.join('bin', 'MosaikAligner')))
+                os.path.join(destination_dir, 'bin', 'MosaikAligner'),
+                destination_dir))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
