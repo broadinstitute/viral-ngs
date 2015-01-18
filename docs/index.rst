@@ -3,19 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to viral-ngs's documentation!
-=====================================
+viral-ngs: genomic analysis pipelines for viral sequencing
+==========================================================
 
-Contents:
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-
-   taxon_filter
-   assembly
-   interhost
-   intrahost
-   read_utils
-   reports
-   broad_utils
+   :numbered:
+   
+   install
+   cmdline
 

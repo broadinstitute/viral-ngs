@@ -254,7 +254,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'viral-ngs', 'viral-ngs Documentation',
-   'Broad Institute Viral Genomics', 'viral-ngs', 'One line description of project.',
+   'Broad Institute Viral Genomics', 'viral-ngs', 'Viral genomics analysis pipelines',
    'Miscellaneous'),
 ]
 

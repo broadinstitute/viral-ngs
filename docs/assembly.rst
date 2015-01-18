@@ -1,5 +1,5 @@
-Assembly commands
-=====================================
+assembly.py - *de novo* assembly
+================================
 
 .. argparse::
     :module:  assembly
