@@ -1,4 +1,4 @@
-Processing Broad Institute Sequencing outputs
+broad_utils.py - for data generated at the Broad Institute
 =====================================
 
 .. argparse::

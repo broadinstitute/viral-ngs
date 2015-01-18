@@ -1,4 +1,4 @@
-Read utilities
+read_utils.py - utilities that manipulate bam and fastq files
 =====================================
 
 .. argparse::
