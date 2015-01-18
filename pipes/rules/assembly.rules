@@ -141,20 +141,14 @@ rule map_reads_to_self:
             {sample}.rmdup.bam     - only mapped reads, with duplicates removed by Picard
             {sample}.realigned.bam - mapped/rmdup reads, realigned with GATK IndelRealigner
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
+            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.rmdup.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.realigned.bam'
+            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:
             makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_self"]))
-            shell("{config[binDir]}/read_utils.py novoalign {input[1]} {input[0]} {output[0]} --options '{params.novoalign_options}'")
-            shell("{config[binDir]}/read_utils.py filter_bam_mapped_only {output[0]} {output[1]}")
-            shell("{config[binDir]}/read_utils.py mkdup_picard {output[1]} {output[2]} --remove --picardOptions CREATE_INDEX=true")
-            shell("{config[binDir]}/read_utils.py gatk_realign {output[2]} {input[0]} {output[3]}")
-
+            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}'")
