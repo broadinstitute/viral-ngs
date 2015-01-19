@@ -762,7 +762,8 @@ def align_and_fix(inBam, refFasta, outBamAll=None, outBamFiltered=None,
     
     bam_mkdup = mkstempfname('.mkdup.bam')
     tools.picard.MarkDuplicatesTool().execute(
-        [bam_aligned], bam_mkdup, JVMmemory=JVMmemory)
+        [bam_aligned], bam_mkdup,
+        picardOptions=['CREATE_INDEX=true'], JVMmemory=JVMmemory)
     os.unlink(bam_aligned)
     
     bam_realigned = mkstempfname('.realigned.bam')
