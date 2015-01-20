@@ -1,5 +1,7 @@
 VERSION
 test/output/
+
+# Sphinx documentation
 docs/_build/
 
 # Mac OSX
