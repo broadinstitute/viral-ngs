@@ -1,5 +1,5 @@
 reports.py - produce various metrics and reports
-=====================================
+================================================
 
 .. argparse::
     :module:  reports

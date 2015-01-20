@@ -45,6 +45,9 @@ class SamtoolsTool(tools.Tool) :
             stdin.close()
         if stdout:
             stdout.close()
+
+    def view(self, args, inFile, outFile, regions=[]):
+        self.execute('view', args + ['-o', outFile, inFile] + regions)
     
     def faidx(self, inFasta, overwrite=False):
         ''' Index reference genome for samtools '''
@@ -62,11 +65,11 @@ class SamtoolsTool(tools.Tool) :
     
     def dumpHeader(self, inBam, outHeader) :
         if inBam.endswith('.bam'):
-            opts = ['-H', inBam]
+            opts = ['-H']
         elif inBam.endswith('.sam'):
-            opts = ['-H', '-S', inBam]
+            opts = ['-H', '-S']
         #header = pysam.view(*opts)
-        self.execute('view', opts, stdout=outHeader)
+        self.view(opts, inBam, outHeader)
     
     def getHeader(self, inBam):
         tmpf = util.file.mkstempfname('.txt')

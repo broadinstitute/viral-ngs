@@ -17,8 +17,9 @@ import tools.trinity, tools.mosaik, tools.muscle
 log = logging.getLogger(__name__)
 
 
-def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outFastqs=None):
+def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
+        This should probably move over to read_utils or taxon_filter.
     '''
     
     # BAM -> fastq
@@ -57,6 +58,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outFastqs=No
     os.unlink(purgefq[1])
     
     # Fastq -> BAM
+    # Note: this destroys RG IDs! We should instead just pull the list
+    # of IDs out of purge_unmated, random.sample them ourselves, and
+    # use FilterSamReadsTool to go straight from inBam -> outBam
     tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
     tools.picard.FastqToSamTool().execute(
@@ -65,11 +69,6 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outFastqs=No
     tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
     os.unlink(tmp_bam)
     os.unlink(tmp_header)
-    
-    # Save fastqs if requested
-    if outFastqs:
-        shutil.copyfile(subsampfq[0], outFastqs[0])
-        shutil.copyfile(subsampfq[1], outFastqs[1])
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -83,14 +82,16 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
         subsamp_bam = outReads
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
+    
+    trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam,
-        n_reads=n_reads, outFastqs=subsampfq)
+    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
     tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
-    if not outReads:
-        os.unlink(subsamp_bam)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
+    
+    if not outReads:
+        os.unlink(subsamp_bam)
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',

@@ -146,6 +146,13 @@ class CreateSequenceDictionaryTool(PicardTools) :
         opts = ['REFERENCE='+inFasta, 'OUTPUT='+outDict]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
+class BuildBamIndexTool(PicardTools) :
+    subtoolName = 'BuildBamIndex'
+    jvmMemDefault = '512m'
+    def execute(self, inBam, picardOptions=[], JVMmemory=None) :
+        opts = ['INPUT='+inBam]
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
 class ExtractIlluminaBarcodesTool(PicardTools) :
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
