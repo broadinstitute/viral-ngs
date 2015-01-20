@@ -33,12 +33,14 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
         mafConvertPath = os.path.join(binpath, 'maf-convert')
         os.system('2to3 {mafConvertPath} -w --no-diffs'.format(**locals()))
         # Still more fixes needed: the first for 3.x, the second for 2.7
-        fileContents = open(mafConvertPath).read()
-        fileContents = fileContents.replace('string.maketrans("", "")', 'None')
-        fileContents = fileContents.replace(
-            '#! /usr/bin/env python',
-            '#! /usr/bin/env python\nfrom __future__ import print_function')
-        open(mafConvertPath, 'w').write(fileContents)
+        with open(mafConvertPath, 'rt') as inf:
+            fileContents = inf.read()
+            fileContents = fileContents.replace('string.maketrans("", "")', 'None')
+            fileContents = fileContents.replace(
+                '#! /usr/bin/env python',
+                '#! /usr/bin/env python\nfrom __future__ import print_function')
+        with open(mafConvertPath, 'wt') as outf:
+            outf.write(fileContents)
     def verify_install(self) :
         'Default checks + verify python 2.7/3.x compatibility fixes were done'
         if not tools.DownloadPackage.verify_install(self) :
@@ -47,7 +49,8 @@ class DownloadAndBuildLast(tools.DownloadPackage) :
             self.lastWithVersion, 'bin', 'maf-convert')
         if not os.access(mafConvertPath, os.X_OK | os.R_OK) :
             return False
-        return 'print_function' in open(mafConvertPath).read()
+        with open(mafConvertPath, 'rt') as inf:
+            return 'print_function' in inf.read()
 
 class Lastal(LastTools) :
     subtoolName = 'lastal'
