@@ -35,8 +35,8 @@ def _git_version():
     out = subprocess.check_output(cmd)
     if type(out) != str:
         out = out.decode('utf-8')
-    __version__ = out.strip()
-_git_version()
+    return out.strip()
+__version__ = _git_version()
 
 # -- General configuration ------------------------------------------------
 
