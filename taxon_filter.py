@@ -385,10 +385,11 @@ def partition_bmtagger(inFastq1, inFastq2, databases,
         select_reads(prevReads2, curReads2, noMatchFcn)
     if outMatch != None :
         log.debug("preparing outMatch files")
-        with open(matchesFile) as inf:
-            allMatches = set(line.strip()
-                             for matchesFile in matchesFiles
-                             for line in inf)
+        allMatches = set()
+        for matchesFile in matchesFiles:
+            with open(matchesFile) as inf:
+                newMatches = set(line.strip() for line in inf)
+            allMatches = allMatches.union(newMatches)
         matchFcn = lambda rec : strip12(rec.id) in allMatches
         select_reads(inFastq1, outMatch[0], matchFcn)
         select_reads(inFastq2, outMatch[1], matchFcn)
