@@ -459,7 +459,7 @@ def split_bam(inBam, outBams) :
     
     # dump to bigsam
     bigsam = mkstempfname('.sam')
-    samtools.execute('view', [inBam], stdout=bigsam)
+    samtools.view([], inBam, bigsam)
     
     # split bigsam into little ones
     with util.file.open_or_gzopen(bigsam, 'rt') as inf:
@@ -648,28 +648,20 @@ def main_rmdup_prinseq_fastq(args):
 __commands__.append(('rmdup_prinseq_fastq', parser_rmdup_prinseq_fastq))
 
 
-def filter_bam_mapped_only(inBam, outBam, JVMmemory=None):
-    '''Samtools and Picard to reduce a BAM file to aligned reads only.'''
-    # filter to aligned-only with Samtools
-    tmp_bam = util.file.mkstempfname('.bam')
-    cmd = [tools.samtools.SamtoolsTool().install_and_get_path(),
-        'view', '-b', '-1', '-q', '1', inBam]
-    log.debug(' '.join(cmd) +' > '+ tmp_bam)
-    with open(tmp_bam, 'wb') as outf:
-        subprocess.check_call(cmd, stdout=outf)
-    # fix headers and create index with Picard
-    tools.picard.SortSamTool().execute(tmp_bam, outBam, sort_order='coordinate',
-        picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
-        JVMmemory=JVMmemory)
-    os.unlink(tmp_bam)
+def filter_bam_mapped_only(inBam, outBam):
+    ''' Samtools to reduce a BAM file to only reads that are
+        aligned (-F 4) with a non-zero mapping quality (-q 1)
+        and are not marked as a PCR/optical duplicate (-F 1024).
+    '''
+    tools.samtools.SamtoolsTool().view(
+        ['-b', '-q', '1', '-F', '1028'], inBam, outBam)
+    tools.picard.BuildBamIndexTool().execute(outBam)
     return 0
 def parser_filter_bam_mapped_only(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
         help='Input aligned reads, BAM format.')
     parser.add_argument('outBam',
         help='Output sorted indexed reads, filtered to aligned-only, BAM format.')
-    parser.add_argument('--JVMmemory', default = tools.picard.SortSamTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, filter_bam_mapped_only, split_args=True)
     return parser
@@ -750,6 +742,65 @@ def main_gatk_realign(args):
     return 0
 __commands__.append(('gatk_realign', parser_gatk_realign))
 
+
+# =========================
+
+def align_and_fix(inBam, refFasta, outBamAll=None, outBamFiltered=None,
+    novoalign_options='', JVMmemory=None):
+    ''' Take reads, align to reference with Novoalign, mark duplicates
+        with Picard, realign indels with GATK, and optionally filter
+        final file to mapped/non-dupe reads.
+    '''
+    if not (outBamAll or outBamFiltered):
+        log.warn("are you sure you meant to do nothing?")
+        return
+    
+    bam_aligned = mkstempfname('.aligned.bam')
+    tools.novoalign.NovoalignTool().execute(
+        inBam, refFasta, bam_aligned,
+        options=novoalign_options.split(), JVMmemory=JVMmemory)
+    
+    bam_mkdup = mkstempfname('.mkdup.bam')
+    tools.picard.MarkDuplicatesTool().execute(
+        [bam_aligned], bam_mkdup,
+        picardOptions=['CREATE_INDEX=true'], JVMmemory=JVMmemory)
+    os.unlink(bam_aligned)
+    
+    bam_realigned = mkstempfname('.realigned.bam')
+    tools.gatk.GATKTool().local_realign(
+        bam_mkdup, refFasta, bam_realigned, JVMmemory=JVMmemory)
+    os.unlink(bam_mkdup)
+    
+    if outBamAll:
+        shutil.copyfile(bam_realigned, outBamAll)
+        tools.picard.BuildBamIndexTool().execute(outBamAll)
+    if outBamFiltered:
+        tools.samtools.SamtoolsTool().view(
+            ['-b', '-q', '1', '-F', '1028'],
+            bam_realigned, outBamFiltered)
+        tools.picard.BuildBamIndexTool().execute(outBamFiltered)
+    os.unlink(bam_realigned)
+    
+
+def parser_align_and_fix(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam',
+        help='Input unaligned reads, BAM format.')
+    parser.add_argument('refFasta',
+        help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument('--outBamAll', default = None,
+        help='''Aligned, sorted, and indexed reads.  Unmapped reads are
+                retained and duplicate reads are marked, not removed.''')
+    parser.add_argument('--outBamFiltered', default = None,
+        help='''Aligned, sorted, and indexed reads.  Unmapped reads and
+                duplicate reads are removed from this file.''')
+    parser.add_argument('--novoalign_options', default = '-r Random',
+        help='Novoalign options (default: %(default)s)')
+    parser.add_argument('--JVMmemory', default = '4g',
+        help='JVM virtual memory size (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, align_and_fix, split_args=True)
+    return parser
+__commands__.append(('align_and_fix', parser_align_and_fix))
 
 # =========================
 

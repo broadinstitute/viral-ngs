@@ -14,6 +14,7 @@ Contents
    :maxdepth: 2
    :numbered:
    
+   description
    install
    cmdline
    pipeuse

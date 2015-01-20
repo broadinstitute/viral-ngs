@@ -70,3 +70,7 @@ Alternatively, if you are using the Snakemake pipelines, you can create
 a dictionary called "env_vars" in the config.json file for Snakemake,
 and the pipelines will automatically set all environment variables prior
 to running any scripts.
+
+The version of MOSAIK we use seems to fail compile on GCC-4.9 but compiles
+fine on GCC-4.4. We have not tried intermediate versions of GCC, nor the
+latest versions of MOSAIK.

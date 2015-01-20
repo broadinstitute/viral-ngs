@@ -92,7 +92,7 @@ class TestFastqBam(TestCaseWithTmp) :
 
         # samtools view for out.sam and compare to expected
         samtools = tools.samtools.SamtoolsTool()
-        samtools.execute('view', ['-h', outBamCmd], stdout=outSam)
+        samtools.view(['-h'], outBamCmd, outSam)
         # picard.sam.FastqToSam outputs header fields in different order for
         #    java version 1.8 vs 1.7/1.6, so compare both
         self.assertTrue(filecmp.cmp(outSam, expected1_7Sam, shallow=False) or
