@@ -76,12 +76,14 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
     '''
 
     # read in multiple alignments of consensus sequences
-    aln = Bio.AlignIO.read(open(multiAlignment, 'rt'), 'fasta')
+    with open(multiAlignment, 'rt') as inf:
+        aln = Bio.AlignIO.read(inf, 'fasta')
 
     # open reference genome and set ref as a BioPython SeqRecord
-    ref = list(Bio.SeqIO.parse(open(refFasta, 'rt'), 'fasta'))
-    assert len(ref)==1
-    ref = ref[0]
+    with open(refFasta, 'rt') as inf:
+        ref = list(Bio.SeqIO.parse(inf, 'fasta'))
+        assert len(ref)==1
+        ref = ref[0]
 
     # prepare sample list
     samples = list(util.misc.unique(row['patient'] for row in util.file.read_tabfile_dict(inFile)))
