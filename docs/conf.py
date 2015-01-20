@@ -157,7 +157,7 @@ html_static_path = ['_static']
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
-html_last_updated_fmt = '%Y-%m-%d. Code version {}.'.format(release)
+html_last_updated_fmt = '%Y-%m-%d.<br>Code version {}'.format(release)
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
