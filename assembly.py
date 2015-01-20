@@ -95,7 +95,7 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
-        help='Input reads, BAM format.')
+        help='Input unaligned reads, BAM format.')
     parser.add_argument('clipDb',
         help='Trimmomatic clip DB.')
     parser.add_argument('outFasta',
@@ -153,13 +153,13 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
-        help='Input assembly/contigs, FASTA format.')
+        help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
-        help='Reference genome, FASTA format.')
+        help='Reference genome for ordering, orienting, and merging contigs, FASTA format.')
     parser.add_argument('outFasta',
-        help='Output assembly, FASTA format.')
+        help='Output assembly, FASTA format, with the same number of chromosomes as inReference, and in the same order.')
     parser.add_argument('--inReads', default=None,
-        help='Input reads in BAM format.')
+        help='Input reads in unaligned BAM format. These can be used to improve the merge process.')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
@@ -239,9 +239,9 @@ def impute_from_reference(inFasta, inReference, outFasta,
 
 def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
-        help='Input assembly/contigs, FASTA format.')
+        help='Input assembly/contigs, FASTA format, already ordered, oriented and merged with inReference.')
     parser.add_argument('inReference',
-        help='Reference genome, FASTA format.')
+        help='Reference genome to impute with, FASTA format.')
     parser.add_argument('outFasta',
         help='Output assembly, FASTA format.')
     parser.add_argument("--newName", default=None,
@@ -329,7 +329,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
         help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.')
     parser.add_argument('inBam',
-        help='Input reads, BAM format.')
+        help='Input reads, unaligned BAM format.')
     parser.add_argument('outFasta',
         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
     parser.add_argument('--outBam',
