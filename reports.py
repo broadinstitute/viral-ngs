@@ -51,7 +51,7 @@ def get_assembly_stats(sample,
     out['n_contigs'] = len(counts)
     out['contig_len'] = ','.join(str(x) for x,y in counts)
     out['unambig_bases'] = ','.join(str(y) for x,y in counts)
-    out['pct_unambig'] = ','.join(float(y)/x for x,y in counts)
+    out['pct_unambig'] = ','.join(str(float(y)/x) for x,y in counts)
     
     # read counts from align-to-self
     bam_fname = os.path.join(align_dir, sample + '.bam')
