@@ -24,6 +24,10 @@ rule all_assemble:
         # create BAMs of aligned reads to own consensus
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
+            sample=read_samples_file(config["samples_assembly"])),
+        # assembly reports too
+        expand("{reportsDir}/assembly/{sample}.txt",
+            reportsDir=config["reportsDir"],
             sample=read_samples_file(config["samples_assembly"]))
     params: LSF="-N"
 
