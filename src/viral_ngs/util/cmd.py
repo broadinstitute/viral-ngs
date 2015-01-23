@@ -112,7 +112,7 @@ def main_argparse(commands, description):
     log.info("software version: %s, python version: %s" % (__version__, sys.version))
     log.info("command: %s %s %s" % (
         sys.argv[0], sys.argv[1],
-        ' '.join(["%s=%s" % (k,v) for k,v in vars(args).items()])))
+        ' '.join(["%s=%s" % (k,v) for k,v in vars(args).items() if k not in ('command', 'func_main')])))
     
     if hasattr(args, 'tmpDir'):
         ''' If this command has a tmpDir option, use that as a base directory
