@@ -25,9 +25,9 @@ def get_assembly_stats(sample,
         assembly_dir='data/02_assembly', assembly_tmp='tmp/02_assembly',
         align_dir='data/02_align_to_self'):
     ''' Fetch assembly-level statistics for a given sample '''
-    out = {}
+    out = {'sample':sample}
     samtools = tools.samtools.SamtoolsTool()
-    header = ['assembled_trinity', 'trinity_in_reads',
+    header = ['sample', 'assembled_trinity', 'trinity_in_reads',
         'n_contigs', 'contig_len', 'unambig_bases', 'pct_unambig',
         'aln2self_reads_tot', 'aln2self_reads_aln', 'aln2self_reads_rmdup', 'aln2self_pct_nondup',
         'aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0',
