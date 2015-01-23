@@ -64,7 +64,8 @@ def get_assembly_stats(sample,
         out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
     
     # genome coverage stats
-    with pysam.AlignmentFile(bam_fname, 'rb', stepper='pass') as bam:
+    bam_fname = os.path.join(align_dir, sample + '.mapped.bam')
+    with pysam.AlignmentFile(bam_fname, 'rb') as bam:
         coverages = list([pcol.nsegments for pcol in bam.pileup()])
     out['aln2self_cov_median'] = median(coverages)
     out['aln2self_cov_mean'] = "%0.3f"%mean(coverages)
@@ -74,16 +75,21 @@ def get_assembly_stats(sample,
     
     return (header, out)
 
-def assembly_stats(sample, outFile,
+def assembly_stats(samples, outFile,
     cov_thresholds, assembly_dir, assembly_tmp, align_dir):
     ''' Fetch assembly-level statistics for a given sample '''
-    header, out = get_assembly_stats(sample, cov_thresholds, assembly_dir, assembly_tmp, align_dir)
+    header_written = False
     with open(outFile, 'wt') as outf:
-        outf.write('\t'.join(map(str, header))+'\n')
-        outf.write('\t'.join([str(out.get(h,'')) for h in header])+'\n')
-        outf.flush()
+        for sample in samples:
+            log.info("fetching stats on "+sample)
+            header, out = get_assembly_stats(sample, cov_thresholds, assembly_dir, assembly_tmp, align_dir)
+            if not header_written:
+                outf.write('\t'.join(map(str, header))+'\n')
+                header_written = True
+            outf.write('\t'.join([str(out.get(h,'')) for h in header])+'\n')
+            outf.flush()
 def parser_assembly_stats(parser=argparse.ArgumentParser()):
-    parser.add_argument('sample', help='Sample name.')
+    parser.add_argument('samples', nargs='+', help='Sample names.')
     parser.add_argument('outFile', help='Output report file.')
     parser.add_argument('--cov_thresholds', nargs='+', type=int,
         default=(1,5,20,100),
