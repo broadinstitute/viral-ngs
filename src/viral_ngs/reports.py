@@ -31,7 +31,7 @@ def get_assembly_stats(sample,
         'n_contigs', 'contig_len', 'unambig_bases', 'pct_unambig',
         'aln2self_reads_tot', 'aln2self_reads_aln', 'aln2self_reads_rmdup', 'aln2self_pct_nondup',
         'aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0',
-        ] + ['aln2self_cov_%dX'%t for t in thresholds]
+        ] + ['aln2self_cov_%dX'%t for t in cov_thresholds]
     
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp,
