@@ -71,6 +71,19 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     os.unlink(tmp_header)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
+def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam',
+        help='Input reads, unaligned BAM format.')
+    parser.add_argument('clipDb',
+        help='Trimmomatic clip DB.')
+    parser.add_argument('outBam',
+        help='Output reads, unaligned BAM format (currently, read groups and other header information are destroyed in this process).')
+    parser.add_argument('--n_reads', default=100000, type=int,
+        help='Subsample reads to no more than this many pairs. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
+    return parser
+__commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
 def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
