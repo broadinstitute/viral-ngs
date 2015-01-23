@@ -49,8 +49,8 @@ def get_assembly_stats(sample,
         counts = [(len(s), assembly.unambig_count(s.seq))
             for s in Bio.SeqIO.parse(inf, 'fasta')]
     out['n_contigs'] = len(counts)
-    out['contig_len'] = ','.join(x for x,y in counts)
-    out['unambig_bases'] = ','.join(y for x,y in counts)
+    out['contig_len'] = ','.join(str(x) for x,y in counts)
+    out['unambig_bases'] = ','.join(str(y) for x,y in counts)
     out['pct_unambig'] = ','.join(float(y)/x for x,y in counts)
     
     # read counts from align-to-self
