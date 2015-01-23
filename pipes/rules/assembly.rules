@@ -150,7 +150,7 @@ rule map_reads_to_self:
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:
-            makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
-                os.path.join(config["reportsDir"], "assembly"))
+            makedirs([os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
+                os.path.join(config["reportsDir"], "assembly")])
             shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}'")
             shell("{config[binDir]}/reports.py assembly_stats {wildcard.sample} {output[2]} --assembly_dir {config[dataDir]}/{config[subdirs][assembly]} --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]} --align_dir {config[dataDir]}/{config[subdirs][align_self]}")
