@@ -6,7 +6,7 @@ __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, subprocess, glob, os, os.path, time
-import pysam
+import pysam, Bio.SeqIO
 import util.cmd, util.file, util.misc
 import tools.samtools
 import assembly
@@ -64,9 +64,8 @@ def get_assembly_stats(sample,
         out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
     
     # genome coverage stats
-    bam = pysam.AlignmentFile(bam_fname, 'rb', stepper='pass')
-    coverages = list([pcol.nsegments for pcol in bam.pileup()])
-    bam.close()
+    with pysam.AlignmentFile(bam_fname, 'rb', stepper='pass') as bam:
+        coverages = list([pcol.nsegments for pcol in bam.pileup()])
     out['aln2self_cov_median'] = median(coverages)
     out['aln2self_cov_mean'] = "%0.3f"%mean(coverages)
     out['aln2self_cov_mean_non0'] = "%0.3f"%mean([n for n in coverages if n>0])
