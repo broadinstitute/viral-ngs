@@ -136,10 +136,9 @@ rule refine_assembly_2:
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
         mapped back to its own consensus.  Outputs several BAM files, sorted and indexed:
-            {sample}.bam           - all raw reads
-            {sample}.mapped.bam    - only mapped reads
-            {sample}.rmdup.bam     - only mapped reads, with duplicates removed by Picard
-            {sample}.realigned.bam - mapped/rmdup reads, realigned with GATK IndelRealigner
+            {sample}.bam        - all raw reads aligned to self
+            {sample}.mapped.bam - only mapped reads, duplicates removed by Picard,
+                                  realigned with GATK IndelRealigner
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
