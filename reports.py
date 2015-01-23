@@ -81,6 +81,7 @@ def assembly_stats(sample, outFile,
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(map(str, header))+'\n')
         outf.write('\t'.join([str(out.get(h,'')) for h in header])+'\n')
+        outf.flush()
 def parser_assembly_stats(parser=argparse.ArgumentParser()):
     parser.add_argument('sample', help='Sample name.')
     parser.add_argument('outFile', help='Output report file.')
