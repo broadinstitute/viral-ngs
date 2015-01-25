@@ -56,20 +56,23 @@ rule assemble_trinity:
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
-        VFAT (maybe Bellini later): take the Trinity contigs, align them to
-            the known reference genome, switch it to the same strand as the
-            reference, and produce chromosome-level assemblies (with runs of
-            N's in between the Trinity contigs).
-        filter_short_seqs: We then toss out all assemblies that come out to
-            < 15kb or < 95% unambiguous and fail otherwise.
-        modify_contig: Finally, we trim off anything at the end that exceeds
+        order_and_orient (VFAT, maybe Bellini later): take the de novo assembly,
+            align them to the known reference genome, switch it to the same
+            strand as the reference, and produce chromosome-level assemblies
+            (with runs of N's in between the de novo contigs).
+        filter_short_seqs: Fail on assemblies that come out to
+            < 15kb or < 95% unambiguous.
+        impute_from_reference: trim off anything at the end that exceeds
             the length of the known reference assembly.  We also replace all
             Ns and everything within 55bp of the chromosome ends with the
             reference sequence.  This is clearly incorrect consensus sequence,
             but it allows downstream steps to map reads in parts of the genome
             that would otherwise be Ns, and we will correct all of the inferred
             positions with two steps of read-based refinement (below), and
-            revert positions back to Ns where read support is lacking.
+            revert positions back to Ns where read support is lacking.  The
+            de novo step is still important because it allows for significant
+            structural / indel changes (or significant substitution distances)
+            which will be captured in this output.
     '''
     input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
             config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
@@ -114,15 +117,13 @@ rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
         The only differences are that Novoalign mapping parameters are
         more conservative and the input consensus sequence has already
-        been refined once and the input reads are the full raw read
-        set (instead of the cleaned read set). We also require higher
-        minimum read coverage (3 instead of 2) in order to call a
-        non-ambiguous base.
+        been refined once. We also require higher minimum read coverage
+        (3 instead of 2) in order to call a non-ambiguous base.
         The output of this step is the final assembly for this sample.
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: mem=4
