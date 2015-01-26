@@ -44,6 +44,11 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
+
+    # Log count
+    with open(purgefq[0], 'rt') as inf:
+        n = len(1 for line in inf if line.strip()=='+')
+        log.info("PRE-SUBSAMPLE COUNT: {} read pairs".format(n))
     
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
@@ -58,9 +63,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     os.unlink(purgefq[1])
     
     # Fastq -> BAM
-    # Note: this destroys RG IDs! We should instead just pull the list
-    # of IDs out of purge_unmated, random.sample them ourselves, and
-    # use FilterSamReadsTool to go straight from inBam -> outBam
+    # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
+    # breaks out the read groups and perform the above steps in a way that preserves
+    # the RG IDs.
     tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
     tools.picard.FastqToSamTool().execute(
