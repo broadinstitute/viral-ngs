@@ -68,10 +68,16 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # the RG IDs.
     tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
-    tools.picard.FastqToSamTool().execute(
-        subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
     tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
-    tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
+    if n == 0:
+        # FastqToSam cannot deal with empty input
+        # but Picard SamFormatConverter can deal with empty files
+        opts = ['INPUT='+tmp_header, 'OUTPUT='+outBam, 'VERBOSITY=ERROR']
+        tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
+    else:
+        tools.picard.FastqToSamTool().execute(
+            subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
+        tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
     os.unlink(tmp_bam)
     os.unlink(tmp_header)
     os.unlink(subsampfq[0])
