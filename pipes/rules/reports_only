@@ -13,12 +13,39 @@ def read_file(fname):
         for line in inf:
             yield line.strip()
 
-rule all:
+def cat_files_with_header(inFiles, outFile):
+    with open(outFile, 'wt') as outf:
+        header = None
+        for f in inFiles:
+            with open(f, 'rt') as inf:
+                h = None
+                for line in inf:
+                    if h == None:
+                        # this is the header line
+                        h = line
+                        if header == None:
+                            # this is the first file
+                            outf.write(line)
+                            header = h
+                        else:
+                            # this is not the first file
+                            if h != header:
+                                raise Exception("headers do not match")
+                    else:
+                        outf.write(line)
+ 
+
+rule all_assembly_reports:
     input:
-        expand("{reportsDir}/assembly/{sample}.txt",
-            reportsDir=config["reportsDir"],
-            sample=read_file(config["samples_depletion"]))
+            expand("{reportsDir}/assembly/{sample}.txt",
+                reportsDir=config["reportsDir"],
+                sample=read_file(config["samples_depletion"]))
+    output:
+            config["reportsDir"]+"summary.assembly.txt"
     params: LSF="-N"
+    run:
+            cat_files_with_header(input, output[0])
+        
 
 rule assembly_report:
     output: config["reportsDir"]+'/assembly/{sample}.txt'
