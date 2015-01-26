@@ -1,0 +1,29 @@
+"""
+    Just the assembly reports and nothing else
+"""
+
+__author__ = 'Daniel Park <dpark@broadinstitute.org>'
+
+import os
+
+configfile: "config.json"
+
+def read_file(fname):
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
+
+rule all:
+    input:
+        expand("{reportsDir}/assembly/{sample}.txt",
+            reportsDir=config["reportsDir"],
+            sample=read_file(config["samples_depletion"]))
+    params: LSF="-N"
+
+rule assembly_report:
+    output: config["reportsDir"]+'/assembly/{sample}.txt'
+    resources: mem=2
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            logid="{sample}"
+    shell:  "{config[binDir]}/reports.py assembly_stats {wildcards.sample} {output} --assembly_dir {config[dataDir]}/{config[subdirs][assembly]} --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]} --align_dir {config[dataDir]}/{config[subdirs][align_self]}"
+
