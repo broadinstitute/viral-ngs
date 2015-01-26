@@ -47,7 +47,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
 
     # Log count
     with open(purgefq[0], 'rt') as inf:
-        n = len(1 for line in inf if line.strip()=='+')
+        n = sum(1 for line in inf if line.strip()=='+')
         log.info("PRE-SUBSAMPLE COUNT: {} read pairs".format(n))
     
     # Subsample
