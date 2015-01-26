@@ -41,7 +41,7 @@ rule all_assembly_reports:
                 reportsDir=config["reportsDir"],
                 sample=read_file(config["samples_depletion"]))
     output:
-            config["reportsDir"]+"summary.assembly.txt"
+            config["reportsDir"]+"/summary.assembly.txt"
     params: LSF="-N"
     run:
             cat_files_with_header(input, output[0])
