@@ -31,6 +31,9 @@ rule all_assemble_failures:
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config.get("samples_assembly_failures"))),
+        expand("{reportsDir}/assembly/{sample}.txt",
+            reportsDir=config["reportsDir"],
+            sample=read_samples_file(config["samples_assembly"]))
     params: LSF="-N"
 
 
@@ -41,18 +44,18 @@ rule assemble_trinity:
         and random subsample to no more than 100k reads.
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             n_reads="100000",
             logid="{sample}",
-            clipDb=config["trim_clipDb"]
+            clipDb=config["trim_clipDb"],
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output[0]} --n_reads={params.n_reads} --outReads {output[1]}")
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -74,8 +77,7 @@ rule orient_and_impute:
             structural / indel changes (or significant substitution distances)
             which will be captured in this output.
     '''
-    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
             config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
@@ -85,9 +87,10 @@ rule orient_and_impute:
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
             replace_length="55",
-            logid="{sample}"
+            logid="{sample}",
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input} {params.refGenome} {output[0]} --inReads {params.subsamp_bam}")
             shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
