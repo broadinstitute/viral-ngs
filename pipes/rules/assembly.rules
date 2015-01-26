@@ -76,6 +76,8 @@ rule orient_and_impute:
             de novo step is still important because it allows for significant
             structural / indel changes (or significant substitution distances)
             which will be captured in this output.
+            This is the only step in the pipeline that needs generalization to
+            multi-chromosome genomes.
     '''
     input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
