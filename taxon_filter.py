@@ -25,32 +25,33 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam',
         help='Input BAM file.')
     parser.add_argument('revertBam',
-        help='Output BAM file.')
+        help='Output BAM: read markup reverted with Picard.')
     parser.add_argument('bmtaggerBam',
-        help='Output BAM file.')
+        help='Output BAM: depleted of human reads with BMTagger.')
     parser.add_argument('rmdupBam',
-        help='Output BAM file.')
+        help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument('blastnBam',
-        help='Output BAM file.')
+        help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.')
     parser.add_argument('--taxfiltBam',
-        help='Output BAM file.',
+        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
         default=None)
     parser.add_argument('--bmtaggerDbs', nargs='+', required=True,
         help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
     parser.add_argument('--blastDbs', nargs='+', required=True,
-        help='One or more reference databases for blast.')
+        help='One or more reference databases for blast to deplete from input.')
     parser.add_argument('--lastDb',
-        help='One reference database for last.',
+        help='One reference database for last (required if --taxfiltBam is specified).',
         default=None)
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)')
+        help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
 def main_deplete_human(args):
-    '''Run the entire depletion pipeline: bmtagger, mvicuna, blastn, and maybe lastal'''
+    ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
+        Optionally, use lastal to select a specific taxon of interest.'''
     tools.picard.RevertSamTool().execute(args.inBam, args.revertBam,
         picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true'])
     multi_db_deplete_bam(args.revertBam, args.bmtaggerDbs, deplete_bmtagger_bam, args.bmtaggerBam, JVMmemory=args.JVMmemory)
