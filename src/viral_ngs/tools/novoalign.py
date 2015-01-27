@@ -74,17 +74,17 @@ class NovoalignTool(tools.Tool) :
             JVMmemory=JVMmemory)
         
 
-    def index_fasta(self, fasta):
+    def index_fasta(self, refFasta):
         ''' Index a FASTA file (reference genome) for use with Novoalign.
             The input file name must end in ".fasta". This will create a
             new ".nix" file in the same directory. If it already exists,
             it will be deleted and regenerated.
         '''
         novoindex = os.path.join(os.path.dirname(self.install_and_get_path()), 'novoindex')
-        outfname = self._fasta_to_idx_name(fasta)
+        outfname = self._fasta_to_idx_name(refFasta)
         if os.path.isfile(outfname):
             os.unlink(outfname)
-        cmd = [novoindex, outfname, fasta]
+        cmd = [novoindex, outfname, refFasta]
         log.debug(' '.join(cmd))
         subprocess.check_call(cmd)
         try:

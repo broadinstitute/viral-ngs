@@ -40,6 +40,9 @@ as well::
 
   pip install snakemake==3.2 yappi=0.94
 
+However, most of the real functionality is encapsulated in the command line
+tools, which can be used without any of the pipeline infrastructure.
+
 You should either sudo pip install or use a virtualenv (recommended).
 
 
