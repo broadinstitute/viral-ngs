@@ -97,7 +97,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
+def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
@@ -110,7 +110,7 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
     trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
-    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta)
+    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
     
@@ -128,6 +128,9 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     parser.add_argument('--outReads', default=None,
         help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument('--JVMmemory',
+        default=tools.trinity.TrinityTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser

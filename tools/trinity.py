@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class TrinityTool(tools.Tool) :
+    jvmMemDefault = '4g'
     def __init__(self, install_methods = None) :
         if install_methods == None :
             install_methods = [
@@ -28,10 +29,14 @@ class TrinityTool(tools.Tool) :
     def version(self) :
         return tool_version
     
-    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300):
+    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300,
+            JVMmemory=None):
+        if JVMmemory==None:
+            JVMmemory = self.jvmMemDefault
         outdir = tempfile.mkdtemp(prefix='trinity-')
         cmd = [self.install_and_get_path(),
-            '--CPU', '1',
+            '--CPU', '2',
+            '--bflyHeapSpace', JVMmemory.upper(),
             '--min_contig_length', str(min_contig_length),
             '--seqType', 'fq',
             '--left', inFastq1,
