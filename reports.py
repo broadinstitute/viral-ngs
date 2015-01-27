@@ -6,7 +6,10 @@ __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, subprocess, glob, os, os.path, time
+import pysam, Bio.SeqIO
 import util.cmd, util.file, util.misc
+import tools.samtools
+import assembly
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +18,96 @@ try:
     from statistics import mean, median
 except ImportError:
     from numpy import mean, median
+
+
+def get_assembly_stats(sample,
+        cov_thresholds=(1,5,20,100),
+        assembly_dir='data/02_assembly', assembly_tmp='tmp/02_assembly',
+        align_dir='data/02_align_to_self'):
+    ''' Fetch assembly-level statistics for a given sample '''
+    out = {'sample':sample}
+    samtools = tools.samtools.SamtoolsTool()
+    header = ['sample', 'assembled_trinity', 'trinity_in_reads',
+        'n_contigs', 'contig_len', 'unambig_bases', 'pct_unambig',
+        'aln2self_reads_tot', 'aln2self_reads_aln', 'aln2self_reads_rmdup', 'aln2self_pct_nondup',
+        'aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0',
+        ] + ['aln2self_cov_%dX'%t for t in cov_thresholds]
+    
+    # pre-assembly stats
+    out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp,
+        sample + '.assembly1-trinity.fasta')) and 1 or 0
+    sub_bam = os.path.join(assembly_tmp, sample + '.subsamp.bam')
+    if os.path.isfile(sub_bam):
+        out['trinity_in_reads'] = samtools.count(sub_bam)    
+    
+    # assembly stats
+    assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
+    if not os.path.isfile(assembly_fname):
+        out['n_contigs'] = 0
+        return (header, out)
+    with open(assembly_fname, 'rt') as inf:
+        counts = [(len(s), assembly.unambig_count(s.seq))
+            for s in Bio.SeqIO.parse(inf, 'fasta')]
+    out['n_contigs'] = len(counts)
+    out['contig_len'] = ','.join(str(x) for x,y in counts)
+    out['unambig_bases'] = ','.join(str(y) for x,y in counts)
+    out['pct_unambig'] = ','.join(str(float(y)/x) for x,y in counts)
+    
+    # read counts from align-to-self
+    bam_fname = os.path.join(align_dir, sample + '.bam')
+    if not os.path.isfile(bam_fname):
+        return (header, out)
+    out['aln2self_reads_tot'] = samtools.count(bam_fname)
+    out['aln2self_reads_aln'] = samtools.count(bam_fname, opts=['-F', '4'])
+    out['aln2self_reads_rmdup'] = samtools.count(bam_fname, opts=['-F', '1028'])
+    if out['aln2self_reads_aln']:
+        out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
+    
+    # genome coverage stats
+    bam_fname = os.path.join(align_dir, sample + '.mapped.bam')
+    with pysam.AlignmentFile(bam_fname, 'rb') as bam:
+        coverages = list([pcol.nsegments for pcol in bam.pileup()])
+    out['aln2self_cov_median'] = median(coverages)
+    out['aln2self_cov_mean'] = "%0.3f"%mean(coverages)
+    out['aln2self_cov_mean_non0'] = "%0.3f"%mean([n for n in coverages if n>0])
+    for thresh in cov_thresholds:
+        out['aln2self_cov_%dX'%thresh] = sum(1 for n in coverages if n>=thresh)
+    
+    return (header, out)
+
+def assembly_stats(samples, outFile,
+    cov_thresholds, assembly_dir, assembly_tmp, align_dir):
+    ''' Fetch assembly-level statistics for a given sample '''
+    header_written = False
+    with open(outFile, 'wt') as outf:
+        for sample in samples:
+            log.info("fetching stats on "+sample)
+            header, out = get_assembly_stats(sample, cov_thresholds, assembly_dir, assembly_tmp, align_dir)
+            if not header_written:
+                outf.write('\t'.join(map(str, header))+'\n')
+                header_written = True
+            outf.write('\t'.join([str(out.get(h,'')) for h in header])+'\n')
+            outf.flush()
+def parser_assembly_stats(parser=argparse.ArgumentParser()):
+    parser.add_argument('samples', nargs='+', help='Sample names.')
+    parser.add_argument('outFile', help='Output report file.')
+    parser.add_argument('--cov_thresholds', nargs='+', type=int,
+        default=(1,5,20,100),
+        help='Genome coverage thresholds to report on. (default: %(default)s)')
+    parser.add_argument('--assembly_dir',  default='data/02_assembly',
+        help='Directory with assembly outputs. (default: %(default)s)')
+    parser.add_argument('--assembly_tmp',  default='tmp/02_assembly',
+        help='Directory with assembly temp files. (default: %(default)s)')
+    parser.add_argument('--align_dir',     default='data/02_align_to_self',
+        help='Directory with reads aligned to own assembly. (default: %(default)s)')
+    util.cmd.attach_main(parser, assembly_stats, split_args=True)
+    return parser
+__commands__.append(('assembly_stats', parser_assembly_stats))
+
+
+
+def get_refalign_stats(sample):
+    pass
 
 
 def consolidate_bamstats(inFiles, outFile):

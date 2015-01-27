@@ -37,7 +37,7 @@ rule all_ref_guided:
             config["reportsDir"]+'/summary.coverage_ref.txt.gz'
 
 rule ref_guided_consensus:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
+    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'

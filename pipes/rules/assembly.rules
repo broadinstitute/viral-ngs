@@ -2,11 +2,6 @@
     This is a basic framework for assembly of viral genomes, currently
     tailored for EBOV. Some generalization work needed to expand this
     to generic viral genomes with an arbitrary number of segments/chromosomes.
-    
-    note: all this runs in ~3hrs, no step takes more than 4GB RAM, and the
-    DAG is linear per sample, so we could conslidate most of this into a
-    single Bellini-like script (once we actually Tool-ify all of the critical
-    pieces like Trinity, MOSIAK, VFAT, Novoalign, GATK)
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
@@ -24,6 +19,10 @@ rule all_assemble:
         # create BAMs of aligned reads to own consensus
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
+            sample=read_samples_file(config["samples_assembly"])),
+        # assembly reports too
+        expand("{reportsDir}/assembly/{sample}.txt",
+            reportsDir=config["reportsDir"],
             sample=read_samples_file(config["samples_assembly"]))
     params: LSF="-N"
 
@@ -32,6 +31,9 @@ rule all_assemble_failures:
         expand("{dataDir}/{subdir}/{sample}.fasta",
             dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config.get("samples_assembly_failures"))),
+        expand("{reportsDir}/assembly/{sample}.txt",
+            reportsDir=config["reportsDir"],
+            sample=read_samples_file(config["samples_assembly"]))
     params: LSF="-N"
 
 
@@ -42,38 +44,42 @@ rule assemble_trinity:
         and random subsample to no more than 100k reads.
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             n_reads="100000",
             logid="{sample}",
-            clipDb=config["trim_clipDb"]
+            clipDb=config["trim_clipDb"],
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output[0]} --n_reads={params.n_reads} --outReads {output[1]}")
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
-        VFAT (maybe Bellini later): take the Trinity contigs, align them to
-            the known reference genome, switch it to the same strand as the
-            reference, and produce chromosome-level assemblies (with runs of
-            N's in between the Trinity contigs).
-        filter_short_seqs: We then toss out all assemblies that come out to
-            < 15kb or < 95% unambiguous and fail otherwise.
-        modify_contig: Finally, we trim off anything at the end that exceeds
+        order_and_orient (VFAT, maybe Bellini later): take the de novo assembly,
+            align them to the known reference genome, switch it to the same
+            strand as the reference, and produce chromosome-level assemblies
+            (with runs of N's in between the de novo contigs).
+        filter_short_seqs: Fail on assemblies that come out to
+            < 15kb or < 95% unambiguous.
+        impute_from_reference: trim off anything at the end that exceeds
             the length of the known reference assembly.  We also replace all
             Ns and everything within 55bp of the chromosome ends with the
             reference sequence.  This is clearly incorrect consensus sequence,
             but it allows downstream steps to map reads in parts of the genome
             that would otherwise be Ns, and we will correct all of the inferred
             positions with two steps of read-based refinement (below), and
-            revert positions back to Ns where read support is lacking.
+            revert positions back to Ns where read support is lacking.  The
+            de novo step is still important because it allows for significant
+            structural / indel changes (or significant substitution distances)
+            which will be captured in this output.
+            This is the only step in the pipeline that needs generalization to
+            multi-chromosome genomes.
     '''
-    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
             config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
@@ -83,9 +89,10 @@ rule orient_and_impute:
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
             replace_length="55",
-            logid="{sample}"
+            logid="{sample}",
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {output[0]} --inReads {input[1]}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input} {params.refGenome} {output[0]} --inReads {params.subsamp_bam}")
             shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
@@ -115,15 +122,13 @@ rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
         The only differences are that Novoalign mapping parameters are
         more conservative and the input consensus sequence has already
-        been refined once and the input reads are the full raw read
-        set (instead of the cleaned read set). We also require higher
-        minimum read coverage (3 instead of 2) in order to call a
-        non-ambiguous base.
+        been refined once. We also require higher minimum read coverage
+        (3 instead of 2) in order to call a non-ambiguous base.
         The output of this step is the final assembly for this sample.
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
+            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: mem=4
@@ -136,19 +141,21 @@ rule refine_assembly_2:
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
         mapped back to its own consensus.  Outputs several BAM files, sorted and indexed:
-            {sample}.bam           - all raw reads
-            {sample}.mapped.bam    - only mapped reads
-            {sample}.rmdup.bam     - only mapped reads, with duplicates removed by Picard
-            {sample}.realigned.bam - mapped/rmdup reads, realigned with GATK IndelRealigner
+            {sample}.bam        - all raw reads aligned to self
+            {sample}.mapped.bam - only mapped reads, duplicates removed by Picard,
+                                  realigned with GATK IndelRealigner
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
+            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
+            config["reportsDir"]+'/assembly/{sample}.txt'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:
-            makedirs(os.path.join(config["dataDir"], config["subdirs"]["align_self"]))
+            makedirs([os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
+                os.path.join(config["reportsDir"], "assembly")])
             shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}'")
+            shell("{config[binDir]}/reports.py assembly_stats {wildcards.sample} {output[2]} --assembly_dir {config[dataDir]}/{config[subdirs][assembly]} --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]} --align_dir {config[dataDir]}/{config[subdirs][align_self]}")

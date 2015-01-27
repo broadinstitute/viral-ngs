@@ -44,6 +44,11 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
+
+    # Log count
+    with open(purgefq[0], 'rt') as inf:
+        n = int(sum(1 for line in inf)/4)
+        log.info("PRE-SUBSAMPLE COUNT: {} read pairs".format(n))
     
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
@@ -58,19 +63,38 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     os.unlink(purgefq[1])
     
     # Fastq -> BAM
-    # Note: this destroys RG IDs! We should instead just pull the list
-    # of IDs out of purge_unmated, random.sample them ourselves, and
-    # use FilterSamReadsTool to go straight from inBam -> outBam
+    # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
+    # breaks out the read groups and perform the above steps in a way that preserves
+    # the RG IDs.
     tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
-    tools.picard.FastqToSamTool().execute(
-        subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
     tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
-    tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
+    if n == 0:
+        # FastqToSam cannot deal with empty input
+        # but Picard SamFormatConverter can deal with empty files
+        opts = ['INPUT='+tmp_header, 'OUTPUT='+outBam, 'VERBOSITY=ERROR']
+        tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
+    else:
+        tools.picard.FastqToSamTool().execute(
+            subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
+        tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
     os.unlink(tmp_bam)
     os.unlink(tmp_header)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
+def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam',
+        help='Input reads, unaligned BAM format.')
+    parser.add_argument('clipDb',
+        help='Trimmomatic clip DB.')
+    parser.add_argument('outBam',
+        help='Output reads, unaligned BAM format (currently, read groups and other header information are destroyed in this process).')
+    parser.add_argument('--n_reads', default=100000, type=int,
+        help='Subsample reads to no more than this many pairs. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
+    util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
+    return parser
+__commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
 def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None):
