@@ -53,7 +53,7 @@ def get_assembly_stats(sample,
     # assembly stats
     assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
     if not os.path.isfile(assembly_fname):
-        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly1-trinity.fasta')
+        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly2-vfat.fasta')
         if not os.path.isfile(assembly_fname):
             out['n_contigs'] = 0
             return (header, out)
