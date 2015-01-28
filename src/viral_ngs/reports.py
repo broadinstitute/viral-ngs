@@ -199,10 +199,10 @@ def get_earliest_date(inDir):
 
 
 
-def consolidate_spike_count(inFiles, outFile):
+def consolidate_spike_count(inDir, outFile):
     '''Consolidate multiple spike count reports into one.'''
     with open(outFile, 'wt') as outf:
-        for fn in inFiles:
+        for fn in os.listdir(inDir):
             s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
@@ -213,7 +213,7 @@ def consolidate_spike_count(inFiles, outFile):
                         spike, count = line.strip().split('\t')
                         outf.write('\t'.join([s, spike, count])+'\n')
 def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
+    parser.add_argument('inDir', help='Input spike count directory.')
     parser.add_argument('outFile', help='Output report file.')
     util.cmd.attach_main(parser, consolidate_spike_count, split_args=True)
     return parser
