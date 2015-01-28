@@ -88,13 +88,17 @@ def get_assembly_stats(sample,
     return (header, out)
 
 def assembly_stats(samples, outFile,
-    cov_thresholds, assembly_dir, assembly_tmp, align_dir):
+    cov_thresholds, assembly_dir, assembly_tmp, align_dir,
+    reads_dir, raw_reads_dir):
     ''' Fetch assembly-level statistics for a given sample '''
     header_written = False
     with open(outFile, 'wt') as outf:
         for sample in samples:
             log.info("fetching stats on "+sample)
-            header, out = get_assembly_stats(sample, cov_thresholds, assembly_dir, assembly_tmp, align_dir)
+            header, out = get_assembly_stats(sample,
+                cov_thresholds=cov_thresholds, assembly_dir=assembly_dir,
+                assembly_tmp=assembly_tmp, align_dir=align_dir,
+                reads_dir=reads_dir, raw_reads_dir=raw_reads_dir)
             if not header_written:
                 outf.write('\t'.join(map(str, header))+'\n')
                 header_written = True
