@@ -23,15 +23,25 @@ except ImportError:
 def get_assembly_stats(sample,
         cov_thresholds=(1,5,20,100),
         assembly_dir='data/02_assembly', assembly_tmp='tmp/02_assembly',
-        align_dir='data/02_align_to_self'):
+        align_dir='data/02_align_to_self', reads_dir='data/01_per_sample',
+        raw_reads_dir='data/00_raw'):
     ''' Fetch assembly-level statistics for a given sample '''
     out = {'sample':sample}
     samtools = tools.samtools.SamtoolsTool()
-    header = ['sample', 'assembled_trinity', 'trinity_in_reads',
+    header = ['sample', 'reads_raw', 'reads_cleaned', 'reads_taxfilt',
+        'assembled_trinity', 'trinity_in_reads',
         'n_contigs', 'contig_len', 'unambig_bases', 'pct_unambig',
         'aln2self_reads_tot', 'aln2self_reads_aln', 'aln2self_reads_rmdup', 'aln2self_pct_nondup',
         'aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0',
         ] + ['aln2self_cov_%dX'%t for t in cov_thresholds]
+    
+    # per-sample unaligned read stats
+    for adj in ('cleaned', 'taxfilt'):
+        reads_bam = os.path.join(reads_dir, '.'.join((sample, adj, 'bam')))
+        if os.path.isfile(reads_bam):
+            out['reads_'+adj] = samtools.count(reads_bam)
+    out['reads_raw'] = sum(samtools.count(bam)
+        for bam in glob.glob(os.path.join(raw_reads_dir, sample+"*.bam")))
     
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp,
@@ -43,8 +53,10 @@ def get_assembly_stats(sample,
     # assembly stats
     assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
     if not os.path.isfile(assembly_fname):
-        out['n_contigs'] = 0
-        return (header, out)
+        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly1-trinity.fasta')
+        if not os.path.isfile(assembly_fname):
+            out['n_contigs'] = 0
+            return (header, out)
     with open(assembly_fname, 'rt') as inf:
         counts = [(len(s), assembly.unambig_count(s.seq))
             for s in Bio.SeqIO.parse(inf, 'fasta')]
@@ -100,6 +112,10 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
         help='Directory with assembly temp files. (default: %(default)s)')
     parser.add_argument('--align_dir',     default='data/02_align_to_self',
         help='Directory with reads aligned to own assembly. (default: %(default)s)')
+    parser.add_argument('--reads_dir',     default='data/01_per_sample',
+        help='Directory with unaligned filtered read BAMs. (default: %(default)s)')
+    parser.add_argument('--raw_reads_dir', default='data/00_raw',
+        help='Directory with unaligned raw read BAMs. (default: %(default)s)')
     util.cmd.attach_main(parser, assembly_stats, split_args=True)
     return parser
 __commands__.append(('assembly_stats', parser_assembly_stats))
