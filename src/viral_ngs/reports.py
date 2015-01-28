@@ -59,7 +59,8 @@ def get_assembly_stats(sample,
             return (header, out)
     with open(assembly_fname, 'rt') as inf:
         counts = [(len(s), assembly.unambig_count(s.seq))
-            for s in Bio.SeqIO.parse(inf, 'fasta')]
+            for s in Bio.SeqIO.parse(inf, 'fasta')
+            if len(s)>0]
     out['n_contigs'] = len(counts)
     out['contig_len'] = ','.join(str(x) for x,y in counts)
     out['unambig_bases'] = ','.join(str(y) for x,y in counts)
