@@ -80,8 +80,7 @@ rule orient_and_impute:
             multi-chromosome genomes.
     '''
     input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
-    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
-            config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
+    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refGenome=config["ref_genome"],
@@ -90,10 +89,11 @@ rule orient_and_impute:
             renamed_prefix="",
             replace_length="55",
             logid="{sample}",
+            vfat_fasta=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
             subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input} {params.refGenome} {output[0]} --inReads {params.subsamp_bam}")
-            shell("{config[binDir]}/assembly.py impute_from_reference {output[0]} {params.refGenome} {output[1]} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
+            shell("{config[binDir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the VFAT assembly,
