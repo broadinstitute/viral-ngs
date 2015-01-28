@@ -37,10 +37,7 @@ rule all:
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
         # create summary reports
-        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
-        config["reportsDir"]+'/summary.coverage_self.txt.gz',
         config["reportsDir"]+'/summary.fastqc.txt',
-        config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
     params: LSF="-N"
     run:

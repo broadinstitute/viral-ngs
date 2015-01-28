@@ -130,31 +130,6 @@ def get_refalign_stats(sample):
     pass
 
 
-def consolidate_bamstats(inFiles, outFile):
-    '''Consolidate multiple bamstats reports into one.'''
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        header = []
-        out_n = 0
-        for fn in inFiles:
-            out = {}
-            with util.file.open_or_gzopen(fn, 'rt') as inf:
-                for line in inf:
-                    k,v = line.rstrip('\n').split('\t')
-                    out[k] = v
-                    if out_n==0:
-                        header.append(k)
-            if out_n==0:
-                outf.write('\t'.join(header)+'\n')
-            outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
-            out_n += 1
-def parser_consolidate_bamstats(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input report files.', nargs='+')
-    parser.add_argument('outFile', help='Output report file.')
-    util.cmd.attach_main(parser, consolidate_bamstats, split_args=True)
-    return parser
-__commands__.append(('consolidate_bamstats', parser_consolidate_bamstats))
-
-
 
 def consolidate_fastqc(inDirs, outFile):
     '''Consolidate multiple FASTQC reports into one.'''
@@ -220,73 +195,6 @@ def get_earliest_date(inDir):
     earliest = min(os.path.getmtime(fn) for fn in fnames)
     return time.strftime("%Y-%m-%d", time.localtime(earliest))
 
-def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thresholds=(1,5,20,100)):
-    seqinfo = runFile and get_lib_info(runFile) or {}
-    baminfo = statsDir and get_bam_info(statsDir) or {}
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        header = ['library'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov', 'mean_non0_cov']
-        header_bam = ['reads_total', 'reads_non_Hs_rmdup', 'reads_EBOV', 'reads_EBOV_rmdup']
-        header_seq = ['sample','seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
-        if baminfo:
-            header += header_bam
-        if seqinfo:
-            header += header_seq
-        outf.write('\t'.join(header)+'\n')
-        for fn in inFiles:
-            if not fn.endswith(ending):
-                raise Exception()
-            s = os.path.basename(fn)[:-len(ending)]
-            with util.file.open_or_gzopen(fn, 'rt') as inf:
-                coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
-            out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
-            out = [s] + out
-            out +=[median(coverages), "%0.3f"%mean(coverages),
-                "%0.3f"%mean([n for n in coverages if n>0])]
-            if baminfo:
-                if s in baminfo:
-                    out += [baminfo[s].get(adj,'') for adj in ('raw', 'cleaned', 'ref_mapped', 'ref_rmdup')]
-                else:
-                    out += ['' for h in header_bam]
-            if seqinfo:
-                if s in seqinfo:
-                    out += [','.join(util.misc.unique(run[i] for run in seqinfo[s]))
-                        for i in range(len(header_seq))]
-                else:
-                    out += ['' for h in header_seq]
-            outf.write('\t'.join(map(str,out))+'\n')
-def parser_coverage_summary(parser=argparse.ArgumentParser()):
-    parser.add_argument('coverageDir', help='Input coverage report directory.')
-    parser.add_argument('coverageSuffix', help='Suffix of all coverage files.')
-    parser.add_argument('outFile', help='Output report file.')
-    parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
-    parser.add_argument('--bamstatsDir', help='Link in read info from BAM alignments.', default=None)
-    util.cmd.attach_main(parser, main_coverage_summary)
-    return parser
-def main_coverage_summary(args):
-    '''Produce summary stats of genome coverage.'''
-    inFiles = list(glob.glob(os.path.join(args.coverageDir, "*"+args.coverageSuffix)))
-    coverage_summary(inFiles, args.coverageSuffix, args.outFile, args.runFile, args.bamstatsDir)
-    return 0
-__commands__.append(('coverage_summary', parser_coverage_summary))
-
-def consolidate_coverage(inFiles, adj, outFile):
-    '''Consolidate multiple coverage reports into one.'''
-    ending = '.coverage_%s.txt' % adj
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        for fn in inFiles:
-            if not fn.endswith(ending):
-                raise Exception()
-            s = os.path.basename(fn)[:-len(ending)]
-            with open(fn, 'rt') as inf:
-                for line in inf:
-                    outf.write(line.rstrip('\n') + '\t' + s + '\n')
-def parser_consolidate_coverage(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
-    parser.add_argument('adj', help='Report adjective.')
-    parser.add_argument('outFile', help='Output report file.')
-    util.cmd.attach_main(parser, consolidate_coverage, split_args=True)
-    return parser
-__commands__.append(('consolidate_coverage', parser_consolidate_coverage))
 
 
 
