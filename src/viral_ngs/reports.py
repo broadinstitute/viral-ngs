@@ -203,6 +203,7 @@ def consolidate_spike_count(inDir, outFile):
     '''Consolidate multiple spike count reports into one.'''
     with open(outFile, 'wt') as outf:
         for fn in os.listdir(inDir):
+            fn = os.path.join(inDir, fn)
             s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
