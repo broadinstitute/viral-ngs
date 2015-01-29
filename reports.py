@@ -23,15 +23,25 @@ except ImportError:
 def get_assembly_stats(sample,
         cov_thresholds=(1,5,20,100),
         assembly_dir='data/02_assembly', assembly_tmp='tmp/02_assembly',
-        align_dir='data/02_align_to_self'):
+        align_dir='data/02_align_to_self', reads_dir='data/01_per_sample',
+        raw_reads_dir='data/00_raw'):
     ''' Fetch assembly-level statistics for a given sample '''
     out = {'sample':sample}
     samtools = tools.samtools.SamtoolsTool()
-    header = ['sample', 'assembled_trinity', 'trinity_in_reads',
+    header = ['sample', 'reads_raw', 'reads_cleaned', 'reads_taxfilt',
+        'assembled_trinity', 'trinity_in_reads',
         'n_contigs', 'contig_len', 'unambig_bases', 'pct_unambig',
         'aln2self_reads_tot', 'aln2self_reads_aln', 'aln2self_reads_rmdup', 'aln2self_pct_nondup',
         'aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0',
         ] + ['aln2self_cov_%dX'%t for t in cov_thresholds]
+    
+    # per-sample unaligned read stats
+    for adj in ('cleaned', 'taxfilt'):
+        reads_bam = os.path.join(reads_dir, '.'.join((sample, adj, 'bam')))
+        if os.path.isfile(reads_bam):
+            out['reads_'+adj] = samtools.count(reads_bam)
+    out['reads_raw'] = sum(samtools.count(bam)
+        for bam in glob.glob(os.path.join(raw_reads_dir, sample+"*.bam")))
     
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp,
@@ -43,11 +53,14 @@ def get_assembly_stats(sample,
     # assembly stats
     assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
     if not os.path.isfile(assembly_fname):
-        out['n_contigs'] = 0
-        return (header, out)
+        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly2-vfat.fasta')
+        if not os.path.isfile(assembly_fname):
+            out['n_contigs'] = 0
+            return (header, out)
     with open(assembly_fname, 'rt') as inf:
         counts = [(len(s), assembly.unambig_count(s.seq))
-            for s in Bio.SeqIO.parse(inf, 'fasta')]
+            for s in Bio.SeqIO.parse(inf, 'fasta')
+            if len(s)>0]
     out['n_contigs'] = len(counts)
     out['contig_len'] = ','.join(str(x) for x,y in counts)
     out['unambig_bases'] = ','.join(str(y) for x,y in counts)
@@ -76,13 +89,17 @@ def get_assembly_stats(sample,
     return (header, out)
 
 def assembly_stats(samples, outFile,
-    cov_thresholds, assembly_dir, assembly_tmp, align_dir):
+    cov_thresholds, assembly_dir, assembly_tmp, align_dir,
+    reads_dir, raw_reads_dir):
     ''' Fetch assembly-level statistics for a given sample '''
     header_written = False
     with open(outFile, 'wt') as outf:
         for sample in samples:
             log.info("fetching stats on "+sample)
-            header, out = get_assembly_stats(sample, cov_thresholds, assembly_dir, assembly_tmp, align_dir)
+            header, out = get_assembly_stats(sample,
+                cov_thresholds=cov_thresholds, assembly_dir=assembly_dir,
+                assembly_tmp=assembly_tmp, align_dir=align_dir,
+                reads_dir=reads_dir, raw_reads_dir=raw_reads_dir)
             if not header_written:
                 outf.write('\t'.join(map(str, header))+'\n')
                 header_written = True
@@ -100,6 +117,10 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
         help='Directory with assembly temp files. (default: %(default)s)')
     parser.add_argument('--align_dir',     default='data/02_align_to_self',
         help='Directory with reads aligned to own assembly. (default: %(default)s)')
+    parser.add_argument('--reads_dir',     default='data/01_per_sample',
+        help='Directory with unaligned filtered read BAMs. (default: %(default)s)')
+    parser.add_argument('--raw_reads_dir', default='data/00_raw',
+        help='Directory with unaligned raw read BAMs. (default: %(default)s)')
     util.cmd.attach_main(parser, assembly_stats, split_args=True)
     return parser
 __commands__.append(('assembly_stats', parser_assembly_stats))
@@ -108,31 +129,6 @@ __commands__.append(('assembly_stats', parser_assembly_stats))
 
 def get_refalign_stats(sample):
     pass
-
-
-def consolidate_bamstats(inFiles, outFile):
-    '''Consolidate multiple bamstats reports into one.'''
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        header = []
-        out_n = 0
-        for fn in inFiles:
-            out = {}
-            with util.file.open_or_gzopen(fn, 'rt') as inf:
-                for line in inf:
-                    k,v = line.rstrip('\n').split('\t')
-                    out[k] = v
-                    if out_n==0:
-                        header.append(k)
-            if out_n==0:
-                outf.write('\t'.join(header)+'\n')
-            outf.write('\t'.join([out.get(h,'') for h in header])+'\n')
-            out_n += 1
-def parser_consolidate_bamstats(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input report files.', nargs='+')
-    parser.add_argument('outFile', help='Output report file.')
-    util.cmd.attach_main(parser, consolidate_bamstats, split_args=True)
-    return parser
-__commands__.append(('consolidate_bamstats', parser_consolidate_bamstats))
 
 
 
@@ -200,80 +196,14 @@ def get_earliest_date(inDir):
     earliest = min(os.path.getmtime(fn) for fn in fnames)
     return time.strftime("%Y-%m-%d", time.localtime(earliest))
 
-def coverage_summary(inFiles, ending, outFile, runFile=None, statsDir=None, thresholds=(1,5,20,100)):
-    seqinfo = runFile and get_lib_info(runFile) or {}
-    baminfo = statsDir and get_bam_info(statsDir) or {}
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        header = ['library'] + ['sites_cov_%dX'%t for t in thresholds] + ['median_cov', 'mean_cov', 'mean_non0_cov']
-        header_bam = ['reads_total', 'reads_non_Hs_rmdup', 'reads_EBOV', 'reads_EBOV_rmdup']
-        header_seq = ['sample','seq_flowcell_lane', 'seq_mux_barcode', 'seq_plate_well', 'seq_date', 'KGH_Tube_ID']
-        if baminfo:
-            header += header_bam
-        if seqinfo:
-            header += header_seq
-        outf.write('\t'.join(header)+'\n')
-        for fn in inFiles:
-            if not fn.endswith(ending):
-                raise Exception()
-            s = os.path.basename(fn)[:-len(ending)]
-            with util.file.open_or_gzopen(fn, 'rt') as inf:
-                coverages = list(int(line.rstrip('\n').split('\t')[2]) for line in inf)
-            out = [sum(1 for n in coverages if n>=thresh) for thresh in thresholds]
-            out = [s] + out
-            out +=[median(coverages), "%0.3f"%mean(coverages),
-                "%0.3f"%mean([n for n in coverages if n>0])]
-            if baminfo:
-                if s in baminfo:
-                    out += [baminfo[s].get(adj,'') for adj in ('raw', 'cleaned', 'ref_mapped', 'ref_rmdup')]
-                else:
-                    out += ['' for h in header_bam]
-            if seqinfo:
-                if s in seqinfo:
-                    out += [','.join(util.misc.unique(run[i] for run in seqinfo[s]))
-                        for i in range(len(header_seq))]
-                else:
-                    out += ['' for h in header_seq]
-            outf.write('\t'.join(map(str,out))+'\n')
-def parser_coverage_summary(parser=argparse.ArgumentParser()):
-    parser.add_argument('coverageDir', help='Input coverage report directory.')
-    parser.add_argument('coverageSuffix', help='Suffix of all coverage files.')
-    parser.add_argument('outFile', help='Output report file.')
-    parser.add_argument('--runFile', help='Link in plate info from seq runs.', default=None)
-    parser.add_argument('--bamstatsDir', help='Link in read info from BAM alignments.', default=None)
-    util.cmd.attach_main(parser, main_coverage_summary)
-    return parser
-def main_coverage_summary(args):
-    '''Produce summary stats of genome coverage.'''
-    inFiles = list(glob.glob(os.path.join(args.coverageDir, "*"+args.coverageSuffix)))
-    coverage_summary(inFiles, args.coverageSuffix, args.outFile, args.runFile, args.bamstatsDir)
-    return 0
-__commands__.append(('coverage_summary', parser_coverage_summary))
-
-def consolidate_coverage(inFiles, adj, outFile):
-    '''Consolidate multiple coverage reports into one.'''
-    ending = '.coverage_%s.txt' % adj
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
-        for fn in inFiles:
-            if not fn.endswith(ending):
-                raise Exception()
-            s = os.path.basename(fn)[:-len(ending)]
-            with open(fn, 'rt') as inf:
-                for line in inf:
-                    outf.write(line.rstrip('\n') + '\t' + s + '\n')
-def parser_consolidate_coverage(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
-    parser.add_argument('adj', help='Report adjective.')
-    parser.add_argument('outFile', help='Output report file.')
-    util.cmd.attach_main(parser, consolidate_coverage, split_args=True)
-    return parser
-__commands__.append(('consolidate_coverage', parser_consolidate_coverage))
 
 
 
-def consolidate_spike_count(inFiles, outFile):
+def consolidate_spike_count(inDir, outFile):
     '''Consolidate multiple spike count reports into one.'''
     with open(outFile, 'wt') as outf:
-        for fn in inFiles:
+        for fn in os.listdir(inDir):
+            fn = os.path.join(inDir, fn)
             s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
@@ -284,7 +214,7 @@ def consolidate_spike_count(inFiles, outFile):
                         spike, count = line.strip().split('\t')
                         outf.write('\t'.join([s, spike, count])+'\n')
 def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFiles', help='Input coverage files.', nargs='+')
+    parser.add_argument('inDir', help='Input spike count directory.')
     parser.add_argument('outFile', help='Output report file.')
     util.cmd.attach_main(parser, consolidate_spike_count, split_args=True)
     return parser

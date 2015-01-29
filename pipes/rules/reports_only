@@ -52,5 +52,10 @@ rule assembly_report:
     resources: mem=2
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
-    shell:  "{config[binDir]}/reports.py assembly_stats {wildcards.sample} {output} --assembly_dir {config[dataDir]}/{config[subdirs][assembly]} --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]} --align_dir {config[dataDir]}/{config[subdirs][align_self]}"
+    shell:  "{config[binDir]}/reports.py assembly_stats {wildcards.sample} {output}" \
+            " --assembly_dir {config[dataDir]}/{config[subdirs][assembly]}" \
+            " --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]}" \
+            " --align_dir {config[dataDir]}/{config[subdirs][align_self]}" \
+            " --reads_dir {config[dataDir]}/{config[subdirs][per_sample]}" \
+            " --raw_reads_dir {config[dataDir]}/{config[subdirs][source]}"
 
