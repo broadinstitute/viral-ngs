@@ -10,77 +10,9 @@ import os, os.path, gzip, shutil
 
 rule all_reports:
     input:
-        config["reportsDir"]+'/summary.coverage_ref.txt.gz',
-        config["reportsDir"]+'/summary.coverage_self.txt.gz',
         config["reportsDir"]+'/summary.fastqc.txt',
-        config["reportsDir"]+'/summary.bamstats.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
     params: LSF="-N"
-
-#-----------BAMSTATS-------------------
-
-def bamstats_input_file(wildcards):
-    adj = wildcards.adjective
-    if adj in ('raw', 'cleaned'):
-        subdir = "depletion"
-    else:
-        if adj.startswith('self_'):
-            subdir = "align_self"
-        elif adj.startswith('ref_'):
-            subdir = "align_ref"
-        else:
-            raise Exception()
-        if adj.endswith('_mapped') or adj.endswith('_rmdup') or adj.endswith('_realigned'):
-            adj = adj.split('_')[-1]
-        elif adj.endswith('_align'):
-            adj = None
-        else:
-            raise Exception()
-    if adj==None:
-        bamfile = wildcards.sample + '.bam'
-    else:
-        bamfile = '.'.join([wildcards.sample, adj, 'bam'])
-    return os.path.join(config["dataDir"], config["subdirs"][subdir], bamfile)
-
-rule bamstats_report:
-    input:  bamstats_input_file
-    output: config["reportsDir"]+'/bamstats/{sample}.{adjective}.txt'
-    params: LSF='-W 0:30 -sp 40',
-            logid="{sample}-{adjective}",
-            tmpf_report=config["reportsDir"]+'/bamstats/{sample}.{adjective}.tmp.txt'
-    run:
-            makedirs(config["reportsDir"]+'/bamstats')
-            shell("use BamTools; bamtools stats -insert -in {input} > {params.tmpf_report}")
-            out = []
-            out.append(['Sample', wildcards.sample])
-            out.append(['BAM', wildcards.adjective])
-            with open(params.tmpf_report, 'rt') as inf:
-                for line in inf:
-                    row = line.strip().split(':')
-                    if len(row)==2 and row[1]:
-                        k,v = [x.strip() for x in row]
-                        k = k.strip("'")
-                        mo = re.match(r'^(\d+)\s+\(\S+\)$', v)
-                        if mo:
-                            v = mo.group(1)
-                        out.append([k,v])
-            with open(output[0], 'wt') as outf:
-                for row in out:
-                    outf.write('\t'.join(row)+'\n')
-            os.unlink(params.tmpf_report)
-
-rule consolidate_bamstats:
-    input:
-            expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
-                adjective=['raw','cleaned',
-                    'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
-                sample=read_samples_file(config["samples_per_run"])) + \
-            expand("{{dir}}/bamstats/{sample}.{adjective}.txt",
-                adjective=['self_align', 'self_mapped', 'self_rmdup', 'self_realigned'],
-                sample=read_samples_file(config["samples_assembly"]))
-    output: '{dir}/summary.bamstats.txt'
-    params: logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_bamstats {input} {output}"
 
 
 #-----------FASTQC---------------------
@@ -105,46 +37,6 @@ rule consolidate_fastqc:
     output: '{dir}/summary.fastqc.txt'
     params: logid="all"
     shell:  "{config[binDir]}/reports.py consolidate_fastqc {input} {output}"
-
-#-----------COVERAGE-------------------
-
-def coverage_input_files(wildcards):
-    if wildcards.adjective == 'ref':
-        ref   = config["ref_genome"]
-        reads = os.path.join(config["dataDir"], config["subdirs"]["align_ref"], wildcards.sample + '.realigned.bam')
-    elif wildcards.adjective == 'self':
-        ref   = os.path.join(config["dataDir"], config["subdirs"]["assembly"], wildcards.sample + '.fasta')
-        reads = os.path.join(config["dataDir"], config["subdirs"]["align_self"], wildcards.sample + '.realigned.bam')
-    else:
-        raise Exception()
-    return (ref, reads)
-
-rule coverage_report:
-    input:  coverage_input_files
-    output: config["reportsDir"]+'/coverage/{sample}.coverage_{adjective}.txt'
-    resources: mem=3
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00') + " -sp 40",
-            logid="{sample}-{adjective}"
-    run:
-            makedirs(os.path.join(config["reportsDir"], 'coverage'))
-            shell("/idi/sabeti-scratch/kandersen/bin/bedtools/bedtools genomecov -d -ibam {input[1]} -g {input[0]} > {output}")
-
-def consolidate_coverage_inputs(wildcards):
-    if wildcards.adjective == 'ref':
-        samples = config['samples_per_run']
-    elif wildcards.adjective == 'self':
-        samples = config['samples_assembly']
-    else:
-        raise Exception()
-    return [wildcards.dir+'/coverage/'+sample+'.coverage_'+wildcards.adjective+'.txt'
-        for sample in read_samples_file(samples)]
-
-rule consolidate_coverage:
-    input:  consolidate_coverage_inputs
-    output: '{dir}/summary.coverage_{adjective}.txt.gz'
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_coverage {input} {wildcards.adjective} {output}"
 
 
 #-----------SPIKE-INS------------------
@@ -171,5 +63,5 @@ rule consolidate_spike_count:
                 sample=read_samples_file(config["samples_per_run"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_spike_count {input} {output}"
+    shell:  "{config[binDir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
 
