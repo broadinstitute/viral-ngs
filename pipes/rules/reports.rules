@@ -63,5 +63,5 @@ rule consolidate_spike_count:
                 sample=read_samples_file(config["samples_per_run"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_spike_count {dir}/spike_count {output}"
+    shell:  "{config[binDir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
 
