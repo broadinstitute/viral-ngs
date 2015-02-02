@@ -36,7 +36,7 @@
   "LSF_queues": {
     "short":   "-W 4:00",
     "long":    "-q forest",
-    "bigmem":  "-q flower"
+    "bigmem":  "-q forest"
   },
 
   "subdirs": {
