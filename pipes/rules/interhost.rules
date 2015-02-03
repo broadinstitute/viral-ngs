@@ -28,8 +28,7 @@ def update_timestamps(files):
 rule all_ref_guided:
     input:
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
-            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
-            config["reportsDir"]+'/summary.coverage_ref.txt.gz'
+            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
 
 rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
