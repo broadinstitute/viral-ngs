@@ -12,11 +12,18 @@ python:
   - 2.7
   - 3.4
 
+matrix:
+ include:
+  - python: "2.7"
+    env: PYTHON_MAJOR_VERSION=2
+  - python: "3.4"
+    env: PYTHON_MAJOR_VERSION=3
+
 install:
   - wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
   - openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc -out bin_bundles.tar.gz
   - tar -xzpvf bin_bundles.tar.gz
-  - pip install -r requirements.txt
+  - pip install -r requirements-"$PYTHON_MAJOR_VERSION".txt
   - pip install -q coveralls nose-cov
   - python -m unittest -v test.test_tools.TestToolsInstallation
 
