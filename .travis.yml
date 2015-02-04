@@ -7,17 +7,11 @@ env:
   - NOVOALIGN_PATH=bin_bundles/novocraft_v3
   - PYTHONIOENCODING=UTF8
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
+  - PYTHON_MAJOR_VERSION=`python -V | cut -c 8`
 
 python:
   - 2.7
   - 3.4
-
-matrix:
- include:
-  - python: "2.7"
-    env: PYTHON_MAJOR_VERSION=2
-  - python: "3.4"
-    env: PYTHON_MAJOR_VERSION=3
 
 install:
   - wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
