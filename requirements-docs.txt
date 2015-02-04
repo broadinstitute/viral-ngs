@@ -1,2 +1,2 @@
 Sphinx==1.2.3
-sphinx-argparse==0.1.13
+sphinx-argparse==0.1.14
