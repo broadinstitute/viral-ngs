@@ -1,4 +1,5 @@
 language: python
+sudo: false
 
 env:
   global:
@@ -11,25 +12,15 @@ python:
   - 2.7
   - 3.4
 
-before_install:
-  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
-  - chmod +x miniconda.sh
-  - ./miniconda.sh -b
-  - export PATH=/home/travis/miniconda/bin:$PATH
-  - conda update --yes conda
+install:
   - wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
   - openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc -out bin_bundles.tar.gz
   - tar -xzpvf bin_bundles.tar.gz
-
-install:
-  - conda create -n env-conda --yes "python=$TRAVIS_PYTHON_VERSION"
-  - source activate env-conda
-  - conda install --yes cython numpy scipy pandas pip
-  - pip install -q `cat requirements.txt | grep -v numpy | grep -v scipy | grep -vi cython`
+  - pip install -r -q requirements.txt
   - pip install -q coveralls nose-cov
+  - python -m unittest -v test.test_tools.TestToolsInstallation
 
 script:
-  - python -m unittest -v test.test_tools.TestToolsInstallation
   - nosetests -v --with-xunit --with-coverage --cover-package broad_utils,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util --cover-erase --cover-inclusive --cover-branches --cover-tests --nocapture
 
 after_success:
