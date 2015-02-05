@@ -3,7 +3,6 @@ sudo: false
 
 cache:
  directories:
-  - /home/travis/.pip-cache
   - /home/travis/virtualenv
   - tools/build
 
