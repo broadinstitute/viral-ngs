@@ -4,14 +4,14 @@
 set -e
 
 # Only sometimes cache the tools/build directory
-if [ "$TRAVIS_BRANCH" != "master" ]; then
+if [ -z "$TRAVIS_TAG" ]; then
     echo "Travis docker caches allowed for branch $TRAVIS_BRANCH"
     rm -rf tools/build
     mkdir -p $CACHE_DIR/tools_build
     ln -s $CACHE_DIR/tools_build tools/build
 
 else
-    echo "Travis docker cache disabled for tools/build on master branch"
+    echo "Travis docker cache disabled for tools/build on tag: $TRAVIS_TAG"
 
 fi
 
