@@ -9,7 +9,7 @@ if [ $TRAVIS_PULL_REQUEST != "false" -o $TRAVIS_BRANCH = "master" ]; then
     nosetests -v --with-xunit --with-coverage --nocapture \
         --cover-inclusive --cover-branches --cover-tests \
         --cover-package broad_utils,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util \
-        test.integration
+        -w test/integration/
 
 else
     echo "This is not a pull request: skipping long running tests."
