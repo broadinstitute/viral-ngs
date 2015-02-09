@@ -9,11 +9,5 @@ if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
     tar -xzpvf bin_bundles.tar.gz
 fi
 
-if [ $TRAVIS_PULL_REQUEST != "false" ]; then
-    echo "This is a pull request: wiping out all installed tools and re-installing from scratch"
-    rm -rf tools/build
-    mkdir -p tools/build
-fi
-
 echo "Installing and validating bioinformatic tools"
 python -m unittest -v test.test_tools.TestToolsInstallation
