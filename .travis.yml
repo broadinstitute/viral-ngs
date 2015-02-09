@@ -7,8 +7,9 @@ cache:
 
 env:
   global:
-  - GATK_PATH=$HOME/virtualenv/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af
-  - NOVOALIGN_PATH=$HOME/virtualenv/bin_bundles/novocraft_v3
+  - CACHE_DIR="$HOME/virtualenv"
+  - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
+  - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
 
