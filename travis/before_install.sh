@@ -5,19 +5,15 @@ set -e
 
 GIT_BRANCH=`git rev-parse --abbrev-ref HEAD`
 
+rm -rf tools/build
+mkdir -p caches/tools_build
+
 if [ "$GIT_BRANCH" != "master" ]; then
-    echo "setting up Travis docker caches"
-    mkdir -p caches/virtualenv caches/bin_bundles caches/tools_build
-
-    rm -rf /home/travis/virtualenv
-    ln -s caches/virtualenv /home/travis/virtualenv
-
-    rm -rf bin_bundles
-    ln -s caches/bin_bundles bin_bundles
-
-    rm -rf tools/build
+    echo "Travis docker caches allowed for branch $GIT_BRANCH"
     ln -s caches/tools_build tools/build
 
 else
-    echo "Travis docker caches disabled for master branch"
+    echo "Travis docker cache disabled for tools/build on master branch"
+    mkdir -p tools/build
+
 fi
