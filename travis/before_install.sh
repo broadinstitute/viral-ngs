@@ -3,13 +3,11 @@
 # cache depending on whether we're on the master branch or not.
 set -e
 
-GIT_BRANCH=`git rev-parse --abbrev-ref HEAD`
-
 rm -rf tools/build
 mkdir -p caches/tools_build
 
-if [ "$GIT_BRANCH" != "master" ]; then
-    echo "Travis docker caches allowed for branch $GIT_BRANCH"
+if [ "$TRAVIS_BRANCH" != "master" ]; then
+    echo "Travis docker caches allowed for branch $TRAVIS_BRANCH"
     ln -s caches/tools_build tools/build
 
 else
