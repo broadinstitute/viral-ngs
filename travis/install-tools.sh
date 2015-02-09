@@ -2,6 +2,11 @@
 set -e
 
 if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
+  if [ -z "$BUNDLE_SECRET" ]; then
+    echo "ERROR: GATK and/or Novoalign is missing, but secret key is not set for auto-download."
+    exit 1
+
+  else
     echo "Fetching encrypted Novoalign & GATK bundle for Travis"
     pwd
     wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
@@ -10,4 +15,4 @@ if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
 fi
 
 echo "Installing and validating bioinformatic tools"
-python -m unittest -v test.test_tools.TestToolsInstallation
+python -m unittest -v test.unit.test_tools.TestToolsInstallation
