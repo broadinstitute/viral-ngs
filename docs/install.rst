@@ -38,7 +38,7 @@ Additionally, in order to use the **pipeline infrastructure**, Python 3.4
 is required (Python 2 is not supported) and you must install snakemake
 as well::
 
-  pip install snakemake==3.2.1 yappi=0.94
+  pip install -r requirements-pipes.txt
 
 However, most of the real functionality is encapsulated in the command line
 tools, which can be used without any of the pipeline infrastructure.

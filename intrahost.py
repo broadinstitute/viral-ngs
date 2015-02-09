@@ -9,12 +9,7 @@ __commands__ = []
 import argparse, logging, itertools, re
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
-
-try:
-    # Python 3.4
-    from statistics import mean, median
-except ImportError:
-    from numpy import mean, median
+from util.misc import mean, median
 
 
 log = logging.getLogger(__name__)
