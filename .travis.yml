@@ -5,6 +5,7 @@ cache:
  directories:
   - /home/travis/virtualenv
   - tools/build
+  - bin_bundles
 
 env:
   global:
@@ -18,15 +19,12 @@ python:
   - 3.4
 
 install:
-  - wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
-  - openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc -out bin_bundles.tar.gz
-  - tar -xzpvf bin_bundles.tar.gz
-  - pip install -r requirements.txt
-  - pip install -q coveralls nose-cov
-  - python -m unittest -v test.test_tools.TestToolsInstallation
+  - travis/install-pip.sh
+  - travis/install-tools.sh
 
 script:
-  - nosetests -v --with-xunit --with-coverage --cover-package broad_utils,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util --cover-erase --cover-inclusive --cover-branches --cover-tests --nocapture
+  - travis/tests-unit.sh
+  - travis/tests-long.sh
 
 after_success:
   - coveralls
