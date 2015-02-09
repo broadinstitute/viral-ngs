@@ -7,8 +7,8 @@ set -e
 if [ "$TRAVIS_BRANCH" != "master" ]; then
     echo "Travis docker caches allowed for branch $TRAVIS_BRANCH"
     rm -rf tools/build
-    mkdir -p $HOME/caches/tools_build
-    ln -s $HOME/caches/tools_build tools/build
+    mkdir -p $HOME/virtualenv/tools_build
+    ln -s $HOME/virtualenv/tools_build tools/build
 
 else
     echo "Travis docker cache disabled for tools/build on master branch"
@@ -17,4 +17,4 @@ fi
 
 # Report how big things are
 echo "Docker cache space usage:"
-du -hs $HOME/virtualenv $HOME/caches/*
+du -hs $HOME/virtualenv/*
