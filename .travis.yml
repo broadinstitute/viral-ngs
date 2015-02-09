@@ -3,9 +3,7 @@ sudo: false
 
 cache:
  directories:
-  - /home/travis/virtualenv
-  - tools/build
-  - bin_bundles
+  - caches
 
 env:
   global:
@@ -17,6 +15,9 @@ env:
 python:
   - 2.7
   - 3.4
+
+before_install:
+  - travis/before_install.sh
 
 install:
   - travis/install-pip.sh
