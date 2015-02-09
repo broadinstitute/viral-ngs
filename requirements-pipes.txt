@@ -1,0 +1,2 @@
+snakemake==3.2.1
+yappi==0.94

@@ -10,14 +10,9 @@ import pysam, Bio.SeqIO
 import util.cmd, util.file, util.misc
 import tools.samtools
 import assembly
+from util.misc import mean, median
 
 log = logging.getLogger(__name__)
-
-try:
-    # Python 3.4
-    from statistics import mean, median
-except ImportError:
-    from numpy import mean, median
 
 
 def get_assembly_stats(sample,
