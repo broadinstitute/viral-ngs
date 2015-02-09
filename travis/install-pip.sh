@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 echo "pip installing required python packages"
 pip install -r requirements.txt

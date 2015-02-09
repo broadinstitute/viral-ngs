@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 nosetests -v --with-xunit --with-coverage --nocapture \
     --cover-erase --cover-inclusive --cover-branches --cover-tests \

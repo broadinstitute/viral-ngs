@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
     echo "Fetching encrypted Novoalign & GATK bundle for Travis"
