@@ -28,13 +28,7 @@ def update_timestamps(files):
 rule all_ref_guided:
     input:
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
-            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
-            expand("{dir}/bamstats/{sample}.{adjective}.txt",
-                dir=config["reportsDir"],
-                adjective=['raw','cleaned',
-                    'ref_align', 'ref_mapped', 'ref_rmdup', 'ref_realigned'],
-                sample=read_samples_file(config["samples_per_run"])),
-            config["reportsDir"]+'/summary.coverage_ref.txt.gz'
+            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
 
 rule ref_guided_consensus:
     input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
@@ -50,7 +44,7 @@ rule ref_guided_consensus:
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"]],
-                subdir=[config["subdirs"]["align_ref"], config["subdirs"]["assembly"]]))
+                subdir=[config["subdirs"]["align_ref"], config["subdirs"]["interhost"]]))
             shell("{config[binDir]}/assembly.py refine_assembly {params.refGenome} {input} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads --chr_names {wildcards.sample}")
 
 rule ref_guided_diversity:

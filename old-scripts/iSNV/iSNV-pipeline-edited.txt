@@ -1,0 +1,20 @@
+#VPHASER JOB SUBMISSION
+
+#PREREQUISITES
+bash
+export LD_LIBRARY_PATH=/idi/sabeti-data/seq-viral-analysis/xyang/programs/Library/pezmaster31-bamtools-e235c55/lib:$LD_LIBRARY_PATH
+
+#SUBMIT SEVERAL JOBS - ALL SAMPLES IN SAMPLES.TXT
+#save files to output-directory
+
+while read p; do output="output_vphaser_"$p".txt"; bsub -o $output -W 03:00 /idi/sabeti-data/seq-viral-analysis/xyang/programs/VariantCaller/bin/variant_caller -i /idi/sabeti-data/dpark/ebov/sl-round2/data/02_align_to_self/$p".mapped.bam" -o output-directory; done < samples.txt
+
+#REMAP CALLS TO REFERENCE COORDINATES
+#path/to/reference = path to the reference genome (FASTA): KJ660346.2
+
+for i in *.var.raw.txt; do j=${i%%.var.raw.txt}; echo $j; /idi/sabeti-data/seq-viral-analysis/xyang/scripts/align2ref.pl -ref /path/to/reference -seq  /idi/sabeti-data/dpark/ebov/sl-round2/data/02_assembly/$j".fasta" -oprefix $i.mapped -vc $i; done
+
+#FILTER iSNV CALLS
+#basic filtering for strand bias and minimum number of reads
+
+for i in *var.raw.txt.mapped.ref.vc.txt; do perl /idi/sabeti-data/rsealfon/viruses/ebolavirus/iSNV_combined/vphaser2_calls/filter_read_bias.pl $i > $i.filtered; echo $i; done
