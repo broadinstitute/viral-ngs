@@ -52,9 +52,87 @@ class NovoalignTool(tools.Tool) :
         '''
         samtools = tools.samtools.SamtoolsTool()
         
+        # fetch list of RGs
+        rgs = list(samtools.getReadGroups(inBam).keys())
+        
+        if len(rgs)==0:
+            # Can't do this
+            raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
+            
+        elif len(rgs) == 1:
+            # Only one RG, keep it simple
+            self.align_one_rg_bam(inBam, refFasta, outBam,
+                options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+            
+        else:
+            # Multiple RGs, align one at a time and merge
+            align_bams = []
+            for rg in rgs:
+                tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
+                align_bams.append(tmp_bam)
+                self.align_one_rg_bam(inBam, refFasta, tmp_bam,
+                    rgid=rg,
+                    options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+            
+            # Merge BAMs, sort, and index
+            tools.picard.MergeSamFilesTool().execute(
+                align_bams, outBam,
+                picardOptions=['SORT_ORDER=coordinate',
+                    'USE_THREADING=true', 'CREATE_INDEX=true'],
+                JVMmemory=JVMmemory)
+            for bam in align_bams:
+                os.unlink(bam)
+    
+    def align_one_rg_bam(self, inBam, refFasta, outBam,
+        rgid=None, options=["-r", "Random"], min_qual=0, JVMmemory=None):
+        ''' Execute Novoalign on BAM inputs and outputs.
+            Requires that only one RG exists (will error otherwise).
+            Use Picard to sort and index the output BAM.
+            If min_qual>0, use Samtools to filter on mapping quality.
+        '''
+        samtools = tools.samtools.SamtoolsTool()
+        
+        # Require exactly one RG
+        rgs = samtools.getReadGroups(inBam)
+        if len(rgs)==0:
+            raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
+        elif len(rgs) == 1:
+            if not rgid:
+                rgid = list(rgs.keys())[0]
+        elif not rgid:
+            raise InvalidBamHeaderError(
+                "{} has {} read groups, but we require exactly one".format(
+                inBam, len(rgs)))
+        if rgid not in rgs:
+            raise InvalidBamHeaderError(
+                "{} has read groups, but not {}".format(
+                inBam, rgid))
+        rg = rgs[rgid]
+        
+        # Strip inBam to just one RG (if necessary)
+        if len(rgs)==1:
+            one_rg_inBam = inBam
+        else:
+            # strip inBam to one read group
+            tmp_bam = util.file.mkstempfname('.onebam.bam')
+            samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+            # simplify BAM header otherwise Novoalign gets confused
+            one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
+            headerFile = util.file.mkstempfname('.{}.header.txt'.format(rgid))
+            with open(headerFile, 'wt') as outf:
+                for row in samtools.getHeader(inBam):
+                    if len(row)>0 and row[0]=='@RG':
+                        if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
+                            # skip all read groups that are not rgid
+                            continue
+                    outf.write('\t'.join(row)+'\n')
+            samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
+            os.unlink(tmp_bam)
+            os.unlink(headerFile)
+        
         # Novoalign
         tmp_sam = util.file.mkstempfname('.novoalign.sam')
-        cmd = [self.install_and_get_path(), '-f', inBam] + list(map(str, options))
+        cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
