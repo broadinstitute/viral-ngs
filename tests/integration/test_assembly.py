@@ -2,7 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import assembly, util.cmd, util.file, tool.novoalign
+import assembly, util.cmd, util.file, tools.novoalign
 import unittest
 import os, shutil, tempfile, argparse, itertools
 from test import TestCaseWithTmp
