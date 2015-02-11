@@ -78,7 +78,11 @@ class TestToolNovoalign(TestCaseWithTmp) :
         # in the output header (not necessarily same order, but same content)
         orig_rgs = self.samtools.getReadGroups(reads)
         new_rgs = self.samtools.getReadGroups(outBam)
-        self.assertEqual(orig_rgs, new_rgs)
+        self.assertTrue(len(orig_rgs)>1)
+        self.assertTrue(len(new_rgs)>1)
+        self.assertEqual(set(orig_rgs.keys()), set(new_rgs.keys()))
+        for rgid in orig_rgs.keys():
+            self.assertEqual(orig_rgs[rgid], new_rgs[rgid])
         
         # assert that all reads retained their original RG assignments
         read_to_rg = {}
