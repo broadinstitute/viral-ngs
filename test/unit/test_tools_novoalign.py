@@ -62,9 +62,12 @@ class TestToolNovoalign(TestCaseWithTmp) :
         
         # align with Novoalign (BAM input, BAM output)
         reads = os.path.join(util.file.get_test_input_path(),
-            'G5012.3.testreads.bam')
+            'G5012.3.subset.bam')
         outBam = util.file.mkstempfname('.bam')
         self.novoalign.execute(reads, inRef, outBam)
+        self.assertTrue(os.path.isfile(outBam))
+        self.assertTrue(os.path.getsize(outBam))
+        self.assertTrue(os.path.isfile(outBam[:-1]+'i'))
         sam_in = util.file.mkstempfname('.in.sam')
         sam_out = util.file.mkstempfname('.out.sam')
         self.samtools.view([], reads, sam_in)
@@ -80,7 +83,6 @@ class TestToolNovoalign(TestCaseWithTmp) :
         new_rgs = self.samtools.getReadGroups(outBam)
         self.assertTrue(len(orig_rgs)>1)
         self.assertTrue(len(new_rgs)>1)
-        self.assertEqual(set(orig_rgs.keys()), set(new_rgs.keys()))
         for rgid in new_rgs.keys():
             sel.assertIn(rgid, orig_rgs)
             orig_rg = orig_rgs[rgid]
@@ -120,4 +122,20 @@ class TestToolNovoalign(TestCaseWithTmp) :
         # clean up
         for fn in (sam_in, sam_out, outBam, inRef):
             os.unlink(fn)
+
+    def test_multi_read_groups_filter(self) :
+        orig_ref = os.path.join(util.file.get_test_input_path(),
+            'G5012.3.fasta')
+        inRef = util.file.mkstempfname('.fasta')
+        shutil.copyfile(orig_ref, inRef)
+        self.novoalign.index_fasta(inRef)
+        
+        # align with Novoalign (BAM input, BAM output)
+        reads = os.path.join(util.file.get_test_input_path(),
+            'G5012.3.subset.bam')
+        outBam = util.file.mkstempfname('.bam')
+        self.novoalign.execute(reads, inRef, outBam, min_qual=1)
+        self.assertTrue(os.path.isfile(outBam))
+        self.assertTrue(os.path.getsize(outBam))
+        self.assertTrue(os.path.isfile(outBam[:-1]+'i'))
         
