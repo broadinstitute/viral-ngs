@@ -69,10 +69,11 @@ class NovoalignTool(tools.Tool) :
             align_bams = []
             for rg in rgs:
                 tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
-                align_bams.append(tmp_bam)
                 self.align_one_rg_bam(inBam, refFasta, tmp_bam,
                     rgid=rg,
                     options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+                if os.path.getsize(tmp_bam)>0:
+                    align_bams.append(tmp_bam)
             
             # Merge BAMs, sort, and index
             tools.picard.MergeSamFilesTool().execute(
@@ -116,6 +117,9 @@ class NovoalignTool(tools.Tool) :
             # strip inBam to one read group
             tmp_bam = util.file.mkstempfname('.onebam.bam')
             samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+            # special exit if this file is empty
+            if samtools.count(tmp_bam)==0:
+                return
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
             headerFile = util.file.mkstempfname('.{}.header.txt'.format(rgid))
