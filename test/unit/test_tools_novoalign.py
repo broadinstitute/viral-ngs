@@ -82,6 +82,14 @@ class TestToolNovoalign(TestCaseWithTmp) :
         self.assertTrue(len(new_rgs)>1)
         self.assertEqual(set(orig_rgs.keys()), set(new_rgs.keys()))
         for rgid in orig_rgs.keys():
+            orig_rg = orig_rgs[rgid]
+            new_rg = new_rgs[rgid]
+            if 'DT' in orig_rg and 'DT' in new_rg:
+                # don't bother comparing the date because Novoalign seems
+                # to enjoy doing senseless time zone conversions on the
+                # ISO date string
+                del orig_rg['DT']
+                del new_rg['DT']
             self.assertEqual(orig_rgs[rgid], new_rgs[rgid])
         
         # assert that all reads retained their original RG assignments
