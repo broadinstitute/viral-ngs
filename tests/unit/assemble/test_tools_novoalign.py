@@ -84,7 +84,7 @@ class TestToolNovoalign(TestCaseWithTmp) :
         self.assertTrue(len(orig_rgs)>1)
         self.assertTrue(len(new_rgs)>1)
         for rgid in new_rgs.keys():
-            sel.assertIn(rgid, orig_rgs)
+            self.assertIn(rgid, orig_rgs)
             orig_rg = orig_rgs[rgid]
             new_rg = new_rgs[rgid]
             if 'DT' in orig_rg and 'DT' in new_rg:
