@@ -35,7 +35,7 @@ class TestAssemble(TestCaseWithTmp):
         
         # check assembly quality
         with open(outFasta, 'rt') as inf:
-            seq = Bio.SeqIO.parse(inf, 'fasta')
+            seq = Bio.SeqIO.read(inf, 'fasta')
             self.assertGreater(len(seq), 17000)
             self.assertGreater(assembly.unambig_count(seq.seq), len(seq) * 0.95)
 
