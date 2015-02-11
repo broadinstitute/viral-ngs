@@ -17,7 +17,7 @@ class TestAssemble(TestCaseWithTmp):
         orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
         refGenome = util.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, refGenome)
-        novoalign.index_fasta(inRef)
+        novoalign.index_fasta(refGenome)
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outFasta = util.file.mkstempfname('.refined.fasta')
         
