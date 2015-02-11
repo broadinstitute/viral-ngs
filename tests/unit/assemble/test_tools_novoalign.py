@@ -81,7 +81,8 @@ class TestToolNovoalign(TestCaseWithTmp) :
         self.assertTrue(len(orig_rgs)>1)
         self.assertTrue(len(new_rgs)>1)
         self.assertEqual(set(orig_rgs.keys()), set(new_rgs.keys()))
-        for rgid in orig_rgs.keys():
+        for rgid in new_rgs.keys():
+            sel.assertIn(rgid, orig_rgs)
             orig_rg = orig_rgs[rgid]
             new_rg = new_rgs[rgid]
             if 'DT' in orig_rg and 'DT' in new_rg:
@@ -91,6 +92,11 @@ class TestToolNovoalign(TestCaseWithTmp) :
                 del orig_rg['DT']
                 del new_rg['DT']
             self.assertEqual(orig_rgs[rgid], new_rgs[rgid])
+        
+        # if any RGs are missing, it should be because they were never really there
+        for rgid in orig_rgs.keys():
+            if rgid not in new_rgs:
+                self.assertEqual(0, self.samtools.count(reads, ['-r', rgid]))
         
         # assert that all reads retained their original RG assignments
         read_to_rg = {}
