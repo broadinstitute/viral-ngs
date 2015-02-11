@@ -72,12 +72,24 @@ class SamtoolsTool(tools.Tool) :
         self.view(opts, inBam, outHeader)
     
     def getHeader(self, inBam):
+        ''' fetch BAM header as a list of tuples (already split on tabs) '''
         tmpf = util.file.mkstempfname('.txt')
         self.dumpHeader(inBam, tmpf)
         with open(tmpf, 'rt') as inf:
             header = list(line.rstrip('\n').split('\t') for line in inf)
         os.unlink(tmpf)
         return header
+    
+    def getReadGroups(self, inBam):
+        ''' fetch all read groups from the BAM header as a dictionary of
+            RG ID -> RG dict.  The RG dict is a mapping of read group keyword
+            (like ID, DT, PU, LB, SM, CN, PL, etc) to value.  ID is included
+            and not stripped out. ID is required for all read groups.
+        '''
+        rgs = [dict(x.split(':', 1) for x in row[1:])
+            for row in self.getHeader(inBam)
+            if len(row)>0 and row[0]=='@RG']
+        return dict((rg['ID'], rg) for rg in rgs)
     
     def count(self, inBam, opts=[], regions=[]):
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
