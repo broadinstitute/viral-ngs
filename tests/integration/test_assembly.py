@@ -2,17 +2,25 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import assembly, util.cmd, util.file
+import assembly, util.cmd, util.file, tool.novoalign
 import unittest
 import os, shutil, tempfile, argparse, itertools
 from test import TestCaseWithTmp
 
 class TestAssemble(TestCaseWithTmp):
     ''' Test the de novo assembly pipeline '''
+
     def test_ref_assisted_assembly(self):
-        refGenome = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        novoalign = tools.novoalign.NovoalignTool()
+        novoalign.install()
+        
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        refGenome = util.file.mkstempfname('.ref.fasta')
+        shutil.copyfile(orig_ref, refGenome)
+        novoalign.index_fasta(inRef)
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outFasta = util.file.mkstempfname('.refined.fasta')
+        
         args = [refGenome, inBam, outFasta,
                 "--chr_names", 'G5012.3',
                 "--min_coverage", '3',
