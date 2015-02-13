@@ -4,7 +4,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
                 + "hlevitin@broadinstitute.org"
 
 import unittest, os, tempfile, shutil, subprocess, argparse
-import taxon_filter, util.file, tools.last, tools.bmtagger, tools.blast
+import taxon_filter, util.file, tools.last, tools.bmtagger, tools.blast, read_utils
 from test import assert_equal_contents, TestCaseWithTmp
 
 
@@ -156,6 +156,52 @@ class TestDepleteBlastn(TestCaseWithTmp) :
         assert_equal_contents(self, outFile,
                               os.path.join(myInputDir, 'expected.fastq'))
 
+class TestDepleteBlastnBam(TestCaseWithTmp) :
+    def test_deplete_blastn_bam(self) :
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+
+        # Make blast databases
+        makeblastdbPath = tools.blast.MakeblastdbTool().install_and_get_path()
+        dbnames = ['humanChr1Subset.fa', 'humanChr9Subset.fa']
+        refDbs = []
+        for dbname in dbnames :
+            refDb = os.path.join(tempDir, dbname)
+            os.symlink(os.path.join(myInputDir, dbname), refDb)
+            refDbs.append(refDb)
+            subprocess.check_call([
+                makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
+
+        # convert the input fastq's to a bam
+        inFastq1 = os.path.join(myInputDir, "in1.fastq")
+        inFastq2 = os.path.join(myInputDir, "in2.fastq")
+        inBam = os.path.join(tempDir, 'in.bam')
+        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
+        args = parser.parse_args([inFastq1, inFastq2, inBam,
+            '--sampleName', 'FreeSample',
+            '--JVMmemory', '1g',
+            '--picardOptions',
+            'LIBRARY_NAME=Alexandria',
+            'PLATFORM=9.75',
+            'SEQUENCING_CENTER=KareemAbdul-Jabbar',
+            ])
+        args.func_main(args)
+
+        # Run deplete_blastn_bam
+        outBam = os.path.join(tempDir, 'out.bam')
+        args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
+            [inBam,
+             refDbs[0],
+             refDbs[1],
+             outBam])
+        args.func_main(args)
+
+        # samtools view for out.sam and compare to expected
+        outSam = os.path.join(tempDir, 'out.sam')
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.view(['-h'], outBam, outSam)
+        assert_equal_contents(self, outSam,
+                              os.path.join(myInputDir, 'expected.sam'))
 
 if __name__ == '__main__':
     unittest.main()
