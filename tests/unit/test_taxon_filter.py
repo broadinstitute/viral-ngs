@@ -193,7 +193,8 @@ class TestDepleteBlastnBam(TestCaseWithTmp) :
             [inBam,
              refDbs[0],
              refDbs[1],
-             outBam])
+             outBam,
+             "--chunkSize", "1"])
         args.func_main(args)
 
         # samtools view for out.sam and compare to expected
