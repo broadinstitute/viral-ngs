@@ -32,12 +32,14 @@ class MosaikTool(tools.Tool) :
     def get_networkFile(self):
         # this is the directory to return
         dir = os.path.join(util.file.get_build_path(),
+            'mosaik-{}'.format(tool_version),
             'MOSAIK-{}-source'.format(tool_version),
             'networkFile')
         if not os.path.isdir(dir):
             # if it doesn't exist, run just the download-unpack portion of the
             #     source installer
             self.get_install_methods()[-1].download()
+        assert os.path.isdir(dir)
         return dir
 
 class DownloadAndBuildMosaik(tools.DownloadPackage) :
