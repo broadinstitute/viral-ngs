@@ -13,6 +13,7 @@ import util.cmd, util.file
 import tools, tools.blast
 import tools.last, tools.prinseq, tools.trimmomatic, tools.bmtagger, tools.picard
 from util.file import mkstempfname
+from util.misc import batch_iterator
 import read_utils
 
 log = logging.getLogger(__name__)
@@ -515,11 +516,39 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
 # ***  deplete_blastn  ***
 # ========================
 
+def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
+    """
+    Helper function: blastn a fasta file, overcoming apparent memory leaks on
+    an input with many query sequences, by splitting it into multiple chunks
+    and running a new blastn process on each chunk. Return a list of output
+    filenames containing hits
+    """
+    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+
+    hits_files = []
+    record_iter = SeqIO.parse(open(fasta, "rt"),"fasta")
+    for batch in batch_iterator(record_iter, chunkSize) :
+        chunk_fasta = mkstempfname('.fasta')
+        with open(chunk_fasta, "wt") as handle:
+            SeqIO.write(batch, handle, "fasta")
+
+        chunk_hits = mkstempfname('.hits.txt')
+        blastnCmd = [blastnPath, '-db', db,
+                    '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
+                    '-max_target_seqs', '2',
+                    '-query', chunk_fasta, '-out', chunk_hits]
+        log.debug(' '.join(blastnCmd))
+        subprocess.check_call(blastnCmd)
+
+        os.unlink(chunk_fasta)
+        hits_files.append(chunk_hits)
+
+    return hits_files
+
 def deplete_blastn(inFastq, outFastq, refDbs) :
     'Use blastn to remove reads that match at least one of the databases.'
     
     ## Get tools
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
     noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(),
                                       'noBlastHits_v3.py')
     
@@ -528,15 +557,10 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     read_utils.fastq_to_fasta(inFastq, inFasta)
     
     ## Run blastn using each of the databases in turn
-    blastOutFiles = [mkstempfname() for db in refDbs]
-    for db, blastOutFile in zip(refDbs, blastOutFiles) :
+    blastOutFiles = []
+    for db in refDbs :
         log.info("running blastn on {} against {}".format(inFastq, db))
-        blastnCmd = [blastnPath, '-db', db,
-                    '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
-                    '-num_descriptions', '2', '-num_alignments', '2',
-                    '-query', inFasta, '-out', blastOutFile]
-        log.debug(' '.join(blastnCmd))
-        subprocess.check_call(blastnCmd)
+        blastOutFiles += blastn_chunked_fasta(inFasta, db)
 
     ## Combine results from different databases
     blastOutCombined = mkstempfname('.txt')
@@ -597,8 +621,7 @@ def parser_deplete_blastn_paired(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('deplete_blastn_paired', parser_deplete_blastn_paired))
 
-
-def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
     
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
@@ -617,20 +640,16 @@ def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on {} pair 1 against {}".format(inBam, db))
-    blastnCmd = [blastnPath, '-db', db,
-                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
-                '-num_descriptions', '2', '-num_alignments', '2',
-                '-query', fasta, '-out', blastOutFile]
-    log.debug(' '.join(blastnCmd))
-    subprocess.check_call(blastnCmd)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
     with open(blast_hits, 'wt') as outf:
-        with open(blastOutFile, 'rt') as inf:
-            for line in inf:
-                id = line.split('\t')[0].strip()
-                if id.endswith('/1') or id.endswith('/2'):
-                    id = id[:-2]
-                outf.write(id+'\n')
-        os.unlink(blastOutFile)
+        for blastOutFile in blastOutFiles:
+            with open(blastOutFile, 'rt') as inf:
+                for line in inf:
+                    id = line.split('\t')[0].strip()
+                    if id.endswith('/1') or id.endswith('/2'):
+                        id = id[:-2]
+                    outf.write(id+'\n')
+            os.unlink(blastOutFile)
     
     # Deplete BAM of hits in FASTQ1
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam, JVMmemory=JVMmemory)
@@ -643,20 +662,16 @@ def deplete_blastn_bam(inBam, db, outBam, JVMmemory=None):
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on {} pair 2 against {}".format(inBam, db))
-    blastnCmd = [blastnPath, '-db', db,
-                '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6',
-                '-num_descriptions', '2', '-num_alignments', '2',
-                '-query', fasta, '-out', blastOutFile]
-    log.debug(' '.join(blastnCmd))
-    subprocess.check_call(blastnCmd)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
     with open(blast_hits, 'wt') as outf:
-        with open(blastOutFile, 'rt') as inf:
-            for line in inf:
-                id = line.split('\t')[0].strip()
-                if id.endswith('/1') or id.endswith('/2'):
-                    id = id[:-2]
-                outf.write(id+'\n')
-        os.unlink(blastOutFile)
+        for blastOutFile in blastOutFiles:
+            with open(blastOutFile, 'rt') as inf:
+                for line in inf:
+                    id = line.split('\t')[0].strip()
+                    if id.endswith('/1') or id.endswith('/2'):
+                        id = id[:-2]
+                    outf.write(id+'\n')
+            os.unlink(blastOutFile)
     
     # Deplete BAM of hits against FASTQ2
     tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
@@ -672,6 +687,8 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
         help='One or more reference databases for blast.')
     parser.add_argument('outBam',
         help='Output BAM file with matching reads removed.')
+    parser.add_argument("--chunkSize", type=int, default=1000000,
+        help='FASTA chunk size (default: %(default)s)')
     parser.add_argument('--JVMmemory', default = tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
@@ -679,7 +696,9 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     return parser
 def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_blastn_bam, args.outBam, JVMmemory=args.JVMmemory)
+    def wrapper(inBam, db, outBam, JVMmemory=None) :
+        return deplete_blastn_bam(inBam, db, outBam, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
+    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
                      
