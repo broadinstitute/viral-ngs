@@ -1,5 +1,7 @@
 '''A few miscellaneous tools. '''
 
+import itertools
+
 __author__ = "dpark@broadinstitute.org"
 
 def unique(items):
@@ -76,3 +78,22 @@ except ImportError:
                 return l[half]
         else:
             raise Exception("empty list for median")
+
+# from http://stackoverflow.com/a/312467
+def batch_iterator(iterator, batch_size) :
+    """Returns lists of length batch_size.
+ 
+    This can be used on any iterator, for example to batch up
+    SeqRecord objects from Bio.SeqIO.parse(...), or to batch
+    Alignment objects from Bio.AlignIO.parse(...), or simply
+    lines from a file handle.
+ 
+    This is a generator function, and it returns lists of the
+    entries from the supplied iterator.  Each list will have
+    batch_size entries, although the final list may be shorter.
+    """
+    it = iter(iterator)
+    item = list(itertools.islice(it, batch_size))
+    while item:
+        yield item
+        item = list(itertools.islice(it, batch_size))
