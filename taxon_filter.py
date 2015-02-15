@@ -531,6 +531,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
         chunk_fasta = mkstempfname('.fasta')
         with open(chunk_fasta, "wt") as handle:
             SeqIO.write(batch, handle, "fasta")
+        batch = None
 
         chunk_hits = mkstempfname('.hits.txt')
         blastnCmd = [blastnPath, '-db', db,

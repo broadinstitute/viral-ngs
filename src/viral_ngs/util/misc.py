@@ -1,5 +1,7 @@
 '''A few miscellaneous tools. '''
 
+import itertools
+
 __author__ = "dpark@broadinstitute.org"
 
 def unique(items):
@@ -77,7 +79,7 @@ except ImportError:
         else:
             raise Exception("empty list for median")
 
-# from http://biopython.org/wiki/Split_large_file
+# from http://stackoverflow.com/a/312467
 def batch_iterator(iterator, batch_size) :
     """Returns lists of length batch_size.
  
@@ -90,17 +92,8 @@ def batch_iterator(iterator, batch_size) :
     entries from the supplied iterator.  Each list will have
     batch_size entries, although the final list may be shorter.
     """
-    entry = True #Make sure we loop once
-    while entry :
-        batch = []
-        while len(batch) < batch_size :
-            try :
-                entry = iterator.next()
-            except StopIteration :
-                entry = None
-            if entry is None :
-                #End of file
-                break
-            batch.append(entry)
-        if batch :
-            yield batch
+    it = iter(iterator)
+    item = list(itertools.islice(it, batch_size))
+    while item:
+        yield item
+        item = list(itertools.islice(it, batch_size))
