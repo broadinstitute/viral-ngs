@@ -2,7 +2,8 @@
 def set_env_vars():
     import os
     for k,v in config.get('env_vars', {}).items():
-        os.environ[k] = v
+	if k not in os.environ:
+            os.environ[k] = v
 
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
