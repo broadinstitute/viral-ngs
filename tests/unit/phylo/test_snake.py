@@ -42,12 +42,18 @@ def setup_dummy_simple(
     return workdir
 
 
-#@unittest.skipIf(sys.version_info<(3,2), "python version is too old for snakemake")
-@unittest.skip("something is weird with env variables")
+@unittest.skipIf(sys.version_info<(3,2), "python version is too old for snakemake")
 class TestSimpleDryRuns(TestCaseWithTmp):
     def setUp(self):
-        TestCaseWithTmp.setUp(self)
+        super(TestSimpleDryRuns, self).setUp(self)
         self.workdir = setup_dummy_simple()
+        self.env = {'GATK_PATH':os.environ.get('GATK_PATH'),
+            'NOVOALIGN_PATH':os.environ.get('NOVOALIGN_PATH')}
+    def tearDown(self):
+        for k,v in self.env:
+            if v:
+                os.environ[k] = v
+        super(TestSimpleDryRuns, self).tearDown(self)
 
     def test_dryrun_all(self):
         ''' Test that the "all" rule dryruns properly '''
