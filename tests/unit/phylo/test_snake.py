@@ -45,25 +45,25 @@ def setup_dummy_simple(
 @unittest.skipIf(sys.version_info<(3,2), "python version is too old for snakemake")
 class TestSimpleDryRuns(TestCaseWithTmp):
     def setUp(self):
-        super(TestSimpleDryRuns, self).setUp(self)
+        super(TestSimpleDryRuns, self).setUp()
         self.workdir = setup_dummy_simple()
         self.env = {'GATK_PATH':os.environ.get('GATK_PATH'),
             'NOVOALIGN_PATH':os.environ.get('NOVOALIGN_PATH')}
     def tearDown(self):
-        for k,v in self.env:
+        for k,v in self.env.items():
             if v:
                 os.environ[k] = v
-        super(TestSimpleDryRuns, self).tearDown(self)
+        super(TestSimpleDryRuns, self).tearDown()
 
     def test_dryrun_all(self):
         ''' Test that the "all" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.json'),
             workdir=self.workdir, dryrun=True))
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.json'),
             workdir=self.workdir, dryrun=True,
             targets=['all']))
 
@@ -71,7 +71,7 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         ''' Test that the "all_assemble" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.json'),
             workdir=self.workdir, dryrun=True,
             targets=['all_assemble']))
 
@@ -79,6 +79,6 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         ''' Test that the "all_deplete" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.json'),
             workdir=self.workdir, dryrun=True,
             targets=['all_deplete']))
