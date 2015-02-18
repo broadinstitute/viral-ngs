@@ -1,7 +1,7 @@
 #!/bin/bash
-# Call vphaser variant caller after setting library paths to include bamtools.
+# Call vphaser variant caller
 # First argument is OMP_NUM_THREADS; remaining arguments are passed to variant_caller.
 
 curdir=`dirname $0`
 
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$curdir/bamtools/lib OMP_NUM_THREADS=$1 $curdir/bin/variant_caller ${*:2}
+OMP_NUM_THREADS=$1 $curdir/bin/variant_caller ${*:2}
