@@ -21,8 +21,13 @@ class Vphaser2Tool(tools.Tool) :
                '-o', outDir
               ]
         log.debug(' '.join(cmd))
-        subprocess.check_call(cmd)
-
+        # subprocess.check_call(cmd)
+        try :
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as ex :
+            print(ex.output)
+            log.error(ex.output)
+            raise
 
 def _get_vphaser_path() :
     uname = os.uname()
