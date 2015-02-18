@@ -1,10 +1,7 @@
-PROG=../linux64/bin/variant_caller
-BAMTOOLSPATH=../linux64/bamtools
+PROG=../linux64/variant_caller
+BAMTOOLSPATH=../bamtools
 BOOSTPATH=../boost_1_57_0
 COMPILER=/usr/bin/g++
-
-SEQ_LIBS = -lseq -lseqcode -lsequtil
-LIB = -lbamtools
 
 all:
 	$(COMPILER) -fopenmp -O3 -I$(BAMTOOLSPATH)/include/ -I$(BOOSTPATH)/ -L$(BAMTOOLSPATH)/lib /usr/lib64/libz.so *.cpp -o $(PROG) -lpthread -Wl,-static -lbamtools -Wl,-Bdynamic
