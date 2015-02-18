@@ -24,7 +24,7 @@ class Vphaser2Tool(tools.Tool) :
         if numThreads != None :
             envCopy['OMP_NUM_THREADS'] = str(numThreads)
             cmdStr = 'OMP_NUM_THREADS=%d ' % numThreads + cmdStr
-       log.debug(cmdStr)
+        log.debug(cmdStr)
         
         # Use check_output instead of check_call so that we get error information
         #    if the executable can't run on travis.
