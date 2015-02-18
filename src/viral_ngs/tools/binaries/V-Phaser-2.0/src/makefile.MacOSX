@@ -1,5 +1,5 @@
-PROG=../MacOSX/bin/variant_caller
-BAMTOOLSPATH=../MacOSX/bamtools
+PROG=../MacOSX/variant_caller
+BAMTOOLSPATH=../bamtools
 BOOSTPATH=/usr/local/include/boost
 COMPILER=/usr/local/bin/g++-4.9
 
