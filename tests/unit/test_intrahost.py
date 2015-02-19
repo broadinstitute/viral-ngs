@@ -78,7 +78,6 @@ class MockVphaserOutput:
                     yield [c, str(p), acounts[1][0], acounts[0][0],
                         '0.5', model, str(float(mac)/tot*100.0)] \
                         + ['{}:{}:{}'.format(a,f,r) for a,f,r in acounts]
-        return iter(self.isnvs)
 
 
 class TestPerSample(test.TestCaseWithTmp):
