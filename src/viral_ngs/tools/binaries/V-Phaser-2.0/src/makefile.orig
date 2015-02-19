@@ -1,0 +1,17 @@
+PROG=../bin/variant_caller
+# mac path
+#MYPATH=/Users/xiaoyang/Desktop/XIAO/program/LIBRARY/bamtools-1.0.2/
+MYPATH=/Users/xiaoyang/Desktop/XIAO/program/LIBRARY/pezmaster31-bamtools-e235c55/
+BOOSTPATH=/Users/xiaoyang/Desktop/XIAO/program/LIBRARY/boost_1_51_0/
+# server path
+#MYPATH=/seq/viral/analysis/xyang/programs/Library/pezmaster31-bamtools-e235c55/
+COMPILER=/usr/bin/g++
+
+SEQ_LIBS = -lseq -lseqcode -lsequtil
+LIB = -lbamtools
+
+all:
+	$(COMPILER) -fopenmp -O3 -I$(MYPATH)/include/ -I$(BOOSTPATH)/ -L$(MYPATH)/lib *.cpp -o $(PROG) -lpthread $(LIB)
+	
+clean:
+	rm -rf $(PROG)
