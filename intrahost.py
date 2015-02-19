@@ -10,7 +10,7 @@ import argparse, logging, itertools, re
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
 from util.misc import mean, median
-
+from interhost import CoordMapper
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +49,26 @@ def parser_tabfile_rename(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
+
+def filter_strand_bias(isnvs, min_reads_each=5, max_bias=10):
+    ''' Take an iterator of V-Phaser output (plus chromosome name prepended)
+        and perform hard filtering for strand bias
+    '''
+    for row in isnvs:
+        front = row[:7]
+        acounts = [x.split(':') for x in row[7:]]
+        acounts = list([(a,f,r) for a,f,r in acounts
+            if int(f)>=min_reads_each and int(r)>=min_reads_each
+            and max_bias >= (float(f)/float(r)) >= 1.0/max_bias])
+        if len(acounts) > 1:
+            acounts = list(reversed(sorted((int(f)+int(r),a,f,r) for a,f,r in acounts)))
+            mac = sum(n for n,a,f,r in acounts[1:])
+            tot = sum(n for n,a,f,r in acounts)
+            back = [':'.join([a,f,r]) for n,a,f,r in acounts]
+            front[2] = acounts[1][1]
+            front[3] = acounts[0][1]
+            front[6] = str(100.0*mac/tot)
+            yield front + back
 
 
 def pos_to_number(row):
