@@ -2,7 +2,7 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import unittest, os, cPickle
+import unittest, os, pickle
 import util.file
 from tools.vphaser2 import Vphaser2Tool
 from test import TestCaseWithTmp
@@ -12,7 +12,7 @@ class TestVPhaser2(TestCaseWithTmp) :
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
         recs = list(Vphaser2Tool().iterate(inBam, numThreads = 8))
-        expectedRecs = cPickle.load(open(os.path.join(myInputDir, 'expected.cp')))
+        expectedRecs = pickle.load(open(os.path.join(myInputDir, 'expected.cp')))
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
         self.assertEqual([rec[:4] + rec[5:] for rec in recs],
