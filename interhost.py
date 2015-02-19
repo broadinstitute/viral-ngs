@@ -8,12 +8,45 @@ __commands__ = []
 
 import Bio.AlignIO
 import argparse, logging
+import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
 
 log = logging.getLogger(__name__)
 
 
-
+class CoordMapper:
+    ''' Maps coordinates between genome A and genome B.
+        The two genomes are described by fasta files and
+        may contain multiple chromosomes, but must have the
+        same number of chromosomes and must be described in
+        the same order.
+    '''
+    def __init__(self, fastaA, fastaB, aligner=tools.muscle.MuscleTool):
+        self.fastaA = fastaA
+        self.fastaB = fastaB
+        self.aligner = aligner()
+    def _align(self):
+        raise NotImplementedError()
+        # assert that fastaA and fastaB have the same non-zero number of sequences
+        # save a list of chr names for each genome (the names may be different)
+        # assert that they are unique within each genome
+        # save a dict mapping chr names from A -> B and another for B -> A
+        # for each chr number, extract that chr from both genomes into a standalone
+        #    temp file fasta, align with self.aligner, then get the gapped/aligned
+        #    fasta from the output of the aligner, and construct a gap-string
+        #    (CIGAR or whatever) between the two genomes.
+        # save a dict mapping chr names from A to gapstrings that map A -> B
+        # and vice versa
+        # delete temp files
+    def mapAtoB(self, c, p):
+        raise NotImplementedError()
+        # map chr name from A -> B
+        # retrieve A->B gapstring
+        # map pos from A->B
+        # return (new_c, new_p)
+    def mapBtoA(self, c, p):
+        raise NotImplementedError()
+        
 
 
 # modified version of rachel's call_snps_3.py follows
