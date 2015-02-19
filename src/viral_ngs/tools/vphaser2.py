@@ -2,7 +2,8 @@
     V-Phaser 2 variant caller
 '''
 
-import logging, subprocess, os
+import logging, subprocess, os, tempfile, shutil
+import pysam
 import tools, util.file
 
 log = logging.getLogger(__name__)
@@ -37,6 +38,27 @@ class Vphaser2Tool(tools.Tool) :
             log.error(ex.output)
             raise
 
+    def iterate(self, inBam, numThreads = None) :
+        """
+        Run V-Phaser 2 on inBam. Interate through lines in files 
+            CHROM.var.raw.txt in order of chroms in the inBam header.
+        For each line yield:
+         [CHROM, Ref_Pos, Var, Cons, Strd_bias_pval, Type, Var_perc, 
+          SNP_or_LP_Profile1, SNP_or_LP_Profile2, ...]
+        """
+        outdir = tempfile.mkdtemp('vphaser2')
+        self.execute(inBam, outdir, numThreads)
+        chromNames = pysam.Samfile(inBam).references
+        for chromName in chromNames :
+            outfile = os.path.join(outdir, chromName + '.var.raw.txt')
+            if not os.path.exists(outfile) :
+                continue
+            with open(outfile, 'rt') as inf :
+                for line in inf :
+                    if not line.startswith('#') :
+                        yield [chromName] + line.strip().split()
+        shutil.rmtree(outdir)
+
 def _get_vphaser2_path() :
     uname = os.uname()
     if uname[0] == 'Darwin' :
@@ -64,7 +86,7 @@ On mac, gcc-4.9 and boost were installed using brew.
 
 
 # CMake
-on linux, "use CMake" (perhaps could instead download from http://www.cmake.org/download/)
+on linux, "use CMake" (perhaps instead download from www.cmake.org/download)
 on mac, "brew install cmake"
 
 # Bamtools (Note: must use same compiler as V-Phaser 2, otherwise link can fail.)
@@ -73,7 +95,8 @@ cd bamtools
 mkdir build
 cd build
 on linux "cmake .."
-on mac "cmake -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-4.9 -DCMAKE_CC_COMPILER=/usr/local/bin/gcc-4.9 .."
+on mac "cmake -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-4.9 \
+              -DCMAKE_CC_COMPILER=/usr/local/bin/gcc-4.9 .."
 make
 cd ../..    # back to V-Phaser-2.0 directory
 
