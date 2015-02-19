@@ -1,0 +1,10 @@
+PROG=../linux64/variant_caller
+BAMTOOLSPATH=../bamtools
+BOOSTPATH=../boost_1_57_0
+COMPILER=/usr/bin/g++
+
+all:
+	$(COMPILER) -fopenmp -O3 -I$(BAMTOOLSPATH)/include/ -I$(BOOSTPATH)/ -L$(BAMTOOLSPATH)/lib /usr/lib64/libz.so *.cpp -o $(PROG) -lpthread -Wl,-static -lbamtools -Wl,-Bdynamic
+	
+clean:
+	rm -rf $(PROG)
