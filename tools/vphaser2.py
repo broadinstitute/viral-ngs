@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 class Vphaser2Tool(tools.Tool) :
     def __init__(self, install_methods = None) :
         if install_methods == None :
-            path = _get_vphaser_path()
+            path = _get_vphaser2_path()
             install_methods = [tools.PrexistingUnixCommand(path)]
         tools.Tool.__init__(self, install_methods = install_methods)
 
@@ -37,7 +37,7 @@ class Vphaser2Tool(tools.Tool) :
             log.error(ex.output)
             raise
 
-def _get_vphaser_path() :
+def _get_vphaser2_path() :
     uname = os.uname()
     if uname[0] == 'Darwin' :
         osName = 'MacOSX'
