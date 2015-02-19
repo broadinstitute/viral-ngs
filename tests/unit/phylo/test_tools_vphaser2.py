@@ -12,7 +12,7 @@ class TestVPhaser2(TestCaseWithTmp) :
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
         recs = list(Vphaser2Tool().iterate(inBam, numThreads = 8))
-        expectedRecs = pickle.load(open(os.path.join(myInputDir, 'expected.cp')))
+        expectedRecs = pickle.load(open(os.path.join(myInputDir, 'expected.cp'), 'rb'))
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
         self.assertEqual([rec[:4] + rec[5:] for rec in recs],
