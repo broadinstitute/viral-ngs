@@ -9,7 +9,7 @@ __commands__ = []
 import Bio.AlignIO
 from Bio import SeqIO
 import argparse, logging, os
-from itertools import izip_longest
+from six.moves import zip_longest
 import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
 from collections import OrderedDict
@@ -50,7 +50,7 @@ class CoordMapper :
         with util.file.open_or_gzopen(fastaA) as infA :
             with util.file.open_or_gzopen(fastaB) as infB :
                 numSeqs = 0
-                for recA, recB in izip_longest(SeqIO.parse(infA, 'fasta'),
+                for recA, recB in zip_longest(SeqIO.parse(infA, 'fasta'),
                                                SeqIO.parse(infB, 'fasta')) :
                     assert (recA != None and recB != None), 'CoordMapper '\
                             'input files must have same number of sequences.'
