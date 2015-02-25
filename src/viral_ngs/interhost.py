@@ -12,7 +12,7 @@ import argparse, logging, os
 from itertools import izip_longest
 import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
-import OrderedDict
+from collections import OrderedDict
 
 log = logging.getLogger(__name__)
 
@@ -32,8 +32,8 @@ class CoordMapper :
         """ The two genomes are described by fasta files with the same number of 
             chromosomes, and corresponding chromosomes must be in same order.
         """
-        self.AtoB = OrderedDict.OrderedDict() # {chrA : [chrB, mapper],...}
-        self.BtoA = OrderedDict.OrderedDict() # {chrB : [chrA, mapper],...}
+        self.AtoB = OrderedDict() # {chrA : [chrB, mapper],...}
+        self.BtoA = OrderedDict() # {chrB : [chrA, mapper],...}
         self._align(fastaA, fastaB, alignerTool())
     
     def mapAtoB(self, fromChrom, pos) :
