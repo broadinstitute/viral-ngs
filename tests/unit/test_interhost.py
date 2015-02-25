@@ -42,8 +42,5 @@ class TestCoordMapper(test.TestCaseWithTmp):
 
         # Check that IndexError is raised when past ends of other sequence
         for pos in [-1, 0, 1, 2, 22, 23, 24] :
-            try :
+            with self.assertRaises(IndexError) :
                 cm.mapAtoB('chr1', pos)
-                self.assertTrue(False) # Should never get here
-            except IndexError :
-                pass # Should always get here
