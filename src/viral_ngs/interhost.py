@@ -80,8 +80,14 @@ class CoordMapper :
               position or interval on another, raising IndexError if beyond end.
            Gap handling is described in CoordMapper main comment string.
         """
-        # Current implementation is a space hog.
-        # In future, could use CIGAR or other compression
+        # Current implementation is a space hog. If space utilitization needs to
+        # be improved all that needs to be done is to replace the list that
+        # currently holds the map information with a new class that implements
+        # __len__, __getitem__, __setitem__, and append, and that efficiently
+        # stores long runs of consecutive integers. The __getitem__ and
+        # __setitem__ methods need to handle negative indices, but needn't
+        # handle slices. Once the class is defined, change "Map = []" to
+        # "Map = NewClass()".
         def __init__(self, seqFrom, seqTo) :
             """Input sequences are BioPython Seqs representing aligner output:
                sequences of equal length with gaps represented by dashes."""
@@ -100,7 +106,7 @@ class CoordMapper :
 
         @staticmethod
         def _make_map(seqFrom, seqTo) :
-            map = []
+            Map = [] # Use uppercase to avoid conflict with built in map
             baseCountFrom = 0  # Number of real From bases upstream of cur pos
             baseCountTo = 0    # Number of real To bases upstream of cur pos
             numFromPastEnd = 0 # Number of bases in From past end of To
@@ -115,15 +121,15 @@ class CoordMapper :
                     elif baseCountTo == 0 :
                         result = -1 # Before start of To sequence
                     else :
-                        result = map[-1] # Aligned to gap; map to previous base
-                    map.append(result) # Sometimes changed to interval later
+                        result = Map[-1] # Aligned to gap; map to previous base
+                    Map.append(result) # Sometimes changed to interval later
                     baseCountFrom += 1
                     numToPastEnd = 0
                 else : # From base is a gap; extend map of previous real base.
                     if baseCountFrom != 0 :
-                        if not type(map[-1]) == list :
-                            map[-1] = [map[-1], map[-1]]
-                        map[-1][1] += 1
+                        if not type(Map[-1]) == list :
+                            Map[-1] = [Map[-1], Map[-1]]
+                        Map[-1][1] += 1
                     numToPastEnd += 1
                 if realToBase :
                     baseCountTo += 1
@@ -131,12 +137,12 @@ class CoordMapper :
                 else : # May assume realFromBase
                     numFromPastEnd += 1
             for ii in range(numFromPastEnd) :
-                map[-ii - 1] = -1 # Mark positions past end of other sequence
-            if type(map[-1]) == list :
-                map[-1][1] -= numToPastEnd # Don't map to these; past end of seq
-                if map[-1][0] == map[-1][1] :
-                    map[-1] = map[-1][0]
-            return map
+                Map[-ii - 1] = -1 # Mark positions past end of other sequence
+            if type(Map[-1]) == list :
+                Map[-1][1] -= numToPastEnd # Don't map to these; past end of seq
+                if Map[-1][0] == Map[-1][1] :
+                    Map[-1] = Map[-1][0]
+            return Map
 
 
 # modified version of rachel's call_snps_3.py follows
