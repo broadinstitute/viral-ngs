@@ -9,7 +9,10 @@ __commands__ = []
 import Bio.AlignIO
 from Bio import SeqIO
 import argparse, logging, os
-from six.moves import zip_longest
+try :
+    from itertools import zip_longest
+except ImportError :
+    from itertools import izip_longest as zip_longest
 import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
 from collections import OrderedDict
@@ -61,10 +64,11 @@ class CoordMapper :
                         SeqIO.write(recA, alignInFile, 'fasta')
                         SeqIO.write(recB, alignInFile, 'fasta')
                     aligner.execute(alignInFileName, alignOutFileName)
-                    seqParser = SeqIO.parse(open(alignOutFileName), 'fasta')
-                    seqs = [seqRec.seq for seqRec in seqParser]
-                    self.AtoB[chrA] = [chrB, self._Mapper(seqs[0], seqs[1])]
-                    self.BtoA[chrB] = [chrA, self._Mapper(seqs[1], seqs[0])]
+                    with open(alignOutFileName) as alignOutFile :
+                        seqParser = SeqIO.parse(alignOutFile, 'fasta')
+                        seqs = [seqRec.seq for seqRec in seqParser]
+                        self.AtoB[chrA] = [chrB, self._Mapper(seqs[0], seqs[1])]
+                        self.BtoA[chrB] = [chrA, self._Mapper(seqs[1], seqs[0])]
         assert numSeqs > 0, 'CoordMapper: no input sequences.'
         assert len(self.AtoB) == len(self.BtoA) == numSeqs, \
                'CoordMapper: duplicate sequence name.'
