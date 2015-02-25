@@ -7,46 +7,132 @@ __author__ = "PLACEHOLDER"
 __commands__ = []
 
 import Bio.AlignIO
-import argparse, logging
+from Bio import SeqIO
+import argparse, logging, os
+from itertools import izip_longest
 import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
+import OrderedDict
 
 log = logging.getLogger(__name__)
 
 
-class CoordMapper:
-    ''' Maps coordinates between genome A and genome B.
-        The two genomes are described by fasta files and
-        may contain multiple chromosomes, but must have the
-        same number of chromosomes and must be described in
-        the same order.
-    '''
-    def __init__(self, fastaA, fastaB, aligner=tools.muscle.MuscleTool):
-        self.fastaA = fastaA
-        self.fastaB = fastaB
-        self.aligner = aligner()
-    def _align(self):
-        raise NotImplementedError()
-        # assert that fastaA and fastaB have the same non-zero number of sequences
-        # save a list of chr names for each genome (the names may be different)
-        # assert that they are unique within each genome
-        # save a dict mapping chr names from A -> B and another for B -> A
-        # for each chr number, extract that chr from both genomes into a standalone
-        #    temp file fasta, align with self.aligner, then get the gapped/aligned
-        #    fasta from the output of the aligner, and construct a gap-string
-        #    (CIGAR or whatever) between the two genomes.
-        # save a dict mapping chr names from A to gapstrings that map A -> B
-        # and vice versa
-        # delete temp files
-    def mapAtoB(self, c, p):
-        raise NotImplementedError()
-        # map chr name from A -> B
-        # retrieve A->B gapstring
-        # map pos from A->B
-        # return (new_c, new_p)
-    def mapBtoA(self, c, p):
-        raise NotImplementedError()
-        
+class CoordMapper :
+    """ Maps coordinates between genome A and genome B.
+        Coordinates are 1-based.
+        Indels are handled as follows after corresponding sequences are aligned:
+            Raises IndexError if base is past either end of the other sequence.
+            If a base maps to a gap in the other species, returns the index
+                of the closest upstream non-gap base.
+            If a base is followed by a gap then instead of returning an integer,
+                returns a two-element list representing the interval in the
+                other species that aligns to this base and the subsequent gap.
+    """
+    def __init__(self, fastaA, fastaB, alignerTool = tools.muscle.MuscleTool) :
+        """ The two genomes are described by fasta files with the same number of 
+            chromosomes, and corresponding chromosomes must be in same order.
+        """
+        self.AtoB = OrderedDict.OrderedDict() # {chrA : [chrB, mapper],...}
+        self.BtoA = OrderedDict.OrderedDict() # {chrB : [chrA, mapper],...}
+        self._align(fastaA, fastaB, alignerTool())
+    
+    def mapAtoB(self, fromChrom, pos) :
+        toChrom, mapper = self.AtoB[fromChrom]
+        return (toChrom, mapper(pos))
+    
+    def mapBtoA(self, fromChrom, pos) :
+        toChrom, mapper = self.BtoA[fromChrom]
+        return (toChrom, mapper(pos))
+
+    def _align(self, fastaA, fastaB, aligner) :
+        alignInFileName = util.file.mkstempfname('.fasta')
+        alignOutFileName = util.file.mkstempfname('.fasta')
+        with util.file.open_or_gzopen(fastaA) as infA :
+            with util.file.open_or_gzopen(fastaB) as infB :
+                numSeqs = 0
+                for recA, recB in izip_longest(SeqIO.parse(infA, 'fasta'),
+                                               SeqIO.parse(infB, 'fasta')) :
+                    assert (recA != None and recB != None), 'CoordMapper '\
+                            'input files must have same number of sequences.'
+                    numSeqs += 1
+                    chrA = recA.id
+                    chrB = recB.id
+                    with open(alignInFileName, 'wt') as alignInFile :
+                        SeqIO.write(recA, alignInFile, 'fasta')
+                        SeqIO.write(recB, alignInFile, 'fasta')
+                    aligner.execute(alignInFileName, alignOutFileName)
+                    seqParser = SeqIO.parse(open(alignOutFileName), 'fasta')
+                    seqs = [seqRec.seq for seqRec in seqParser]
+                    self.AtoB[chrA] = [chrB, self._Mapper(seqs[0], seqs[1])]
+                    self.BtoA[chrB] = [chrA, self._Mapper(seqs[1], seqs[0])]
+        assert numSeqs > 0, 'CoordMapper: no input sequences.'
+        assert len(self.AtoB) == len(self.BtoA) == numSeqs, \
+               'CoordMapper: duplicate sequence name.'
+        os.unlink(alignInFileName)
+        os.unlink(alignOutFileName)
+
+    class _Mapper(object) :
+        """Class that maps a 1-based position on one sequence to a 1-based 
+              position or interval on another, raising IndexError if beyond end.
+           Gap handling is described in CoordMapper main comment string.
+        """
+        # Current implementation is a space hog.
+        # In future, could use CIGAR or other compression
+        def __init__(self, seqFrom, seqTo) :
+            """Input sequences are BioPython Seqs representing aligner output:
+               sequences of equal length with gaps represented by dashes."""
+            self.map = self._make_map(seqFrom, seqTo)
+            #       map is a list whose ith element is result of mapping
+            #       position i+1 of seqFrom to seqTo,
+            #       or -1 if beyond either end of seqTo.
+
+        def __call__(self, fromPos) :
+            if fromPos < 1 or fromPos > len(self.map) :
+                raise IndexError
+            result = self.map[fromPos - 1]
+            if result == -1 :
+                raise IndexError
+            return result
+
+        @staticmethod
+        def _make_map(seqFrom, seqTo) :
+            map = []
+            baseCountFrom = 0  # Number of real From bases upstream of cur pos
+            baseCountTo = 0    # Number of real To bases upstream of cur pos
+            numFromPastEnd = 0 # Number of bases in From past end of To
+            numToPastEnd = 0   # Number of bases in To past end of From
+            for bFrom, bTo in zip(seqFrom, seqTo) :
+                realFromBase = bFrom != '-'
+                realToBase   =   bTo != '-'
+                assert(realFromBase or realToBase) # This simplifies the rest
+                if realFromBase :
+                    if realToBase :
+                        result = baseCountTo + 1
+                    elif baseCountTo == 0 :
+                        result = -1 # Before start of To sequence
+                    else :
+                        result = map[-1] # Aligned to gap; map to previous base
+                    map.append(result) # Sometimes changed to interval later
+                    baseCountFrom += 1
+                    numToPastEnd = 0
+                else : # From base is a gap; extend map of previous real base.
+                    if baseCountFrom != 0 :
+                        if not type(map[-1]) == list :
+                            map[-1] = [map[-1], map[-1]]
+                        map[-1][1] += 1
+                    numToPastEnd += 1
+                if realToBase :
+                    baseCountTo += 1
+                    numFromPastEnd = 0
+                else : # May assume realFromBase
+                    numFromPastEnd += 1
+            for ii in range(numFromPastEnd) :
+                map[-ii - 1] = -1 # Mark positions past end of other sequence
+            if type(map[-1]) == list :
+                map[-1][1] -= numToPastEnd # Don't map to these; past end of seq
+                if map[-1][0] == map[-1][1] :
+                    map[-1] = map[-1][0]
+            return map
 
 
 # modified version of rachel's call_snps_3.py follows
