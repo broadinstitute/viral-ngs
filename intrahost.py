@@ -11,9 +11,43 @@ import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
 from util.misc import mean, median
 from interhost import CoordMapper
+from tools.vphaser2 import Vphaser2Tool
 
 log = logging.getLogger(__name__)
 
+def filter_dict(aDict, allowedKeys) :
+    return {k : v for k, v in aDict.items() if k in allowedKeys}
+
+def vphaser_one_sample(inBam, outTab, **kwargs) :
+    ''' Input: a single BAM file, representing reads from one sample, mapped to
+            its own consensus assembly. It may contain multiple read groups and 
+            libraries.
+        Output: a tab-separated file with no header containing filtered
+            V Phaser-2 output variants with additional columns:
+                sequence/chrom name, # libraries, chi-sq for library discordance
+        kwargs are optional keyword args to override defaults for the following:
+            Vphaser2Tool().iterate: numThreads
+            filter_strand_bias: min_reads_each, max_bias
+    '''
+    variantIter = Vphaser2Tool().iterate(inBam,
+                                         **filter_dict(kwargs, ['numThreads']))
+    filteredIter = filter_strand_bias(variantIter,
+                                      **filter_dict(kwargs, ['min_reads_each', 'max_bias']))
+    libraryFilteredIter = filter_library_bias(filteredIter)
+    with open(outTab, 'wt') as outf :
+        for row in libraryFilteredIter :
+            outf.write('\t'.join(row) + '\n')
+
+def filter_library_bias(isnvs) :
+    ''' Filter variants based on library bias. For ones that pass the filter
+            add fields with the number of libraries and a bias p-value.
+        NOT YET IMPLEMENTED!
+    '''
+    for row in isnvs :
+        strNlibs = ''   # To be filled in in future
+        strLibBias = '' # To be filled in in future
+        row = row[:7] + [strNlibs, strLibBias] + row[7:]
+        yield row
 
 def tabfile_values_rename(inFile, mapFile, outFile, col=0):
     ''' Take input tab file and copy to an output file while changing
