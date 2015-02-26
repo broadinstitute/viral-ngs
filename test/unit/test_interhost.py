@@ -82,4 +82,13 @@ class TestCoordMapper(test.TestCaseWithTmp):
             ])
         with self.assertRaises(Exception):
             cm = interhost.CoordMapper(genomeA, genomeB)
+    
+    def test_map_chr_only(self):
+        self.assertEqual(self.cm.mapAtoB('chr1', None), ('first_chrom', None))
+        self.assertEqual(self.cm.mapBtoA('first_chrom', None), ('chr1', None))
+        self.assertEqual(self.cm.mapAtoB('chr2', None), ('second_chr', None))
+        self.assertEqual(self.cm.mapBtoA('second_chr', None), ('chr2', None))
+        with self.assertRaises(KeyError):
+            self.cm.mapAtoB('nonexistentchr', None)
+        
 
