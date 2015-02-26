@@ -12,6 +12,12 @@ class TestCommandHelp(unittest.TestCase):
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
+def makeTempFasta(seqs):
+    fn = util.file.mkstempfname('.fasta')
+    with open(fn, 'wt') as outf:
+        for line in util.file.fastaMaker(seqs):
+            outf.write(line)
+    return fn
 
 class MockVphaserOutput:
     ''' This creates test data that pretends to be the output from
@@ -111,5 +117,70 @@ class TestPerSample(test.TestCaseWithTmp):
         lib2 = MockVphaserOutput()
         lib3 = MockVphaserOutput()
         pass
+
+
+
+@unittest.skip('not implemented')
+class TestVcfMerge(test.TestCaseWithTmp):
+    ''' This tests step 2 of the iSNV calling process
+        (intrahost.merge_to_vcf), which gets really nasty and tricky
+        and has lots of edge cases. These unit tests mock the vphaser
+        tool output and just test the merge and VCF stuff.
+    '''
+    def test_simple_snps(self):
+        pass
+    def test_sample_major_allele_not_ref_allele(self):
+        pass
+    def test_simple_insertions(self):
+        # IA, ITCG, etc
+        pass
+    def test_simple_deletions(self):
+        # D1, D2, etc...
+        pass
+    def test_deletion_spans_deletion(self):
+        # sample assembly has deletion against reference and isnv deletes even more
+        # POS is anchored right before the deletion
+        # REF:  ATCGTTGA
+        # S1:   ATCG--GA
+        # isnv:       x  (position 5, D1)
+        pass
+    def test_insertion_spans_deletion(self):
+        # sample assembly has deletion against reference and isnv inserts back into it
+        # POS is anchored right before the deletion
+        # REF:  ATCGTTGA
+        # S1:   ATCG--GA
+        # isnv:     T     (position 4, IT)
+        # isnv:     TT    (position 4, ITT)
+        # isnv:     TTC   (position 4, ITTC)
+        pass
+    def test_deletion_within_insertion(self):
+        # sample assembly has insertion against reference and isnv deletes from it
+        # REF:  ATCG--GA
+        # S1:   ATCGTTGA
+        # isnv:      xx   (position 6, D2)
+        # isnv:       x   (position 7, D1)
+        # isnv:      x    (position 6, D1)
+        # isnv:     x     (position 5, D1)
+        # isnv:    x      (position 4, D1)
+        # isnv:    xx     (position 4, D2)
+        # isnv:    xxx    (position 4, D3)
+        # isnv:    xxxx   (position 4, D4)
+        pass
+    def test_insertion_within_insertion(self):
+        # sample assembly has insertion against reference and isnv puts even more in
+        # REF:  ATCG--GA
+        # S1:   ATCGTTGA
+        # isnv:           (position 4, IA)
+        # isnv:           (position 5, IA)
+        # isnv:           (position 6, IA)
+        pass
+    def test_indel_collapse(self):
+        # vphaser describes insertions and deletions separately
+        # test appropriate collapse of coincident insertions and deletions into
+        # a single output VCF row
+        # isnv:           (position 4, IA, IAT)
+        # isnv:           (position 5, D1, D2)
+        pass
+
 
 
