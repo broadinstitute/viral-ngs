@@ -244,7 +244,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
         with open(inFasta, 'rt') as inf:
             for line in inf:
                 outf.write(line)
-    tools.muscle.MuscleTool().execute(concat_file, muscle_align, quiet=True)
+    tools.muscle.MuscleTool().execute(concat_file, muscle_align)
     args = [muscle_align, outFasta, refName,
         '--call-reference-ns', '--trim-ends',
         '--replace-5ends', '--replace-3ends',

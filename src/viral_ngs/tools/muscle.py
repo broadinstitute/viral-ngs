@@ -20,19 +20,19 @@ class MuscleTool(tools.Tool) :
                 install_methods.append(
                     tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
                         'muscle{}_{}'.format(tool_version, muscle_os),
-                        verifycmd='{}/muscle{}_{} -version 2> /dev/null'.format(util.file.get_build_path(), tool_version, muscle_os)))
+                        verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(util.file.get_build_path(), tool_version, muscle_os)))
             install_methods.append(
                 tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
                     'muscle{}/src/muscle'.format(tool_version),
                     post_download_command='cd muscle{}/src; make -s'.format(tool_version),
-                    verifycmd='{}/muscle{}/src/muscle -version 2> /dev/null'.format(util.file.get_build_path(), tool_version)))
+                    verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(util.file.get_build_path(), tool_version)))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self) :
         return tool_version
     
     def execute(self, inFasta, outFasta,
-        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=None, logFile=None):
+        maxiters=None, maxhours=None, format='fasta', diags=None, quiet=True, logFile=None):
         toolCmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
         
         if format in ('html', 'msf', 'clw', 'clwstrict'):
