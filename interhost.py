@@ -39,13 +39,17 @@ class CoordMapper :
         self.BtoA = OrderedDict() # {chrB : [chrA, mapper],...}
         self._align(fastaA, fastaB, alignerTool())
     
-    def mapAtoB(self, fromChrom, pos) :
+    def mapAtoB(self, fromChrom, pos=None) :
         toChrom, mapper = self.AtoB[fromChrom]
-        return (toChrom, mapper(pos))
+        if pos != None:
+            pos = mapper(pos)
+        return (toChrom, pos)
     
-    def mapBtoA(self, fromChrom, pos) :
+    def mapBtoA(self, fromChrom, pos=None) :
         toChrom, mapper = self.BtoA[fromChrom]
-        return (toChrom, mapper(pos))
+        if pos != None:
+            pos = mapper(pos)
+        return (toChrom, pos)
 
     def _align(self, fastaA, fastaB, aligner) :
         alignInFileName = util.file.mkstempfname('.fasta')
