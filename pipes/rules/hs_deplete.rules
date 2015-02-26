@@ -118,7 +118,11 @@ def merge_one_per_sample_inputs(wildcards):
         for lane in read_tab_file(flowcell):
             for well in read_tab_file(lane['barcode_file']):
                 if well['sample'] == wildcards.sample:
-                    runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                  if wildcards.adjective=='raw':
+                     runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
+                        get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
+                  else:
+                     runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
                         get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
