@@ -405,8 +405,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                 
                     # find reference allele and consensus alleles
                     refAllele = str(ref_sequence[pos-1:end].seq)
+                    consAlleles = {}
+                    for s in samples:
+                        with open(samp_to_fasta[s], 'rU') as inf:
+                            cons = Bio.SeqIO.index(inf, 'fasta')[samp_to_cmap.mapBtoA(ref_sequence.id, None)[0]]
+                            cons_start = samp_to_cmap.mapBtoA(ref_sequence.id, pos)[1]
+                            cons_start = cons_start if type(cons_start)==int else cons_start[0]
+                            cons_stop  = samp_to_cmap.mapBtoA(ref_sequence.id, end)[1]
+                            cons_stop  = cons_stop if type(cons_stop)==int else cons_stop[1]
+                            consAlleles[s] = str(cons[cons_start-1:cons_stop].seq)
                     raise NotImplementedError("TO DO: nothing below is really implemented right yet")
-                    consAlleles = dict((s, str(aln[sample_idx_map[s]][pos-1:end].seq)) for s in samples)
                     for s,allele in consAlleles.items():
                         if [a for a in allele if a not in set(('A','C','T','G'))]:
                             log.warn("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
