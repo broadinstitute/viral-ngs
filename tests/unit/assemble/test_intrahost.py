@@ -2,8 +2,8 @@
 
 __author__ = "PLACEHOLDER"
 
-import intrahost, util.file, test
-import os, shutil, tempfile, itertools, argparse, unittest
+import intrahost, util.file, util.vcf, test
+import os, os.path, shutil, tempfile, itertools, argparse, unittest
 import Bio, Bio.SeqRecord, Bio.Seq
 
 class TestCommandHelp(unittest.TestCase):
@@ -135,23 +135,58 @@ class TestPerSample(test.TestCaseWithTmp):
 
 
 
-@unittest.skip('not implemented')
 class TestVcfMerge(test.TestCaseWithTmp):
     ''' This tests step 2 of the iSNV calling process
         (intrahost.merge_to_vcf), which gets really nasty and tricky
         and has lots of edge cases. These unit tests mock the vphaser
-        tool output and just test the merge and VCF stuff.
+        tool output and just tests the merge and VCF stuff.
     '''
+    def test_empty_output(self):
+        ref = makeTempFasta([('ref1', 'ATCGCA')])
+        s1  = makeTempFasta([('s1_1', 'ATCGCA')])
+        emptyfile = util.file.mkstempfname('.txt')
+        outVcf = util.file.mkstempfname('.vcf')
+        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertGreater(os.path.getsize(outVcf), 0)
+        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+            for line in inf:
+                self.assertTrue(line.startswith('#'))
+        outVcf = util.file.mkstempfname('.vcf.gz')
+        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertGreater(os.path.getsize(outVcf), 0)
+        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+            for line in inf:
+                self.assertTrue(line.startswith('#'))
+        
+    def test_headers_with_two_samps(self):
+        ref = makeTempFasta([('ref1', 'ATCGTTCA'), ('ref2', 'GGCCC')])
+        s1  = makeTempFasta([('s1_1', 'ATCGCA'),   ('s1_2', 'GGCCC')])
+        s2  = makeTempFasta([('s2_1', 'ATCGTTCA'), ('s2_2', 'GGCCC')])
+        isnvs = MockVphaserOutput()
+        isnvs.add_indel('s1_1', 5, [('C', 90, 90), ('', 10, 10)])
+        emptyfile = util.file.mkstempfname('.txt')
+        
+        outVcf = util.file.mkstempfname('.vcf.gz')
+        intrahost.merge_to_vcf(ref, outVcf, ['s1', 's2'], [isnvs.dump_tmp_file(), emptyfile], [s1, s2])
+        
+        with util.vcf.VcfReader(outVcf) as vcf:
+            self.assertEqual(vcf.samples(), ['s1', 's2'])
+            self.assertEqual(vcf.chrlens(), [('ref1', 8), ('ref2', 5)])
+        
     def test_simple_snps(self):
         pass
+        
     def test_sample_major_allele_not_ref_allele(self):
         pass
+        
     def test_simple_insertions(self):
         # IA, ITCG, etc
         pass
+        
     def test_simple_deletions(self):
         # D1, D2, etc...
         pass
+        
     def test_deletion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv deletes even more
         # POS is anchored right before the deletion
@@ -162,10 +197,21 @@ class TestVcfMerge(test.TestCaseWithTmp):
         s1  = makeTempFasta([('s1_1', 'ATCGCA')])
         isnvs = MockVphaserOutput()
         isnvs.add_indel('s1_1', 5, [('C', 90, 90), ('', 10, 10)])
-        outVcf = util.file.mkstempfname('.vcf')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1'], isnvs.dump_tmp_file(), [s1])
-        # TO DO: test expected output
-        pass
+        
+        outVcf = util.file.mkstempfname('.vcf.gz')
+        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [isnvs.dump_tmp_file()], [s1])
+        with util.vcf.VcfReader(outVcf) as vcf:
+            rows = list(vcf.get())
+        
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 4)
+        self.assertEqual(rows[0].ref, 'GTTC')
+        self.assertEqual(rows[0].alt, 'GC,G')
+        self.assertEqual(rows[0][0].split(':')[0], '1')   # s1 is 0.0 GTTC, 0.9 GC, 0.1 G
+        for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.9, 0.1]):
+            self.assertAlmostEqual(float(actual), expected, places=2)
+        
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
         # POS is anchored right before the deletion
