@@ -11,9 +11,89 @@ import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import util.cmd, util.file, util.vcf, util.misc
 from util.misc import mean, median
 from interhost import CoordMapper
+from tools.vphaser2 import Vphaser2Tool
 
 log = logging.getLogger(__name__)
 
+#  ========== vphaser_one_sample =================
+
+defaultMinReads = 5
+defaultMaxBias = 10
+
+def vphaser_one_sample(inBam, outTab, vphaserNumThreads = None,
+                       minReadsEach = None, maxBias = None) :
+    ''' Input: a single BAM file, representing reads from one sample, mapped to
+            its own consensus assembly. It may contain multiple read groups and 
+            libraries.
+        Output: a tab-separated file with no header containing filtered
+            V Phaser-2 output variants with additional columns:
+                sequence/chrom name, # libraries, chi-sq for library discordance
+    '''
+    if minReadsEach != None :
+        assert minReadsEach > 0, 'minReadsEach must be at least 1.'
+    variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
+    filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
+    libraryFilteredIter = filter_library_bias(filteredIter)
+    with open(outTab, 'wt') as outf :
+        for row in libraryFilteredIter :
+            outf.write('\t'.join(row) + '\n')
+
+def filter_strand_bias(isnvs, minReadsEach = None, maxBias = None) :
+    ''' Take an iterator of V-Phaser output (plus chromosome name prepended)
+        and perform hard filtering for strand bias
+    '''
+    if minReadsEach == None :
+        minReadsEach = defaultMinReads
+    if maxBias == None :
+        maxBias = defaultMaxBias
+    for row in isnvs:
+        front = row[:7]
+        acounts = [x.split(':') for x in row[7:]]
+        acounts = list([(a,f,r) for a,f,r in acounts
+            if int(f)>=minReadsEach and int(r)>=minReadsEach
+            and maxBias >= (float(f)/float(r)) >= 1.0/maxBias])
+        if len(acounts) > 1:
+            acounts = list(reversed(sorted((int(f)+int(r),a,f,r) for a,f,r in acounts)))
+            mac = sum(n for n,a,f,r in acounts[1:])
+            tot = sum(n for n,a,f,r in acounts)
+            back = [':'.join([a,f,r]) for n,a,f,r in acounts]
+            front[2] = acounts[1][1]
+            front[3] = acounts[0][1]
+            front[6] = '%.6g' % (100.0*mac/tot)
+            yield front + back
+
+def filter_library_bias(isnvs) :
+    ''' Filter variants based on library bias. For ones that pass the filter
+            add fields with the number of libraries and a bias p-value.
+        NOT YET IMPLEMENTED!
+    '''
+    for row in isnvs :
+        strNlibs = ''   # To be filled in in future
+        strLibBias = '' # To be filled in in future
+        row = row[:7] + [strNlibs, strLibBias] + row[7:]
+        yield row
+
+def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
+    parser.add_argument("inBam",
+        help = "Input Bam file representing reads from one sample, mapped to "
+               "its own consensus assembly. It may contain multiple read "
+               "groups and libraries.")
+    parser.add_argument("outTab", help = "tab-separated headerless output file.")
+    parser.add_argument("--vphaserNumThreads", type = int, default = None,
+        help="Number of threads in call to V-Phaser 2.")
+    parser.add_argument("--minReadsEach", type = int, default = None,
+        help = "Minimum number of reads on each strand (default: %s). Must be "
+               "at least 1." %
+        defaultMinReads)
+    parser.add_argument("--maxBias", type = int, default = None,
+        help = "Maximum allowable ratio of number of reads on the two strands "
+               "(default: %s)." % defaultMaxBias)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
+    return parser
+__commands__.append(('vphaser_one_sample', parser_vphaser_one_sample))
+
+#  ========== tabfile_values_rename =================
 
 def tabfile_values_rename(inFile, mapFile, outFile, col=0):
     ''' Take input tab file and copy to an output file while changing
@@ -49,26 +129,7 @@ def parser_tabfile_rename(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
-
-def filter_strand_bias(isnvs, min_reads_each=5, max_bias=10):
-    ''' Take an iterator of V-Phaser output (plus chromosome name prepended)
-        and perform hard filtering for strand bias
-    '''
-    for row in isnvs:
-        front = row[:7]
-        acounts = [x.split(':') for x in row[7:]]
-        acounts = list([(a,f,r) for a,f,r in acounts
-            if int(f)>=min_reads_each and int(r)>=min_reads_each
-            and max_bias >= (float(f)/float(r)) >= 1.0/max_bias])
-        if len(acounts) > 1:
-            acounts = list(reversed(sorted((int(f)+int(r),a,f,r) for a,f,r in acounts)))
-            mac = sum(n for n,a,f,r in acounts[1:])
-            tot = sum(n for n,a,f,r in acounts)
-            back = [':'.join([a,f,r]) for n,a,f,r in acounts]
-            front[2] = acounts[1][1]
-            front[3] = acounts[0][1]
-            front[6] = str(100.0*mac/tot)
-            yield front + back
+#  ==============================================
 
 
 def pos_to_number(row):
