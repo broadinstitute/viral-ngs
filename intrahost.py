@@ -15,6 +15,43 @@ from tools.vphaser2 import Vphaser2Tool
 
 log = logging.getLogger(__name__)
 
+#  ============= class AlleleFieldParser =================
+
+class AlleleFieldParser(object) :
+    """
+    Class for parsing fields in the allele columns of vphaser_one_sample output
+    (corresponding to the SNP_or_LP_Profile columns in the V-Phaser 2 output).
+    """
+    def __init__(self, field) :
+        """Input is the string stored in one of the allele columns."""
+        words = field.split(':')
+        self.allele = words[0]
+        self.libCounts = [[int(words[1]), int(words[2])]]
+        self.libBiasPval = 1.0
+    
+    def get_strand_counts(self) :
+        "Return [# forward reads (all libs), # reverse reads (all libs)]"
+        return map(sum, zip(*self.libCounts))
+    
+    def get_allele(self) :
+        """ Return allele:
+                A, C, G, or T for SNVs,
+                Dn with n > 0 for deletions,
+                Ibases where bases is a string of two or more bases for inserts
+        """
+        return self.allele
+    
+    def get_lib_counts(self) :
+        """Yield [# forward reads, # reverse reads] for each library, in order
+            of read groups in BAM file.
+        """
+        for counts in self.libCounts :
+            yield counts
+
+    def get_lib_bias_pval(self) :
+        "Return a p-value on whether there is a library bias for this allele."
+        return self.libBiasPval
+
 #  ========== vphaser_one_sample =================
 
 defaultMinReads = 5
