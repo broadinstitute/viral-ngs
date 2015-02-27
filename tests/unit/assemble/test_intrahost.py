@@ -84,12 +84,6 @@ class MockVphaserOutput:
                     yield [c, str(p), acounts[1][0], acounts[0][0],
                         '0.5', model, str(float(mac)/tot*100.0)] \
                         + ['{}:{}:{}'.format(a,f,r) for a,f,r in acounts]
-    def dump_tmp_file(self):
-        fn = util.file.mkstempfname('.txt')
-        with open(fn, 'wt') as outf:
-            for row in self:
-                outf.write('\t'.join(map(str, row[:7] + ['', ''] + row[7:])) + '\n')
-        return fn
 
 
 class TestPerSample(test.TestCaseWithTmp):
@@ -134,6 +128,44 @@ class TestPerSample(test.TestCaseWithTmp):
         pass
 
 
+class VcfMergeRunner:
+    ''' This creates test data and feeds it to intrahost.merge_to_vcf
+    '''
+    def __init__(self, ref_genome=None):
+        self.genomes = {}
+        self.isnvs = {}
+        self.sample_order = []
+        if ref_genome:
+            self.set_ref(ref_genome)
+    def set_ref(self, genome):
+        self.ref = makeTempFasta(genome)
+    def add_genome(self, sample_name, genome):
+        self.genomes[sample_name] = makeTempFasta(genome)
+        if sample_name not in self.sample_order:
+            self.sample_order.append(sample_name)
+        self.isnvs.setdefault(sample_name, MockVphaserOutput())
+    def add_snp(self, sample, chrom, pos, acounts):
+        assert sample in self.genomes
+        self.isnvs[sample].add_snp(chrom, pos, acounts)
+    def add_indel(self, sample, chrom, pos, acounts):
+        assert sample in self.genomes
+        self.isnvs[sample].add_indel(chrom, pos, acounts)
+    def dump_isnv_tmp_file(self, sample):
+        fn = util.file.mkstempfname('.txt')
+        with open(fn, 'wt') as outf:
+            for row in self.isnvs[sample]:
+                outf.write('\t'.join(map(str, row[:7] + ['', ''] + row[7:])) + '\n')
+        return fn
+    def run_and_get_vcf_rows(self):
+        outVcf = util.file.mkstempfname('.vcf.gz')
+        intrahost.merge_to_vcf(self.ref, outVcf,
+            self.sample_order,
+            list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+            list(self.genomes[s] for s in self.sample_order))
+        with util.vcf.VcfReader(outVcf) as vcf:
+            rows = list(vcf.get())
+        return rows
+        
 
 class TestVcfMerge(test.TestCaseWithTmp):
     ''' This tests step 2 of the iSNV calling process
@@ -162,27 +194,53 @@ class TestVcfMerge(test.TestCaseWithTmp):
         ref = makeTempFasta([('ref1', 'ATCGTTCA'), ('ref2', 'GGCCC')])
         s1  = makeTempFasta([('s1_1', 'ATCGCA'),   ('s1_2', 'GGCCC')])
         s2  = makeTempFasta([('s2_1', 'ATCGTTCA'), ('s2_2', 'GGCCC')])
-        isnvs = MockVphaserOutput()
-        isnvs.add_indel('s1_1', 5, [('C', 90, 90), ('', 10, 10)])
         emptyfile = util.file.mkstempfname('.txt')
-        
         outVcf = util.file.mkstempfname('.vcf.gz')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1', 's2'], [isnvs.dump_tmp_file(), emptyfile], [s1, s2])
-        
+        intrahost.merge_to_vcf(ref, outVcf, ['s1', 's2'], [emptyfile, emptyfile], [s1, s2])
         with util.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
-            self.assertEqual(vcf.chrlens(), [('ref1', 8), ('ref2', 5)])
+            self.assertEqual(vcf.chrlens(), {'ref1':8, 'ref2':5})
         
+    @unittest.skip('not implemented')
     def test_simple_snps(self):
         pass
         
     def test_sample_major_allele_not_ref_allele(self):
-        pass
+        merger = VcfMergeRunner([('ref1', 'ATCG')])
+        merger.add_genome('s1', [('s1_1', 'ATAG')])
+        merger.add_snp('s1', 's1_1', 3, [('C', 10, 10), ('A', 90, 90)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 3)
+        self.assertEqual(rows[0].ref, 'C')
+        self.assertEqual(rows[0].alt, 'A')
+        self.assertEqual(rows[0][0], '1:0.9')
+
+    def test_backfill_sample_from_assembly(self):
+        # one sample has no isnv, so we fill it in 100% with its assembly
+        # REF C
+        # S1  A (isnv)
+        # S2  A (consensus, no isnv)
+        merger = VcfMergeRunner([('ref1', 'ATCG')])
+        merger.add_genome('s1', [('s1_1', 'ATCG')])
+        merger.add_genome('s2', [('s2_1', 'ATAG')])
+        merger.add_snp('s1', 's1_1', 3, [('C', 90, 90), ('A', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 3)
+        self.assertEqual(rows[0].ref, 'C')
+        self.assertEqual(rows[0].alt, 'A')
+        self.assertEqual(rows[0][0], '0:0.1')
+        self.assertEqual(rows[0][1], '1:1.0')
         
+    @unittest.skip('not implemented')
     def test_simple_insertions(self):
         # IA, ITCG, etc
         pass
         
+    @unittest.skip('not implemented')
     def test_simple_deletions(self):
         # D1, D2, etc...
         pass
@@ -193,16 +251,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # REF:  ATCGTTCA
         # S1:   ATCG--CA
         # isnv:       x  (position 5, D1)
-        ref = makeTempFasta([('ref1', 'ATCGTTCA')])
-        s1  = makeTempFasta([('s1_1', 'ATCGCA')])
-        isnvs = MockVphaserOutput()
-        isnvs.add_indel('s1_1', 5, [('C', 90, 90), ('', 10, 10)])
-        
-        outVcf = util.file.mkstempfname('.vcf.gz')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [isnvs.dump_tmp_file()], [s1])
-        with util.vcf.VcfReader(outVcf) as vcf:
-            rows = list(vcf.get())
-        
+        merger = VcfMergeRunner([('ref1', 'ATCGTTCA')])
+        merger.add_genome('s1', [('s1_1', 'ATCGCA')])
+        merger.add_indel('s1', 's1_1', 5, [('C', 90, 90), ('', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 4)
@@ -212,6 +264,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.9, 0.1]):
             self.assertAlmostEqual(float(actual), expected, places=2)
         
+    @unittest.skip('not implemented')
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
         # POS is anchored right before the deletion
@@ -221,6 +274,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     TT    (position 4, ITT)
         # isnv:     TTC   (position 4, ITTC)
         pass
+        
+    @unittest.skip('not implemented')
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it
         # REF:  ATCG--GA
@@ -234,6 +289,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:    xxx    (position 4, D3)
         # isnv:    xxxx   (position 4, D4)
         pass
+        
+    @unittest.skip('not implemented')
     def test_insertion_within_insertion(self):
         # sample assembly has insertion against reference and isnv puts even more in
         # REF:  ATCG--GA
@@ -242,13 +299,26 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:           (position 5, IA)
         # isnv:           (position 6, IA)
         pass
+        
     def test_indel_collapse(self):
         # vphaser describes insertions and deletions separately
         # test appropriate collapse of coincident insertions and deletions into
         # a single output VCF row
-        # isnv:           (position 4, IA, IAT)
-        # isnv:           (position 5, D1, D2)
-        pass
+        # isnv:           (position 2, IA)
+        # isnv:           (position 3, D1)
+        merger = VcfMergeRunner([('ref1', 'ATCG')])
+        merger.add_genome('s1', [('s1_1', 'ATCG')])
+        merger.add_indel('s1', 's1_1', 2, [('', 80, 80), ('A', 20, 20)])
+        merger.add_indel('s1', 's1_1', 3, [('C', 90, 90), ('', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 2)
+        self.assertEqual(rows[0].ref, 'TC')
+        self.assertEqual(rows[0].alt, 'TAC,T')
+        self.assertEqual(rows[0][0].split(':')[0], '0')   # s1 is ? TC, ? TAC, ? T
+        for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.2, 0.1]):
+            self.assertAlmostEqual(float(actual), expected, places=2)
 
 
 
