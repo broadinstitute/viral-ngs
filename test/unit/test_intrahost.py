@@ -84,6 +84,12 @@ class MockVphaserOutput:
                     yield [c, str(p), acounts[1][0], acounts[0][0],
                         '0.5', model, str(float(mac)/tot*100.0)] \
                         + ['{}:{}:{}'.format(a,f,r) for a,f,r in acounts]
+    def dump_tmp_file(self):
+        fn = util.file.mkstempfname('.txt')
+        with open(fn, 'wt') as outf:
+            for row in self:
+                outf.write('\t'.join(map(str, row[:7] + ['', ''] + row[7:])) + '\n')
+        return fn
 
 
 class TestPerSample(test.TestCaseWithTmp):
@@ -140,9 +146,16 @@ class TestVcfMerge(test.TestCaseWithTmp):
     def test_deletion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv deletes even more
         # POS is anchored right before the deletion
-        # REF:  ATCGTTGA
-        # S1:   ATCG--GA
+        # REF:  ATCGTTCA
+        # S1:   ATCG--CA
         # isnv:       x  (position 5, D1)
+        ref = makeTempFasta([('ref1', 'ATCGTTCA')])
+        s1  = makeTempFasta([('s1_1', 'ATCGCA')])
+        isnvs = MockVphaserOutput()
+        isnvs.add_indel('s1_1', 5, [('C', 90, 90), ('', 10, 10)])
+        outVcf = util.file.mkstempfname('.vcf')
+        intrahost.merge_to_vcf(ref, outVcf, ['s1'], isnvs.dump_tmp_file(), [s1])
+        # TO DO: test expected output
         pass
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
