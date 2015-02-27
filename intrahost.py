@@ -133,6 +133,7 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 #  ==============================================
 
 
+'''
 def pos_to_number(row):
     row['pos'] = int(float(row['pos']))
     return row
@@ -144,13 +145,13 @@ def reposition_vphaser_deletions(row):
     return row
 
 def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
-    ''' Convert vPhaser2 parsed filtered output text file into VCF format.
+    '' Convert vPhaser2 parsed filtered output text file into VCF format.
         We require the consensus assemblies for all these samples in a multi-alignment
         FASTA format as well, in order to resolve the ambiguity in vPhaser's output.
         All sample names and coordinates must be identical between inFile, inRef, and
         multiAlign.  We also require the reference genome FASTA (inRef) to determine
         reference alleles.  Requires a single-chromosome genome.
-    '''
+    ''
 
     # read in multiple alignments of consensus sequences
     with open(multiAlignment, 'rt') as inf:
@@ -269,6 +270,7 @@ def vphaser_to_vcf(inFile, refFasta, multiAlignment, outVcf):
             out = [ref.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
             out = out + list(map(':'.join, zip(genos, freqs)))
             outf.write('\t'.join(map(str, out))+'\n')
+'''
 
 
 def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
@@ -314,114 +316,114 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
         outf.write('#'+'\t'.join(header)+'\n')
 
         # one reference chrom at a time
-        for chrom, chrlen in ref_chrlens:
-            
-            # read in all iSNVs for this chrom and map to reference coords
-            data = []
-            for s in samples:
-                for row in util.file.read_tabfile(samp_to_isnv[s]):
-                    s_chrom = samp_to_cmap[s].mapBtoA(chrom, None)[0]
-                    if row[0] == s_chrom:
-                        row = {'sample':s, 'CHROM':chrom,
-                            's_chrom':s_chrom, 's_pos':int(row[1]),
-                            's_alt':row[2], 's_ref': row[3],
-                            'n_libs':row[7], 'lib_bias': row[8],
-                            'alleles':list(x.split(':') for x in row[9:] if x)}
-                        # make a sorted allele list
-                        row['allele_counts'] = list(sorted(
-                            [(a,int(f)+int(r)) for a,f,r in row['alleles']],
-                            key=(lambda x:x[1]), reverse=True))
-                        # reposition vphaser deletions minus one to be consistent with
-                        # VCF conventions
-                        if row['s_alt'].startswith('D'):
-                            for a,n in row['allele_counts']:
-                                assert a[0] in ('D','i')
-                            row['s_pos'] = row['s_pos']-1
-                        # map position back to reference coordinates
-                        row['ref_range'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'])[1]
-                        row['POS'] = row['ref_range'] if (type(row['ref_range'])==int) else row['ref_range'][0]
-                        data.append(row)
-            
-            # sort all iSNVs (across all samples) and group by position
-            data = sorted(data, key=(lambda row: row['POS']))
-            data = itertools.groupby(data, lambda row: row['POS'])
-            
-            # process one reference position at a time
-            for pos, rows in data:
-                rows = list(rows)
-                
-                # define the length of this variation based on the largest deletion
-                end = pos
-                for row in rows:
-                    for a,n in row['allele_counts']:
-                        if a.startswith('D'):
-                            # end of deletion in sample's coord space
-                            local_end = row['s_pos']+int(a[1:])
-                            # end of deletion in reference coord space
-                            ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end)
-                            if not type(ref_end) == int:
-                                ref_end = ref_end[1]
-                            end = max(end, ref_end)
-                
-                raise NotImplementedError()
-                # TO DO: nothing below is really implemented right yet
-                
-                # find reference allele and consensus alleles
-                refAllele = str(ref[pos-1:end].seq)
-                consAlleles = dict((s, str(aln[sample_idx_map[s]][pos-1:end].seq)) for s in samples)
-                for s,allele in consAlleles.items():
-                    if [a for a in allele if a not in set(('A','C','T','G'))]:
-                        log.warn("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
-                        del consAlleles[s]
+        with open(refFasta, 'rU') as inf:
+            for ref_sequence in Bio.SeqIO.parse(inf, 'fasta'):
 
-                # define genotypes and fractions
-                iSNVs = {}
-                rows = dict(rows)
+                # read in all iSNVs for this chrom and map to reference coords
+                data = []
                 for s in samples:
-                    if s in rows:
-                        consAllele = consAlleles[s]
-                        # we have iSNV data on this sample
-                        tot_n = sum(n for a,n in rows[s])
-                        iSNVs[s] = {}
-                        for a,n in rows[s]:
-                            f = float(n)/tot_n
-                            if a.startswith('I'):
-                                # insertion allele is first ref base, plus inserted bases, plus subsequent ref bases
-                                a = consAllele[0] + a[1:] + consAllele[1:]
-                            elif a.startswith('D'):
-                                # deletion is the first ref base, plus remaining ref seq with the first few positions dropped off
-                                a = consAllele[0] + consAllele[1+int(a[1:]):]
-                            elif a in ('i','d'):
-                                # this is vphaser's way of saying the "reference" (majority/consensus) allele, in the face of other indel variants
-                                a = consAllele
-                            else:
-                                # this is a SNP
-                                assert a in set(('A','C','T','G'))
-                                if f>0.5 and a!=consAllele[0]:
-                                    log.warn("vPhaser and assembly pipelines mismatch at %d/%s - consensus %s, vPhaser %s" % (pos, s, consAllele[0], a))
-                                a = a + consAllele[1:]
-                            assert a and a==a.upper()
-                            iSNVs[s][a] = f
-                        if util.misc.unique(map(len, iSNVs[s].keys())) == [1]:
-                            assert consAllele in iSNVs[s].keys()
-                    elif s in consAlleles:
-                        # there is no iSNV data for this sample, so substitute the consensus allele
-                        iSNVs[s] = {consAlleles[s]:1.0}
+                    for row in util.file.read_tabfile(samp_to_isnv[s]):
+                        s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id, None)[0]
+                        if row[0] == s_chrom:
+                            row = {'sample':s, 'CHROM':ref_sequence.id,
+                                's_chrom':s_chrom, 's_pos':int(row[1]),
+                                's_alt':row[2], 's_ref': row[3],
+                                'n_libs':row[7], 'lib_bias': row[8],
+                                'alleles':list(x.split(':') for x in row[9:] if x)}
+                            # make a sorted allele list
+                            row['allele_counts'] = list(sorted(
+                                [(a,int(f)+int(r)) for a,f,r in row['alleles']],
+                                key=(lambda x:x[1]), reverse=True))
+                            # reposition vphaser deletions minus one to be consistent with
+                            # VCF conventions
+                            if row['s_alt'].startswith('D'):
+                                for a,n in row['allele_counts']:
+                                    assert a[0] in ('D','i')
+                                row['s_pos'] = row['s_pos']-1
+                            # map position back to reference coordinates
+                            row['ref_range'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'])[1]
+                            row['POS'] = row['ref_range'] if (type(row['ref_range'])==int) else row['ref_range'][0]
+                            data.append(row)
+            
+                # sort all iSNVs (across all samples) and group by position
+                data = sorted(data, key=(lambda row: row['POS']))
+                data = itertools.groupby(data, lambda row: row['POS'])
+            
+                # process one reference position at a time
+                for pos, rows in data:
+                    rows = list(rows)
+                
+                    # define the length of this variation based on the largest deletion
+                    end = pos
+                    for row in rows:
+                        for a,n in row['allele_counts']:
+                            if a.startswith('D'):
+                                # end of deletion in sample's coord space
+                                local_end = row['s_pos']+int(a[1:])
+                                # end of deletion in reference coord space
+                                ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end)
+                                if not type(ref_end) == int:
+                                    ref_end = ref_end[1]
+                                end = max(end, ref_end)
+                
+                    # find reference allele and consensus alleles
+                    refAllele = str(ref_sequence[pos-1:end].seq)
+                    raise NotImplementedError("TO DO: nothing below is really implemented right yet")
+                    consAlleles = dict((s, str(aln[sample_idx_map[s]][pos-1:end].seq)) for s in samples)
+                    for s,allele in consAlleles.items():
+                        if [a for a in allele if a not in set(('A','C','T','G'))]:
+                            log.warn("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
+                            del consAlleles[s]
 
-                # get unique allele list and map to numeric
-                alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda a,n:n, reverse=True) if a!=refAllele]
-                alleles2 = list(itertools.chain(*[iSNVs[s].keys() for s in samples if s in iSNVs]))
-                alleles = list(util.misc.unique([refAllele] + alleles + alleles2))
-                assert len(alleles)>1
-                alleleMap = dict((a,i) for i,a in enumerate(alleles))
-                genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
-                freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.' for s in samples]
+                    # define genotypes and fractions
+                    iSNVs = {}
+                    rows = dict(rows)
+                    for s in samples:
+                        if s in rows:
+                            consAllele = consAlleles[s]
+                            # we have iSNV data on this sample
+                            tot_n = sum(n for a,n in rows[s])
+                            iSNVs[s] = {}
+                            for a,n in rows[s]:
+                                f = float(n)/tot_n
+                                if a.startswith('I'):
+                                    # insertion allele is first ref base, plus inserted bases, plus subsequent ref bases
+                                    a = consAllele[0] + a[1:] + consAllele[1:]
+                                elif a.startswith('D'):
+                                    # deletion is the first ref base, plus remaining ref seq with the first few positions dropped off
+                                    a = consAllele[0] + consAllele[1+int(a[1:]):]
+                                elif a in ('i','d'):
+                                    # this is vphaser's way of saying the "reference" (majority/consensus) allele, in the face of other indel variants
+                                    a = consAllele
+                                else:
+                                    # this is a SNP
+                                    assert a in set(('A','C','T','G'))
+                                    if f>0.5 and a!=consAllele[0]:
+                                        log.warn("vPhaser and assembly pipelines mismatch at %d/%s - consensus %s, vPhaser %s" % (pos, s, consAllele[0], a))
+                                    a = a + consAllele[1:]
+                                assert a and a==a.upper()
+                                iSNVs[s][a] = f
+                            if util.misc.unique(map(len, iSNVs[s].keys())) == [1]:
+                                assert consAllele in iSNVs[s].keys()
+                        elif s in consAlleles:
+                            # there is no iSNV data for this sample, so substitute the consensus allele
+                            iSNVs[s] = {consAlleles[s]:1.0}
 
-                # prepare output row and write to file
-                out = [ref.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
-                out = out + list(map(':'.join, zip(genos, freqs)))
-                outf.write('\t'.join(map(str, out))+'\n')
+                    # get unique allele list and map to numeric
+                    alleles = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda a,n:n, reverse=True) if a!=refAllele]
+                    alleles2 = list(itertools.chain(*[iSNVs[s].keys() for s in samples if s in iSNVs]))
+                    alleles = list(util.misc.unique([refAllele] + alleles + alleles2))
+                    assert len(alleles)>1
+                    alleleMap = dict((a,i) for i,a in enumerate(alleles))
+                    genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
+                    freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.' for s in samples]
+
+                    # prepare output row and write to file
+                    out = [ref_sequence.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
+                    out = out + list(map(':'.join, zip(genos, freqs)))
+                    outf.write('\t'.join(map(str, out))+'\n')
     
+    # compress output if requested
     if outVcf.endswith('.vcf.gz'):
         pysam.tabix_compress(tmpVcf, outVcf, force=True)
         pysam.tabix_index(outVcf, force=True, preset='vcf')
