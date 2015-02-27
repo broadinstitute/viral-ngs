@@ -59,7 +59,7 @@ def filter_strand_bias(isnvs, minReadsEach = None, maxBias = None) :
             back = [':'.join([a,f,r]) for n,a,f,r in acounts]
             front[2] = acounts[1][1]
             front[3] = acounts[0][1]
-            front[6] = str(100.0*mac/tot)
+            front[6] = '%.6g' % (100.0*mac/tot)
             yield front + back
 
 def filter_library_bias(isnvs) :
