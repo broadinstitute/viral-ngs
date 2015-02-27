@@ -40,7 +40,7 @@ class AlleleFieldParser(object) :
                 Ibases where bases is a string of two or more bases for inserts
         """
         return self.allele
-    
+        
     def get_lib_counts(self) :
         """Yield [# forward reads, # reverse reads] for each library, in order
             of read groups in BAM file.
@@ -112,10 +112,8 @@ def filter_library_bias(isnvs) :
 
 def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("inBam",
-        help = "Input Bam file representing reads from one sample, mapped to "
-               "its own consensus assembly. It may contain multiple read "
-               "groups and libraries.")
-    parser.add_argument("outTab", help = "tab-separated headerless output file.")
+        help = "Input Bam file.")
+    parser.add_argument("outTab", help = "Tab-separated headerless output file.")
     parser.add_argument("--vphaserNumThreads", type = int, default = None,
         help="Number of threads in call to V-Phaser 2.")
     parser.add_argument("--minReadsEach", type = int, default = None,
@@ -129,6 +127,27 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
     return parser
 __commands__.append(('vphaser_one_sample', parser_vphaser_one_sample))
+
+#  ========== vphaser =================
+
+def parser_vphaser(parser = argparse.ArgumentParser()) :
+    parser.add_argument("inBam",
+        help = "Input Bam file.")
+    parser.add_argument("outTab", help = "Tab-separated headerless output file.")
+    parser.add_argument("--numThreads", type = int, default = None,
+        help="Number of threads in call to V-Phaser 2.")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, vphaser_main, split_args = True)
+    return parser
+def vphaser_main(inBam, outTab, numThreads = None) :
+    """ Run V-Phaser 2 on the input file without any additional filtering.
+        Combine the non-header lines of the CHROM.var.raw.txt files it produces, 
+            adding CHROM as the first field on each line.
+    """
+    with open(outTab, 'wt') as outf :
+        for row in Vphaser2Tool().iterate(inBam, numThreads) :
+            outf.write('\t'.join(row) + '\n')
+__commands__.append(('vphaser', parser_vphaser))
 
 #  ========== tabfile_values_rename =================
 
