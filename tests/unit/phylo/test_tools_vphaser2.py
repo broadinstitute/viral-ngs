@@ -13,9 +13,10 @@ class TestVPhaser2(TestCaseWithTmp) :
         inBam = os.path.join(myInputDir, 'in.bam')
         outTab = util.file.mkstempfname('.txt')
         vphaser_main(inBam, outTab, numThreads = 8)
-        recs = map(lambda s : s.strip('\n').split('\t'),
-                   open(outTab).readlines())
-        expectedRecs = pickle.load(open(os.path.join(myInputDir, 'expected.cp'), 'rb'))
+        with open(outTab, 'rt') as outf :
+            recs = map(lambda s : s.strip('\n').split('\t'), outf.readlines())
+        with open(os.path.join(myInputDir, 'expected.cp'), 'rb') as expf :
+            expectedRecs = pickle.load(expf)
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
         self.assertEqual([rec[:4] + rec[5:] for rec in recs],
