@@ -112,6 +112,15 @@ class TestPerSample(test.TestCaseWithTmp):
         self.assertAlmostEqual(float(output[0][6]), expected[6], places=4)
         self.assertEqual(output[0][7:], expected[7:])
     
+    def test_vphaser_one_sample(self):
+        myInputDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(myInputDir, 'in.bam')
+        outTab = util.file.mkstempfname('.txt')
+        intrahost.vphaser_one_sample(inBam, outTab, vphaserNumThreads = 4,
+                       minReadsEach = 6, maxBias = 3)
+        expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
+        self.assertEqualContents(outTab, expected)
+    
     @unittest.skip('not implemented')
     def test_single_lib(self):
         data = MockVphaserOutput()
