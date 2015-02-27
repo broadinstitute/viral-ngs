@@ -3,11 +3,12 @@
 and annotation for viral genomes.
 '''
 
-__author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org"
+__author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org, irwin@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, itertools, re
+import argparse, logging, itertools, re, os
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
+import pysam
 import util.cmd, util.file, util.vcf, util.misc
 from util.misc import mean, median
 from interhost import CoordMapper
@@ -285,15 +286,22 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
     
     # setup
     if not (len(samples) == len(isnvs) == len(assemblies)):
-        raise Exception()
+        raise LookupError("samples, isnvs, and assemblies must have the same number of elements")
     samp_to_fasta = dict(zip(samples, assemblies))
     samp_to_isnv = dict(zip(samples, isnvs))
     samp_to_cmap = dict((s, CoordMapper(genome, refFasta))
         for s, genome in samp_to_fasta.items())
     with open(refFasta, 'rU') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
-
-    with open(outVcf, 'wt') as outf:
+    
+    if outVcf.endswith('.vcf.gz'):
+        tmpVcf = util.file.mkstempfname('.vcf')
+    elif outVcf.endswith('.vcf'):
+        tmpVcf = outVcf
+    else:
+        raise ValueError("outVcf must end in .vcf or .vcf.gz")
+    
+    with open(tmpVcf, 'wt') as outf:
     
         # write header
         outf.write('##fileformat=VCFv4.1\n')
@@ -311,18 +319,22 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
             # read in all iSNVs for this chrom and map to reference coords
             data = []
             for s in samples:
-                for row in util.file.read_tabfile(samp_to_isnv):
+                for row in util.file.read_tabfile(samp_to_isnv[s]):
                     s_chrom = samp_to_cmap[s].mapBtoA(chrom, None)[0]
                     if row[0] == s_chrom:
                         row = {'sample':s, 'CHROM':chrom,
                             's_chrom':s_chrom, 's_pos':int(row[1]),
                             's_alt':row[2], 's_ref': row[3],
                             'n_libs':row[7], 'lib_bias': row[8],
-                            'alleles':list(x for x in row[9:] if x)}
+                            'alleles':list(x.split(':') for x in row[9:] if x)}
+                        # make a sorted allele list
+                        row['allele_counts'] = list(sorted(
+                            [(a,int(f)+int(r)) for a,f,r in row['alleles']],
+                            key=(lambda x:x[1]), reverse=True))
                         # reposition vphaser deletions minus one to be consistent with
                         # VCF conventions
                         if row['s_alt'].startswith('D'):
-                            for a in row['alleles']:
+                            for a,n in row['allele_counts']:
                                 assert a[0] in ('D','i')
                             row['s_pos'] = row['s_pos']-1
                         # map position back to reference coordinates
@@ -331,28 +343,22 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         data.append(row)
             
             # sort all iSNVs (across all samples) and group by position
-            data = sorted(data, key=lambda row: row['POS'])
-            data = itertools.groupby(data, lambda: row['POS'])
+            data = sorted(data, key=(lambda row: row['POS']))
+            data = itertools.groupby(data, lambda row: row['POS'])
             
             # process one reference position at a time
             for pos, rows in data:
-                
-                # get the set of alleles seen per sample
-                rows = [(row['sample'], [a.split(':') for a in row['alleles']], row) for row in rows]
-                # convert (allele, forward count, reverse count) tuples from strings to ints and combine counts
-                rows = [(s,[(a,int(f)+int(r)) for a,f,r in counts],row) for s,counts,row in rows]
-                # combine fwd+rev counts and sort (allele,count) tuples in descending count order
-                rows = [(s,list(sorted(counts, key=lambda a,n:n, reverse=True)),row) for s,counts,row in rows]
+                rows = list(rows)
                 
                 # define the length of this variation based on the largest deletion
                 end = pos
-                for s,counts,row in rows:
-                    for a,n in counts:
+                for row in rows:
+                    for a,n in row['allele_counts']:
                         if a.startswith('D'):
                             # end of deletion in sample's coord space
                             local_end = row['s_pos']+int(a[1:])
                             # end of deletion in reference coord space
-                            ref_end = samp_to_cmap[s].mapAtoB(row['s_chrom'], local_end)
+                            ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end)
                             if not type(ref_end) == int:
                                 ref_end = ref_end[1]
                             end = max(end, ref_end)
@@ -415,6 +421,11 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                 out = [ref.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
                 out = out + list(map(':'.join, zip(genos, freqs)))
                 outf.write('\t'.join(map(str, out))+'\n')
+    
+    if outVcf.endswith('.vcf.gz'):
+        pysam.tabix_compress(tmpVcf, outVcf, force=True)
+        pysam.tabix_index(outVcf, force=True, preset='vcf')
+        os.unlink(tmpVcf)
 
 
 def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
