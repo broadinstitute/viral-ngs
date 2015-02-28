@@ -56,7 +56,7 @@ class CoordMapper :
         if pos == None:
             return toChrom
         pos = mapper(pos, 0)
-        if type(pos) != int and side != 0:
+        if type(pos) in (list,tuple) and side != 0:
             if side<0:
                 pos = pos[0]
             else:
@@ -75,7 +75,7 @@ class CoordMapper :
         if pos == None:
             return toChrom
         pos = mapper(pos, 1)
-        if type(pos) != int and side != 0:
+        if type(pos) in (list,tuple) and side != 0:
             if side<0:
                 pos = pos[0]
             else:
