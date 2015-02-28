@@ -8,7 +8,7 @@ __commands__ = []
 
 import Bio.AlignIO
 from Bio import SeqIO
-import argparse, logging, os
+import argparse, logging, os, array, bisect
 try :
     from itertools import zip_longest
 except ImportError :
@@ -19,6 +19,7 @@ from collections import OrderedDict
 
 log = logging.getLogger(__name__)
 
+# =========== CoordMapper =================
 
 class CoordMapper :
     """ Maps coordinates between genome A and genome B.
@@ -30,22 +31,26 @@ class CoordMapper :
             If a base is followed by a gap then instead of returning an integer,
                 returns a two-element list representing the interval in the
                 other species that aligns to this base and the subsequent gap.
+        Assumption: the aligner tool will never align two gaps, and will never
+            put gaps in opposite species adjacent to each other without aligning
+            a pair of real bases in between.
     """
     def __init__(self, fastaA, fastaB, alignerTool = tools.muscle.MuscleTool) :
         """ The two genomes are described by fasta files with the same number of 
             chromosomes, and corresponding chromosomes must be in same order.
         """
-        self.AtoB = OrderedDict() # {chrA : [chrB, mapper],...}
-        self.BtoA = OrderedDict() # {chrB : [chrA, mapper],...}
+        self.AtoB = OrderedDict() # {chrA : [chrB, mapperAB], chrC : [chrD, mapperCD], ...}
+        self.BtoA = OrderedDict() # {chrB : [chrA, mapperAB], chrD : [chrC, mapperCD], ...}
+        
         self._align(fastaA, fastaB, alignerTool())
     
     def mapAtoB(self, fromChrom, pos) :
         toChrom, mapper = self.AtoB[fromChrom]
-        return (toChrom, mapper(pos))
+        return (toChrom, mapper(pos, 0))
     
     def mapBtoA(self, fromChrom, pos) :
         toChrom, mapper = self.BtoA[fromChrom]
-        return (toChrom, mapper(pos))
+        return (toChrom, mapper(pos, 1))
 
     def _align(self, fastaA, fastaB, aligner) :
         alignInFileName = util.file.mkstempfname('.fasta')
@@ -67,8 +72,9 @@ class CoordMapper :
                     with open(alignOutFileName) as alignOutFile :
                         seqParser = SeqIO.parse(alignOutFile, 'fasta')
                         seqs = [seqRec.seq for seqRec in seqParser]
-                        self.AtoB[chrA] = [chrB, self._Mapper(seqs[0], seqs[1])]
-                        self.BtoA[chrB] = [chrA, self._Mapper(seqs[1], seqs[0])]
+                        mapper = self._Mapper(seqs[0], seqs[1])
+                        self.AtoB[chrA] = [chrB, mapper]
+                        self.BtoA[chrB] = [chrA, mapper]
         assert numSeqs > 0, 'CoordMapper: no input sequences.'
         assert len(self.AtoB) == len(self.BtoA) == numSeqs, \
                'CoordMapper: duplicate sequence name.'
@@ -76,73 +82,89 @@ class CoordMapper :
         os.unlink(alignOutFileName)
 
     class _Mapper(object) :
-        """Class that maps a 1-based position on one sequence to a 1-based 
-              position or interval on another, raising IndexError if beyond end.
+        """Class that maps a 1-based position on either of two sequences to
+              to a 1-based position or interval on the other, raising IndexError 
+              if beyond end.
            Gap handling is described in CoordMapper main comment string.
         """
-        # Current implementation is a space hog. If space utilitization needs to
-        # be improved all that needs to be done is to replace the list that
-        # currently holds the map information with a new class that implements
-        # __len__, __getitem__, __setitem__, and append, and that efficiently
-        # stores long runs of consecutive integers. The __getitem__ and
-        # __setitem__ methods need to handle negative indices, but needn't
-        # handle slices. Once the class is defined, change "Map = []" to
-        # "Map = NewClass()".
-        def __init__(self, seqFrom, seqTo) :
+        """
+        Implementation:
+            mapArrays is a pair of arrays of equal length such that
+            mapArrays[0][n], mapArrays[1][n] are the coordinates of a pair of 
+            aligned real bases on the two sequences. The only pairs that are 
+            included are the first, the last, and the pair immediately following 
+            any gap. Pairs must be in increasing order. Coordinate mapping 
+            requires binary search in one of the arrays.
+            Total space required, in bytes, is const + 8 * number of indels.
+            Time for a map in either direction is O(log(number of indels)).
+        """
+        
+        def __init__(self, seq0, seq1) :
             """Input sequences are BioPython Seqs representing aligner output:
                sequences of equal length with gaps represented by dashes."""
-            self.map = self._make_map(seqFrom, seqTo)
-            #       map is a list whose ith element is result of mapping
-            #       position i+1 of seqFrom to seqTo,
-            #       or -1 if beyond either end of seqTo.
+            self.mapArrays = [array.array('I'), array.array('I')]
+            baseCount0 = 0  # Number of real bases in seq0 up to and including cur pos
+            baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
+            beforeStart = True # Haven't yet reached first pair of aligned real bases
+            gapSinceLast = False # Have encounted a gap since last pair in mapArrays
+            prevRealBase0 = prevRealBase1 = True
+            for b0, b1 in zip(seq0, seq1) :
+                realBase0 = b0 != '-'
+                realBase1 = b1 != '-'
+                assert realBase0 or realBase1, 'CoordMapper: gap aligned to gap.'
+                assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
+                     'CoordMapper: gap in one sequence adjacent to gap in other.'
+                prevRealBase0 = realBase0
+                prevRealBase1 = realBase1
+                baseCount0 += realBase0
+                baseCount1 += realBase1
+                if realBase0 and realBase1 :
+                    if beforeStart or gapSinceLast :
+                        self.mapArrays[0].append(baseCount0)
+                        self.mapArrays[1].append(baseCount1)
+                        gapSinceLast = False
+                        beforeStart = False
+                    finalPos0 = baseCount0 # Last pair of aligned real bases so far
+                    finalPos1 = baseCount1 # Last pair of aligned real bases so far
+                else :
+                    gapSinceLast = True
+            assert len(self.mapArrays[0]) != 0, 'CoordMapper: no aligned bases.'
+            if self.mapArrays[0][-1] != finalPos0 :
+                self.mapArrays[0].append(finalPos0)
+                self.mapArrays[1].append(finalPos1)
 
-        def __call__(self, fromPos) :
-            if fromPos < 1 or fromPos > len(self.map) :
+        def __call__(self, fromPos, fromWhich) :
+            "If fromWhich is 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."
+            if fromPos != int(fromPos) :
+                raise TypeError, 'CoordMapper: pos %s is not an integer' % fromPos
+            fromArray = self.mapArrays[fromWhich]
+            toArray = self.mapArrays[1 - fromWhich]
+            if fromPos < fromArray[0] or fromPos > fromArray[-1] :
                 raise IndexError
-            result = self.map[fromPos - 1]
-            if result == -1 :
-                raise IndexError
+            if fromPos == fromArray[-1] :
+                result = toArray[-1]
+            else :
+                insertInd = bisect.bisect(fromArray, fromPos)
+                prevFromPos = fromArray[insertInd - 1]
+                nextFromPos = fromArray[insertInd]
+                prevToPos = toArray[insertInd - 1]
+                nextToPos = toArray[insertInd]
+                assert(prevFromPos <= fromPos < nextFromPos)
+                fromLen = nextFromPos - prevFromPos
+                toLen = nextToPos - prevToPos
+                if fromLen == toLen : # No gaps
+                    result = prevToPos + (fromPos - prevFromPos)
+                elif fromLen > toLen :
+                    result = min(prevToPos + (fromPos - prevFromPos),
+                                 nextToPos - 1)
+                elif fromPos < nextFromPos - 1 :
+                    result = prevToPos + (fromPos - prevFromPos)
+                else :
+                    result = [prevToPos + (fromPos - prevFromPos),
+                              nextToPos - 1]
             return result
 
-        @staticmethod
-        def _make_map(seqFrom, seqTo) :
-            Map = [] # Use uppercase to avoid conflict with built in map
-            baseCountFrom = 0  # Number of real From bases upstream of cur pos
-            baseCountTo = 0    # Number of real To bases upstream of cur pos
-            numFromPastEnd = 0 # Number of bases in From past end of To
-            numToPastEnd = 0   # Number of bases in To past end of From
-            for bFrom, bTo in zip(seqFrom, seqTo) :
-                realFromBase = bFrom != '-'
-                realToBase   =   bTo != '-'
-                assert(realFromBase or realToBase) # This simplifies the rest
-                if realFromBase :
-                    if realToBase :
-                        result = baseCountTo + 1
-                    elif baseCountTo == 0 :
-                        result = -1 # Before start of To sequence
-                    else :
-                        result = Map[-1] # Aligned to gap; map to previous base
-                    Map.append(result) # Sometimes changed to interval later
-                    baseCountFrom += 1
-                    numToPastEnd = 0
-                else : # From base is a gap; extend map of previous real base.
-                    if baseCountFrom != 0 :
-                        if not type(Map[-1]) == list :
-                            Map[-1] = [Map[-1], Map[-1]]
-                        Map[-1][1] += 1
-                    numToPastEnd += 1
-                if realToBase :
-                    baseCountTo += 1
-                    numFromPastEnd = 0
-                else : # May assume realFromBase
-                    numFromPastEnd += 1
-            for ii in range(numFromPastEnd) :
-                Map[-ii - 1] = -1 # Mark positions past end of other sequence
-            if type(Map[-1]) == list :
-                Map[-1][1] -= numToPastEnd # Don't map to these; past end of seq
-                if Map[-1][0] == Map[-1][1] :
-                    Map[-1] = Map[-1][0]
-            return Map
+# ============================
 
 
 # modified version of rachel's call_snps_3.py follows
