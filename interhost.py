@@ -94,7 +94,7 @@ class CoordMapper2Seqs(object) :
             - Each sequence has at least one real base.
             - A gap is never aligned to a gap.
             - A gap in one sequence is never adjacent to a gap in the other;
-                there must always be an intervening real base bewteen two gaps.
+                there must always be an intervening real base between two gaps.
     """
     """
     Implementation:
