@@ -214,7 +214,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                 data = []
                 for s in samples:
                     for row in util.file.read_tabfile(samp_to_isnv[s]):
-                        s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id, None)[0]
+                        s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id)
                         if row[0] == s_chrom:
                             row = {'sample':s, 'CHROM':ref_sequence.id,
                                 's_chrom':s_chrom, 's_pos':int(row[1]),
@@ -232,8 +232,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                     assert a[0] in ('D','i')
                                 row['s_pos'] = row['s_pos']-1
                             # map position back to reference coordinates
-                            row['ref_range'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'])[1]
-                            row['POS'] = row['ref_range'] if (type(row['ref_range'])==int) else row['ref_range'][0]
+                            row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
                             data.append(row)
             
                 # sort all iSNVs (across all samples) and group by position
@@ -252,20 +251,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                 # end of deletion in sample's coord space
                                 local_end = row['s_pos']+int(a[1:])
                                 # end of deletion in reference coord space
-                                ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end)
-                                if not type(ref_end) == int:
-                                    ref_end = ref_end[1]
+                                ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end, side = 1)[1]
                                 end = max(end, ref_end)
                 
                     # find reference allele and consensus alleles
                     refAllele = str(ref_sequence[pos-1:end].seq)
                     consAlleles = {}
                     for s in samples:
-                        cons = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')[samp_to_cmap[s].mapBtoA(ref_sequence.id, None)[0]]
-                        cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos)[1]
-                        cons_start = cons_start if type(cons_start)==int else cons_start[0]
-                        cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end)[1]
-                        cons_stop  = cons_stop if type(cons_stop)==int else cons_stop[1]
+                        cons = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
+                        cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
+                        cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
                         if all(a in set(('A','C','T','G')) for a in allele):
                             consAlleles[s] = allele
