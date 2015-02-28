@@ -44,16 +44,36 @@ class CoordMapper :
         
         self._align(fastaA, fastaB, alignerTool())
     
-    def mapAtoB(self, fromChrom, pos=None) :
+    def mapAtoB(self, fromChrom, pos=None, side=0) :
+        ''' Map coordinates from genome A to genome B.
+            If pos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on B
+                ==0, return either the unique position on B or a (left,right) tuple
+                > 0, return the right-most position on B
+        '''
         toChrom, mapper = self.AtoB[fromChrom]
-        if pos != None:
-            pos = mapper(pos, 0)
+        if pos == None:
+            return toChrom
+        pos = mapper(pos, 0)
+        if type(pos) != int and side != 0:
+            pos = pos[0] if side<0 else pos[1]
         return (toChrom, pos)
     
-    def mapBtoA(self, fromChrom, pos=None) :
+    def mapBtoA(self, fromChrom, pos=None, side=0) :
+        ''' Map coordinates from genome B to genome A.
+            If pos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on A
+                ==0, return either the unique position on A or a (left,right) tuple
+                > 0, return the right-most position on A
+        '''
         toChrom, mapper = self.BtoA[fromChrom]
-        if pos != None:
-            pos = mapper(pos, 1)
+        if pos == None:
+            return toChrom
+        pos = mapper(pos, 1)
+        if type(pos) != int and side != 0:
+            pos = pos[0] if side<0 else pos[1]
         return (toChrom, pos)
 
     def _align(self, fastaA, fastaB, aligner) :
