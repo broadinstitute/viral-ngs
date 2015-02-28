@@ -136,7 +136,7 @@ class CoordMapper :
         def __call__(self, fromPos, fromWhich) :
             "If fromWhich is 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."
             if fromPos != int(fromPos) :
-                raise TypeError, 'CoordMapper: pos %s is not an integer' % fromPos
+                raise TypeError('CoordMapper: pos %s is not an integer' % fromPos)
             fromArray = self.mapArrays[fromWhich]
             toArray = self.mapArrays[1 - fromWhich]
             if fromPos < fromArray[0] or fromPos > fromArray[-1] :
