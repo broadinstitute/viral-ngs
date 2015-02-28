@@ -5,6 +5,7 @@ __author__ = "irwin@broadinstitute.org"
 import interhost
 import test, util.file
 import unittest, shutil, argparse, os
+from interhost import CoordMapper2Seqs as Cm2s
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
@@ -83,3 +84,37 @@ class TestCoordMapper(test.TestCaseWithTmp):
         with self.assertRaises(Exception):
             cm = interhost.CoordMapper(genomeA, genomeB)
 
+class TestCoordMapper2Seqs(test.TestCaseWithTmp):
+    """ For the most part, CoordMapper2Seqs is tested implicitly when
+        CoordMapper is tested. Focus here on special cases that are hard
+        or impossible to get out of the aligner.
+    """
+    def test_unequal_len(self) :
+        with self.assertRaises(AssertionError) :
+            cm2s = Cm2s('AA', 'A')
+
+    def test_no_real_bases(self) :
+        with self.assertRaises(AssertionError) :
+            cm2s = Cm2s('AA', '--')
+        with self.assertRaises(AssertionError) :
+            cm2s = Cm2s('--', 'AA')
+
+    def test_aligned_gaps(self) :
+        with self.assertRaises(AssertionError) :
+            cm2s = Cm2s('A-A', 'A-A')
+
+    def test_adjacent_gaps(self) :
+        with self.assertRaises(AssertionError) :
+            cm2s = Cm2s('AC-T', 'A-GT')
+
+    def test_one_real_base(self) :
+        cm2s = Cm2s('AC-', '-CA')
+        self.assertEqual(cm2s(2, 0), 1)
+        self.assertEqual(cm2s(1, 1), 2)
+
+    def test_exactly_two_pairs(self) :
+        cm2s = Cm2s('A--T', 'AGGT')
+        self.assertEqual([cm2s(n, 0) for n in [1, 2]], [[1, 3], 4])
+        self.assertEqual([cm2s(n, 1) for n in [1, 2, 3, 4]], [1, 1, 1, 2])
+
+    
