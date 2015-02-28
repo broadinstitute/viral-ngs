@@ -57,7 +57,10 @@ class CoordMapper :
             return toChrom
         pos = mapper(pos, 0)
         if type(pos) != int and side != 0:
-            pos = pos[0] if side<0 else pos[1]
+            if side<0:
+                pos = pos[0]
+            else:
+                pos = pos[1]
         return (toChrom, pos)
     
     def mapBtoA(self, fromChrom, pos=None, side=0) :
@@ -73,7 +76,10 @@ class CoordMapper :
             return toChrom
         pos = mapper(pos, 1)
         if type(pos) != int and side != 0:
-            pos = pos[0] if side<0 else pos[1]
+            if side<0:
+                pos = pos[0]
+            else:
+                pos = pos[1]
         return (toChrom, pos)
 
     def _align(self, fastaA, fastaB, aligner) :
