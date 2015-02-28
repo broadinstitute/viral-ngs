@@ -285,7 +285,6 @@ class TestVcfMerge(test.TestCaseWithTmp):
         for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.9, 0.1]):
             self.assertAlmostEqual(float(actual), expected, places=2)
         
-    @unittest.skip('not implemented')
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
         # POS is anchored right before the deletion
@@ -294,8 +293,47 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     T     (position 4, IT)
         # isnv:     TT    (position 4, ITT)
         # isnv:     TTC   (position 4, ITTC)
-        raise NotImplementedError()
+        merger = VcfMergeRunner([('ref1', 'ATCGTTCACC')])
+        merger.add_genome('s1', [('s1_1', 'ATCGCACC')])
+        merger.add_genome('s2', [('s2_1', 'ATCGCACC')])
+        merger.add_genome('s3', [('s3_1', 'ATCGCACC')])
+        merger.add_indel('s1', 's1_1', 4, [('', 70, 70), ('T',   30, 30)])
+        merger.add_indel('s2', 's2_1', 4, [('', 80, 80), ('TT',  20, 20)])
+        merger.add_indel('s3', 's3_1', 4, [('', 90, 90), ('TTC', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 4)
+        self.assertEqual(rows[0].ref, 'GTT')
+        self.assertEqual(rows[0].alt, 'G,GT,GTTC')
+        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0')
+        self.assertEqual(rows[0][1], '1:0.8,0.0,0.0')
+        self.assertEqual(rows[0][2], '1:0.9,0.0,0.1')
         
+    def test_snp_within_insertion(self):
+        # sample assembly has insertion against reference and isnp modifies it
+        # REF:  ATCG--GA
+        # S1:   ATCGTTGA
+        # isnv:    C   
+        # isnv:     C  
+        # isnv:      C 
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2_1',  'TCGTTGACT')])
+        merger.add_genome('s3', [('s3_1',  'TCGTTGACT')])
+        merger.add_snp('s1', 's1_1', 4, [('G', 70, 70), ('C', 30, 30)])
+        merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
+        merger.add_snp('s3', 's3_1', 5, [('T', 90, 90), ('C', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 4)
+        self.assertEqual(rows[0].ref, 'G')
+        self.assertEqual(rows[0].alt, 'GTT,CTT,GCT,GTC')
+        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0,0.0')
+        self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
+        self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
+
     @unittest.skip('not implemented')
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it
@@ -309,7 +347,25 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:    xx     (position 4, D2)
         # isnv:    xxx    (position 4, D3)
         # isnv:    xxxx   (position 4, D4)
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2_1',  'TCGTTGACT')])
+        merger.add_genome('s3', [('s3_1',  'TCGTTGACT')])
+        merger.add_genome('s4', [('s4_1',  'TCGTTGACT')])
+        merger.add_indel('s1', 's1_1', 4, [('GTTG', 50, 50), ('TTG', 20, 20), ('TG', 15, 15), ('G', 10, 10), ('', 5, 5)])
+        merger.add_indel('s2', 's2_1', 4, [('T', 80, 80), ('', 20, 20)])
+        merger.add_indel('s3', 's3_1', 5, [('TG', 90, 90), ('T', 10, 10), ('', 10, 10)])
+        merger.add_indel('s4', 's4_1', 6, [('G', 90, 90), ('', 10, 10)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 4)
+        self.assertEqual(rows[0].ref, 'G')
         raise NotImplementedError()
+        #self.assertEqual(rows[0].alt, '?')
+        #self.assertEqual(rows[0][0], '?')
+        #self.assertEqual(rows[0][1], '?')
+        #self.assertEqual(rows[0][2], '?')
         
     def test_insertion_within_insertion(self):
         # sample assembly has insertion against reference and isnv puts even more in
@@ -321,19 +377,19 @@ class TestVcfMerge(test.TestCaseWithTmp):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
         merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
         merger.add_genome('s2', [('s2_1',  'TCGTTGACT')])
-        merger.add_genome('s3', [('s3_1',   'CGTTGACT')])
+        merger.add_genome('s3', [('s3_1',  'TCGTTGACT')])
         merger.add_indel('s1', 's1_1', 4, [('', 70, 70), ('A', 30, 30)])
         merger.add_indel('s2', 's2_1', 4, [('', 80, 80), ('A', 20, 20)])
-        merger.add_indel('s3', 's3_1', 4, [('', 90, 90), ('A', 10, 10)])
+        merger.add_indel('s3', 's3_1', 5, [('', 90, 90), ('A', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'G')
         self.assertEqual(rows[0].alt, 'GTT,GATT,GTAT,GTTA')
-        self.assertEqual(rows[0][0], '1:0.8,0.2,0.0,0.0')
-        self.assertEqual(rows[0][1], '1:0.9,0.0,0.1,0.0')
-        self.assertEqual(rows[0][2], '1:0.7,0.0,0.0,0.3')
+        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0,0.0')
+        self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
+        self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
         
     def test_indel_collapse(self):
         # vphaser describes insertions and deletions separately
