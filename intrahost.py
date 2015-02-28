@@ -121,13 +121,12 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("outTab", help = "tab-separated headerless output file.")
     parser.add_argument("--vphaserNumThreads", type = int, default = None,
         help="Number of threads in call to V-Phaser 2.")
-    parser.add_argument("--minReadsEach", type = int, default = None,
-        help = "Minimum number of reads on each strand (default: %s). Must be "
-               "at least 1." %
-        defaultMinReads)
-    parser.add_argument("--maxBias", type = int, default = None,
-        help = "Maximum allowable ratio of number of reads on the two strands "
-               "(default: %s)." % defaultMaxBias)
+    parser.add_argument("--minReadsEach", type = int, default = defaultMinReads,
+        help = """Minimum number of reads on each strand (default: %(default)s).
+                Must be at least 1.""")
+    parser.add_argument("--maxBias", type = int, default = defaultMaxBias,
+        help = """Maximum allowable ratio of number of reads on the two strands
+                (default: %(default)s).""")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
     return parser
@@ -233,6 +232,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                 row['s_pos'] = row['s_pos']-1
                             # map position back to reference coordinates
                             row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
+                            row['END'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = 1)[1]
                             data.append(row)
             
                 # sort all iSNVs (across all samples) and group by position
@@ -246,6 +246,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                     # define the length of this variation based on the largest deletion
                     end = pos
                     for row in rows:
+                        end = max(end, row['END'])
                         for a,n in row['allele_counts']:
                             if a.startswith('D'):
                                 # end of deletion in sample's coord space
@@ -256,12 +257,15 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                 
                     # find reference allele and consensus alleles
                     refAllele = str(ref_sequence[pos-1:end].seq)
-                    consAlleles = {}
+                    consAlleles = {} # the full pos-to-end consensus assembly sequence for each sample
+                    samp_offsets = dict((row['sample'], row['s_pos']) for row in rows) # the isnv's index in the consAllele string for each sample
                     for s in samples:
                         cons = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
+                        if s in samp_offsets:
+                            samp_offsets[s] -= cons_start
                         if all(a in set(('A','C','T','G')) for a in allele):
                             consAlleles[s] = allele
                         else:
@@ -289,20 +293,25 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             for a,n in acounts.items():
                                 f = float(n)/tot_n
                                 if a.startswith('I'):
-                                    # insertion allele is first ref base, plus inserted bases, plus subsequent ref bases
-                                    a = consAllele[0] + a[1:] + consAllele[1:]
+                                    # insertion point is relative to each sample
+                                    insert_point = samp_offsets[s]+1
+                                    a = consAllele[:insert_point] + a[1:] + consAllele[insert_point:]
                                 elif a.startswith('D'):
                                     # deletion is the first ref base, plus remaining ref seq with the first few positions dropped off
-                                    a = consAllele[0] + consAllele[1+int(a[1:]):]
+                                    cut_left = samp_offsets[s]+1
+                                    cut_right = samp_offsets[s]+1+int(a[1:])
+                                    a = consAllele[:cut_left] + consAllele[cut_right:]
                                 elif a in ('i','d'):
                                     # this is vphaser's way of saying the "reference" (majority/consensus) allele, in the face of other indel variants
                                     a = consAllele
                                 else:
                                     # this is a SNP
                                     assert a in set(('A','C','T','G'))
-                                    if f>0.5 and a!=consAllele[0]:
+                                    if f>0.5 and a!=consAllele[samp_offsets[s]]:
                                         log.warn("vPhaser and assembly pipelines mismatch at %s:%d %s - consensus %s, vPhaser %s" % (ref_sequence.id, pos, s, consAllele[0], a))
-                                    a = a + consAllele[1:]
+                                    new_allele = list(consAllele)
+                                    new_allele[samp_offsets[s]] = a
+                                    a = ''.join(new_allele)
                                 assert a and a==a.upper()
                                 iSNVs[s][a] = f
                             if all(len(a)==1 for a in iSNVs[s].keys()):
