@@ -72,7 +72,7 @@ class CoordMapper :
                     with open(alignOutFileName) as alignOutFile :
                         seqParser = SeqIO.parse(alignOutFile, 'fasta')
                         seqs = [seqRec.seq for seqRec in seqParser]
-                        mapper = self._Mapper(seqs[0], seqs[1])
+                        mapper = CoordMapper2Seqs(seqs[0], seqs[1])
                         self.AtoB[chrA] = [chrB, mapper]
                         self.BtoA[chrB] = [chrA, mapper]
         assert numSeqs > 0, 'CoordMapper: no input sequences.'
@@ -81,81 +81,91 @@ class CoordMapper :
         os.unlink(alignInFileName)
         os.unlink(alignOutFileName)
 
-    class _Mapper(object) :
-        """Class that maps a 1-based position on either of two sequences to
-              to a 1-based position or interval on the other, raising IndexError 
-              if beyond end.
-           Gap handling is described in CoordMapper main comment string.
-        """
-        """
-        Implementation:
-            mapArrays is a pair of arrays of equal length such that
-            mapArrays[0][n], mapArrays[1][n] are the coordinates of a pair of 
-            aligned real bases on the two sequences. The only pairs that are 
-            included are the first, the last, and the pair immediately following 
-            any gap. Pairs must be in increasing order. Coordinate mapping 
-            requires binary search in one of the arrays.
-            Total space required, in bytes, is const + 8 * number of indels.
-            Time for a map in either direction is O(log(number of indels)).
-        """
-        
-        def __init__(self, seq0, seq1) :
-            """Input sequences are BioPython Seqs representing aligner output:
-               sequences of equal length with gaps represented by dashes."""
-            self.mapArrays = [array.array('I'), array.array('I')]
-            baseCount0 = 0  # Number of real bases in seq0 up to and including cur pos
-            baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
-            beforeStart = True # Haven't yet reached first pair of aligned real bases
-            gapSinceLast = False # Have encounted a gap since last pair in mapArrays
-            prevRealBase0 = prevRealBase1 = True
-            for b0, b1 in zip(seq0, seq1) :
-                realBase0 = b0 != '-'
-                realBase1 = b1 != '-'
-                assert realBase0 or realBase1, 'CoordMapper: gap aligned to gap.'
-                assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
-                     'CoordMapper: gap in one sequence adjacent to gap in other.'
-                prevRealBase0 = realBase0
-                prevRealBase1 = realBase1
-                baseCount0 += realBase0
-                baseCount1 += realBase1
-                if realBase0 and realBase1 :
-                    if beforeStart or gapSinceLast :
-                        self.mapArrays[0].append(baseCount0)
-                        self.mapArrays[1].append(baseCount1)
-                        gapSinceLast = False
-                        beforeStart = False
-                    finalPos0 = baseCount0 # Last pair of aligned real bases so far
-                    finalPos1 = baseCount1 # Last pair of aligned real bases so far
-                else :
-                    gapSinceLast = True
-            assert len(self.mapArrays[0]) != 0, 'CoordMapper: no aligned bases.'
-            if self.mapArrays[0][-1] != finalPos0 :
-                self.mapArrays[0].append(finalPos0)
-                self.mapArrays[1].append(finalPos1)
-
-        def __call__(self, fromPos, fromWhich) :
-            "If fromWhich is 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."
-            if fromPos != int(fromPos) :
-                raise TypeError('CoordMapper: pos %s is not an integer' % fromPos)
-            fromArray = self.mapArrays[fromWhich]
-            toArray = self.mapArrays[1 - fromWhich]
-            if fromPos < fromArray[0] or fromPos > fromArray[-1] :
-                raise IndexError
-            if fromPos == fromArray[-1] :
-                result = toArray[-1]
+class CoordMapper2Seqs(object) :
+    """ Map 1-based coordinates between two aligned sequences.
+        Result is a coordinate or an interval, as described in CoordMapper main 
+            comment string.
+        Raise IndexError if beyond end.
+        Input sequences must be already-aligned iterators through bases with
+            gaps represented by dashes and all other characters assumed to be
+            real bases. 
+        Assumptions:
+            - Sequences (including gaps) are same length.
+            - Each sequence has at least one real base.
+            - A gap is never aligned to a gap.
+            - A gap in one sequence is never adjacent to a gap in the other;
+                there must always be an intervening real base bewteen two gaps.
+    """
+    """
+    Implementation:
+        mapArrays is a pair of arrays of equal length such that
+        (mapArrays[0][n], mapArrays[1][n]) are the coordinates of a pair of
+        aligned real bases on the two sequences. The only pairs that are 
+        included are the first, the last, and the pair immediately following 
+        any gap. Pairs are in increasing order. Coordinate mapping
+        requires binary search in one of the arrays.
+        Total space required, in bytes, is const + 8 * (number of indels).
+        Time for a map in either direction is O(log(number of indels)).
+    """
+    
+    def __init__(self, seq0, seq1) :
+        self.mapArrays = [array.array('I'), array.array('I')]
+        baseCount0 = 0  # Number of real bases in seq0 up to and including cur pos
+        baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
+        beforeStart = True # Haven't yet reached first pair of aligned real bases
+        gapSinceLast = False # Have encounted a gap since last pair in mapArrays
+        prevRealBase0 = prevRealBase1 = True
+        for b0, b1 in zip_longest(seq0, seq1) :
+            assert b0 != None and b1 != None, 'CoordMapper2Seqs: sequences '\
+                'must be same length.'
+            realBase0 = b0 != '-'
+            realBase1 = b1 != '-'
+            assert realBase0 or realBase1, 'CoordMapper2Seqs: gap aligned to gap.'
+            assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
+                 'CoordMapper2Seqs: gap in one sequence adjacent to gap in other.'
+            prevRealBase0 = realBase0
+            prevRealBase1 = realBase1
+            baseCount0 += realBase0
+            baseCount1 += realBase1
+            if realBase0 and realBase1 :
+                if beforeStart or gapSinceLast :
+                    self.mapArrays[0].append(baseCount0)
+                    self.mapArrays[1].append(baseCount1)
+                    gapSinceLast = False
+                    beforeStart = False
+                finalPos0 = baseCount0 # Last pair of aligned real bases so far
+                finalPos1 = baseCount1 # Last pair of aligned real bases so far
             else :
-                insertInd = bisect.bisect(fromArray, fromPos)
-                prevFromPos = fromArray[insertInd - 1]
-                nextFromPos = fromArray[insertInd]
-                prevToPos = toArray[insertInd - 1]
-                nextToPos = toArray[insertInd]
-                assert(prevFromPos <= fromPos < nextFromPos)
-                prevPlusOffset = prevToPos + (fromPos - prevFromPos)
-                if fromPos == nextFromPos - 1 and prevPlusOffset < nextToPos - 1 :
-                    result = [prevPlusOffset, nextToPos - 1]
-                else :
-                    result = min(prevPlusOffset, nextToPos - 1)
-            return result
+                gapSinceLast = True
+        assert len(self.mapArrays[0]) != 0, 'CoordMapper2Seqs: no aligned bases.'
+        if self.mapArrays[0][-1] != finalPos0 :
+            self.mapArrays[0].append(finalPos0)
+            self.mapArrays[1].append(finalPos1)
+
+    def __call__(self, fromPos, fromWhich) :
+        """ fromPos: 1-based coordinate
+            fromWhich: if 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."""
+        if fromPos != int(fromPos) :
+            raise TypeError('CoordMapper2Seqs: pos %s is not an integer' % fromPos)
+        fromArray = self.mapArrays[fromWhich]
+        toArray = self.mapArrays[1 - fromWhich]
+        if fromPos < fromArray[0] or fromPos > fromArray[-1] :
+            raise IndexError
+        if fromPos == fromArray[-1] :
+            result = toArray[-1]
+        else :
+            insertInd = bisect.bisect(fromArray, fromPos)
+            prevFromPos = fromArray[insertInd - 1]
+            nextFromPos = fromArray[insertInd]
+            prevToPos = toArray[insertInd - 1]
+            nextToPos = toArray[insertInd]
+            assert(prevFromPos <= fromPos < nextFromPos)
+            prevPlusOffset = prevToPos + (fromPos - prevFromPos)
+            if fromPos == nextFromPos - 1 and prevPlusOffset < nextToPos - 1 :
+                result = [prevPlusOffset, nextToPos - 1]
+            else :
+                result = min(prevPlusOffset, nextToPos - 1)
+        return result
 
 # ============================
 
