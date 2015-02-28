@@ -150,18 +150,11 @@ class CoordMapper :
                 prevToPos = toArray[insertInd - 1]
                 nextToPos = toArray[insertInd]
                 assert(prevFromPos <= fromPos < nextFromPos)
-                fromLen = nextFromPos - prevFromPos
-                toLen = nextToPos - prevToPos
-                if fromLen == toLen : # No gaps
-                    result = prevToPos + (fromPos - prevFromPos)
-                elif fromLen > toLen :
-                    result = min(prevToPos + (fromPos - prevFromPos),
-                                 nextToPos - 1)
-                elif fromPos < nextFromPos - 1 :
-                    result = prevToPos + (fromPos - prevFromPos)
+                prevPlusOffset = prevToPos + (fromPos - prevFromPos)
+                if fromPos == nextFromPos - 1 and prevPlusOffset < nextToPos - 1 :
+                    result = [prevPlusOffset, nextToPos - 1]
                 else :
-                    result = [prevToPos + (fromPos - prevFromPos),
-                              nextToPos - 1]
+                    result = min(prevPlusOffset, nextToPos - 1)
             return result
 
 # ============================
