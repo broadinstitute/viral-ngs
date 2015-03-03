@@ -132,7 +132,8 @@ class VcfMergeRunner:
     ''' This creates test data and feeds it to intrahost.merge_to_vcf
     '''
     def __init__(self, ref_genome=None):
-        self.genomes = {}
+        self.genomes = {} # {sample : {chrom : bases, ...}, ...}
+        self.genomeFastas = {} # {sample: fastaFileName, ...
         self.isnvs = {}
         self.sample_order = []
         if ref_genome:
@@ -140,15 +141,24 @@ class VcfMergeRunner:
     def set_ref(self, genome):
         self.ref = makeTempFasta(genome)
     def add_genome(self, sample_name, genome):
-        self.genomes[sample_name] = makeTempFasta(genome)
+        self.genomes[sample_name] = dict(genome)
+        self.genomeFastas[sample_name] = makeTempFasta(genome)
         if sample_name not in self.sample_order:
             self.sample_order.append(sample_name)
         self.isnvs.setdefault(sample_name, MockVphaserOutput())
     def add_snp(self, sample, chrom, pos, acounts):
-        assert sample in self.genomes
+        assert sample in self.genomeFastas
+        assert chrom in self.genomes[sample]
+        assert 1 <= pos <= len(self.genomes[sample][chrom])
+        assert self.genomes[sample][chrom][pos - 1] in [a for a,f,r in acounts]
         self.isnvs[sample].add_snp(chrom, pos, acounts)
     def add_indel(self, sample, chrom, pos, acounts):
-        assert sample in self.genomes
+        assert sample in self.genomeFastas
+        assert sample in self.genomeFastas
+        assert chrom in self.genomes[sample]
+        assert 1 <= pos <= len(self.genomes[sample][chrom])
+        if acounts[0][0] != '' : # deletion
+            assert self.genomes[sample][chrom][pos - 1 :].startswith(acounts[0][0])
         self.isnvs[sample].add_indel(chrom, pos, acounts)
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
@@ -161,11 +171,10 @@ class VcfMergeRunner:
         intrahost.merge_to_vcf(self.ref, outVcf,
             self.sample_order,
             list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
-            list(self.genomes[s] for s in self.sample_order))
+            list(self.genomeFastas[s] for s in self.sample_order))
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
-        
 
 class TestVcfMerge(test.TestCaseWithTmp):
     ''' This tests step 2 of the iSNV calling process
@@ -399,28 +408,48 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
         self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
 
-    @unittest.skip('not implemented')
-    def test_snp_past_end_of_some_consensus(self):
+    def test_deletion_past_end_of_some_consensus(self):
         # Some sample contains a deletion beyond the end of the consensus
         # sequence of another sample with a SNP. It should skip latter rather
         # than crashing.
-        # REF:    ATCGGGC
+        # REF:    ATCGAAC
         # S1:     ATCG--C
         # S1isnv: ATCA--C
         # S2:     ATCT
         # S2isnv: ATCC
-        merger = VcfMergeRunner([('ref1', 'ATCGGGC')])
+        merger = VcfMergeRunner([('ref1', 'ATCGAAC')])
         merger.add_genome('s1', [('s1_1', 'ATCGC')])
         merger.add_snp('s1', 's1_1', 4, [('G', 70, 70), ('A', 30, 30)])
-        merger.add_genome('s2', [('s2_1', 'ATCAC')])
+        merger.add_genome('s2', [('s2_1', 'ATCT')])
         merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 4)
-        self.assertEqual(rows[0].ref, 'GGG')
+        self.assertEqual(rows[0].ref, 'GAA')
         self.assertEqual(rows[0].alt, 'G,A')
         self.assertEqual(rows[0][0], '1:0.7,0.3')
+        self.assertEqual(rows[0][1], '.:.')
+    
+    def test_snp_past_end_of_some_consensus(self):
+        # Some sample contains SNP beyond the end of the consensus
+        # sequence of another. It should skip latter rather
+        # than crashing.
+        # REF:    AT
+        # S1:     AT
+        # S1isnv: AG
+        # S2:     A
+        merger = VcfMergeRunner([('ref1', 'AT')])
+        merger.add_genome('s1', [('s1_1', 'AT')])
+        merger.add_snp('s1', 's1_1', 2, [('T', 70, 70), ('G', 30, 30)])
+        merger.add_genome('s2', [('s2_1', 'A')])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 2)
+        self.assertEqual(rows[0].ref, 'T')
+        self.assertEqual(rows[0].alt, 'G')
+        self.assertEqual(rows[0][0], '0:0.3')
         self.assertEqual(rows[0][1], '.:.')
 
     def test_deletion_within_insertion(self):
