@@ -21,6 +21,7 @@ include: os.path.join(pipesDir, 'demux.rules')
 include: os.path.join(pipesDir, 'hs_deplete.rules')
 include: os.path.join(pipesDir, 'assembly.rules')
 include: os.path.join(pipesDir, 'interhost.rules')
+include: os.path.join(pipesDir, 'intrahost.rules')
 include: os.path.join(pipesDir, 'reports.rules')
 
 rule all:
@@ -33,6 +34,8 @@ rule all:
         expand("{dataDir}/{subdir}/{sample}.bam",
             dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
             sample=read_samples_file(config["samples_assembly"])),
+        # intrahost variant calling
+        config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
         # create reference-guided analyses of diversity (quick outputs)
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
         os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
