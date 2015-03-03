@@ -15,21 +15,21 @@ except ImportError :
     from itertools import izip_longest as zip_longest
 import tools.muscle
 import util.cmd, util.file, util.vcf, util.misc
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 
 log = logging.getLogger(__name__)
 
 # =========== CoordMapper =================
 
 class CoordMapper :
-    """ Maps coordinates between genome A and genome B.
+    """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
         Indels are handled as follows after corresponding sequences are aligned:
-            Raises IndexError if base is past either end of the other sequence.
-            If a base maps to a gap in the other species, returns the index
+            Return (chrom, None) if base is past either end of other sequence.
+            If a base maps to a gap in the other species, return the index
                 of the closest upstream non-gap base.
             If a base is followed by a gap then instead of returning an integer,
-                returns a two-element list representing the interval in the
+                return a two-element list representing the interval in the
                 other species that aligns to this base and the subsequent gap.
         Assumption: the aligner tool will never align two gaps, and will never
             put gaps in opposite species adjacent to each other without aligning
@@ -44,13 +44,37 @@ class CoordMapper :
         
         self._align(fastaA, fastaB, alignerTool())
     
-    def mapAtoB(self, fromChrom, pos) :
+    def mapAtoB(self, fromChrom, fromPos = None, side = 0) :
+        """ Map (chrom, coordinate) from genome A to genome B.
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on B
+                ==0, return either the unique position on B or a [left,right] list
+                > 0, return the right-most position on B
+        """
         toChrom, mapper = self.AtoB[fromChrom]
-        return (toChrom, mapper(pos, 0))
+        if fromPos == None:
+            return toChrom
+        toPos = mapper(fromPos, 0)
+        if isinstance(toPos, Sequence) and side != 0 :
+            toPos = toPos[0] if side < 0 else toPos[1]
+        return (toChrom, toPos)
     
-    def mapBtoA(self, fromChrom, pos) :
+    def mapBtoA(self, fromChrom, fromPos = None, side = 0) :
+        """ Map (chrom, coordinate) from genome B to genome A.
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on A
+                ==0, return either the unique position on A or a [left,right] list
+                > 0, return the right-most position on A
+        """
         toChrom, mapper = self.BtoA[fromChrom]
-        return (toChrom, mapper(pos, 1))
+        if fromPos == None:
+            return toChrom
+        toPos = mapper(fromPos, 1)
+        if isinstance(toPos, Sequence) and side != 0 :
+            toPos = toPos[0] if side < 0 else toPos[1]
+        return (toChrom, toPos)
 
     def _align(self, fastaA, fastaB, aligner) :
         alignInFileName = util.file.mkstempfname('.fasta')
@@ -85,7 +109,7 @@ class CoordMapper2Seqs(object) :
     """ Map 1-based coordinates between two aligned sequences.
         Result is a coordinate or an interval, as described in CoordMapper main 
             comment string.
-        Raise IndexError if beyond end.
+        Return None if beyond end.
         Input sequences must be already-aligned iterators through bases with
             gaps represented by dashes and all other characters assumed to be
             real bases. 
@@ -150,8 +174,8 @@ class CoordMapper2Seqs(object) :
         fromArray = self.mapArrays[fromWhich]
         toArray = self.mapArrays[1 - fromWhich]
         if fromPos < fromArray[0] or fromPos > fromArray[-1] :
-            raise IndexError
-        if fromPos == fromArray[-1] :
+            result = None
+        elif fromPos == fromArray[-1] :
             result = toArray[-1]
         else :
             insertInd = bisect.bisect(fromArray, fromPos)

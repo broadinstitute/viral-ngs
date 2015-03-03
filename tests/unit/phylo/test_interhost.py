@@ -53,13 +53,21 @@ class TestCoordMapper(test.TestCaseWithTmp):
             self.assertEqual(expected,
                              [mappedPos for chrom, mappedPos in result])
     
+    def test_side_param(self):
+        self.assertEqual(self.cm.mapAtoB('chr1', 13), ('first_chrom', [11,13]))
+        self.assertEqual(self.cm.mapAtoB('chr1', 13, 0), ('first_chrom', [11,13]))
+        self.assertEqual(self.cm.mapAtoB('chr1', 13, -1), ('first_chrom', 11))
+        self.assertEqual(self.cm.mapAtoB('chr1', 13, 1), ('first_chrom', 13))
+        self.assertEqual(self.cm.mapAtoB('chr1', 12), ('first_chrom', 10))
+        self.assertEqual(self.cm.mapAtoB('chr1', 12, 0), ('first_chrom', 10))
+        self.assertEqual(self.cm.mapAtoB('chr1', 12, -1), ('first_chrom', 10))
+        self.assertEqual(self.cm.mapAtoB('chr1', 12, 1), ('first_chrom', 10))
+    
     def test_oob_errors(self):
         for pos in [-1, 0, 1, 2, 22, 23, 24] :
-            with self.assertRaises(IndexError) :
-                self.cm.mapAtoB('chr1', pos)
+            self.assertEqual(self.cm.mapAtoB('chr1', pos), ('first_chrom', None))
         for pos in [-1, 0, 14, 15] :
-            with self.assertRaises(IndexError) :
-                self.cm.mapBtoA('second_chr', pos)
+            self.assertEqual(self.cm.mapBtoA('second_chr', pos),  ('chr2', None))
 
     def test_invalid_pos_error(self):
         with self.assertRaises(TypeError):
@@ -83,6 +91,15 @@ class TestCoordMapper(test.TestCaseWithTmp):
             ])
         with self.assertRaises(Exception):
             cm = interhost.CoordMapper(genomeA, genomeB)
+    
+    def test_map_chr_only(self):
+        self.assertEqual(self.cm.mapAtoB('chr1'), 'first_chrom')
+        self.assertEqual(self.cm.mapBtoA('first_chrom'), 'chr1')
+        self.assertEqual(self.cm.mapAtoB('chr2'), 'second_chr')
+        self.assertEqual(self.cm.mapBtoA('second_chr'), 'chr2')
+        with self.assertRaises(KeyError):
+            self.cm.mapAtoB('nonexistentchr')
+        
 
 class TestCoordMapper2Seqs(test.TestCaseWithTmp):
     """ For the most part, CoordMapper2Seqs is tested implicitly when
