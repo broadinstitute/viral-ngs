@@ -408,6 +408,21 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
         self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
 
+    def test_2snps_within_insertion_same_sample(self):
+        # Sample assembly has insertion against reference containing two SNPs
+        # in the same sample.
+        # We don't handle this because we can't see phasing; it should be
+        #     handled by the variant caller.
+        # REF:  ATCG--GACT
+        # S1:   ATCGTTGACT
+        # isnv:     C
+        # isnv:      C 
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1_1',  'ATCGTTGACT')])
+        merger.add_snp('s1', 's1_1', 5, [('T', 80, 80), ('C', 20, 20)])
+        merger.add_snp('s1', 's1_1', 6, [('T', 90, 90), ('C', 10, 10)])
+        self.assertRaises(NotImplementedError, merger.run_and_get_vcf_rows)
+
     def test_deletion_past_end_of_some_consensus(self):
         # Some sample contains a deletion beyond the end of the consensus
         # sequence of another sample with a SNP. It should skip latter rather
