@@ -268,14 +268,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                     consAlleles = {} # the full pos-to-end consensus assembly sequence for each sample
                     samp_offsets = dict((row['sample'], row['s_pos']) for row in rows) # the isnv's index in the consAllele string for each sample
                     for s in samples:
-                        cons = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         if cons_start == None or cons_stop == None :
                             log.warn("dropping consensus because allele is outside "
                                 "consensus for %s at %s-%s." % (s, pos, end))
                             continue
+                        seqIndex = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')
+                        cons = seqIndex[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
+                        seqIndex.close()
                         if s in samp_offsets:
                             samp_offsets[s] -= cons_start
                         if all(a in set(('A','C','T','G')) for a in allele):
