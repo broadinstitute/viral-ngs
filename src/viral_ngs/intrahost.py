@@ -266,7 +266,15 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                     # find reference allele and consensus alleles
                     refAllele = str(ref_sequence[pos-1:end].seq)
                     consAlleles = {} # the full pos-to-end consensus assembly sequence for each sample
-                    samp_offsets = dict((row['sample'], row['s_pos']) for row in rows) # the isnv's index in the consAllele string for each sample
+                    samp_offsets = {} # {sample : isnv's index in its consAllele string}
+                    for row in rows :
+                        s_pos = row['s_pos']
+                        sample = row['sample']
+                        if samp_offsets.get(sample, s_pos) != s_pos :
+                            raise NotImplementedError('Sample %s has variants at 2 '
+                                'positions %s mapped to same reference position (%s)' %
+                                (sample, (s_pos, samp_offsets[sample]), pos))
+                        samp_offsets[sample] = s_pos
                     for s in samples:
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
