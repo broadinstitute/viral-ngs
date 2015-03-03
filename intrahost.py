@@ -271,7 +271,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         if cons_start == None or cons_stop == None :
-                            log.warn("dropping consensus because allele is outside "
+                            log.warning("dropping consensus because allele is outside "
                                 "consensus for %s at %s-%s." % (s, pos, end))
                             continue
                         seqIndex = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')
@@ -283,7 +283,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         if all(a in set(('A','C','T','G')) for a in allele):
                             consAlleles[s] = allele
                         else:
-                            log.warn("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
+                            log.warning("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
                     
                     # define genotypes and fractions
                     iSNVs = {}
@@ -323,7 +323,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                     if a not in set(('A','C','T','G')):
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
-                                        log.warn("vPhaser and assembly pipelines mismatch at %s:%d %s - consensus %s, vPhaser %s" % (ref_sequence.id, pos, s, consAllele[0], a))
+                                        log.warning("vPhaser and assembly pipelines mismatch at %s:%d %s - consensus %s, vPhaser %s" % (ref_sequence.id, pos, s, consAllele[0], a))
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
