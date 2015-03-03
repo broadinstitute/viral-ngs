@@ -399,6 +399,30 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
         self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
 
+    @unittest.skip('not implemented')
+    def test_snp_past_end_of_some_consensus(self):
+        # Some sample contains a deletion beyond the end of the consensus
+        # sequence of another sample with a SNP. It should skip latter rather
+        # than crashing.
+        # REF:    ATCGGGC
+        # S1:     ATCG--C
+        # S1isnv: ATCA--C
+        # S2:     ATCT
+        # S2isnv: ATCC
+        merger = VcfMergeRunner([('ref1', 'ATCGGGC')])
+        merger.add_genome('s1', [('s1_1', 'ATCGC')])
+        merger.add_snp('s1', 's1_1', 4, [('G', 70, 70), ('A', 30, 30)])
+        merger.add_genome('s2', [('s2_1', 'ATCAC')])
+        merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos+1, 4)
+        self.assertEqual(rows[0].ref, 'GGG')
+        self.assertEqual(rows[0].alt, 'G,A')
+        self.assertEqual(rows[0][0], '1:0.7,0.3')
+        self.assertEqual(rows[0][1], '.:.')
+
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it
         # REF:  ATCG--GA
