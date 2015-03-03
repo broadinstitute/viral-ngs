@@ -69,8 +69,8 @@ def vphaser_one_sample(inBam, outTab, vphaserNumThreads = None,
             V Phaser-2 output variants with additional columns:
                 sequence/chrom name, # libraries, chi-sq for library discordance
     '''
-    if minReadsEach != None :
-        assert minReadsEach > 0, 'minReadsEach must be at least 1.'
+    if minReadsEach != None and minReadsEach <= 0:
+        raise Exception('minReadsEach must be at least 1.')
     variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
     libraryFilteredIter = filter_library_bias(filteredIter)
@@ -229,13 +229,15 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             # VCF conventions
                             if row['s_alt'].startswith('D'):
                                 for a,n in row['allele_counts']:
-                                    assert a[0] in ('D','i')
+                                    if a[0] not in ('D','i'):
+                                        log.error("allele_counts: " + str(row['allele_counts']))
+                                        raise Exception("deletion alleles must always start with D or i")
                                 row['s_pos'] = row['s_pos']-1
                             # map position back to reference coordinates
                             row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
                             row['END'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = 1)[1]
-                            assert row['POS'] != None and row['END'] != None, \
-                                'consensus extends beyond start or end of reference.'
+                            if row['POS'] == None or row['END'] == None:
+                                raise Exception('consensus extends beyond start or end of reference.')
                             data.append(row)
             
                 # sort all iSNVs (across all samples) and group by position
@@ -256,8 +258,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                 local_end = row['s_pos']+int(a[1:])
                                 # end of deletion in reference coord space
                                 ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end, side = 1)[1]
-                                assert ref_end != None, 'consensus extends ' \
-                                     'beyond start or end of reference.'
+                                if ref_end == None:
+                                    raise Exception('consensus extends ' \
+                                     'beyond start or end of reference.')
                                 end = max(end, ref_end)
                 
                     # find reference allele and consensus alleles
@@ -314,16 +317,19 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                     a = consAllele
                                 else:
                                     # this is a SNP
-                                    assert a in set(('A','C','T','G'))
+                                    if a not in set(('A','C','T','G')):
+                                        raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
                                         log.warn("vPhaser and assembly pipelines mismatch at %s:%d %s - consensus %s, vPhaser %s" % (ref_sequence.id, pos, s, consAllele[0], a))
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
-                                assert a and a==a.upper()
+                                if not (a and a==a.upper()):
+                                    raise Exception()
                                 iSNVs[s][a] = f
                             if all(len(a)==1 for a in iSNVs[s].keys()):
-                                assert consAllele in iSNVs[s].keys()
+                                if consAllele not in iSNVs[s]:
+                                    raise Exception()
                         elif s in consAlleles:
                             # there is no iSNV data for this sample, so substitute the consensus allele
                             iSNVs[s] = {consAlleles[s]:1.0}
@@ -344,7 +350,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                     alleles = list(util.misc.unique([refAllele] + alleles_cons + alleles_isnv))
                     
                     # map alleles from strings to numeric indexes
-                    assert len(alleles)>1
+                    if not alleles:
+                        raise Exception()
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.' for s in samples]
