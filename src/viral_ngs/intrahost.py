@@ -173,7 +173,8 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 #  ========== merge_to_vcf ===========================
 
 def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
-    ''' Convert vPhaser2 parsed filtered output text file into VCF format.
+    ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
+        Assumption: consensus assemblies do not extend beyond ends of reference.261
     '''
     
     # setup
@@ -233,6 +234,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             # map position back to reference coordinates
                             row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
                             row['END'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = 1)[1]
+                            assert row['POS'] != None and row['END'] != None, \
+                                'consensus extends beyond start or end of reference.'
                             data.append(row)
             
                 # sort all iSNVs (across all samples) and group by position
@@ -253,6 +256,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                 local_end = row['s_pos']+int(a[1:])
                                 # end of deletion in reference coord space
                                 ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end, side = 1)[1]
+                                assert ref_end != None, 'consensus extends ' \
+                                     'beyond start or end of reference.'
                                 end = max(end, ref_end)
                 
                     # find reference allele and consensus alleles
@@ -263,6 +268,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         cons = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
+                        if cons_start == None or cons_stop == None :
+                            log.warn("allele is outside consensus for %s at %s-%s" % (s, pos, end))
+                            continue
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
                         if s in samp_offsets:
                             samp_offsets[s] -= cons_start
