@@ -65,11 +65,9 @@ class TestCoordMapper(test.TestCaseWithTmp):
     
     def test_oob_errors(self):
         for pos in [-1, 0, 1, 2, 22, 23, 24] :
-            with self.assertRaises(IndexError) :
-                self.cm.mapAtoB('chr1', pos)
+            self.assertEqual(self.cm.mapAtoB('chr1', pos), ('first_chrom', None))
         for pos in [-1, 0, 14, 15] :
-            with self.assertRaises(IndexError) :
-                self.cm.mapBtoA('second_chr', pos)
+            self.assertEqual(self.cm.mapBtoA('second_chr', pos),  ('chr2', None))
 
     def test_invalid_pos_error(self):
         with self.assertRaises(TypeError):
