@@ -272,8 +272,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         if cons_start == None or cons_stop == None :
-                            raise NotImplementedError('Not yet implemented: allele is '
-                                'outside consensus for %s at %s-%s' % (s, pos, end))
+                            log.warn("dropping consensus because allele is outside "
+                                "consensus for %s at %s-%s." % (s, pos, end))
+                            continue
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
                         if s in samp_offsets:
                             samp_offsets[s] -= cons_start
