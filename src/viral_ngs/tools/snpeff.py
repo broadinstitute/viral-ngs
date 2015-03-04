@@ -10,11 +10,15 @@ import os, tempfile, logging
 
 log = logging.getLogger(__name__)
 
+URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1_core.zip'
+
 class SnpEff(tools.Tool):
+    jvmMemDefault = '4g'
+
     def __init__(self, install_methods=None, install_genomes=None):
-        if install_methods==None:
-            install_methods = [BroadUnix(), DownloadAndConfigJar()]
-        if install_genomes==None:
+        if not install_methods:
+            install_methods = [DownloadAndConfigJar()]
+        if not install_genomes:
             install_genomes = [SnpEffGenome('zebov.sl',
                 'Zaire ebolavirus Sierra Leone G3686.1',
                 ['KM034562.1'],
@@ -43,6 +47,14 @@ class SnpEff(tools.Tool):
             post_pipe
             ])
         os.system(cmdline)
+
+    def download_db(self, dbname, verbose=False):
+        pass
+        "java -jar snpEff.jar download {}".format(dbname)
+    
+    def available_databases(self):
+        pass
+        "java -jar snpEff.jar databases"
 
     def eff_vcf(self, inVcf, outVcf, genome, java_flags='-Xmx2g',
             in_format='vcf', out_format='vcf', eff_options=''):
@@ -81,21 +93,6 @@ class SnpEff(tools.Tool):
             os.unlink(tmpVcf)
 
 
-class BroadUnix(tools.PrexistingUnixCommand):
-    """
-    commented out in init, remove?:
-    verifycmd=
-        'java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path,
-    verifycode=65280 xxx unfortunately snpEff is not returning a meaningful
-        code)
-    """
-    def __init__(self, path='/idi/sabeti-data/software/snpEff/snpEff_3.6-dev'):
-        super(BroadUnix, self).__init__(path=path)
-
-    def verify_install(self):
-        super(BroadUnix, self).verify_install()
-
-
 class DownloadAndConfigJar(tools.DownloadPackage):
     """
     commented out in init, remove?:
@@ -105,10 +102,7 @@ class DownloadAndConfigJar(tools.DownloadPackage):
         code)
     """
 
-    DEFAULT_URL = \
-        'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_0_core.zip'
-
-    def __init__(self, url=DEFAULT_URL, target_rel_path='snpEff',
+    def __init__(self, url=URL, target_rel_path='snpEff',
             destination_dir=None):
         super(DownloadAndConfigJar, self).__init__(url=url,
                 target_rel_path=target_rel_path,
