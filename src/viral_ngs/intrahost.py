@@ -464,7 +464,7 @@ __commands__.append(('Fws', parser_Fws))
 
 def iSNV_table(vcf_iter):
     for row in vcf_iter:
-        info = dict(kv.split('=') for kv in row['INFO'].split(';'))
+        info = dict(kv.split('=') for kv in row['INFO'].split(';') if kv and kv != '.')
         samples = [k for k in row.keys() if k not in set(('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))]
         for s in samples:
             f = row[s].split(':')[1]
@@ -504,7 +504,7 @@ def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
     header = ['pos','sample','patient','time','alleles','iSNV_freq','Hw',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
-    with open(args.outFile, 'wt') as outf:
+    with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
         for row in iSNV_table(util.file.read_tabfile_dict(args.inVcf)):
             sample_parts = row['sample'].split('.')
