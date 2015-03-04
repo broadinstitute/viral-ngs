@@ -68,7 +68,7 @@ class SnpEff(tools.Tool):
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
         self.installed_dbs = set()
         self.known_dbs = set()
-        for line in subprocess.check_output(toolCmd):
+        for line in subprocess.check_output(toolCmd, universal_newlines=True).split('\n'):
             line = line.strip()
             if not split_points:
                 if not line.startswith('Genome'):
