@@ -13,7 +13,7 @@ try :
     from itertools import zip_longest
 except ImportError :
     from itertools import izip_longest as zip_longest
-import tools.muscle
+import tools.muscle, tools.snpeff
 import util.cmd, util.file, util.vcf, util.misc
 from collections import OrderedDict, Sequence
 
@@ -191,8 +191,20 @@ class CoordMapper2Seqs(object) :
                 result = min(prevPlusOffset, nextToPos - 1)
         return result
 
-# ============================
 
+# ========== snpEff annotation of VCF files ==================
+
+def parser_snpEff(parser=argparse.ArgumentParser()):
+    parser.add_argument("inVcf", help="Input VCF file")
+    parser.add_argument("genome", help="genome name")
+    parser.add_argument("outVcf", help="Output VCF file")
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, tools.snpeff.SnpEff().execute, split_args=True)
+    return parser
+__commands__.append(('snpEff', parser_snpEff))
+
+
+# ============================
 
 # modified version of rachel's call_snps_3.py follows
 def call_snps_3(inFasta, outVcf, REF="KJ660346.2"):
