@@ -3,7 +3,8 @@
 and annotation for viral genomes.
 '''
 
-__author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, swohl@broadinstitute.org, irwin@broadinstitute.org"
+__author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
+             "swohl@broadinstitute.org, irwin@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, itertools, re, os
@@ -294,16 +295,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             log.warning("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
                     
                     # define genotypes and fractions
-                    iSNVs = {}
+                    iSNVs = {} # {sample : {allele : fraction, ...}, ...}
                     for s in samples:
                         
                         # get all rows for this sample and merge allele counts together
                         acounts = dict(itertools.chain.from_iterable(row['allele_counts']
                             for row in rows if row['sample'] == s))
                         if 'i' in acounts and 'd' in acounts:
-                            # this sample has both insertions and deletions at the same spot!
-                            # average the two (discordant) reference allele counts and
-                            # drop one of them (so we have only one reference allele
+                            # This sample has both an insertion line and a deletion line at the same spot!
+                            # To keep the reference allele from be counted twice, once as an i and once
+                            # as a d, averge the counts and get rid of one of them.
                             acounts['i'] = int(round((acounts['i'] + acounts['d'])/2.0,0))
                             del acounts['d']
                         
@@ -311,7 +312,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             # we have iSNV data on this sample
                             consAllele = consAlleles[s]
                             tot_n = sum(acounts.values())
-                            iSNVs[s] = {}
+                            iSNVs[s] = {} # {allele : fraction, ...}
                             for a,n in acounts.items():
                                 f = float(n)/tot_n
                                 if a.startswith('I'):
@@ -319,19 +320,23 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                                     insert_point = samp_offsets[s]+1
                                     a = consAllele[:insert_point] + a[1:] + consAllele[insert_point:]
                                 elif a.startswith('D'):
-                                    # deletion is the first ref base, plus remaining ref seq with the first few positions dropped off
+                                    # deletion is the first consensus base, plus remaining
+                                    # consensus seq with the first few positions dropped off
                                     cut_left = samp_offsets[s]+1
                                     cut_right = samp_offsets[s]+1+int(a[1:])
                                     a = consAllele[:cut_left] + consAllele[cut_right:]
                                 elif a in ('i','d'):
-                                    # this is vphaser's way of saying the "reference" (majority/consensus) allele, in the face of other indel variants
+                                    # this is vphaser's way of saying the "reference" (majority/consensus)
+                                    # allele, in the face of other indel variants
                                     a = consAllele
                                 else:
                                     # this is a SNP
                                     if a not in set(('A','C','T','G')):
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
-                                        log.warning("vPhaser and assembly pipelines mismatch at %s:%d %s - consensus %s, vPhaser %s" % (ref_sequence.id, pos, s, consAllele[0], a))
+                                        log.warning("vPhaser and assembly pipelines mismatch at "
+                                            "%s:%d %s - consensus %s, vPhaser %s" %
+                                            (ref_sequence.id, pos, s, consAllele[0], a))
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
@@ -345,13 +350,17 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             # there is no iSNV data for this sample, so substitute the consensus allele
                             iSNVs[s] = {consAlleles[s]:1.0}
 
-                    # get unique alleles list for this position
-                    # allele list should start with the reference allele
-                    # and should contain all alternate alleles sorted in
-                    # descending order, first by consensus-level allele
-                    # frequency, second by intrahost read frequency summed
-                    # over the population, third by the allele string itself
-                    alleles_cons = [a for a,n in sorted(util.misc.histogram(consAlleles.values()).items(), key=lambda x:x[1], reverse=True) if a!=refAllele]
+                    # get unique alleles list for this position, in this order:
+                    # first:   reference allele,
+                    # next:    consensus allele for each sample, in descending order of
+                    #          number of samples with that consensus,
+                    # finally: all other alleles, sorted first by number of containing samples,
+                    #          then by intrahost read frequency summed over the population,
+                    #          then by the allele string itself.
+                    alleles_cons = [a
+                                    for a,n in sorted(util.misc.histogram(consAlleles.values()).items(),
+                                                      key=lambda x:x[1], reverse=True)
+                                    if a!=refAllele]
                     alleles_isnv = list(itertools.chain.from_iterable([iSNVs[s].items() for s in samples if s in iSNVs]))
                     alleles_isnv2 = []
                     for a in set(a for a,n in alleles_isnv):
@@ -365,7 +374,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                         raise Exception()
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
-                    freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.' for s in samples]
+                    freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.'
+                             for s in samples]
 
                     # prepare output row and write to file
                     out = [ref_sequence.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
