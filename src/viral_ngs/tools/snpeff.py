@@ -6,7 +6,7 @@ http://snpeff.sourceforge.net/
 import pysam
 import tools
 import util.vcf, util.file
-import os, tempfile, logging
+import os, tempfile, logging, subprocess
 
 log = logging.getLogger(__name__)
 
@@ -17,96 +17,98 @@ class SnpEff(tools.Tool):
 
     def __init__(self, install_methods=None, install_genomes=None):
         if not install_methods:
-            install_methods = [DownloadAndConfigJar()]
+            install_methods = [tools.DownloadPackage(
+                URL, 'snpEff/snpEff.jar', require_executability=False)]
         if not install_genomes:
             install_genomes = [SnpEffGenome('zebov.sl',
                 'Zaire ebolavirus Sierra Leone G3686.1',
                 ['KM034562.1'],
                 ['http://www.ncbi.nlm.nih.gov/nuccore/661348725'])]
         self.install_genomes = install_genomes
+        self.known_dbs = set()
+        self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods = install_methods)
 
     def version(self):
-        return "4.0"
+        return "4.1"
 
     def install(self):
         super(SnpEff, self).install()
         for g in self.install_genomes:
             g.install_genome(self)
 
-    def has_genome(self, genome):
-        pass ### TODO
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):
+        if JVMmemory==None:
+            JVMmemory = self.jvmMemDefault
+        toolCmd = ['java',
+            '-Xmx' + JVMmemory,
+            '-Djava.io.tmpdir=' + tempfile.tempdir,
+            '-jar', self.install_and_get_path(),
+            command] + args
+        log.debug(' '.join(toolCmd))
+        subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout)
 
-    def execute(self, args, java_flags='-Xmx2g', pre_pipe='', post_pipe=''):
-        cmdline = ' '.join([
-            prepipe,
-            'java', java_flags,
-            '-Djava.io.tmpdir={}'.format(tempfile.tempdir),
-            '-jar', '{}/snpEff.jar'.format(self.executable_path),
-            args,
-            post_pipe
-            ])
-        os.system(cmdline)
+    def has_genome(self, genome):
+        if not self.known_dbs:
+            for row in self.available_databases():
+                pass
+        return genome in self.installed_dbs
 
     def download_db(self, dbname, verbose=False):
-        pass
-        "java -jar snpEff.jar download {}".format(dbname)
+        opts = [dbname]
+        if verbose:
+            opts.append('-v')
+        self.execute('download', opts)
+        self.known_dbs.add(dbname)
+        self.installed_dbs.add(dbname)
     
     def available_databases(self):
-        pass
-        "java -jar snpEff.jar databases"
+        toolCmd = ['java', '-jar', self.install_and_get_path(), 'databases']
+        split_points = []
+        keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
+        self.installed_dbs = set()
+        self.known_dbs = set()
+        for line in subprocess.check_output(toolCmd):
+            line = line.strip()
+            if not split_points:
+                if not line.startswith('Genome'):
+                    raise Exception()
+                split_points = list(line.index(key) for key in keys)
+            elif not line.startswith('----'):
+                indexes = split_points + [len(line)]
+                row = dict((keys[i], line[indexes[i]:indexes[i+1]].strip()) for i in range(len(split_points)))
+                self.known_dbs.add(row['Genome'])
+                if row.get('Status')=='OK':
+                    self.installed_dbs.add(row['Genome'])
+                yield row
 
-    def eff_vcf(self, inVcf, outVcf, genome, java_flags='-Xmx2g',
-            in_format='vcf', out_format='vcf', eff_options=''):
+    def annotate_vcf(self, inVcf, genome, outVcf, JVMmemory=None):
         """
         TODO: docstring here
         """
         if outVcf.endswith('.vcf.gz'):
             tmpVcf = util.file.mkstempfname(prefix='vcf_snpEff-', suffix='.vcf')
-        else:
+        elif outVcf.endswith('.vcf'):
             tmpVcf = outVcf
-
-        args = ' '.join([
-                'eff',
-                    '-c', '{}/snpEff.config'.format(self.executable_path()),
-                    '-i', in_format,
-                    '-o', out_format,
-                    genome,
-                    '-treatAllAsProteinCoding false',
-                    '-noLog',
-                    '-ud 0',
-                    '-noStats',
-                    eff_options
-                ])
-
-        if inVcf.endswith('.gz'):
-            pre_pipe = "zcat {} | ".format(inVcf)
         else:
-            pre_pipe = "cat {} | ".format(inVcf)
-        post_pipe = " > {}".format(tmpVcf)
-        self.execute(args, java_flags=java_flags, pre_pipe=pre_pipe,
-                post_pipe=post_pipe)
+            raise Exception("invalid input")
+
+        args = [
+            genome,
+            '-treatAllAsProteinCoding', 'false',
+            '-t',
+            '-noLog',
+            '-ud', '0',
+            '-noStats'
+            ]
+        with open(tmpVcf, 'wt') as outf:
+            self.execute('ann', args, JVMmemory=JVMmemory, stdout=outf)
         
         if outVcf.endswith('.vcf.gz'):
             pysam.tabix_compress(tmpVcf, outVcf, force=True)
             pysam.tabix_index(outVcf, force=True, preset='vcf')
             os.unlink(tmpVcf)
 
-
-class DownloadAndConfigJar(tools.DownloadPackage):
-    """
-    commented out in init, remove?:
-    verifycmd=
-        'java -Xmx50M -jar %s/snpEff.jar -h -noLog &> /dev/null' % path,
-    verifycode=65280 xxx unfortunately snpEff is not returning a meaningful
-        code)
-    """
-
-    def __init__(self, url=URL, target_rel_path='snpEff',
-            destination_dir=None):
-        super(DownloadAndConfigJar, self).__init__(url=url,
-                target_rel_path=target_rel_path,
-                destination_dir=destination_dir)
 
 
 class SnpEffGenome:
