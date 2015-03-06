@@ -1,6 +1,7 @@
 '''A few miscellaneous tools. '''
 
 import itertools
+# import scipy # Commented out until installation on Travis is working
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -97,3 +98,63 @@ def batch_iterator(iterator, batch_size) :
     while item:
         yield item
         item = list(itertools.islice(it, batch_size))
+
+def fisher_exact(contingencyTable2x2) :
+    """ Return two-tailed p-value for a 2 x 2 contingency table using Fisher's
+        exact test. Input is a sequence of 2 sequences of size 2.
+    """
+    # Commented out until scipy installation is working:
+    # return scipy.stats.fisher_exact(contingencyTable)[1]
+
+    # Commented out because it is too slow (~5 sec for 6000 reads):
+    # return _temp_python_fisher_exact(contingencyTable2x2)
+
+    return 1.0
+
+def chi2_contingency(contingencyTable) :
+    """ Return two-tailed p-value for an n x m contingency table using chi-square
+        distribution. Not recommended if any of the counts or expected counts are
+        less than 5. Input is a sequence of n sequences of size m.
+    """
+    # Commented out until scipy installation is working:
+    # return scipy.stats.chi2_contingency(contingencyTable)[1]
+    
+    return 1.0
+
+def _temp_python_fisher_exact(contingencyTable2x2) :
+    from math import exp, log
+    a, b = contingencyTable2x2[0][0], contingencyTable2x2[0][1]
+    c, d = contingencyTable2x2[1][0], contingencyTable2x2[1][1]
+
+    def log_choose(n, k) :
+        k = min(k, n - k)
+        result = 0.0
+        for ii in range(1, k + 1) :
+            result += log(n - ii + 1) - log(ii)
+        return result
+    
+    def mydhyper(a, s, t, n) :
+        # Probability that intersection of subsets of size s and t of a set with
+        # n elements has size exactly a.
+        return exp(log_choose(s, a) + log_choose(n - s, t - a) - log_choose(n, t))
+
+    s = a + b
+    t = a + c
+    n = a + b + c + d
+    result = p0 = mydhyper(a, s, t, n)
+
+    # Count up from 0 and down from min(s, t) adding all smaller p-vals
+    for x in range(a) :
+        prob = mydhyper(x, s, t, n)
+        if prob <= p0 :
+            result += prob
+        else :
+            break
+    for y in range(min(s, t), a, -1) :
+        prob = mydhyper(y, s, t, n)
+        if prob <= p0 :
+            result += prob
+        else :
+            break
+    return result
+
