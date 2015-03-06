@@ -14,6 +14,7 @@
 
 import logging, tools, util.file
 import os, os.path, subprocess
+from collections import OrderedDict
 #import pysam
 
 tool_version = '0.1.19'
@@ -49,6 +50,9 @@ class SamtoolsTool(tools.Tool) :
     def view(self, args, inFile, outFile, regions=[]):
         self.execute('view', args + ['-o', outFile, inFile] + regions)
     
+    def index(self, inBam):
+        self.execute('index', [inBam])
+    
     def faidx(self, inFasta, overwrite=False):
         ''' Index reference genome for samtools '''
         outfname = inFasta + '.fai'
@@ -81,17 +85,21 @@ class SamtoolsTool(tools.Tool) :
         return header
     
     def getReadGroups(self, inBam):
-        ''' fetch all read groups from the BAM header as a dictionary of
+        ''' fetch all read groups from the BAM header as an OrderedDict of
             RG ID -> RG dict.  The RG dict is a mapping of read group keyword
             (like ID, DT, PU, LB, SM, CN, PL, etc) to value.  ID is included
             and not stripped out. ID is required for all read groups.
+            Resulting keys are in same order as @RG lines in bam file.
         '''
         rgs = [dict(x.split(':', 1) for x in row[1:])
             for row in self.getHeader(inBam)
             if len(row)>0 and row[0]=='@RG']
-        return dict((rg['ID'], rg) for rg in rgs)
+        return OrderedDict((rg['ID'], rg) for rg in rgs)
     
     def count(self, inBam, opts=[], regions=[]):
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
         #return int(pysam.view(*cmd)[0].strip())
         return int(subprocess.check_output(cmd).strip())
+
+    def mpileup(self, inBam, outPileup, opts = []):
+        self.execute('mpileup', opts + [inBam], stdout = outPileup)
