@@ -1,0 +1,50 @@
+"""
+    This is a basic framework for intrahost variant calling in viral genomes.
+"""
+
+__author__ = 'Daniel Park <dpark@broadinstitute.org>'
+
+from snakemake.utils import makedirs
+import os, os.path, time
+
+
+rule all_intrahost:
+    input:  config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz'
+
+rule isnvs_per_sample:
+    input:  config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
+    output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt'
+    resources: mem=4
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            logid="{sample}"
+    run:
+            makedirs(config["dataDir"]+'/'+config["subdirs"]["intrahost"])
+            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output}")
+
+rule isnvs_vcf:
+    input:
+            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt",
+                dataDir=config["dataDir"],
+                subdir=config["subdirs"]["intrahost"],
+                sample=read_samples_file(config["samples_assembly"])),
+            expand("{dataDir}/{subdir}/{sample}.fasta",
+                dataDir=config["dataDir"],
+                subdir=config["subdirs"]["assembly"],
+                sample=read_samples_file(config["samples_assembly"]))
+    output:
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz'
+            #config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.txt'
+    resources: mem=4
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            logid="all",
+            refGenome=config["ref_genome"],
+            samples=read_samples_file(config["samples_assembly"])
+    run:
+            shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
+                + " --samples {params.samples}"
+                + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt" for s in params.samples)
+                + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
+                )
+            # add a snpEff annotation step here that is not yet implemented
+            #shell("{config[binDir]}/intrahost.py iSNV_table {output[0]} {output[1]}")
+
