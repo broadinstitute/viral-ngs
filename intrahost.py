@@ -129,18 +129,17 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
         libCounts = [get_mpileup_allele_counts(libBam, chrom, pos, inConsFasta)
                      for libBam in libBams]
         numAlleles = len(row) - alleleCol
-        alleleLibCounts = [[0] * numAlleles for lib in libBams]
+        countsMatrix = [[0] * numAlleles for lib in libBams]
         for alleleInd in range(numAlleles) :
             allele = row[alleleCol + alleleInd].split(':')[0]
-            for libAlleleCounts, countsRow in zip(libCounts, alleleLibCounts) :
-                f, r = libAlleleCounts.get('.' if allele == consensusAllele else
-                                           allele, [0, 0])
+            for libAlleleCounts, countsRow in zip(libCounts, countsMatrix) :
+                f, r = libAlleleCounts.get(allele, [0, 0])
                 row[alleleCol + alleleInd] += ':%d:%d' % (f, r)
                 countsRow[alleleInd] += f + r
         for alleleInd in range(numAlleles) :
             contingencyTable = [
-                [         countsRow[alleleInd]         for countsRow in alleleLibCounts],
-                [sum(countsRow) - countsRow[alleleInd] for countsRow in alleleLibCounts]]
+                [         countsRow[alleleInd]         for countsRow in countsMatrix],
+                [sum(countsRow) - countsRow[alleleInd] for countsRow in countsMatrix]]
             if len(libCounts) < 2 :
                 pval = 1.0
             elif len(libCounts) == 2 :
@@ -149,7 +148,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
                 # The following is not recommended if any of the counts or
                 # expected counts are less than 5.
                 pval = scipy.stats.chi2_contingency(contingencyTable)[1]
-            row[alleleCol + alleleInd] += ':%4g' % pval
+            row[alleleCol + alleleInd] += ':%.4g' % pval
         yield row
     shutil.rmtree(tempDir)
 
@@ -188,10 +187,11 @@ def parse_alleles_string(allelesStr) :
 
 def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta) :
     """ Return {allele : [forwardCount, reverseCount], ...}
-        allele is . for consensus base,
-                  Iins for insertions where ins represents the inserted bases
-                  Dlen for deleteions where len is the length of the deletion
-                  base itself for base other than consensus
+        allele is:
+            Iins for insertions where ins represents the inserted bases
+            Dlen for deletions where len is the length of the deletion
+            base itself for non-indels
+            'i' or 'd', in which case report count for consensus.
     """
     pileupFileName = util.file.mkstempfname('.txt')
     SamtoolsTool().mpileup(inBam, pileupFileName,
@@ -201,8 +201,19 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta) :
                             '-f', inConsFasta])
     with open(pileupFileName) as pileupFile :
         words = pileupFile.readline().split('\t')
-        allelesStr = words[4]
-    alleleCounts = parse_alleles_string(allelesStr)
+    alleleCounts = parse_alleles_string(words[4])
+
+    # '.' is whatever mpileup thinks is the reference base (which might be
+    # different from vphaser's consensus base). This is the count we want to
+    # report for this base, but we also want to report this count for what
+    # vphaser calls 'i' or 'd'.
+    # This will probably be wrong in the unlikely case that there are both
+    # an indel and a snp at the same position, and vphaser's consensus base
+    # is different from mpileup's at that position.
+    refAllele = words[2]
+    alleleCounts['i'] = alleleCounts['d'] = alleleCounts[refAllele] = \
+        alleleCounts.get('.', [0, 0])
+    
     return alleleCounts
 
 def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
