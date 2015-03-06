@@ -8,11 +8,10 @@ __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
 __commands__ = []
 
 import argparse, logging, itertools, re, shutil, tempfile, os
-import scipy.stats
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import pysam
 import util.cmd, util.file, util.vcf, util.misc
-from util.misc import mean, median
+from util.misc import mean, median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
@@ -143,11 +142,11 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
             if len(libCounts) < 2 :
                 pval = 1.0
             elif len(libCounts) == 2 :
-                pval = scipy.stats.fisher_exact(contingencyTable)[1]
+                pval = fisher_exact(contingencyTable)
             else :
                 # The following is not recommended if any of the counts or
                 # expected counts are less than 5.
-                pval = scipy.stats.chi2_contingency(contingencyTable)[1]
+                pval = chi2_contingency(contingencyTable)
             row[alleleCol + alleleInd] += ':%.4g' % pval
         yield row
     shutil.rmtree(tempDir)
