@@ -34,18 +34,22 @@ class SamtoolsTool(tools.Tool) :
     def version(self) :
         return tool_version
     
-    def execute(self, command, args, stdin=None, stdout=None):
+    def execute(self, command, args, stdin=None, stdout=None, stderr=None):
         toolCmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(toolCmd))
         if stdin:
             stdin = open(stdin, 'r')
         if stdout:
             stdout = open(stdout, 'w')
-        subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout)
+        if stderr:
+            stderr = open(stderr, 'w')
+        subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout, stderr=stderr)
         if stdin:
             stdin.close()
         if stdout:
             stdout.close()
+        if stderr:
+            stderr.close()
 
     def view(self, args, inFile, outFile, regions=[]):
         self.execute('view', args + ['-o', outFile, inFile] + regions)
@@ -102,4 +106,6 @@ class SamtoolsTool(tools.Tool) :
         return int(subprocess.check_output(cmd).strip())
 
     def mpileup(self, inBam, outPileup, opts = []):
-        self.execute('mpileup', opts + [inBam], stdout = outPileup)
+        self.execute('mpileup', opts + [inBam], stdout = outPileup,
+                     stderr = '/dev/null') # Suppress info messages
+
