@@ -150,7 +150,21 @@ class TestPerSample(test.TestCaseWithTmp):
             vphaserNumThreads = 4, minReadsEach = 6, maxBias = 3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
-    
+
+    def test_vphaser_one_sample_2libs(self):
+        """
+        in.2libs.bam was created by "manually" editing in.bam and moving about
+        1/3 of the reads to ReadGroup2.
+        """
+        myInputDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(myInputDir, 'in.2libs.bam')
+        refFasta = os.path.join(myInputDir, 'ref.fasta')
+        outTab = util.file.mkstempfname('.txt')
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
+            vphaserNumThreads = 4, minReadsEach = 6, maxBias = 3)
+        expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
+        self.assertEqualContents(outTab, expected)
+
     @unittest.skip('not implemented')
     def test_single_lib(self):
         data = MockVphaserOutput()
