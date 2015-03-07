@@ -49,7 +49,9 @@ class AlleleFieldParser(object) :
         """Convert to string representation."""
         return ':'.join([self._allele] +
                         map(str, self._strandCounts) +
-                        sum((map(str, libCount) for libCount in self._libCounts), []) +
+                        sum((list(map(str, libCount))
+                             for libCount in self._libCounts),
+                            []) +
                         ['%.4g' % self._libBiasPval])
 
     def allele(self) :
