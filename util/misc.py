@@ -106,10 +106,7 @@ def fisher_exact(contingencyTable2x2) :
     # Commented out until scipy installation is working:
     # return scipy.stats.fisher_exact(contingencyTable)[1]
 
-    # Commented out because it is too slow (~5 sec for 6000 reads):
-    # return _temp_python_fisher_exact(contingencyTable2x2)
-
-    return 1.0
+    return _temp_python_fisher_exact(contingencyTable2x2)
 
 def chi2_contingency(contingencyTable) :
     """ Return two-tailed p-value for an n x m contingency table using chi-square
@@ -121,16 +118,25 @@ def chi2_contingency(contingencyTable) :
     
     return 1.0
 
+from math import exp, log, pi
+
+def log_stirling(n) :
+    """Return Stirling's approximation for log(n!) use up to n^3 term."""
+    return n * log(n) - n + 0.5 * log(2 * pi * n) +  \
+           1 / 12 / n - 1 / 360 / n ** 3
+
 def _temp_python_fisher_exact(contingencyTable2x2) :
-    from math import exp, log
     a, b = contingencyTable2x2[0][0], contingencyTable2x2[0][1]
     c, d = contingencyTable2x2[1][0], contingencyTable2x2[1][1]
 
     def log_choose(n, k) :
         k = min(k, n - k)
-        result = 0.0
-        for ii in range(1, k + 1) :
-            result += log(n - ii + 1) - log(ii)
+        if k <= 10 :
+            result = 0.0
+            for ii in range(1, k + 1) :
+                result += log(n - ii + 1) - log(ii)
+        else :
+            result = log_stirling(n) - log_stirling(k) - log_stirling(n-k)
         return result
     
     def mydhyper(a, s, t, n) :
