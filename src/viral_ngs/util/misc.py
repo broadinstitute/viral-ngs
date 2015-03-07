@@ -106,14 +106,14 @@ def fisher_exact(contingencyTable2x2) :
     # Commented out until scipy installation is working:
     # return scipy.stats.fisher_exact(contingencyTable)[1]
 
-    return _temp_python_fisher_exact(contingencyTable2x2)
+    return python_fisher_exact(contingencyTable2x2)
 
 def chi2_contingency(contingencyTable) :
     """ Return two-tailed p-value for an n x m contingency table using chi-square
         distribution. Not recommended if any of the counts or expected counts are
         less than 5. Input is a sequence of n sequences of size m.
     """
-    # Commented out until scipy installation is working:
+    # Commented out scipy version until scipy installation is working:
     # return scipy.stats.chi2_contingency(contingencyTable)[1]
     
     return 1.0
@@ -125,7 +125,10 @@ def log_stirling(n) :
     return n * log(n) - n + 0.5 * log(2 * pi * n) +  \
            1 / 12 / n - 1 / 360 / n ** 3
 
-def _temp_python_fisher_exact(contingencyTable2x2) :
+def python_fisher_exact(contingencyTable2x2) :
+    """ Return two-tailed p-value for a 2 x 2 contingency table using Fisher's
+            exact test. Input is a sequence of 2 sequences of size 2.
+    """
     a, b = contingencyTable2x2[0][0], contingencyTable2x2[0][1]
     c, d = contingencyTable2x2[1][0], contingencyTable2x2[1][1]
 
