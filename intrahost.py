@@ -48,7 +48,7 @@ class AlleleFieldParser(object) :
     def __repr__(self) :
         """Convert to string representation."""
         return ':'.join([self._allele] +
-                        map(str, self._strandCounts) +
+                        list(map(str, self._strandCounts)) +
                         sum((list(map(str, libCount))
                              for libCount in self._libCounts),
                             []) +
