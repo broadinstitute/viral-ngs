@@ -81,12 +81,13 @@ class SnpEff(tools.Tool):
             raise Exception("invalid input")
 
         args = [
-            genome,
             '-treatAllAsProteinCoding', 'false',
             '-t',
             '-noLog',
             '-ud', '0',
-            '-noStats'
+            '-noStats',
+            genome,
+            inVcf
             ]
         with open(tmpVcf, 'wt') as outf:
             self.execute('ann', args, JVMmemory=JVMmemory, stdout=outf)
