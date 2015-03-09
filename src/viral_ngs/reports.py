@@ -10,7 +10,7 @@ import pysam, Bio.SeqIO
 import util.cmd, util.file, util.misc
 import tools.samtools
 import assembly
-from util.misc import mean, median
+from util.stats import mean, median
 
 log = logging.getLogger(__name__)
 
