@@ -4,8 +4,7 @@ http://snpeff.sourceforge.net/
 '''
 
 import pysam
-import tools
-import util.vcf, util.file
+import tools, util.file
 import os, tempfile, logging, subprocess
 
 log = logging.getLogger(__name__)
@@ -15,27 +14,15 @@ URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1_core.zip'
 class SnpEff(tools.Tool):
     jvmMemDefault = '4g'
 
-    def __init__(self, install_methods=None, install_genomes=None):
+    def __init__(self, install_methods=None, extra_genomes=['KJ660346.2']):
         if not install_methods:
-            install_methods = [tools.DownloadPackage(
-                URL, 'snpEff/snpEff.jar', require_executability=False)]
-        if not install_genomes:
-            install_genomes = [SnpEffGenome('zebov.sl',
-                'Zaire ebolavirus Sierra Leone G3686.1',
-                ['KM034562.1'],
-                ['http://www.ncbi.nlm.nih.gov/nuccore/661348725'])]
-        self.install_genomes = install_genomes
+            install_methods = [DownloadAndTweakSnpEff(URL, extra_genomes)]
         self.known_dbs = set()
         self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods = install_methods)
 
     def version(self):
         return "4.1"
-
-    def install(self):
-        super(SnpEff, self).install()
-        for g in self.install_genomes:
-            g.install_genome(self)
 
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):
         if JVMmemory==None:
@@ -84,7 +71,7 @@ class SnpEff(tools.Tool):
 
     def annotate_vcf(self, inVcf, genome, outVcf, JVMmemory=None):
         """
-        TODO: docstring here
+        Annotate variants in VCF file with translation consequences using snpEff.
         """
         if outVcf.endswith('.vcf.gz'):
             tmpVcf = util.file.mkstempfname(prefix='vcf_snpEff-', suffix='.vcf')
@@ -110,27 +97,24 @@ class SnpEff(tools.Tool):
             os.unlink(tmpVcf)
 
 
+def add_genomes_to_snpeff_config_file(config_file, new_genomes):
+    genomes = set()
+    with open(config_file, 'rt') as inf:
+        for line in inf:
+            if not line.startswith('#') and line.strip():
+                i = line.find('.genome : ')
+                if i>=0:
+                    genomes.add(line[:i])
+    with open(config_file, 'at') as outf:
+        for g in new_genomes:
+            if g not in genomes:
+                outf.write('{}.genome : {}\n'.format(g, g))
 
-class SnpEffGenome:
-    def __init__(self, id, desc, chroms, data_dir, build_opts='', codonTableMap={}):
-        self.id=id
-        self.desc=desc
-        self.chroms=chroms
-        self.data_dir=data_dir
-        self.build_opts=build_opts
-        self.codonTableMap=codonTableMap
-    def has_genome(self):
-        pass
-    def install_genome(self, tool):
-        if self.has_genome():
-            return
-        pass # check that it doesn't exist already
-        #zebov.k.genome : Zaire ebolavirus Kissidougou
-        #zebov.k.reference : http://www.ncbi.nlm.nih.gov/nuccore/KJ660346.1
-        #vibrio.genome : Vibrio Cholerae
-        #   vibrio.chromosomes : NC_002505.1, NC_002506.1
-        #   vibrio.NC_002505.1.codonTable : Bacterial_and_Plant_Plastid
-        #   vibrio.NC_002506.1.codonTable : Bacterial_and_Plant_Plastid
-        
-        # cd snpEffpath
-        # java -jar snpEff.jar build -genbank -v genomeid
+class DownloadAndTweakSnpEff(tools.DownloadPackage):
+    def __init__(self, url, extra_genomes=[]):
+        self.extra_genomes = extra_genomes
+        super(DownloadAndTweakSnpEff, self).__init__(
+            url, 'snpEff/snpEff.jar', require_executability=False)
+    def post_download(self):
+        config_file = os.path.join(self.destination_dir, 'snpEff', 'snpEff.config')
+        add_genomes_to_snpeff_config_file(config_file, self.extra_genomes)
