@@ -18,6 +18,7 @@
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
+  "snpEff_genome":  "KJ660346.2",
   
   "assembly_min_length":    [15000],
   "assembly_min_unambig":      0.95,
