@@ -26,7 +26,8 @@ def setup_dummy_simple(
     for s in sample_names:
         with open(os.path.join(workdir, 'data', '00_raw', s+'.bam'), 'wt') as outf:
             pass
-    for fn in ('samples-assembly.txt', 'samples-depletion.txt', 'samples-runs.txt'):
+    for fn in ('samples-assembly.txt', 'samples-depletion.txt',
+            'samples-runs.txt', 'samples-assembly-failures.txt'):
         with open(os.path.join(workdir, fn), 'wt') as outf:
             for s in sample_names:
                 outf.write(s+'\n')
