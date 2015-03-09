@@ -58,7 +58,56 @@ def log_choose(n, k) :
         result = log_stirling(n) - log_stirling(k) - log_stirling(n-k)
     return result
 
-def fisher_exact(contingencyTable2x2) :
+def fisher_exact_2xn(contingencyTable2xn) :
+    """ Return two-tailed p-value for a 2 x n contingency table using Fisher's
+            exact test. Input is a sequence of 2 sequences of equal length.
+        For n larger than 2, this is very slow, O(S^(n-1)), where S is the
+            smaller of the two row sums. Better to use chi2_contingency unless
+            one of the row sums is small.
+    """
+    if len(contingencyTable2xn) != 2 or \
+       len(contingencyTable2xn[0]) != len(contingencyTable2xn[1])  :
+        raise NotImplementedError('Input must be 2 rows of equal length.')
+
+    n = len(contingencyTable2xn[0])
+    
+    if n == 2 :
+        return fisher_exact_2x2(contingencyTable2xn)
+
+    # There are many optimizations possible for the following code, but it would
+    #     still be O(S^(n-1)) so it wouldn't help much.
+
+    # Put row with smaller sum first. Makes the loop iterations simpler.
+    table = list(contingencyTable2xn)
+    if sum(table[0]) > sum(table[1]) :
+        table.reverse()
+
+    rowSum0 = sum(table[0])
+    rowsum1 = sum(table[1])
+    colSums = [table[0][i] + table[1][i] for i in range(n)]
+
+    logChooseNrowSum = log_choose(rowSum0 + rowsum1, rowSum0)
+
+    def prob_of_table(firstRow) :
+        return exp(sum(log_choose(cs, a) for cs, a in zip(colSums, firstRow)) -
+                   logChooseNrowSum)
+
+    p0 = prob_of_table(table[0])
+
+    result = 0
+    for firstRowM1 in itertools.product(*[range(rowSum0 + 1) for i in range(n - 1)]) :
+        lastElmt = rowSum0 - sum(firstRowM1)
+        if lastElmt < 0 :
+            continue
+        firstRow = list(firstRowM1) + [lastElmt]
+        if any(x > colSum for x, colSum in zip(firstRow, colSums)) :
+            continue
+        prob = prob_of_table(firstRow)
+        if prob <= p0 + 1e-9 : # Handle floating point round off in equality check
+            result += prob
+    return result
+
+def fisher_exact_2x2(contingencyTable2x2) :
     """ Return two-tailed p-value for a 2 x 2 contingency table using Fisher's
             exact test. Input is a sequence of 2 sequences of size 2.
     """
