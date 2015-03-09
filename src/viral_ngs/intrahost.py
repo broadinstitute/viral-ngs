@@ -11,7 +11,7 @@ import argparse, logging, itertools, re, shutil, tempfile, os
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import pysam
 import util.cmd, util.file, util.vcf, util.misc
-from util.misc import mean, median, fisher_exact, chi2_contingency
+from util.stats import mean, median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
