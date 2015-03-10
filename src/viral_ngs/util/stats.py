@@ -58,7 +58,7 @@ def log_choose(n, k) :
         result = log_stirling(n) - log_stirling(k) - log_stirling(n-k)
     return result
 
-def fisher_exact_2xn(contingencyTable2xn) :
+def fisher_exact(contingencyTable2xn) :
     """ Return two-tailed p-value for a 2 x n contingency table using Fisher's
             exact test. Input is a sequence of 2 sequences of equal length.
         For n larger than 2, this is very slow, O(S^(n-1)), where S is the
