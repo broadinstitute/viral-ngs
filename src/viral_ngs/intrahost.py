@@ -508,9 +508,11 @@ def parse_eff(eff_field):
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
     if not all(len(a)==1 for a in alleles):
-        alleles = list(a[1:] for a in alleles)
+        reflen = len(alleles[0])
+        alleles = list(a[min(reflen,len(a)):] for a in alleles)
+    alleles = alleles[1:]
     
-    effs = [eff.split('|') for eff in eff_field[4:].split(',')]
+    effs = [eff.split('|') for eff in ann_field.split(',')]
     effs = [(eff[0], dict((k,eff[i]) for k,i in
             (('eff_type',1),('eff_gene',3),('eff_protein',6),
             ('eff_codon_dna',9),('eff_aa',10),
@@ -518,15 +520,21 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
         for eff in effs
         if eff[6] not in transcript_blacklist]
     effs_dict = dict(effs)
-    if (not effs or len(effs) != len(effs_dict)
-        or len(effs) != len(alleles)
-        or not all(a in effs_dict for a in alleles)):
+    if not effs:
+        return {}
+    if len(effs) != len(effs_dict):
         raise Exception()
+    if len(effs) != len(alleles):
+        raise Exception()
+    for a in alleles:
+        if a not in effs_dict:
+           raise Exception("missing allele: " + a)
     
     out = {}
     for k in ('eff_type', 'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein'):
-        reduced = util.unique(effs_dict[a][k] for a in alleles if effs_dict[a][k] not in ('','.'))
-        for v in reduced:
+        a_out = []
+        for a in alleles:
+            v = effs_dict[a][k]
             if k=='eff_codon_dna' and v.startswith('c.'):
                 v = v[2:]
             elif k=='eff_aa' and v.startswith('p.'):
@@ -535,7 +543,11 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
                 v = v.split('/')[0]
             elif k=='eff_prot_len' and '/' in v:
                 v = v.split('/')[1]
-        out[k] = ','.join(reduced)
+            elif k=='eff_protein' and v=='GP.1':
+                v = 'Glycoprotein'
+            if v:
+                a_out.append(v)
+        out[k] = ','.join(util.misc.unique(a_out))
     return out
 
 def iSNV_table(vcf_iter):
@@ -556,7 +568,7 @@ def iSNV_table(vcf_iter):
                         for k,v in parse_eff(info['EFF']).items():
                             out[k] = v
                     if 'ANN' in info:
-                        for k,v in parse_ann(info['ANN'], alleles=row['ALT'].split(',')).items():
+                        for k,v in parse_ann(info['ANN'], alleles=out['alleles'].split(',')).items():
                             out[k] = v
                     if 'PI' in info:
                         out['Hs_snp'] = info['PI']
@@ -575,7 +587,7 @@ def parser_iSNV_table(parser=argparse.ArgumentParser()):
     return parser
 def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
-    header = ['pos','sample','patient','time','alleles','iSNV_freq','Hw',
+    header = ['chr','pos','sample','patient','time','alleles','iSNV_freq','Hw',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
     with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
