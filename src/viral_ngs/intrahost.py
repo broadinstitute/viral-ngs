@@ -173,7 +173,16 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
 #  ========== merge_to_vcf ===========================
 
-def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
+def strip_accession_version(acc):
+    ''' If this is a Genbank accession with a version number,
+        remove the version number.
+    '''
+    m = re.match(r"^(\S+)\.\d+$", acc)
+    if m:
+        acc = m.group(1)
+    return acc
+
+def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
         Assumption: consensus assemblies do not extend beyond ends of reference.261
     '''
@@ -378,7 +387,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                              for s in samples]
 
                     # prepare output row and write to file
-                    out = [ref_sequence.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
+                    out = [strip_accession_version(ref_sequence.id), pos, '.',
+                        alleles[0], ','.join(alleles[1:]),
+                        '.', '.', '.', 'GT:AF']
                     out = out + list(map(':'.join, zip(genos, freqs)))
                     outf.write('\t'.join(map(str, out))+'\n')
     
@@ -403,6 +414,15 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
         help="""a list of consensus fasta files that were used as the
             per-sample reference genomes for generating isnvs.
             These must be in the SAME ORDER as samples.""")
+    parser.add_argument("--strip_chr_version",
+        default=False, action="store_true", dest="strip_chr_version",
+        help="""If set, strip any trailing version numbers from the
+            chromosome names. If the chromosome name ends with a period
+            followed by integers, this is interepreted as a version number
+            to be removed. This is because Genbank accession numbers are
+            often used by SnpEff databases downstream, but without the
+            corresponding version number.  Default is false (leave
+            chromosome names untouched).""")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, merge_to_vcf, split_args=True)
     return parser
