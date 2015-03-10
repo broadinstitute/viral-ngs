@@ -75,7 +75,7 @@ def vphaser_one_sample(inBam, outTab, vphaserNumThreads = None,
     variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
     libraryFilteredIter = filter_library_bias(filteredIter)
-    with open(outTab, 'wt') as outf :
+    with util.file.open_or_gzopen(outTab, 'wt') as outf :
         for row in libraryFilteredIter :
             outf.write('\t'.join(row) + '\n')
 
@@ -485,39 +485,87 @@ def parser_Fws(parser=argparse.ArgumentParser()):
 __commands__.append(('Fws', parser_Fws))
 
 
-#  ===================================================
+#  =================== iSNV_table ================================
+
+def parse_eff(eff_field):
+    ''' parse the old snpEff "EFF" INFO field '''
+    out = {}
+    effs = [eff.rstrip(')').replace('(','|').split('|') for eff in eff_field.split(',')]
+    effs = [[eff[i] for i in (0,3,4,5,6,9,11)] for eff in effs]
+    effs = [eff for eff in effs if eff[5] not in ('sGP','ssGP') and int(eff[6])<2]
+    if not len(effs)==1:
+        raise Exception()
+    eff = effs[0]
+    if eff[2]:
+        aa = eff[2].split('/')[0]
+        assert aa.startswith('p.')
+        aa = aa[2:]
+        m = re.search(r"(\d+)", aa)
+        out['eff_aa_pos'] = int(m.group(1))
+    (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out['eff_prot_len'], out['eff_gene'], out['eff_protein'], rank) = eff
+    return out
+
+def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
+    ''' parse the new snpEff "ANN" INFO field '''
+    if not all(len(a)==1 for a in alleles):
+        alleles = list(a[1:] for a in alleles)
+    
+    effs = [eff.split('|') for eff in eff_field[4:].split(',')]
+    effs = [(eff[0], dict((k,eff[i]) for k,i in
+            (('eff_type',1),('eff_gene',3),('eff_protein',6),
+            ('eff_codon_dna',9),('eff_aa',10),
+            ('eff_aa_pos',13),('eff_prot_len',13))))
+        for eff in effs
+        if eff[6] not in transcript_blacklist]
+    effs_dict = dict(effs)
+    if (not effs or len(effs) != len(effs_dict)
+        or len(effs) != len(alleles)
+        or not all(a in effs_dict for a in alleles)):
+        raise Exception()
+    
+    out = {}
+    for k in ('eff_type', 'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein'):
+        reduced = util.unique(effs_dict[a][k] for a in alleles if effs_dict[a][k] not in ('','.'))
+        for v in reduced:
+            if k=='eff_codon_dna' and v.startswith('c.'):
+                v = v[2:]
+            elif k=='eff_aa' and v.startswith('p.'):
+                v = v[2:]
+            elif k=='eff_aa_pos' and '/' in v:
+                v = v.split('/')[0]
+            elif k=='eff_prot_len' and '/' in v:
+                v = v.split('/')[1]
+        out[k] = ','.join(reduced)
+    return out
 
 def iSNV_table(vcf_iter):
     for row in vcf_iter:
         info = dict(kv.split('=') for kv in row['INFO'].split(';') if kv and kv != '.')
         samples = [k for k in row.keys() if k not in set(('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))]
-        for s in samples:
-            f = row[s].split(':')[1]
-            if f and f!='.':
-                freqs = list(map(float, f.split(',')))
-                f = sum(freqs)
-                Hw = 1.0 - sum(p*p for p in [1.0-f]+freqs)
-                out = {'chr':row['CHROM'], 'pos':row['POS'],
-                    'alleles':"%s,%s" %(row['REF'],row['ALT']), 'sample':s,
-                    'iSNV_freq':f, 'Hw':Hw}
-                if 'EFF' in info:
-                    effs = [eff.rstrip(')').replace('(','|').split('|') for eff in info['EFF'].split(',')]
-                    effs = [[eff[i] for i in (0,3,4,5,6,9,11)] for eff in effs]
-                    effs = [eff for eff in effs if eff[5] not in ('sGP','ssGP') and int(eff[6])<2]
-                    assert len(effs)==1, "error at %s: %s" % (out['pos'], str(effs))
-                    eff = effs[0]
-                    if eff[2]:
-                        aa = eff[2].split('/')[0]
-                        assert aa.startswith('p.')
-                        aa = aa[2:]
-                        m = re.search(r"(\d+)", aa)
-                        out['eff_aa_pos'] = int(m.group(1))
-                    (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out['eff_prot_len'], out['eff_gene'], out['eff_protein'], rank) = eff
-                if 'PI' in info:
-                    out['Hs_snp'] = info['PI']
-                if 'FWS' in info:
-                    out['Fws_snp'] = info['FWS']
-                yield out
+        try:
+            for s in samples:
+                f = row[s].split(':')[1]
+                if f and f!='.':
+                    freqs = list(map(float, f.split(',')))
+                    f = sum(freqs)
+                    Hw = 1.0 - sum(p*p for p in [1.0-f]+freqs)
+                    out = {'chr':row['CHROM'], 'pos':row['POS'],
+                        'alleles':"%s,%s" %(row['REF'],row['ALT']), 'sample':s,
+                        'iSNV_freq':f, 'Hw':Hw}
+                    if 'EFF' in info:
+                        for k,v in parse_eff(info['EFF']).items():
+                            out[k] = v
+                    if 'ANN' in info:
+                        for k,v in parse_ann(info['ANN'], alleles=row['ALT'].split(',')).items():
+                            out[k] = v
+                    if 'PI' in info:
+                        out['Hs_snp'] = info['PI']
+                    if 'FWS' in info:
+                        out['Fws_snp'] = info['FWS']
+                    yield out
+        except:
+            log.error("VCF parsing error at {}:{}".format(row['CHROM'], row['POS']))
+            raise
 
 def parser_iSNV_table(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
