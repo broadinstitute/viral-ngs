@@ -7,74 +7,102 @@ __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
              "swohl@broadinstitute.org, irwin@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, itertools, re, os
+import argparse, logging, itertools, re, shutil, tempfile, os
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import pysam
 import util.cmd, util.file, util.vcf, util.misc
-from util.misc import mean, median
+from util.misc import mean, median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
+from tools.samtools import SamtoolsTool
 
 log = logging.getLogger(__name__)
-
 
 #  ============= class AlleleFieldParser =================
 
 class AlleleFieldParser(object) :
     """
-    Class for parsing fields in the allele columns of vphaser_one_sample output
+    Class for converting between the string and list representation
+    of the fields in the allele columns of vphaser_one_sample output
     (corresponding to the SNP_or_LP_Profile columns in the V-Phaser 2 output).
     """
-    def __init__(self, field) :
-        """Input is the string stored in one of the allele columns."""
-        words = field.split(':')
-        self.allele = words[0]
-        self.libCounts = [[int(words[1]), int(words[2])]]
-        self.libBiasPval = 1.0
-    
-    def get_strand_counts(self) :
-        "Return [# forward reads (all libs), # reverse reads (all libs)]"
-        return map(sum, zip(*self.libCounts))
-    
-    def get_allele(self) :
+    def __init__(self, field = None,
+                 allele = None, fcount = None, rcount = None, libBiasPval = None,
+                 libCounts = None) :
+        """ Input is either the string stored in one of the allele columns.
+            or set field values.
+        """
+        if field == None :
+            self._allele = allele
+            self._strandCounts = [fcount, rcount]
+            self._libBiasPval = libBiasPval
+            self._libCounts = libCounts # libCounts is a list of 2-element lists
+        else :
+            words = field.split(':')
+            self._allele = words[0]
+            self._strandCounts = [int(words[1]), int(words[2])]
+            self._libCounts = [[int(words[ii]), int(words[ii + 1])]
+                              for ii in range(3, len(words) - 1, 2)]
+            self._libBiasPval = float(words[-1])
+   
+    def __repr__(self) :
+        """Convert to string representation."""
+        return ':'.join([self._allele] +
+                        list(map(str, self._strandCounts)) +
+                        sum((list(map(str, libCount))
+                             for libCount in self._libCounts),
+                            []) +
+                        ['%.4g' % self._libBiasPval])
+
+    def allele(self) :
         """ Return allele:
                 A, C, G, or T for SNVs,
                 Dn with n > 0 for deletions,
                 Ibases where bases is a string of two or more bases for inserts
         """
-        return self.allele
+        return self._allele
     
-    def get_lib_counts(self) :
+    def total(self) :
+        return sum(self._strandCounts)
+
+    def strand_counts(self) :
+        "Return [# forward reads (all libs), # reverse reads (all libs)]"
+        return self._strandCounts
+    
+    def allele_and_strand_counts(self) :
+        return [self.allele()] + self.strand_counts()
+
+    def lib_counts(self) :
         """Yield [# forward reads, # reverse reads] for each library, in order
             of read groups in BAM file.
         """
-        for counts in self.libCounts :
+        for counts in self._libCounts :
             yield counts
 
-    def get_lib_bias_pval(self) :
+    def lib_bias_pval(self) :
         "Return a p-value on whether there is a library bias for this allele."
-        return self.libBiasPval
-
+        return self._libBiasPval
 
 #  ========== vphaser_one_sample =================
 
 defaultMinReads = 5
 defaultMaxBias = 10
 
-def vphaser_one_sample(inBam, outTab, vphaserNumThreads = None,
+def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
                        minReadsEach = None, maxBias = None) :
     ''' Input: a single BAM file, representing reads from one sample, mapped to
             its own consensus assembly. It may contain multiple read groups and 
             libraries.
         Output: a tab-separated file with no header containing filtered
-            V Phaser-2 output variants with additional columns:
-                sequence/chrom name, # libraries, chi-sq for library discordance
+            V Phaser-2 output variants with additional column for
+            sequence/chrom name, and library counts and p-values appended to
+            the counts for each allele.
     '''
     if minReadsEach != None and minReadsEach <= 0:
         raise Exception('minReadsEach must be at least 1.')
     variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
-    libraryFilteredIter = filter_library_bias(filteredIter)
+    libraryFilteredIter = compute_library_bias(filteredIter, inBam, inConsFasta)
     with open(outTab, 'wt') as outf :
         for row in libraryFilteredIter :
             outf.write('\t'.join(row) + '\n')
@@ -83,43 +111,149 @@ def filter_strand_bias(isnvs, minReadsEach = None, maxBias = None) :
     ''' Take an iterator of V-Phaser output (plus chromosome name prepended)
         and perform hard filtering for strand bias
     '''
+    alleleCol = 7 # First column of output with allele counts
     if minReadsEach == None :
         minReadsEach = defaultMinReads
     if maxBias == None :
         maxBias = defaultMaxBias
     for row in isnvs:
-        front = row[:7]
-        acounts = [x.split(':') for x in row[7:]]
-        acounts = list([(a,f,r) for a,f,r in acounts
-            if int(f)>=minReadsEach and int(r)>=minReadsEach
-            and maxBias >= (float(f)/float(r)) >= 1.0/maxBias])
-        if len(acounts) > 1:
-            acounts = list(reversed(sorted((int(f)+int(r),a,f,r) for a,f,r in acounts)))
-            mac = sum(n for n,a,f,r in acounts[1:])
-            tot = sum(n for n,a,f,r in acounts)
-            back = [':'.join([a,f,r]) for n,a,f,r in acounts]
-            front[2] = acounts[1][1]
-            front[3] = acounts[0][1]
-            front[6] = '%.6g' % (100.0*mac/tot)
-            yield front + back
+        front = row[:alleleCol]
+        for fieldInd in range(len(row) - 1, alleleCol - 1, -1) :
+            f, r = AlleleFieldParser(row[fieldInd]).strand_counts()
+            if not (int(f)>=minReadsEach and int(r)>=minReadsEach
+                    and maxBias >= (float(f)/float(r)) >= 1.0/maxBias) :
+                del row[fieldInd]
+        if len(row) > alleleCol + 1:
+            row[alleleCol:] = sorted(row[alleleCol:],
+                key = lambda field : AlleleFieldParser(field).total(),
+                reverse = True)
+            mac = sum(AlleleFieldParser(field).total() for field in row[alleleCol + 1:])
+            tot = sum(AlleleFieldParser(field).total() for field in row[alleleCol:])
+            row[2] = AlleleFieldParser(row[alleleCol + 1]).allele()
+            row[3] = AlleleFieldParser(row[alleleCol]).allele()
+            row[6] = '%.6g' % (100.0*mac/tot)
+            yield row
 
-def filter_library_bias(isnvs) :
-    ''' Filter variants based on library bias. For ones that pass the filter
-            add fields with the number of libraries and a bias p-value.
-        NOT YET IMPLEMENTED!
+def compute_library_bias(isnvs, inBam, inConsFasta) :
+    ''' For each variant, compute read counts in each library and p-value for
+          library bias; append them to string for each variant.
+        Format is allele:totalF:totalR:1stLibFCount:1stLibRCount:2ndLibFCount:...:p-val.
+        Library counts are in same order as in bam header.
+        Note: Total was computed by vphaser, library counts by samtools mpileup,
+          so total might not be sum of library counts.
     '''
+    alleleCol = 7 # First column of output with allele counts
+    samtoolsTool = SamtoolsTool()
+    readGroups = samtoolsTool.getReadGroups(inBam)
+    tempDir = tempfile.mkdtemp()
+    libBams = [os.path.join(tempDir, groupID + '.bam') for groupID in readGroups]
+    for groupID, libBam in zip(readGroups, libBams) :
+        samtoolsTool.view(['-r', groupID, '-b'], inBam, libBam)
+        samtoolsTool.index(libBam)
     for row in isnvs :
-        strNlibs = ''   # To be filled in in future
-        strLibBias = '' # To be filled in in future
-        row = row[:7] + [strNlibs, strLibBias] + row[7:]
+        consensusAllele = row[3]
+        pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
+        chrom = row[0]
+        libCounts = [get_mpileup_allele_counts(libBam, chrom, pos, inConsFasta)
+                     for libBam in libBams]
+        numAlleles = len(row) - alleleCol
+        countsMatrix = [[0] * numAlleles for lib in libBams]
+        libCountsByAllele = []
+        for alleleInd in range(numAlleles) :
+            allele = row[alleleCol + alleleInd].split(':')[0]
+            libCountsByAllele.append([])
+            for libAlleleCounts, countsRow in zip(libCounts, countsMatrix) :
+                f, r = libAlleleCounts.get(allele, [0, 0])
+                libCountsByAllele[-1].append([f, r])
+                countsRow[alleleInd] += f + r
+        for alleleInd in range(numAlleles) :
+            contingencyTable = [
+                [         countsRow[alleleInd]         for countsRow in countsMatrix],
+                [sum(countsRow) - countsRow[alleleInd] for countsRow in countsMatrix]]
+            if len(libCounts) < 2 :
+                pval = 1.0
+            elif len(libCounts) == 2 :
+                pval = fisher_exact(contingencyTable)
+            else :
+                # The following is not recommended if any of the counts or
+                # expected counts are less than 5.
+                pval = chi2_contingency(contingencyTable)
+            row[alleleCol + alleleInd] = str(AlleleFieldParser(None,
+                *(row[alleleCol + alleleInd].split(':') +
+                  [pval, libCountsByAllele[alleleInd]])))
         yield row
+    shutil.rmtree(tempDir)
+
+def parse_alleles_string(allelesStr) :
+    # Return {allele : [forwardCount, reverseCount]}
+    # For reference, allele is '.' rather than real allele
+    alleleCounts = {} # allele : [forwardCount, reverseCount]
+    pos = -1
+    digits = re.compile('[0-9]+')
+    while pos < len(allelesStr) - 1 :
+        pos += 1
+        c = allelesStr[pos]
+        if c in '.,' :
+            allele = '.'
+            isRev = c == ','
+        elif c in '<>$*' : # Reference skip, end of read, placeholder
+            continue       # Not interested in these
+        elif c == '^' : # Start of read
+            pos += 1    # Skip quality character
+            continue
+        elif c in 'ACGTNacgtn' :
+            allele = c.upper()
+            isRev = c == c.lower()
+        elif c in '+-' : # e.g., +3aaa
+            mat = digits.match(allelesStr, pos + 1)
+            indelLen = int(allelesStr[mat.start() : mat.end()])
+            indelStr = allelesStr[mat.end() : mat.end() + indelLen]
+            allele = 'I' + indelStr.upper() if c == '+' else 'D' + str(indelLen)
+            isRev = indelStr == indelStr.lower()
+            pos += mat.end() - mat.start() + indelLen
+        else :
+            raise Exception('Unknown allele type %s' % c)
+        alleleCounts.setdefault(allele, [0, 0])
+        alleleCounts[allele][isRev] += 1
+    return alleleCounts
+
+def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta) :
+    """ Return {allele : [forwardCount, reverseCount], ...}
+        allele is:
+            Iins for insertions where ins represents the inserted bases
+            Dlen for deletions where len is the length of the deletion
+            base itself for non-indels
+            'i' or 'd', in which case report count for consensus.
+    """
+    pileupFileName = util.file.mkstempfname('.txt')
+    SamtoolsTool().mpileup(inBam, pileupFileName,
+                           ['-A',
+                            '-r', '%s:%d-%d' % (chrom, pos, pos),
+                            '-B', '-d', '50000', '-L', '50000', '-Q', '0',
+                            '-f', inConsFasta])
+    with open(pileupFileName) as pileupFile :
+        words = pileupFile.readline().split('\t')
+    alleleCounts = parse_alleles_string(words[4])
+
+    # '.' is whatever mpileup thinks is the reference base (which might be
+    # different from vphaser's consensus base). This is the count we want to
+    # report for this base, but we also want to report this count for what
+    # vphaser calls 'i' or 'd'.
+    # This will probably be wrong in the unlikely case that there are both
+    # an indel and a snp at the same position, and vphaser's consensus base
+    # is different from mpileup's at that position.
+    refAllele = words[2]
+    alleleCounts['i'] = alleleCounts['d'] = alleleCounts[refAllele] = \
+        alleleCounts.get('.', [0, 0])
+    
+    return alleleCounts
 
 def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("inBam",
-        help = "Input Bam file representing reads from one sample, mapped to "
-               "its own consensus assembly. It may contain multiple read "
-               "groups and libraries.")
-    parser.add_argument("outTab", help = "tab-separated headerless output file.")
+        help = "Input Bam file.")
+    parser.add_argument("inConsFasta",
+        help = "Consensus assembly fasta.")
+    parser.add_argument("outTab", help = "Tab-separated headerless output file.")
     parser.add_argument("--vphaserNumThreads", type = int, default = None,
         help="Number of threads in call to V-Phaser 2.")
     parser.add_argument("--minReadsEach", type = int, default = defaultMinReads,
@@ -133,6 +267,26 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     return parser
 __commands__.append(('vphaser_one_sample', parser_vphaser_one_sample))
 
+#  ========== vphaser =================
+
+def parser_vphaser(parser = argparse.ArgumentParser()) :
+    parser.add_argument("inBam",
+        help = "Input Bam file.")
+    parser.add_argument("outTab", help = "Tab-separated headerless output file.")
+    parser.add_argument("--numThreads", type = int, default = None,
+        help="Number of threads in call to V-Phaser 2.")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, vphaser_main, split_args = True)
+    return parser
+def vphaser_main(inBam, outTab, numThreads = None) :
+    """ Run V-Phaser 2 on the input file without any additional filtering.
+        Combine the non-header lines of the CHROM.var.raw.txt files it produces, 
+            adding CHROM as the first field on each line.
+    """
+    with open(outTab, 'wt') as outf :
+        for row in Vphaser2Tool().iterate(inBam, numThreads) :
+            outf.write('\t'.join(row) + '\n')
+__commands__.append(('vphaser', parser_vphaser))
 
 #  ========== tabfile_values_rename =================
 
@@ -175,7 +329,7 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
 def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
-        Assumption: consensus assemblies do not extend beyond ends of reference.261
+        Assumption: consensus assemblies do not extend beyond ends of reference.
     '''
     
     # setup
@@ -220,8 +374,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                             row = {'sample':s, 'CHROM':ref_sequence.id,
                                 's_chrom':s_chrom, 's_pos':int(row[1]),
                                 's_alt':row[2], 's_ref': row[3],
-                                'n_libs':row[7], 'lib_bias': row[8],
-                                'alleles':list(x.split(':') for x in row[9:] if x)}
+                                'alleles':list(AlleleFieldParser(x).allele_and_strand_counts()
+                                               for x in row[7:] if x)}
                             # make a sorted allele list
                             row['allele_counts'] = list(sorted(
                                 [(a,int(f)+int(r)) for a,f,r in row['alleles']],
