@@ -86,6 +86,7 @@ class SnpEff(tools.Tool):
             '-noLog',
             '-ud', '0',
             '-noStats',
+            '-noShiftHgvs',
             genome,
             inVcf
             ]
