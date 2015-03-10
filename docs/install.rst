@@ -11,6 +11,8 @@ following APT packages should be installed on top of the vanilla setup::
 
   python3 python3-pip python3-nose
   python-software-properties
+
+..
   zlib zlib1g zlib1g-dev
   libblas3gf libblas-dev liblapack3gf liblapack-dev
   libatlas-dev libatlas3-base libatlas3gf-base libatlas-base-dev
@@ -18,6 +20,7 @@ following APT packages should be installed on top of the vanilla setup::
   oracle-java8-installer
   libncurses5-dev
 
+..
 The Fortran libraries (including blas and atlas) are required to install
 numpy via pip from source. numpy is not actually required if you have
 Python 3.4, if you want to avoid this system dependency.
@@ -29,7 +32,7 @@ Python dependencies
 -------------------
 
 The **command line tools** require Python >= 2.7 or >= 3.4. Required packages
-(like pysam and Biopython) are listed in requirements.txt and can be
+(pysam and Biopython) are listed in requirements.txt and can be
 installed the usual pip way::
 
   pip install -r requirements.txt
