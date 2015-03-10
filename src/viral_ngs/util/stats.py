@@ -82,98 +82,109 @@ def chi2_contingency(contingencyTable, correction = True) :
     pval = 1 - pchisq(chisq, (m - 1) * (n - 1))
     return pval
 
-def fisher_exact(contingencyTable2xn) :
-    """ contingencyTable2xn is a sequence of 2 sequences, each of length n.
-        Return the two-tailed p-value for a 2 x n contingency table against the
+def fisher_exact(contingencyTable) :
+    """ contingencyTable is a sequence of m sequences, each of length n.
+        Currently not implemented for more than 2 non-zero rows and columns.
+        Return the two-tailed p-value for a m x n contingency table against the
             null hypothesis that the row and column criteria are independent,
             using Fisher's exact test.
         For n larger than 2, this is very slow, O(S^(n-1)), where S is the
             smaller of the two row sums. Better to use chi2_contingency unless
             one of the row sums is small.
     """
-    if len(contingencyTable2xn) != 2 or \
-       len(contingencyTable2xn[0]) != len(contingencyTable2xn[1])  :
-        raise NotImplementedError('Input must be 2 rows of equal length.')
+    if len(contingencyTable) == 0 :
+        return 1.0
+    if len(set(map(len, contingencyTable))) != 1 :
+        raise ValueError('Not all rows have the same length')
+    if any(x != int(x) for row in contingencyTable for x in row) :
+        raise ValueError('Some table entry is not an integer')
 
-    n = len(contingencyTable2xn[0])
-    
-    if n == 2 :
-        return fisher_exact_2x2(contingencyTable2xn)
+    # Eliminate rows and columns with 0 sum
+    colSums = [sum(row[col] for row in contingencyTable)
+               for col in range(len(contingencyTable[0]))]
+    table = [[x for x, colSum in zip(row, colSums) if colSum != 0]
+             for row in contingencyTable if sum(row) != 0]
+
+    if len(table) < 2 or len(table[0]) < 2 :
+        return 1.0
+
+    if len(table) > len(table[0]) :
+        # Transpose
+        table = zip(*table)
+
+    m = len(table) # Must be 2 for now
+    n = len(table[0])
+
+    # Put row with smaller sum first. Makes the loop iterations simpler.
+    table.sort(key = sum)
+    # Put column with largest sum last. Makes loop quick rejection faster.
+    table = zip(*table) # Transpose
+    table.sort(key = sum)
+    table = zip(*table) # Transpose back
 
     # There are many optimizations possible for the following code, but it would
     #     still be O(S^(n-1)) so it would still be too slow for anything
     #     sizeable, and it's usable as it for small things.
 
-    # Put row with smaller sum first. Makes the loop iterations simpler.
-    table = list(contingencyTable2xn)
-    if sum(table[0]) > sum(table[1]) :
-        table.reverse()
+    rowSums = [sum(row) for row in table]
+    colSums = [sum(row[col] for row in table) for col in range(n)]
 
-    rowSum0 = sum(table[0])
-    rowsum1 = sum(table[1])
-    colSums = [table[0][i] + table[1][i] for i in range(n)]
+    # From here on in, need m = 2
+    if m != 2 :
+        raise NotImplementedError('More than 2 non-zero rows and columns.')
 
-    logChooseNrowSum = log_choose(rowSum0 + rowsum1, rowSum0)
+
+    logChooseNrowSum = log_choose(sum(rowSums), rowSums[0])
 
     def prob_of_table(firstRow) :
         return exp(sum(log_choose(cs, a) for cs, a in zip(colSums, firstRow)) -
                    logChooseNrowSum)
 
     p0 = prob_of_table(table[0])
+    for firstRowM2 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1)
+                                         for i in range(n - 2)]) :
+        """
+        firstRowM2 accounts for all but one of the degrees of freedom. For
+        the final degree of freedom, the probability function is unimodal, so
+        the region with prob > p0 that we don't want to include must be a 
+        consecutive set of values. To  minimize number of evaluations, start at 
+        each end and stop when we enter this region.
+        This actually doesn't cut out much, because most probs are less than p0;
+        in the future, it would be helpful to first search to find the first
+        value on each side that has prob high enough to be relevant and only
+        look at ones beyond it; in that case, excluding the high probs as
+        we are doing here would help a lot more. Other possible optimizations
+        include excluding earlier degrees of freedom with close-to-0 sum,
+        calculating sum for final degree of freedom using interpolation or 
+        monte carlo method (using chi-sq distribution to pull most mass to
+        the area of reasonably high probability).
+        """
+        firstRow = list(firstRowM2) + [0, 0]
+        firstRowM2sum = sum(firstRow[:-2])
+        
+        def add_probs_le_p0(lastDOF_iter) :
+            locResult = 0
+            stopped = False
+            for lastDOF in lastDOF_iter :
+                firstRow[-2] = lastDOF
+                lastElmt = rowSums[0] - firstRowM2sum - lastDOF
+                if lastElmt < 0 or lastElmt > colSums[-1] :
+                    continue
+                firstRow[-1] = lastElmt
+                prob = prob_of_table(firstRow)
+                if prob <= p0 + 1e-9 : # (1e-9 handles floating point round off)
+                    locResult += prob
+                else :
+                    stopped = True
+                    break # Reached region we want to exclude
+            return locResult, stopped
 
-    result = 0
-    for firstRowM1 in itertools.product(*[range(rowSum0 + 1) for i in range(n - 1)]) :
-        lastElmt = rowSum0 - sum(firstRowM1)
-        if lastElmt < 0 :
-            continue
-        firstRow = list(firstRowM1) + [lastElmt]
-        if any(x > colSum for x, colSum in zip(firstRow, colSums)) :
-            continue
-        prob = prob_of_table(firstRow)
-        if prob <= p0 + 1e-9 : # Handle floating point round off in equality check
-            result += prob
-    return result
-
-def fisher_exact_2x2(contingencyTable2x2) :
-    """ Return two-tailed p-value for a 2 x 2 contingency table using Fisher's
-            exact test. Input is a sequence of 2 sequences of size 2.
-    """
-    # Python code below is accurate to around 1e-11 and is much faster than
-    # the scipy version. However, if for some reason we want to use the scipy
-    # version instead, here's the call:
-    # scipy equivalent: scipy.stats.fisher_exact(contingencyTable2x2)[1]
-    
-    a, b = contingencyTable2x2[0][0], contingencyTable2x2[0][1]
-    c, d = contingencyTable2x2[1][0], contingencyTable2x2[1][1]
-
-    s = a + b
-    t = a + c
-    n = a + b + c + d
-    logChooseNT = log_choose(n, t)
-
-    def mydhyper(a, s, t, n) :
-        # Probability that intersection of subsets of size s and t of a set with
-        # n elements has size exactly a.
-        if max(0, s + t - n) <= a <= min(s, t) :
-            return exp(log_choose(s, a) + log_choose(n - s, t - a) - logChooseNT)
-        else :
-            return 0
-
-    result = p0 = mydhyper(a, s, t, n)
-
-    # Count up from 0 and down from min(s, t) adding all smaller p-vals
-    for x in range(a) :
-        prob = mydhyper(x, s, t, n)
-        if prob <= p0 :
-            result += prob
-        else :
-            break
-    for y in range(min(s, t), a, -1) :
-        prob = mydhyper(y, s, t, n)
-        if prob <= p0 :
-            result += prob
-        else :
-            break
+        maxVal = min(rowSums[0], colSums[n - 2])
+        # Go up from 0 until prob > p0
+        result, stopped = add_probs_le_p0(range(maxVal + 1))
+        if stopped :
+            # Now go down from the other end.
+            result += add_probs_le_p0(range(maxVal, -1, -1))[0]
 
     return result
 
