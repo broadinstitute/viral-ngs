@@ -4,15 +4,19 @@ __author__ = "irwin@broadinstitute.org"
 
 import unittest, os, pickle
 import util.file
-from tools.vphaser2 import Vphaser2Tool
+from intrahost import vphaser_main
 from test import TestCaseWithTmp
 
 class TestVPhaser2(TestCaseWithTmp) :
     def test_vphaser2(self) :
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
-        recs = list(Vphaser2Tool().iterate(inBam, numThreads = 8))
-        expectedRecs = pickle.load(open(os.path.join(myInputDir, 'expected.cp'), 'rb'))
+        outTab = util.file.mkstempfname('.txt')
+        vphaser_main(inBam, outTab, numThreads = 8)
+        with open(outTab, 'rt') as outf :
+            recs = map(lambda s : s.strip('\n').split('\t'), outf.readlines())
+        with open(os.path.join(myInputDir, 'expected.cp'), 'rb') as expf :
+            expectedRecs = pickle.load(expf)
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
         self.assertEqual([rec[:4] + rec[5:] for rec in recs],
