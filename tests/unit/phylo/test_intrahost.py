@@ -5,6 +5,7 @@ __author__ = "PLACEHOLDER"
 import intrahost, util.file, util.vcf, test
 import os, os.path, shutil, tempfile, itertools, argparse, unittest
 import Bio, Bio.SeqRecord, Bio.Seq
+from intrahost import AlleleFieldParser
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
@@ -26,7 +27,7 @@ class MockVphaserOutput:
     def __init__(self):
         self.isnvs = {}
         self.chroms = []
-    def add_snp(self, chrom, pos, acounts):
+    def add_snp(self, chrom, pos, acounts, libinfo=None):
         ''' Add an iSNP at this chrom,pos. acounts is a list of triples:
             (allele, fwd count, rev count).
         '''
@@ -34,14 +35,23 @@ class MockVphaserOutput:
         for a,f,r in acounts:
             assert a in ('A','C','G','T')
             assert f>=0 and r>=0 and f+r>0
-        acounts = reversed(sorted((f+r,a,f,r) for a,f,r in acounts))
-        acounts = list((a,f,r) for n,a,f,r in acounts)
+
+        # Add libinfo to acounts
+        if libinfo == None :
+            acounts = [[a, f, r, 1, [[f, r]]] for a,f,r in acounts]
+        else :
+            # ...
+            raise Exception
+
+        acounts = reversed(sorted((acount[1]+acount[2],) + tuple(acount)
+                                   for acount in acounts))
+        acounts = [tuple(acount[1:]) for acount in acounts]
         if chrom not in self.chroms:
             self.chroms.append(chrom)
         self.isnvs.setdefault(chrom, {})
         self.isnvs[chrom].setdefault(pos, {})
         self.isnvs[chrom][pos]['snp'] = acounts
-    def add_indel(self, chrom, pos, acounts):
+    def add_indel(self, chrom, pos, acounts, libinfo=None):
         ''' Add an iSNP at this chrom,pos. acounts is a list of triples:
             (allele, fwd count, rev count). allele is simply a small
             sequence with no "I" or "D" prefixing it (we'll add the I/D).
@@ -51,8 +61,17 @@ class MockVphaserOutput:
             assert type(a) == str
             assert f>=0 and r>=0 and f+r>0
         assert '' in set(a for a,f,r in acounts)
-        acounts = reversed(sorted((f+r,a,f,r) for a,f,r in acounts))
-        acounts = list([a,f,r] for n,a,f,r in acounts)
+        
+        # Add libinfo to acounts
+        if libinfo == None :
+            acounts = [[a, f, r, 1, [[f, r]]] for a,f,r in acounts]
+        else :
+            # ...
+            raise Exception
+        
+        acounts = reversed(sorted((acount[1]+acount[2],) + tuple(acount)
+                                  for acount in acounts))
+        acounts = [list(acount[1:]) for acount in acounts]
         
         # vphaser funniness here
         if acounts[0][0] == '':
@@ -79,11 +98,12 @@ class MockVphaserOutput:
             for p in sorted(self.isnvs[c].keys()):
                 for model in self.isnvs[c][p].keys():
                     acounts = self.isnvs[c][p][model]
-                    mac = sum(f+r for a,f,r in acounts[1:])
-                    tot = sum(f+r for a,f,r in acounts)
+                    mac = sum(acount[1] + acount[2] for acount in acounts[1:])
+                    tot = sum(acount[1] + acount[2] for acount in acounts)
                     yield [c, str(p), acounts[1][0], acounts[0][0],
                         '0.5', model, str(float(mac)/tot*100.0)] \
-                        + ['{}:{}:{}'.format(a,f,r) for a,f,r in acounts]
+                        + [str(AlleleFieldParser(None, *acount))
+                           for acount in acounts]
 
 
 class TestPerSample(test.TestCaseWithTmp):
@@ -99,7 +119,8 @@ class TestPerSample(test.TestCaseWithTmp):
         data.add_snp('c1', 100, [('A',10,20), ('T',5,2), ('C',30,500), ('G',60,40)])
         data.add_snp('c2', 100, [('C',10,2), ('T',2,8)])
         output = list(intrahost.filter_strand_bias(data))
-        expected = ['c1', '100', 'A', 'G', None, 'snp', 23.076923076923078, 'G:60:40', 'A:10:20']
+        expected = ['c1', '100', 'A', 'G', None, 'snp', 23.076923076923078,
+                    'G:60:40:60:40:1', 'A:10:20:10:20:1']
         self.assertEqual(len(output), 1)
         self.assertEqual(output[0][:4], expected[:4])
         self.assertEqual(output[0][5], expected[5])
@@ -107,14 +128,43 @@ class TestPerSample(test.TestCaseWithTmp):
         self.assertEqual(output[0][7:], expected[7:])
     
     def test_vphaser_one_sample(self):
+        """
+        Files here were created as follows:
+        - in.bam was copied from input directory for TestVPhaser2; see notes
+          there on how it was created.
+        - ref.fasta was created by making two identical chromosomes, chr1
+          and chr2, with the sequence from West Nile virus isolate
+          WNV-1/US/BID-V7821/2011. That genome is a guess for the reference
+          of the V-Phaser 2 test file because BLAST matches the reads to
+          West Nile virus and that isolate has the size reported in the bam file.
+          Note that ref.fasta is not exactly the consensus of the reads in in.bam;
+          for example, pos 660 is C in ref.fasta, but more reads have T there
+          than C in in.bam. So we are actually testint the case that
+          V-Phaser 2 consensus != our consensus.
+        """
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
+        refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, outTab, vphaserNumThreads = 4,
-                       minReadsEach = 6, maxBias = 3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
+            vphaserNumThreads = 4, minReadsEach = 6, maxBias = 3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
-    
+
+    def test_vphaser_one_sample_2libs(self):
+        """
+        in.2libs.bam was created by "manually" editing in.bam and moving about
+        1/3 of the reads to ReadGroup2.
+        """
+        myInputDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(myInputDir, 'in.2libs.bam')
+        refFasta = os.path.join(myInputDir, 'ref.fasta')
+        outTab = util.file.mkstempfname('.txt')
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
+            vphaserNumThreads = 4, minReadsEach = 6, maxBias = 3)
+        expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
+        self.assertEqualContents(outTab, expected)
+
     @unittest.skip('not implemented')
     def test_single_lib(self):
         data = MockVphaserOutput()
@@ -146,25 +196,25 @@ class VcfMergeRunner:
         if sample_name not in self.sample_order:
             self.sample_order.append(sample_name)
         self.isnvs.setdefault(sample_name, MockVphaserOutput())
-    def add_snp(self, sample, chrom, pos, acounts):
+    def add_snp(self, sample, chrom, pos, acounts, libinfo=None):
         assert sample in self.genomeFastas
         assert chrom in self.genomes[sample]
         assert 1 <= pos <= len(self.genomes[sample][chrom])
         assert self.genomes[sample][chrom][pos - 1] in [a for a,f,r in acounts]
-        self.isnvs[sample].add_snp(chrom, pos, acounts)
-    def add_indel(self, sample, chrom, pos, acounts):
+        self.isnvs[sample].add_snp(chrom, pos, acounts, libinfo)
+    def add_indel(self, sample, chrom, pos, acounts, libinfo=None):
         assert sample in self.genomeFastas
         assert sample in self.genomeFastas
         assert chrom in self.genomes[sample]
         assert 1 <= pos <= len(self.genomes[sample][chrom])
         if acounts[0][0] != '' : # deletion
             assert self.genomes[sample][chrom][pos - 1 :].startswith(acounts[0][0])
-        self.isnvs[sample].add_indel(chrom, pos, acounts)
+        self.isnvs[sample].add_indel(chrom, pos, acounts, libinfo)
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
-                outf.write('\t'.join(map(str, row[:7] + ['', ''] + row[7:])) + '\n')
+                outf.write('\t'.join(map(str, row)) + '\n')
         return fn
     def run_and_get_vcf_rows(self):
         outVcf = util.file.mkstempfname('.vcf.gz')
