@@ -211,6 +211,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
         outf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outf.write('##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n')
         for c, clen in ref_chrlens:
+            if strip_chr_version:
+                c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
         outf.write('##reference=file://%s\n' % refFasta)
         header = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'] + samples
@@ -387,7 +389,10 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                              for s in samples]
 
                     # prepare output row and write to file
-                    out = [strip_accession_version(ref_sequence.id), pos, '.',
+                    c = ref_sequence.id
+                    if strip_chr_version:
+                        c = strip_accession_version(c)
+                    out = [c, pos, '.',
                         alleles[0], ','.join(alleles[1:]),
                         '.', '.', '.', 'GT:AF']
                     out = out + list(map(':'.join, zip(genos, freqs)))
