@@ -170,13 +170,14 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
             contingencyTable = [
                 [         countsRow[alleleInd]         for countsRow in countsMatrix],
                 [sum(countsRow) - countsRow[alleleInd] for countsRow in countsMatrix]]
-            if len(libCounts) < 2 :
+            rowSums = map(sum, contingencyTable)
+            dofs = len(libCounts) - 1
+            if dofs < 1 :
                 pval = 1.0
-            elif len(libCounts) == 2 :
+            elif min(rowSums) ** dofs / dofs < 10000 :
+                # At this cutoff, fisher_exact should take <~ 0.1 sec
                 pval = fisher_exact(contingencyTable)
             else :
-                # The following is not recommended if any of the counts or
-                # expected counts are less than 5.
                 pval = chi2_contingency(contingencyTable)
             row[alleleCol + alleleInd] = str(AlleleFieldParser(None,
                 *(row[alleleCol + alleleInd].split(':') +
