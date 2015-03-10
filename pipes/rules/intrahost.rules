@@ -13,7 +13,7 @@ rule all_intrahost:
 
 rule isnvs_per_sample:
     input:  config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt'
+    output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
@@ -23,7 +23,7 @@ rule isnvs_per_sample:
 
 rule isnvs_vcf:
     input:
-            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt",
+            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt.gz",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["intrahost"],
                 sample=read_samples_file(config["samples_assembly"])),
