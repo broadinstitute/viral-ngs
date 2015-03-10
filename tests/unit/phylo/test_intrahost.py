@@ -28,9 +28,8 @@ class MockVphaserOutput:
         self.isnvs = {}
         self.chroms = []
     def add_snp(self, chrom, pos, acounts, libinfo=None):
-        ''' Add an iSNP at this chrom,pos. acounts is a list of triples:
-            (allele, fwd count, rev count).
-        '''
+        # Add an iSNP at this chrom,pos. acounts is a list of triples:
+        # (allele, fwd count, rev count).
         assert type(pos) == int and pos>0 and len(acounts)>1
         for a,f,r in acounts:
             assert a in ('A','C','G','T')
@@ -128,20 +127,18 @@ class TestPerSample(test.TestCaseWithTmp):
         self.assertEqual(output[0][7:], expected[7:])
     
     def test_vphaser_one_sample(self):
-        """
-        Files here were created as follows:
-        - in.bam was copied from input directory for TestVPhaser2; see notes
-          there on how it was created.
-        - ref.fasta was created by making two identical chromosomes, chr1
-          and chr2, with the sequence from West Nile virus isolate
-          WNV-1/US/BID-V7821/2011. That genome is a guess for the reference
-          of the V-Phaser 2 test file because BLAST matches the reads to
-          West Nile virus and that isolate has the size reported in the bam file.
-          Note that ref.fasta is not exactly the consensus of the reads in in.bam;
-          for example, pos 660 is C in ref.fasta, but more reads have T there
-          than C in in.bam. So we are actually testint the case that
-          V-Phaser 2 consensus != our consensus.
-        """
+        # Files here were created as follows:
+        # - in.bam was copied from input directory for TestVPhaser2; see notes
+        #   there on how it was created.
+        # - ref.fasta was created by making two identical chromosomes, chr1
+        #   and chr2, with the sequence from West Nile virus isolate
+        #   WNV-1/US/BID-V7821/2011. That genome is a guess for the reference
+        #   of the V-Phaser 2 test file because BLAST matches the reads to
+        #   West Nile virus and that isolate has the size reported in the bam file.
+        #   Note that ref.fasta is not exactly the consensus of the reads in in.bam;
+        #   for example, pos 660 is C in ref.fasta, but more reads have T there
+        #   than C in in.bam. So we are actually testing the case that
+        #   V-Phaser 2 consensus != our consensus.
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
@@ -152,10 +149,8 @@ class TestPerSample(test.TestCaseWithTmp):
         self.assertEqualContents(outTab, expected)
 
     def test_vphaser_one_sample_2libs(self):
-        """
-        in.2libs.bam was created by "manually" editing in.bam and moving about
-        1/3 of the reads to ReadGroup2.
-        """
+        # in.2libs.bam was created by "manually" editing in.bam and moving about
+        # 1/3 of the reads to ReadGroup2.
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.2libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
