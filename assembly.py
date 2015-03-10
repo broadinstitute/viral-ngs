@@ -331,6 +331,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
+    tmpFasta = util.file.mkstempfname('.fasta')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
@@ -338,13 +339,15 @@ def refine_assembly(inFasta, inBam, outFasta,
     if chr_names:
         name_opts = ['--name'] + chr_names
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
-        tmpVcf, outFasta, '--trim_ends', '--min_coverage', str(min_coverage),
+        tmpVcf, tmpFasta, '--trim_ends', '--min_coverage', str(min_coverage),
         ] + name_opts))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
         if outVcf.endswith('.gz'):
             shutil.copyfile(tmpVcf+'.tbi', outVcf+'.tbi')
     os.unlink(tmpVcf)
+    shutil.copyfile(tmpFasta, outFasta)
+    os.unlink(tmpFasta)
     
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
