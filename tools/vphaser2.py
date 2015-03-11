@@ -47,7 +47,13 @@ class Vphaser2Tool(tools.Tool) :
           SNP_or_LP_Profile1, SNP_or_LP_Profile2, ...]
         """
         outdir = tempfile.mkdtemp('vphaser2')
-        self.execute(inBam, outdir, numThreads)
+        try:
+            self.execute(inBam, outdir, numThreads)
+        finally:
+            # these V-Phaser droppings cause problems if they persist
+            bti = inBam + '.bti'
+            if os.path.isfile(bti):
+                os.unlink(bti)
         chromNames = pysam.Samfile(inBam).references
         for chromName in chromNames :
             outfile = os.path.join(outdir, chromName + '.var.raw.txt')
