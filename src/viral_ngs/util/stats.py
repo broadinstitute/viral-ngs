@@ -110,7 +110,7 @@ def fisher_exact(contingencyTable) :
 
     if len(table) > len(table[0]) :
         # Transpose
-        table = zip(*table)
+        table = list(zip(*table))
 
     m = len(table) # Must be 2 for now
     n = len(table[0])
@@ -118,9 +118,9 @@ def fisher_exact(contingencyTable) :
     # Put row with smaller sum first. Makes the loop iterations simpler.
     table.sort(key = sum)
     # Put column with largest sum last. Makes loop quick rejection faster.
-    table = zip(*table) # Transpose
+    table = list(zip(*table)) # Transpose
     table.sort(key = sum)
-    table = zip(*table) # Transpose back
+    table = list(zip(*table)) # Transpose back
 
     # There are many optimizations possible for the following code, but it would
     #     still be O(S^(n-1)) so it would still be too slow for anything
