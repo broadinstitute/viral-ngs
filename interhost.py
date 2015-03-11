@@ -199,7 +199,7 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("genome", help="genome name")
     parser.add_argument("outVcf", help="Output VCF file")
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
-    util.cmd.attach_main(parser, tools.snpeff.SnpEff().execute, split_args=True)
+    util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
 __commands__.append(('snpEff', parser_snpEff))
 
