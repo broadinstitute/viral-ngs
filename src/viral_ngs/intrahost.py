@@ -98,8 +98,8 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
             sequence/chrom name, and library counts and p-values appended to
             the counts for each allele.
     '''
-    if minReadsEach != None and minReadsEach <= 0:
-        raise Exception('minReadsEach must be at least 1.')
+    if minReadsEach != None and minReadsEach < 0:
+        raise Exception('minReadsEach must be at least 0.')
     variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
     libraryFilteredIter = compute_library_bias(filteredIter, inBam, inConsFasta)
@@ -120,8 +120,9 @@ def filter_strand_bias(isnvs, minReadsEach = None, maxBias = None) :
         front = row[:alleleCol]
         for fieldInd in range(len(row) - 1, alleleCol - 1, -1) :
             f, r = AlleleFieldParser(row[fieldInd]).strand_counts()
-            if not (int(f)>=minReadsEach and int(r)>=minReadsEach
-                    and maxBias >= (float(f)/float(r)) >= 1.0/maxBias) :
+            if  (int(f)<minReadsEach or int(r)<minReadsEach
+                    or (minReadsEach > 0 and not
+                        (maxBias >= (float(f)/float(r)) >= 1.0/maxBias))) :
                 del row[fieldInd]
         if len(row) > alleleCol + 1:
             row[alleleCol:] = sorted(row[alleleCol:],
@@ -258,11 +259,10 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("--vphaserNumThreads", type = int, default = None,
         help="Number of threads in call to V-Phaser 2.")
     parser.add_argument("--minReadsEach", type = int, default = defaultMinReads,
-        help = """Minimum number of reads on each strand (default: %(default)s).
-                Must be at least 1.""")
+        help = "Minimum number of reads on each strand (default: %(default)s).")
     parser.add_argument("--maxBias", type = int, default = defaultMaxBias,
         help = """Maximum allowable ratio of number of reads on the two strands
-                (default: %(default)s).""")
+                (default: %(default)s). Ignored if minReadsEach = 0.""")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
     return parser
