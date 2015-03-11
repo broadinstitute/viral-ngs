@@ -141,6 +141,7 @@ def fisher_exact(contingencyTable) :
                    logChooseNrowSum)
 
     p0 = prob_of_table(table[0])
+    result = 0
     for firstRowM2 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1)
                                          for i in range(n - 2)]) :
         """
@@ -181,7 +182,8 @@ def fisher_exact(contingencyTable) :
 
         maxVal = min(rowSums[0], colSums[n - 2])
         # Go up from 0 until prob > p0
-        result, stopped = add_probs_le_p0(range(maxVal + 1))
+        locResult, stopped = add_probs_le_p0(range(maxVal + 1))
+        result += locResult
         if stopped :
             # Now go down from the other end.
             result += add_probs_le_p0(range(maxVal, -1, -1))[0]
