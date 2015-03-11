@@ -46,7 +46,7 @@ rule isnvs_vcf:
     run:
             shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
-                + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt" for s in params.samples)
+                + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
                 + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} --strip_chr_version")
