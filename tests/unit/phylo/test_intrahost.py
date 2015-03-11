@@ -160,6 +160,23 @@ class TestPerSample(test.TestCaseWithTmp):
         expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
+    def test_vphaser_one_sample_3libs_and_chi2(self):
+        # In addition to testing that we can handle 3 libraries, this is testing
+        #    the chi2_contingency approximation to fisher_exact. The 4th, 5th,
+        #    and 6th rows have large enough minor allele count that their
+        #    p-values are calculated using the chi2 approximation. The other
+        #    rows are testing fisher_exact for the 2 x 3 case.
+        # in.3libs.bam was created by "manually" editing in.2libs.bam and moving
+        # about 1/2 of the reads in ReadGroup2 to ReadGroup3.
+        myInputDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(myInputDir, 'in.3libs.bam')
+        refFasta = os.path.join(myInputDir, 'ref.fasta')
+        outTab = util.file.mkstempfname('.txt')
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
+            vphaserNumThreads = 4, minReadsEach = 6, maxBias = 3)
+        expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
+        self.assertEqualContents(outTab, expected)
+
     @unittest.skip('not implemented')
     def test_single_lib(self):
         data = MockVphaserOutput()
