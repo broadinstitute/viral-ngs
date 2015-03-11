@@ -234,6 +234,8 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta) :
                             '-f', inConsFasta])
     with open(pileupFileName) as pileupFile :
         words = pileupFile.readline().split('\t')
+    if not words:
+        return {}
     alleleCounts = parse_alleles_string(words[4])
 
     # '.' is whatever mpileup thinks is the reference base (which might be
