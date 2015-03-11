@@ -144,7 +144,8 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     '''
     alleleCol = 7 # First column of output with allele counts
     samtoolsTool = SamtoolsTool()
-    readGroups = samtoolsTool.getReadGroups(inBam)
+    readGroups = list(r for r in samtoolsTool.getReadGroups(inBam)
+        if samtoolsTool.count(inBam, ['-r', r])>0)
     tempDir = tempfile.mkdtemp()
     libBams = [os.path.join(tempDir, groupID + '.bam') for groupID in readGroups]
     for groupID, libBam in zip(readGroups, libBams) :
