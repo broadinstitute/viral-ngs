@@ -2,23 +2,23 @@
   "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
+  "samples_assembly_failures":  "samples-assembly-failures.txt",
   "samples_per_run":   "samples-runs.txt",
 
-  "seq_center": "BI",
-
-  "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/bmtagger",
+  "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",
   "bmTaggerDbs_remove": [
     "hg19",
     "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
     "metagenomics_contaminants_v3"],
 
-  "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/blast",
+  "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/depletion_databases",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
-  "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/contaminants/contaminants.fasta",
+  "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
+  "snpEff_genome":  "KJ660346.2",
   
   "assembly_min_length":    [15000],
   "assembly_min_unambig":      0.95,
@@ -28,6 +28,8 @@
     "ebov":         ""
   },
   
+  "seq_center": "BI",
+
   "env_vars": {
     "GATK_PATH":       "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af",
     "NOVOALIGN_PATH":  "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"

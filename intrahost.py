@@ -103,7 +103,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
     variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
     libraryFilteredIter = compute_library_bias(filteredIter, inBam, inConsFasta)
-    with open(outTab, 'wt') as outf :
+    with util.file.open_or_gzopen(outTab, 'wt') as outf :
         for row in libraryFilteredIter :
             outf.write('\t'.join(row) + '\n')
 
@@ -328,7 +328,16 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
 #  ========== merge_to_vcf ===========================
 
-def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
+def strip_accession_version(acc):
+    ''' If this is a Genbank accession with a version number,
+        remove the version number.
+    '''
+    m = re.match(r"^(\S+)\.\d+$", acc)
+    if m:
+        acc = m.group(1)
+    return acc
+
+def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
         Assumption: consensus assemblies do not extend beyond ends of reference.
     '''
@@ -357,6 +366,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
         outf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outf.write('##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n')
         for c, clen in ref_chrlens:
+            if strip_chr_version:
+                c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
         outf.write('##reference=file://%s\n' % refFasta)
         header = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'] + samples
@@ -533,7 +544,12 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies):
                              for s in samples]
 
                     # prepare output row and write to file
-                    out = [ref_sequence.id, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF']
+                    c = ref_sequence.id
+                    if strip_chr_version:
+                        c = strip_accession_version(c)
+                    out = [c, pos, '.',
+                        alleles[0], ','.join(alleles[1:]),
+                        '.', '.', '.', 'GT:AF']
                     out = out + list(map(':'.join, zip(genos, freqs)))
                     outf.write('\t'.join(map(str, out))+'\n')
     
@@ -558,6 +574,15 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
         help="""a list of consensus fasta files that were used as the
             per-sample reference genomes for generating isnvs.
             These must be in the SAME ORDER as samples.""")
+    parser.add_argument("--strip_chr_version",
+        default=False, action="store_true", dest="strip_chr_version",
+        help="""If set, strip any trailing version numbers from the
+            chromosome names. If the chromosome name ends with a period
+            followed by integers, this is interepreted as a version number
+            to be removed. This is because Genbank accession numbers are
+            often used by SnpEff databases downstream, but without the
+            corresponding version number.  Default is false (leave
+            chromosome names untouched).""")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, merge_to_vcf, split_args=True)
     return parser
@@ -615,39 +640,99 @@ def parser_Fws(parser=argparse.ArgumentParser()):
 __commands__.append(('Fws', parser_Fws))
 
 
-#  ===================================================
+#  =================== iSNV_table ================================
+
+def parse_eff(eff_field):
+    ''' parse the old snpEff "EFF" INFO field '''
+    out = {}
+    effs = [eff.rstrip(')').replace('(','|').split('|') for eff in eff_field.split(',')]
+    effs = [[eff[i] for i in (0,3,4,5,6,9,11)] for eff in effs]
+    effs = [eff for eff in effs if eff[5] not in ('sGP','ssGP') and int(eff[6])<2]
+    if not len(effs)==1:
+        raise Exception()
+    eff = effs[0]
+    if eff[2]:
+        aa = eff[2].split('/')[0]
+        assert aa.startswith('p.')
+        aa = aa[2:]
+        m = re.search(r"(\d+)", aa)
+        out['eff_aa_pos'] = int(m.group(1))
+    (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out['eff_prot_len'], out['eff_gene'], out['eff_protein'], rank) = eff
+    return out
+
+def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
+    ''' parse the new snpEff "ANN" INFO field '''
+    if not all(len(a)==1 for a in alleles):
+        reflen = len(alleles[0])
+        alleles = list(a[min(reflen,len(a)):] for a in alleles)
+    alleles = alleles[1:]
+    
+    effs = [eff.split('|') for eff in ann_field.split(',')]
+    effs = [(eff[0], dict((k,eff[i]) for k,i in
+            (('eff_type',1),('eff_gene',3),('eff_protein',6),
+            ('eff_codon_dna',9),('eff_aa',10),
+            ('eff_aa_pos',13),('eff_prot_len',13))))
+        for eff in effs
+        if eff[6] not in transcript_blacklist]
+    effs_dict = dict(effs)
+    if not effs:
+        return {}
+    if len(effs) != len(effs_dict):
+        raise Exception()
+    if len(effs) != len(alleles):
+        raise Exception()
+    for a in alleles:
+        if a not in effs_dict:
+           raise Exception("missing allele: " + a)
+    
+    out = {}
+    for k in ('eff_type', 'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein'):
+        a_out = []
+        for a in alleles:
+            v = effs_dict[a][k]
+            if k=='eff_codon_dna' and v.startswith('c.'):
+                v = v[2:]
+            elif k=='eff_aa' and v.startswith('p.'):
+                v = v[2:]
+            elif k=='eff_aa_pos' and '/' in v:
+                v = v.split('/')[0]
+            elif k=='eff_prot_len' and '/' in v:
+                v = v.split('/')[1]
+            elif k=='eff_protein' and v=='GP.1':
+                v = 'Glycoprotein'
+            if v:
+                a_out.append(v)
+        out[k] = ','.join(util.misc.unique(a_out))
+    return out
 
 def iSNV_table(vcf_iter):
     for row in vcf_iter:
         info = dict(kv.split('=') for kv in row['INFO'].split(';') if kv and kv != '.')
         samples = [k for k in row.keys() if k not in set(('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))]
-        for s in samples:
-            f = row[s].split(':')[1]
-            if f and f!='.':
-                freqs = list(map(float, f.split(',')))
-                f = sum(freqs)
-                Hw = 1.0 - sum(p*p for p in [1.0-f]+freqs)
-                out = {'chr':row['CHROM'], 'pos':row['POS'],
-                    'alleles':"%s,%s" %(row['REF'],row['ALT']), 'sample':s,
-                    'iSNV_freq':f, 'Hw':Hw}
-                if 'EFF' in info:
-                    effs = [eff.rstrip(')').replace('(','|').split('|') for eff in info['EFF'].split(',')]
-                    effs = [[eff[i] for i in (0,3,4,5,6,9,11)] for eff in effs]
-                    effs = [eff for eff in effs if eff[5] not in ('sGP','ssGP') and int(eff[6])<2]
-                    assert len(effs)==1, "error at %s: %s" % (out['pos'], str(effs))
-                    eff = effs[0]
-                    if eff[2]:
-                        aa = eff[2].split('/')[0]
-                        assert aa.startswith('p.')
-                        aa = aa[2:]
-                        m = re.search(r"(\d+)", aa)
-                        out['eff_aa_pos'] = int(m.group(1))
-                    (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out['eff_prot_len'], out['eff_gene'], out['eff_protein'], rank) = eff
-                if 'PI' in info:
-                    out['Hs_snp'] = info['PI']
-                if 'FWS' in info:
-                    out['Fws_snp'] = info['FWS']
-                yield out
+        try:
+            for s in samples:
+                f = row[s].split(':')[1]
+                if f and f!='.':
+                    freqs = list(map(float, f.split(',')))
+                    f = sum(freqs)
+                    Hw = 1.0 - sum(p*p for p in [1.0-f]+freqs)
+                    out = {'chr':row['CHROM'], 'pos':row['POS'],
+                        'alleles':"%s,%s" %(row['REF'],row['ALT']), 'sample':s,
+                        'iSNV_freq':f, 'Hw':Hw}
+                    if 'EFF' in info:
+                        for k,v in parse_eff(info['EFF']).items():
+                            out[k] = v
+                    if 'ANN' in info:
+                        for k,v in parse_ann(info['ANN'], alleles=out['alleles'].split(',')).items():
+                            out[k] = v
+                    if 'PI' in info:
+                        out['Hs_snp'] = info['PI']
+                    if 'FWS' in info:
+                        out['Fws_snp'] = info['FWS']
+                    yield out
+        except:
+            log.error("VCF parsing error at {}:{}".format(row['CHROM'], row['POS']))
+            raise
 
 def parser_iSNV_table(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
@@ -657,7 +742,7 @@ def parser_iSNV_table(parser=argparse.ArgumentParser()):
     return parser
 def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
-    header = ['pos','sample','patient','time','alleles','iSNV_freq','Hw',
+    header = ['chr','pos','sample','patient','time','alleles','iSNV_freq','Hw',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
     with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
