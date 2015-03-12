@@ -48,7 +48,8 @@ rule isnvs_vcf:
                 + " --samples {params.samples}"
                 + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
                 + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
+                + " --strip_chr_version"
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} --strip_chr_version")
+            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
 
