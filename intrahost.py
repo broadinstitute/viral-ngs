@@ -666,10 +666,26 @@ def parse_eff(eff_field):
 
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
+    
     if not all(len(a)==1 for a in alleles):
-        reflen = len(alleles[0])
-        alleles = list(a[min(reflen,len(a)):] for a in alleles)
-    alleles = alleles[1:]
+        ''' This is incredibly annoying: instead of talking about indel alleles using
+            the VCF allele definitions or in the VCF order, the ANN field recomputes the
+            part of the allele that looks distinct from the reference and talks about
+            that instead. Note that this means some alleles (particularly deletions)
+            will collapse and become non-unique.
+            Oh, and py2 and py3 have different names for the same function, just for fun.
+        '''
+        ziplong = itertools.zip_longest if 'zip_longest' in dir(itertools) else itertools.izip_longest
+        outalleles = []
+        for a in alleles[1:]:
+            out_a = []
+            for ref, alt in ziplong(alleles[0], a, fillvalue=''):
+                if ref!=alt or out_a:
+                    out_a.append(alt)
+            outalleles.append(''.join(out_a))
+        alleles = outalleles
+    else:
+        alleles = alleles[1:]
     
     effs = [eff.split('|') for eff in ann_field.split(',')]
     effs = [(eff[0], dict((k,eff[i]) for k,i in
@@ -683,7 +699,7 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
         return {}
     if len(effs) != len(effs_dict):
         raise Exception()
-    if len(effs) != len(alleles):
+    if len(effs) != len(set(alleles)):
         raise Exception()
     for a in alleles:
         if a not in effs_dict:
