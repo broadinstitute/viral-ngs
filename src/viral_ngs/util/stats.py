@@ -2,7 +2,6 @@
 from __future__ import division # Division of integers with / should never round!
 from math import exp, log, pi, sqrt
 import itertools
-# import scipy # Commented out until installation on Travis is working
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
@@ -232,8 +231,8 @@ def gamma(s) :
         return sqrt(pi) * factorial(int(2 * s - 1)) / factorial(int(s - 0.5)) /\
                    4 ** (s - 0.5)
     else :
-        # stirling is more accurate for larger s, so call it for larger s and
-        # use gamma recursion to get back to lower value.
+        # stirling is more accurate for larger values, so call it for a
+        # larger value of s and use gamma recursion to get back to lower value.
         return exp(log_stirling(s + 9)) / product(s + i for i in range(10))
 
 def gammainc(s, x) :
@@ -241,17 +240,45 @@ def gammainc(s, x) :
             integral from 0 to x of t ** (s-1) exp(-t) dt divided by gamma(s),
         i.e., the fraction of gamma that you get if you integrate only until
             x instead of all the way to infinity.
-        Implemented only for s >= 0.
+        Implemented only for s > 0.
     """
     # scipy equivalent: scipy.special.gammainc(s,x)
     if s <= 0 :
         raise ValueError('%s is not positive' % s)
     if x < 0 :
         raise ValueError('%s < 0' % x)
-    # Need better stopping condition than k == 100, and for large x
-    #     should instead compute as 1 - upper incomplete gamma...
-    return sum((-1) ** k / factorial(k) * x ** (s + k) / (s + k)
-               for k in range(100)) / gamma(s)
+    
+    # Handle integers analytically
+    if s == int(s) :
+        term = 1
+        total = 1
+        for k in range(1, int(s)) :
+            term *= x /  k
+            total += term
+        return 1 - exp(-x) * total
+
+    # Otherwise use infinite series:
+    # gammainc(s,x) = x ** s * exp(-x) / s / gamma(s) *
+    #                 sum_k=0_to_infinity(x ** k / product_j=1_to_k(s + j))
+    absTol = 1e-9
+    factor = x ** s * exp(-x) / s / gamma(s)
+    term = 1
+    total = 1
+    for k in itertools.count(1) :
+        term *= x / (s + k)
+        if s + k + 1 > x :
+            # If this will be the last term, we will sum a geometric progression
+            # that approximates all remaining terms.
+            ratio = x / (s + k + 1)
+            potentialLastTerm = term / (1 - ratio)
+            # Estimate error (1st two terms of difference between real series
+            # and geometric progression are 0 so gain a factor of ratio ** 2)
+            err = factor * potentialLastTerm * ratio ** 2
+            if err < absTol :
+                total += potentialLastTerm
+                break
+        total += term
+    return factor * total
 
 def pchisq(x, k) :
     "Cumulative distribution function of chi squared with k degrees of freedom."
