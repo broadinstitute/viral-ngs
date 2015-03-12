@@ -369,6 +369,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
         outf.write('##fileformat=VCFv4.1\n')
         outf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outf.write('##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n')
+        outf.write('##FORMAT=<ID=NL,Number=R,Type=Integer,Description="Number of libraries observed per allele">\n')
+        outf.write('##FORMAT=<ID=LB,Number=R,Type=Float,Description="Library bias observed per allele (Fishers Exact P-value)">\n')
         for c, clen in ref_chrlens:
             if strip_chr_version:
                 c = strip_accession_version(c)
@@ -387,11 +389,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     for row in util.file.read_tabfile(samp_to_isnv[s]):
                         s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id)
                         if row[0] == s_chrom:
+                            allele_fields = list(AlleleFieldParser(x) for x in row[7:] if x)
                             row = {'sample':s, 'CHROM':ref_sequence.id,
                                 's_chrom':s_chrom, 's_pos':int(row[1]),
                                 's_alt':row[2], 's_ref': row[3],
-                                'alleles':list(AlleleFieldParser(x).allele_and_strand_counts()
-                                               for x in row[7:] if x)}
+                                'alleles':list(x.allele_and_strand_counts() for x in allele_fields),
+                                'n_libs':list(
+                                    sum(1 for f,r in x.lib_counts() if f+r>0)
+                                    for x in allele_fields),
+                                'lib_bias':list(x.lib_bias_pval() for x in allele_fields),
+                            }
                             # make a sorted allele list
                             row['allele_counts'] = list(sorted(
                                 [(a,int(f)+int(r)) for a,f,r in row['alleles']],
@@ -466,6 +473,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     
                     # define genotypes and fractions
                     iSNVs = {} # {sample : {allele : fraction, ...}, ...}
+                    iSNVs_n_libs = {} # {sample : {allele : n libraries > 0, ...}, ...}
+                    iSNVs_lib_bias = {} # {sample : {allele : pval, ...}, ...}
                     for s in samples:
                         
                         # get all rows for this sample and merge allele counts together
@@ -474,7 +483,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         if 'i' in acounts and 'd' in acounts:
                             # This sample has both an insertion line and a deletion line at the same spot!
                             # To keep the reference allele from be counted twice, once as an i and once
-                            # as a d, averge the counts and get rid of one of them.
+                            # as a d, average the counts and get rid of one of them.
                             acounts['i'] = int(round((acounts['i'] + acounts['d'])/2.0,0))
                             del acounts['d']
                         
@@ -483,6 +492,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                             consAllele = consAlleles[s]
                             tot_n = sum(acounts.values())
                             iSNVs[s] = {} # {allele : fraction, ...}
+                            iSNVs_n_libs[s] = {}
+                            iSNVs_lib_bias[s] = {}
                             for a,n in acounts.items():
                                 f = float(n)/tot_n
                                 if a.startswith('I'):
