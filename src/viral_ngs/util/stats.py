@@ -82,14 +82,16 @@ def chi2_contingency(contingencyTable, correction = True) :
     return pval
 
 def fisher_exact(contingencyTable) :
-    """ contingencyTable is a sequence of m sequences, each of length n.
-        Currently not implemented for more than 2 non-zero rows and columns.
-        Return the two-tailed p-value for a m x n contingency table against the
-            null hypothesis that the row and column criteria are independent,
-            using Fisher's exact test.
+    """ Fisher exact test for the 2 x n case.
+        contingencyTable is a sequence of 2 length-n sequences of integers.
+        Return the two-tailed p-value against the null hypothesis that the row
+            and column criteria are independent, using Fisher's exact test.
         For n larger than 2, this is very slow, O(S^(n-1)), where S is the
             smaller of the two row sums. Better to use chi2_contingency unless
             one of the row sums is small.
+        Handles m x n contingencyTable with m > 2 if it can be reduced to the
+            2 x n case by transposing or by removing rows that are all 0s. Also
+            handles degenerate cases of 0 or 1 row by returning 1.0.
     """
     if len(contingencyTable) == 0 :
         return 1.0
@@ -108,11 +110,12 @@ def fisher_exact(contingencyTable) :
         return 1.0
 
     if len(table) > len(table[0]) :
-        # Transpose
-        table = list(zip(*table))
+        table = list(zip(*table)) # Transpose
 
-    m = len(table) # Must be 2 for now
+    m = len(table)
     n = len(table[0])
+    if m != 2 :
+        raise NotImplementedError('More than 2 non-zero rows and columns.')
 
     # Put row with smaller sum first. Makes the loop iterations simpler.
     table.sort(key = sum)
@@ -128,11 +131,6 @@ def fisher_exact(contingencyTable) :
     rowSums = [sum(row) for row in table]
     colSums = [sum(row[col] for row in table) for col in range(n)]
 
-    # From here on in, need m = 2
-    if m != 2 :
-        raise NotImplementedError('More than 2 non-zero rows and columns.')
-
-
     logChooseNrowSum = log_choose(sum(rowSums), rowSums[0])
 
     def prob_of_table(firstRow) :
@@ -141,51 +139,14 @@ def fisher_exact(contingencyTable) :
 
     p0 = prob_of_table(table[0])
     result = 0
-    for firstRowM2 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1)
-                                         for i in range(n - 2)]) :
-        """
-        firstRowM2 accounts for all but one of the degrees of freedom. For
-        the final degree of freedom, the probability function is unimodal, so
-        the region with prob > p0 that we don't want to include must be a 
-        consecutive set of values. To  minimize number of evaluations, start at 
-        each end and stop when we enter this region.
-        This actually doesn't cut out much, because most probs are less than p0;
-        in the future, it would be helpful to first search to find the first
-        value on each side that has prob high enough to be relevant and only
-        look at ones beyond it; in that case, excluding the high probs as
-        we are doing here would help a lot more. Other possible optimizations
-        include excluding earlier degrees of freedom with close-to-0 sum,
-        calculating sum for final degree of freedom using interpolation or 
-        monte carlo method (using chi-sq distribution to pull most mass to
-        the area of reasonably high probability).
-        """
-        firstRow = list(firstRowM2) + [0, 0]
-        firstRowM2sum = sum(firstRow[:-2])
-        
-        def add_probs_le_p0(lastDOF_iter) :
-            locResult = 0
-            stopped = False
-            for lastDOF in lastDOF_iter :
-                firstRow[-2] = lastDOF
-                lastElmt = rowSums[0] - firstRowM2sum - lastDOF
-                if lastElmt < 0 or lastElmt > colSums[-1] :
-                    continue
-                firstRow[-1] = lastElmt
-                prob = prob_of_table(firstRow)
-                if prob <= p0 + 1e-9 : # (1e-9 handles floating point round off)
-                    locResult += prob
-                else :
-                    stopped = True
-                    break # Reached region we want to exclude
-            return locResult, stopped
-
-        maxVal = min(rowSums[0], colSums[n - 2])
-        # Go up from 0 until prob > p0
-        locResult, stopped = add_probs_le_p0(range(maxVal + 1))
-        result += locResult
-        if stopped :
-            # Now go down from the other end.
-            result += add_probs_le_p0(range(maxVal, -1, -1))[0]
+    for firstRowM1 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1)
+                                         for i in range(n - 1)]) :
+        lastElmt = rowSums[0] - sum(firstRowM1)
+        if lastElmt < 0 or lastElmt > colSums[-1] :
+            continue
+        prob = prob_of_table(firstRowM1 + (lastElmt,))
+        if prob <= p0 + 1e-9 : # (1e-9 handles floating point round off)
+            result += prob
 
     return result
 
@@ -260,6 +221,8 @@ def gammainc(s, x) :
     # Otherwise use infinite series:
     # gammainc(s,x) = x ** s * exp(-x) / s / gamma(s) *
     #                 sum_k=0_to_infinity(x ** k / product_j=1_to_k(s + j))
+    # which follows from the recursion formula:
+    # gammainc(s, x) = gammainc(s - 1, x) - x ** (s - 1) * exp(-x) / gamma(s)
     absTol = 1e-9
     factor = x ** s * exp(-x) / s / gamma(s)
     term = 1
