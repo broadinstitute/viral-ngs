@@ -204,6 +204,7 @@ def gammainc(s, x) :
         Implemented only for s > 0.
     """
     # scipy equivalent: scipy.special.gammainc(s,x)
+    
     if s <= 0 :
         raise ValueError('%s is not positive' % s)
     if x < 0 :
@@ -223,25 +224,15 @@ def gammainc(s, x) :
     #                 sum_k=0_to_infinity(x ** k / product_j=1_to_k(s + j))
     # which follows from the recursion formula:
     # gammainc(s, x) = gammainc(s - 1, x) - x ** (s - 1) * exp(-x) / gamma(s)
-    absTol = 1e-9
-    factor = x ** s * exp(-x) / s / gamma(s)
+    relTol = 1e-15
     term = 1
     total = 1
     for k in itertools.count(1) :
         term *= x / (s + k)
-        if s + k + 1 > x :
-            # If this will be the last term, we will sum a geometric progression
-            # that approximates all remaining terms.
-            ratio = x / (s + k + 1)
-            potentialLastTerm = term / (1 - ratio)
-            # Estimate error (1st two terms of difference between real series
-            # and geometric progression are 0 so gain a factor of ratio ** 2)
-            err = factor * potentialLastTerm * ratio ** 2
-            if err < absTol :
-                total += potentialLastTerm
-                break
         total += term
-    return factor * total
+        if term <= relTol * total :
+            break
+    return min(1.0, total * x ** s * exp(-x) / s / gamma(s))
 
 def pchisq(x, k) :
     "Cumulative distribution function of chi squared with k degrees of freedom."
