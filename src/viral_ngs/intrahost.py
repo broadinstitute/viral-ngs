@@ -145,7 +145,8 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     '''
     alleleCol = 7 # First column of output with allele counts
     samtoolsTool = SamtoolsTool()
-    readGroups = samtoolsTool.getReadGroups(inBam)
+    readGroups = list(r for r in samtoolsTool.getReadGroups(inBam)
+        if samtoolsTool.count(inBam, ['-r', r])>0)
     tempDir = tempfile.mkdtemp()
     libBams = [os.path.join(tempDir, groupID + '.bam') for groupID in readGroups]
     for groupID, libBam in zip(readGroups, libBams) :
@@ -235,6 +236,9 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta) :
                             '-f', inConsFasta])
     with open(pileupFileName) as pileupFile :
         words = pileupFile.readline().split('\t')
+    if len(words)<5:
+        # empty output files means no reads pile up on this position
+        return {}
     alleleCounts = parse_alleles_string(words[4])
 
     # '.' is whatever mpileup thinks is the reference base (which might be
