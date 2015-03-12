@@ -678,6 +678,12 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
         ziplong = itertools.zip_longest if 'zip_longest' in dir(itertools) else itertools.izip_longest
         outalleles = []
         for a in alleles[1:]:
+            if len(a)==len(alleles[0]):
+                out_a = []
+                for ref, alt in reversed(list(zip(alleles[0], a))):
+                    if ref!=alt or out_a:
+                        out_a.append(alt)
+                a = ''.join(reversed(out_a))
             out_a = []
             for ref, alt in ziplong(alleles[0], a, fillvalue=''):
                 if ref!=alt or out_a:
@@ -698,12 +704,13 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     if not effs:
         return {}
     if len(effs) != len(effs_dict):
-        raise Exception()
-    if len(effs) != len(set(alleles)):
-        raise Exception()
+        raise Exception("ANN field has non-unique alleles")
     for a in alleles:
         if a not in effs_dict:
-           raise Exception("missing allele: " + a)
+           raise Exception("ANN field is missing ALT allele: " + a)
+    if len(effs) != len(set(alleles)):
+        raise Exception("ANN field has %s entries, but ALT field has %s unique alleles: %s" % (
+            len(effs), len(set(alleles)), ','.join(alleles)))
     
     out = {}
     for k in ('eff_type', 'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein'):

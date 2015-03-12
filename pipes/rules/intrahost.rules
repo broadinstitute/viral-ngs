@@ -35,8 +35,8 @@ rule isnvs_vcf:
                 sample=read_samples_file(config["samples_assembly"]))
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz'
-            #config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz'
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
@@ -51,5 +51,5 @@ rule isnvs_vcf:
                 + " --strip_chr_version"
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
-            #shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
+            shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
 
