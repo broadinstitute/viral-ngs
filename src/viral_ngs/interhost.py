@@ -14,7 +14,7 @@ try :
 except ImportError :
     from itertools import izip_longest as zip_longest
 import tools.muscle, tools.snpeff
-import util.cmd, util.file, util.vcf, util.misc
+import util.cmd, util.file, util.vcf
 from collections import OrderedDict, Sequence
 
 log = logging.getLogger(__name__)
