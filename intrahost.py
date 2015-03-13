@@ -341,7 +341,7 @@ def strip_accession_version(acc):
         acc = m.group(1)
     return acc
 
-def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False):
+def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False, naive_filter=False):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
         Assumption: consensus assemblies do not extend beyond ends of reference.
     '''
@@ -364,6 +364,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
     else:
         raise ValueError("outVcf must end in .vcf or .vcf.gz")
     
+    log.info("loaded CoordMapper for all genomes, starting VCF merge...")
     with open(tmpVcf, 'wt') as outf:
     
         # write header
@@ -395,15 +396,23 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 's_chrom':s_chrom, 's_pos':int(row[1]),
                                 's_alt':row[2], 's_ref': row[3],
                                 'alleles':list(x.allele_and_strand_counts() for x in allele_fields),
-                                'n_libs':list(
-                                    sum(1 for f,r in x.lib_counts() if f+r>0)
+                                'n_libs':dict(
+                                    (x.allele(), sum(1 for f,r in x.lib_counts() if f+r>0))
                                     for x in allele_fields),
-                                'lib_bias':list(x.lib_bias_pval() for x in allele_fields),
+                                'lib_bias':dict(
+                                    (x.allele(), x.lib_bias_pval())
+                                    for x in allele_fields),
                             }
                             # make a sorted allele list
                             row['allele_counts'] = list(sorted(
                                 [(a,int(f)+int(r)) for a,f,r in row['alleles']],
                                 key=(lambda x:x[1]), reverse=True))
+                            # naive filter (quick and dirty)
+                            if naive_filter:
+                                tot_n = sum(f+r for a,f,r in row['allele_counts'])
+                                row['allele_counts'] = list((a,f,r)
+                                    for a,f,r in row['allele_counts']
+                                    if row['n_libs'][a]>=2 and float(f+r)/tot_n >= 0.005)
                             # reposition vphaser deletions minus one to be consistent with
                             # VCF conventions
                             if row['s_alt'].startswith('D'):
@@ -479,12 +488,18 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         # get all rows for this sample and merge allele counts together
                         acounts = dict(itertools.chain.from_iterable(row['allele_counts']
                             for row in rows if row['sample'] == s))
+                        nlibs = dict(itertools.chain.from_iterable(row['n_libs'].items()
+                            for row in rows if row['sample'] == s))
+                        libbias = dict(itertools.chain.from_iterable(row['lib_bias'].items()
+                            for row in rows if row['sample'] == s))
                         if 'i' in acounts and 'd' in acounts:
                             # This sample has both an insertion line and a deletion line at the same spot!
                             # To keep the reference allele from be counted twice, once as an i and once
                             # as a d, average the counts and get rid of one of them.
                             acounts['i'] = int(round((acounts['i'] + acounts['d'])/2.0,0))
                             del acounts['d']
+                            nlibs['i'] = max(nlibs['i'], nlibs['d'])
+                            libbias['i'] = max(libbias['i'], libbias['d'])
                         
                         if acounts and s in consAlleles:
                             # we have iSNV data on this sample
@@ -493,8 +508,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                             iSNVs[s] = {} # {allele : fraction, ...}
                             iSNVs_n_libs[s] = {}
                             iSNVs_lib_bias[s] = {}
-                            for a,n in acounts.items():
+                            for orig_a,n in acounts.items():
                                 f = float(n)/tot_n
+                                a = orig_a
                                 if a.startswith('I'):
                                     # insertion point is relative to each sample
                                     insert_point = samp_offsets[s]+1
@@ -523,6 +539,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 if not (a and a==a.upper()):
                                     raise Exception()
                                 iSNVs[s][a] = f
+                                iSNVs_n_libs[s][a] = nlibs[orig_a]
+                                iSNVs_lib_bias[s][a] = libbias[orig_a]
                             if all(len(a)==1 for a in iSNVs[s].keys()):
                                 if consAllele not in iSNVs[s]:
                                     raise Exception()
@@ -545,16 +563,28 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     alleles_isnv2 = []
                     for a in set(a for a,n in alleles_isnv):
                         counts = list(x[1] for x in alleles_isnv if x[0]==a)
-                        alleles_isnv2.append((len(counts),sum(counts),a))
+                        if len(counts)>0 and sum(counts)>0:
+                            # if we filtered any alleles above, make sure to omit absent alleles
+                            alleles_isnv2.append((len(counts),sum(counts),a))
+                        else:
+                            log.info("dropped allele {} at position {}:{}".format(a, ref_sequence.id, pos))
                     alleles_isnv = list(allele for n_samples, n_reads, allele in reversed(sorted(alleles_isnv2)))
                     alleles = list(util.misc.unique([refAllele] + alleles_cons + alleles_isnv))
                     
                     # map alleles from strings to numeric indexes
                     if not alleles:
                         raise Exception()
+                    elif len(alleles)==1:
+                        # if we filtered any alleles above, skip this position if there is no variation left here
+                        log.info("dropped position {}:{} due to lack of variation".format(ref_sequence.id, pos))
+                        continue
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.'
+                             for s in samples]
+                    nlibs = [(s in iSNVs_n_libs) and ','.join([str(iSNVs_n_libs[s].get(a,0)) for a in alleles]) or '.'
+                             for s in samples]
+                    pvals = [(s in iSNVs_lib_bias) and ','.join([str(iSNVs_lib_bias[s].get(a,'.')) for a in alleles]) or '.'
                              for s in samples]
 
                     # prepare output row and write to file
@@ -564,7 +594,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     out = [c, pos, '.',
                         alleles[0], ','.join(alleles[1:]),
                         '.', '.', '.', 'GT:AF']
-                    out = out + list(map(':'.join, zip(genos, freqs)))
+                    out = out + list(map(':'.join, zip(genos, freqs, nlibs, pvals)))
                     outf.write('\t'.join(map(str, out))+'\n')
     
     # close fasta files
@@ -601,6 +631,11 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
             often used by SnpEff databases downstream, but without the
             corresponding version number.  Default is false (leave
             chromosome names untouched).""")
+    parser.add_argument("--naive_filter",
+        default=False, action="store_true", dest="naive_filter",
+        help="""If set, keep only the alleles that have at least
+            two independent libraries of support and allele freq > 0.005.
+            Default is false (do not filter at this stage).""")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, merge_to_vcf, split_args=True)
     return parser
