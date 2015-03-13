@@ -409,10 +409,10 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 key=(lambda x:x[1]), reverse=True))
                             # naive filter (quick and dirty)
                             if naive_filter:
-                                tot_n = sum(f+r for a,f,r in row['allele_counts'])
-                                row['allele_counts'] = list((a,f,r)
-                                    for a,f,r in row['allele_counts']
-                                    if row['n_libs'][a]>=2 and float(f+r)/tot_n >= 0.005)
+                                tot_n = sum(n for a,n in row['allele_counts'])
+                                row['allele_counts'] = list((a,n)
+                                    for a,n in row['allele_counts']
+                                    if row['n_libs'][a]>=2 and float(n)/tot_n >= 0.005)
                             # reposition vphaser deletions minus one to be consistent with
                             # VCF conventions
                             if row['s_alt'].startswith('D'):
