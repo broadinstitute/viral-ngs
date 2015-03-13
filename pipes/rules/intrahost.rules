@@ -9,7 +9,9 @@ import os, os.path, time
 
 
 rule all_intrahost:
-    input:  config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz'
+    input:
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz'
 
 rule isnvs_per_sample:
     input:
@@ -49,6 +51,36 @@ rule isnvs_vcf:
                 + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
                 + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
                 + " --strip_chr_version"
+                )
+            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
+            shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
+
+rule isnvs_vcf_filtered:
+    input:
+            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt.gz",
+                dataDir=config["dataDir"],
+                subdir=config["subdirs"]["intrahost"],
+                sample=read_samples_file(config["samples_assembly"])),
+            expand("{dataDir}/{subdir}/{sample}.fasta",
+                dataDir=config["dataDir"],
+                subdir=config["subdirs"]["assembly"],
+                sample=read_samples_file(config["samples_assembly"]))
+    output:
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.txt.gz'
+    resources: mem=4
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            logid="all",
+            refGenome=config["ref_genome"],
+            snpEff_ref=config["snpEff_genome"],
+            samples=read_samples_file(config["samples_assembly"])
+    run:
+            shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
+                + " --samples {params.samples}"
+                + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
+                + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
+                + " --strip_chr_version --naive_filter"
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
