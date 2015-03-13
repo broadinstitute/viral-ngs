@@ -349,10 +349,11 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
     # setup
     if not (len(samples) == len(isnvs) == len(assemblies)):
         raise LookupError("samples, isnvs, and assemblies must have the same number of elements")
-    samp_to_fasta = dict(zip(samples, assemblies))
+    samp_to_seqIndex = dict((s, Bio.SeqIO.index(fasta, 'fasta'))
+        for s, fasta in zip(samples, assemblies))
     samp_to_isnv = dict(zip(samples, isnvs))
     samp_to_cmap = dict((s, CoordMapper(genome, refFasta))
-        for s, genome in samp_to_fasta.items())
+        for s, genome in zip(samples, assemblies))
     with open(refFasta, 'rU') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
     
@@ -425,7 +426,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                 # process one reference position at a time
                 for pos, rows in data:
                     rows = list(rows)
-                
+                    
                     # define the length of this variation based on the largest deletion
                     end = pos
                     for row in rows:
@@ -460,10 +461,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                             log.warning("dropping consensus because allele is outside "
                                 "consensus for %s at %s-%s." % (s, pos, end))
                             continue
-                        seqIndex = Bio.SeqIO.index(samp_to_fasta[s], 'fasta')
-                        cons = seqIndex[samp_to_cmap[s].mapBtoA(ref_sequence.id)]
+                        cons = samp_to_seqIndex[s][samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
-                        seqIndex.close()
                         if s in samp_offsets:
                             samp_offsets[s] -= cons_start
                         if all(a in set(('A','C','T','G')) for a in allele):
@@ -567,6 +566,10 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         '.', '.', '.', 'GT:AF']
                     out = out + list(map(':'.join, zip(genos, freqs)))
                     outf.write('\t'.join(map(str, out))+'\n')
+    
+    # close fasta files
+    for idx in samp_to_seqIndex.values():
+        idx.close()
     
     # compress output if requested
     if outVcf.endswith('.vcf.gz'):
