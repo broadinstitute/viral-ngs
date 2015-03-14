@@ -139,7 +139,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     ''' For each variant, compute read counts in each library and p-value for
           library bias; append them to string for each variant.
         Format is allele:totalF:totalR:1stLibFCount:1stLibRCount:2ndLibFCount:...:p-val.
-        Library counts are in same order as in bam header.
+        Library counts are in alphabetical order of library IDs.
         Note: Total was computed by vphaser, library counts by samtools mpileup,
           so total might not be sum of library counts.
     '''
@@ -150,11 +150,15 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
     libBams = []
     for lib,rgs in rgs_by_lib:
-        rgs = list(itertools.chain.from_iterable(('-r', id) for lib,id in rgs))
+        rgs = list(id for lb,id in rgs)
+        rgs_cmdline = itertools.chain.from_iterable(('-r', id) for id in rgs)
         libBam = util.file.mkstempfname('.bam')
-        samtoolsTool.view(['-b'] + rgs, inBam, libBam)
+        samtoolsTool.view(['-b'] + rgs_cmdline, inBam, libBam)
         samtoolsTool.index(libBam)
-        if samtoolsTool.count(libBam) > 0:
+        n_reads = samtoolsTool.count(libBam)
+        log.debug("LB:{} has {} reads in {} read groups ({})".format(
+            lib, n_reads, len(rgs), ', '.join(rgs)))
+        if n_reads > 0:
             libBams.append(libBam)
         else:
             os.unlink(libBam)
