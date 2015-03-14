@@ -593,7 +593,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         c = strip_accession_version(c)
                     out = [c, pos, '.',
                         alleles[0], ','.join(alleles[1:]),
-                        '.', '.', '.', 'GT:AF']
+                        '.', '.', '.', 'GT:AF:NL:LB']
                     out = out + list(map(':'.join, zip(genos, freqs, nlibs, pvals)))
                     outf.write('\t'.join(map(str, out))+'\n')
     
