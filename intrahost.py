@@ -145,13 +145,19 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     '''
     alleleCol = 7 # First column of output with allele counts
     samtoolsTool = SamtoolsTool()
-    readGroups = list(r for r in samtoolsTool.getReadGroups(inBam)
-        if samtoolsTool.count(inBam, ['-r', r])>0)
-    tempDir = tempfile.mkdtemp()
-    libBams = [os.path.join(tempDir, groupID + '.bam') for groupID in readGroups]
-    for groupID, libBam in zip(readGroups, libBams) :
-        samtoolsTool.view(['-r', groupID, '-b'], inBam, libBam)
+    rgs_by_lib = sorted((rg['LB'],rg['ID'])
+        for rg in samtoolsTool.getReadGroups(inBam).values())
+    rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
+    libBams = []
+    for lib,rgs in rgs_by_lib:
+        rgs = list(itertools.chain(('-r', id) for lib,id in rgs))
+        libBam = util.file.mkstempfname('.bam')
+        samtoolsTool.view(['-b'] + rgs, inBam, libBam)
         samtoolsTool.index(libBam)
+        if samtoolsTool.count(libBam) > 0:
+            libBams.append(libBam)
+        else:
+            os.unlink(libBam)
     for row in isnvs :
         consensusAllele = row[3]
         pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
@@ -185,7 +191,8 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
                 *(row[alleleCol + alleleInd].split(':') +
                   [pval, libCountsByAllele[alleleInd]])))
         yield row
-    shutil.rmtree(tempDir)
+    for bam in libBams:
+        os.unlink(bam)
 
 def parse_alleles_string(allelesStr) :
     # Return {allele : [forwardCount, reverseCount]}
