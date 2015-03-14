@@ -151,7 +151,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     libBams = []
     for lib,rgs in rgs_by_lib:
         rgs = list(id for lb,id in rgs)
-        rgs_cmdline = itertools.chain.from_iterable(('-r', id) for id in rgs)
+        rgs_cmdline = list(itertools.chain.from_iterable(('-r', id) for id in rgs))
         libBam = util.file.mkstempfname('.bam')
         samtoolsTool.view(['-b'] + rgs_cmdline, inBam, libBam)
         samtoolsTool.index(libBam)
