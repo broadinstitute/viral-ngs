@@ -150,7 +150,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
     libBams = []
     for lib,rgs in rgs_by_lib:
-        rgs = list(itertools.chain(('-r', id) for lib,id in rgs))
+        rgs = list(itertools.chain.from_iterable(('-r', id) for lib,id in rgs))
         libBam = util.file.mkstempfname('.bam')
         samtoolsTool.view(['-b'] + rgs, inBam, libBam)
         samtoolsTool.index(libBam)
