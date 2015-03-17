@@ -151,9 +151,21 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
     libBams = []
     for lib,rgs in rgs_by_lib:
         rgs = list(id for lb,id in rgs)
-        rgs_cmdline = list(itertools.chain.from_iterable(('-r', id) for id in rgs))
+        
+        # Create libBam containing all the readgroups in rgs.
+        # In samtools 1.1, this can be done by including -r multiple times on
+        # a single command line, but that doesn't work in 0.1.19, so instead
+        # extract readgroups one by one and then concatenate.
+        rgBams = []
+        for id in rgs :
+            rgBam = util.file.mkstempfname('.bam')
+            rgBams.append(rgBam)
+            samtoolsTool.view(['-b', '-r', id], inBam, rgBam)
         libBam = util.file.mkstempfname('.bam')
-        samtoolsTool.view(['-b'] + rgs_cmdline, inBam, libBam)
+        samtoolsTool.merge(rgBams, libBam)
+        for bam in rgBams :
+            os.unlink(bam)
+        
         samtoolsTool.index(libBam)
         n_reads = samtoolsTool.count(libBam)
         log.debug("LB:{} has {} reads in {} read groups ({})".format(

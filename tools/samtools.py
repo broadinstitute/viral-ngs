@@ -54,6 +54,13 @@ class SamtoolsTool(tools.Tool) :
     def view(self, args, inFile, outFile, regions=[]):
         self.execute('view', args + ['-o', outFile, inFile] + regions)
     
+    def merge(self, inFiles, outFile):
+        "Merge a list of inFiles to create outFile."
+        # We are using -f for now because mkstempfname actually makes an empty
+        # file, and merge fails with that as output target without the -f.
+        # When mkstempfname is fixed, we should remove the -f.
+        self.execute('merge', ['-f'] + [outFile] + inFiles)
+    
     def index(self, inBam):
         self.execute('index', [inBam])
     
