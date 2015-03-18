@@ -808,6 +808,11 @@ def iSNV_table(vcf_iter):
     for row in vcf_iter:
         info = dict(kv.split('=') for kv in row['INFO'].split(';') if kv and kv != '.')
         samples = [k for k in row.keys() if k not in set(('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))]
+        # compute Hs: heterozygosity in population based on consensus genotypes alone
+        genos = [row[s].split(':')[0] for s in samples]
+        genos = util.misc.histogram(int(gt) for gt in genos if gt != '.')
+        n = sum(genos.values())
+        Hs = 1.0 - sum(k*k/float(n*n) for k in genos.values())
         try:
             for s in samples:
                 f = row[s].split(':')[1]
@@ -817,7 +822,7 @@ def iSNV_table(vcf_iter):
                     Hw = 1.0 - sum(p*p for p in [1.0-f]+freqs)
                     out = {'chr':row['CHROM'], 'pos':row['POS'],
                         'alleles':"%s,%s" %(row['REF'],row['ALT']), 'sample':s,
-                        'iSNV_freq':f, 'Hw':Hw}
+                        'iSNV_freq':f, 'Hw':Hw, 'Hs':Hs}
                     if 'EFF' in info:
                         for k,v in parse_eff(info['EFF']).items():
                             out[k] = v
@@ -841,7 +846,7 @@ def parser_iSNV_table(parser=argparse.ArgumentParser()):
     return parser
 def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
-    header = ['chr','pos','sample','patient','time','alleles','iSNV_freq','Hw',
+    header = ['chr','pos','sample','patient','time','alleles','iSNV_freq','Hw','Hs',
         'eff_type','eff_codon_dna','eff_aa','eff_aa_pos','eff_prot_len','eff_gene','eff_protein']
     with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
