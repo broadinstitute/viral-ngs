@@ -306,16 +306,16 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 3)
         self.assertEqual(rows[0].ref, 'C')
         self.assertEqual(rows[0].alt, 'A')
-        self.assertEqual(rows[0][0], '0:0.2')
-        self.assertEqual(rows[0][1], '0:0.1')
-        self.assertEqual(rows[0][2], '0:0.0')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.2')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '0:0.1')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '0:0.0')
         self.assertEqual(rows[1].contig, 'ref1')
         self.assertEqual(rows[1].pos+1, 6)
         self.assertEqual(rows[1].ref, 'A')
         self.assertEqual(rows[1].alt, 'T')
-        self.assertEqual(rows[1][0], '0:0.0')
-        self.assertEqual(rows[1][1], '0:0.0')
-        self.assertEqual(rows[1][2], '0:0.3')
+        self.assertEqual(':'.join(rows[1][0].split(':')[:2]), '0:0.0')
+        self.assertEqual(':'.join(rows[1][1].split(':')[:2]), '0:0.0')
+        self.assertEqual(':'.join(rows[1][2].split(':')[:2]), '0:0.3')
 
     def test_snps_downstream_of_indels(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
@@ -331,9 +331,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 6)
         self.assertEqual(rows[0].ref, 'A')
         self.assertEqual(rows[0].alt, 'C')
-        self.assertEqual(rows[0][0], '0:0.2')
-        self.assertEqual(rows[0][1], '0:0.1')
-        self.assertEqual(rows[0][2], '1:0.7')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.2')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '0:0.1')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '1:0.7')
 
     def test_sample_major_allele_not_ref_allele(self):
         # make sure we can invert the allele frequency of the isnv
@@ -347,7 +347,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 3)
         self.assertEqual(rows[0].ref, 'C')
         self.assertEqual(rows[0].alt, 'A')
-        self.assertEqual(rows[0][0], '1:0.9')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '1:0.9')
 
     def test_backfill_sample_from_assembly(self):
         # one sample has no isnv, but another does, so we fill it in
@@ -367,9 +367,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 3)
         self.assertEqual(rows[0].ref, 'C')
         self.assertEqual(rows[0].alt, 'A')
-        self.assertEqual(rows[0][0], '0:0.1')
-        self.assertEqual(rows[0][1], '1:1.0')
-        self.assertEqual(rows[0][2], '.:.')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.1')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:1.0')
+        self.assertEqual(rows[0][2], '.:.:.:.')
         
     def test_simple_insertions(self):
         # IA, ITCG, etc
@@ -394,9 +394,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 2)
         self.assertEqual(rows[0].ref, 'T')
         self.assertEqual(rows[0].alt, 'TAA,TGCC,TAT')
-        self.assertEqual(rows[0][0], '0:0.2,0.0,0.0')
-        self.assertEqual(rows[0][1], '0:0.0,0.0,0.1')
-        self.assertEqual(rows[0][2], '0:0.05,0.15,0.0')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.2,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '0:0.0,0.0,0.1')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '0:0.05,0.15,0.0')
         
     def test_simple_deletions(self):
         # D1, D2, etc...
@@ -420,9 +420,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 2)
         self.assertEqual(rows[0].ref, 'TCG')
         self.assertEqual(rows[0].alt, 'TG,T')
-        self.assertEqual(rows[0][0], '0:0.0,0.2')
-        self.assertEqual(rows[0][1], '0:0.1,0.0')
-        self.assertEqual(rows[0][2], '0:0.15,0.05')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.0,0.2')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '0:0.1,0.0')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '0:0.15,0.05')
         
     def test_deletion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv deletes even more
@@ -439,7 +439,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GTTC')
         self.assertEqual(rows[0].alt, 'GC,G')
-        self.assertEqual(rows[0][0], '1:0.9,0.1')
+        self.assertEqual(rows[0][0], '1:0.9,0.1:0,1,1:.,1.0,1.0')
         
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
@@ -462,9 +462,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GTT')
         self.assertEqual(rows[0].alt, 'G,GT,GTTC')
-        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0')
-        self.assertEqual(rows[0][1], '1:0.8,0.0,0.0')
-        self.assertEqual(rows[0][2], '1:0.9,0.0,0.1')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '1:0.7,0.3,0.0')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:0.8,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '1:0.9,0.0,0.1')
         
     def test_snp_within_insertion(self):
         # sample assembly has insertion against reference and isnp modifies it
@@ -486,9 +486,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'G')
         self.assertEqual(rows[0].alt, 'GTT,CTT,GCT,GTC')
-        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0,0.0')
-        self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
-        self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '1:0.7,0.3,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:0.8,0.0,0.2,0.0')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '1:0.9,0.0,0.0,0.1')
 
     def test_2snps_within_insertion_same_sample(self):
         # Sample assembly has insertion against reference containing two SNPs
@@ -525,8 +525,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GAA')
         self.assertEqual(rows[0].alt, 'G,A')
-        self.assertEqual(rows[0][0], '1:0.7,0.3')
-        self.assertEqual(rows[0][1], '.:.')
+        self.assertEqual(rows[0][0], '1:0.7,0.3:0,1,1:.,1.0,1.0')
+        self.assertEqual(rows[0][1], '.:.:.:.')
     
     def test_snp_past_end_of_some_consensus(self):
         # Some sample contains SNP beyond the end of the consensus
@@ -546,8 +546,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 2)
         self.assertEqual(rows[0].ref, 'T')
         self.assertEqual(rows[0].alt, 'G')
-        self.assertEqual(rows[0][0], '0:0.3')
-        self.assertEqual(rows[0][1], '.:.')
+        self.assertEqual(rows[0][0], '0:0.3:1,1:1.0,1.0')
+        self.assertEqual(rows[0][1], '.:.:.:.')
 
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it
@@ -574,10 +574,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GG')
         self.assertEqual(rows[0].alt, 'GTTG,GTG,GTT,G,GT')
-        self.assertEqual(rows[0][0], '1:0.4,0.3,0.0,0.1,0.0')
-        self.assertEqual(rows[0][1], '1:0.8,0.2,0.0,0.0,0.0')
-        self.assertEqual(rows[0][2], '1:0.85,0.1,0.0,0.0,0.05')
-        self.assertEqual(rows[0][3], '1:0.9,0.0,0.1,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '1:0.4,0.3,0.0,0.1,0.0')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:0.8,0.2,0.0,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '1:0.85,0.1,0.0,0.0,0.05')
+        self.assertEqual(':'.join(rows[0][3].split(':')[:2]), '1:0.9,0.0,0.1,0.0,0.0')
         
     def test_insertion_within_insertion(self):
         # sample assembly has insertion against reference and isnv puts even more in
@@ -599,9 +599,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'G')
         self.assertEqual(rows[0].alt, 'GTT,GATT,GTAT,GTTA')
-        self.assertEqual(rows[0][0], '1:0.7,0.3,0.0,0.0')
-        self.assertEqual(rows[0][1], '1:0.8,0.0,0.2,0.0')
-        self.assertEqual(rows[0][2], '1:0.9,0.0,0.0,0.1')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '1:0.7,0.3,0.0,0.0')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:0.8,0.0,0.2,0.0')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '1:0.9,0.0,0.0,0.1')
         
     def test_indel_collapse(self):
         # vphaser describes insertions and deletions separately
