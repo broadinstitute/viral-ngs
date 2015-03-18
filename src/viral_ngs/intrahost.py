@@ -161,21 +161,28 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
         rgBams = []
         for id in rgs :
             rgBam = util.file.mkstempfname('.bam')
-            rgBams.append(rgBam)
             samtoolsTool.view(['-b', '-r', id], inBam, rgBam)
-        libBam = util.file.mkstempfname('.bam')
-        samtoolsTool.merge(rgBams, libBam, ['-f', '-1', '-h', header_sam])
-        for bam in rgBams :
-            os.unlink(bam)
-        
-        samtoolsTool.index(libBam)
-        n_reads = samtoolsTool.count(libBam)
-        log.debug("LB:{} has {} reads in {} read groups ({})".format(
-            lib, n_reads, len(rgs), ', '.join(rgs)))
-        if n_reads > 0:
+            samtoolsTool.index(rgBam)
+            if samtoolsTool.count(rgBam) > 0:
+                rgBams.append(rgBam)
+            else:
+                # most samtools functions don't like empty input bams, so skip them
+                os.unlink(rgBam)
+        if rgBams:
+            if len(rgBams) > 1:
+                libBam = util.file.mkstempfname('.bam')
+                samtoolsTool.merge(rgBams, libBam, ['-f', '-1', '-h', header_sam])
+                for bam in rgBams :
+                    os.unlink(bam)
+            else:
+                # samtools merge cannot deal with only one (or zero) input bams
+                libBam = rgBams[0]
+            samtoolsTool.index(libBam)
+            n_reads = samtoolsTool.count(libBam)
+            log.debug("LB:{} has {} reads in {} read groups ({})".format(
+                lib, n_reads, len(rgs), ', '.join(rgs)))
             libBams.append(libBam)
-        else:
-            os.unlink(libBam)
+        
     for row in isnvs :
         consensusAllele = row[3]
         pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
