@@ -149,6 +149,8 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
         for rg in samtoolsTool.getReadGroups(inBam).values())
     rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
     libBams = []
+    header_sam = util.file.mkstempfname('.sam')
+    samtoolsTool.dumpHeader(inBam, header_sam)
     for lib,rgs in rgs_by_lib:
         rgs = list(id for lb,id in rgs)
         
@@ -162,7 +164,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
             rgBams.append(rgBam)
             samtoolsTool.view(['-b', '-r', id], inBam, rgBam)
         libBam = util.file.mkstempfname('.bam')
-        samtoolsTool.merge(rgBams, libBam)
+        samtoolsTool.merge(rgBams, libBam, ['-f', '-1', '-h', header_sam])
         for bam in rgBams :
             os.unlink(bam)
         
@@ -209,6 +211,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
         yield row
     for bam in libBams:
         os.unlink(bam)
+    os.unlink(header_sam)
 
 def parse_alleles_string(allelesStr) :
     # Return {allele : [forwardCount, reverseCount]}
