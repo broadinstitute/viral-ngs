@@ -18,7 +18,7 @@ rule isnvs_per_sample:
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
             config["dataDir"]+'/'+config["subdirs"]["assembly"]  +'/{sample}.fasta',
     output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
-    resources: mem=4
+    resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
     run:
