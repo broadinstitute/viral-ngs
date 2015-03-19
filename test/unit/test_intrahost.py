@@ -197,18 +197,6 @@ class TestPerSample(test.TestCaseWithTmp):
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
-    @unittest.skip('not implemented')
-    def test_single_lib(self):
-        data = MockVphaserOutput()
-        
-    
-    @unittest.skip('not implemented')
-    def test_multi_lib(self):
-        lib1 = MockVphaserOutput()
-        lib2 = MockVphaserOutput()
-        lib3 = MockVphaserOutput()
-        pass
-
 
 class VcfMergeRunner:
     ''' This creates test data and feeds it to intrahost.merge_to_vcf
