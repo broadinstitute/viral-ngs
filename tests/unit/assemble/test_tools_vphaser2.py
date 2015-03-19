@@ -15,7 +15,7 @@ class TestVPhaser2(TestCaseWithTmp) :
         vphaser_main(inBam, outTab, numThreads = 8)
         with open(outTab, 'rt') as outf :
             recs = map(lambda s : s.strip('\n').split('\t'), outf.readlines())
-        with open(os.path.join(myInputDir, 'expected.cp'), 'rb') as expf :
+        with open(os.path.join(myInputDir, 'expected.cpickle'), 'rb') as expf :
             expectedRecs = pickle.load(expf)
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
@@ -34,7 +34,7 @@ class TestVPhaser2(TestCaseWithTmp) :
         cat c1.sam c2.sam >new.sam
         samtools view -bh new.sam >new.bam
         
-        Creation of expected.cp:
+        Creation of expected.cpickle:
         cPickle.dump(list(Vphaser2Tool().iterate(inBam, numThreads = 8)),
-                     open('expected.cp', 'w'))
+                     open('expected.cpickle', 'w'))
         """
