@@ -442,10 +442,21 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 key=(lambda x:x[1]), reverse=True))
                             # naive filter (quick and dirty)
                             if naive_filter:
-                                tot_n = sum(n for a,n in row['allele_counts'])
+                                # require 2 libraries for every allele call
                                 row['allele_counts'] = list((a,n)
                                     for a,n in row['allele_counts']
-                                    if row['n_libs'][a]>=2 and float(n)/tot_n >= 0.005)
+                                    if row['n_libs'][a]>=2)
+                                # recompute total read counts for remaining
+                                tot_n = sum(n for a,n in row['allele_counts'])
+                                # require allele frequency >= 0.5%
+                                row['allele_counts'] = list((a,n)
+                                    for a,n in row['allele_counts']
+                                    if tot_n>0 and float(n)/tot_n >= 0.005)
+                                # drop this position:sample if no variation left
+                                if len(row['allele_counts']) < 2:
+                                    log.info("dropping iSNV at %s:%s (%s) because no variation remains after simple filtering" % (
+                                        row['s_chrom'], row['s_pos'], row['sample']))
+                                    continue
                             # reposition vphaser deletions minus one to be consistent with
                             # VCF conventions
                             if row['s_alt'].startswith('D'):
@@ -493,15 +504,15 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         sample = row['sample']
                         if samp_offsets.get(sample, s_pos) != s_pos :
                             raise NotImplementedError('Sample %s has variants at 2 '
-                                'positions %s mapped to same reference position (%s)' %
-                                (sample, (s_pos, samp_offsets[sample]), pos))
+                                'positions %s mapped to same reference position (%s:%s)' %
+                                (sample, (s_pos, samp_offsets[sample]), ref_sequence.id, pos))
                         samp_offsets[sample] = s_pos
                     for s in samples:
                         cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         if cons_start == None or cons_stop == None :
-                            log.warning("dropping consensus because allele is outside "
-                                "consensus for %s at %s-%s." % (s, pos, end))
+                            log.info("variant is outside consensus assembly "
+                                "for %s at %s:%s-%s." % (s, ref_sequence.id, pos, end))
                             continue
                         cons = samp_to_seqIndex[s][samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
@@ -510,7 +521,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         if all(a in set(('A','C','T','G')) for a in allele):
                             consAlleles[s] = allele
                         else:
-                            log.warning("dropping unclean consensus for %s at %s-%s: %s" % (s, pos, end, allele))
+                            log.warning("dropping ambiguous consensus for %s at %s:%s-%s: %s" % (s, ref_sequence.id, pos, end, allele))
                     
                     # define genotypes and fractions
                     iSNVs = {} # {sample : {allele : fraction, ...}, ...}
@@ -564,8 +575,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
                                         log.warning("vPhaser and assembly pipelines mismatch at "
-                                            "%s:%d %s - consensus %s, vPhaser %s" %
-                                            (ref_sequence.id, pos, s, consAllele[0], a))
+                                            "%s:%d (%s) - consensus %s, vPhaser %s" %
+                                            (ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a))
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
@@ -576,7 +587,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 iSNVs_lib_bias[s][a] = libbias[orig_a]
                             if all(len(a)==1 for a in iSNVs[s].keys()):
                                 if consAllele not in iSNVs[s]:
-                                    raise Exception()
+                                    raise Exception("at %s:%s (%s), consensus allele %s not among iSNV alleles %s -- other cons alleles: %s" % (
+                                        ref_sequence.id, pos, s, consAllele, ', '.join(iSNVs[s].keys()), ', '.join(consAlleles[s])))
                         elif s in consAlleles:
                             # there is no iSNV data for this sample, so substitute the consensus allele
                             iSNVs[s] = {consAlleles[s]:1.0}
