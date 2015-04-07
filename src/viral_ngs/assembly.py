@@ -722,7 +722,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                     # prepare base sequences for this chromosome
                     cur_c = c
                     for s in samples:
-                        name = len(samples)>1 and ("%s-%s" % (c,sample)) or c
+                        name = len(samples)>1 and ("%s-%s" % (c,s)) or c
                         seqs[s] = MutableSequence(name, 1, chrlens[c])
 
                 # modify sequence for this chromosome/sample/position
