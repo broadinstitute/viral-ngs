@@ -39,7 +39,7 @@ class MafftTool(tools.Tool):
         return tool_version
 
     def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder, 
-                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=1, verbose=True):
+                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True):
 
         inputFileName         = ""
         tempCombinedInputFile = ""
@@ -57,9 +57,9 @@ class MafftTool(tools.Tool):
             for filePath in inputFiles:
                 tempFileSuffix += "__" + os.path.basename(filePath)
             tempCombinedInputFile = util.file.mkstempfname('__combined.{}'.format(tempFileSuffix))
-            with open(tempCombinedInputFile, "wb") as outfile:
+            with open(tempCombinedInputFile, "w") as outfile:
                 for f in inputFiles:
-                    with open(f, "rb") as infile:
+                    with open(f, "r") as infile:
                         outfile.write(infile.read())
                 #outFile.close()
             inputFileName = tempCombinedInputFile
@@ -109,7 +109,7 @@ class MafftTool(tools.Tool):
         log.debug(' '.join(toolCmd))
 
         # run the MAFFT alignment
-        with open(outFile, 'wb') as outf:
+        with open(outFile, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
 
         if len(tempCombinedInputFile):
