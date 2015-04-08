@@ -127,7 +127,7 @@ def get_mafft_bitdepth():
     uname = os.uname()
     if uname[4] == "x86_64":
         return "64"
-    if uname[4] == "x86":
+    if uname[4] in ['i386','i686',"x86"]:
         return "32"
 
 def get_mafft_binary_path(mafft_os, bitdepth):
