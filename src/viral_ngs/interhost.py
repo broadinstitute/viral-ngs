@@ -213,9 +213,10 @@ def parser_align_mafft(parser=argparse.ArgumentParser()):
         help='Input FASTA files.')
     parser.add_argument('outFile',
         help='Output file containing alignment result (default format: FASTA)')
-    parser.add_argument('--localpair', default=None, action='store_true',
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--localpair', default=None, action='store_true',
         help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
-    parser.add_argument('--globalpair', default=None, action='store_true',
+    group.add_argument('--globalpair', default=None, action='store_true',
         help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
     parser.add_argument('--preservecase', default=None, action='store_true',
         help='Preserve base or aa case, as well as symbols.')
@@ -230,15 +231,18 @@ def parser_align_mafft(parser=argparse.ArgumentParser()):
     parser.add_argument('--outputAsClustal', default=None, action='store_true',
         help='Write output file in Clustal format rather than FASTA')
     parser.add_argument('--maxiters', default = 0,
-        help='Maximum number of refinement iterations (default: %(default)s).')
-    parser.add_argument('--threads', default = 1,
-        help='Number of processing threads (default: %(default)s).')
+        help='Maximum number of refinement iterations (default: %(default)s). Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.')
+    parser.add_argument('--threads', default = -1,
+        help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, main_align_mafft)
     return parser
 
 def main_align_mafft(args):
     ''' Run the mafft alignment on the input FASTA file.'''
+
+    if int(args.threads) == 0 or int(args.threads) < -1:
+        raise argparse.ArgumentTypeError('Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
 
     tools.mafft.MafftTool().execute( 
                 inFastas           = args.inFastas, 
