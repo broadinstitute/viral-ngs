@@ -222,17 +222,17 @@ def parser_align_mafft(parser=argparse.ArgumentParser()):
         help='Preserve base or aa case, as well as symbols.')
     parser.add_argument('--reorder', default=None, action='store_true',
         help='Output is ordered aligned rather than in the order of the input (default: %(default)s).')
-    parser.add_argument('--gapOpeningPenalty', default=1.53,
+    parser.add_argument('--gapOpeningPenalty', default=1.53, type=float,
         help='Gap opening penalty (default: %(default)s).')
-    parser.add_argument('--ep',
+    parser.add_argument('--ep', type=float,
         help='Offset (works like gap extension penalty).')
     parser.add_argument('--verbose', default=False, action='store_true',
         help='Full output (default: %(default)s).')
     parser.add_argument('--outputAsClustal', default=None, action='store_true',
         help='Write output file in Clustal format rather than FASTA')
-    parser.add_argument('--maxiters', default = 0,
+    parser.add_argument('--maxiters', default = 0, type=int,
         help='Maximum number of refinement iterations (default: %(default)s). Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.')
-    parser.add_argument('--threads', default = -1,
+    parser.add_argument('--threads', default = -1, type=int,
         help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, main_align_mafft)
