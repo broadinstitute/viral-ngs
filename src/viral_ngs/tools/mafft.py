@@ -20,10 +20,11 @@ class MafftTool(tools.Tool):
             mafft_os                = get_mafft_os()
             mafft_bitdepth          = get_mafft_bitdepth()
             mafft_archive_extension = get_mafft_archive_extension(mafft_os)
-            binaryPath = get_mafft_binary_path(mafft_os, mafft_bitdepth)
-
+            binaryPath              = get_mafft_binary_path(mafft_os, mafft_bitdepth)
+            binaryDir               = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
+            
             target_rel_path = '{binPath}'.format(ver=tool_version, os=mafft_os, binPath=binaryPath)
-            verify_command  = '{dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath) 
+            verify_command  = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath, binDir=binaryDir) 
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath)
 
             install_methods.append(
@@ -49,6 +50,8 @@ class MafftTool(tools.Tool):
             inputFiles.append(os.path.abspath(f))
         outFile = os.path.abspath(outFile)
 
+        print "outfile: {}".format(outFile)
+
         # if multiple fasta files are specified for input
         if len(inputFiles)>1:
             # combined specified input files into a single temp FASTA file so MAFFT can read them
@@ -65,6 +68,13 @@ class MafftTool(tools.Tool):
         # if there is only once file specified, just use it
         else:
             inputFileName = inputFiles[0]
+
+        print "BASE PATH: {}".format(os.path.dirname(self.install_and_get_path()))
+
+        # change the pwd, since the shell script that comes with mafft depends on the pwd
+        # being correct
+        pwdBeforeMafft = os.getcwd()
+        os.chdir(os.path.dirname(self.install_and_get_path()))
 
         # build the MAFFT command
         toolCmd = [self.install_and_get_path()]
@@ -110,6 +120,9 @@ class MafftTool(tools.Tool):
             # remove temp FASTA file
             os.unlink(tempCombinedInputFile)
 
+        # restore pwd
+        os.chdir(pwdBeforeMafft)
+
 def get_mafft_os():
     uname = os.uname()
     if uname[0] == "Darwin":
@@ -130,7 +143,7 @@ def get_mafft_bitdepth():
     if uname[4] in ['i386','i686',"x86"]:
         return "32"
 
-def get_mafft_binary_path(mafft_os, bitdepth):
+def get_mafft_binary_path(mafft_os, bitdepth, full=True):
     mafftPath = ""
 
     if mafft_os == "mac":
@@ -138,7 +151,11 @@ def get_mafft_binary_path(mafft_os, bitdepth):
     elif mafft_os == "linux":
         mafftPath += "mafft-linux{bit}".format(bit=bitdepth) + "/"
 
-    mafftPath += "mafft.bat"
+    if full:
+        mafftPath += "mafft.bat"
 
     return mafftPath
+
+
+
 
