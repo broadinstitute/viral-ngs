@@ -22,10 +22,15 @@ class MafftTool(tools.Tool):
             mafft_archive_extension = get_mafft_archive_extension(mafft_os)
             binaryPath = get_mafft_binary_path(mafft_os, mafft_bitdepth)
 
+            target_rel_path = '{binPath}'.format(ver=tool_version, os=mafft_os, binPath=binaryPath)
+            verify_command  = '{dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath) 
+            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath)
+
             install_methods.append(
                     tools.DownloadPackage( url.format(ver=tool_version, os=mafft_os, ext=mafft_archive_extension),
-                    '{binPath}'.format(ver=tool_version, os=mafft_os, binPath=binaryPath),
-                    verifycmd='{dir}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath)))
+                    target_rel_path=target_rel_path,
+                    destination_dir=destination_dir,
+                    verifycmd=verify_command))
 
         tools.Tool.__init__(self, install_methods = install_methods)
 
@@ -93,7 +98,7 @@ class MafftTool(tools.Tool):
         if maxiters:
             toolCmd.append("--maxiterate {iters}".format(iters=maxiters))
         
-        toolCmd.append(tempCombinedInputFile)
+        toolCmd.append(inputFileName)
 
         log.debug(' '.join(toolCmd))
 
