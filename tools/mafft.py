@@ -50,8 +50,6 @@ class MafftTool(tools.Tool):
             inputFiles.append(os.path.abspath(f))
         outFile = os.path.abspath(outFile)
 
-        print "outfile: {}".format(outFile)
-
         # if multiple fasta files are specified for input
         if len(inputFiles)>1:
             # combined specified input files into a single temp FASTA file so MAFFT can read them
@@ -68,8 +66,6 @@ class MafftTool(tools.Tool):
         # if there is only once file specified, just use it
         else:
             inputFileName = inputFiles[0]
-
-        print "BASE PATH: {}".format(os.path.dirname(self.install_and_get_path()))
 
         # change the pwd, since the shell script that comes with mafft depends on the pwd
         # being correct
