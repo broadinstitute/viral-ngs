@@ -13,7 +13,7 @@ try :
     from itertools import zip_longest
 except ImportError :
     from itertools import izip_longest as zip_longest
-import tools.muscle, tools.snpeff
+import tools.muscle, tools.snpeff, tools.mafft
 import util.cmd, util.file, util.vcf
 from collections import OrderedDict, Sequence
 
@@ -203,6 +203,64 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('snpEff', parser_snpEff))
 
+
+# =======================
+# ***  align_mafft  ***
+# =======================
+
+def parser_align_mafft(parser=argparse.ArgumentParser()):
+    parser.add_argument('inFastas', nargs='+',
+        help='Input FASTA files.')
+    parser.add_argument('outFile',
+        help='Output file containing alignment result (default format: FASTA)')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--localpair', default=None, action='store_true',
+        help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
+    group.add_argument('--globalpair', default=None, action='store_true',
+        help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
+    parser.add_argument('--preservecase', default=None, action='store_true',
+        help='Preserve base or aa case, as well as symbols.')
+    parser.add_argument('--reorder', default=None, action='store_true',
+        help='Output is ordered aligned rather than in the order of the input (default: %(default)s).')
+    parser.add_argument('--gapOpeningPenalty', default=1.53, type=float,
+        help='Gap opening penalty (default: %(default)s).')
+    parser.add_argument('--ep', type=float,
+        help='Offset (works like gap extension penalty).')
+    parser.add_argument('--verbose', default=False, action='store_true',
+        help='Full output (default: %(default)s).')
+    parser.add_argument('--outputAsClustal', default=None, action='store_true',
+        help='Write output file in Clustal format rather than FASTA')
+    parser.add_argument('--maxiters', default = 0, type=int,
+        help='Maximum number of refinement iterations (default: %(default)s). Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.')
+    parser.add_argument('--threads', default = -1, type=int,
+        help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_align_mafft)
+    return parser
+
+def main_align_mafft(args):
+    ''' Run the mafft alignment on the input FASTA file.'''
+
+    if int(args.threads) == 0 or int(args.threads) < -1:
+        raise argparse.ArgumentTypeError('Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
+
+    tools.mafft.MafftTool().execute( 
+                inFastas           = args.inFastas, 
+                outFile           = args.outFile, 
+                localpair         = args.localpair, 
+                globalpair        = args.globalpair, 
+                preservecase      = args.preservecase, 
+                reorder           = args.reorder, 
+                gapOpeningPenalty = args.gapOpeningPenalty, 
+                offset            = args.ep, 
+                verbose           = args.verbose, 
+                outputAsClustal   = args.outputAsClustal, 
+                maxiters          = args.maxiters, 
+                threads           = args.threads
+    )
+
+    return 0
+__commands__.append(('align_mafft', parser_align_mafft))
 
 # ============================
 
