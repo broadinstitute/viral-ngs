@@ -97,8 +97,8 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                     row = line.split('\t')
                     if not len(row)>=2:
                         raise Exception("this line has only one column?")
-                    row[0] = int(row[0])
-                    row[1] = int(row[1])
+                    row[0] = cmap.mapAtoB(seqid, int(row[0]), -1)[1]
+                    row[1] = cmap.mapAtoB(seqid, int(row[1]),  1)[1]
                     
                     if row[0] and row[1]:
                         feature_keep = True
