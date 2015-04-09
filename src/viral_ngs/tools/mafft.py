@@ -5,6 +5,8 @@
 
 __author__ = "tomkinsc@broadinstitute.org"
 
+
+from Bio import SeqIO
 import logging, tools, util.file
 import os, os.path, subprocess
 
@@ -38,6 +40,14 @@ class MafftTool(tools.Tool):
     def version(self):
         return tool_version
 
+    def __seqIdsAreAllUnique(self, filePath, inputFormat="fasta"):
+        fastaFile = SeqIO.parse(open(filePath, "rU"), inputFormat)
+        seqIds = [x.id for x in fastaFile]
+
+        # collapse like IDs using set()
+        if len(seqIds) > len(set(seqIds)):
+            raise LookupError("Not all sequence IDs in input are unique for file: {}".format(os.path.basename(filePath)))
+
     def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder, 
                 outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True):
 
@@ -49,6 +59,12 @@ class MafftTool(tools.Tool):
         for f in inFastas:
             inputFiles.append(os.path.abspath(f))
         outFile = os.path.abspath(outFile)
+
+        # ensure that all sequence IDs in each input file are unique 
+        # (otherwise the alignment result makes little sense)
+        # we can check before combining to localize duplications to a specific file
+        for filePath in inputFiles:
+            self.__seqIdsAreAllUnique(filePath)
 
         # if multiple fasta files are specified for input
         if len(inputFiles)>1:
@@ -66,6 +82,9 @@ class MafftTool(tools.Tool):
         # if there is only once file specified, just use it
         else:
             inputFileName = inputFiles[0]
+
+        # check that all sequence IDs in a file are unique
+        self.__seqIdsAreAllUnique(inputFileName)
 
         # change the pwd, since the shell script that comes with mafft depends on the pwd
         # being correct
