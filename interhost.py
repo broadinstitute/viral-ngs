@@ -8,8 +8,16 @@ __commands__ = []
 
 import Bio.AlignIO
 from Bio import SeqIO
-import argparse, logging, os, array, bisect
-try :
+import argparse, logging, os, sys, array, bisect
+
+# try to import izip (in the case of Python 2). 
+# No alternate needed as Python3 zip() is iterator-based.
+try:
+    from itertools import izip
+except ImportError:
+    pass
+
+try:
     from itertools import zip_longest
 except ImportError :
     from itertools import izip_longest as zip_longest
@@ -245,7 +253,7 @@ def main_align_mafft(args):
         raise argparse.ArgumentTypeError('Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
 
     tools.mafft.MafftTool().execute( 
-                inFastas           = args.inFastas, 
+                inFastas          = args.inFastas, 
                 outFile           = args.outFile, 
                 localpair         = args.localpair, 
                 globalpair        = args.globalpair, 
@@ -261,6 +269,94 @@ def main_align_mafft(args):
 
     return 0
 __commands__.append(('align_mafft', parser_align_mafft))
+
+# =======================
+# ***  multichr_mafft  ***
+# =======================
+
+def parser_multichr_mafft(parser=argparse.ArgumentParser()):
+    parser.add_argument('inFastas', nargs='+',
+        help='Input FASTA files.')
+    parser.add_argument('--outDirectory', default=os.getcwd(),
+        help='Location for the output files (default is cwd: %(default)s)')
+    parser.add_argument('--outFilePrefix', default="singlechr",
+        help='Prefix for the output file name (default: %(default)s)')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--localpair', default=None, action='store_true',
+        help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
+    group.add_argument('--globalpair', default=None, action='store_true',
+        help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
+    parser.add_argument('--preservecase', default=None, action='store_true',
+        help='Preserve base or aa case, as well as symbols.')
+    parser.add_argument('--reorder', default=None, action='store_true',
+        help='Output is ordered aligned rather than in the order of the input (default: %(default)s).')
+    parser.add_argument('--gapOpeningPenalty', default=1.53, type=float,
+        help='Gap opening penalty (default: %(default)s).')
+    parser.add_argument('--ep', type=float,
+        help='Offset (works like gap extension penalty).')
+    parser.add_argument('--verbose', default=False, action='store_true',
+        help='Full output (default: %(default)s).')
+    parser.add_argument('--outputAsClustal', default=None, action='store_true',
+        help='Write output file in Clustal format rather than FASTA')
+    parser.add_argument('--maxiters', default = 0, type=int,
+        help='Maximum number of refinement iterations (default: %(default)s). Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.')
+    parser.add_argument('--threads', default = -1, type=int,
+        help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, multichr_mafft)
+    return parser
+
+def multichr_mafft(args):
+    ''' Run the mafft alignment on a series of chromosomes provided in sample-partitioned FASTA files. Output as FASTA.
+        (i.e. file1.fasta would contain chr1, chr2, chr3; file2.fasta would also contain chr1, chr2, chr3)'''
+
+    if int(args.threads) == 0 or int(args.threads) < -1:
+        raise argparse.ArgumentTypeError('Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
+
+    # get the absolute path to the output directory in case it has been specified as a relative path,
+    # since MAFFT relies on its CWD for path resolution
+    absoluteOutDirectory = os.path.abspath(args.outDirectory)
+
+    # prefix for output files
+    prefix = "" if args.outFilePrefix == None else args.outFilePrefix
+
+    # reorder the data into new FASTA files, where each FASTA file has only variants of its respective chromosome
+    transposedFiles = transposeChromosomeFiles(args.inFastas, absoluteOutDirectory, prefix)
+
+    # since the FASTA files are
+    for filePath in transposedFiles:
+
+        # execute MAFFT alignment. The input file is passed within a list, since argparse ordinarily
+        # passes input files in this way, and the MAFFT tool expects lists,
+        # but in this case we are creating the input file ourselves
+        tools.mafft.MafftTool().execute( 
+                    inFastas          = [filePath], 
+                    outFile           = absoluteOutDirectory + "/" + os.path.basename(filePath), 
+                    localpair         = args.localpair, 
+                    globalpair        = args.globalpair, 
+                    preservecase      = args.preservecase, 
+                    reorder           = args.reorder, 
+                    gapOpeningPenalty = args.gapOpeningPenalty, 
+                    offset            = args.ep, 
+                    verbose           = args.verbose, 
+                    outputAsClustal   = args.outputAsClustal, 
+                    maxiters          = args.maxiters, 
+                    threads           = args.threads
+        )
+
+    # note the tmp file location
+    tmpFileDirectory = os.path.dirname(transposedFiles[0])
+
+    # for each of the transposed files (tmp files), remove the file
+    for fileName in transposedFiles:
+        os.unlink(fileName)
+
+    # if the tmp directory is empty, remove it too
+    if len( os.listdir(tmpFileDirectory) ) == 0:
+        os.rmdir(tmpFileDirectory)
+
+    return 0
+__commands__.append(('multichr_mafft', parser_multichr_mafft))
 
 # ============================
 
@@ -304,6 +400,35 @@ def make_vcf(a, ref_idx, chrom):
                             vars.append(m+1)
             yield row+vars
             
+def transposeChromosomeFiles(inputFilesList, outputDirectory, outputFilePrefix, inputFormat="fasta", outputFormat="fasta"):
+    outputFilenames = []
+
+    # get BioPython iterators for each of the FASTA files specified in the input
+    fastaFiles = [SeqIO.parse(open(x, "rU"), inputFormat) for x in inputFilesList]
+
+    # make the temp directory if it does not exist
+    if not os.path.isdir(outputDirectory+"/tmp/"):
+        os.makedirs(outputDirectory+"/tmp/")
+
+    # izip is gone in Python 3, since the native zip() is iterator-based
+    # We should choose the appropriate version
+    if sys.version_info[0] == 2:
+        zipFunction = izip
+    elif sys.version_info[0] == 3:
+        zipFunction = zip
+
+    # for each interleaved record
+    for idx, chrRecordList in enumerate( zipFunction(*fastaFiles) ):
+        outputFilename = outputDirectory+"/tmp/"+outputFilePrefix+"_{}".format(chrRecordList[0].id,idx) #util.file.mkstempfname("__transposed{}".format(chrRecordList[0].id)) 
+
+        fileObj = open(outputFilename, "w")
+        for record in chrRecordList:
+            # write the corresonding record to a new FASTA file
+            countWritten = SeqIO.write(record, fileObj, outputFormat)
+        fileObj.close()
+        outputFilenames.append(os.path.abspath(outputFilename))
+
+    return outputFilenames
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
