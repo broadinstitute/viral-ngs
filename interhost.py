@@ -373,12 +373,14 @@ def make_vcf(a, ref_idx, chrom):
                         if a[k][i] == alt[m]:
                             vars.append(m+1)
             yield row+vars
-            
-def transposeChromosomeFiles(inputFilesList, outputDirectory, outputFilePrefix, inputFormat="fasta", outputFormat="fasta"):
+
+def transposeChromosomeFiles(inputFilenamesList, outputDirectory, outputFilePrefix, inputFormat="fasta", outputFormat="fasta"):
     outputFilenames = []
 
+    # open files
+    inputFilesList = [open(x, 'rU') for x in inputFilenamesList]
     # get BioPython iterators for each of the FASTA files specified in the input
-    fastaFiles = [SeqIO.parse(open(x, "rU"), inputFormat) for x in inputFilesList]
+    fastaFiles = [SeqIO.parse(x, inputFormat) for x in inputFilesList]
 
     # for each interleaved record
     for idx, chrRecordList in enumerate( zip(*fastaFiles) ):
@@ -390,6 +392,9 @@ def transposeChromosomeFiles(inputFilesList, outputDirectory, outputFilePrefix, 
             countWritten = SeqIO.write(record, fileObj, outputFormat)
         fileObj.close()
         outputFilenames.append(os.path.abspath(outputFilename))
+
+    #close input files
+    [x.close() for x in inputFilesList]
 
     return outputFilenames
 
