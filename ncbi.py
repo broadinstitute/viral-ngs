@@ -93,12 +93,19 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                     line = '>Feature ' + altid
                     feature_keep = True
                 elif line[0] != '\t':
-                    # feature with numeric coordinates (translate them)
+                    # feature with numeric coordinates (map them)
                     row = line.split('\t')
                     if not len(row)>=2:
                         raise Exception("this line has only one column?")
-                    row[0] = cmap.mapAtoB(seqid, int(row[0]), -1)[1]
-                    row[1] = cmap.mapAtoB(seqid, int(row[1]),  1)[1]
+                    row[0] = int(row[0])
+                    row[1] = int(row[1])
+                    if row[1] >= row[0]:
+                        row[0] = cmap.mapAtoB(seqid, row[0], -1)[1]
+                        row[1] = cmap.mapAtoB(seqid, row[1],  1)[1]
+                    else:
+                        # negative strand feature
+                        row[0] = cmap.mapAtoB(seqid, row[0],  1)[1]
+                        row[1] = cmap.mapAtoB(seqid, row[1], -1)[1]
                     
                     if row[0] and row[1]:
                         feature_keep = True
@@ -110,9 +117,9 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                         # feature overhangs end of sequence
                         if oob_clip:
                             if row[0]==None:
-                                row[0] = 1
+                                row[0] = '<1'
                             if row[1]==None:
-                                row[1] = alt_chrlens[altid]
+                                row[1] = '>{}'.format(alt_chrlens[altid])
                         else:
                             feature_keep = False
                             continue
