@@ -13,7 +13,7 @@ import argparse, logging, os, sys, array, bisect
 try:
     from itertools import zip_longest
 except ImportError :
-    from itertools import izip_longest as zip_longest, izip as zip
+    from itertools import izip_longest as zip_longest
 import tools.muscle, tools.snpeff, tools.mafft
 import util.cmd, util.file, util.vcf
 from collections import OrderedDict, Sequence
@@ -78,32 +78,20 @@ class CoordMapper :
         return (toChrom, toPos)
 
     def _align(self, fastaA, fastaB, aligner) :
-        alignInFileName = util.file.mkstempfname('.fasta')
         alignOutFileName = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(fastaA) as infA :
-            with util.file.open_or_gzopen(fastaB) as infB :
-                numSeqs = 0
-                for recA, recB in zip_longest(SeqIO.parse(infA, 'fasta'),
-                                               SeqIO.parse(infB, 'fasta')) :
-                    assert (recA != None and recB != None), 'CoordMapper '\
-                            'input files must have same number of sequences.'
-                    numSeqs += 1
-                    chrA = recA.id
-                    chrB = recB.id
-                    with open(alignInFileName, 'wt') as alignInFile :
-                        SeqIO.write(recA, alignInFile, 'fasta')
-                        SeqIO.write(recB, alignInFile, 'fasta')
-                    aligner.execute(alignInFileName, alignOutFileName)
-                    with open(alignOutFileName) as alignOutFile :
-                        seqParser = SeqIO.parse(alignOutFile, 'fasta')
-                        seqs = [seqRec.seq for seqRec in seqParser]
-                        mapper = CoordMapper2Seqs(seqs[0], seqs[1])
-                        self.AtoB[chrA] = [chrB, mapper]
-                        self.BtoA[chrB] = [chrA, mapper]
-        assert numSeqs > 0, 'CoordMapper: no input sequences.'
-        assert len(self.AtoB) == len(self.BtoA) == numSeqs, \
-               'CoordMapper: duplicate sequence name.'
-        os.unlink(alignInFileName)
+        per_chr_fastas = transposeChromosomeFiles([fastaA, fastaB])
+        if not per_chr_fastas:
+            raise Exception('no input sequences')
+        for numSeqs, alignInFileName in enumerate(per_chr_fastas):
+            aligner.execute(alignInFileName, alignOutFileName)
+            with open(alignOutFileName, 'rt') as alignOutFile :
+                seqs = list(SeqIO.parse(alignOutFile, 'fasta'))
+                mapper = CoordMapper2Seqs(seqs[0].seq, seqs[1].seq)
+                self.AtoB[seqs[0].id] = [seqs[1].id, mapper]
+                self.BtoA[seqs[1].id] = [seqs[0].id, mapper]
+            os.unlink(alignInFileName)
+        assert len(self.AtoB) == len(self.BtoA) == len(per_chr_fastas), \
+               'duplicate sequence names'
         os.unlink(alignOutFileName)
 
 class CoordMapper2Seqs(object) :
@@ -315,7 +303,7 @@ def multichr_mafft(args):
         # passes input files in this way, and the MAFFT tool expects lists,
         # but in this case we are creating the input file ourselves
         tools.mafft.MafftTool().execute(
-                    inFastas          = [filePath], 
+                    inFastas          = [os.path.abspath(filePath)],
                     outFile           = absoluteOutDirectory + "/{}_{}.fasta".format(prefix, idx), 
                     localpair         = args.localpair, 
                     globalpair        = args.globalpair, 
@@ -374,26 +362,35 @@ def make_vcf(a, ref_idx, chrom):
                             vars.append(m+1)
             yield row+vars
 
-def transposeChromosomeFiles(inputFilenamesList, outputDirectory, outputFilePrefix, inputFormat="fasta", outputFormat="fasta"):
+def transposeChromosomeFiles(inputFilenamesList):
+    ''' Input:  a list of FASTA files representing a genome for each sample.
+                Each file contains the same number of sequences (chromosomes, segments,
+                etc) in the same order.
+        Output: a list of FASTA files representing all samples for each
+                chromosome/segment for input to a multiple sequence aligner.
+                The number of FASTA files corresponds to the number of chromosomes
+                in the genome.  Each file contains the same number of samples
+                in the same order.  Each output file is a tempfile.
+    '''
     outputFilenames = []
 
-    # open files
-    inputFilesList = [open(x, 'rU') for x in inputFilenamesList]
+    # open all files
+    inputFilesList = [util.file.open_or_gzopen(x, 'rU') for x in inputFilenamesList]
     # get BioPython iterators for each of the FASTA files specified in the input
-    fastaFiles = [SeqIO.parse(x, inputFormat) for x in inputFilesList]
+    fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
 
     # for each interleaved record
-    for idx, chrRecordList in enumerate( zip(*fastaFiles) ):
-        outputFilename = util.file.mkstempfname('__transposed_{}_'.format(chrRecordList[0]))
+    for idx, chrRecordList in enumerate( zip_longest(*fastaFiles) ):
+        if any(rec==None for rec in chrRecordList):
+            raise Exception("input files must all have the same number of sequences")
+        
+        outputFilename = util.file.mkstempfname('.fasta')
+        outputFilenames.append(outputFilename)
+        with open(outputFilename, "w") as outf:
+            # write the corresonding records to a new FASTA file
+            countWritten = SeqIO.write(chrRecordList, outf, 'fasta')
 
-        fileObj = open(outputFilename, "w")
-        for record in chrRecordList:
-            # write the corresonding record to a new FASTA file
-            countWritten = SeqIO.write(record, fileObj, outputFormat)
-        fileObj.close()
-        outputFilenames.append(os.path.abspath(outputFilename))
-
-    #close input files
+    # close all input files
     [x.close() for x in inputFilesList]
 
     return outputFilenames
