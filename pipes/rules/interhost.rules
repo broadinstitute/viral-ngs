@@ -88,6 +88,10 @@ rule all_annot:
                     dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
                     sample=read_samples_file(config["samples_assembly"]))
 
+'''
+./tbl2asn -p inputs -r outputs -t template-20150129-94.sbt -j "[organism=Zaire ebolavirus]" -V vb -a s -y "this is a test comment"
+'''
+
 
 '''
 rule multi_align_mafft:
