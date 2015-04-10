@@ -72,8 +72,21 @@ rule ref_guided_diversity:
             merge_vcfs(params.inVcfs, params.refGenome, output[1])
 
 
+rule annot_transfer:
+    input:      config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
+    output:     config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.tbl'
+    resources:  mem=4
+    params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+                logid="{sample}",
+                refGenome=config["ref_genome"],
+                refAnnot=config["ref_annot"]
+    shell:      "{config[binDir]}/ncbi.py tbl_transfer {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
 
-
+rule all_annot:
+    input:
+                expand("{dir}/{subdir}/{sample}.tbl",
+                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
+                    sample=read_samples_file(config["samples_assembly"]))
 
 
 '''
