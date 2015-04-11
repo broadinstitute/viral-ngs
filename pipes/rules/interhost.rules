@@ -89,7 +89,7 @@ rule all_annot:
                     sample=read_samples_file(config["samples_assembly"]))
 
 '''
-./tbl2asn -p inputs -r outputs -t template-20150129-94.sbt -j "[organism=Zaire ebolavirus]" -V vb -a s -y "this is a test comment"
+bin/ncbi.py prep_genbank_files NCBI/template-20150129-94.sbt data/02_assembly/ data/05_genbank/ --master_source_table NCBI/sample_meta-150-genbank-v2.src --structured_comment_file NCBI/assembly.cmt
 '''
 
 
