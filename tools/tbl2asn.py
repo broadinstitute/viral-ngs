@@ -21,18 +21,16 @@ class Tbl2AsnTool(tools.Tool):
     def version(self):
         return None
 
-    def execute(self, inputDir, outputDir, templateFile,
+    def execute(self, templateFile, inputDir, outputDir=None,
             source_quals=[], comment=None, verification='vb',
             file_type='s'):
         
-        toolCmd = [self.install_and_get_path()]
+        toolCmd = [self.install_and_get_path(), '-t', templateFile]
         
         if inputDir:
             toolCmd += ['-p', inputDir]
         if outputDir:
             toolCmd += ['-r', outputDir]
-        if templateFile:
-            toolCmd += ['-t', templateFile]
         if source_quals:
             toolCmd.append('-j')
             toolCmd.append(' '.join("[{}={}]".format(k,v) for k,v in source_quals))
