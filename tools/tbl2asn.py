@@ -23,7 +23,7 @@ class Tbl2AsnTool(tools.Tool):
 
     def execute(self, templateFile, inputDir, outputDir=None,
             source_quals=[], comment=None, verification='vb',
-            file_type='s', comment_file=None):
+            file_type='s', structured_comment_file=None):
         
         toolCmd = [self.install_and_get_path(), '-t', templateFile]
         
@@ -36,8 +36,8 @@ class Tbl2AsnTool(tools.Tool):
             toolCmd.append(' '.join("[{}={}]".format(k,v) for k,v in source_quals))
         if comment:
             toolCmd += ['-y', comment]
-        if comment_file:
-            toolCmd += ['-Y', comment_file]
+        if structured_comment_file:
+            toolCmd += ['-w', structured_comment_file]
         if verification:
             toolCmd += ['-V', verification]
         if file_type:
