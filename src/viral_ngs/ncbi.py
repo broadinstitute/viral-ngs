@@ -6,7 +6,7 @@ to NCBI's Genbank and SRA databases.
 __author__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, collections
+import argparse, logging, collections, shutil, os, os.path
 import Bio.SeqIO
 import util.cmd, util.file, util.vcf, util.misc
 import interhost
@@ -149,6 +149,18 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
+
+def fasta2fsa(infname, outdir):
+    outfname = os.path.basename(infname)
+    if outfname.endswith('.fasta'):
+        outfname = outfname[:-6]
+    elif outfname.endswith('.fa'):
+        outfname = outfname[:-3]
+    if not outfname.endswith('.fsa'):
+        outfname = outfname + '.fsa'
+    outfname = os.path.join(outdir, outfname)
+    shutil.copyfile(infname, outfname)
+    return outfname
 
 
 def full_parser():
