@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 class Tbl2AsnTool(tools.Tool):
     def __init__(self, install_methods = None):
         if install_methods == None:
-            install_methods = [DownloadGzipBinary(url.format(get_bintype()), 'tbl2asn')]
+            install_methods = [DownloadGzipBinary(url.format(os=get_bintype()), 'tbl2asn')]
         tools.Tool.__init__(self, install_methods = install_methods)
 
     def version(self):
