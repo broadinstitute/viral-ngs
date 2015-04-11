@@ -119,7 +119,8 @@ def fasta2fsa(infname, outdir):
     shutil.copyfile(infname, outfname)
     return outfname
 
-def prep_genbank_files(templateFile, indir, outdir, master_source_table=None, comment=None):
+def prep_genbank_files(templateFile, indir, outdir,
+        master_source_table=None, comment=None, comment_file=None, source_modifiers=[]):
     ''' prepare genbank submission files '''
     # make output directory
     util.file.mkdir_p(outdir)
@@ -128,12 +129,17 @@ def prep_genbank_files(templateFile, indir, outdir, master_source_table=None, co
     for fn in glob.glob(os.path.join(indir, '*.tbl')):
         shutil.copy(fn, outdir)
         if master_source_table:
-            srcfile = fn[:-4] + '.src'
+            srcfile = os.path.join(outdir, os.path.basename(fn)[:-4] + '.src')
             shutil.copy(master_source_table, srcfile)
-        
+    
+    # source modifiers
+    if source_modifiers:
+        source_modifiers = list(x.split('=') for x in source_modifiers)
+
     # run tbl2asn
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
-    tbl2asn.execute(templateFile, outdir, comment=comment)
+    tbl2asn.execute(templateFile, outdir,
+        comment=comment, comment_file=comment_file, source_quals=source_modifiers)
 
 def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     parser.add_argument('templateFile', help='Template file (.sbt)')
@@ -141,8 +147,12 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     parser.add_argument("outdir", help="Output directory with genbank submission files")
     parser.add_argument('--comment', default=None,
         help='comment field')
+    parser.add_argument('--comment_file', default=None,
+        help='take the contents of a file and use as a comment on all sequences')
     parser.add_argument('--master_source_table', default=None,
         help='source modifier table')
+    parser.add_argument('--source_modifiers', default=[], nargs='*',
+        help='source modifiers')
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser
