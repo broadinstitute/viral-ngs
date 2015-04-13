@@ -6,7 +6,7 @@ to NCBI's Genbank and SRA databases.
 __author__ = "PLACEHOLDER"
 __commands__ = []
 
-import argparse, logging, collections, shutil, os, os.path, glob
+import argparse, logging, collections, shutil, os, os.path
 import Bio.SeqIO
 import util.cmd, util.file, util.version
 import tools.tbl2asn
@@ -105,7 +105,7 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
 
-def fasta2fsa(infname, outdir):
+def fasta2fsa(infname, outdir, biosample=None):
     ''' copy a fasta file to a new directory and change its filename to end in .fsa
         for NCBI's sake. '''
     outfname = os.path.basename(infname)
@@ -116,7 +116,13 @@ def fasta2fsa(infname, outdir):
     if not outfname.endswith('.fsa'):
         outfname = outfname + '.fsa'
     outfname = os.path.join(outdir, outfname)
-    shutil.copyfile(infname, outfname)
+    with open(infname, 'rU') as inf:
+        with open(outfname, 'wt') as outf:
+            for line in inf:
+                if line.startswith('>') and biosample:
+                    line = line.rstrip('\n\r')
+                    line = '{} [biosample={}]\n'.format(line, biosample)
+                outf.write(line)
     return outfname
 
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None):
@@ -137,7 +143,7 @@ def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=N
 
 def prep_genbank_files(templateFile, fasta_files, annotDir,
         master_source_table=None, comment=None, sequencing_tech=None,
-        coverage_table=None):
+        coverage_table=None, biosample_map=None):
     ''' Prepare genbank submission files.  Requires .fasta and .tbl files as input,
         as well as numerous other metadata files for the submission.  Creates a
         directory full of files (.sqn in particular) that can be sent to GenBank.
@@ -149,6 +155,13 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
             if row.get('sample') and row.get('aln2self_cov_median'):
                 coverage[row['sample']] = row['aln2self_cov_median']
     
+    # get biosample id map
+    biosample = {}
+    if biosample_map:
+        for row in util.file.read_tabfile_dict(biosample_map):
+            if row.get('sample') and row.get('BioSample'):
+                biosample[row['sample']] = row['BioSample']
+    
     # make output directory
     util.file.mkdir_p(annotDir)
     for fn in fasta_files:
@@ -156,18 +169,17 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
             raise Exception("fasta files must end in .fasta")
         sample = os.path.basename(fn)[:-6]
         # make .fsa files
-        fasta2fsa(fn, annotDir)
+        fasta2fsa(fn, annotDir, biosample=biosample.get(sample))
         # make .src files
         if master_source_table:
             shutil.copy(master_source_table, os.path.join(annotDir, sample+'.src'))
         # make .cmt files
-        cmt_fname = os.path.join(annotDir, sample+'.cmt')
-        make_structured_comment_file(cmt_fname, name=sample,
-            coverage=coverage.get(sample), seq_tech=sequencing_tech)
+        make_structured_comment_file(os.path.join(annotDir, sample+'.cmt'),
+            name=sample, coverage=coverage.get(sample), seq_tech=sequencing_tech)
     
     # run tbl2asn
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
-    tbl2asn.execute(templateFile, annotDir, comment=comment)
+    tbl2asn.execute(templateFile, annotDir, comment=comment, per_genome_comment=True)
 
 def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     parser.add_argument('templateFile',
@@ -182,10 +194,14 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
         help='sequencing technology (e.g. Illumina HiSeq 2500)')
     parser.add_argument('--master_source_table', default=None,
         help='source modifier table')
+    parser.add_argument("--biosample_map",
+        help="""A file with two columns and a header: sample and BioSample.
+        This file may refer to samples that are not included in this submission.""")
     parser.add_argument('--coverage_table', default=None,
         help='''A genome coverage report file with a header row.  The table must
         have at least two columns named sample and aln2self_cov_median.  All other
-        columns are ignored.''')
+        columns are ignored. Rows referring to samples not in this submission are
+        ignored.''')
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser

@@ -25,8 +25,9 @@
   "assembly_min_unambig":      0.95,
 
   "genbank": {
-    "author_template":        "NCBI/template.sbt",
+    "author_template":        "NCBI/authors.sbt",
     "source_modifier_table":  "NCBI/sample_meta.src",
+    "biosample_map":          "NCBI/biosample-map.txt",
     "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC"
   },
   
