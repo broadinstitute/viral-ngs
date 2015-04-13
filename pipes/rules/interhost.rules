@@ -97,11 +97,11 @@ rule prepare_genbank:
                 logid="{all}"
     shell:
                 ' '.join(["{config[binDir]}/ncbi.py", "prep_genbank_files",
-                    params.genbank_template,
+                    "{params.genbank_template}",
                     os.path.join(config["dataDir"], config["subdirs"]["assembly"]),
                     os.path.join(config["dataDir"], config["subdirs"]["annot"]),
-                    "--master_source_table", params.genbank_source_table,
-                    "--sequencing_tech", params.seq_tech])
+                    "--master_source_table", "{params.genbank_source_table}",
+                    "--sequencing_tech", "{params.seq_tech}"])
 
 rule all_annot:
     input:
