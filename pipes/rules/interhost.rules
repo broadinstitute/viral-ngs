@@ -84,6 +84,7 @@ rule annot_transfer:
 
 rule prepare_genbank:
     input:
+                config["reportsDir"]+"/summary.assembly.txt",
                 expand("{dir}/{subdir}/{sample}.tbl",
                     dir=[config["dataDir"]], subdir=[config["subdirs"]["annot"]],
                     sample=read_samples_file(config["samples_assembly"]))
@@ -91,17 +92,20 @@ rule prepare_genbank:
                 config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
                 LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+                fasta_files=expand("{dir}/{subdir}/{sample}.fasta",
+                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
+                    sample=read_samples_file(config["samples_assembly"])),
                 genbank_template=config.get('genbank',{}).get('author_template', ''),
                 genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
                 seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
                 logid="all"
     shell:
-                ' '.join(["{config[binDir]}/ncbi.py", "prep_genbank_files",
-                    "{params.genbank_template}",
-                    os.path.join(config["dataDir"], config["subdirs"]["assembly"]),
-                    os.path.join(config["dataDir"], config["subdirs"]["annot"]),
-                    "--master_source_table", "{params.genbank_source_table}",
-                    "--sequencing_tech", "'{params.seq_tech}'"])
+                ' '.join(["{config[binDir]}/ncbi.py prep_genbank_files",
+                    "{params.genbank_template} {params.fasta_files}",
+                    "{config[dataDir]}/{config[subdirs][annot]}",
+                    "--master_source_table {params.genbank_source_table}",
+                    "--sequencing_tech '{params.seq_tech}'",
+                    "--coverage_table {config[reportsDir]}/summary.assembly.txt"])
 
 rule all_annot:
     input:
