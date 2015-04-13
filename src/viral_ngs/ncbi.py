@@ -8,7 +8,7 @@ __commands__ = []
 
 import argparse, logging, collections, shutil, os, os.path, glob
 import Bio.SeqIO
-import util.cmd, util.file, util.vcf, util.misc
+import util.cmd, util.file, util.version
 import tools.tbl2asn
 import interhost
 
@@ -119,37 +119,56 @@ def fasta2fsa(infname, outdir):
     shutil.copyfile(infname, outfname)
     return outfname
 
-def prep_genbank_files(templateFile, indir, outdir,
-        master_source_table=None, comment=None, structured_comment_file=None, source_modifiers=[]):
-    ''' prepare genbank submission files '''
+def make_structured_comment_file(seq_tech):
+    cmt_fname = util.file.mkstempfname('.cmt')
+    with open(cmt_fname, 'wt') as outf:
+        outf.write("StructuredCommentPrefix\t##Genome-Assembly-Data-START##\n")
+        outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs v. {}\n".format(
+            util.version.get_version()))
+        if seq_tech:
+            outf.write("Sequencing Technology\t{}\n".format(seq_tech))
+    return cmt_fname
+
+def prep_genbank_files(templateFile, fastaDir, annotDir,
+        master_source_table=None, comment=None, sequencing_tech=None, source_modifiers=[]):
+    ''' Prepare genbank submission files.  Requires .fasta and .tbl files as input,
+        as well as numerous other metadata files for the submission.  Creates a
+        directory full of files (.sqn in particular) that can be sent to GenBank.
+    '''
     # make output directory
-    util.file.mkdir_p(outdir)
-    for fn in glob.glob(os.path.join(indir, '*.fasta')):
-        fasta2fsa(fn, outdir)
-    for fn in glob.glob(os.path.join(indir, '*.tbl')):
-        shutil.copy(fn, outdir)
+    util.file.mkdir_p(annotDir)
+    for fn in glob.glob(os.path.join(fastaDir, '*.fasta')):
+        fasta2fsa(fn, annotDir)
         if master_source_table:
-            srcfile = os.path.join(outdir, os.path.basename(fn)[:-4] + '.src')
+            srcfile = os.path.join(annotDir, os.path.basename(fn)[:-6] + '.src')
             shutil.copy(master_source_table, srcfile)
     
     # source modifiers
     if source_modifiers:
         source_modifiers = list(x.split('=') for x in source_modifiers)
-
+    
+    # create assembly data structured comment file
+    cmt_fname = make_structured_comment_file(sequencing_tech)
+    
     # run tbl2asn
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
-    tbl2asn.execute(templateFile, outdir,
-        comment=comment, structured_comment_file=structured_comment_file,
+    tbl2asn.execute(templateFile, annotDir,
+        comment=comment, structured_comment_file=cmt_fname,
         source_quals=source_modifiers)
+    
+    os.unlink(cmt_fname)
 
 def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
-    parser.add_argument('templateFile', help='Template file (.sbt)')
-    parser.add_argument("indir", help="Input directory with fasta and tbl files")
-    parser.add_argument("outdir", help="Output directory with genbank submission files")
+    parser.add_argument('templateFile',
+        help='Submission template file (.sbt) including author and contact info')
+    parser.add_argument("fastaDir",
+        help="Input directory with fasta files")
+    parser.add_argument("annotDir",
+        help="Output directory with genbank submission files (.tbl files must already be there)")
     parser.add_argument('--comment', default=None,
         help='comment field')
-    parser.add_argument('--structured_comment_file', default=None,
-        help='genome assembly information')
+    parser.add_argument('--sequencing_tech', default=None,
+        help='sequencing technology (e.g. Illumina HiSeq 2500)')
     parser.add_argument('--master_source_table', default=None,
         help='source modifier table')
     parser.add_argument('--source_modifiers', default=[], nargs='*',
@@ -158,6 +177,62 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser
 __commands__.append(('prep_genbank_files', parser_prep_genbank_files))
+
+
+def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
+    ''' This is a very lazy hack that creates a basic table that can be
+        pasted into various columns of an SRA submission spreadsheet.  It probably
+        doesn't work in all cases.
+    '''
+    metadata = {}
+
+    with open(biosampleFile, 'rU') as inf:
+        header = inf.readline()
+        for line in inf:
+            row = line.rstrip('\n\r').split('\t')
+            metadata.setdefault(row[0], {})
+            metadata[row[0]]['biosample_accession'] = row[1]
+
+    with open(md5_fname, 'rU') as inf:
+        for line in inf:
+            row = line.rstrip('\n\r').split()
+            s = os.path.basename(row[1])
+            assert s.endswith('.cleaned.bam')
+            s = s[:-len('.cleaned.bam')]
+            metadata.setdefault(s, {})
+            metadata[s]['filename'] = row[1]
+            metadata[s]['MD5_checksum'] = row[0]
+    
+    with open(outFile, 'wt') as outf:
+        header = ['biosample_accession', 'sample_name', 'library_ID', 'filename', 'MD5_checksum']
+        outf.write('\t'.join(header)+'\n')
+        with open(lib_fname, 'rU') as inf:
+            for line in inf:
+                lib = line.rstrip('\n\r')
+                parts = lib.split('.')
+                assert len(parts)>1 and parts[-1].startswith('l')
+                s = '.'.join(parts[:-1])
+                metadata.setdefault(s, {})
+                metadata[s]['library_ID'] = lib
+                metadata[s]['sample_name'] = s
+                outf.write('\t'.join(metadata[s].get(h,'') for h in header)+'\n')
+
+def parser_prep_sra_table(parser=argparse.ArgumentParser()):
+    parser.add_argument('lib_fname',
+        help='A file that lists all of the library IDs that will be submitted in this batch')
+    parser.add_argument("biosampleFile",
+        help="""A file with two columns and a header: sample and BioSample.
+        This file may refer to samples that are not included in this submission.""")
+    parser.add_argument("md5_fname",
+        help="""A file with two columns and no header.  Two columns are MD5 checksum and filename.
+        Should contain an entry for every bam file being submitted in this batch.
+        This is typical output from "md5sum *.cleaned.bam".""")
+    parser.add_argument("outFile",
+        help="Output table that contains most of the variable columns needed for SRA submission.")
+    util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, prep_sra_table, split_args=True)
+    return parser
+__commands__.append(('prep_sra_table', parser_prep_sra_table))
 
 
 def full_parser():
