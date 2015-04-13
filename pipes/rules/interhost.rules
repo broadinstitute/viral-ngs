@@ -94,14 +94,14 @@ rule prepare_genbank:
                 genbank_template=config.get('genbank',{}).get('author_template', ''),
                 genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
                 seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
-                logid="{all}"
+                logid="all"
     shell:
                 ' '.join(["{config[binDir]}/ncbi.py", "prep_genbank_files",
                     "{params.genbank_template}",
                     os.path.join(config["dataDir"], config["subdirs"]["assembly"]),
                     os.path.join(config["dataDir"], config["subdirs"]["annot"]),
                     "--master_source_table", "{params.genbank_source_table}",
-                    "--sequencing_tech", "{params.seq_tech}"])
+                    "--sequencing_tech", "'{params.seq_tech}'"])
 
 rule all_annot:
     input:
