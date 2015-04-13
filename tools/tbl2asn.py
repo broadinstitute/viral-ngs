@@ -23,7 +23,8 @@ class Tbl2AsnTool(tools.Tool):
 
     def execute(self, templateFile, inputDir, outputDir=None,
             source_quals=[], comment=None, verification='vb',
-            file_type='s', structured_comment_file=None):
+            file_type='s', structured_comment_file=None,
+            per_genome_comment=False):
         
         toolCmd = [self.install_and_get_path(), '-t', templateFile]
         
@@ -42,6 +43,8 @@ class Tbl2AsnTool(tools.Tool):
             toolCmd += ['-V', verification]
         if file_type:
             toolCmd += ['-a', file_type]
+        if per_genome_comment:
+            toolCmd += ['-X', 'C']
             
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
