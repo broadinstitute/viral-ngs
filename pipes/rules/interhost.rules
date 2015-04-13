@@ -74,7 +74,7 @@ rule ref_guided_diversity:
 
 rule annot_transfer:
     input:      config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    output:     config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.tbl'
+    output:     config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 logid="{sample}",
@@ -82,15 +82,31 @@ rule annot_transfer:
                 refAnnot=config["ref_annot"]
     shell:      "{config[binDir]}/ncbi.py tbl_transfer {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
 
-rule all_annot:
+rule prepare_genbank:
     input:
                 expand("{dir}/{subdir}/{sample}.tbl",
-                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
+                    dir=[config["dataDir"]], subdir=[config["subdirs"]["annot"]],
                     sample=read_samples_file(config["samples_assembly"]))
+    output:
+                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
+    params:
+                LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+                genbank_template=config.get('genbank',{}).get('author_template', ''),
+                genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
+                seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
+                logid="{all}"
+    shell:
+                ' '.join(["{config[binDir]}/ncbi.py", "prep_genbank_files",
+                    params.genbank_template,
+                    os.path.join(config["dataDir"], config["subdirs"]["assembly"]),
+                    os.path.join(config["dataDir"], config["subdirs"]["annot"]),
+                    "--master_source_table", params.genbank_source_table,
+                    "--sequencing_tech", params.seq_tech])
 
-'''
-bin/ncbi.py prep_genbank_files NCBI/template-20150129-94.sbt data/02_assembly/ data/05_genbank/ --master_source_table NCBI/sample_meta-150-genbank-v2.src --structured_comment_file NCBI/assembly.cmt
-'''
+rule all_annot:
+    input:
+                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
+
 
 
 '''
