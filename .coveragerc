@@ -1,0 +1,14 @@
+# .coveragerc to control test coverage report
+[report]
+
+exclude_lines =
+    pragma: no cover
+
+    #raise AssertionError
+    raise NotImplementedError
+
+    def __repr__
+    if self\.debug
+
+    if 0:
+    if __name__ == .__main__.:
