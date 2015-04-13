@@ -28,7 +28,8 @@
     "author_template":        "NCBI/authors.sbt",
     "source_modifier_table":  "NCBI/sample_meta.src",
     "biosample_map":          "NCBI/biosample-map.txt",
-    "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC"
+    "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC",
+    "comment":                "Please be aware that the annotation is done automatically with little or no manual curation."
   },
   
   "seq_center": "BI",

@@ -99,7 +99,7 @@ rule prepare_genbank:
                 genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
                 biosample_map=config.get('genbank',{}).get('biosample_map', ''),
                 seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
-                comment='Please be aware that the annotation is done automatically with little or no manual curation.',
+                comment=config.get('genbank',{}).get('comment', ''),
                 logid="all"
     shell:
                 ' '.join(["{config[binDir]}/ncbi.py prep_genbank_files",
