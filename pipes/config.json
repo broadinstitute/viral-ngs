@@ -23,6 +23,12 @@
   
   "assembly_min_length":    [15000],
   "assembly_min_unambig":      0.95,
+
+  "genbank": {
+    "author_template":        "NCBI/template.sbt",
+    "source_modifier_table":  "NCBI/sample_meta.src",
+    "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC"
+  },
   
   "seq_center": "BI",
 
