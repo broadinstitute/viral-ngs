@@ -18,14 +18,18 @@
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
   "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
+  "ref_annot":      "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/features.tbl",
   "snpEff_genome":  "KJ660346.2",
   
   "assembly_min_length":    [15000],
   "assembly_min_unambig":      0.95,
-  
-  "align_outgroups": {
-    "ebov_2014":    "",
-    "ebov":         ""
+
+  "genbank": {
+    "author_template":        "NCBI/authors.sbt",
+    "source_modifier_table":  "NCBI/sample_meta.src",
+    "biosample_map":          "NCBI/biosample-map.txt",
+    "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC",
+    "comment":                "Please be aware that the annotation is done automatically with little or no manual curation."
   },
   
   "seq_center": "BI",
@@ -50,7 +54,8 @@
     "align_self":   "02_align_to_self",
     "align_ref":    "03_align_to_ref",
     "interhost":    "03_interhost",
-    "intrahost":    "04_intrahost"
+    "intrahost":    "04_intrahost",
+    "annot":        "05_genbank"
   },
   "dataDir":    "data",
   "tmpDir":     "tmp",
