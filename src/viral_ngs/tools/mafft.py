@@ -25,9 +25,9 @@ class MafftTool(tools.Tool):
             binaryPath              = get_mafft_binary_path(mafft_os, mafft_bitdepth)
             binaryDir               = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
             
-            target_rel_path = '{binPath}'.format(ver=tool_version, os=mafft_os, binPath=binaryPath)
-            verify_command  = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath, binDir=binaryDir) 
-            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version, os=mafft_os, binPath=binaryPath)
+            target_rel_path = '{binPath}'.format(binPath=binaryPath)
+            verify_command  = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, binPath=binaryPath, binDir=binaryDir) 
+            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version)
 
             install_methods.append(
                     tools.DownloadPackage( url.format(ver=tool_version, os=mafft_os, ext=mafft_archive_extension),
@@ -95,7 +95,10 @@ class MafftTool(tools.Tool):
         toolCmd = [self.install_and_get_path()]
 
         toolCmd.append("--auto")
-        toolCmd.append("--thread {}".format( max( int(threads), 1 )) )
+        if threads >= 1 or threads == -1:
+            toolCmd.append("--thread {}".format(threads))
+        else:
+            raise Exception("invalid value for threads: {}".format(threads))
 
         if localpair and globalpair:
             raise Exception("Alignment type must be either local or global, not both.")

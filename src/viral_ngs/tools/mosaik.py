@@ -2,8 +2,8 @@
     The MOSAIK aligner
 '''
 
-import logging, tools, util.file
-import os, os.path, subprocess
+import logging, os, os.path, subprocess
+import tools, util.file
 
 tool_version = '2.1.33'
 url = 'https://mosaik-aligner.googlecode.com/files/MOSAIK-{ver}-{os}.tar'

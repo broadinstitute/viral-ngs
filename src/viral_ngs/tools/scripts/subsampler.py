@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import argparse
-import os
 import random
 import sys
+import subprocess
 
 parser = argparse.ArgumentParser(description=\
   'This program outputs to stdout a user-defined number of reads from given reads file[s]')

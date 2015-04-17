@@ -8,7 +8,7 @@
 '''
 
 import tools, tools.picard, tools.samtools, util.file
-import logging, os, os.path, subprocess, stat, gzip
+import logging, os, os.path, subprocess, stat
 
 log = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class NovoalignTool(tools.Tool) :
         if min_qual:
             tmp_bam2 = util.file.mkstempfname('.filtered.bam')
             cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
-            log.debug('%s > %s' % (' '.join(cmd), tmp_bam2))
+            log.debug('%s > %s', ' '.join(cmd), tmp_bam2)
             with open(tmp_bam2, 'wb') as outf:
                 subprocess.check_call(cmd, stdout=outf)
             os.unlink(tmp_sam)
@@ -175,7 +175,7 @@ class NovoalignTool(tools.Tool) :
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)
-        except PermissionError:
+        except (IOError, OSError):
             pass
 
 

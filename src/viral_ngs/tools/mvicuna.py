@@ -59,8 +59,8 @@ def _get_mvicuna_path() :
     elif uname[0] == 'Linux' and uname[4].endswith('64') :
         osName = 'linux64'
     else :
-        log.debug('mvicuna not implemented for OS {}'.format(
-            uname[0] + ' ' + uname[4]))
+        log.debug('mvicuna not implemented for OS %s %s',
+            uname[0], uname[4])
         return ''
     binariesPath = util.file.get_binaries_path()
     return os.path.join(binariesPath, 'mvicuna', osName, 'mvicuna')
