@@ -5,7 +5,7 @@
 __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, subprocess, glob, os, os.path, time
+import argparse, logging, subprocess, glob, os, time
 import pysam, Bio.SeqIO
 import util.cmd, util.file, util.misc
 import tools.samtools

@@ -7,7 +7,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
                 + "hlevitin@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, subprocess, os, tempfile, errno, shutil
+import argparse, logging, subprocess, os, tempfile, shutil
 from Bio import SeqIO
 import util.cmd, util.file
 import tools, tools.blast
@@ -117,7 +117,6 @@ def lastal_get_hits(inFastq, db, outList):
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
     mafConvertPath = tools.last.MafConvert().install_and_get_path()
-    prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
     noBlastLikeHitsPath = os.path.join( util.file.get_scripts_path(),
                                         'noBlastLikeHits.py')
     
@@ -560,7 +559,7 @@ def deplete_blastn(inFastq, outFastq, refDbs) :
     ## Run blastn using each of the databases in turn
     blastOutFiles = []
     for db in refDbs :
-        log.info("running blastn on {} against {}".format(inFastq, db))
+        log.info("running blastn on %s against %s", inFastq, db)
         blastOutFiles += blastn_chunked_fasta(inFasta, db)
 
     ## Combine results from different databases
@@ -640,7 +639,7 @@ def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
     read_utils.fastq_to_fasta(fastq1, fasta)
     os.unlink(fastq1)
     os.unlink(fastq2)
-    log.info("running blastn on {} pair 1 against {}".format(inBam, db))
+    log.info("running blastn on %s pair 1 against %s", inBam, db)
     blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
@@ -662,7 +661,7 @@ def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
     read_utils.fastq_to_fasta(fastq2, fasta)
     os.unlink(fastq1)
     os.unlink(fastq2)
-    log.info("running blastn on {} pair 2 against {}".format(inBam, db))
+    log.info("running blastn on %s pair 2 against %s", inBam, db)
     blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:

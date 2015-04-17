@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import string
 import sys
 
 parser = argparse.ArgumentParser(description=\

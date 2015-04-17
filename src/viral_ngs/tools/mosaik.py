@@ -2,7 +2,7 @@
     The MOSAIK aligner
 '''
 
-import logging, tools, util.file
+import logging, tools
 import os, os.path, subprocess
 
 tool_version = '2.1.33'
