@@ -7,7 +7,7 @@
 '''
 
 import logging, os, os.path, subprocess, tempfile, shutil
-import tools, util.file
+import tools
 
 tool_version = "2011-11-26"
 trinityVersion = "trinityrnaseq_r{}".format(tool_version)
@@ -87,7 +87,7 @@ class DownloadAndBuildTrinity(tools.DownloadPackage) :
         inchwormPath  = os.path.join(trinityDir, 'Inchworm', 'src', 'inchworm')
         for path in [chrysalisPath, inchwormPath] :
             if not os.access(path, (os.X_OK | os.R_OK)) :
-                log.debug('{} was not built.'.format(path))
+                log.debug('%s was not built.', path)
                 self.installed = False
         self.installed = True
         return self.installed

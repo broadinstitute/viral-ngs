@@ -7,11 +7,11 @@ __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
              "swohl@broadinstitute.org, irwin@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, itertools, re, shutil, tempfile, os
+import argparse, logging, itertools, re, shutil, os
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import pysam
 import util.cmd, util.file, util.vcf, util.misc
-from util.stats import mean, median, fisher_exact, chi2_contingency
+from util.stats import median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
@@ -117,7 +117,7 @@ def filter_strand_bias(isnvs, minReadsEach = None, maxBias = None) :
     if maxBias == None :
         maxBias = defaultMaxBias
     for row in isnvs:
-        front = row[:alleleCol]
+        #front = row[:alleleCol]
         for fieldInd in range(len(row) - 1, alleleCol - 1, -1) :
             f, r = AlleleFieldParser(row[fieldInd]).strand_counts()
             if  (int(f)<minReadsEach or int(r)<minReadsEach
@@ -179,8 +179,8 @@ def compute_library_bias(isnvs, inBam, inConsFasta) :
                 libBam = rgBams[0]
             samtoolsTool.index(libBam)
             n_reads = samtoolsTool.count(libBam)
-            log.debug("LB:{} has {} reads in {} read groups ({})".format(
-                lib, n_reads, len(rgs), ', '.join(rgs)))
+            log.debug("LB:%s has %s reads in %s read groups (%s)",
+                lib, n_reads, len(rgs), ', '.join(rgs))
             libBams.append(libBam)
         
     for row in isnvs :
@@ -454,8 +454,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                     if tot_n>0 and float(n)/tot_n >= 0.005)
                                 # drop this position:sample if no variation left
                                 if len(row['allele_counts']) < 2:
-                                    log.info("dropping iSNV at %s:%s (%s) because no variation remains after simple filtering" % (
-                                        row['s_chrom'], row['s_pos'], row['sample']))
+                                    log.info("dropping iSNV at %s:%s (%s) because no variation remains after simple filtering",
+                                        row['s_chrom'], row['s_pos'], row['sample'])
                                     continue
                             # reposition vphaser deletions minus one to be consistent with
                             # VCF conventions
@@ -512,7 +512,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
                         if cons_start == None or cons_stop == None :
                             log.info("variant is outside consensus assembly "
-                                "for %s at %s:%s-%s." % (s, ref_sequence.id, pos, end))
+                                "for %s at %s:%s-%s.", s, ref_sequence.id, pos, end)
                             continue
                         cons = samp_to_seqIndex[s][samp_to_cmap[s].mapBtoA(ref_sequence.id)]
                         allele = str(cons[cons_start-1:cons_stop].seq).upper()
@@ -521,7 +521,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         if all(a in set(('A','C','T','G')) for a in allele):
                             consAlleles[s] = allele
                         else:
-                            log.warning("dropping ambiguous consensus for %s at %s:%s-%s: %s" % (s, ref_sequence.id, pos, end, allele))
+                            log.warning("dropping ambiguous consensus for %s at %s:%s-%s: %s", s, ref_sequence.id, pos, end, allele)
                     
                     # define genotypes and fractions
                     iSNVs = {} # {sample : {allele : fraction, ...}, ...}
@@ -575,8 +575,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
                                         log.warning("vPhaser and assembly pipelines mismatch at "
-                                            "%s:%d (%s) - consensus %s, vPhaser %s" %
-                                            (ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a))
+                                            "%s:%d (%s) - consensus %s, vPhaser %s",
+                                            ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a)
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
@@ -612,7 +612,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                             # if we filtered any alleles above, make sure to omit absent alleles
                             alleles_isnv2.append((len(counts),sum(counts),a))
                         else:
-                            log.info("dropped allele {} at position {}:{}".format(a, ref_sequence.id, pos))
+                            log.info("dropped allele %s at position %s:%s", a, ref_sequence.id, pos)
                     alleles_isnv = list(allele for n_samples, n_reads, allele in reversed(sorted(alleles_isnv2)))
                     alleles = list(util.misc.unique([refAllele] + alleles_cons + alleles_isnv))
                     
@@ -621,7 +621,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         raise Exception()
                     elif len(alleles)==1:
                         # if we filtered any alleles above, skip this position if there is no variation left here
-                        log.info("dropped position {}:{} due to lack of variation".format(ref_sequence.id, pos))
+                        log.info("dropped position %s:%s due to lack of variation", ref_sequence.id, pos)
                         continue
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
@@ -690,10 +690,10 @@ __commands__.append(('merge_to_vcf', parser_merge_to_vcf))
 #  ===================================================
 
 def compute_Fws(vcfrow):
-    format = vcfrow[8].split(':')
-    if 'AF' not in format:
+    format_col = vcfrow[8].split(':')
+    if 'AF' not in format_col:
         return None
-    af_idx = format.index('AF')
+    af_idx = format_col.index('AF')
 
     freqs = [dat.split(':') for dat in vcfrow[9:]]
     freqs = [float(dat[af_idx].split(',')[0]) for dat in freqs if len(dat)>af_idx and dat[af_idx]!='.' and dat[0]!='.' and int(dat[0])<=1]
@@ -857,7 +857,7 @@ def iSNV_table(vcf_iter):
                         out['Fws_snp'] = info['FWS']
                     yield out
         except:
-            log.error("VCF parsing error at {}:{}".format(row['CHROM'], row['POS']))
+            log.error("VCF parsing error at %s:%s", row['CHROM'], row['POS'])
             raise
 
 def parser_iSNV_table(parser=argparse.ArgumentParser()):

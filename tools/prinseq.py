@@ -1,6 +1,5 @@
 "tools.Tool for prinseq."
 
-import os
 import tools, util.file
 
 url = 'http://sourceforge.net/projects/prinseq/files/standalone/' \
