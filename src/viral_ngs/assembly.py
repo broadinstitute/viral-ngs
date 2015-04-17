@@ -48,7 +48,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # Log count
     with open(purgefq[0], 'rt') as inf:
         n = int(sum(1 for line in inf)/4)
-        log.info("PRE-SUBSAMPLE COUNT: {} read pairs".format(n))
+        log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n)
     
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
@@ -506,7 +506,7 @@ def main_modify_contig(args):
 __commands__.append(('modify_contig', parser_modify_contig))
 
 
-class ContigModifier:
+class ContigModifier(object):
     ''' Initial modifications to Trinity+VFAT assembly output based on
         MUSCLE alignment to known reference genome
         author: rsealfon
@@ -592,7 +592,7 @@ class ContigModifier:
 
 
 
-class MutableSequence:
+class MutableSequence(object):
     def __init__(self, name, start, stop, init_seq=None):
         if not (stop>=start>=1):
             raise IndexError("coords out of bounds")
@@ -661,9 +661,9 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
     alleles = [vcfrow[3]] + [a for a in vcfrow[4].split(',') if a not in '.']
     start = int(vcfrow[1])
     stop = start + len(vcfrow[3]) - 1
-    format = vcfrow[8].split(':')
-    format = dict((format[i], i) for i in range(len(format)))
-    assert 'GT' in format and format['GT']==0  # required by VCF spec
+    format_col = vcfrow[8].split(':')
+    format_col = dict((format_col[i], i) for i in range(len(format_col)))
+    assert 'GT' in format_col and format_col['GT']==0  # required by VCF spec
     assert len(vcfrow)==9+len(samples)
     info = [x.split('=') for x in vcfrow[7].split(';') if x != '.']
     info = dict(x for x in info if len(x)==2)
@@ -676,18 +676,18 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
         # require a minimum read coverage
         if len(alleles)==1:
             # simple invariant case
-            dp = ('DP' in format and len(rec)>format['DP']) and int(rec[format['DP']]) or 0
+            dp = ('DP' in format_col and len(rec)>format_col['DP']) and int(rec[format_col['DP']]) or 0
             if dp < min_dp:
                 continue
             geno = alleles
             if info_dp and float(dp)/info_dp < min_dp_ratio:
-                log.warn("dropping invariant call at %s:%s %s (%s) due to low DP ratio (%s / %s = %s < %s)" % (
-                    c,p,sample,geno,dp,info_dp,float(dp)/info_dp,min_dp_ratio))
+                log.warn("dropping invariant call at %s:%s-%s %s (%s) due to low DP ratio (%s / %s = %s < %s)",
+                    c,start,stop,sample,geno,dp,info_dp,float(dp)/info_dp,min_dp_ratio)
                 continue
         else:
             # variant: manually call the highest read count allele if it exceeds a threshold
-            assert ('AD' in format and len(rec)>format['AD'])
-            allele_depths = list(map(int, rec[format['AD']].split(',')))
+            assert ('AD' in format_col and len(rec)>format_col['AD'])
+            allele_depths = list(map(int, rec[format_col['AD']].split(',')))
             assert len(allele_depths)==len(alleles)
             allele_depths = [(allele_depths[i], alleles[i]) for i in range(len(alleles)) if allele_depths[i]>0]
             allele_depths = list(reversed(sorted((n,a) for n,a in allele_depths if n>=min_dp)))
@@ -736,7 +736,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
                     # mix of indels with no clear winner... force the most popular one
                     seqs[s].replace(start, stop, alleles[0])
         except:
-            log.exception("Exception occurred while parsing VCF file.  Row: '%s'" % vcfrow)
+            log.exception("Exception occurred while parsing VCF file.  Row: '%s'", vcfrow)
             raise
 
     # at the end, dump the last chromosome
