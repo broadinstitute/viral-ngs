@@ -2,7 +2,6 @@
 '''Written by Kristian Andersen.'''
 
 import argparse
-import string
 import sys
 
 parser = argparse.ArgumentParser(description=\

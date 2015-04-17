@@ -261,7 +261,6 @@ def main_illumina_basecalls(args):
     picardOpts = dict((opt, getattr(args, opt))
         for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
         if hasattr(args, opt) and getattr(args, opt)!=None)
-    params_file = util.file.mkstempfname('library_params.txt')
     if not picardOpts.get('run_start_date'):
         picardOpts['run_start_date'] = get_earliest_date(args.inBustardDir)
     #if not picardOpts.get('read_group_id'):

@@ -29,7 +29,6 @@ log = logging.getLogger(__name__)
 
 def get_tool_by_name(name):
     if name not in installed_tools:
-        pass
         raise NotImplementedError
     return installed_tools[name]
 
@@ -172,10 +171,10 @@ class DownloadPackage(InstallMethod):
         util.file.mkdir_p(download_dir)
         filepath = urlparse(self.url).path
         filename = filepath.split('/')[-1]
-        log.info("Downloading from {} ...".format(self.url,
+        log.info("Downloading from %s to %s/%s ...", self.url,
                                                   download_dir,
-                                                  filename))
-        urlretrieve(self.url, "%s/%s" % (download_dir,filename))
+                                                  filename)
+        urlretrieve(self.url, os.path.join(download_dir,filename))
         self.download_file = filename
         self.unpack(download_dir)
     def post_download(self):
@@ -208,11 +207,10 @@ class DownloadPackage(InstallMethod):
                                                         compression_option,
                                                         download_dir,
                                                         self.download_file)
-            log.debug("Untaring with command: {}".format(untar_cmd))
+            log.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)
             if exitCode:
-                log_str="tar returned non-zero exitcode {}".format(exitCode)
-                log.info(log_str)
+                log.info("tar returned non-zero exitcode %s", exitCode)
                 return
             else:
                 log.debug("tar returned with exit code 0")

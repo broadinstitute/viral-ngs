@@ -1,6 +1,6 @@
 "Tools in the 'last' suite."
 
-import tools, util.file
+import tools
 import os
 
 class LastTools(tools.Tool) :

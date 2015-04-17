@@ -68,7 +68,7 @@ class DownloadBmtagger(tools.InstallMethod) :
         for executable in self.executables :
             path = os.path.join(self.targetDir, executable)
             url = urlBase + executable
-            log.info('Downloading from {} ...'.format(url))
+            log.info('Downloading from %s ...', url)
             urlretrieve(url, path)
             os.system('chmod +x ' + path)
         self.verify_install()

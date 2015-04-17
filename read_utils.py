@@ -449,8 +449,8 @@ def split_bam(inBam, outBams) :
     # accomplished by Picard RevertSam with SANITIZE=true)
     totalReadCount = samtools.count(inBam)
     maxReads = int(math.ceil(float(totalReadCount) / len(outBams) / 2) * 2)
-    log.info("splitting %d reads into %d files of %d reads each" % (
-        totalReadCount, len(outBams), maxReads))
+    log.info("splitting %d reads into %d files of %d reads each",
+        totalReadCount, len(outBams), maxReads)
     
     # load BAM header into memory
     header = samtools.getHeader(inBam)
@@ -539,7 +539,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
         if 'PU' in rg:
             fname = rg['PU']
         lb_to_files[rg.get('LB','none')].add(os.path.join(tempDir, fname))
-    log.info("found %d distinct libraries and %d read groups" % (len(lb_to_files), len(read_groups)))
+    log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
     
     # For each library, merge FASTQs and run rmdup for entire library
     readList = mkstempfname('.keep_reads.txt')
@@ -558,7 +558,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
                                 outf.write(line)
                         os.unlink(fn)
                     else:
-                        log.warn("no reads found in %s, assuming that's because there's no reads in that read group" % fn)
+                        log.warn("no reads found in %s, assuming that's because there's no reads in that read group", fn)
         
         # M-Vicuna DupRm to see what we should keep (append IDs to running file)
         mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)

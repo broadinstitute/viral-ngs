@@ -3,8 +3,7 @@
 __author__ = "hlevitin@broadinstitute.org"
 
 import tools
-import util.file
-import os, logging
+import os, os.path, logging
 
 log = logging.getLogger(__name__)
 
@@ -25,11 +24,11 @@ BWA_DIR = '.'.join( [ x for x in URL.split("/")[-1].split('.') if
 
 class Bwa(tools.Tool) :
     def __init__(self, install_methods = None) :
-        log.debug("BWA_DIR: {}".format(BWA_DIR))
+        log.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods == None :
             install_methods = []
             install_methods.append( tools.DownloadPackage(
-                URL, "{}/bwa".format(BWA_DIR),
+                URL, os.path.join(BWA_DIR, 'bwa'),
                 post_download_command="cd {}; make -s".format(BWA_DIR)))
             tools.Tool.__init__(self, install_methods = install_methods)
 

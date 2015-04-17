@@ -9,7 +9,7 @@ import util.file, util.misc
 
 log = logging.getLogger(__name__)
 
-class SnpAnnotater:
+class SnpAnnotater(object):
     ''' Add annotations to snps based on a snpEff-annotated VCF file.
     '''
     def __init__(self, snpEffVcf=None, snpIterator=None):
@@ -48,12 +48,12 @@ class SnpAnnotater:
                         + parse_eff(row['CHROM'], row['POS'], row['INFO']),
                         ifilter(lambda r: r['ALT'] != '.', ffp)))
             except Exception as e:
-                log.exception("exception processing file %s line %s" % (snpEffVcf, ffp.line_num))
+                log.exception("exception processing file %s line %s", snpEffVcf, ffp.line_num)
                 raise
             self.cur.execute("select chr,pos from annot group by chr,pos having count(*)>1")
             dupes = [(c,p) for c,p in self.cur]
             if dupes:
-                log.info("deleting annotation for %d duplicate positions: %s" % (len(dupes), ', '.join(['%s:%s'%(c,p) for c,p in dupes])))
+                log.info("deleting annotation for %d duplicate positions: %s", len(dupes), ', '.join(['%s:%s'%(c,p) for c,p in dupes]))
                 self.cur.executemany("delete from annot where chr=? and pos=?", dupes)
             self.conn.commit()
     def __iter__(self):
@@ -152,10 +152,7 @@ def parse_eff(chrom, pos, info, required=True):
         return eff
 
     except Exception as e:
-        log.exception("exception parsing snpEff on row %s:%s - %s" % (chrom, pos, info))
-        raise
-    except Error as e:
-        log.error("error parsing snpEff on row %s:%s - %s" % (chrom, pos, info))
+        log.exception("exception parsing snpEff on row %s:%s - %s", chrom, pos, info)
         raise
 
 
