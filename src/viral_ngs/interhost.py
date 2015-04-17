@@ -8,7 +8,7 @@ __commands__ = []
 
 import Bio.AlignIO
 from Bio import SeqIO
-import argparse, logging, os, sys, array, bisect
+import argparse, logging, os, array, bisect
 
 try:
     from itertools import zip_longest
@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 # =========== CoordMapper =================
 
-class CoordMapper :
+class CoordMapper(object):
     """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
         Indels are handled as follows after corresponding sequences are aligned:
@@ -308,17 +308,17 @@ def multichr_mafft(args):
     prefix = "" if args.outFilePrefix == None else args.outFilePrefix
 
     # reorder the data into new FASTA files, where each FASTA file has only variants of its respective chromosome
-    transposedFiles = transposeChromosomeFiles(args.inFastas, absoluteOutDirectory, prefix)
+    transposedFiles = transposeChromosomeFiles(args.inFastas)
 
     # since the FASTA files are
     for idx, filePath in enumerate(transposedFiles):
-        pass
+        
         # execute MAFFT alignment. The input file is passed within a list, since argparse ordinarily
         # passes input files in this way, and the MAFFT tool expects lists,
         # but in this case we are creating the input file ourselves
         tools.mafft.MafftTool().execute(
                     inFastas          = [os.path.abspath(filePath)],
-                    outFile           = absoluteOutDirectory + "/{}_{}.fasta".format(prefix, idx), 
+                    outFile           = os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx)), 
                     localpair         = args.localpair, 
                     globalpair        = args.globalpair, 
                     preservecase      = args.preservecase, 
@@ -364,17 +364,17 @@ def make_vcf(a, ref_idx, chrom):
                 alt.append(a[j][i])
         if len(alt) > 0:
             row = [chrom, i+1, '.', a[ref_idx][i], ','.join(alt), '.', '.', '.', 'GT']
-            vars = []
+            genos = []
             for k in range(len(a)):
                 if a[k][i] == a[ref_idx][i]:
-                    vars.append(0)
+                    genos.append(0)
                 elif a[k][i] not in bases:
-                    vars.append(".")
+                    genos.append(".")
                 else:
                     for m in range(0, len(alt)):
                         if a[k][i] == alt[m]:
-                            vars.append(m+1)
-            yield row+vars
+                            genos.append(m+1)
+            yield row+genos
 
 def transposeChromosomeFiles(inputFilenamesList):
     ''' Input:  a list of FASTA files representing a genome for each sample.
@@ -394,7 +394,7 @@ def transposeChromosomeFiles(inputFilenamesList):
     fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
 
     # for each interleaved record
-    for idx, chrRecordList in enumerate( zip_longest(*fastaFiles) ):
+    for chrRecordList in zip_longest(*fastaFiles):
         if any(rec==None for rec in chrRecordList):
             raise Exception("input files must all have the same number of sequences")
         
@@ -402,10 +402,11 @@ def transposeChromosomeFiles(inputFilenamesList):
         outputFilenames.append(outputFilename)
         with open(outputFilename, "w") as outf:
             # write the corresonding records to a new FASTA file
-            countWritten = SeqIO.write(chrRecordList, outf, 'fasta')
+            SeqIO.write(chrRecordList, outf, 'fasta')
 
     # close all input files
-    [x.close() for x in inputFilesList]
+    for x in inputFilesList:
+        x.close()
 
     return outputFilenames
 
