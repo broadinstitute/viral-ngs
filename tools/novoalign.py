@@ -175,7 +175,7 @@ class NovoalignTool(tools.Tool) :
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)
-        except (IOError, OSError) as e:
+        except (IOError, OSError):
             pass
 
 
