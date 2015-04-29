@@ -119,12 +119,15 @@ __commands__.append(('get_all_names', parser_get_all_names))
 
 def make_barcodes_file(inFile, outFile):
     'Create input file for extract_barcodes'
-    header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
+    if any(row.get('barcode_2') for row in util.file.read_tabfile_dict(inFile)):
+        header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
+    else:
+        header = ['barcode_name', 'library_name', 'barcode_sequence_1']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
         for row in util.file.read_tabfile_dict(inFile):
             out  = {'barcode_sequence_1':row['barcode_1'],
-                    'barcode_sequence_2':row['barcode_2'],
+                    'barcode_sequence_2':row.get('barcode_2',''),
                     'barcode_name':row['sample'],
                     'library_name':row['sample']}
             if row.get('library_id_per_sample'):
@@ -132,7 +135,7 @@ def make_barcodes_file(inFile, outFile):
             outf.write('\t'.join(out[h] for h in header)+'\n')
 def parser_make_barcodes_file(parser=argparse.ArgumentParser()):
     parser.add_argument('inFile',
-        help='''Input tab file w/header and 3-5 named columns (last two are optional):
+        help='''Input tab file w/header and 2-5 named columns (last three are optional):
                 sample, barcode_1, barcode_2, library_id_per_sample, run_id_per_library''')
     parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
     util.cmd.attach_main(parser, make_barcodes_file, split_args=True)
@@ -182,14 +185,17 @@ __commands__.append(('extract_barcodes', parser_extract_barcodes))
 
 def make_params_file(inFile, bamDir, outFile):
     'Create input file for illumina_basecalls'
-    header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
+    if any(row.get('barcode_2') for row in util.file.read_tabfile_dict(inFile)):
+        header = ['BARCODE_1', 'BARCODE_2', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
+    else:
+        header = ['BARCODE_1', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
         rows = list(util.file.read_tabfile_dict(inFile))
         rows.append({'barcode_1':'N','barcode_2':'N','sample':'Unmatched'})
         for row in rows:
             out  = {'BARCODE_1':row['barcode_1'],
-                    'BARCODE_2':row['barcode_2'],
+                    'BARCODE_2':row.get('barcode_2',''),
                     'SAMPLE_ALIAS':row['sample'],
                     'LIBRARY_NAME':row['sample']}
             if row.get('library_id_per_sample'):

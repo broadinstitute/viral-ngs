@@ -157,8 +157,8 @@ class ExtractIlluminaBarcodesTool(PicardTools) :
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
     defaults = {'read_structure':'101T8B8B101T',
-        'max_mismatches':1, 'minimum_base_quality':15,
-        'num_processors':4}
+        'max_mismatches':0, 'minimum_base_quality':25,
+        'num_processors':0}
     option_list = ('read_structure', 'max_mismatches', 'minimum_base_quality',
         'min_mismatch_delta', 'max_no_calls', 'minimum_quality',
         'compress_outputs', 'num_processors')
@@ -190,7 +190,7 @@ class IlluminaBasecallsToSamTool(PicardTools) :
     defaults = {'read_structure':'101T8B8B101T', 'sequencing_center':'BI',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
         'max_reads_in_ram_per_tile':100000, 'max_records_in_ram':100000,
-        'num_processors':4, 'force_gc':False}
+        'num_processors':0, 'force_gc':False}
     option_list = ('read_structure', 'sequencing_center', 'adapters_to_check',
         'platform', 'max_reads_in_ram_per_tile', 'max_records_in_ram', 'num_processors',
         'apply_eamss_filter', 'force_gc', 'first_tile', 'tile_limit',
