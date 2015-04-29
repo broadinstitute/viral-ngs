@@ -212,11 +212,7 @@ class IlluminaBasecallsToSamTool(PicardTools) :
         opts += ['BASECALLS_DIR='+basecalls_dir,
                 'BARCODES_DIR='+barcodes_dir,
                 'LANE='+str(lane),
-                'RUN_BARCODE='+run_barcode]
-        if 'BARCODE' in util.file.readFlatFileHeader(library_params):
-            # yes, it's deprecated, but it's the only way to do single-barcode pools
-            opts.append('BARCODE_PARAMS='+library_params)
-        else:
-            opts.append('LIBRARY_PARAMS='+library_params)
+                'RUN_BARCODE='+run_barcode,
+                'LIBRARY_PARAMS='+library_params]
         PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
 

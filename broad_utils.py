@@ -188,14 +188,13 @@ def make_params_file(inFile, bamDir, outFile):
     if any(row.get('barcode_2') for row in util.file.read_tabfile_dict(inFile)):
         header = ['OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'BARCODE_1', 'BARCODE_2']
     else:
-        header = ['BARCODE', 'OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME']
+        header = ['OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'BARCODE_1']
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header)+'\n')
         rows = list(util.file.read_tabfile_dict(inFile))
         rows.append({'barcode_1':'N','barcode_2':'N','sample':'Unmatched'})
         for row in rows:
-            out  = {'BARCODE':row['barcode_1'],
-                    'BARCODE_1':row['barcode_1'],
+            out  = {'BARCODE_1':row['barcode_1'],
                     'BARCODE_2':row.get('barcode_2',''),
                     'SAMPLE_ALIAS':row['sample'],
                     'LIBRARY_NAME':row['sample']}
