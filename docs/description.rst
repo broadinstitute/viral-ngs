@@ -1,33 +1,27 @@
 Description of the methods
 ==========================
 
-Much more documentation to come...
 
-TO DO: here we will put a high level description of the various tools that
-exist here, perhaps with some pictures and such. We will describe why we
-used certain tools and approaches / how other approaches fell short / what
-kinds of problems certain steps are trying to solve.  Perhaps some links to
-papers and such.  Kind of a mini-methods paper here.
 
 Taxonomic read filtration
 -------------------------
 
-
 Human, contaminant, and duplicate read removal
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-BMTAGGER
-
-BLAST
-
-M-Vicuna
-
+The assembly pipeline begins by depleting paired-end reads from each
+sample of human and other contaminants using BMTAGGER (Kirill
+Rotmistrovsky, Richa Agarwala, BMTagger: Best Match Tagger for removing
+human reads from metagenomics datasets, 2011 - ncbi.nih.gov)
+and BLASTN,
+and removing PCR duplicates using M-Vicuna.
 
 Taxonomic selection
 ~~~~~~~~~~~~~~~~~~~
 
-LASTAL
-
+Reads are then filtered to to a genus-level database using LASTAL,
+quality-trimmed with Trimmomatic,
+and further deduplicated with PRINSEQ.
 
 Viral genome analysis
 ---------------------
@@ -35,42 +29,47 @@ Viral genome analysis
 Viral genome assembly
 ~~~~~~~~~~~~~~~~~~~~~
 
-*de novo* genome assembly with Trinity_.  Reference-assisted
-assembly improvements (scaffolding, orienting, etc) with
-VFAT_ (which relies on MUSCLE_).
+The filtered and trimmed reads were subsampled to at most 100,000 pairs.
+*de novo* assemby is performed using Trinity_.
+Reference-assisted assembly improvements follow (contig scaffolding, orienting, etc.)
+with VFAT_ (which relies on MUSCLE_).
 
-We then do two rounds of assembly improvement (Novoalign_ and GATK_).
+Each sample's reads are aligned to its *de novo* assembly using Novoalign_
+and any remaining duplicates were removed using Picard_ MarkDuplicates.
+Variant positions in each assembly were identified using GATK_ IndelRealigner and
+UnifiedGenotyper on the read alignments. The assembly was refined to represent the
+major allele at each variant site, and any positions supported by fewer than three
+reads were changed to N.
 
+This align-call-refine cycle is iterated twice, to minimize reference bias in the assembly.
+ 
 .. _Trinity: http://trinityrnaseq.github.io/
 .. _VFAT: http://www.broadinstitute.org/scientific-community/science/projects/viral-genomics/v-fat
+.. _MUSCLE: http://www.drive5.com/muscle/
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
+.. _Picard: http://broadinstitute.github.io/picard
 .. _GATK: https://www.broadinstitute.org/gatk/
 
 
 Intrahost variant identification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Intrahost variants (iSNVs) are identified from deep sequence coverage
-using `V-Phaser2 <http://dx.doi.org/10.1186/1471-2164-14-674>`_.
-For each sample, reads are first aligned to their own consensus
-genome with Novoalign, followed by duplicate read removal with Picard and
-local realignment with GATK IndelRealigner. V-Phaser2 is called on
-each sample to produce a set of iSNV calls.
-
-(then stuff about strand bias filter, then stuff about library
-counts)
-
-(then stuff about remapping all calls back to the reference assembly's
-coordinate space and alleles using MUSCLE_, and merging calls across all
-samples together, emitting in VCF format)
-
-iSNVs are then annotated with snpEff_ and provided in both VCF and tabular
-text formats.
+Intrahost variants (iSNVs) were called from each sample's read alignments using
+`V-Phaser2 <http://dx.doi.org/10.1186/1471-2164-14-674>`_
+and subjected to an initial set of filters:
+variant calls with fewer than five forward or reverse reads
+or more than a 10-fold strand bias were eliminated.
+iSNVs were also removed if there was more than a five-fold difference
+between the strand bias of the variant call and the strand bias of the reference call.
+Variant calls that passed these filters were additionally subjected
+to a 0.5% frequency filter.
+The final list of iSNVs contains only variant calls that passed all filters in two
+separate library preparations.
+These files infer 100% allele frequencies for all samples at an iSNV position where
+there was no intra-host variation within the sample, but a clear consensus call during
+assembly. Annotations are computed with snpEff_.
 
 .. _snpEff: http://snpeff.sourceforge.net/
-.. _MUSCLE: http://www.drive5.com/muscle/
-
-
 
 
 Taxonomic read identification
@@ -79,3 +78,13 @@ Taxonomic read identification
 Nothing here at the moment. That comes later, but we will later
 integrate it when it's ready.
 
+
+Cloud compute implementation
+----------------------------
+
+This assembly pipeline is also available via the DNAnexus cloud
+platform. RNA paired-end reads from either HiSeq or MiSeq instruments
+can be securely uploaded in FASTQ or BAM format and processed through
+the pipeline using graphical and command-line interfaces. Instructions
+for the cloud analysis pipeline are available at
+https://github.com/dnanexus/viral-ngs/wiki
