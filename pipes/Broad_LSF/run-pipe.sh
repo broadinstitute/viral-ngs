@@ -17,6 +17,7 @@ source "$VENVDIR/bin/activate"
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
 	--jobs 100000 --immediate-submit \
+        --latency-wait 20 \
 	--config mode=LSF job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \
 	--directory . \
 	--jobscript "$BINDIR/pipes/Broad_LSF/jobscript.sh" \
