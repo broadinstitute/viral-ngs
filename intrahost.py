@@ -758,6 +758,9 @@ def parse_eff(eff_field):
     (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out['eff_prot_len'], out['eff_gene'], out['eff_protein'], rank) = eff
     return out
 
+class SnpEffException(Exception):
+   pass
+
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
     
@@ -798,12 +801,12 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     if not effs:
         return {}
     if len(effs) != len(effs_dict):
-        raise Exception("ANN field has non-unique alleles")
+        raise SnpEffException("ANN field has non-unique alleles")
     for a in alleles:
         if a not in effs_dict:
-           raise Exception("ANN field is missing ALT allele: " + a)
+           raise SnpEffException("ANN field is missing ALT allele: " + a)
     if len(effs) != len(set(alleles)):
-        raise Exception("ANN field has %s entries, but ALT field has %s unique alleles: %s" % (
+        raise SnpEffException("ANN field has %s entries, but ALT field has %s unique alleles: %s" % (
             len(effs), len(set(alleles)), ','.join(alleles)))
     
     out = {}
