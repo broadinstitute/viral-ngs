@@ -36,9 +36,6 @@ rule all:
             sample=read_samples_file(config["samples_assembly"])),
         # intrahost variant calling
         config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
-        # create reference-guided analyses of diversity (quick outputs)
-        os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
-        os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz'),
         # create summary reports
         config["reportsDir"]+'/summary.fastqc.txt',
         config["reportsDir"]+'/summary.spike_count.txt'
