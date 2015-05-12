@@ -10,10 +10,7 @@ Human, contaminant, and duplicate read removal
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The assembly pipeline begins by depleting paired-end reads from each
-sample of human and other contaminants using BMTAGGER (Kirill
-Rotmistrovsky, Richa Agarwala, BMTagger: Best Match Tagger for removing
-human reads from metagenomics datasets, 2011 - ncbi.nih.gov)
-and BLASTN,
+sample of human and other contaminants using BMTAGGER_ and BLASTN,
 and removing PCR duplicates using M-Vicuna.
 
 Taxonomic selection
@@ -49,6 +46,7 @@ This align-call-refine cycle is iterated twice, to minimize reference bias in th
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
 .. _Picard: http://broadinstitute.github.io/picard
 .. _GATK: https://www.broadinstitute.org/gatk/
+.. _BMTAGGER: http://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/screening.pdf
 
 
 Intrahost variant identification
