@@ -2,6 +2,7 @@
 [![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
 [![Code Health](https://landscape.io/github/broadinstitute/viral-ngs/master/landscape.svg?style=flat)](https://landscape.io/github/broadinstitute/viral-ngs)
 [![Documentation Status](https://readthedocs.org/projects/viral-ngs/badge/?version=latest)](https://readthedocs.org/projects/viral-ngs/?badge=latest)
+[![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.17560.svg)](http://dx.doi.org/10.5281/zenodo.17560)
 
 viral-ngs
 =========
