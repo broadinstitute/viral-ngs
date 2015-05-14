@@ -10,18 +10,25 @@ Human, contaminant, and duplicate read removal
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The assembly pipeline begins by depleting paired-end reads from each
-sample of human and other contaminants using BMTAGGER (Kirill
-Rotmistrovsky, Richa Agarwala, BMTagger: Best Match Tagger for removing
-human reads from metagenomics datasets, 2011 - ncbi.nih.gov)
-and BLASTN,
-and removing PCR duplicates using M-Vicuna.
+sample of human and other contaminants using BMTAGGER_ and BLASTN_,
+and removing PCR duplicates using M-Vicuna (a custom version of Vicuna_).
+
+.. _BMTAGGER: http://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/screening.pdf
+.. _BLASTN: https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE_TYPE=BlastSearch
+.. _Vicuna: http://www.broadinstitute.org/scientific-community/science/projects/viral-genomics/vicuna
+
 
 Taxonomic selection
 ~~~~~~~~~~~~~~~~~~~
 
-Reads are then filtered to to a genus-level database using LASTAL,
-quality-trimmed with Trimmomatic,
-and further deduplicated with PRINSEQ.
+Reads are then filtered to to a genus-level database using LASTAL_,
+quality-trimmed with Trimmomatic_,
+and further deduplicated with PRINSEQ_.
+
+.. _LASTAL: http://last.cbrc.jp
+.. _Trimmomatic: http://www.usadellab.org/cms/?page=trimmomatic
+.. _PRINSEQ: http://prinseq.sourceforge.net
+
 
 Viral genome analysis
 ---------------------
