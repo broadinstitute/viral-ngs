@@ -6,17 +6,22 @@
 __author__ = "PLACEHOLDER"
 __commands__ = []
 
-import Bio.AlignIO
-from Bio import SeqIO
+# built-ins
 import argparse, logging, os, array, bisect
-
+from itertools import permutations
+from collections import OrderedDict, Sequence
 try:
     from itertools import zip_longest
 except ImportError :
     from itertools import izip_longest as zip_longest
+
+# third-party libraries
+import Bio.AlignIO
+from Bio import SeqIO
+
+# module-specific
 import tools.muscle, tools.snpeff, tools.mafft
 import util.cmd, util.file, util.vcf
-from collections import OrderedDict, Sequence
 
 log = logging.getLogger(__name__)
 
@@ -36,14 +41,14 @@ class CoordMapper(object):
             put gaps in opposite species adjacent to each other without aligning
             a pair of real bases in between.
     """
-    def __init__(self, fastaA, fastaB, alignerTool = tools.muscle.MuscleTool) :
+    def __init__(self, alignerTool = tools.muscle.MuscleTool) :
         """ The two genomes are described by fasta files with the same number of 
             chromosomes, and corresponding chromosomes must be in same order.
         """
-        self.AtoB = OrderedDict() # {chrA : [chrB, mapperAB], chrC : [chrD, mapperCD], ...}
-        self.BtoA = OrderedDict() # {chrB : [chrA, mapperAB], chrD : [chrC, mapperCD], ...}
-        
-        self._align(fastaA, fastaB, alignerTool())
+   
+        # {chrA : {chrB: mapperAB, chrC: mapperAC}, chrB : {chrA: mapperBA, chrC: mapperBC}, chrC : {chrA: mapperCA, chrB: mapperCB} }
+        self.chrMaps = OrderedDict() 
+        self.alignerTool = alignerTool()
 
     def mapAtoB(self, fromChrom, fromPos = None, side = 0) :
         """ Map (chrom, coordinate) from genome A to genome B.
@@ -53,13 +58,10 @@ class CoordMapper(object):
                 ==0, return either the unique position on B or a [left,right] list
                 > 0, return the right-most position on B
         """
-        toChrom, mapper = self.AtoB[fromChrom]
-        if fromPos == None:
-            return toChrom
-        toPos = mapper(fromPos, 0)
-        if isinstance(toPos, Sequence) and side != 0 :
-            toPos = toPos[0] if side < 0 else toPos[1]
-        return (toChrom, toPos)
+        if len(self.chrMaps.keys()) != 4:
+            raise LookupError("CoordMapper.mapAtoB expects two input sequences and is provided only as a legacy function")
+
+        return self.mapChr(fromChrom, self.chrMaps[fromChrom].keys()[0], fromPos, side)
     
     def mapBtoA(self, fromChrom, fromPos = None, side = 0) :
         """ Map (chrom, coordinate) from genome B to genome A.
@@ -69,17 +71,86 @@ class CoordMapper(object):
                 ==0, return either the unique position on A or a [left,right] list
                 > 0, return the right-most position on A
         """
-        toChrom, mapper = self.BtoA[fromChrom]
-        if fromPos == None:
+        if len(self.chrMaps.keys()) != 4:
+            raise LookupError("CoordMapper.mapBtoA expects two input sequences and is provided only as a legacy function")
+
+        return self.mapChr(fromChrom, self.chrMaps[fromChrom].keys()[0], fromPos, side)
+
+    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0):
+        """ Map (chrom, coordinate) from seq "fromChrom" to seq "toChrom".
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on A
+                ==0, return either the unique position on A or a [left,right] list
+                > 0, return the right-most position on A
+        """
+
+        if fromChrom not in self.chrMaps:
+            raise KeyError("chr '%s' not found in CoordMapper relation map" % fromChrom)
+        if toChrom not in self.chrMaps[fromChrom]:
+            raise KeyError("chr '%s' not found in CoordMapper relation map" % toChrom)
+
+        mapper = self.chrMaps[fromChrom][toChrom]
+
+        if fromPos is None:
             return toChrom
-        toPos = mapper(fromPos, 1)
-        if isinstance(toPos, Sequence) and side != 0 :
+
+        toPos = mapper(fromPos, 0)
+        if isinstance(toPos, Sequence) and side != 0:
             toPos = toPos[0] if side < 0 else toPos[1]
         return (toChrom, toPos)
 
-    def _align(self, fastaA, fastaB, aligner) :
+    def load_alignments(self, aligned_files, a_idx=None, b_idx=None):
+        """ Loads aligned sequences into a CoordMapper instance. 
+            Any number of sequences >1 may be read in.
+            Mappers may be accessed via CoordMapper.chrMaps where chrMaps may look like:
+            ```{chrA : {chrB: mapperAB, chrC: mapperAC}, chrB : {chrA: mapperBA, chrC: mapperBC}, chrC : {chrA: mapperCA, chrB: mapperCB} }```
+        """
+        for alignOutFileName in aligned_files:
+            with open(alignOutFileName, 'rt') as alignOutFile :
+                seqs = list(SeqIO.parse(alignOutFile, 'fasta'))
+
+                if len(seqs) <2:
+                    raise Exception("Each aligned input file must contain >1 sequence.")
+
+                # if mapping between specific sequences is specified
+                if a_idx is not None and b_idx is not None:
+                    assert a_idx>=0 and b_idx>=0
+                    assert a_idx<len(seqs) and b_idx<len(seqs)
+                
+                    mapper = CoordMapper2Seqs(seqs[a_idx].seq, seqs[b_idx].seq)
+                    self.chrMaps.setdefault(seqs[a_idx].id, OrderedDict())
+                    mapDict = OrderedDict()
+                    mapDict[seqs[b_idx].id] = mapper
+                    self.chrMaps[seqs[a_idx].id] = mapDict
+
+                    mapper = CoordMapper2Seqs(seqs[b_idx].seq, seqs[a_idx].seq)
+                    self.chrMaps.setdefault(seqs[b_idx].id, OrderedDict())
+                    mapDict = OrderedDict()
+                    mapDict[seqs[a_idx].id] = mapper
+                    self.chrMaps[seqs[b_idx].id] = mapDict
+                # otherwise, map all possible pairwise permutations
+                else:
+                    for (seq1, seq2) in permutations(seqs, 2):
+                        if (seq1.id == seq2.id):
+                            raise KeyError("duplicate sequence names '%s', '%s'" % (seq1.id, seq2.id))
+                        mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
+                        self.chrMaps.setdefault(seq1.id, OrderedDict())
+                        mapDict = OrderedDict()
+                        mapDict[seq2.id] = mapper
+
+                        # if the sequence we are mapping onto is already in the map
+                        # raise an error 
+                        # (could occur if same sequence is read in from multiple files)
+                        if (seq2.id in self.chrMaps[seq1.id]):
+                            raise KeyError("duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
+                        self.chrMaps[seq1.id] = mapDict
+
+    def align_and_load_sequences(self, unaligned_fasta_files, aligner=None):
+        aligner = self.alignerTool if aligner is None else aligner
+
         # transpose
-        per_chr_fastas = transposeChromosomeFiles([fastaA, fastaB])
+        per_chr_fastas = transposeChromosomeFiles(unaligned_fasta_files)
         if not per_chr_fastas:
             raise Exception('no input sequences')
         # align
@@ -90,23 +161,10 @@ class CoordMapper(object):
             alignOutFileNames.append(alignOutFileName)
             os.unlink(alignInFileName)
         # read in
-        self._load_alignments(alignOutFileNames)
+        self.load_alignments(alignOutFileNames)
         # clean up
         for f in alignOutFileNames:
             os.unlink(f)
-    
-    def _load_alignments(self, aligned_files, a_idx=0, b_idx=1) :
-        assert a_idx>=0 and b_idx>=0
-        for alignOutFileName in aligned_files:
-            with open(alignOutFileName, 'rt') as alignOutFile :
-                seqs = list(SeqIO.parse(alignOutFile, 'fasta'))
-                assert a_idx<len(seqs) and b_idx<len(seqs)
-                mapper = CoordMapper2Seqs(seqs[a_idx].seq, seqs[b_idx].seq)
-                self.AtoB[seqs[a_idx].id] = [seqs[b_idx].id, mapper]
-                self.BtoA[seqs[b_idx].id] = [seqs[a_idx].id, mapper]
-        assert len(self.AtoB) == len(self.BtoA) == len(aligned_files), \
-               'duplicate sequence names'
-        
 
 class CoordMapper2Seqs(object) :
     """ Map 1-based coordinates between two aligned sequences.
