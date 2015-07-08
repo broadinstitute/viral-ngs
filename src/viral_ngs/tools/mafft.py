@@ -10,7 +10,7 @@ from Bio import SeqIO
 import logging, tools, util.file
 import os, os.path, subprocess
 
-tool_version = '7.244'
+tool_version = '7.221'
 url = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
 log = logging.getLogger(__name__)
