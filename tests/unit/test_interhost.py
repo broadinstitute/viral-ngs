@@ -246,13 +246,15 @@ class TestCoordMapper2Seqs(test.TestCaseWithTmp):
         with self.assertRaises(AssertionError) :
             cm2s = Cm2s('--', 'AA')
 
-    def test_aligned_gaps(self) :
-        with self.assertRaises(AssertionError) :
-            cm2s = Cm2s('A-A', 'A-A')
+    # commented out 7/8/15 since with multi-alignments
+    # sequences can have gaps where they may not in pairwise alignments
+    #def test_aligned_gaps(self) :
+    #    with self.assertRaises(AssertionError) :
+    #        cm2s = Cm2s('A-A', 'A-A')
 
-    def test_adjacent_gaps(self) :
-        with self.assertRaises(AssertionError) :
-            cm2s = Cm2s('AC-T', 'A-GT')
+    #def test_adjacent_gaps(self) :
+    #    with self.assertRaises(AssertionError) :
+    #        cm2s = Cm2s('AC-T', 'A-GT')
 
     def test_one_real_base(self) :
         cm2s = Cm2s('AC-', '-CA')

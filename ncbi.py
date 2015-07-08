@@ -104,6 +104,24 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
+def tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False):
+    raise NotImplementedError("tbl_transfer_prealigned() has not yet been added")
+
+def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
+    parser.add_argument("input_fasta", help="FASTA file containing input sequences, including pre-made alignments and reference sequence")
+    parser.add_argument("ref_seq_name", help="Name of the reference sequence within the input sequences")
+    parser.add_argument("alt_seq_name", help="Name of the alternate sequence within the input sequences")
+    parser.add_argument("ref_tbl", help="Input reference annotations (NCBI TBL format)")
+    parser.add_argument("out_tbl", help="Output file with transferred annotations")
+    parser.add_argument('--oob_clip', default=False, action='store_true',
+        help='''Out of bounds feature behavior.
+        False: drop all features that are completely or partly out of bounds
+        True:  drop all features completely out of bounds
+               but truncate any features that are partly out of bounds''')
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
+    return parser
+__commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer))    
 
 def fasta2fsa(infname, outdir, biosample=None):
     ''' copy a fasta file to a new directory and change its filename to end in .fsa

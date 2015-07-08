@@ -2,10 +2,18 @@
 
 __author__ = "PLACEHOLDER"
 
-import intrahost, util.file, util.vcf, test
+# built-ins
+from collections import OrderedDict
 import os, os.path, shutil, tempfile, itertools, argparse, unittest
+
+# third-party
 import Bio, Bio.SeqRecord, Bio.Seq
+
+# module-specific
+import intrahost, util.file, util.vcf, test
 from intrahost import AlleleFieldParser
+import interhost
+import tools.mafft
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
@@ -203,14 +211,17 @@ class VcfMergeRunner:
     '''
     def __init__(self, ref_genome=None):
         self.genomes = {} # {sample : {chrom : bases, ...}, ...}
-        self.genomeFastas = {} # {sample: fastaFileName, ...
+        self.genomeFastas = OrderedDict() # {sample: fastaFileName, ...
+        self.alignedFastas = [] # [chr1, chr2, ...]
         self.isnvs = {}
         self.sample_order = []
+        self.sequence_order = OrderedDict() # { sample: [seq1, seq2, ... ], ... }
         if ref_genome:
             self.set_ref(ref_genome)
     def set_ref(self, genome):
         self.ref = makeTempFasta(genome)
     def add_genome(self, sample_name, genome):
+        #print("genome: {}".format(genome))
         self.genomes[sample_name] = dict(genome)
         self.genomeFastas[sample_name] = makeTempFasta(genome)
         if sample_name not in self.sample_order:
@@ -221,6 +232,7 @@ class VcfMergeRunner:
         assert chrom in self.genomes[sample]
         assert 1 <= pos <= len(self.genomes[sample][chrom])
         assert self.genomes[sample][chrom][pos - 1] in [a for a,f,r in acounts]
+        #print(self.isnvs)
         self.isnvs[sample].add_snp(chrom, pos, acounts, libinfo)
     def add_indel(self, sample, chrom, pos, acounts, libinfo=None):
         assert sample in self.genomeFastas
@@ -232,19 +244,68 @@ class VcfMergeRunner:
         self.isnvs[sample].add_indel(chrom, pos, acounts, libinfo)
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
+        #print("sample: {}".format(sample))
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
+                #print('\t'.join(map(str, row)) + '\n')
                 outf.write('\t'.join(map(str, row)) + '\n')
         return fn
-    def run_and_get_vcf_rows(self):
+    def run_and_get_vcf_rows(self, retree=1):
         outVcf = util.file.mkstempfname('.vcf.gz')
+
+        self.multi_align_samples(retree=retree)
+
+        seqIds = list(itertools.chain.from_iterable(self.sequence_order.values()))
+
+        #print("self.sample_order: {}".format(self.sample_order))
+        #print("self.isnvs: {}".format(self.isnvs))
+        #print("list(self.dump_isnv_tmp_file(s) for s in self.sample_order): {}".format(list(self.dump_isnv_tmp_file(s) for s in self.sample_order)))
+
         intrahost.merge_to_vcf(self.ref, outVcf,
-            self.sample_order,
+            seqIds,
             list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
-            list(self.genomeFastas[s] for s in self.sample_order))
+            self.alignedFastas)
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
+
+    def multi_align_samples(self, retree=1):
+
+        # store here a dict, {sample_name: [sequence_id1, sequence_id2, ...]}
+
+        for sampleName, fastaFile in self.genomeFastas.iteritems():
+            with util.file.open_or_gzopen(fastaFile, 'rU') as inf:
+                for seq in Bio.SeqIO.parse(inf, 'fasta'):        
+                    self.sequence_order.setdefault(sampleName, default=[])
+                    self.sequence_order[sampleName].append( seq.id )
+
+        inputFastas = []
+        inputFastas.append(self.ref)
+        inputFastas.extend(self.genomeFastas.values())
+        transposedFiles = interhost.transposeChromosomeFiles(inputFastas)
+
+        # since the FASTA files are
+        for idx, filePath in enumerate(transposedFiles):
+            
+            outFile = util.file.mkstempfname('.fasta')
+            outFilePath = os.path.dirname(outFile)
+
+            alignedOutFile = tools.mafft.MafftTool().execute(
+                        inFastas          = [os.path.abspath(filePath)],
+                        outFile           = os.path.join(outFilePath, "{}{}.fasta".format("aligned", idx)), 
+                        localpair         = False, 
+                        globalpair        = True, 
+                        preservecase      = True, 
+                        reorder           = None,
+                        gapOpeningPenalty = None,
+                        offset            = None,
+                        verbose           = False,
+                        outputAsClustal   = None,
+                        maxiters          = 1000,
+                        threads           = -1,
+                        retree            = retree
+            )
+            self.alignedFastas.append(alignedOutFile)
 
 class TestVcfMerge(test.TestCaseWithTmp):
     ''' This tests step 2 of the iSNV calling process
@@ -257,13 +318,15 @@ class TestVcfMerge(test.TestCaseWithTmp):
         s1  = makeTempFasta([('s1_1', 'ATCGCA')])
         emptyfile = util.file.mkstempfname('.txt')
         outVcf = util.file.mkstempfname('.vcf')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
         with util.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
         outVcf = util.file.mkstempfname('.vcf.gz')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
         with util.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
@@ -275,7 +338,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         s2  = makeTempFasta([('s2_1', 'ATCGTTCA'), ('s2_2', 'GGCCC')])
         emptyfile = util.file.mkstempfname('.txt')
         outVcf = util.file.mkstempfname('.vcf.gz')
-        intrahost.merge_to_vcf(ref, outVcf, ['s1', 's2'], [emptyfile, emptyfile], [s1, s2])
+        self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1', 's2'], [emptyfile, emptyfile], [s1, s2])
         with util.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
             self.assertEqual(vcf.chrlens(), {'ref1':8, 'ref2':5})
@@ -283,8 +346,11 @@ class TestVcfMerge(test.TestCaseWithTmp):
     def test_simple_snps(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
         merger.add_genome('s1', [('s1_1', 'ATCGGAC')])
+                                         # ATCGGAC-
         merger.add_genome('s2', [('s2_1',  'TCGGACT')])
+                                         # -TCGGACT
         merger.add_genome('s3', [('s3_1',  'TCGGACT')])
+                                         # -TCGGACT
         merger.add_snp('s1', 's1_1', 3, [('C', 80, 80), ('A', 20, 20)])
         merger.add_snp('s2', 's2_1', 2, [('C', 90, 90), ('A', 10, 10)])
         merger.add_snp('s3', 's3_1', 5, [('A', 70, 70), ('T', 30, 30)])
@@ -329,7 +395,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         merger = VcfMergeRunner([('ref1', 'ATCG')])
         merger.add_genome('s1', [('s1_1', 'ATAGCCC')])
         merger.add_snp('s1', 's1_1', 3, [('C', 10, 10), ('A', 90, 90)])
-        rows = merger.run_and_get_vcf_rows()
+        # we need to specify retree as None 
+        # so the test sequence aligns as expected
+        rows = merger.run_and_get_vcf_rows(retree=None)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 3)
@@ -508,13 +576,19 @@ class TestVcfMerge(test.TestCaseWithTmp):
         merger.add_genome('s2', [('s2_1', 'ATCT')])
         merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
         rows = merger.run_and_get_vcf_rows()
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GAA')
-        self.assertEqual(rows[0].alt, 'G,A')
-        self.assertEqual(rows[0][0], '1:0.7,0.3:0,1,1:.,1.0,1.0')
-        self.assertEqual(rows[0][1], '.:.:.:.')
+        self.assertEqual(rows[0].alt, 'C,G,A')
+        self.assertEqual(rows[0][0], '2:0.0,0.7,0.3:0,0,1,1:.,.,1.0,1.0')
+        self.assertEqual(rows[0][1], '1:1.0,0.0,0.0:.:.')
+        self.assertEqual(rows[1].contig, 'ref1')
+        self.assertEqual(rows[1].pos+1, 7)
+        self.assertEqual(rows[1].ref, 'C')
+        self.assertEqual(rows[1].alt, 'T')
+        self.assertEqual(rows[1][0], '0:0.0:.:.')
+        self.assertEqual(rows[1][1], '1:0.8:1,1:1.0,1.0')
     
     def test_snp_past_end_of_some_consensus(self):
         # Some sample contains SNP beyond the end of the consensus

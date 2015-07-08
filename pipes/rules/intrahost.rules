@@ -31,14 +31,15 @@ rule isnvs_vcf:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["intrahost"],
                 sample=read_samples_file(config["samples_assembly"])),
-            expand("{dataDir}/{subdir}/{sample}.fasta",
+            expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
-                subdir=config["subdirs"]["assembly"],
-                sample=read_samples_file(config["samples_assembly"]))
+                subdir=config["subdirs"]["multialign_ref"],
+                chrom=range(config["number_of_chromosomes"])
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz'
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
@@ -49,7 +50,7 @@ rule isnvs_vcf:
             shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
                 + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
-                + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
+                + " --alignments " + " ".join("{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + n + ".fasta" for n in range(config["number_of_chromosomes"]))
                 + " --strip_chr_version"
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
@@ -61,10 +62,10 @@ rule isnvs_vcf_filtered:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["intrahost"],
                 sample=read_samples_file(config["samples_assembly"])),
-            expand("{dataDir}/{subdir}/{sample}.fasta",
+            expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
-                subdir=config["subdirs"]["assembly"],
-                sample=read_samples_file(config["samples_assembly"]))
+                subdir=config["subdirs"]["multialign_ref"],
+                chrom=range(config["number_of_chromosomes"])
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.vcf.gz',
@@ -79,8 +80,8 @@ rule isnvs_vcf_filtered:
             shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
                 + " --isnvs " + " ".join("{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples)
-                + " --assemblies " + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/"+s+".fasta" for s in params.samples)
-                + " --strip_chr_version --naive_filter"
+                + " --alignments " + " ".join("{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + n + ".fasta" for n in range(config["number_of_chromosomes"]))
+                + " --strip_chr_version"
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")

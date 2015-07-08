@@ -1,4 +1,6 @@
 {
+  "number_of_chromosomes": 1,
+
   "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
@@ -24,6 +26,9 @@
   "assembly_min_length":    [15000],
   "assembly_min_unambig":      0.95,
 
+  "mafft_ep":       0.123,
+  "mafft_maxiters": 1000,
+
   "genbank": {
     "author_template":        "NCBI/authors.sbt",
     "source_modifier_table":  "NCBI/sample_meta.src",
@@ -46,16 +51,17 @@
   },
 
   "subdirs": {
-    "demux":        "00_demux",
-    "source":       "00_raw",
-    "depletion":    "01_cleaned",
-    "per_sample":   "01_per_sample",
-    "assembly":     "02_assembly",
-    "align_self":   "02_align_to_self",
-    "align_ref":    "03_align_to_ref",
-    "interhost":    "03_interhost",
-    "intrahost":    "04_intrahost",
-    "annot":        "05_genbank"
+    "demux":          "00_demux",
+    "source":         "00_raw",
+    "depletion":      "01_cleaned",
+    "per_sample":     "01_per_sample",
+    "assembly":       "02_assembly",
+    "align_self":     "02_align_to_self",
+    "align_ref":      "03_align_to_ref",
+    "multialign_ref": "03_multialign_to_ref",
+    "interhost":      "03_interhost",
+    "intrahost":      "04_intrahost",
+    "annot":          "05_genbank"
   },
   "dataDir":    "data",
   "tmpDir":     "tmp",
