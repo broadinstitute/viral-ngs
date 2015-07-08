@@ -23,13 +23,12 @@ def fasta_chrlens(fasta):
             out[seq.id] = len(seq)
     return out
 
-def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
-    ''' This function takes an NCBI TBL file describing features on a genome
-        (genes, etc) and transfers them to a new genome.
-    '''
-    cmap = interhost.CoordMapper(ref_fasta, alt_fasta)
-    alt_chrlens = fasta_chrlens(alt_fasta)
-    
+def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
+    """
+        This function is the feature transfer machinery used by tbl_transfer() 
+        and tbl_transfer_prealigned(). cmap is an instance of CoordMapper.
+    """
+
     with open(ref_tbl, 'rt') as inf:
         with open(out_tbl, 'wt') as outf:
             for line in inf:
@@ -89,6 +88,16 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                         continue
                 outf.write(line+'\n')
 
+def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
+    ''' This function takes an NCBI TBL file describing features on a genome
+        (genes, etc) and transfers them to a new genome.
+    '''
+    cmap = interhost.CoordMapper()
+    cmap.align_and_load_sequences([ref_fasta, alt_fasta])
+    alt_chrlens = fasta_chrlens(alt_fasta)
+    
+    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
+
 def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     parser.add_argument("ref_fasta", help="Input sequence of reference genome")
     parser.add_argument("ref_tbl", help="Input reference annotations (NCBI TBL format)")
@@ -105,7 +114,45 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
 def tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False):
-    raise NotImplementedError("tbl_transfer_prealigned() has not yet been added")
+    """
+        This breaks out the ref and alt sequences into separate fasta files, and then
+        creates a unified files containing the reference sequence first and the alt second
+    """
+    ref_fasta_filename = ""
+    alt_fasta_filename = ""
+    combined_fasta_filename = ""
+
+    # write out the desired sequences to separate fasta files
+    with util.file.open_or_gzopen(input_fasta, 'r') as inf:
+        for seq in Bio.SeqIO.parse(inf, 'fasta'):
+            if seq.id == ref_seq_name:
+                ref_fasta_filename = util.file.mkstempfname('.fasta')
+                with open(ref_fasta_filename, 'wt') as outf:
+                    for line in util.file.fastaMaker(seq):
+                        outf.write(line)
+            if seq.id == alt_seq_name:
+                alt_fasta_filename = util.file.mkstempfname('.fasta')
+                with open(alt_fasta_filename, 'wt') as outf:
+                    for line in util.file.fastaMaker(seq):
+                        outf.write(line)
+    if ref_fasta_filename == "": 
+        raise KeyError("The ref sequence '%s' was not found in the file %s" % (ref_seq_name, input_fasta) )
+    if alt_fasta_filename == "":
+        raise KeyError("The alt sequence '%s' was not found in the file %s" % (alt_seq_name, input_fasta) )
+
+    with open(combined_fasta_filename, 'wt') as outf:
+        with open(ref_fasta_filename, 'wt') as reff:
+            for line in reff:
+                outf.write(line)
+        with open(alt_fasta_filename, 'wt') as altf:
+            for line in altf:
+                outf.write(line)
+
+    cmap = interhost.CoordMapper()
+    cmap.load_alignments([combined_fasta_filename])
+    alt_chrlens = fasta_chrlens(alt_fasta_filename)
+    
+    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
 
 def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
     parser.add_argument("input_fasta", help="FASTA file containing input sequences, including pre-made alignments and reference sequence")
@@ -121,7 +168,7 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
     return parser
-__commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer))    
+__commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))    
 
 def fasta2fsa(infname, outdir, biosample=None):
     ''' copy a fasta file to a new directory and change its filename to end in .fsa
