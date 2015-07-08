@@ -7,9 +7,14 @@ __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
              "swohl@broadinstitute.org, irwin@broadinstitute.org"
 __commands__ = []
 
-import argparse, logging, itertools, re, shutil, os
+# built-ins
+import argparse, logging, itertools, re, shutil, os, collections
+
+# third-party
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 import pysam
+
+# module-specific
 import util.cmd, util.file, util.vcf, util.misc
 from util.stats import median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
@@ -365,6 +370,15 @@ __commands__.append(('tabfile_rename', parser_tabfile_rename))
 
 #  ========== merge_to_vcf ===========================
 
+def count_iter_items(iterable):
+    """
+    Consume an iterable not reading it into memory; return the number of items.
+    """
+
+    counter = itertools.count()
+    collections.deque(zip(iterable, counter), maxlen=0)  # (consume at C speed)
+    return next(counter)
+
 def strip_accession_version(acc):
     ''' If this is a Genbank accession with a version number,
         remove the version number.
@@ -374,22 +388,17 @@ def strip_accession_version(acc):
         acc = m.group(1)
     return acc
 
-def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False, naive_filter=False):
+#def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False, naive_filter=False):
+def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version=False, naive_filter=False):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
-        Assumption: consensus assemblies do not extend beyond ends of reference.
+        Assumption: consensus assemblies used in creating alignments do not extend beyond ends of reference.
+                    the number of alignment files equals the number of chromosomes / segments
     '''
-    
-    # setup
-    if not (len(samples) == len(isnvs) == len(assemblies)):
-        raise LookupError("samples, isnvs, and assemblies must have the same number of elements")
-    samp_to_seqIndex = dict((s, Bio.SeqIO.index(fasta, 'fasta'))
-        for s, fasta in zip(samples, assemblies))
-    samp_to_isnv = dict(zip(samples, isnvs))
-    samp_to_cmap = dict((s, CoordMapper(genome, refFasta))
-        for s, genome in zip(samples, assemblies))
-    with open(refFasta, 'rU') as inf:
+
+    # get IDs and sequence lengths for reference sequence
+    with util.file.open_or_gzopen(refFasta, 'rU') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
-    
+  
     if outVcf.endswith('.vcf.gz'):
         tmpVcf = util.file.mkstempfname('.vcf')
     elif outVcf.endswith('.vcf'):
@@ -398,8 +407,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
         raise ValueError("outVcf must end in .vcf or .vcf.gz")
     
     log.info("loaded CoordMapper for all genomes, starting VCF merge...")
-    with open(tmpVcf, 'wt') as outf:
     
+    # write header
+    with open(tmpVcf, 'w') as outf:
         # write header
         outf.write('##fileformat=VCFv4.1\n')
         outf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
@@ -409,33 +419,153 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
         for c, clen in ref_chrlens:
             if strip_chr_version:
                 c = strip_accession_version(c)
+            #print('##contig=<ID=%s,length=%d>\n' % (c, clen))
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
         outf.write('##reference=file://%s\n' % refFasta)
         header = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'] + samples
         outf.write('#'+'\t'.join(header)+'\n')
 
+    # compress output if requested
+    if outVcf.endswith('.vcf.gz'):
+        pysam.tabix_compress(tmpVcf, outVcf, force=True)
+        pysam.tabix_index(outVcf, force=True, preset='vcf')
+
+    with open(tmpVcf, 'a') as outf:
+        if not len(ref_chrlens) == len(alignments):
+            raise LookupError("there must be an alignment file for each chromosome/segment present in the reference")
+
+        # we are assuming that the reference sequences have the same IDs in the alignments and in the 
+        # reference fasta, but we need to relate each reference sequence (chromosome/segment) to a specific
+        # alignment file and index within the alignment
+        ref_seq_id_to_alignment_file = dict()
+        ref_seq_in_alignment_file = dict()
+
+        # copy the list of alignment files
+        alignmentFiles = list(alignments)
+
+        with util.file.open_or_gzopen(refFasta, 'rU') as inf:
+            for refSeq in Bio.SeqIO.parse(inf, 'fasta'):
+                for alignmentFile in alignmentFiles:
+                    with util.file.open_or_gzopen(alignmentFile, 'rU') as inf2:
+                        for idx, seq in enumerate(Bio.SeqIO.parse(inf2, 'fasta')):
+                            #print(seq.seq)
+                            if refSeq.id == seq.id: 
+                                ref_seq_id_to_alignment_file[seq.id] = alignmentFile
+                                ref_seq_in_alignment_file[seq.id] = seq
+        
+        if len(ref_seq_id_to_alignment_file) < len(ref_chrlens):
+            raise LookupError("Not all reference sequences found in alignments.")
+
+        for fileName in alignments:
+            with util.file.open_or_gzopen(fileName, 'rU') as inf:
+                # get two independent iterators into the alignment file
+                alignmentSeqIter, alignmentSeqIter2 = itertools.tee(Bio.SeqIO.parse(inf, 'fasta'), 2)
+                number_of_aligned_sequences = count_iter_items(alignmentSeqIter2)
+                # -1 is to account for inclusion of reference in the alignement in addition 
+                # to the assemblies
+                if not (number_of_aligned_sequences-1) == len(isnvs) == len(samples):
+                    raise LookupError("samples, isnvs, and alignments must have the same number of elements (plus an extra reference record in the alignment).")
+
+        samp_to_isnv = dict(zip(samples, isnvs))
+        # setup
+        #if not (len(samples) == len(isnvs) == len(assemblies)):
+        #    raise LookupError("samples, isnvs, and assemblies must have the same number of elements")
+
+        samp_to_seqIndex = dict()
+
+        # samp_to_seqIndex = dict((s, Bio.SeqIO.index(fasta, 'fasta'))
+        #     for s, fasta in zip(samples, assemblies))
+
+        # samp_to_seqIndex = dict((s, Bio.SeqIO.index(fasta, 'fasta'))
+        #     for s, fasta in zip(samples, assemblies))
+        
+        
+        sampleNames = list(samples)
+
+        for alignmentFile in alignments:
+            with util.file.open_or_gzopen(alignmentFile, 'rU') as inf:
+                for seq in Bio.SeqIO.parse(inf, 'fasta'):
+                    for sampleName in sampleNames:
+                        if seq.id == sampleName:
+                            samp_to_seqIndex[sampleName] = seq
+                            sampleNames.remove(sampleName)
+
+        #print("samples={}".format(samples)) 
+
+        # TODO: uncomment for production
+        if not len(samp_to_seqIndex) == len(samples):
+            raise LookupError("Sequence info not found for all sample names provided. Check alignment files.")
+
+
+        #print("ref_ids: {}".format(ref_seq_id_to_alignment_file.keys()))
+
+        # samp_to_cmap = dict()
+        # for s, genome in zip(samples, assemblies):
+        #     true_sample_names.append(s)
+
+        #     cm = CoordMapper()
+        #     cm.align_and_load_sequences([genome, refFasta])    
+        #     samp_to_cmap[s] = cm
+
         # one reference chrom at a time
         with open(refFasta, 'rU') as inf:
             for ref_sequence in Bio.SeqIO.parse(inf, 'fasta'):
+                # make a coordmapper to map all alignments to this reference sequence
+                cm = CoordMapper()
+                #print("ref_seq_id_to_alignment_file[ref_sequence.id]: {}".format(ref_seq_id_to_alignment_file[ref_sequence.id]))
+                cm.load_alignments( [ref_seq_id_to_alignment_file[ref_sequence.id]] )
+
+                # ========================
+                # to map from ref->sample
+                # cm[ref_sequence.id][s]
+                # to map sample->ref
+                # cm[s][ref_sequence.id]
 
                 # read in all iSNVs for this chrom and map to reference coords
                 data = []
-                for s in samples:
+                #for s in samples:
+                #print("===================================")
+                #print(cm.chrMaps.keys())
+                #print(list(set(samples) | set(cm.chrMaps.keys())))
+                #print("samp_to_isnv: {}".format(samp_to_isnv))
+                #print("sample list: {}".format(list( (set(samples) | set(cm.chrMaps.keys()))-set(ref_seq_id_to_alignment_file.keys()) )))
+                for s in list( (set(samples) | set(cm.chrMaps.keys()))-set(ref_seq_id_to_alignment_file.keys()) ):
+
+                    # continue if s in ref_seq?
+
+                    #print( "----" )
+                    #print( "s: {}".format(s) )
+                    #print( "ref_sequence.id: {}".format(ref_sequence.id) )
+                    #print( "samp_to_isnv: {}".format(samp_to_isnv) )
+                    #print( "samp_to_isnv[s]: {}".format(samp_to_isnv[s]) )
+
                     for row in util.file.read_tabfile(samp_to_isnv[s]):
-                        s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id)
+                        # map ref->sample
+                        #s_chrom = samp_to_cmap[s].mapBtoA(ref_sequence.id)
+                        s_chrom = cm.mapChr(ref_sequence.id, s)
                         if row[0] == s_chrom:
                             allele_fields = list(AlleleFieldParser(x) for x in row[7:] if x)
-                            row = {'sample':s, 'CHROM':ref_sequence.id,
-                                's_chrom':s_chrom, 's_pos':int(row[1]),
-                                's_alt':row[2], 's_ref': row[3],
-                                'alleles':list(x.allele_and_strand_counts() for x in allele_fields),
-                                'n_libs':dict(
-                                    (x.allele(), sum(1 for f,r in x.lib_counts() if f+r>0))
-                                    for x in allele_fields),
-                                'lib_bias':dict(
-                                    (x.allele(), x.lib_bias_pval())
-                                    for x in allele_fields),
+                            #print("allele_fields: {}".format(allele_fields))
+                            #print("s: {}".format(s))
+                            #print("ref_sequence.id: {}".format(ref_sequence.id))
+                            #print("int(row[1]): {}".format(int(row[1])))
+                            #print("row[3]: {}".format(row[3]))
+                            row = {
+                                    'sample'  : s, 
+                                    'CHROM'   : ref_sequence.id,
+                                    's_chrom' : s_chrom, 
+                                    's_pos'   : int(row[1]),#cm.mapChr(fromChrom=ref_sequence.id, toChrom=s, fromPos=int(str(row[1])) ),#int(row[1]),
+                                    's_alt'   : row[2], 
+                                    's_ref'   : row[3],
+                                    'alleles' : list(x.allele_and_strand_counts() for x in allele_fields),
+                                    'n_libs'  : dict(
+                                        (x.allele(), sum(1 for f,r in x.lib_counts() if f+r>0))
+                                        for x in allele_fields),
+                                    'lib_bias':dict(
+                                        (x.allele(), x.lib_bias_pval())
+                                        for x in allele_fields),
                             }
+                            #print("row: {}".format(row))
                             # make a sorted allele list
                             row['allele_counts'] = list(sorted(
                                 [(a,int(f)+int(r)) for a,f,r in row['alleles']],
@@ -466,18 +596,27 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                         raise Exception("deletion alleles must always start with D or i")
                                 row['s_pos'] = row['s_pos']-1
                             # map position back to reference coordinates
-                            row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
-                            row['END'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = 1)[1]
+                            #row['POS'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = -1)[1]
+                            #row['END'] = samp_to_cmap[s].mapAtoB(s_chrom, row['s_pos'], side = 1)[1]
+
+                            row['POS'] = cm.mapChr(s, ref_sequence.id, row['s_pos'], side = -1)[1]
+                            row['END'] = cm.mapChr(s, ref_sequence.id, row['s_pos'], side = 1)[1]
+                            #print("row['POS']: {}".format(row['POS']))
+                            #print("row['END']: {}".format(row['END']))
                             if row['POS'] == None or row['END'] == None:
                                 raise Exception('consensus extends beyond start or end of reference.')
                             data.append(row)
             
                 # sort all iSNVs (across all samples) and group by position
                 data = sorted(data, key=(lambda row: row['POS']))
+                #print("====data: {}".format(data))
                 data = itertools.groupby(data, lambda row: row['POS'])
             
-                # process one reference position at a time
+                # process one reference position at a time from 
                 for pos, rows in data:
+                    #print("pos: {}".format(pos))
+                    #print("REF         --->                               : {}".format(str(ref_sequence[pos-2:pos+1].seq).upper()))
+                    #print("rows[0]: {}".format([str(x) for x in rows]))
                     rows = list(rows)
                     
                     # define the length of this variation based on the largest deletion
@@ -485,37 +624,78 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     for row in rows:
                         end = max(end, row['END'])
                         for a,n in row['allele_counts']:
+                            #print ("a: {}".format(a))
                             if a.startswith('D'):
                                 # end of deletion in sample's coord space
                                 local_end = row['s_pos']+int(a[1:])
+
+                                #print("row['sample']: {}".format(row['sample']))
+                                #print("row['s_chrom']: {}".format(row['s_chrom']))
+                                #print("===================local_end: {}".format(local_end))
                                 # end of deletion in reference coord space
-                                ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end, side = 1)[1]
+                                #ref_end = samp_to_cmap[row['sample']].mapAtoB(row['s_chrom'], local_end, side = 1)[1]
+                                #ref_end = cm.mapChr(row['sample'], row['s_chrom'], local_end, side =1)[1] 
+                                ref_end = cm.mapChr(row['s_chrom'], ref_sequence.id, local_end, side = 1)[1] 
+                                #print("ref_end: {}".format(ref_end))
                                 if ref_end == None:
                                     raise Exception('consensus extends ' \
                                      'beyond start or end of reference.')
                                 end = max(end, ref_end)
                 
+                    #print("POS: {}".format(pos))
+                    #print("END: {}".format(end))
+                    #print("LENGTH: {}".format(str(end-pos)))
                     # find reference allele and consensus alleles
+                    #refAllele = str(ref_sequence[pos-1:end].seq.ungap("-")) # original lacks ungap()
                     refAllele = str(ref_sequence[pos-1:end].seq)
+                    #print("refAllele: {}".format(refAllele))
                     consAlleles = {} # the full pos-to-end consensus assembly sequence for each sample
                     samp_offsets = {} # {sample : isnv's index in its consAllele string}
                     for row in rows :
                         s_pos = row['s_pos']
+                        #print("s_pos: {}".format(s_pos))
                         sample = row['sample']
+                        #print("sample: {}".format(sample))
                         if samp_offsets.get(sample, s_pos) != s_pos :
                             raise NotImplementedError('Sample %s has variants at 2 '
                                 'positions %s mapped to same reference position (%s:%s)' %
                                 (sample, (s_pos, samp_offsets[sample]), ref_sequence.id, pos))
                         samp_offsets[sample] = s_pos
+                        #print("samp_offsets[sample]: {}".format(samp_offsets[sample]))
+                    #print("samp_offsets: {}".format(samp_offsets))
                     for s in samples:
-                        cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
-                        cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
+                        #cons_start = samp_to_cmap[s].mapBtoA(ref_sequence.id, pos, side = -1)[1]
+                        #cons_stop  = samp_to_cmap[s].mapBtoA(ref_sequence.id, end, side =  1)[1]
+                        # map M to N
+                        # shoud perhaps be ref->s
+                        cons_start = cm.mapChr(ref_sequence.id, s, pos, side = -1)[1]
+                        cons_stop  = cm.mapChr(ref_sequence.id, s, end, side = 1)[1]
+                        # TODO: this should probably not be mapped directly... 7/7/15
+                        #cons_start = pos
+                        #cons_stop = end
+                        #cons_start = cm.mapChr(ref_sequence.id, s, pos, side = -1)[1]
+                        #cons_stop  = cm.mapChr(ref_sequence.id, s, end, side = 1)[1]
+                        #cons_start = cm.mapChr(s, ref_sequence.id, cons_start, side = -1)[1]
+                        #cons_stop  = cm.mapChr(s, ref_sequence.id, cons_stop, side = 1)[1]
+                        #print("pos -> cons_start: {} -> {}".format(pos, cons_start))
+                        #print("end -> cons_stop: {} -> {}".format(end, cons_stop))
                         if cons_start == None or cons_stop == None :
                             log.info("variant is outside consensus assembly "
                                 "for %s at %s:%s-%s.", s, ref_sequence.id, pos, end)
                             continue
-                        cons = samp_to_seqIndex[s][samp_to_cmap[s].mapBtoA(ref_sequence.id)]
-                        allele = str(cons[cons_start-1:cons_stop].seq).upper()
+                        
+                        
+                        #print "cm.mapChr(ref_sequence.id, s, pos, side = -1)[1]: {}".format(cm.mapChr(ref_sequence.id, s, pos, side = -1)[1])
+                        #print samp_to_seqIndex[s]#["sl1_1"]
+                        # TODO: make sure cons is correct here, 7/6/15
+                        #cons = samp_to_seqIndex[s][ samp_to_cmap[s].mapBtoA(ref_sequence.id) ]
+                        #cons = samp_to_seqIndex[s]#[ cm.mapChr(ref_sequence.id, s) ]
+                        cons = samp_to_seqIndex[s].seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
+                        #print("cons: {}".format(cons))
+                        #cons = samp_to_seqIndex[s][ cm.mapChr(ref_sequence.id, s) ]
+                        
+                        allele = str(cons[cons_start-1:cons_stop]).upper()
+                        #print("CONS ({}) ---> str(cons[{}-2:{}+1].seq).upper(): {} (allele: {})".format(s, cons_start, cons_stop, str(cons[cons_start-2:cons_stop+1]).upper(), allele))
                         if s in samp_offsets:
                             samp_offsets[s] -= cons_start
                         if all(a in set(('A','C','T','G')) for a in allele):
@@ -523,6 +703,10 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         else:
                             log.warning("dropping ambiguous consensus for %s at %s:%s-%s: %s", s, ref_sequence.id, pos, end, allele)
                     
+                    #print("consAlleles: {}".format(consAlleles))
+                    #print("samp_offsets: {}".format(samp_offsets))
+                    #print("--")
+
                     # define genotypes and fractions
                     iSNVs = {} # {sample : {allele : fraction, ...}, ...}
                     iSNVs_n_libs = {} # {sample : {allele : n libraries > 0, ...}, ...}
@@ -552,6 +736,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                             iSNVs[s] = {} # {allele : fraction, ...}
                             iSNVs_n_libs[s] = {}
                             iSNVs_lib_bias[s] = {}
+                            #print("acounts: {}".format(acounts))
                             for orig_a,n in acounts.items():
                                 f = float(n)/tot_n
                                 a = orig_a
@@ -578,7 +763,14 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                             "%s:%d (%s) - consensus %s, vPhaser %s",
                                             ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a)
                                     new_allele = list(consAllele)
+                                    #print("consAllele: {}".format(consAllele))
+                                    #print("consAlleles: {}".format(consAlleles))
+                                    #print("new_allele: {}".format(new_allele))
+                                    #print("samp_offsets[s]: {}".format(samp_offsets[s]))
+                                    #print("a: {}".format(a))
+                                    #print("--")
                                     new_allele[samp_offsets[s]] = a
+                                    #print("new_allele: {}".format(new_allele))
                                     a = ''.join(new_allele)
                                 if not (a and a==a.upper()):
                                     raise Exception()
@@ -586,6 +778,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                                 iSNVs_n_libs[s][a] = nlibs[orig_a]
                                 iSNVs_lib_bias[s][a] = libbias[orig_a]
                             if all(len(a)==1 for a in iSNVs[s].keys()):
+                                #print("iSNVs[s]: {}".format(iSNVs[s]))
                                 if consAllele not in iSNVs[s]:
                                     raise Exception("at %s:%s (%s), consensus allele %s not among iSNV alleles %s -- other cons alleles: %s" % (
                                         ref_sequence.id, pos, s, consAllele, ', '.join(iSNVs[s].keys()), ', '.join(consAlleles[s])))
@@ -616,6 +809,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                     alleles_isnv = list(allele for n_samples, n_reads, allele in reversed(sorted(alleles_isnv2)))
                     alleles = list(util.misc.unique([refAllele] + alleles_cons + alleles_isnv))
                     
+                    #print("alleles: {}".format(alleles))
+
                     # map alleles from strings to numeric indexes
                     if not alleles:
                         raise Exception()
@@ -641,16 +836,23 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version
                         '.', '.', '.', 'GT:AF:NL:LB']
                     out = out + list(map(':'.join, zip(genos, freqs, nlibs, pvals)))
                     outf.write('\t'.join(map(str, out))+'\n')
+                    #print('\t'.join(map(str, out))+'\n')
     
     # close fasta files
-    for idx in samp_to_seqIndex.values():
-        idx.close()
+    #for idx in samp_to_seqIndex.values():
+    #    idx.close()
     
     # compress output if requested
     if outVcf.endswith('.vcf.gz'):
         pysam.tabix_compress(tmpVcf, outVcf, force=True)
         pysam.tabix_index(outVcf, force=True, preset='vcf')
         os.unlink(tmpVcf)
+
+    #print("OUTFILE: {}".format(outVcf))
+    #import shutil
+    #print(os.path.join("/Users/tomkinsc/Desktop",os.path.basename(outVcf)))
+    #shutil.copy(outVcf, os.path.join("/Users/tomkinsc/Desktop",os.path.basename(outVcf)))
+    #raise TypeError()
 
 def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
     parser.add_argument("refFasta",
@@ -663,10 +865,11 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
     parser.add_argument("--isnvs", nargs='+', required=True,
         help="""A list of file names from the output of vphaser_one_sample
             These must be in the SAME ORDER as samples.""")
-    parser.add_argument("--assemblies", nargs='+', required=True,
-        help="""a list of consensus fasta files that were used as the
-            per-sample reference genomes for generating isnvs.
-            These must be in the SAME ORDER as samples.""")
+    parser.add_argument("--alignments", nargs='+', required=True,
+        help="""a list of fasta files containing multialignment of input
+            assemblies, with one file per chromosome/segment. Each alignment 
+            file will contain a line for each sample, as well as the 
+            reference genome to which they were aligned.""")
     parser.add_argument("--strip_chr_version",
         default=False, action="store_true", dest="strip_chr_version",
         help="""If set, strip any trailing version numbers from the

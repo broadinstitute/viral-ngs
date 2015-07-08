@@ -14,6 +14,12 @@ try:
     from itertools import zip_longest
 except ImportError :
     from itertools import izip_longest as zip_longest
+try:
+    from UserDict import UserDict
+    from UserDict import DictMixin
+except ImportError: # for Py3
+    from collections import UserDict
+    from collections import MutableMapping as DictMixin
 
 # third-party libraries
 import Bio.AlignIO
@@ -27,7 +33,9 @@ log = logging.getLogger(__name__)
 
 # =========== CoordMapper =================
 
-class CoordMapper(object):
+# CoordMapper extends DictMixin so that after the basic dict dict() interface methods are defined,
+# we get higher level dictionary intervace methods for free
+class CoordMapper(DictMixin):
     """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
         Indels are handled as follows after corresponding sequences are aligned:
@@ -48,7 +56,33 @@ class CoordMapper(object):
    
         # {chrA : {chrB: mapperAB, chrC: mapperAC}, chrB : {chrA: mapperBA, chrC: mapperBC}, chrC : {chrA: mapperCA, chrB: mapperCB} }
         self.chrMaps = OrderedDict() 
+        self.chrMapsUngapped = OrderedDict() 
         self.alignerTool = alignerTool()
+
+    def __getitem__(self, key):
+        return self.chrMaps[key]
+
+    def __setitem__(self, key, value):
+        raise TypeError("'%s' object does not support item assignment" % self.__class__.__name__)
+
+    def __delitem__(self, key):
+        raise TypeError("'%s' object does not support item deletion" % self.__class__.__name__)
+
+    def __len__(self):
+        return len(self.chrMaps)
+
+    def __iter__(self):
+        for i in self.chrMaps:
+            yield i
+
+    def __contains__(self, key):
+        if key in self.chrMaps:
+            return True
+        else:
+            return False
+
+    def keys(self):
+        return self.chrMaps.keys()
 
     def mapAtoB(self, fromChrom, fromPos = None, side = 0) :
         """ Map (chrom, coordinate) from genome A to genome B.
@@ -76,7 +110,7 @@ class CoordMapper(object):
 
         return self.mapChr(fromChrom, self.chrMaps[fromChrom].keys()[0], fromPos, side)
 
-    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0):
+    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0, ungapped=False):
         """ Map (chrom, coordinate) from seq "fromChrom" to seq "toChrom".
             If fromPos is None, map only the chromosome name
             If side is:
@@ -87,14 +121,18 @@ class CoordMapper(object):
 
         if fromChrom not in self.chrMaps:
             raise KeyError("chr '%s' not found in CoordMapper relation map" % fromChrom)
-        if toChrom not in self.chrMaps[fromChrom]:
+        if toChrom not in self.chrMaps[fromChrom].keys():
             raise KeyError("chr '%s' not found in CoordMapper relation map" % toChrom)
 
         mapper = self.chrMaps[fromChrom][toChrom]
+        #if not ungapped:
+        #    mapper = self.chrMaps[fromChrom][toChrom]
+        #else:
+        #    mapper = self.chrMapsUngapped[fromChrom][toChrom]
+
 
         if fromPos is None:
             return toChrom
-
         toPos = mapper(fromPos, 0)
         if isinstance(toPos, Sequence) and side != 0:
             toPos = toPos[0] if side < 0 else toPos[1]
@@ -110,8 +148,8 @@ class CoordMapper(object):
             with open(alignOutFileName, 'rt') as alignOutFile :
                 seqs = list(SeqIO.parse(alignOutFile, 'fasta'))
 
-                if len(seqs) <2:
-                    raise Exception("Each aligned input file must contain >1 sequence.")
+                #if len(list(seqs)) <2:
+                #    raise Exception("Each aligned input file must contain >1 sequence.")
 
                 # if mapping between specific sequences is specified
                 if a_idx is not None and b_idx is not None:
@@ -134,17 +172,30 @@ class CoordMapper(object):
                     for (seq1, seq2) in permutations(seqs, 2):
                         if (seq1.id == seq2.id):
                             raise KeyError("duplicate sequence names '%s', '%s'" % (seq1.id, seq2.id))
-                        mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
-                        self.chrMaps.setdefault(seq1.id, OrderedDict())
-                        mapDict = OrderedDict()
-                        mapDict[seq2.id] = mapper
 
+                        self.chrMaps.setdefault(seq1.id, OrderedDict())
+                        self.chrMapsUngapped.setdefault(seq1.id, OrderedDict())
                         # if the sequence we are mapping onto is already in the map
                         # raise an error 
                         # (could occur if same sequence is read in from multiple files)
                         if (seq2.id in self.chrMaps[seq1.id]):
                             raise KeyError("duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
+
+                        mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
+                        mapDict = self.chrMaps[seq1.id]
+                        mapDict[seq2.id] = mapper
                         self.chrMaps[seq1.id] = mapDict
+
+                        # ungapped strings
+                        #longerSeqLen = max( len(seq1.seq.ungap("-")), len(seq2.seq.ungap("-")) )
+                        #seq1UngappedPadded = str(seq1.seq.ungap("-")).ljust(longerSeqLen, "N")
+                        #seq2UngappedPadded = str(seq2.seq.ungap("-")).ljust(longerSeqLen, "N")
+                        #mapper = CoordMapper2Seqs(seq1UngappedPadded, seq2UngappedPadded)
+                        #mapDict = self.chrMapsUngapped[seq1.id]
+                        #mapDict[seq2.id] = mapper
+                        #self.chrMapsUngapped[seq1.id] = mapDict
+                    #for (seq1, seq2) in permutations(seqs, 2):
+                        #print(seq1.id,seq2.id)
 
     def align_and_load_sequences(self, unaligned_fasta_files, aligner=None):
         aligner = self.alignerTool if aligner is None else aligner
@@ -205,9 +256,11 @@ class CoordMapper2Seqs(object) :
                 'must be same length.'
             realBase0 = b0 != '-'
             realBase1 = b1 != '-'
-            assert realBase0 or realBase1, 'CoordMapper2Seqs: gap aligned to gap.'
-            assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
-                 'CoordMapper2Seqs: gap in one sequence adjacent to gap in other.'
+            # commented out 7/8/15 since with multi-alignments
+            # sequences can have gaps where they may not in pairwise alignments
+            #assert realBase0 or realBase1, 'CoordMapper2Seqs: gap aligned to gap.'
+            #assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
+            #     'CoordMapper2Seqs: gap in one sequence adjacent to gap in other.'
             prevRealBase0 = realBase0
             prevRealBase1 = realBase1
             baseCount0 += realBase0
@@ -270,11 +323,15 @@ __commands__.append(('snpEff', parser_snpEff))
 # =======================
 
 def parser_general_mafft(parser=argparse.ArgumentParser()):
+    parser.add_argument('inFastas', nargs='+',
+        help='Input FASTA files.')
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--localpair', default=None, action='store_true',
         help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
     group.add_argument('--globalpair', default=None, action='store_true',
         help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
+
     parser.add_argument('--preservecase', default=None, action='store_true',
         help='Preserve base or aa case, as well as symbols.')
     parser.add_argument('--reorder', default=None, action='store_true',
@@ -295,9 +352,7 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
 
 def parser_align_mafft(parser):
     parser = parser_general_mafft(parser)
-
-    parser.add_argument('inFastas', nargs='+',
-        help='Input FASTA files.')
+    
     parser.add_argument('outFile',
         help='Output file containing alignment result (default format: FASTA)')
 
@@ -336,8 +391,6 @@ __commands__.append(('align_mafft', parser_align_mafft))
 def parser_multichr_mafft(parser):
     parser = parser_general_mafft(parser)
 
-    parser.add_argument('inFastas', nargs='+',
-        help='Input FASTA files.')
     parser.add_argument('outDirectory', 
         help='Location for the output files (default is cwd: %(default)s)')
     parser.add_argument('--outFilePrefix', default="singlechr",
@@ -376,7 +429,7 @@ def multichr_mafft(args):
         # but in this case we are creating the input file ourselves
         tools.mafft.MafftTool().execute(
                     inFastas          = [os.path.abspath(filePath)],
-                    outFile           = os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx)), 
+                    outFile           = os.path.join(absoluteOutDirectory, "{}{}.fasta".format(prefix, idx)), 
                     localpair         = args.localpair, 
                     globalpair        = args.globalpair, 
                     preservecase      = args.preservecase, 
