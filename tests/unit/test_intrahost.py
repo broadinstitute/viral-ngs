@@ -274,7 +274,7 @@ class VcfMergeRunner:
         # store here a dict, {sample_name: [sequence_id1, sequence_id2, ...]}
 
         # because in Python3 OrderedDict does not have iteritems(), it simply has items()
-        if hasattr(self.genomeFastas, "iteritems")
+        if hasattr(self.genomeFastas, "iteritems"):
             genomeKVIterator = self.genomeFastas.iteritems()
         else:
             genomeKVIterator = self.genomeFastas.items()
