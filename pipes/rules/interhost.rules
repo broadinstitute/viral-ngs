@@ -126,17 +126,17 @@ rule multi_align_mafft:
         expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(config["number_of_chromosomes"])
+                chrom=range(config["number_of_chromosomes"]))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=config["ref_genome"],
             snpEff_ref=config["snpEff_genome"],
-            samples=read_samples_file(config["samples_assembly"])
-            ep=config["mafft_ep"],
-            maxiters=config["mafft_maxiters"],
+            samples=read_samples_file(config["samples_assembly"]),
+            ep=str(config["mafft_ep"]),
+            maxiters=str(config["mafft_maxiters"])
     run:
         shell("{config[binDir]}/interhost.py multichr_mafft {params.refGenome} "
-                + " ".join("{config[dataDir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples)
+                + " ".join(["{config[dataDir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples])
                 + " {config[dataDir]}/{config[subdirs][multialign_ref]}"
                 + " --ep {params.ep} --maxiters {params.maxiters} --preservecase"
                 + " --localpair --outFilePrefix aligned_")

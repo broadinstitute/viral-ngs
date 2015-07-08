@@ -396,7 +396,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
     '''
 
     # get IDs and sequence lengths for reference sequence
-    with util.file.open_or_gzopen(refFasta, 'rU') as inf:
+    with util.file.open_or_gzopen(refFasta, 'r') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
   
     if outVcf.endswith('.vcf.gz'):
@@ -442,10 +442,10 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
         # copy the list of alignment files
         alignmentFiles = list(alignments)
 
-        with util.file.open_or_gzopen(refFasta, 'rU') as inf:
+        with util.file.open_or_gzopen(refFasta, 'r') as inf:
             for refSeq in Bio.SeqIO.parse(inf, 'fasta'):
                 for alignmentFile in alignmentFiles:
-                    with util.file.open_or_gzopen(alignmentFile, 'rU') as inf2:
+                    with util.file.open_or_gzopen(alignmentFile, 'r') as inf2:
                         for idx, seq in enumerate(Bio.SeqIO.parse(inf2, 'fasta')):
                             if refSeq.id == seq.id: 
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
@@ -455,7 +455,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
             raise LookupError("Not all reference sequences found in alignments.")
 
         for fileName in alignments:
-            with util.file.open_or_gzopen(fileName, 'rU') as inf:
+            with util.file.open_or_gzopen(fileName, 'r') as inf:
                 # get two independent iterators into the alignment file
                 alignmentSeqIter, alignmentSeqIter2 = itertools.tee(Bio.SeqIO.parse(inf, 'fasta'), 2)
                 number_of_aligned_sequences = count_iter_items(alignmentSeqIter2)
@@ -474,7 +474,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
         sampleNames = list(samples)
 
         for alignmentFile in alignments:
-            with util.file.open_or_gzopen(alignmentFile, 'rU') as inf:
+            with util.file.open_or_gzopen(alignmentFile, 'r') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     for sampleName in sampleNames:
                         if seq.id == sampleName:
@@ -485,7 +485,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
             raise LookupError("Sequence info not found for all sample names provided. Check alignment files.")
 
         # one reference chrom at a time
-        with open(refFasta, 'rU') as inf:
+        with open(refFasta, 'r') as inf:
             for ref_sequence in Bio.SeqIO.parse(inf, 'fasta'):
                 # make a coordmapper to map all alignments to this reference sequence
                 cm = CoordMapper()
