@@ -280,7 +280,7 @@ class VcfMergeRunner:
             genomeKVIterator = self.genomeFastas.items()
 
         for sampleName, fastaFile in genomeKVIterator:
-            with util.file.open_or_gzopen(fastaFile, 'rU') as inf:
+            with util.file.open_or_gzopen(fastaFile, 'r') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):        
                     self.sequence_order.setdefault(sampleName, default=[])
                     self.sequence_order[sampleName].append( seq.id )
@@ -586,9 +586,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos+1, 4)
         self.assertEqual(rows[0].ref, 'GAA')
-        self.assertEqual(rows[0].alt, 'C,G,A')
-        self.assertEqual(rows[0][0], '2:0.0,0.7,0.3:0,0,1,1:.,.,1.0,1.0')
-        self.assertEqual(rows[0][1], '1:1.0,0.0,0.0:.:.')
+        # multiple options because the allele frequencies can be the same
+        self.assertIn(rows[0].alt, ['C,G,A','G,C,A'])
+        self.assertIn(rows[0][0], ['2:0.0,0.7,0.3:0,0,1,1:.,.,1.0,1.0','1:0.7,0.0,0.3:0,1,0,1:.,1.0,.,1.0'])
+        self.assertIn(rows[0][1], ['1:1.0,0.0,0.0:.:.','2:0.0,1.0,0.0:.:.'])
         self.assertEqual(rows[1].contig, 'ref1')
         self.assertEqual(rows[1].pos+1, 7)
         self.assertEqual(rows[1].ref, 'C')

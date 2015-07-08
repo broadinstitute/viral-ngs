@@ -10,7 +10,7 @@ from Bio import SeqIO
 import logging, tools, util.file
 import os, os.path, subprocess
 
-tool_version = '7.221'
+tool_version = '7.244'
 url = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
 log = logging.getLogger(__name__)
@@ -41,8 +41,10 @@ class MafftTool(tools.Tool):
         return tool_version
 
     def __seqIdsAreAllUnique(self, filePath, inputFormat="fasta"):
-        fastaFile = SeqIO.parse(open(filePath, "rU"), inputFormat)
-        seqIds = [x.id for x in fastaFile]
+        seqIds = []
+        with open(filePath, "r") as inFile:
+            fastaFile = SeqIO.parse(inFile, inputFormat)
+            seqIds = [x.id for x in fastaFile]
 
         # collapse like IDs using set()
         if len(seqIds) > len(set(seqIds)):
