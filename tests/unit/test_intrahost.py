@@ -273,7 +273,13 @@ class VcfMergeRunner:
 
         # store here a dict, {sample_name: [sequence_id1, sequence_id2, ...]}
 
-        for sampleName, fastaFile in self.genomeFastas.iteritems():
+        # because in Python3 OrderedDict does not have iteritems(), it simply has items()
+        if hasattr(self.genomeFastas, "iteritems")
+            genomeKVIterator = self.genomeFastas.iteritems()
+        else:
+            genomeKVIterator = self.genomeFastas.items()
+
+        for sampleName, fastaFile in genomeKVIterator:
             with util.file.open_or_gzopen(fastaFile, 'rU') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):        
                     self.sequence_order.setdefault(sampleName, default=[])

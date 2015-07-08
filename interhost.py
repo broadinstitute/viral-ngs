@@ -95,7 +95,7 @@ class CoordMapper(DictMixin):
         if len(self.chrMaps.keys()) != 4:
             raise LookupError("CoordMapper.mapAtoB expects two input sequences and is provided only as a legacy function")
 
-        return self.mapChr(fromChrom, self.chrMaps[fromChrom].keys()[0], fromPos, side)
+        return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
     
     def mapBtoA(self, fromChrom, fromPos = None, side = 0) :
         """ Map (chrom, coordinate) from genome B to genome A.
@@ -108,7 +108,7 @@ class CoordMapper(DictMixin):
         if len(self.chrMaps.keys()) != 4:
             raise LookupError("CoordMapper.mapBtoA expects two input sequences and is provided only as a legacy function")
 
-        return self.mapChr(fromChrom, self.chrMaps[fromChrom].keys()[0], fromPos, side)
+        return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
 
     def mapChr(self, fromChrom, toChrom, fromPos=None, side=0, ungapped=False):
         """ Map (chrom, coordinate) from seq "fromChrom" to seq "toChrom".
