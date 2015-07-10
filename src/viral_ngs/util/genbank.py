@@ -88,11 +88,3 @@ def fetch_fastas_from_genbank(accessionList, destinationDir, emailAddress, force
 
 def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas, rettype="ft"):
     return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, combinedGenomeFilePrefix, removeSeparateFastas)
-
-if __name__ == "__main__":
-    fastaFilePaths = fetch_fastas_from_genbank(["NC_004296.1", "NC_004297.1"], "~/Desktop/")
-    for fastaFilePath in fastaFilePaths:
-        print fastaFilePath
-        fastaFile = SeqIO.parse(fastaFilePath, "fasta")
-        for seq in fastaFile:
-            print seq.id
