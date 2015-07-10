@@ -170,13 +170,16 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))    
 
-def fetch_fastas_and_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverwrite):
+def fetch_fastas_and_feature_tables(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas):
     '''
         This function downloads and saves the FASTA files and their corresponding 
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite)
-    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite)
+    util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, 
+                                                    forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas)
+    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
+                                                                combinedGenomeFilePrefix, removeSeparateFastas)
 
 def parser_fetch_reference_fastas_and_feature_tables(parser=argparse.ArgumentParser()):
     parser.add_argument("emailAddress",
@@ -190,6 +193,11 @@ def parser_fetch_reference_fastas_and_feature_tables(parser=argparse.ArgumentPar
         help="List of Genbank nuccore accession IDs")
     parser.add_argument('--forceOverwrite', default=False, action='store_true',
         help='''Overwrite existing files, if present.''')
+    parser.add_argument('--combinedGenomeFilePrefix', 
+        help='''The prefix of the FASTA file containing the combined
+                 results returned by the list of accession IDs, in the order provided.''')
+    parser.add_argument('--removeSeparateFastas', default=False, action='store_true',
+        help='''If specified, remove the individual FASTA files and leave only the combined FASTA file.''')
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, fetch_fastas_and_feature_tables, split_args=True)
     return parser

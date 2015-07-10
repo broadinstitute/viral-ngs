@@ -1,7 +1,12 @@
 "Tools in the 'last' suite."
 
+# built-ins
+import os, logging, subprocess
+
+# within this module
 import tools
-import os
+
+log = logging.getLogger(__name__)
 
 class LastTools(tools.Tool) :
     """
@@ -63,6 +68,34 @@ class MafSort(LastTools) :
 class Lastdb(LastTools) :
     subtoolName = 'lastdb'
     subtoolNameOnBroad = 'lastdb'
+
+    def execute(self, inputFasta, outputDirectory, outputFilePrefix):
+        # get the path to the binary
+        toolCmd = [self.install_and_get_path()]
+        
+        # if the output directory (and its parents) do not exist, create them
+        if not os.path.exists(outputDirectory):
+            os.makedirs(outputDirectory)
+
+        # store the cwd because we will be changing it to the file destination
+        cwdBeforeLastdb = os.getcwd()
+
+        # lastdb writes files to the current working directory, so we need to set 
+        # it to the desired output location
+        os.chdir(os.path.realpath(outputDirectory))
+
+        # append the prefix given to files created by lastdb
+        toolCmd.append(outputFilePrefix)
+
+        # append the input filepath
+        toolCmd.append(inputFasta)
+
+        #execute the lastdb command
+        log.debug(" ".join(toolCmd))
+        subprocess.check_call(toolCmd)
+
+        # restore cwd
+        os.chdir(cwdBeforeLastdb)
 
 class MafConvert(LastTools) :
     subtoolName = 'maf-convert'
