@@ -8,7 +8,7 @@ from Bio import Entrez, SeqIO
 
 log = logging.getLogger(__name__)
 
-def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta"):
+def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta", combinedGenomeFilePrefix=None, removeSeparateFastas=False):
     """ 
         This function downloads and saves files from NCBI nuccore.
     """
@@ -49,14 +49,45 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
         #except Exception as e:
         #    raise IOError( "Error! Could not fetch: %s\n %s" % (acc, e.message))  
 
+    if rettype == "fasta":
+        # assert that we are not trying to remove the intermediate files without writing a combined file
+        if removeSeparateFastas:
+            assert combinedGenomeFilePrefix, """The intermediate FASTA files 
+                can only be removed if a combined file is written via --combinedGenomeFilePrefix"""
+
+        # build a path to the combined genome file
+        if combinedGenomeFilePrefix:
+            concatenatedGenomeFilepath = os.path.join(destinationDir, combinedGenomeFilePrefix+outEx[rettype])
+
+            if not forceOverwrite:
+                assert not os.path.exists(concatenatedGenomeFilepath), """File %s already exists. Consider removing 
+                    this file or specifying a different output directory. The files for the accessions specified 
+                    can be overwritten if you add --forceOverwrite flag. Processing aborted.""" % outputFilePath
+
+            # concatenate the files together into one genome file
+            with open(concatenatedGenomeFilepath, 'w') as outfile:
+                for filePath in outputFiles:
+                    with open(filePath) as infile:
+                        for line in infile:
+                            outfile.write(line)
+
+            # if the option is specified, remove the intermediate fasta files
+            if removeSeparateFastas:
+                while len(outputFiles) > 0:
+                    os.unlink(outputFiles.pop())
+
+            # add the combined file to the list of files returned
+            outputFiles.append(concatenatedGenomeFilepath)
+
+
     # return list of files
     return outputFiles
 
-def fetch_fastas_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, rettype="fasta"):
-    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype)
+def fetch_fastas_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas, rettype="fasta"):
+    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, combinedGenomeFilePrefix, removeSeparateFastas)
 
-def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, rettype="ft"):
-    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype)
+def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas, rettype="ft"):
+    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, combinedGenomeFilePrefix, removeSeparateFastas)
 
 if __name__ == "__main__":
     fastaFilePaths = fetch_fastas_from_genbank(["NC_004296.1", "NC_004297.1"], "~/Desktop/")
