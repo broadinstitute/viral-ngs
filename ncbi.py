@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''This script contains a number of utilities for submitting our analyses
-to NCBI's Genbank and SRA databases.
+to NCBI's Genbank and SRA databases, as well as retreiving records from Genbank.
 '''
 
 __author__ = "PLACEHOLDER"
@@ -8,7 +8,7 @@ __commands__ = []
 
 import argparse, logging, collections, shutil, os, os.path
 import Bio.SeqIO
-import util.cmd, util.file, util.version
+import util.cmd, util.file, util.version, util.genbank
 import tools.tbl2asn
 import interhost
 
@@ -112,6 +112,31 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, tbl_transfer, split_args=True)
     return parser
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
+
+def fetch_fastas_and_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverwrite):
+    '''
+        This function downloads and saves the FASTA files and their corresponding 
+        feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite)
+    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite)
+
+def parser_fetch_reference_fastas_and_feature_tables(parser=argparse.ArgumentParser()):
+    parser.add_argument("emailAddress",
+        help="""Your email address. To access the Genbank CoreNucleotide database, 
+        NCBI requires you to specify your email address with each request. 
+        In case of excessive usage of the E-utilities, NCBI will attempt to contact
+        a user at the email address provided before blocking access.""")
+    parser.add_argument("destinationDir",
+        help="Output directory with where .fasta and .tbl files will be saved")    
+    parser.add_argument("accession_IDs", nargs='+',
+        help="List of Genbank nuccore accession IDs")
+    parser.add_argument('--forceOverwrite', default=False, action='store_true',
+        help='''Overwrite existing files, if present.''')
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_fastas_and_feature_tables, split_args=True)
+    return parser
+__commands__.append(('fetch_fastas_and_feature_tables', parser_fetch_reference_fastas_and_feature_tables))
 
 def tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False):
     """
