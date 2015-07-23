@@ -293,17 +293,17 @@ def impute_from_reference(inFasta, inReference, outFasta,
                 os.unlink(concat_file)
                 os.unlink(muscle_align)
 
-                # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
-                tools.picard.CreateSequenceDictionaryTool().execute(tmpOutputFile, overwrite=True)
-                tools.samtools.SamtoolsTool().faidx(tmpOutputFile, overwrite=True)
-                tools.novoalign.NovoalignTool().index_fasta(tmpOutputFile)
-
                 tempFastas.append(tmpOutputFile)
     
     util.file.concat(tempFastas, outFasta)
+
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
+    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+    tools.novoalign.NovoalignTool().index_fasta(outFasta)
+
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
-
  
     return 0
 
