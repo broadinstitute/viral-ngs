@@ -215,3 +215,22 @@ def fastaMaker(seqs, linewidth=60):
 
         if seq:
             yield seq+"\n"
+
+def makeFastaFile(seqs, outFasta):
+    with open(outFasta, 'wt') as outf:
+        for line in fastaMaker(seqs):
+            outf.write(line)
+
+    return outFasta
+
+def concat(inputFilePaths, outputFilePath):
+    '''
+        This function creates an output file containing the
+        lines present in the input files, in the order specified
+        by the inputFilePaths list.
+    '''
+    with open(outputFilePath, 'w') as outfile:
+        for filePath in inputFilePaths:
+            with open(filePath) as infile:
+                for line in infile:
+                    outfile.write(line)

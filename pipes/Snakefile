@@ -9,7 +9,7 @@
 
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
-import os.path
+import os
 
 configfile: "config.json"
 pipesDir = os.path.join(os.path.expanduser(config['binDir']), 'pipes', 'rules')
