@@ -1,5 +1,14 @@
 {
-  "number_of_chromosomes": 1,
+  "dataDir":    "data",
+  "tmpDir":     "tmp",
+  "logDir":     "log",
+  "reportsDir": "reports",
+  "binDir":     "bin",
+  "venvDir":    "venv",
+  "project":    "viral_ngs",
+
+  "email_point_of_contact_for_ncbi" : "someone@example.com",
+  "number_of_chromosomes": 2,
 
   "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
@@ -16,6 +25,10 @@
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/depletion_databases",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
+
+  "accessions_for_ref_genome_build": ["", ""],
+  "accessions_for_lastal_db_build": ["", ""],
+
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
   "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
@@ -23,7 +36,7 @@
   "ref_annot":      "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/features.tbl",
   "snpEff_genome":  "KJ660346.2",
   
-  "assembly_min_length":    [15000],
+  "assembly_min_length_fraction_of_reference": 0.90,
   "assembly_min_unambig":      0.95,
 
   "mafft_ep":       0.123,
@@ -62,12 +75,5 @@
     "interhost":      "03_interhost",
     "intrahost":      "04_intrahost",
     "annot":          "05_genbank"
-  },
-  "dataDir":    "data",
-  "tmpDir":     "tmp",
-  "logDir":     "log",
-  "reportsDir": "reports",
-  "binDir":     "bin",
-  "venvDir":    "venv",
-  "project":    "viral_ngs"
+  }
 }
