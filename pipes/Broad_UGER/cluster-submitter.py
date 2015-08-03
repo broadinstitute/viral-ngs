@@ -31,7 +31,7 @@ cmdline += props["params"].get("UGER","") + " "
 # figure out job dependencies
 dependencies = set(sys.argv[1:-2])
 if dependencies:
-    cmdline += "-w '{}' ".format(" && ".join(dependencies))
+    cmdline += "-hold_jid '{}' ".format(",".join(dependencies))
 
 # the actual job
 cmdline += jobscript
