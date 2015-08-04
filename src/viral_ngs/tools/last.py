@@ -80,15 +80,15 @@ class Lastdb(LastTools) :
         # store the cwd because we will be changing it to the file destination
         cwdBeforeLastdb = os.getcwd()
 
-        # lastdb writes files to the current working directory, so we need to set 
-        # it to the desired output location
-        os.chdir(os.path.realpath(outputDirectory))
-
         # append the prefix given to files created by lastdb
         toolCmd.append(outputFilePrefix)
 
         # append the input filepath
-        toolCmd.append(inputFasta)
+        toolCmd.append(os.path.realpath(inputFasta))
+
+	# lastdb writes files to the current working directory, so we need to set
+        # it to the desired output location
+        os.chdir(os.path.realpath(outputDirectory))
 
         #execute the lastdb command
         log.debug(" ".join(toolCmd))
