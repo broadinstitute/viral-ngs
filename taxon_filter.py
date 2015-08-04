@@ -706,10 +706,18 @@ __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
 # ========================
 
 def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
+
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
     tools.last.Lastdb().execute(
         inputFasta       = inputFasta, 
         outputDirectory  = outputDirectory, 
-        outputFilePrefix = outputFilePrefix
+        outputFilePrefix = outPrefix
     )
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
@@ -717,7 +725,7 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
         help='Location of the input FASTA file')
     parser.add_argument('outputDirectory', 
         help='Location for the output files (default is cwd: %(default)s)')
-    parser.add_argument('outputFilePrefix',
+    parser.add_argument('--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans .fasta)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, lastal_build_db, split_args=True)
