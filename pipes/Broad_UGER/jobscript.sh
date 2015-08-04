@@ -5,10 +5,4 @@
 
 # if the job succeeds, snakemake 
 # touches jobfinished, thus if it exists cat succeeds. if cat fails, the error code indicates job failure
-cat $1 &>/dev/null
-
-if [[ $? != 0 ]]; then
-    exit 100
-else
-    exit 0
-fi
+cat $1 &>/dev/null && exit 0 || exit 100
