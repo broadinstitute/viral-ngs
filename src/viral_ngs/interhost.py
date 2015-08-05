@@ -250,19 +250,11 @@ class CoordMapper2Seqs(object) :
         baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
         beforeStart = True # Haven't yet reached first pair of aligned real bases
         gapSinceLast = False # Have encounted a gap since last pair in mapArrays
-        prevRealBase0 = prevRealBase1 = True
         for b0, b1 in zip_longest(seq0, seq1) :
-            assert b0 != None and b1 != None, 'CoordMapper2Seqs: sequences '\
-                'must be same length.'
+            if b0 is None or b1 is None:
+                raise Exception('CoordMapper2Seqs: sequences must be same length.')
             realBase0 = b0 != '-'
             realBase1 = b1 != '-'
-            # commented out 7/8/15 since with multi-alignments
-            # sequences can have gaps where they may not in pairwise alignments
-            #assert realBase0 or realBase1, 'CoordMapper2Seqs: gap aligned to gap.'
-            #assert (realBase0 or prevRealBase1) and (realBase1 or prevRealBase0),\
-            #     'CoordMapper2Seqs: gap in one sequence adjacent to gap in other.'
-            prevRealBase0 = realBase0
-            prevRealBase1 = realBase1
             baseCount0 += realBase0
             baseCount1 += realBase1
             if realBase0 and realBase1 :
@@ -275,7 +267,8 @@ class CoordMapper2Seqs(object) :
                 finalPos1 = baseCount1 # Last pair of aligned real bases so far
             else :
                 gapSinceLast = True
-        assert len(self.mapArrays[0]) != 0, 'CoordMapper2Seqs: no aligned bases.'
+        if len(self.mapArrays[0]) == 0:
+            raise Exception('CoordMapper2Seqs: no aligned bases.')
         if self.mapArrays[0][-1] != finalPos0 :
             self.mapArrays[0].append(finalPos0)
             self.mapArrays[1].append(finalPos1)
