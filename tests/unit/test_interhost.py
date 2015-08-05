@@ -4,11 +4,7 @@ __author__ = "irwin@broadinstitute.org"
 
 import interhost
 import test, util.file
-import unittest, shutil, argparse, os
-from interhost import CoordMapper2Seqs as Cm2s
-
-import logging
-log = logging.getLogger(__name__)
+import unittest, argparse, itertools
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
@@ -231,39 +227,132 @@ class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
         self.assertEqual(self.cm.mapChr('third_chr', 'chr3'), 'chr3')
         self.assertRaises(KeyError, self.cm.mapChr, 'nonexistentchr', 'chr1')
 
-class TestCoordMapper2Seqs(test.TestCaseWithTmp):
+class TestSpecificAlignments(test.TestCaseWithTmp):
     """ For the most part, CoordMapper2Seqs is tested implicitly when
         CoordMapper is tested. Focus here on special cases that are hard
         or impossible to get out of the aligner.
     """
+    def test_basic_alignment(self) :
+        alignment = makeTempFasta([
+            ('s1',        'ATCG'),
+            ('s2',        'ACCG'),
+            ('s3',        'AG-T'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+
     def test_unequal_len(self) :
-        with self.assertRaises(AssertionError) :
-            cm2s = Cm2s('AA', 'A')
+        alignment = makeTempFasta([
+            ('s1',        'AA'),
+            ('s2',        'A'),
+            ])
+        cm = interhost.CoordMapper()
+        with self.assertRaises(Exception) :
+            cm.load_alignments([alignment])
 
-    def test_no_real_bases(self) :
-        with self.assertRaises(AssertionError) :
-            cm2s = Cm2s('AA', '--')
-        with self.assertRaises(AssertionError) :
-            cm2s = Cm2s('--', 'AA')
+    def test_no_real_bases_in_sample(self) :
+        alignment1 = makeTempFasta([
+            ('s1',        'AA'),
+            ('s2',        '--'),
+            ])
+        cm = interhost.CoordMapper()
+        with self.assertRaises(Exception) :
+            cm.load_alignments([alignment1])
+            
+        alignment2 = makeTempFasta([
+            ('s1',        '--'),
+            ('s2',        'AA'),
+            ('s3',        'TT'),
+            ])
+        cm = interhost.CoordMapper()
+        with self.assertRaises(Exception) :
+            cm.load_alignments([alignment2])
 
-    # commented out 7/8/15 since with multi-alignments
-    # sequences can have gaps where they may not in pairwise alignments
-    #def test_aligned_gaps(self) :
-    #    with self.assertRaises(AssertionError) :
-    #        cm2s = Cm2s('A-A', 'A-A')
+    def test_no_real_bases_at_position(self) :
+        alignment = makeTempFasta([
+            ('s1',        'AT-G'),
+            ('s2',        'AC-G'),
+            ('s3',        'AG-T'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+        for i in (1,2,3):
+            self.assertEqual(cm.mapChr('s1', 's2', i), ('s2', i))
+            self.assertEqual(cm.mapChr('s2', 's1', i), ('s1', i))
+            self.assertEqual(cm.mapChr('s1', 's3', i), ('s3', i))
+            self.assertEqual(cm.mapChr('s3', 's1', i), ('s1', i))
+            self.assertEqual(cm.mapChr('s2', 's3', i), ('s3', i))
+            self.assertEqual(cm.mapChr('s3', 's2', i), ('s2', i))
 
-    #def test_adjacent_gaps(self) :
-    #    with self.assertRaises(AssertionError) :
-    #        cm2s = Cm2s('AC-T', 'A-GT')
+    def test_aligned_gaps(self) :
+        alignment = makeTempFasta([
+            ('s1',        'ATCG'),
+            ('s2',        'AC-G'),
+            ('s3',        'AG-T'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+        for i in (1,2,3):
+            self.assertEqual(cm.mapChr('s2', 's3', i), ('s3', i))
+            self.assertEqual(cm.mapChr('s3', 's2', i), ('s2', i))
+        for x,y in ((1,1), (2,2), (3,2), (4,3)):
+            self.assertEqual(cm.mapChr('s1', 's2', x), ('s2', y))
+            self.assertEqual(cm.mapChr('s1', 's3', x), ('s3', y))
+        for x,y in ((1,1), (2,[2,3]), (3,4)):
+            self.assertEqual(cm.mapChr('s2', 's1', x), ('s1', y))
+            self.assertEqual(cm.mapChr('s3', 's1', x), ('s1', y))
+
+    def test_adjacent_gaps(self) :
+        alignment = makeTempFasta([
+            ('s1',        'ATCTG'),
+            ('s2',        'AC--G'),
+            ('s3',        'A-TTG'),
+            ('s4',        'A-C-G'),
+            ('s5',        'A--CG'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+        for x,y in ((1,1), (2,2), (3,2), (4,2), (5,3)):
+            self.assertEqual(cm.mapChr('s1', 's2', x), ('s2', y))
+        for x,y in ((1,1), (2,[2,4]), (3,5)):
+            self.assertEqual(cm.mapChr('s2', 's1', x), ('s1', y))
+        for x,y in ((1,1), (2,1), (3,2), (4,3), (5,4)):
+            self.assertEqual(cm.mapChr('s1', 's3', x), ('s3', y))
+        for x,y in ((1,[1,2]), (2,3), (3,4), (4,5)):
+            self.assertEqual(cm.mapChr('s3', 's1', x), ('s1', y))
+        for x,y in ((1,1), (2,[2,3]), (3,4)):
+            self.assertEqual(cm.mapChr('s2', 's3', x), ('s3', y))
+        for x,y in ((1,1), (2,2), (3,2), (4,3)):
+            self.assertEqual(cm.mapChr('s3', 's2', x), ('s2', y))
+        for a,b in itertools.combinations(('s2', 's4', 's5'), 2):
+            for i in (1,2,3):
+                self.assertEqual(cm.mapChr(a, b, i), (b, i))
+                self.assertEqual(cm.mapChr(b, a, i), (a, i))
 
     def test_one_real_base(self) :
-        cm2s = Cm2s('AC-', '-CA')
-        self.assertEqual(cm2s(2, 0), 1)
-        self.assertEqual(cm2s(1, 1), 2)
+        alignment = makeTempFasta([
+            ('s1',        'AC-'),
+            ('s2',        '-CA'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+        self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', None))
+        self.assertEqual(cm.mapChr('s1', 's2', 2), ('s2', 1))
+        self.assertEqual(cm.mapChr('s2', 's1', 1), ('s1', 2))
+        self.assertEqual(cm.mapChr('s2', 's1', 2), ('s1', None))
 
     def test_exactly_two_pairs(self) :
-        cm2s = Cm2s('A--T', 'AGGT')
-        self.assertEqual([cm2s(n, 0) for n in [1, 2]], [[1, 3], 4])
-        self.assertEqual([cm2s(n, 1) for n in [1, 2, 3, 4]], [1, 1, 1, 2])
+        alignment = makeTempFasta([
+            ('s1',        'A--T'),
+            ('s2',        'AGGT'),
+            ])
+        cm = interhost.CoordMapper()
+        cm.load_alignments([alignment])
+        self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', [1,3]))
+        self.assertEqual(cm.mapChr('s1', 's2', 2), ('s2', 4))
+        self.assertEqual(cm.mapChr('s2', 's1', 1), ('s1', 1))
+        self.assertEqual(cm.mapChr('s2', 's1', 2), ('s1', 1))
+        self.assertEqual(cm.mapChr('s2', 's1', 3), ('s1', 1))
+        self.assertEqual(cm.mapChr('s2', 's1', 4), ('s1', 2))
 
     
