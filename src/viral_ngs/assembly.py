@@ -286,6 +286,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     '--replace-length', str(replaceLength),
                     '--replace-end-gaps']
                 if newName:
+                    # TODO: may need to add/remove the "-idx" for downstream
                     args.extend(['-n', newName+"-"+str(idx)])
 
                 args = pmc.parse_args(args)
