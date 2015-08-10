@@ -1,0 +1,91 @@
+"""
+    These are rules related to preparing data for NCBI submission, as well as creation of
+    reference genomes.
+"""
+
+__author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
+
+from snakemake.utils import makedirs
+import os, os.path, time
+
+localrules: download_reference_genome, build_lastal_db
+
+rule download_reference_genome:
+    output:
+        config["ref_genome"]+'/'+'/{ref_name}.fasta',
+        config["ref_genome"]+'/'+'/{feature_tbl_name}.tbl',
+    params:
+        emailAddress=config["email_point_of_contact_for_ncbi"],
+        accessionsList=config["accessions_for_ref_genome_build"]
+    run:
+        makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
+        shell("{config[binDir]}/ncbi.py fetch_fastas_and_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedGenomeFilePrefix {config[ref_genome_file_prefix]} --removeSeparateFastas --forceOverwrite")
+
+rule build_lastal_db:
+    input:
+        config["refDir"]+'/'+'/{ref_name}.fasta',
+    output:
+        config["lastal_refDb"]+'/'+'/{ref_name}.bck',
+        config["lastal_refDb"]+'/'+'/{ref_name}.des',
+        config["lastal_refDb"]+'/'+'/{ref_name}.prj',
+        config["lastal_refDb"]+'/'+'/{ref_name}.sds',
+        config["lastal_refDb"]+'/'+'/{ref_name}.ssp',
+        config["lastal_refDb"]+'/'+'/{ref_name}.suf',
+        config["lastal_refDb"]+'/'+'/{ref_name}.tis',
+    params:
+        emailAddress=config["email_point_of_contact_for_ncbi"],
+        accessionsList=config["accessions_for_ref_genome_build"],
+    run:
+        makedirs( expand( "{dir}", dir=[config["refDir"]] ) )
+        shell("{config[binDir]}/taxon_filter.py lastal_build_db {config[ref_genome]}/{wildcards.ref_name}.fasta {config[lastal_refDb]}")
+
+rule annot_transfer:
+    input:      
+                config["dataDir"]+'/'+config["subdirs"]["multialign_ref"]+'/{chr_alignment}.fasta',
+                expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"])
+    output:     
+                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl',
+                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
+    resources:  mem=4
+    params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+                logid="{sample}",
+                refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+                refAnnot=expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"]),
+                outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
+    #shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
+    shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {input[0]} {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip"
+
+    # tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False)
+
+rule prepare_genbank:
+    input:
+                config["reportsDir"]+"/summary.assembly.txt",
+                expand("{dir}/{subdir}/{sample}.tbl",
+                    dir=[config["dataDir"]], subdir=[config["subdirs"]["annot"]],
+                    sample=read_samples_file(config["samples_assembly"]))
+    output:
+                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
+    params:
+                LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+                fasta_files=expand("{dir}/{subdir}/{sample}.fasta",
+                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
+                    sample=read_samples_file(config["samples_assembly"])),
+                genbank_template=config.get('genbank',{}).get('author_template', ''),
+                genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
+                biosample_map=config.get('genbank',{}).get('biosample_map', ''),
+                seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
+                comment=config.get('genbank',{}).get('comment', ''),
+                logid="all"
+    shell:
+                ' '.join(["{config[binDir]}/ncbi.py prep_genbank_files",
+                    "{params.genbank_template} {params.fasta_files}",
+                    "{config[dataDir]}/{config[subdirs][annot]}",
+                    "--master_source_table {params.genbank_source_table}",
+                    "--sequencing_tech '{params.seq_tech}'",
+                    "--biosample_map {params.biosample_map}",
+                    "--coverage_table {config[reportsDir]}/summary.assembly.txt",
+                    "--comment '{params.comment}'"])
+
+rule all_annot:
+    input:
+                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'

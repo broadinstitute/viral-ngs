@@ -35,6 +35,7 @@ rule isnvs_vcf:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
                 chrom=range(config["number_of_chromosomes"]))
+            config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
@@ -42,7 +43,7 @@ rule isnvs_vcf:
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["snpEff_genome"],
             samples=read_samples_file(config["samples_assembly"])
     run:
@@ -72,7 +73,7 @@ rule isnvs_vcf_filtered:
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["snpEff_genome"],
             samples=read_samples_file(config["samples_assembly"])
     run:
