@@ -477,7 +477,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
             with util.file.open_or_gzopen(alignmentFile, 'r') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     for sampleName in sampleNames:
-                        if seq.id == sampleName:
+                        if sampleIDMatch(seq.id) == sampleName:
                             samp_to_seqIndex[sampleName] = seq
                             sampleNames.remove(sampleName)
 
@@ -1011,6 +1011,21 @@ __commands__.append(('iSNP_per_patient', parser_iSNP_per_patient))
 
 
 #  ===================================================
+
+#  ===============[ Utility functions ]================
+
+def sampleIDMatch(inputString):
+    """
+        Given a sample name in the form of [sample] or [sample]-#,
+        return only [sample]
+    """
+    idRegex = re.compile("(.*?)(?:-\d+|$)+")
+    m = idRegex.match(inputString)
+
+    if m:
+        return m.group(1)
+    else:
+        raise LookupError("The ID was not of the form (.*?)(?:-\d+|$)+, ex. 5985-0")
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)

@@ -726,7 +726,7 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('outputDirectory', 
         help='Location for the output files (default is cwd: %(default)s)')
     parser.add_argument('--outputFilePrefix',
-        help='Prefix for the output file name (default: inputFasta name, sans .fasta)')
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, lastal_build_db, split_args=True)
     return parser
