@@ -38,7 +38,7 @@ rule ref_guided_consensus:
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage="3"
     run:
@@ -59,7 +59,7 @@ rule ref_guided_diversity:
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
                 dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
                 sample=read_samples_file(config["samples_per_run"])),
@@ -71,51 +71,6 @@ rule ref_guided_diversity:
             shell("cat {params.inFastas} > {output[0]}")
             merge_vcfs(params.inVcfs, params.refGenome, output[1])
 
-
-rule annot_transfer:
-    input:      config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    output:     config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
-    resources:  mem=4
-    params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-                logid="{sample}",
-                refGenome=config["ref_genome"],
-                refAnnot=config["ref_annot"]
-    shell:      "{config[binDir]}/ncbi.py tbl_transfer {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
-
-rule prepare_genbank:
-    input:
-                config["reportsDir"]+"/summary.assembly.txt",
-                expand("{dir}/{subdir}/{sample}.tbl",
-                    dir=[config["dataDir"]], subdir=[config["subdirs"]["annot"]],
-                    sample=read_samples_file(config["samples_assembly"]))
-    output:
-                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
-    params:
-                LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-                fasta_files=expand("{dir}/{subdir}/{sample}.fasta",
-                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
-                    sample=read_samples_file(config["samples_assembly"])),
-                genbank_template=config.get('genbank',{}).get('author_template', ''),
-                genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
-                biosample_map=config.get('genbank',{}).get('biosample_map', ''),
-                seq_tech=config.get('genbank',{}).get('sequencing_technology', 'unknown'),
-                comment=config.get('genbank',{}).get('comment', ''),
-                logid="all"
-    shell:
-                ' '.join(["{config[binDir]}/ncbi.py prep_genbank_files",
-                    "{params.genbank_template} {params.fasta_files}",
-                    "{config[dataDir]}/{config[subdirs][annot]}",
-                    "--master_source_table {params.genbank_source_table}",
-                    "--sequencing_tech '{params.seq_tech}'",
-                    "--biosample_map {params.biosample_map}",
-                    "--coverage_table {config[reportsDir]}/summary.assembly.txt",
-                    "--comment '{params.comment}'"])
-
-rule all_annot:
-    input:
-                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
-
-
 rule multi_align_mafft:
     input:
         expand("{dataDir}/{subdir}/{sample}.fasta",
@@ -126,10 +81,11 @@ rule multi_align_mafft:
         expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(config["number_of_chromosomes"]))
+                chrom=range(config["number_of_chromosomes"])),
+        config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["snpEff_genome"],
             samples=read_samples_file(config["samples_assembly"]),
             ep=str(config["mafft_ep"]),
@@ -139,7 +95,7 @@ rule multi_align_mafft:
                 + " ".join(["{config[dataDir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples])
                 + " {config[dataDir]}/{config[subdirs][multialign_ref]}"
                 + " --ep {params.ep} --maxiters {params.maxiters} --preservecase"
-                + " --localpair --outFilePrefix aligned_")
+                + " --localpair --outFilePrefix aligned_ --sampleNameListFile {output[1]}")
 
 '''
 rule multi_align_mafft:

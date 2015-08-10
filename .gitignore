@@ -49,3 +49,5 @@ htmlcov/
 .noseids
 nosetests.xml
 coverage.xml
+
+test/input/TestVPhaser2/in.bam.bti

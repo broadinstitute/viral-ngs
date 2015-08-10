@@ -25,15 +25,14 @@
   "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/depletion_databases",
   "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
-
-  "accessions_for_ref_genome_build": ["", ""],
-  "accessions_for_lastal_db_build": ["", ""],
+  "accessions_for_ref_genome_build": ["KJ660346.2"],
+  "ref_genome_file_prefix": "ebov",
+  "ref_genome":     "ref_genome",
+  "lastal_refDb":   "ref_genome",  
 
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
-  "lastal_refDb":   "/idi/sabeti-scratch/dpark/ebov/lastal_db/ebola",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
-  "ref_genome":     "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/genome.fasta",
-  "ref_annot":      "/idi/sabeti-scratch/genomes/ebov/KJ660346.2/features.tbl",
+
   "snpEff_genome":  "KJ660346.2",
   
   "assembly_min_length_fraction_of_reference": 0.90,
