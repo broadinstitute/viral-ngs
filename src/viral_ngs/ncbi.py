@@ -113,53 +113,90 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
-def tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False):
+def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, oob_clip=False):
     """
         This breaks out the ref and alt sequences into separate fasta files, and then
-        creates a unified files containing the reference sequence first and the alt second
+        creates unified files containing the reference sequence first and the alt second. Each of these unified files
+        is then passed as a cmap to tbl_transfer_common.
+
+        This function expects to receive one fasta file containing a multialignment of a single segment/chromosome along
+        with the respective reference sequence for that segment/chromosome. It also expects a reference containing all
+        reference segments/chromosomes, so that the reference sequence can be identified in the input file by name. It
+        also expects a list of reference tbl files, where each file is named according to the ID present for its 
+        corresponding sequence in the refFasta. For each non-reference sequence present in the inputFasta, two files are
+        written: a fasta containing the segment/chromosome for the same, along with its corresponding feature table as
+        created by tbl_transfer_common.
     """
-    ref_fasta_filename = ""
-    alt_fasta_filename = ""
-    combined_fasta_filename = ""
+        
+    ref_tbl = "" # must be identified in list of tables
+
+    if not os.path.exists(outputDir):
+        os.makedirs(outputDir)
 
     # write out the desired sequences to separate fasta files
-    with util.file.open_or_gzopen(input_fasta, 'r') as inf:
+    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
-            if seq.id == ref_seq_name:
-                ref_fasta_filename = util.file.mkstempfname('.fasta')
-                with open(ref_fasta_filename, 'wt') as outf:
-                    for line in util.file.fastaMaker(seq):
-                        outf.write(line)
-            if seq.id == alt_seq_name:
-                alt_fasta_filename = util.file.mkstempfname('.fasta')
-                with open(alt_fasta_filename, 'wt') as outf:
-                    for line in util.file.fastaMaker(seq):
-                        outf.write(line)
-    if ref_fasta_filename == "": 
-        raise KeyError("The ref sequence '%s' was not found in the file %s" % (ref_seq_name, input_fasta) )
-    if alt_fasta_filename == "":
-        raise KeyError("The alt sequence '%s' was not found in the file %s" % (alt_seq_name, input_fasta) )
+            ref_fasta_filename = ""
+            alt_fasta_filename = ""
+            combined_fasta_filename = ""
+            out_tbl = ""
+            matchingRefSeq = None
 
-    with open(combined_fasta_filename, 'wt') as outf:
-        with open(ref_fasta_filename, 'wt') as reff:
-            for line in reff:
-                outf.write(line)
-        with open(alt_fasta_filename, 'wt') as altf:
-            for line in altf:
-                outf.write(line)
+            # write reference sequence to temp file, from multialignment (so with gaps)
+            with util.file.open_or_gzopen(refFasta, 'r') as reff:
+                for refIdx, refSeq in enumerate(Bio.SeqIO.parse(inf, 'fasta')):
 
-    cmap = interhost.CoordMapper()
-    cmap.load_alignments([combined_fasta_filename])
-    alt_chrlens = fasta_chrlens(alt_fasta_filename)
-    
-    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
+                    if seq.id == refSeq.id:
+                        ref_fasta_filename = util.file.mkstempfname('.fasta')
+                        with open(ref_fasta_filename, 'wt') as outf:
+                            for line in util.file.fastaMaker(seq):
+                                outf.write(line)
+                        matchingRefSeq = refSeq
+                        break
+
+            if ref_fasta_filename == "": 
+                raise KeyError("No reference was found in the input file %s" % (inputFasta) )
+
+            # write this alt sequence to output file, from multialignment (so with gaps)
+            alt_fasta_filename = os.path.join(outputDir, seq.id+".fasta") #util.file.mkstempfname('.fasta')
+            #assert not os.path.exists(alt_fasta_filename), """File %s already exists. Perhaps its sequence ID is not
+            #    unique, or the feature table transfer has been performed already.""" % alt_fasta_filename
+            with open(alt_fasta_filename, 'wt') as outf:
+                for line in util.file.fastaMaker(seq):
+                    outf.write(line)
+                # need to write second file with .seq.ungap("-")? 
+
+            # combine these two files for use in the CoordMapper
+            combined_fasta_filename = util.file.mkstempfname('.fasta')
+            util.file.concat([ref_fasta_filename, alt_fasta_filename], combined_fasta_filename)
+
+            # create a filepath for the output table
+            out_tbl = os.path.join(outputDir, seq.id+".tbl")
+
+            # identify the correct feature table source based on its filename, 
+            # which should correspond to a unique component of the ref sequence ID (i.e. the genbank accession)
+            for tblFilename in refAnnotTblFiles:
+                # should probably inspect more to confirm the right file, but as long as feature tbl files have genbank 
+                # accessions as file names this should be ok
+                fileAccession = tblFilename.replace(".tbl","")
+                if fileAccession in matchingRefSeq.id:
+                    ref_tbl = tblFilename
+                    break
+
+            cmap = interhost.CoordMapper()
+            cmap.load_alignments([combined_fasta_filename])
+            alt_chrlens = fasta_chrlens(alt_fasta_filename)
+        
+            tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
 
 def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
-    parser.add_argument("input_fasta", help="FASTA file containing input sequences, including pre-made alignments and reference sequence")
-    parser.add_argument("ref_seq_name", help="Name of the reference sequence within the input sequences")
-    parser.add_argument("alt_seq_name", help="Name of the alternate sequence within the input sequences")
-    parser.add_argument("ref_tbl", help="Input reference annotations (NCBI TBL format)")
-    parser.add_argument("out_tbl", help="Output file with transferred annotations")
+    parser.add_argument("inputFasta", help="""FASTA file containing input sequences, 
+        including pre-made alignments and reference sequence""")
+    parser.add_argument("refFasta", help="FASTA file containing the reference genome")
+    parser.add_argument("refAnnotTblFiles", nargs='+', help="""Name of the reference feature tables, 
+        each of which should have a filename comrised of [refId].tbl 
+        so they can be matched against the reference sequences""")    
+    parser.add_argument("outputDir", help="The output directory")
     parser.add_argument('--oob_clip', default=False, action='store_true',
         help='''Out of bounds feature behavior.
         False: drop all features that are completely or partly out of bounds
