@@ -76,7 +76,7 @@ rule orient_and_impute:
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            refGenome=config["ref_genome"],
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             # length should be defined as a fraction/percentage cutoff, relative to 
             # reference length for a given sequence. float is in the config.json file
             length = str(config["assembly_min_length_fraction_of_reference"]),
