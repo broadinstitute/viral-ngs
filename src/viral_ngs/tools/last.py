@@ -86,7 +86,7 @@ class Lastdb(LastTools) :
         # append the input filepath
         toolCmd.append(os.path.realpath(inputFasta))
 
-	# lastdb writes files to the current working directory, so we need to set
+	    # lastdb writes files to the current working directory, so we need to set
         # it to the desired output location
         os.chdir(os.path.realpath(outputDirectory))
 

@@ -65,7 +65,7 @@
   "UGER_queues": {
     "short": "-q short",
     "long": "-q long"
-    },
+  },
 
   "subdirs": {
     "demux":          "00_demux",
