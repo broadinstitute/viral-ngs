@@ -7,7 +7,7 @@ __author__ = "PLACEHOLDER"
 __commands__ = []
 
 # built-ins
-import argparse, logging, os, array, bisect
+import argparse, logging, os, array, bisect, json
 from itertools import permutations
 from collections import OrderedDict, Sequence
 try:
@@ -386,8 +386,17 @@ def parser_multichr_mafft(parser):
 
     parser.add_argument('outDirectory', 
         help='Location for the output files (default is cwd: %(default)s)')
-    parser.add_argument('--outFilePrefix', default="singlechr",
+    parser.add_argument('--outFilePrefix', default="aligned",
         help='Prefix for the output file name (default: %(default)s)')
+    parser.add_argument('--sampleRelationFile', default=None, 
+        help="""If the parameter sampleRelationFile is specified 
+        (as a file path), a JSON file will be written mapping 
+        sample name to sequence position in the output.""")
+    parser.add_argument('--sampleNameListFile', default=None,
+        help="""If the parameter sampleRelationFile is specified 
+        (as a file path), a file will be written mapping 
+        sample names in the order of their sequence 
+        positions in the output.""")
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, multichr_mafft)
@@ -412,7 +421,7 @@ def multichr_mafft(args):
     prefix = "" if args.outFilePrefix == None else args.outFilePrefix
 
     # reorder the data into new FASTA files, where each FASTA file has only variants of its respective chromosome
-    transposedFiles = transposeChromosomeFiles(args.inFastas)
+    transposedFiles = transposeChromosomeFiles(args.inFastas, args.sampleRelationFile, args.sampleNameListFile)
 
     # since the FASTA files are
     for idx, filePath in enumerate(transposedFiles):
@@ -422,7 +431,7 @@ def multichr_mafft(args):
         # but in this case we are creating the input file ourselves
         tools.mafft.MafftTool().execute(
                     inFastas          = [os.path.abspath(filePath)],
-                    outFile           = os.path.join(absoluteOutDirectory, "{}{}.fasta".format(prefix, idx)), 
+                    outFile           = os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx)), 
                     localpair         = args.localpair, 
                     globalpair        = args.globalpair, 
                     preservecase      = args.preservecase, 
@@ -480,10 +489,13 @@ def make_vcf(a, ref_idx, chrom):
                             genos.append(m+1)
             yield row+genos
 
-def transposeChromosomeFiles(inputFilenamesList):
+def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sampleNameListFile=None):
     ''' Input:  a list of FASTA files representing a genome for each sample.
                 Each file contains the same number of sequences (chromosomes, segments,
                 etc) in the same order.
+                If the parameter sampleRelationFile is specified (as a file path),
+                a JSON file will be written mapping sample name to sequence position 
+                in the output.
         Output: a list of FASTA files representing all samples for each
                 chromosome/segment for input to a multiple sequence aligner.
                 The number of FASTA files corresponds to the number of chromosomes
@@ -496,6 +508,19 @@ def transposeChromosomeFiles(inputFilenamesList):
     inputFilesList = [util.file.open_or_gzopen(x, 'r') for x in inputFilenamesList]
     # get BioPython iterators for each of the FASTA files specified in the input
     fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
+
+    # write out json file containing relation of
+    # sample name to position in output
+    if sampleRelationFile:
+        with open( os.path.realpath(sampleRelationFile), "w") as outFile:
+            # dict mapping sample->index, zero indexed
+            sampleIdxMap = dict((os.path.basename(v).replace(".fasta",""),k) for k,v in enumerate(inputFilenamesList))
+            json.dump(sampleIdxMap, outFile, sort_keys=True, indent=4, separators=(',', ': '))
+
+    if sampleNameListFile:
+        with open( os.path.realpath(sampleNameListFile), "w" ) as outFile:
+            sampleNameList = [os.path.basename(v).replace(".fasta","\n") for v in inputFilenamesList]
+            outFile.writelines(sampleNameList)
 
     # for each interleaved record
     for chrRecordList in zip_longest(*fastaFiles):
