@@ -34,7 +34,7 @@ rule isnvs_vcf:
             expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(config["number_of_chromosomes"]))
+                chrom=range(config["number_of_chromosomes"])),
             config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',

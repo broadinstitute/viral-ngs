@@ -12,8 +12,8 @@ localrules: download_reference_genome, build_lastal_db
 
 rule download_reference_genome:
     output:
-        config["ref_genome"]+'/'+'/{ref_name}.fasta',
-        config["ref_genome"]+'/'+'/{feature_tbl_name}.tbl',
+        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
+        expand( '{refDir}/'+'/{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"]
@@ -23,7 +23,7 @@ rule download_reference_genome:
 
 rule build_lastal_db:
     input:
-        config["refDir"]+'/'+'/{ref_name}.fasta',
+        config["ref_genome"]+'/'+'/{ref_name}.fasta'
     output:
         config["lastal_refDb"]+'/'+'/{ref_name}.bck',
         config["lastal_refDb"]+'/'+'/{ref_name}.des',
