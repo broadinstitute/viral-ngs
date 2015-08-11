@@ -11,9 +11,14 @@ def read_tab_file(fname):
         for line in inf:
             yield dict(zip(header, line.rstrip('\n').split('\t')))
 
-def read_samples_file(fname):
+def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
     if fname==None:
         return []
     with open(fname, 'rt') as inf:
         for line in inf:
-            yield line.strip()
+            if not append_chrom_num:
+                yield line.strip()
+            else:
+                line = line.strip()
+                for i in range(1, number_of_chromosomes+1):
+                    yield line+"-{idx}".format(idx=str(i))
