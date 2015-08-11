@@ -258,18 +258,16 @@ def impute_from_reference(inFasta, inReference, outFasta,
         with open(inReference, 'r') as refFastaFile:
             asmFasta = Bio.SeqIO.parse(asmFastaFile , 'fasta')
             refFasta = Bio.SeqIO.parse(refFastaFile , 'fasta')
-            chr_idx = 0
             for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
                 # our zip fails if one file has more seqs than the other
                 if not refSeqObj or not asmSeqObj:
                     raise KeyError("inFasta and inReference do not have the same number of sequences.")
-                chr_idx += 1
 
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
                 if seq_len<minLength or non_n_count<seq_len*minUnambig:
-                    raise PoorAssemblyError(chr_idx, seq_len, non_n_count)
+                    raise PoorAssemblyError(idx+1, seq_len, non_n_count)
 
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
 
@@ -287,7 +285,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
-                    args.extend(['-n', newName+"-"+str(idx)])
+                    args.extend(['-n', newName+"-"+str(idx+1)])
 
                 args = pmc.parse_args(args)
                 args.func_main(args)
