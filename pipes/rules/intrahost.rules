@@ -20,10 +20,11 @@ rule isnvs_per_sample:
     output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            logid="{sample}"
+            logid="{sample}",
+            numThreads=config.get("number_of_threads", 1)
     run:
             makedirs(config["dataDir"]+'/'+config["subdirs"]["intrahost"])
-            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output}")
+            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads}")
             
 rule isnvs_vcf:
     input:
