@@ -38,6 +38,8 @@
   "assembly_min_length_fraction_of_reference": 0.90,
   "assembly_min_unambig":      0.95,
 
+  "number_of_threads": 8,
+
   "mafft_ep":       0.123,
   "mafft_maxiters": 1000,
 
