@@ -21,7 +21,7 @@ rule isnvs_per_sample:
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
-            numThreads=config.get("number_of_threads", 1)
+            numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(config["dataDir"]+'/'+config["subdirs"]["intrahost"])
             shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads}")
