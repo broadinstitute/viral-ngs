@@ -94,7 +94,7 @@ defaultMinReads = 5
 defaultMaxBias = 10
 
 def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
-                       minReadsEach = None, maxBias = None) :
+                       minReadsEach = None, maxBias = None, keepDoublyMappedReads=False) :
     ''' Input: a single BAM file, representing reads from one sample, mapped to
             its own consensus assembly. It may contain multiple read groups and 
             libraries.
@@ -105,9 +105,18 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
     '''
     if minReadsEach != None and minReadsEach < 0:
         raise Exception('minReadsEach must be at least 0.')
-    variantIter = Vphaser2Tool().iterate(inBam, vphaserNumThreads)
+
+    bamToProcess = inBam
+    if not keepDoublyMappedReads:
+        log.debug("REMOVING DOUBLY MAPPED READS")
+        bamToProcess = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
+        samtoolsTool = SamtoolsTool()
+        samtoolsTool.removeDoublyMappedReads(inBam, bamToProcess)
+
+    variantIter = Vphaser2Tool().iterate(bamToProcess, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
-    libraryFilteredIter = compute_library_bias(filteredIter, inBam, inConsFasta)
+        
+    libraryFilteredIter = compute_library_bias(filteredIter, bamToProcess, inConsFasta)
     with util.file.open_or_gzopen(outTab, 'wt') as outf :
         for row in libraryFilteredIter :
             outf.write('\t'.join(row) + '\n')
@@ -305,6 +314,8 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("--maxBias", type = int, default = defaultMaxBias,
         help = """Maximum allowable ratio of number of reads on the two strands
                 (default: %(default)s). Ignored if minReadsEach = 0.""")
+    parser.add_argument("--keepDoublyMappedReads", default=False, action="store_true", 
+        help="""When calling V-Phaser, keep reads mapping to more than one contig.""")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
     return parser

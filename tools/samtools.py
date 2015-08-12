@@ -85,6 +85,10 @@ class SamtoolsTool(tools.Tool) :
             opts = ['-H', '-S']
         #header = pysam.view(*opts)
         self.view(opts, inBam, outHeader)
+
+    def removeDoublyMappedReads(self, inBam, outBam):
+        opts = ['-b', '-f 2']
+        self.view(opts, inBam, outBam)
     
     def getHeader(self, inBam):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''
