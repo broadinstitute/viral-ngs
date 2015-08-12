@@ -92,13 +92,14 @@ rule multi_align_mafft:
             snpEff_ref=config["snpEff_genome"],
             samples=read_samples_file(config["samples_assembly"]),
             ep=str(config["mafft_ep"]),
-            maxiters=str(config["mafft_maxiters"])
+            maxiters=str(config["mafft_maxiters"]),
+            numThreads=str(config.get("number_of_threads", 1))
     run:
         shell("{config[binDir]}/interhost.py multichr_mafft {params.refGenome} "
                 + " ".join(["{config[dataDir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples])
                 + " {config[dataDir]}/{config[subdirs][multialign_ref]}"
                 + " --ep {params.ep} --maxiters {params.maxiters} --preservecase"
-                + " --localpair --outFilePrefix aligned_ --sampleNameListFile {output[1]}")
+                + " --localpair --outFilePrefix aligned_ --sampleNameListFile {output[1]} --threads {params.numThreads}")
 
 '''
 rule multi_align_mafft:
