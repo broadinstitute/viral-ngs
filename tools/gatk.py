@@ -50,14 +50,14 @@ class GATKTool(tools.Tool) :
     
     def ug(self, inBam, refFasta, outVcf,
             options=["--min_base_quality_score", 15, "-ploidy", 4],
-            JVMmemory=None):
+            JVMmemory=None, threads=1):
         opts = ['-I', inBam, '-R', refFasta, '-o', outVcf,
             '-glm', 'BOTH',
             '--baq', 'OFF',
             '--useOriginalQualities',
             '-out_mode', 'EMIT_ALL_SITES',
             '-dt', 'NONE',
-            '--num_threads', 1,
+            '--num_threads', threads,
             '-stand_call_conf', 0,
             '-stand_emit_conf', 0,
             '-A', 'AlleleBalance',

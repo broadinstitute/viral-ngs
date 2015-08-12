@@ -431,7 +431,7 @@ def multichr_mafft(args):
         # but in this case we are creating the input file ourselves
         tools.mafft.MafftTool().execute(
                     inFastas          = [os.path.abspath(filePath)],
-                    outFile           = os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx)), 
+                    outFile           = os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx+1)), 
                     localpair         = args.localpair, 
                     globalpair        = args.globalpair, 
                     preservecase      = args.preservecase, 

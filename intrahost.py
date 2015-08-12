@@ -499,8 +499,16 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
 
                 # read in all iSNVs for this chrom and map to reference coords
                 data = []
-                for s in list( (set(samples) | set(cm.chrMaps.keys()))-set(ref_seq_id_to_alignment_file.keys()) ):
-                    for row in util.file.read_tabfile(samp_to_isnv[s]):
+                print("samples: {}".format(samples))
+                print("cm.chrMaps.keys(): {}".format(list()))
+
+
+                # use conditional matching to only include the sequences that match the sample basename provided
+                samplesToUse = [x for x in cm.chrMaps.keys() if sampleIDMatch(x) in samples]
+                print("samplesToUse: {}".format(samplesToUse))
+
+                for s in samplesToUse:
+                    for row in util.file.read_tabfile(samp_to_isnv[sampleIDMatch(s)]):
                         # map ref->sample
                         s_chrom = cm.mapChr(ref_sequence.id, s)
                         if row[0] == s_chrom:
@@ -592,7 +600,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                 'positions %s mapped to same reference position (%s:%s)' %
                                 (sample, (s_pos, samp_offsets[sample]), ref_sequence.id, pos))
                         samp_offsets[sample] = s_pos
-                    for s in samples:
+                    for s in samplesToUse:
                         # map ref to s
                         cons_start = cm.mapChr(ref_sequence.id, s, pos, side = -1)[1]
                         cons_stop  = cm.mapChr(ref_sequence.id, s, end, side = 1)[1]
@@ -601,7 +609,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                 "for %s at %s:%s-%s.", s, ref_sequence.id, pos, end)
                             continue
                         
-                        cons = samp_to_seqIndex[s].seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
+                        cons = samp_to_seqIndex[sampleIDMatch(s)].seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
                         
                         allele = str(cons[cons_start-1:cons_stop]).upper()
                         if s in samp_offsets:
@@ -611,12 +619,11 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                         else:
                             log.warning("dropping ambiguous consensus for %s at %s:%s-%s: %s", s, ref_sequence.id, pos, end, allele)
                     
-
                     # define genotypes and fractions
                     iSNVs = {} # {sample : {allele : fraction, ...}, ...}
                     iSNVs_n_libs = {} # {sample : {allele : n libraries > 0, ...}, ...}
                     iSNVs_lib_bias = {} # {sample : {allele : pval, ...}, ...}
-                    for s in samples:
+                    for s in samplesToUse:
                         
                         # get all rows for this sample and merge allele counts together
                         acounts = dict(itertools.chain.from_iterable(row['allele_counts']
@@ -693,7 +700,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                     for a,n in sorted(util.misc.histogram(consAlleles.values()).items(),
                                                       key=lambda x:x[1], reverse=True)
                                     if a!=refAllele]
-                    alleles_isnv = list(itertools.chain.from_iterable([iSNVs[s].items() for s in samples if s in iSNVs]))
+                    alleles_isnv = list(itertools.chain.from_iterable([iSNVs[s].items() for s in samplesToUse if s in iSNVs]))
                     alleles_isnv2 = []
                     for a in set(a for a,n in alleles_isnv):
                         counts = list(x[1] for x in alleles_isnv if x[0]==a)
@@ -716,11 +723,11 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.'
-                             for s in samples]
+                             for s in samplesToUse]
                     nlibs = [(s in iSNVs_n_libs) and ','.join([str(iSNVs_n_libs[s].get(a,0)) for a in alleles]) or '.'
-                             for s in samples]
+                             for s in samplesToUse]
                     pvals = [(s in iSNVs_lib_bias) and ','.join([str(iSNVs_lib_bias[s].get(a,'.')) for a in alleles]) or '.'
-                             for s in samples]
+                             for s in samplesToUse]
 
                     # prepare output row and write to file
                     c = ref_sequence.id
