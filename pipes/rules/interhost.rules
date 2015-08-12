@@ -53,8 +53,10 @@ rule ref_guided_diversity:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["align_ref"],
                 ext = ['fasta', 'vcf.gz'],
-                sample=read_samples_file(config["samples_per_run"]))
-    output: os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
+                sample=read_samples_file(config["samples_per_run"])),
+            expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+    output: 
+            os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -76,7 +78,8 @@ rule multi_align_mafft:
         expand("{dataDir}/{subdir}/{sample}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["assembly"],
-                sample=read_samples_file(config["samples_assembly"]))
+                sample=read_samples_file(config["samples_assembly"])),
+        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:
         expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
