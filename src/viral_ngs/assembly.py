@@ -258,18 +258,16 @@ def impute_from_reference(inFasta, inReference, outFasta,
         with open(inReference, 'r') as refFastaFile:
             asmFasta = Bio.SeqIO.parse(asmFastaFile , 'fasta')
             refFasta = Bio.SeqIO.parse(refFastaFile , 'fasta')
-            chr_idx = 0
             for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
                 # our zip fails if one file has more seqs than the other
                 if not refSeqObj or not asmSeqObj:
                     raise KeyError("inFasta and inReference do not have the same number of sequences.")
-                chr_idx += 1
 
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
                 if seq_len<minLength or non_n_count<seq_len*minUnambig:
-                    raise PoorAssemblyError(chr_idx, seq_len, non_n_count)
+                    raise PoorAssemblyError(idx+1, seq_len, non_n_count)
 
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
 
@@ -287,7 +285,7 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
-                    args.extend(['-n', newName+"-"+str(idx)])
+                    args.extend(['-n', newName+"-"+str(idx+1)])
 
                 args = pmc.parse_args(args)
                 args.func_main(args)
@@ -331,7 +329,7 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        chr_names=[], keep_all_reads=False, JVMmemory=None):
+        chr_names=[], keep_all_reads=False, JVMmemory=None, threads=1):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -376,7 +374,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
-    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
+    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
@@ -427,6 +425,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
