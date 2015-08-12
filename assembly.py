@@ -329,7 +329,7 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        chr_names=[], keep_all_reads=False, JVMmemory=None):
+        chr_names=[], keep_all_reads=False, JVMmemory=None, threads=1):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -374,7 +374,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
-    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
+    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
@@ -425,6 +425,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
