@@ -72,7 +72,9 @@ rule orient_and_impute:
             This is the only step in the pipeline that needs generalization to
             multi-chromosome genomes.
     '''
-    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    input:  
+        config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -110,8 +112,9 @@ rule refine_assembly_1:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
-            min_coverage = "2"
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
+            min_coverage = "2",
+            numThreads=str(config.get("number_of_threads", 1))
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
@@ -130,8 +133,9 @@ rule refine_assembly_2:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
-            min_coverage = "3"
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
+            min_coverage = "3",
+            numThreads=str(config.get("number_of_threads", 1))
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads

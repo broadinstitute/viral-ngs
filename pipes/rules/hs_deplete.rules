@@ -102,7 +102,15 @@ rule filter_to_taxon:
     ''' This step reduces the read set to a specific taxon (usually the genus
         level or greater for the virus of interest).
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    input:  
+        config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
+        expand('{lastal_refDb}/{ref_name}.bck', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.des', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.prj', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.sds', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.ssp', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.suf', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
+        expand('{lastal_refDb}/{ref_name}.tis', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"])
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
