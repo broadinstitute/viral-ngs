@@ -20,6 +20,7 @@ from util.stats import median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
+import tools.picard
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ defaultMinReads = 5
 defaultMaxBias = 10
 
 def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
-                       minReadsEach = None, maxBias = None, keepDoublyMappedReads=False) :
+                       minReadsEach = None, maxBias = None, removeDoublyMappedReads=False) :
     ''' Input: a single BAM file, representing reads from one sample, mapped to
             its own consensus assembly. It may contain multiple read groups and 
             libraries.
@@ -107,12 +108,13 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
         raise Exception('minReadsEach must be at least 0.')
 
     bamToProcess = inBam
-    if not keepDoublyMappedReads:
-        log.debug("REMOVING DOUBLY MAPPED READS")
+    if removeDoublyMappedReads:
+        #bamToProcess = "./test.bam"#util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         bamToProcess = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         samtoolsTool = SamtoolsTool()
         samtoolsTool.removeDoublyMappedReads(inBam, bamToProcess)
-
+        samtoolsTool.index(bamToProcess)
+        #tools.picard.BuildBamIndexTool().execute(bamToProcess)
     variantIter = Vphaser2Tool().iterate(bamToProcess, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
         
@@ -314,7 +316,7 @@ def parser_vphaser_one_sample(parser = argparse.ArgumentParser()) :
     parser.add_argument("--maxBias", type = int, default = defaultMaxBias,
         help = """Maximum allowable ratio of number of reads on the two strands
                 (default: %(default)s). Ignored if minReadsEach = 0.""")
-    parser.add_argument("--keepDoublyMappedReads", default=False, action="store_true", 
+    parser.add_argument("--removeDoublyMappedReads", default=False, action="store_true", 
         help="""When calling V-Phaser, keep reads mapping to more than one contig.""")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, vphaser_one_sample, split_args = True)
