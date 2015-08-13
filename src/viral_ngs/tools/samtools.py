@@ -87,7 +87,8 @@ class SamtoolsTool(tools.Tool) :
         self.view(opts, inBam, outHeader)
 
     def removeDoublyMappedReads(self, inBam, outBam):
-        opts = ['-b', '-f 2']
+        #opts = ['-b', '-f 2']
+        opts = ['-b', '-F' '1028', '-f', '2']
         self.view(opts, inBam, outBam)
     
     def getHeader(self, inBam):
