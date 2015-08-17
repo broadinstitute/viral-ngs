@@ -8,6 +8,24 @@ from Bio import Entrez, SeqIO
 
 log = logging.getLogger(__name__)
 
+def get_feature_table_id(featureTableFile):
+    seqid = ""
+    with open(featureTableFile, 'rt') as inf:
+        for line in inf:
+            line = line.rstrip('\r\n')
+            if not line:
+                pass
+            elif line.startswith('>'):
+                # sequence identifier
+                if not line.startswith('>Feature '):
+                    raise Exception("not sure how to handle a non-Feature record")
+                seqid = line[len('>Feature '):].strip()
+                if not ((seqid.startswith('gb|') or seqid.startswith('ref|')) and seqid.endswith('|') and len(seqid)>4):
+                    raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
+                seqid = seqid[seqid.find("|")+1:-1]
+    if len(seqid) > 0:
+        return seqid
+        
 def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta", combinedGenomeFilePrefix=None, removeSeparateFastas=False):
     """ 
         This function downloads and saves files from NCBI nuccore.
