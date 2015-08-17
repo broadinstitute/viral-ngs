@@ -43,11 +43,10 @@ rule annot_transfer:
     input:      
                 config["dataDir"]+'/'+config["subdirs"]["multialign_ref"]+'/{chr_alignment}.fasta',
                 expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"]),
-                expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
-                expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"])
+                expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:     
-                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl',
-                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
+                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
+                #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 logid="{sample}",
@@ -56,8 +55,6 @@ rule annot_transfer:
                 outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
     #shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
     shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {input[0]} {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip"
-
-    # tbl_transfer_prealigned(input_fasta, ref_seq_name, alt_seq_name, ref_tbl, out_tbl, oob_clip=False)
 
 rule prepare_genbank:
     input:
