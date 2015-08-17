@@ -39,11 +39,13 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     # sequence identifier
                     if not line.startswith('>Feature '):
                         raise Exception("not sure how to handle a non-Feature record")
-                    seqid = line[len('>Feature '):].strip()
-                    if not (seqid.startswith('gb|') and seqid.endswith('|') and len(seqid)>4):
-                        raise Exception("reference annotation does not refer to a GenBank accession")
-                    seqid = seqid[3:-1]
-                    altid = cmap.mapAtoB(seqid)
+                    refID = line[len('>Feature '):].strip()
+                    if not ((refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and len(refID)>4):
+                        raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
+                    refID = refID[refID.find("|")+1:-1]
+                    refSeqID = [x for x in cmap.keys() if refID in x][0]
+                    #altid = cmap.mapChr(refSeqID, altid)
+                    altid =  list(set(cmap.keys()) - set([refSeqID]))[0] #cmap.mapChr(refSeqID, altid)
                     line = '>Feature ' + altid
                     feature_keep = True
                 elif line[0] != '\t':
@@ -54,12 +56,12 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     row[0] = int(row[0])
                     row[1] = int(row[1])
                     if row[1] >= row[0]:
-                        row[0] = cmap.mapAtoB(seqid, row[0], -1)[1]
-                        row[1] = cmap.mapAtoB(seqid, row[1],  1)[1]
+                        row[0] = cmap.mapChr(refSeqID, altid, row[0], -1)[1]
+                        row[1] = cmap.mapChr(refSeqID, altid,row[1],  1)[1]
                     else:
                         # negative strand feature
-                        row[0] = cmap.mapAtoB(seqid, row[0],  1)[1]
-                        row[1] = cmap.mapAtoB(seqid, row[1], -1)[1]
+                        row[0] = cmap.mapChr(refSeqID, altid, row[0],  1)[1]
+                        row[1] = cmap.mapChr(refSeqID, altid, row[1], -1)[1]
                     
                     if row[0] and row[1]:
                         feature_keep = True
@@ -129,63 +131,63 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
     """
         
     ref_tbl = "" # must be identified in list of tables
+    ref_fasta_filename = ""
+    matchingRefSeq = None
 
     if not os.path.exists(outputDir):
         os.makedirs(outputDir)
 
+    # identify which of the sequences in the multialignment is the reference,
+    # matching by ID to one of the sequences in the refFasta
+    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
+        for seq in Bio.SeqIO.parse(inf, 'fasta'):
+            with util.file.open_or_gzopen(refFasta, 'r') as reff:
+                for refIdx, refSeq in enumerate(Bio.SeqIO.parse(reff, 'fasta')):                    
+                    if seq.id == refSeq.id:
+                        ref_fasta_filename = util.file.mkstempfname('.fasta')
+                        matchingRefSeq = seq
+                        break
+            if matchingRefSeq:
+                break
+
+    if ref_fasta_filename == "": 
+        raise KeyError("No reference was found in the input file %s" % (inputFasta) )
+
+    # identify the correct feature table source based on its filename, 
+    # which should correspond to a unique component of the ref sequence ID (i.e. the genbank accession)
+    for tblFilename in refAnnotTblFiles:
+        # identify the correct feature table as the one that has an ID that is
+        # part of the ref seq ID
+        fileAccession = util.genbank.get_feature_table_id(tblFilename)
+        if fileAccession in matchingRefSeq.id:
+            ref_tbl = tblFilename
+            break
+    if ref_tbl == "":
+        raise KeyError("No reference table was found for the reference %s" % (matchingRefSeq.id) )
+    
     # write out the desired sequences to separate fasta files
     with util.file.open_or_gzopen(inputFasta, 'r') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
-            ref_fasta_filename = ""
+            # if we are looking at the reference sequence in the multialignment,
+            # continue to the next sequence
+            if seq.id == matchingRefSeq.id:
+                continue
+            
             alt_fasta_filename = ""
             combined_fasta_filename = ""
-            out_tbl = ""
-            matchingRefSeq = None
 
-            # write reference sequence to temp file, from multialignment (so with gaps)
-            with util.file.open_or_gzopen(refFasta, 'r') as reff:
-                for refIdx, refSeq in enumerate(Bio.SeqIO.parse(inf, 'fasta')):
-
-                    if seq.id == refSeq.id:
-                        ref_fasta_filename = util.file.mkstempfname('.fasta')
-                        with open(ref_fasta_filename, 'wt') as outf:
-                            for line in util.file.fastaMaker(seq):
-                                outf.write(line)
-                        matchingRefSeq = refSeq
-                        break
-
-            if ref_fasta_filename == "": 
-                raise KeyError("No reference was found in the input file %s" % (inputFasta) )
-
-            # write this alt sequence to output file, from multialignment (so with gaps)
-            alt_fasta_filename = os.path.join(outputDir, seq.id+".fasta") #util.file.mkstempfname('.fasta')
-            #assert not os.path.exists(alt_fasta_filename), """File %s already exists. Perhaps its sequence ID is not
-            #    unique, or the feature table transfer has been performed already.""" % alt_fasta_filename
-            with open(alt_fasta_filename, 'wt') as outf:
-                for line in util.file.fastaMaker(seq):
-                    outf.write(line)
-                # need to write second file with .seq.ungap("-")? 
-
-            # combine these two files for use in the CoordMapper
             combined_fasta_filename = util.file.mkstempfname('.fasta')
-            util.file.concat([ref_fasta_filename, alt_fasta_filename], combined_fasta_filename)
+            # write ref and alt sequences to a combined fasta file, sourced from the
+            # alignment so gaps are present for the CoordMapper instance, cmap
+            with open(combined_fasta_filename, 'wt') as outf:
+                Bio.SeqIO.write([matchingRefSeq, seq], outf, "fasta")
 
             # create a filepath for the output table
             out_tbl = os.path.join(outputDir, seq.id+".tbl")
 
-            # identify the correct feature table source based on its filename, 
-            # which should correspond to a unique component of the ref sequence ID (i.e. the genbank accession)
-            for tblFilename in refAnnotTblFiles:
-                # should probably inspect more to confirm the right file, but as long as feature tbl files have genbank 
-                # accessions as file names this should be ok
-                fileAccession = tblFilename.replace(".tbl","")
-                if fileAccession in matchingRefSeq.id:
-                    ref_tbl = tblFilename
-                    break
-
             cmap = interhost.CoordMapper()
             cmap.load_alignments([combined_fasta_filename])
-            alt_chrlens = fasta_chrlens(alt_fasta_filename)
+            alt_chrlens = fasta_chrlens(combined_fasta_filename)
         
             tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
 
