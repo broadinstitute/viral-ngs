@@ -412,6 +412,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
     with util.file.open_or_gzopen(refFasta, 'r') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
   
+    # use the output filepath specified if it is a .vcf, otherwise if it is gzipped we need
+    # to write to a temp VCF and then compress to vcf.gz later
     if outVcf.endswith('.vcf.gz'):
         tmpVcf = util.file.mkstempfname('.vcf')
     elif outVcf.endswith('.vcf'):
@@ -429,10 +431,12 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
         outf.write('##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n')
         outf.write('##FORMAT=<ID=NL,Number=R,Type=Integer,Description="Number of libraries observed per allele">\n')
         outf.write('##FORMAT=<ID=LB,Number=R,Type=Float,Description="Library bias observed per allele (Fishers Exact P-value)">\n')
+        # write out the contig lengths present in the reference genome
         for c, clen in ref_chrlens:
             if strip_chr_version:
                 c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
+        # write out the name of the reference file used to generate the VCF
         outf.write('##reference=file://%s\n' % refFasta)
         header = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'] + samples
         outf.write('#'+'\t'.join(header)+'\n')
@@ -462,10 +466,13 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                         for idx, seq in enumerate(Bio.SeqIO.parse(inf2, 'fasta')):
                             if refSeq.id == seq.id: 
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
-                                ref_seq_in_alignment_file[seq.id] = seq
+                                ref_seq_in_alignment_file[seq.id] = seq.seq.ungap('-')
         
         if len(ref_seq_id_to_alignment_file) < len(ref_chrlens):
             raise LookupError("Not all reference sequences found in alignments.")
+
+        if not (len(samples) == len(isnvs)):
+            raise LookupError("There must be an isnv file for each sample. %s samples, %s isnv files" % (len(samples), len(isnvs)))
 
         for fileName in alignments:
             with util.file.open_or_gzopen(fileName, 'r') as inf:
@@ -475,31 +482,18 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                 # -1 is to account for inclusion of reference in the alignement in addition 
                 # to the assemblies
                 if not (number_of_aligned_sequences-1) == len(isnvs) == len(samples):
-                    raise LookupError("samples, isnvs, and alignments must have the same number of elements (plus an extra reference record in the alignment).")
+                    raise LookupError("samples, isnvs, and alignments must have the same number of elements (plus an extra reference record in the alignment). %s does not have the right number of sequences" % fileName)
 
         samp_to_isnv = dict(zip(samples, isnvs))
-        # setup
-        #if not (len(samples) == len(isnvs) == len(assemblies)):
-        #    raise LookupError("samples, isnvs, and assemblies must have the same number of elements")
 
-        samp_to_seqIndex = dict()
-        
         sampleNames = list(samples)
-
-        for alignmentFile in alignments:
-            with util.file.open_or_gzopen(alignmentFile, 'r') as inf:
-                for seq in Bio.SeqIO.parse(inf, 'fasta'):
-                    for sampleName in sampleNames:
-                        if sampleIDMatch(seq.id) == sampleName:
-                            samp_to_seqIndex[sampleName] = seq
-                            sampleNames.remove(sampleName)
-
-        if not len(samp_to_seqIndex) == len(samples):
-            raise LookupError("Sequence info not found for all sample names provided. Check alignment files.")
 
         # one reference chrom at a time
         with open(refFasta, 'r') as inf:
             for ref_sequence in Bio.SeqIO.parse(inf, 'fasta'):
+                samp_to_seqIndex = dict()
+
+                #ref_sequence = ref_seq_in_alignment_file[refSequence.id]
                 # make a coordmapper to map all alignments to this reference sequence
                 cm = CoordMapper()
                 cm.load_alignments( [ref_seq_id_to_alignment_file[ref_sequence.id]] )
@@ -512,18 +506,30 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
 
                 # read in all iSNVs for this chrom and map to reference coords
                 data = []
-                print("samples: {}".format(samples))
-                print("cm.chrMaps.keys(): {}".format(list()))
-
+                #print("samples: {}".format(samples))
+                #print("cm.chrMaps.keys(): {}".format(list()))
 
                 # use conditional matching to only include the sequences that match the sample basename provided
                 samplesToUse = [x for x in cm.chrMaps.keys() if sampleIDMatch(x) in samples]
-                print("samplesToUse: {}".format(samplesToUse))
+                #print("samplesToUse: {}".format(samplesToUse))
+
+                alignmentFile = ref_seq_id_to_alignment_file[ref_sequence.id]
+                with util.file.open_or_gzopen(alignmentFile, 'r') as alignFileIn:
+                    for seq in Bio.SeqIO.parse(alignFileIn, 'fasta'):
+                        for sampleName in samplesToUse:
+                            if seq.id == sampleName:
+                                samp_to_seqIndex[sampleName] = seq.seq.ungap('-')
+
+                #print("samp_to_seqIndex: {}".format(samp_to_seqIndex))
+                #print("samplesToUse: {}".format(samplesToUse))
+                if not len(samp_to_seqIndex) == len(samplesToUse):
+                    raise LookupError("Sequence info not found in file %s for all sample names provided. Check alignment files." % alignmentFile)
 
                 for s in samplesToUse:
                     for row in util.file.read_tabfile(samp_to_isnv[sampleIDMatch(s)]):
                         # map ref->sample
                         s_chrom = cm.mapChr(ref_sequence.id, s)
+                        #print(s_chrom)
                         if row[0] == s_chrom:
                             allele_fields = list(AlleleFieldParser(x) for x in row[7:] if x)
                             row = {
@@ -583,6 +589,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
             
                 # process one reference position at a time from 
                 for pos, rows in data:
+                    # each of the sample-specific variants for a given ref pos
                     rows = list(rows)
                     
                     # define the length of this variation based on the largest deletion
@@ -622,7 +629,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                 "for %s at %s:%s-%s.", s, ref_sequence.id, pos, end)
                             continue
                         
-                        cons = samp_to_seqIndex[sampleIDMatch(s)].seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
+                        cons = samp_to_seqIndex[s]#.seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
                         
                         allele = str(cons[cons_start-1:cons_stop]).upper()
                         if s in samp_offsets:
@@ -683,6 +690,7 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                     if a not in set(('A','C','T','G')):
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
+                                        # TODO: report f
                                         log.warning("vPhaser and assembly pipelines mismatch at "
                                             "%s:%d (%s) - consensus %s, vPhaser %s",
                                             ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a)
@@ -734,11 +742,15 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                         log.info("dropped position %s:%s due to lack of variation", ref_sequence.id, pos)
                         continue
                     alleleMap = dict((a,i) for i,a in enumerate(alleles))
+                    # GT col emitted below
                     genos = [str(alleleMap.get(consAlleles.get(s),'.')) for s in samples]
+                    # AF col emitted below, everything excluding the ref allele (one float per non-ref allele)
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a,0.0) for a in alleles[1:]])) or '.'
                              for s in samplesToUse]
+                    # NL col, everything including the ref allele (one int per allele)
                     nlibs = [(s in iSNVs_n_libs) and ','.join([str(iSNVs_n_libs[s].get(a,0)) for a in alleles]) or '.'
                              for s in samplesToUse]
+                    # LB col, everything including the ref allele (one float per allele)
                     pvals = [(s in iSNVs_lib_bias) and ','.join([str(iSNVs_lib_bias[s].get(a,'.')) for a in alleles]) or '.'
                              for s in samplesToUse]
 
@@ -751,10 +763,6 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                         '.', '.', '.', 'GT:AF:NL:LB']
                     out = out + list(map(':'.join, zip(genos, freqs, nlibs, pvals)))
                     outf.write('\t'.join(map(str, out))+'\n')
-    
-    # close fasta files
-    #for idx in samp_to_seqIndex.values():
-    #    idx.close()
     
     # compress output if requested
     if outVcf.endswith('.vcf.gz'):
