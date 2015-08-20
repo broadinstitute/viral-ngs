@@ -209,18 +209,37 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))    
 
-def fetch_fastas_and_feature_tables(accession_IDs, destinationDir, emailAddress, 
-                                    forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas):
+
+
+
+def fetch_fastas(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
     '''
-        This function downloads and saves the FASTA files and their corresponding 
-        feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
+        This function downloads and saves the FASTA files 
+        from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
     util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, 
-                                                    forceOverwrite, combinedGenomeFilePrefix, removeSeparateFastas)
-    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
-                                                                combinedGenomeFilePrefix, removeSeparateFastas)
+                                            forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt, "fasta")
 
-def parser_fetch_reference_fastas_and_feature_tables(parser=argparse.ArgumentParser()):
+def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
+    '''
+        This function downloads and saves 
+        feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
+                                                                combinedFilePrefix, removeSeparateFiles, fileExt, "ft")
+
+def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
+    '''
+        This function downloads and saves 
+        full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_full_records_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
+                                                                combinedFilePrefix, removeSeparateFiles, fileExt, "gb")
+
+def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
     parser.add_argument("emailAddress",
         help="""Your email address. To access the Genbank CoreNucleotide database, 
         NCBI requires you to specify your email address with each request. 
@@ -232,15 +251,38 @@ def parser_fetch_reference_fastas_and_feature_tables(parser=argparse.ArgumentPar
         help="List of Genbank nuccore accession IDs")
     parser.add_argument('--forceOverwrite', default=False, action='store_true',
         help='''Overwrite existing files, if present.''')
-    parser.add_argument('--combinedGenomeFilePrefix', 
-        help='''The prefix of the FASTA file containing the combined
+    parser.add_argument('--combinedFilePrefix', 
+        help='''The prefix of the file containing the combined concatenated
                  results returned by the list of accession IDs, in the order provided.''')
-    parser.add_argument('--removeSeparateFastas', default=False, action='store_true',
-        help='''If specified, remove the individual FASTA files and leave only the combined FASTA file.''')
-    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
-    util.cmd.attach_main(parser, fetch_fastas_and_feature_tables, split_args=True)
+    parser.add_argument('--fileExt',  default=None,
+        help='''The extension to use for the downloaded files''')
+    parser.add_argument('--removeSeparateFiles', default=False, action='store_true',
+        help='''If specified, remove the individual files and leave only the combined file.''')
     return parser
-__commands__.append(('fetch_fastas_and_feature_tables', parser_fetch_reference_fastas_and_feature_tables))
+
+def parser_fetch_fastas(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_fastas, split_args=True)
+    return parser
+__commands__.append(('fetch_fastas', parser_fetch_fastas))
+
+def parser_fetch_feature_tables(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_feature_tables, split_args=True)
+    return parser
+__commands__.append(('fetch_feature_tables', parser_fetch_feature_tables))
+
+def parser_fetch_genbank_records(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_genbank_records, split_args=True)
+    return parser
+__commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 def fasta2fsa(infname, outdir, biosample=None):
     ''' copy a fasta file to a new directory and change its filename to end in .fsa
