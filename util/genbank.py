@@ -125,7 +125,4 @@ def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddres
 def fetch_full_records_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="gb", retmode="text"):
     return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles)
 
-if __name__ == "__main__":
-    fetch_full_records_from_genbank(["JQ610675.1","JQ610676.1","JQ610677.1","JQ610678.1","JQ610679.1","JQ610680.1","JQ610681.1","JQ610682.1","JQ610683.1","JQ610684.1"], "~/Desktop/", "tomkinsc@broadinstitute.org", forceOverwrite=True, combinedFilePrefix="orungo", removeSeparateFiles=False)
-
 
