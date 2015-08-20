@@ -65,8 +65,6 @@ class SnpEff(tools.Tool):
             config_file = os.path.join(os.path.dirname(self.install_and_get_path()), 'snpEff.config')
             dataDir = get_data_dir(config_file)
 
-            print("dataDir {}".format(dataDir))
-
             # if the data directory specified in the config is absolute, use it
             # otherwise get the data directory relative to the location of the config file
             if os.path.isabs(dataDir):
@@ -74,15 +72,9 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), dataDir, databaseId))
 
-            print "================================================"
-            print("outputDir {}".format(outputDir))
-            print ""
-
             #tempDir = tempfile.gettempdir()
             records = util.genbank.fetch_full_records_from_genbank(accessions, outputDir, emailAddress, forceOverwrite=True, combinedFilePrefix="genes", removeSeparateFiles=False)
             combinedGenbankFilepath = records[0]
-
-            print((databaseId, sortedAccessionString, sortedAccessionString))
 
             add_genomes_to_snpeff_config_file(config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
             self.known_dbs.add(databaseId)
