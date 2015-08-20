@@ -46,8 +46,9 @@ rule isnvs_vcf:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
-            snpEff_ref=config["snpEff_genome"],
-            samples=read_samples_file(config["samples_assembly"])
+            snpEff_ref=config["accessions_for_ref_genome_build"],
+            samples=read_samples_file(config["samples_assembly"]),
+            emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
             shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
@@ -55,7 +56,7 @@ rule isnvs_vcf:
                 + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + n + ".fasta" for n in range(config["number_of_chromosomes"])])
                 + " --strip_chr_version"
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
+            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
             
 rule isnvs_vcf_filtered:
@@ -77,8 +78,9 @@ rule isnvs_vcf_filtered:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
-            snpEff_ref=config["snpEff_genome"],
-            samples=read_samples_file(config["samples_assembly"])
+            snpEff_ref=config["accessions_for_ref_genome_build"],
+            samples=read_samples_file(config["samples_assembly"]),
+            emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
             shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
@@ -86,6 +88,6 @@ rule isnvs_vcf_filtered:
                 + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + n + ".fasta" for n in range(config["number_of_chromosomes"])])
                 + " --strip_chr_version"
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]}")
+            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
 

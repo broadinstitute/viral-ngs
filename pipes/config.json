@@ -18,8 +18,6 @@
   "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
   "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
 
-  "snpEff_genome":  "KJ660346.2",
-
   "env_vars": {
     "GATK_PATH":       "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af",
     "NOVOALIGN_PATH":  "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
@@ -36,7 +34,7 @@
 
 
 
-  
+
 
   "dataDir":    "data",
   "tmpDir":     "tmp",
