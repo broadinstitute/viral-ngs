@@ -19,7 +19,8 @@ rule download_reference_genome:
         accessionsList=config["accessions_for_ref_genome_build"]
     run:
         makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
-        shell("{config[binDir]}/ncbi.py fetch_fastas_and_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedGenomeFilePrefix {config[ref_genome_file_prefix]} --removeSeparateFastas --forceOverwrite")
+        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedFilePrefix {config[ref_genome_file_prefix]} --removeSeparateFiles --forceOverwrite")
+        shell("{config[binDir]}/ncbi.py fetch_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --forceOverwrite")
 
 rule build_lastal_db:
     input:
