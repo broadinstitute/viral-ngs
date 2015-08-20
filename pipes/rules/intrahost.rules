@@ -24,7 +24,7 @@ rule isnvs_per_sample:
             numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(config["dataDir"]+'/'+config["subdirs"]["intrahost"])
-            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads}")
+            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads} --removeDoublyMappedReads")
             
 rule isnvs_vcf:
     input:
