@@ -85,7 +85,7 @@ rule multi_align_mafft:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
                 chrom=range(config["number_of_chromosomes"])),
-        config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
+        config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
