@@ -89,7 +89,7 @@ rule multi_align_mafft:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
-            snpEff_ref=config["snpEff_genome"],
+            snpEff_ref=config["accessions_for_ref_genome_build"],
             samples=read_samples_file(config["samples_assembly"]),
             ep=str(config["mafft_ep"]),
             maxiters=str(config["mafft_maxiters"]),
