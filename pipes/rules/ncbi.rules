@@ -35,9 +35,10 @@ rule build_lastal_db:
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"],
+        refFasta=expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     run:
-        makedirs( expand( "{dir}", dir=[config["refDir"]] ) )
-        shell("{config[binDir]}/taxon_filter.py lastal_build_db {config[ref_genome]}/{wildcards.ref_name}.fasta {config[lastal_refDb]}")
+        makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
+        shell("{config[binDir]}/taxon_filter.py lastal_build_db {params.refFasta} {config[lastal_refDb]}")
 
 rule annot_transfer:
     input:      

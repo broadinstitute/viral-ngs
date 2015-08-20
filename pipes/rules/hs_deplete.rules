@@ -116,7 +116,7 @@ rule filter_to_taxon:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             refDb=os.path.join(config["lastal_refDb"], config["ref_genome_file_prefix"]),
             logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
+    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.refDb} {output}"
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
