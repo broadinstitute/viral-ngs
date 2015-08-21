@@ -690,10 +690,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                     if a not in set(('A','C','T','G')):
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
-                                        # TODO: report f
                                         log.warning("vPhaser and assembly pipelines mismatch at "
-                                            "%s:%d (%s) - consensus %s, vPhaser %s",
-                                            ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a)
+                                            "%s:%d (%s) - consensus %s, vPhaser %s, f %.3f",
+                                            ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a, f)
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
