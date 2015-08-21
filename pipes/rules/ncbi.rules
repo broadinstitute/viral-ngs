@@ -12,8 +12,8 @@ localrules: download_reference_genome, build_lastal_db
 
 rule download_reference_genome:
     output:
-        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
-        expand( '{refDir}/'+'/{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
+        expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"]
@@ -24,7 +24,7 @@ rule download_reference_genome:
 
 rule build_lastal_db:
     input:
-        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:
         expand('{lastal_refDb}/{ref_name}.bck', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
         expand('{lastal_refDb}/{ref_name}.des', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
@@ -36,7 +36,7 @@ rule build_lastal_db:
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"],
-        refFasta=expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        refFasta=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     run:
         makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
         shell("{config[binDir]}/taxon_filter.py lastal_build_db {params.refFasta} {config[lastal_refDb]}")
@@ -45,7 +45,7 @@ rule annot_transfer:
     input:      
                 config["dataDir"]+'/'+config["subdirs"]["multialign_ref"]+'/{chr_alignment}.fasta',
                 expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"]),
-                expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+                expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:     
                 config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
                 #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
