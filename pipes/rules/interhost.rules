@@ -79,13 +79,13 @@ rule multi_align_mafft:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["assembly"],
                 sample=read_samples_file(config["samples_assembly"])),
-        expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:
+        config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt",
         expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(1, config["number_of_chromosomes"]+1)),
-        config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
+                chrom=range(1, config["number_of_chromosomes"]+1))        
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
@@ -99,7 +99,7 @@ rule multi_align_mafft:
                 + " ".join(["{config[dataDir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples])
                 + " {config[dataDir]}/{config[subdirs][multialign_ref]}"
                 + " --ep {params.ep} --maxiters {params.maxiters} --preservecase"
-                + " --localpair --outFilePrefix aligned --sampleNameListFile {output[1]} --threads {params.numThreads}")
+                + " --localpair --outFilePrefix aligned --sampleNameListFile {output[0]} --threads {params.numThreads}")
 
 '''
 rule multi_align_mafft:

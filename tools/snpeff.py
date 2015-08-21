@@ -58,7 +58,7 @@ class SnpEff(tools.Tool):
 
     def create_db(self, accessions, emailAddress, JVMmemory):
         sortedAccessionString = ", ".join(sorted(accessions))
-        databaseId = hashlib.sha256(sortedAccessionString).hexdigest()
+        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()
 
         # if the database is not installed, we need to make it
         if not self.has_genome(databaseId):
@@ -118,7 +118,7 @@ class SnpEff(tools.Tool):
             raise Exception("invalid input")
 
         sortedAccessionString = ", ".join(sorted(genomes))
-        databaseId = hashlib.sha256(sortedAccessionString).hexdigest()
+        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()
 
 
         genomeToUse = ""
