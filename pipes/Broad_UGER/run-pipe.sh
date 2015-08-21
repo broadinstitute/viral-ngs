@@ -19,7 +19,7 @@ source "$VENVDIR/bin/activate"
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
     --jobs 100000 --immediate-submit \
         --latency-wait 20 \
-    --config mode=UGER job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \
+    --config mode=UGER \
     --directory . \
     --jobscript "$BINDIR/pipes/Broad_UGER/jobscript.sh" \
     --cluster $BINDIR'/pipes/Broad_UGER/cluster-submitter.py {dependencies} {config[logDir]}' \
