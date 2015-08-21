@@ -40,7 +40,7 @@ rule assemble_trinity:
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            n_reads="100000",
+            n_reads=str(config["trinity_n_reads"]),
             logid="{sample}",
             clipDb=config["trim_clipDb"],
             subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
