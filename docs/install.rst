@@ -72,6 +72,10 @@ NOVOALIGN_PATH. These should be set to the full directory path
 that contains these tools (the jar file for GATK and the executable
 binaries for Novoalign).
 
+In order to run GATK, you will need to have an appropriate version of 
+the Java JDK installed. As of this writing, Java 1.7 is required for 
+GATK 3.3.0. 
+
 Alternatively, if you are using the Snakemake pipelines, you can create
 a dictionary called "env_vars" in the config.json file for Snakemake,
 and the pipelines will automatically set all environment variables prior
