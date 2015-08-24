@@ -1,0 +1,13 @@
+>Feature gb|JQ610683.1|
+23	883	CDS
+			product	VP6
+			prot_desc	helicase
+			transl_table	1
+			protein_id	gb|AFX73395.1|
+111	512	CDS
+			product	NS4
+			prot_desc	non-structural protein 4
+			transl_table	1
+			protein_id	gb|AFX73396.1|
+
+
