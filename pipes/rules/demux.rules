@@ -116,9 +116,9 @@ rule illumina_basecalls:
     input:  config['dataDir']+'/'+config['subdirs']['demux']+'/inputs/library_params.{flowcell}.{lane}.txt',
             config['tmpDir']+'/'+config['subdirs']['demux']+'/barcodes/{flowcell}.{lane}'
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam'
-    resources: mem=64
+    resources: mem=50
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long -l m_mem_free=40G'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{flowcell}.{lane}",
             center=config['seq_center'],
             outdir=config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}'
