@@ -18,6 +18,7 @@ def setup_dummy_simple(
     
     workdir = tempfile.mkdtemp()
     os.mkdir(os.path.join(workdir, 'data'))
+    os.mkdir(os.path.join(workdir, 'ref_genome'))
     os.mkdir(os.path.join(workdir, 'data', '00_raw'))
     os.mkdir(os.path.join(workdir, 'log'))
     os.mkdir(os.path.join(workdir, 'reports'))

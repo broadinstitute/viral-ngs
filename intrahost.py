@@ -401,8 +401,18 @@ def strip_accession_version(acc):
         acc = m.group(1)
     return acc
 
+def parse_accession_str(chr_ref):
+    '''
+        This tries to match an NCBI accession as defined here:
+            http://www.ncbi.nlm.nih.gov/Sequin/acc.html
+    '''
+    m = re.match(".*(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
+    if m:
+        chr_ref = m.group("accession")
+    return chr_ref
+
 #def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False, naive_filter=False):
-def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version=False, naive_filter=False):
+def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version=False, naive_filter=False, parse_accession=False):
     ''' Combine and convert vPhaser2 parsed filtered output text files into VCF format.
         Assumption: consensus assemblies used in creating alignments do not extend beyond ends of reference.
                     the number of alignment files equals the number of chromosomes / segments
@@ -433,6 +443,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
         outf.write('##FORMAT=<ID=LB,Number=R,Type=Float,Description="Library bias observed per allele (Fishers Exact P-value)">\n')
         # write out the contig lengths present in the reference genome
         for c, clen in ref_chrlens:
+            if parse_accession:
+                c = parse_accession_str(c)
             if strip_chr_version:
                 c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
@@ -690,10 +702,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                                     if a not in set(('A','C','T','G')):
                                         raise Exception()
                                     if f>0.5 and a!=consAllele[samp_offsets[s]]:
-                                        # TODO: report f
                                         log.warning("vPhaser and assembly pipelines mismatch at "
-                                            "%s:%d (%s) - consensus %s, vPhaser %s",
-                                            ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a)
+                                            "%s:%d (%s) - consensus %s, vPhaser %s, f %.3f",
+                                            ref_sequence.id, pos, s, consAllele[samp_offsets[s]], a, f)
                                     new_allele = list(consAllele)
                                     new_allele[samp_offsets[s]] = a
                                     a = ''.join(new_allele)
@@ -756,6 +767,8 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
 
                     # prepare output row and write to file
                     c = ref_sequence.id
+                    if parse_accession:
+                        c = parse_accession_str(c)
                     if strip_chr_version:
                         c = strip_accession_version(c)
                     out = [c, pos, '.',
@@ -800,6 +813,10 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
         help="""If set, keep only the alleles that have at least
             two independent libraries of support and allele freq > 0.005.
             Default is false (do not filter at this stage).""")
+    parser.add_argument("--parse_accession",
+        default=False, action="store_true", dest="parse_accession",
+        help="""If set, parse only the accession for the chromosome name. 
+        Helpful if snpEff has to create its own database""")
     util.cmd.common_args(parser, (('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, merge_to_vcf, split_args=True)
     return parser
@@ -883,32 +900,36 @@ class SnpEffException(Exception):
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
     
-    if not all(len(a)==1 for a in alleles):
-        ''' This is incredibly annoying: instead of talking about indel alleles using
-            the VCF allele definitions or in the VCF order, the ANN field recomputes the
-            part of the allele that looks distinct from the reference and talks about
-            that instead. Note that this means some alleles (particularly deletions)
-            will collapse and become non-unique.
-            Oh, and py2 and py3 have different names for the same function, just for fun.
-        '''
-        ziplong = itertools.zip_longest if 'zip_longest' in dir(itertools) else itertools.izip_longest
-        outalleles = []
-        for a in alleles[1:]:
-            if len(a)==len(alleles[0]):
-                out_a = []
-                for ref, alt in reversed(list(zip(alleles[0], a))):
-                    if ref!=alt or out_a:
-                        out_a.append(alt)
-                a = ''.join(reversed(out_a))
-            out_a = []
-            for ref, alt in ziplong(alleles[0], a, fillvalue=''):
-                if ref!=alt or out_a:
-                    out_a.append(alt)
-            outalleles.append(''.join(out_a))
-        alleles = outalleles
-    else:
-        alleles = alleles[1:]
+    # TODO: remove this commented-out conditional?
+    # if not all(len(a)==1 for a in alleles):
+    #     ''' This is incredibly annoying: instead of talking about indel alleles using
+    #         the VCF allele definitions or in the VCF order, the ANN field recomputes the
+    #         part of the allele that looks distinct from the reference and talks about
+    #         that instead. Note that this means some alleles (particularly deletions)
+    #         will collapse and become non-unique.
+    #         Oh, and py2 and py3 have different names for the same function, just for fun.
+    #     '''
+    #     ziplong = itertools.zip_longest if 'zip_longest' in dir(itertools) else itertools.izip_longest
+    #     outalleles = []
+    #     for a in alleles[1:]:
+    #         if len(a)==len(alleles[0]):
+    #             out_a = []
+    #             for ref, alt in reversed(list(zip(alleles[0], a))):
+    #                 if ref!=alt or out_a:
+    #                     out_a.append(alt)
+    #             a = ''.join(reversed(out_a))
+    #         out_a = []
+    #         for ref, alt in ziplong(alleles[0], a, fillvalue=''):
+    #             if ref!=alt or out_a:
+    #                 out_a.append(alt)
+    #         outalleles.append(''.join(out_a))
+    #     alleles = outalleles
+    # else:
+    #     alleles = alleles[1:]
     
+    # only work on alt alleles
+    alleles = alleles[1:]
+
     effs = [eff.split('|') for eff in ann_field.split(',')]
     effs = [(eff[0], dict((k,eff[i]) for k,i in
             (('eff_type',1),('eff_gene',3),('eff_protein',6),
@@ -919,6 +940,7 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     effs_dict = dict(effs)
     if not effs:
         return {}
+    
     if len(effs) != len(effs_dict):
         raise SnpEffException("ANN field has non-unique alleles")
     for a in alleles:
