@@ -13,17 +13,17 @@ props = read_job_properties(jobscript)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "qsub -P {proj_name} -N {jobname} -r y ".format(
-    proj_name='viral_ngs', jobname=jobname)
+cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(
+    proj_name='sabeti_lab', jobname=jobname)
 
 # log file output
-cmdline += "-o {logdir} -e {logdir}".format(
+cmdline += "-o {logdir} -e {logdir} ".format(
     logdir=LOGDIR, jobname=jobname)
 
 # pass memory resource request to LSF
 mem = props.get('resources',{}).get('mem')
 if mem:
-    cmdline += '-l mem_free={}G,h_rss={}G '.format(mem, 2*int(mem))
+    cmdline += ' -l m_mem_free={}G,h_rss={}G '.format(mem, 2*int(mem))
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER","") + " "
@@ -41,6 +41,9 @@ cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
 cmdline += " | tail -1 | cut -f 3 -d \ "
+
+with open("outputfile.txt","w") as outf:
+    outf.write(cmdline+"\n")
 
 # call the command
 os.system(cmdline)
