@@ -303,8 +303,13 @@ class CoordMapper2Seqs(object) :
 
 def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
-    parser.add_argument("genome", help="genome name")
+    parser.add_argument("genomes", nargs='+', help="genome name")
     parser.add_argument("outVcf", help="Output VCF file")
+    parser.add_argument("emailAddress",
+        help="""Your email address. To access the Genbank CoreNucleotide database, 
+        NCBI requires you to specify your email address with each request. 
+        In case of excessive usage of the E-utilities, NCBI will attempt to contact
+        a user at the email address provided before blocking access.""")
     util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
     util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
