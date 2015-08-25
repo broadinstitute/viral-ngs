@@ -724,6 +724,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
     for i in range(len(samples)):
         sample = samples[i]
         rec = vcfrow[i+9].split(':')
+        
         # require a minimum read coverage
         if len(alleles)==1:
             # simple invariant case
@@ -843,6 +844,11 @@ def main_vcf_to_fasta(args):
     with util.vcf.VcfReader(args.inVcf) as vcf:
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
+
+    assert len(samples) == 1, """Multiple sample columns were found in the intermediary VCF file
+        of the refine_assembly step, suggesting multiple sample names are present 
+        upstream in the BAM file. Please correct this so there is only one sample in the BAM file."""
+
     with open(args.outFasta, 'wt') as outf:
         chr_idx = 0
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
