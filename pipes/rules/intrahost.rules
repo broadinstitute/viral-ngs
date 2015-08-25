@@ -40,8 +40,10 @@ rule isnvs_vcf:
             config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz.tbi',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz',
+            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz.tbi'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="all",
@@ -55,9 +57,10 @@ rule isnvs_vcf:
                 + " --isnvs " + " ".join(["{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
                 + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, config["number_of_chromosomes"]+1)])
                 + " --strip_chr_version"
+                + " --parse_accession" # the vcf chr column must match a chr known to snpEff; we have an option to parse out only the accession
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
-            shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
+            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[2]} {params.emailAddress}")
+            shell("{config[binDir]}/intrahost.py iSNV_table {output[2]} {output[3]}")
             
 rule isnvs_vcf_filtered:
     input:
@@ -87,6 +90,7 @@ rule isnvs_vcf_filtered:
                 + " --isnvs " + " ".join(["{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
                 + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, config["number_of_chromosomes"]+1)])
                 + " --strip_chr_version"
+                + "--parse_accession" # the vcf chr column must match a chr known to snpEff; we have an option to parse out only the accession
                 )
             shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
             shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")

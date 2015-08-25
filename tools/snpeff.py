@@ -16,7 +16,7 @@ import tools, util.file, util.genbank
 
 log = logging.getLogger(__name__)
 
-URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1_core.zip'
+URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
 class SnpEff(tools.Tool):
     jvmMemDefault = '4g'
@@ -46,6 +46,7 @@ class SnpEff(tools.Tool):
         if not self.known_dbs:
             for row in self.available_databases():
                 pass
+
         return genome in self.installed_dbs
 
     def download_db(self, dbname, verbose=False):
@@ -58,7 +59,7 @@ class SnpEff(tools.Tool):
 
     def create_db(self, accessions, emailAddress, JVMmemory):
         sortedAccessionString = ", ".join(sorted(accessions))
-        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()
+        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         # if the database is not installed, we need to make it
         if not self.has_genome(databaseId):
@@ -118,22 +119,34 @@ class SnpEff(tools.Tool):
             raise Exception("invalid input")
 
         sortedAccessionString = ", ".join(sorted(genomes))
-        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()
-
+        databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         genomeToUse = ""
+
+        # if we don't have the genome, by name (snpEff official) or by hash (custom)
+        if (not self.has_genome(databaseId)): 
+            if (not self.has_genome(genomes[0])):
+                log.info("Checking for snpEff database online...")
+                # check to see if it is available for download, and if so install it
+                for row in self.available_databases():
+                    if (genomes[0].lower() in row['Genome'].lower()) or (
+                        genomes[0].lower() in row['Bundle'].lower()) or (
+                        genomes[0].lower() in row['Organism'].lower()):
+                        self.download_db(row['Genome'])
+
         # backward compatability for where a single genome name is provided
         if self.has_genome(genomes[0]):
             genomeToUse = genomes[0]
-
-        # if the hash of the accessions passed in is not present in the genomes db
-        if not self.has_genome(databaseId):
-            self.create_db(genomes, emailAddress, JVMmemory)
-
-        if not genomeToUse and self.has_genome(databaseId):
-            genomeToUse = databaseId
         else:
-            raise Exception()
+            # if the hash of the accessions passed in is not present in the genomes db
+            if not self.has_genome(databaseId):
+                self.create_db(genomes, emailAddress, JVMmemory)
+
+            if self.has_genome(databaseId):
+                genomeToUse = databaseId
+
+        if not genomeToUse:
+                raise Exception()
         
         args = [
             '-treatAllAsProteinCoding', 'false',
@@ -143,7 +156,7 @@ class SnpEff(tools.Tool):
             '-noStats',
             '-noShiftHgvs',
             genomeToUse,
-            inVcf
+            os.path.realpath(inVcf)
             ]
 
         with open(tmpVcf, 'wt') as outf:
