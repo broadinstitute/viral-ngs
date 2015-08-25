@@ -42,8 +42,9 @@ cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 # the part that strips bsub's output to just the job id
 cmdline += " | tail -1 | cut -f 3 -d \ "
 
-with open("outputfile.txt","w") as outf:
-    outf.write(cmdline+"\n")
+#with open("outputfile.txt","w") as outf:
+#    outf.write(str(props)+"\n")
+#    outf.write(cmdline+"\n")
 
 # call the command
 os.system(cmdline)
