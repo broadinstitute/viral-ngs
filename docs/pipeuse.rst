@@ -47,10 +47,10 @@ import the following dotkits prior to activating the virtualenv:
     use .gcc-4.5.3
 
 Setting up an analysis directory
-================================
+--------------------------------
 
 Copying and creating project directories and files
---------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Snakemake pipline is intended to be run on an input one or more
 sequencer bam files, each having a filename represending a sample name.
@@ -107,7 +107,7 @@ The directory structure created needs to match the locations specified
 in ``config.json``.
 
 Adding input data
------------------
+~~~~~~~~~~~~~~~~~
 
 -  Copy each of the raw sample bam files to the ``00_raw/`` directory
    and ensure the file names follow the convention of ``{sample}.bam``.
@@ -129,7 +129,7 @@ Adding input data
    filled in later.
 
 Modifying the ``config.json`` file
-----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Minimal modification to the config file is necessary, though there are a
 few things you need to specify:
@@ -202,7 +202,7 @@ A FASTA file containing spike-ins to be reported:
     "spikeinsDb":     "/path/to/references/ercc_spike-ins.fasta",
 
 Modifying the ``Snakefile``
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Depending on the state of your input data, and where in the pipeline it
 may enter, it may be necessary to omit certain processing steps. For
@@ -215,19 +215,19 @@ in the ``Snakefile``:
     include: os.path.join(pipesDir, 'demux.rules’)
 
 Running the pipeline
-====================
+--------------------
 
 Configuring for your compute platform
--------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Running the pipeline directly
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 After the above setup is complete, run the pipeline directly by calling
 ``snakemake`` within the analysis directory.
 
 Running the pipeline on GridEngine (UGER)
------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Within ``config.json``, set the "project" to one that exists on the
 cluster system.
@@ -246,7 +246,7 @@ To kill all jobs that exited (qstat status "Eqw") with an error:
     qdel $(qstat | grep Eqw | awk '{print $1}')
 
 Running the pipeline on LSF
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Inside the analysis directory, run the job submission command. Ex.:
 
@@ -269,7 +269,7 @@ To kill all **PEND**\ ing jobs:
     bkill `bjobs | grep PEND | awk '{print $1}'` > /dev/null
 
 When things go wrong
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 The pipeline may fail with errors during execution, usually while
 generating assemblies with Trinity. If this occurs, examine the output,
@@ -281,10 +281,10 @@ necessary to skip over these samples by adding them to the
 ``samples-assembly-failures.txt``.
 
 Assembly of pre-filtered reads
-==============================
+------------------------------
 
 Taxonomic filtration of raw reads
-=================================
+---------------------------------
 
 Starting from Illumina BCL directories
-======================================
+--------------------------------------
