@@ -20,6 +20,7 @@ rule isnvs_per_sample:
     output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
             numThreads=str(config.get("number_of_threads", 1))
     run:
@@ -46,6 +47,7 @@ rule isnvs_vcf:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz.tbi'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
@@ -79,6 +81,7 @@ rule isnvs_vcf_filtered:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.txt.gz'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],

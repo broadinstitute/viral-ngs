@@ -1,16 +1,11 @@
 #!/bin/bash
 # Wrappers around Snakemake for use on the Broad LSF cluster
 
-# load necessary Broad dotkits
-eval `/broad/software/dotkit/init -b`
-reuse -q UGER
-reuse -q Python-3.4
-reuse -q Perl-5.10
-reuse -q Java-1.7
-
 # load config dirs from config.json
-VENVDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["venvDir"]);f.close()'`
-BINDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["binDir"]);f.close()'`
+VENVDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["venvDir"]));f.close()'`
+BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["binDir"]));f.close()'`
+
+source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
 
 # load Python virtual environment
 source "$VENVDIR/bin/activate"

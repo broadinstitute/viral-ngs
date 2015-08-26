@@ -87,6 +87,7 @@ rule depletion:
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             revert_bam = config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
@@ -114,6 +115,7 @@ rule filter_to_taxon:
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             refDb=os.path.join(config["lastal_refDb"], config["ref_genome_file_prefix"]),
             logid="{sample}"
     shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.refDb} {output}"
@@ -145,6 +147,7 @@ rule merge_one_per_sample:
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
