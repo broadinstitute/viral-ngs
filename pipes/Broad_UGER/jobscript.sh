@@ -2,16 +2,9 @@
 # properties = {properties}
 # this is identical to the default jobscript with the exception of the exit code
 
-# Since UGER does not pass the environment cleanly, we have to set up dotkits here
-eval `/broad/software/dotkit/init -b`
-reuse -q UGER
-reuse -q .python-3.4.3
-reuse -q Perl-5.10
-reuse -q Java-1.7
-reuse -q .gcc-4.5.3
-reuse -q .oracle-java-jdk-1.7.0-51-x86-64
-reuse -q .bzip2-1.0.6 
-reuse -q .zlib-1.2.6
+BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["binDir"]));f.close()'`
+
+source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
 
 {exec_job}
 
