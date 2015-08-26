@@ -105,6 +105,7 @@ rule filter_to_taxon:
     '''
     input:  
         config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
         expand('{lastal_refDb}/{ref_name}.bck', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
         expand('{lastal_refDb}/{ref_name}.des', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
         expand('{lastal_refDb}/{ref_name}.prj', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
