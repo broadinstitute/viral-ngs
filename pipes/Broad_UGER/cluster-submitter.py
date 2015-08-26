@@ -20,10 +20,10 @@ cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(
 cmdline += "-o {logdir} -e {logdir} ".format(
     logdir=LOGDIR, jobname=jobname)
 
-# pass memory resource request to LSF
+# pass memory resource request to cluster
 mem = props.get('resources',{}).get('mem')
 if mem:
-    cmdline += ' -l m_mem_free={}G,h_rss={}G '.format(mem, 2*int(mem))
+    cmdline += ' -l m_mem_free={}G,h_rss={}G '.format( mem, round(1.2*float(int(mem)),2) )
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER","") + " "
@@ -41,10 +41,6 @@ cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
 cmdline += " | tail -1 | cut -f 3 -d \ "
-
-#with open("outputfile.txt","w") as outf:
-#    outf.write(str(props)+"\n")
-#    outf.write(cmdline+"\n")
 
 # call the command
 os.system(cmdline)

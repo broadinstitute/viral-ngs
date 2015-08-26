@@ -10,6 +10,16 @@ import os, os.path, time
 
 localrules: download_reference_genome, build_lastal_db
 
+rule all_annot:
+    input:
+        config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'#,
+        #expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
+        #            dataDir=config["dataDir"],
+        #            subdir=config["subdirs"]["annot"],
+        #            samp=read_samples_file(config["samples_assembly"]),
+        #            chrom=range(1, config["number_of_chromosomes"]+1))
+        #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
+
 rule download_reference_genome:
     output:
         expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
@@ -44,28 +54,37 @@ rule build_lastal_db:
 
 rule annot_transfer:
     input:      
-                config["dataDir"]+'/'+config["subdirs"]["multialign_ref"]+'/{chr_alignment}.fasta',
-                expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"]),
+                expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
+                    dataDir=config["dataDir"],
+                    subdir=config["subdirs"]["multialign_ref"],
+                    chrom=range(1, config["number_of_chromosomes"]+1)),
+                expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
                 expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:     
-                config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
+                #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
+                expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
+                    dataDir=config["dataDir"],
+                    subdir=config["subdirs"]["annot"],
+                    samp=read_samples_file(config["samples_assembly"]),
+                    chrom=range(1, config["number_of_chromosomes"]+1))
                 #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-                logid="{sample}",
-                refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
-                refAnnot=expand("{dir}/{accession}.tbl", dir=config["ref_genome"], accession=config["accessions_for_ref_genome_build"]),
+                #logid="{samp}",
+                refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
+                refAnnot=expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
                 outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
-    #shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {params.refGenome} {params.refAnnot} {input} {output} --oob_clip"
     shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {input[0]} {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip"
 
 rule prepare_genbank:
     input:
                 config["reportsDir"]+"/summary.assembly.txt",
-                expand("{dir}/{subdir}/{sample}.tbl",
-                    dir=[config["dataDir"]], subdir=[config["subdirs"]["annot"]],
-                    sample=read_samples_file(config["samples_assembly"]))
+                expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
+                    dataDir=config["dataDir"],
+                    subdir=config["subdirs"]["annot"],
+                    samp=read_samples_file(config["samples_assembly"]),
+                    chrom=range(1, config["number_of_chromosomes"]+1))
     output:
                 config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
@@ -89,7 +108,3 @@ rule prepare_genbank:
                     "--biosample_map {params.biosample_map}",
                     "--coverage_table {config[reportsDir]}/summary.assembly.txt",
                     "--comment '{params.comment}'"])
-
-rule all_annot:
-    input:
-                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
