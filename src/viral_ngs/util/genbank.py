@@ -32,6 +32,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
     """
     db           = "nuccore"
     Entrez.email = emailAddress
+    Entrez.tool = "https://github.com/broadinstitute/viral-ngs"
 
     outEx = {
         "fasta": "fasta",
