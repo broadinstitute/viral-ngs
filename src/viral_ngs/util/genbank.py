@@ -2,6 +2,7 @@
 
 # built-ins
 import sys, os, logging
+import time
 
 # third-party
 from Bio import Entrez, SeqIO
@@ -89,18 +90,32 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
                 this file or specifying a different output directory. The files for the accessions specified 
                 can be overwritten if you add --forceOverwrite flag. Processing aborted.""" % outputFilePath
 
-        #try:
-        log.info("Fetching file %s: %s" % (chunkNum+1, accString))
-        handle = Entrez.efetch(db=db, rettype=rettype, id=accString)
+        tryCount = 1
+        while True:
+            try:
+                log.info("Fetching file %s: %s, try #%s" % (chunkNum+1, accString, tryCount))
+                handle = Entrez.efetch(db=db, rettype=rettype, id=accString)
 
-        with open(outputFilePath, "w") as outf:
-            for line in handle:
-                outf.write(line)
-        outputFiles.append(outputFilePath)
-        #except Exception as e:
-        #    raise IOError( "Error! Could not fetch: %s\n %s" % (acc, e.message))  
+                with open(outputFilePath, "w") as outf:
+                    for line in handle:
+                        outf.write(line)
+                outputFiles.append(outputFilePath)
+            except IOError as e:
 
-    #if rettype == "fasta":
+                log.warning("Error fetching file %s: %s, probably because NCBI is too busy." % (chunkNum+1, accString, tryCount))
+                
+                tryCount += 1
+                if tryCount > 4:
+                    log.warning("Tried too many times. Aborting." % (chunkNum+1, accString, tryCount))    
+                    raise
+
+                # if the fetch failed, wait a few seconds and try again.
+                log.info("Waiting and retrying...")
+                time.sleep(2)
+
+                continue
+            break
+
     # assert that we are not trying to remove the intermediate files without writing a combined file
     if removeSeparateFiles:
         assert combinedFilePrefix, """The intermediate files 
