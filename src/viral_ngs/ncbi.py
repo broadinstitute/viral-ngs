@@ -213,31 +213,34 @@ __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))
 
 
 def fetch_fastas(accession_IDs, destinationDir, emailAddress, 
-                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
     '''
         This function downloads and saves the FASTA files 
         from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
     util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, 
-                                            forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt, "fasta")
+                                            forceOverwrite, combinedFilePrefix, removeSeparateFiles, 
+                                            fileExt, "fasta", chunkSize=chunkSize)
 
 def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, 
-                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
     '''
         This function downloads and saves 
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
     util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
-                                                                combinedFilePrefix, removeSeparateFiles, fileExt, "ft")
+                                                                combinedFilePrefix, removeSeparateFiles, 
+                                                                fileExt, "ft", chunkSize=chunkSize)
 
 def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, 
-                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles):
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
     '''
         This function downloads and saves 
         full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
     '''
     util.genbank.fetch_full_records_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
-                                                                combinedFilePrefix, removeSeparateFiles, fileExt, "gb")
+                                                                combinedFilePrefix, removeSeparateFiles, 
+                                                                fileExt, "gb", chunkSize=chunkSize)
 
 def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
     parser.add_argument("emailAddress",
@@ -261,6 +264,12 @@ def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
         help='''The extension to use for the downloaded files''')
     parser.add_argument('--removeSeparateFiles', default=False, action='store_true',
         help='''If specified, remove the individual files and leave only the combined file.''')
+    parser.add_argument('--chunkSize', default=1, type=int,
+        help='''Causes files to be downloaded from GenBank in chunks of N accessions. 
+        Each chunk will be its own combined file, separate from any combined 
+        file created via --combinedFilePrefix (default: %(default)s). If chunkSize is 
+        unspecified and >500 accessions are provided, chunkSize will be set to 500 to 
+        adhere to the NCBI guidelines on information retreival.''')
     return parser
 
 def parser_fetch_fastas(parser):
