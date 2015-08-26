@@ -74,7 +74,7 @@ rule isnvs_vcf_filtered:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
                 chrom=range(1, config["number_of_chromosomes"]+1)),
-            config["ref_genome"]+'/'+config["ref_genome_file_prefix"]+".fasta"
+            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output:
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.vcf.gz',

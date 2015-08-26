@@ -31,7 +31,9 @@ rule all_ref_guided:
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
 
 rule ref_guided_consensus:
-    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
+    input:  
+            config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam',
+            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
