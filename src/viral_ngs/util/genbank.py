@@ -5,6 +5,7 @@ import sys, os, logging
 
 # third-party
 from Bio import Entrez, SeqIO
+import boltons.iterutils
 
 log = logging.getLogger(__name__)
 
@@ -26,13 +27,21 @@ def get_feature_table_id(featureTableFile):
     if len(seqid) > 0:
         return seqid
         
-def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta", retmode="text", fileExt=None, combinedFilePrefix=None, removeSeparateFiles=False):
+def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta", retmode="text", fileExt=None, combinedFilePrefix=None, removeSeparateFiles=False, chunkSize=1):
     """ 
         This function downloads and saves files from NCBI nuccore.
     """
     db           = "nuccore"
     Entrez.email = emailAddress
     Entrez.tool = "https://github.com/broadinstitute/viral-ngs"
+
+    maxChunkSize = 500
+
+    # Conform to NCBI retreival guidelines by chunking into 500-accession chunks if
+    # >500 accessions are specified and chunkSize is set to 1
+    # Also clamp chunk size to 500 if the user specified a larger value.
+    if chunkSize > maxChunkSize or (len(accessionList) > maxChunkSize and chunkSize == 1):
+        chunkSize = maxChunkSize
 
     outEx = {
         "fasta": "fasta",
@@ -62,9 +71,17 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
 
     log.info( "Fetching %s entries from GenBank: %s\n" % (len(accessionList), ", ".join(accessionList[:10])))
     outputFiles = []
-    for i,acc in enumerate(accessionList):
 
-        outputFilePath = os.path.join(outputDirectory, acc+outputExtension)
+    for chunkNum, chunk in enumerate(boltons.iterutils.chunked_iter(accessionList, chunkSize)):
+    #    for i,acc in enumerate(chunk):
+
+        accString = ",".join(chunk)
+
+        # if the filename would be longer than Linux allows, simply say "chunk-chunkNum"
+        if len(accString)+len(outputExtension) <= 254:
+            outputFilePath = os.path.join(outputDirectory, accString+outputExtension)
+        else:
+            outputFilePath = os.path.join(outputDirectory, "chunk-{}".format(chunkNum) + outputExtension)
 
         if not forceOverwrite:
             log.info("not overwriting, checking for existence")
@@ -73,8 +90,8 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
                 can be overwritten if you add --forceOverwrite flag. Processing aborted.""" % outputFilePath
 
         #try:
-        log.info("Fetching file %s: %s" % (i+1, acc))
-        handle = Entrez.efetch(db=db, rettype=rettype, id=acc)
+        log.info("Fetching file %s: %s" % (chunkNum+1, accString))
+        handle = Entrez.efetch(db=db, rettype=rettype, id=accString)
 
         with open(outputFilePath, "w") as outf:
             for line in handle:
@@ -117,13 +134,13 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
     # return list of files
     return outputFiles
 
-def fetch_fastas_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="fasta", retmode="text"):
-    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles)
+def fetch_fastas_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="fasta", retmode="text", chunkSize=1):
+    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles, chunkSize)
 
-def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="ft", retmode="text"):
-    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles)
+def fetch_feature_tables_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="ft", retmode="text", chunkSize=1):
+    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles, chunkSize)
 
-def fetch_full_records_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="gb", retmode="text"):
-    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles)
+def fetch_full_records_from_genbank(accessionList, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, removeSeparateFiles, fileExt=None, rettype="gb", retmode="text", chunkSize=1):
+    return _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix, removeSeparateFiles, chunkSize)
 
 
