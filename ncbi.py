@@ -244,7 +244,10 @@ def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
         help="""Your email address. To access the Genbank CoreNucleotide database, 
         NCBI requires you to specify your email address with each request. 
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
-        a user at the email address provided before blocking access.""")
+        a user at the email address provided before blocking access. This email address should
+        be registered with NCBI. To register an email address, simply send 
+        an email to eutilities@ncbi.nlm.nih.gov including your email address and 
+        the tool name (tool='https://github.com/broadinstitute/viral-ngs').""")
     parser.add_argument("destinationDir",
         help="Output directory with where .fasta and .tbl files will be saved")    
     parser.add_argument("accession_IDs", nargs='+',
