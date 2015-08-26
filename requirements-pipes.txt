@@ -1,2 +1,3 @@
 snakemake==3.2.1
 yappi==0.94
+boltons==15.0.0
