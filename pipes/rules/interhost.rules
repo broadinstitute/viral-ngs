@@ -37,6 +37,7 @@ rule ref_guided_consensus:
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
@@ -60,6 +61,7 @@ rule ref_guided_diversity:
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
@@ -87,6 +89,7 @@ rule multi_align_mafft:
                 subdir=config["subdirs"]["multialign_ref"],
                 chrom=range(1, config["number_of_chromosomes"]+1))        
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
