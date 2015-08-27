@@ -1,4 +1,12 @@
 
+# imports needed for download_file() and webfile_readlines()
+import re
+# since py3 split up urllib
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib2 import urlopen
+
 def set_env_vars():
     import os
     for k,v in config.get('env_vars', {}).items():
@@ -22,3 +30,40 @@ def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
                 line = line.strip()
                 for i in range(1, number_of_chromosomes+1):
                     yield line+"-{idx}".format(idx=str(i))
+
+def read_accessions_file(fname):
+    if fname==None:
+        return []
+    with open(fname, 'rt') as inf:
+        for line in inf:
+            yield line.strip()
+
+def download_file(uriToGet, dest, destFileName=None):
+    destDir = os.path.realpath(os.path.expanduser(dest))
+
+    req = urlopen(uriToGet)
+
+    if not destFileName:
+        m = re.search('filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
+
+        if m:
+            destFileName = m.group("filename")
+        else:
+            destFileName = "file"
+
+    destPath = os.path.join(destDir, destFileName)
+
+    with open(destPath, "wb") as outf:
+        while True:
+           chunk = req.read(1024)
+           if not chunk: break
+           outf.write(chunk)
+
+    return destPath
+
+def webfile_readlines(uriToGet):
+
+    for line in urlopen(uriToGet):#.readlines():
+        cleanedLine = line.decode("utf-8").strip()
+        if len(cleanedLine) > 0:
+            yield cleanedLine
