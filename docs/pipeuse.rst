@@ -68,7 +68,7 @@ were created.
 To get started, create an analysis directory somewhere in your compute
 environment to contain the pipeline input and output files.
 
-Into this directory, copy the following file from th ``viral-ngs/pipes``
+Into this directory, copy the following file from the ``viral-ngs/pipes``
 directory:
 
 ::
