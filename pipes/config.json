@@ -3,6 +3,7 @@
   "email_point_of_contact_for_ncbi" : "someone@example.com",
   "number_of_chromosomes": 1,
   "accessions_for_ref_genome_build": ["KJ660346.2"],
+  "accessions_file_for_lastal_db_build": "",
   "ref_genome_file_prefix": "ebov",
 
 
@@ -44,7 +45,7 @@
   "venvDir":    "venv",
   "project":    "viral_ngs",
   "ref_genome":     "ref_genome",
-  "lastal_refDb":   "ref_genome",
+  "lastal_refDb":   "lastal_db",
 
   "seqruns_demux":     "samples/seqruns.txt",
   "samples_depletion": "samples-depletion.txt",
