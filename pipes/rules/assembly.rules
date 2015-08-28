@@ -110,9 +110,9 @@ rule refine_assembly_1:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
-    resources: mem=4
+    resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage = "2",
@@ -132,9 +132,9 @@ rule refine_assembly_2:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
-    resources: mem=4
+    resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             min_coverage = "3",
@@ -154,7 +154,7 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
     run:
