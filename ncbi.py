@@ -142,7 +142,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
     with util.file.open_or_gzopen(inputFasta, 'r') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
             with util.file.open_or_gzopen(refFasta, 'r') as reff:
-                for refIdx, refSeq in enumerate(Bio.SeqIO.parse(reff, 'fasta')):                    
+                for refSeq in Bio.SeqIO.parse(reff, 'fasta'):                    
                     if seq.id == refSeq.id:
                         ref_fasta_filename = util.file.mkstempfname('.fasta')
                         matchingRefSeq = seq

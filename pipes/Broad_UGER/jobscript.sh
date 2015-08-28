@@ -4,8 +4,12 @@
 
 BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["binDir"]));f.close()'`
 DATADIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["dataDir"]));f.close()'`
+VENVDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["venvDir"]));f.close()'`
 
 source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
+
+# load Python virtual environment
+source "$VENVDIR/bin/activate"
 
 # if listing the data directory fails, exit 99 to reschedule the job
 # since the node with the job doesn't have the NFS share mounted.

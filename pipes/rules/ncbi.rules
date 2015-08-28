@@ -36,7 +36,7 @@ rule download_lastal_sources:
     output:
         expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_refDb"] )
     params:
-        accessionsList=read_accessions_file(config["accessions_file_for_lastal_db_build"]) if len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"],
+        accessionsList=read_accessions_file(config["accessions_file_for_lastal_db_build"]) if "accessions_file_for_lastal_db_build" in config and len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"],
         emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
         makedirs( expand( "{dir}", dir=[config["lastal_refDb"]] ) )
@@ -83,7 +83,12 @@ rule annot_transfer:
                 refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
                 refAnnot=expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
                 outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
-    shell:      "{config[binDir]}/ncbi.py tbl_transfer_prealigned {input[0]} {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip"
+    run:      
+        for alignmentFile in expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
+                                        dataDir=config["dataDir"],
+                                        subdir=config["subdirs"]["multialign_ref"],
+                                        chrom=range(1, config["number_of_chromosomes"]+1)):
+            shell("{config[binDir]}/ncbi.py tbl_transfer_prealigned " + alignmentFile + " {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip")
 
 rule prepare_genbank:
     input:
