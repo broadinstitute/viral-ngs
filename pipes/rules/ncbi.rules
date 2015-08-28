@@ -8,7 +8,7 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time
 
-localrules: download_reference_genome, build_lastal_db
+localrules: download_reference_genome, download_lastal_sources, build_lastal_db
 
 rule all_annot:
     input:
@@ -32,25 +32,33 @@ rule download_reference_genome:
         shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedFilePrefix {config[ref_genome_file_prefix]} --removeSeparateFiles --forceOverwrite")
         shell("{config[binDir]}/ncbi.py fetch_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --forceOverwrite")
 
+rule download_lastal_sources:
+    output:
+        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_refDb"] )
+    params:
+        accessionsList=read_accessions_file(config["accessions_file_for_lastal_db_build"]) if len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"],
+        emailAddress=config["email_point_of_contact_for_ncbi"]
+    run:
+        makedirs( expand( "{dir}", dir=[config["lastal_refDb"]] ) )
+        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[lastal_refDb]} {params.accessionsList} --combinedFilePrefix lastal --removeSeparateFiles --forceOverwrite --chunkSize 300")
+
+
 rule build_lastal_db:
     input:
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_refDb"] )
     output:
-        expand('{lastal_refDb}/{ref_name}.bck', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.des', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.prj', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.sds', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.ssp', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.suf', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"]),
-        expand('{lastal_refDb}/{ref_name}.tis', lastal_refDb=config["lastal_refDb"], ref_name=config["ref_genome_file_prefix"])
+        expand('{lastal_refDb}/lastal.bck', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.des', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.prj', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.sds', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.ssp', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.suf', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.tis', lastal_refDb=config["lastal_refDb"])
     params:
         UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-        emailAddress=config["email_point_of_contact_for_ncbi"],
-        accessionsList=config["accessions_for_ref_genome_build"],
-        refFasta=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
-        makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
-        shell("{config[binDir]}/taxon_filter.py lastal_build_db {params.refFasta} {config[lastal_refDb]}")
+        shell("{config[binDir]}/taxon_filter.py lastal_build_db {input[0]} {config[lastal_refDb]}")
 
 rule annot_transfer:
     input:      
