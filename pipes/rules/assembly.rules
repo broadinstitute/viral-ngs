@@ -38,18 +38,21 @@ rule assemble_trinity:
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
-    resources: mem=4
+    resources: 
+            mem=4,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             n_reads=str(config["trinity_n_reads"]),
             logid="{sample}",
             clipDb=config["trim_clipDb"],
-            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam}")
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -110,7 +113,9 @@ rule refine_assembly_1:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
-    resources: mem=7
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
@@ -132,7 +137,9 @@ rule refine_assembly_2:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
-    resources: mem=7
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
@@ -152,12 +159,15 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
-    resources: mem=4
+    resources: 
+            mem=4,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
-            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
+            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
+            numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs([os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
                 os.path.join(config["reportsDir"], "assembly")])
-            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}'")
+            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}' --threads {params.numThreads}")
