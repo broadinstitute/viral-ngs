@@ -25,6 +25,10 @@ mem = props.get('resources',{}).get('mem')
 if mem:
     cmdline += ' -l m_mem_free={}G,h_rss={}G '.format( mem, round(1.2*float(int(mem)),2) )
 
+cores = props.get('resources',{}).get('cores')
+if cores:
+    cmdLine += ' -pe smp {} '.format( int(cores) )
+
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER","") + " "
 

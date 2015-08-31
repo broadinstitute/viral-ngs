@@ -406,7 +406,7 @@ def parse_accession_str(chr_ref):
         This tries to match an NCBI accession as defined here:
             http://www.ncbi.nlm.nih.gov/Sequin/acc.html
     '''
-    m = re.match(".*(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
+    m = re.search("(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
     if m:
         chr_ref = m.group("accession")
     return chr_ref
@@ -899,33 +899,6 @@ class SnpEffException(Exception):
 
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
-    
-    # TODO: remove this commented-out conditional?
-    # if not all(len(a)==1 for a in alleles):
-    #     ''' This is incredibly annoying: instead of talking about indel alleles using
-    #         the VCF allele definitions or in the VCF order, the ANN field recomputes the
-    #         part of the allele that looks distinct from the reference and talks about
-    #         that instead. Note that this means some alleles (particularly deletions)
-    #         will collapse and become non-unique.
-    #         Oh, and py2 and py3 have different names for the same function, just for fun.
-    #     '''
-    #     ziplong = itertools.zip_longest if 'zip_longest' in dir(itertools) else itertools.izip_longest
-    #     outalleles = []
-    #     for a in alleles[1:]:
-    #         if len(a)==len(alleles[0]):
-    #             out_a = []
-    #             for ref, alt in reversed(list(zip(alleles[0], a))):
-    #                 if ref!=alt or out_a:
-    #                     out_a.append(alt)
-    #             a = ''.join(reversed(out_a))
-    #         out_a = []
-    #         for ref, alt in ziplong(alleles[0], a, fillvalue=''):
-    #             if ref!=alt or out_a:
-    #                 out_a.append(alt)
-    #         outalleles.append(''.join(out_a))
-    #     alleles = outalleles
-    # else:
-    #     alleles = alleles[1:]
     
     # only work on alt alleles
     alleles = alleles[1:]
