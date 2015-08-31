@@ -107,7 +107,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None):
+def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None, threads=1):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
@@ -120,7 +120,7 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVM
     trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
-    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory)
+    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
     
@@ -141,6 +141,9 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
         default=tools.trinity.TrinityTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
@@ -366,7 +369,7 @@ def refine_assembly(inFasta, inBam, outFasta,
         picardOptions=opts, JVMmemory=JVMmemory)
     os.unlink(novoBam)
     realignBam = util.file.mkstempfname('.realign.bam')
-    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory)
+    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
     os.unlink(rmdupBam)
     if outBam:
         shutil.copyfile(realignBam, outBam)
