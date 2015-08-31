@@ -194,8 +194,6 @@ class CoordMapper(DictMixin):
                         #mapDict = self.chrMapsUngapped[seq1.id]
                         #mapDict[seq2.id] = mapper
                         #self.chrMapsUngapped[seq1.id] = mapDict
-                    #for (seq1, seq2) in permutations(seqs, 2):
-                        #print(seq1.id,seq2.id)
 
     def align_and_load_sequences(self, unaligned_fasta_files, aligner=None):
         aligner = self.alignerTool if aligner is None else aligner

@@ -518,12 +518,9 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
 
                 # read in all iSNVs for this chrom and map to reference coords
                 data = []
-                #print("samples: {}".format(samples))
-                #print("cm.chrMaps.keys(): {}".format(list()))
 
                 # use conditional matching to only include the sequences that match the sample basename provided
                 samplesToUse = [x for x in cm.chrMaps.keys() if sampleIDMatch(x) in samples]
-                #print("samplesToUse: {}".format(samplesToUse))
 
                 alignmentFile = ref_seq_id_to_alignment_file[ref_sequence.id]
                 with util.file.open_or_gzopen(alignmentFile, 'r') as alignFileIn:
@@ -532,8 +529,6 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                             if seq.id == sampleName:
                                 samp_to_seqIndex[sampleName] = seq.seq.ungap('-')
 
-                #print("samp_to_seqIndex: {}".format(samp_to_seqIndex))
-                #print("samplesToUse: {}".format(samplesToUse))
                 if not len(samp_to_seqIndex) == len(samplesToUse):
                     raise LookupError("Sequence info not found in file %s for all sample names provided. Check alignment files." % alignmentFile)
 
@@ -541,7 +536,6 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                     for row in util.file.read_tabfile(samp_to_isnv[sampleIDMatch(s)]):
                         # map ref->sample
                         s_chrom = cm.mapChr(ref_sequence.id, s)
-                        #print(s_chrom)
                         if row[0] == s_chrom:
                             allele_fields = list(AlleleFieldParser(x) for x in row[7:] if x)
                             row = {
