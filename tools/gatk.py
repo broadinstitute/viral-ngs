@@ -51,6 +51,9 @@ class GATKTool(tools.Tool) :
     def ug(self, inBam, refFasta, outVcf,
             options=["--min_base_quality_score", 15, "-ploidy", 4],
             JVMmemory=None, threads=1):
+
+        if threads < 1:
+            threads = 1
         opts = ['-I', inBam, '-R', refFasta, '-o', outVcf,
             '-glm', 'BOTH',
             '--baq', 'OFF',
@@ -64,10 +67,15 @@ class GATKTool(tools.Tool) :
         ]
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
-    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None):
+    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
         intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
-        opts = ['-I', inBam, '-R', refFasta, '-targetIntervals', intervals, '-o', outBam]
+        opts = ['-I', inBam, 
+                '-R', refFasta, 
+                '-targetIntervals', intervals, 
+                '-o', outBam,
+                '--num_threads', threads,
+               ]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)
