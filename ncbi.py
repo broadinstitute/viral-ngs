@@ -3,7 +3,7 @@
 to NCBI's Genbank and SRA databases, as well as retreiving records from Genbank.
 '''
 
-__author__ = "PLACEHOLDER"
+__author__ = "tomkinsc@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, collections, shutil, os, os.path

@@ -221,7 +221,6 @@ class VcfMergeRunner:
     def set_ref(self, genome):
         self.ref = makeTempFasta(genome)
     def add_genome(self, sample_name, genome):
-        #print("genome: {}".format(genome))
         self.genomes[sample_name] = dict(genome)
         self.genomeFastas[sample_name] = makeTempFasta(genome)
         if sample_name not in self.sample_order:
@@ -232,7 +231,6 @@ class VcfMergeRunner:
         assert chrom in self.genomes[sample]
         assert 1 <= pos <= len(self.genomes[sample][chrom])
         assert self.genomes[sample][chrom][pos - 1] in [a for a,f,r in acounts]
-        #print(self.isnvs)
         self.isnvs[sample].add_snp(chrom, pos, acounts, libinfo)
     def add_indel(self, sample, chrom, pos, acounts, libinfo=None):
         assert sample in self.genomeFastas
@@ -244,10 +242,8 @@ class VcfMergeRunner:
         self.isnvs[sample].add_indel(chrom, pos, acounts, libinfo)
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
-        #print("sample: {}".format(sample))
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
-                #print('\t'.join(map(str, row)) + '\n')
                 outf.write('\t'.join(map(str, row)) + '\n')
         return fn
     def run_and_get_vcf_rows(self, retree=1):
@@ -256,10 +252,6 @@ class VcfMergeRunner:
         self.multi_align_samples(retree=retree)
 
         seqIds = list(itertools.chain.from_iterable(self.sequence_order.values()))
-
-        #print("self.sample_order: {}".format(self.sample_order))
-        #print("self.isnvs: {}".format(self.isnvs))
-        #print("list(self.dump_isnv_tmp_file(s) for s in self.sample_order): {}".format(list(self.dump_isnv_tmp_file(s) for s in self.sample_order)))
 
         intrahost.merge_to_vcf(self.ref, outVcf,
             seqIds,
