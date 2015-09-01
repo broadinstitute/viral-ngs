@@ -98,6 +98,7 @@ rule extract_barcodes:
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
     resources: mem=16
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{flowcell}.{lane}"
     run:
             makedirs(set(map(os.path.dirname, output)))
@@ -115,8 +116,9 @@ rule illumina_basecalls:
     input:  config['dataDir']+'/'+config['subdirs']['demux']+'/inputs/library_params.{flowcell}.{lane}.txt',
             config['tmpDir']+'/'+config['subdirs']['demux']+'/barcodes/{flowcell}.{lane}'
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam'
-    resources: mem=64
+    resources: mem=50
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{flowcell}.{lane}",
             center=config['seq_center'],
             outdir=config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}'
@@ -151,6 +153,7 @@ rule bams_from_fastq:
             os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz')
     output: os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}.bam')
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
             center=config["seq_center"]
     run:

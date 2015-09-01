@@ -7,12 +7,22 @@
 __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org"
 __commands__ = []
 
+# built-ins
 import argparse, logging, random, os, os.path, shutil, subprocess, glob
-import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
+
+try:
+    from itertools import zip_longest
+except ImportError :
+    from itertools import izip_longest as zip_longest
+
+# intra-module
 import util.cmd, util.file, util.vcf
 import read_utils, taxon_filter
 import tools, tools.picard, tools.samtools, tools.gatk, tools.novoalign
 import tools.trinity, tools.mosaik, tools.muscle
+
+# third-party
+import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +107,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None):
+def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None, threads=1):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
@@ -110,7 +120,7 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVM
     trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
-    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory)
+    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
     
@@ -131,6 +141,9 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
         default=tools.trinity.TrinityTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
@@ -146,28 +159,48 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
         contigs).
     '''
     # VFAT to order, orient, and merge contigs
-    # TO DO: replace with Bellini
+
+    # split out trinity input into separate fastas, then iterate over each, running perl scripts
+
+    # TO DO: replace with Bellini?
     musclepath = tools.muscle.MuscleTool().install_and_get_path()
-    tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
-    cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'),
-        inFasta, inReference, tmp_prefix,
-        '-musclepath', musclepath]
-    subprocess.check_call(cmd)
-    cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
-        tmp_prefix+'_orientedContigs', inReference, tmp_prefix,
-        '-musclepath', musclepath,
-        '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
-    if inReads:
-        infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
-        tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
-        mosaik = tools.mosaik.MosaikTool()
-        cmd = cmd + [
-            '-readfq', infq[0], '-readfq2', infq[1],
-            '-mosaikpath', os.path.dirname(mosaik.install_and_get_path()),
-            '-mosaiknetworkpath', mosaik.get_networkFile(),
-        ]
-    subprocess.check_call(cmd)
-    shutil.move(tmp_prefix+'_assembly.fa', outFasta)
+
+    tempFastas = []
+
+    with open(inReference, 'r') as inf:
+        for idx, seqObj in enumerate(Bio.SeqIO.parse(inf, 'fasta')):
+            tmpInputFile = util.file.mkstempfname(prefix='seq-{idx}'.format(idx=idx), suffix=".fasta")
+            tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}'.format(idx=idx), suffix=".fasta")
+
+            Bio.SeqIO.write([seqObj], tmpInputFile, "fasta")
+
+            tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
+            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'),
+                inFasta, tmpInputFile, tmp_prefix,
+                '-musclepath', musclepath]
+            subprocess.check_call(cmd)
+            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
+                tmp_prefix+'_orientedContigs', inReference, tmp_prefix,
+                '-musclepath', musclepath,
+                '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
+            if inReads:
+                infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
+                tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
+                mosaik = tools.mosaik.MosaikTool()
+                cmd = cmd + [
+                    '-readfq', infq[0], '-readfq2', infq[1],
+                    '-mosaikpath', os.path.dirname(mosaik.install_and_get_path()),
+                    '-mosaiknetworkpath', mosaik.get_networkFile(),
+                ]
+            subprocess.check_call(cmd)
+            shutil.move(tmp_prefix+'_assembly.fa', tmpOutputFile)
+            tempFastas.append(tmpOutputFile)
+
+    # append 
+    util.file.concat(tempFastas, outFasta)
+    for tmpFile in tempFastas:
+        os.unlink(tmpFile)
+
     for fn in glob.glob(tmp_prefix+'*'):
         os.unlink(fn)
     with open(outFasta, 'rt') as inf:
@@ -200,7 +233,7 @@ class PoorAssemblyError(Exception):
             chr_idx, seq_len, non_n_count))
 
 def impute_from_reference(inFasta, inReference, outFasta,
-        minLength, minUnambig, replaceLength, newName=None):
+        minLengthFraction, minUnambig, replaceLength, newName=None):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -220,48 +253,60 @@ def impute_from_reference(inFasta, inReference, outFasta,
             revert positions back to Ns where read support is lacking.
         FASTA indexing: output assembly is indexed for Picard, Samtools, Novoalign.
     '''
-    # Halt if the assembly looks too poor at this point
-    # TO DO: this can easily be generalized to multi-chr genomes by changing minLength to a fraction
-    chr_idx = 0
-    for seq in Bio.SeqIO.parse(inFasta, 'fasta'):
-        chr_idx += 1
-        non_n_count = unambig_count(seq.seq)
-        seq_len = len(seq)
-        if seq_len<minLength or non_n_count<seq_len*minUnambig:
-            raise PoorAssemblyError(chr_idx, seq_len, non_n_count)
+    tempFastas = []
+
+    pmc = parser_modify_contig()
+
+    with open(inFasta, 'r') as asmFastaFile:
+        with open(inReference, 'r') as refFastaFile:
+            asmFasta = Bio.SeqIO.parse(asmFastaFile , 'fasta')
+            refFasta = Bio.SeqIO.parse(refFastaFile , 'fasta')
+            for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
+                # our zip fails if one file has more seqs than the other
+                if not refSeqObj or not asmSeqObj:
+                    raise KeyError("inFasta and inReference do not have the same number of sequences.")
+
+                minLength = len(refSeqObj) * minLengthFraction
+                non_n_count = unambig_count(asmSeqObj.seq)
+                seq_len = len(asmSeqObj)
+                if seq_len<minLength or non_n_count<seq_len*minUnambig:
+                    raise PoorAssemblyError(idx+1, seq_len, non_n_count)
+
+                tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
+
+                concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
+                muscle_align = util.file.mkstempfname('.muscle.fasta')
+                refName = refSeqObj.id
+                with open(concat_file, 'wt') as outf:
+                    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
+
+                tools.muscle.MuscleTool().execute(concat_file, muscle_align)
+                args = [muscle_align, tmpOutputFile, refName,
+                    '--call-reference-ns', '--trim-ends',
+                    '--replace-5ends', '--replace-3ends',
+                    '--replace-length', str(replaceLength),
+                    '--replace-end-gaps']
+                if newName:
+                    # TODO: may need to add/remove the "-idx" for downstream
+                    args.extend(['-n', newName+"-"+str(idx+1)])
+
+                args = pmc.parse_args(args)
+                args.func_main(args)
+                os.unlink(concat_file)
+                os.unlink(muscle_align)
+
+                tempFastas.append(tmpOutputFile)
     
-    # Align to known reference and impute missing sequences
-    # TO DO: this can be iterated per chromosome
-    concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
-    muscle_align = util.file.mkstempfname('.muscle.fasta')
-    refName = None
-    with open(concat_file, 'wt') as outf:
-        with open(inReference, 'rt') as inf:
-            for line in inf:
-                if not refName and line.startswith('>'):
-                    refName = line[1:].strip()
-                outf.write(line)
-        with open(inFasta, 'rt') as inf:
-            for line in inf:
-                outf.write(line)
-    tools.muscle.MuscleTool().execute(concat_file, muscle_align)
-    args = [muscle_align, outFasta, refName,
-        '--call-reference-ns', '--trim-ends',
-        '--replace-5ends', '--replace-3ends',
-        '--replace-length', str(replaceLength),
-        '--replace-end-gaps']
-    if newName:
-        args = args + ['--name', newName]
-    args = parser_modify_contig().parse_args(args)
-    args.func_main(args)
-    os.unlink(concat_file)
-    os.unlink(muscle_align)
-    
+    util.file.concat(tempFastas, outFasta)
+
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
     tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
     tools.novoalign.NovoalignTool().index_fasta(outFasta)
-    
+
+    for tmpFile in tempFastas:
+        os.unlink(tmpFile)
+ 
     return 0
 
 def parser_impute_from_reference(parser=argparse.ArgumentParser()):
@@ -273,8 +318,8 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
         help='Output assembly, FASTA format.')
     parser.add_argument("--newName", default=None,
         help="rename output chromosome (default: do not rename)")
-    parser.add_argument("--minLength", type=int, default=0,
-        help="minimum length for contig (default: %(default)s)")
+    parser.add_argument("--minLengthFraction", type=float, default=0.9,
+        help="minimum length for contig, as fraction of reference (default: %(default)s)")
     parser.add_argument("--minUnambig", type=float, default=0.0,
         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
     parser.add_argument("--replaceLength", type=int, default=0,
@@ -287,7 +332,7 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 def refine_assembly(inFasta, inBam, outFasta,
         outVcf=None, outBam=None, novo_params='', min_coverage=2,
-        chr_names=[], keep_all_reads=False, JVMmemory=None):
+        chr_names=[], keep_all_reads=False, JVMmemory=None, threads=1):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -324,7 +369,7 @@ def refine_assembly(inFasta, inBam, outFasta,
         picardOptions=opts, JVMmemory=JVMmemory)
     os.unlink(novoBam)
     realignBam = util.file.mkstempfname('.realign.bam')
-    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory)
+    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
     os.unlink(rmdupBam)
     if outBam:
         shutil.copyfile(realignBam, outBam)
@@ -332,7 +377,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
-    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory)
+    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
     os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
@@ -383,6 +428,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel',None), ('version',None), ('tmpDir',None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
@@ -426,7 +474,7 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
     parser.add_argument("input", help="input alignment of reference and contig (should contain exactly 2 sequences)")
     parser.add_argument("output", help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
-    parser.add_argument("-n", "--name",
+    parser.add_argument("-n", "--name", type=str, 
         help="fasta header output name (default: existing header)",
         default=None)
     parser.add_argument("-cn", "--call-reference-ns",
@@ -470,9 +518,12 @@ def main_modify_contig(args):
         Author: rsealfon.
     '''
     aln = Bio.AlignIO.read(args.input, args.format)
-    
+
+    # TODO?: take list of alignments in, one per chromosome, rather than 
+    #       single alignment
+
     if len(aln) != 2:
-        raise Exception("alignment does not contain exactly 2 sequences")
+        raise Exception("alignment does not contain exactly 2 sequences, %s found" % len(aln))
     elif aln[0].name == args.ref:
         ref_idx = 0
         consensus_idx = 1
@@ -499,7 +550,10 @@ def main_modify_contig(args):
         mc.replace_3ends(args.replace_length)
     
     with open(args.output, "wt") as f:
-        name = args.name and args.name or aln[consensus_idx].name
+        if hasattr(args, "name"):
+            name = args.name 
+        else:
+            name = aln[consensus_idx].name
         for line in util.file.fastaMaker([(name, mc.get_stripped_consensus())]):
             f.write(line)
     return 0
@@ -673,6 +727,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
     for i in range(len(samples)):
         sample = samples[i]
         rec = vcfrow[i+9].split(':')
+        
         # require a minimum read coverage
         if len(alleles)==1:
             # simple invariant case
@@ -792,6 +847,11 @@ def main_vcf_to_fasta(args):
     with util.vcf.VcfReader(args.inVcf) as vcf:
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
+
+    assert len(samples) == 1, """Multiple sample columns were found in the intermediary VCF file
+        of the refine_assembly step, suggesting multiple sample names are present 
+        upstream in the BAM file. Please correct this so there is only one sample in the BAM file."""
+
     with open(args.outFasta, 'wt') as outf:
         chr_idx = 0
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),

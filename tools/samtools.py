@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 class SamtoolsTool(tools.Tool) :
     def __init__(self, install_methods = None) :
-        if install_methods == None :
+        if install_methods is None :
             install_methods = [
                 tools.DownloadPackage(url, 'samtools-{}/samtools'.format(tool_version),
                     post_download_command='cd samtools-{}; make -s'.format(tool_version))]
@@ -85,6 +85,11 @@ class SamtoolsTool(tools.Tool) :
             opts = ['-H', '-S']
         #header = pysam.view(*opts)
         self.view(opts, inBam, outHeader)
+
+    def removeDoublyMappedReads(self, inBam, outBam):
+        #opts = ['-b', '-f 2']
+        opts = ['-b', '-F' '1028', '-f', '2']
+        self.view(opts, inBam, outBam)
     
     def getHeader(self, inBam):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''

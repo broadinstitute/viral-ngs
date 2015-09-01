@@ -1,10 +1,12 @@
 # Unit tests for ncbi.py
 
-__author__ = "PLACEHOLDER"
+__author__ = "tomkinsc@broadinstitute.org"
 
-import ncbi
+# built-ins
 import unittest, argparse
 
+#module-specific
+import ncbi
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):

@@ -17,14 +17,14 @@ class NovoalignTool(tools.Tool) :
         self.tool_version = None
         install_methods = []
         for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
-            if novopath != None:
+            if novopath is not None:
                 install_methods.append(tools.PrexistingUnixCommand(
                     os.path.join(novopath, 'novoalign'),
                     require_executability=True))
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def version(self):
-        if self.tool_version==None:
+        if self.tool_version is None:
             self._get_tool_version()
         return self.tool_version
 

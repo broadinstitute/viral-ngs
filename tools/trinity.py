@@ -30,12 +30,14 @@ class TrinityTool(tools.Tool) :
         return tool_version
     
     def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300,
-            JVMmemory=None):
+            JVMmemory=None, threads=1):
         if JVMmemory==None:
             JVMmemory = self.jvmMemDefault
         outdir = tempfile.mkdtemp(prefix='trinity-')
+        if int(threads) < 1:
+            threads = 1
         cmd = [self.install_and_get_path(),
-            '--CPU', '2',
+            '--CPU', '{}'.format(int(threads)),
             '--bflyHeapSpace', JVMmemory.upper(),
             '--min_contig_length', str(min_contig_length),
             '--seqType', 'fq',

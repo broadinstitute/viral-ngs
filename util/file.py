@@ -9,6 +9,14 @@ __date__ = "PLACEHOLDER"
 import os, gzip, tempfile, shutil, errno, logging, json
 import util.cmd
 
+# imports needed for download_file() and webfile_readlines()
+import re
+# since py3 split up urllib
+try:
+    from urllib.request import urlopen
+except ImportError:
+    from urllib2 import urlopen
+
 log = logging.getLogger(__name__)
 
 def get_project_path() :
@@ -215,3 +223,52 @@ def fastaMaker(seqs, linewidth=60):
 
         if seq:
             yield seq+"\n"
+
+def makeFastaFile(seqs, outFasta):
+    with open(outFasta, 'wt') as outf:
+        for line in fastaMaker(seqs):
+            outf.write(line)
+
+    return outFasta
+
+def concat(inputFilePaths, outputFilePath):
+    '''
+        This function creates an output file containing the
+        lines present in the input files, in the order specified
+        by the inputFilePaths list.
+    '''
+    with open(outputFilePath, 'w') as outfile:
+        for filePath in inputFilePaths:
+            with open(filePath) as infile:
+                for line in infile:
+                    outfile.write(line)
+
+def download_file(uriToGet, dest, destFileName=None):
+    destDir = os.path.realpath(os.path.expanduser(dest))
+
+    req = urlopen(uriToGet)
+
+    if not destFileName:
+        m = re.search('filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
+
+        if m:
+            destFileName = m.group("filename")
+        else:
+            destFileName = "file"
+
+    destPath = os.path.join(destDir, destFileName)
+
+    with open(destPath, "wb") as outf:
+        while True:
+           chunk = req.read(1024)
+           if not chunk: break
+           outf.write(chunk)
+
+    return destPath
+
+def webfile_readlines(uriToGet):
+
+    for line in urlopen(uriToGet):#.readlines():
+        cleanedLine = line.decode("utf-8").strip()
+        if len(cleanedLine) > 0:
+            yield cleanedLine
