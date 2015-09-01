@@ -75,7 +75,7 @@ class GATKTool(tools.Tool) :
                 '-R', refFasta, 
                 '-targetIntervals', intervals, 
                 '-o', outBam,
-                '--num_threads', threads,
+                #'--num_threads', threads,
                ]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)
