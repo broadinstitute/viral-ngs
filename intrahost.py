@@ -8,7 +8,7 @@ __author__ = "dpark@broadinstitute.org, rsealfon@broadinstitute.org, "\
 __commands__ = []
 
 # built-ins
-import argparse, logging, itertools, re, shutil, os, collections
+import argparse, logging, itertools, re, os, collections
 
 # third-party
 import Bio.AlignIO, Bio.SeqIO, Bio.Data.IUPACData
@@ -20,7 +20,6 @@ from util.stats import median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
 from tools.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
-import tools.picard
 
 log = logging.getLogger(__name__)
 
@@ -109,12 +108,10 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads = None,
 
     bamToProcess = inBam
     if removeDoublyMappedReads:
-        #bamToProcess = "./test.bam"#util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         bamToProcess = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         samtoolsTool = SamtoolsTool()
         samtoolsTool.removeDoublyMappedReads(inBam, bamToProcess)
         samtoolsTool.index(bamToProcess)
-        #tools.picard.BuildBamIndexTool().execute(bamToProcess)
     variantIter = Vphaser2Tool().iterate(bamToProcess, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
         
@@ -497,8 +494,6 @@ def merge_to_vcf(refFasta, outVcf, samples, isnvs, alignments, strip_chr_version
                     raise LookupError("samples, isnvs, and alignments must have the same number of elements (plus an extra reference record in the alignment). %s does not have the right number of sequences" % fileName)
 
         samp_to_isnv = dict(zip(samples, isnvs))
-
-        sampleNames = list(samples)
 
         # one reference chrom at a time
         with open(refFasta, 'r') as inf:
@@ -889,7 +884,7 @@ def parse_eff(eff_field):
     return out
 
 class SnpEffException(Exception):
-   pass
+    pass
 
 def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
     ''' parse the new snpEff "ANN" INFO field '''
@@ -912,7 +907,7 @@ def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2','GP.3'))):
         raise SnpEffException("ANN field has non-unique alleles")
     for a in alleles:
         if a not in effs_dict:
-           raise SnpEffException("ANN field is missing ALT allele: " + a)
+            raise SnpEffException("ANN field is missing ALT allele: " + a)
     if len(effs) != len(set(alleles)):
         raise SnpEffException("ANN field has %s entries, but ALT field has %s unique alleles: %s" % (
             len(effs), len(set(alleles)), ','.join(alleles)))

@@ -5,7 +5,6 @@ http://snpeff.sourceforge.net/
 
 # built-ins
 import hashlib
-import tempfile
 import os, tempfile, logging, subprocess
 
 # third-party
@@ -32,7 +31,7 @@ class SnpEff(tools.Tool):
         return "4.1"
 
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):
-        if JVMmemory==None:
+        if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java',
             '-Xmx' + JVMmemory,
@@ -151,7 +150,7 @@ class SnpEff(tools.Tool):
                 genomeToUse = databaseId
 
         if not genomeToUse:
-                raise Exception()
+            raise Exception()
         
         args = [
             '-treatAllAsProteinCoding', 'false',

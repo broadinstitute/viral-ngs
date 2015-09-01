@@ -1,11 +1,10 @@
 #!/usr/bin/python
 
 # built-ins
-import sys, os, logging
-import time
+import time, os, logging
 
 # third-party
-from Bio import Entrez, SeqIO
+from Bio import Entrez
 import boltons.iterutils
 
 log = logging.getLogger(__name__)
@@ -28,7 +27,10 @@ def get_feature_table_id(featureTableFile):
     if len(seqid) > 0:
         return seqid
         
-def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwrite=False, rettype="fasta", retmode="text", fileExt=None, combinedFilePrefix=None, removeSeparateFiles=False, chunkSize=1):
+def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
+                        forceOverwrite=False, rettype="fasta", retmode="text",
+                        fileExt=None, combinedFilePrefix=None, removeSeparateFiles=False,
+                        chunkSize=1):
     """ 
         This function downloads and saves files from NCBI nuccore.
     """
@@ -70,7 +72,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
     if outputExtension[:1] != ".":
         outputExtension = "." + outputExtension
 
-    log.info( "Fetching %s entries from GenBank: %s\n" % (len(accessionList), ", ".join(accessionList[:10])))
+    log.info( "Fetching {} entries from GenBank: {}\n", len(accessionList), ", ".join(accessionList[:10]))
     outputFiles = []
 
     for chunkNum, chunk in enumerate(boltons.iterutils.chunked_iter(accessionList, chunkSize)):
@@ -93,7 +95,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
         tryCount = 1
         while True:
             try:
-                log.info("Fetching file %s: %s, try #%s" % (chunkNum+1, accString, tryCount))
+                log.info("Fetching file {}: {}, try #{}",chunkNum+1, accString, tryCount)
                 handle = Entrez.efetch(db=db, rettype=rettype, id=accString)
 
                 with open(outputFilePath, "w") as outf:
@@ -102,11 +104,11 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress, forceOverwr
                 outputFiles.append(outputFilePath)
             except IOError as e:
 
-                log.warning("Error fetching file %s: %s, probably because NCBI is too busy." % (chunkNum+1, accString, tryCount))
+                log.warning("Error fetching file {}: {}, try #{} probably because NCBI is too busy.", chunkNum+1, accString, tryCount)
                 
                 tryCount += 1
                 if tryCount > 4:
-                    log.warning("Tried too many times. Aborting." % (chunkNum+1, accString, tryCount))    
+                    log.warning("Tried too many times. Aborting.")
                     raise
 
                 # if the fetch failed, wait a few seconds and try again.
