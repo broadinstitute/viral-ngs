@@ -72,7 +72,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
     if outputExtension[:1] != ".":
         outputExtension = "." + outputExtension
 
-    log.info( "Fetching {} entries from GenBank: {}\n", len(accessionList), ", ".join(accessionList[:10]))
+    log.info( "Fetching %s entries from GenBank: %s\n", str(len(accessionList)), ", ".join(accessionList[:10]))
     outputFiles = []
 
     for chunkNum, chunk in enumerate(boltons.iterutils.chunked_iter(accessionList, chunkSize)):
@@ -95,7 +95,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
         tryCount = 1
         while True:
             try:
-                log.info("Fetching file {}: {}, try #{}",chunkNum+1, accString, tryCount)
+                log.info("Fetching file %s: %s, try #%s", chunkNum+1, accString, tryCount)
                 handle = Entrez.efetch(db=db, rettype=rettype, id=accString)
 
                 with open(outputFilePath, "w") as outf:
@@ -104,7 +104,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
                 outputFiles.append(outputFilePath)
             except IOError as e:
 
-                log.warning("Error fetching file {}: {}, try #{} probably because NCBI is too busy.", chunkNum+1, accString, tryCount)
+                log.warning("Error fetching file %s: %s, try #%s probably because NCBI is too busy.", chunkNum+1, accString, tryCount)
                 
                 tryCount += 1
                 if tryCount > 4:
