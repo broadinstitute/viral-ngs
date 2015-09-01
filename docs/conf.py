@@ -23,19 +23,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath('.')))
 
 # -- Mock out the heavyweight pip packages, esp those that require C ----
 import mock
-MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'pysam',
-  'Bio', 'Bio.AlignIO', 'Bio.SeqIO', 'Bio.Data.IUPACData']
+MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'pysam', 'Bio', 'Bio.AlignIO', 'Bio.SeqIO', 'Bio.Data.IUPACData']
 for mod_name in MOCK_MODULES:
-   sys.modules[mod_name] = mock.Mock()
-   
-# -- Obtain GIT version --
+    sys.modules[mod_name] = mock.Mock()
+
+    # -- Obtain GIT version --
 import subprocess
+
+
 def _git_version():
     cmd = ['git', 'describe', '--tags', '--always']  # omit "--dirty" from doc build
     out = subprocess.check_output(cmd)
     if type(out) != str:
         out = out.decode('utf-8')
     return out.strip()
+
+
 __version__ = _git_version()
 
 # -- General configuration ------------------------------------------------
@@ -46,12 +49,7 @@ __version__ = _git_version()
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.pngmath',
-    'sphinxarg.ext',
-]
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.pngmath', 'sphinxarg.ext',]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -113,7 +111,6 @@ pygments_style = 'sphinx'
 
 # If true, keep warnings as "system message" paragraphs in the built documents.
 #keep_warnings = False
-
 
 # -- Options for HTML output ----------------------------------------------
 
@@ -199,27 +196,21 @@ html_last_updated_fmt = '%Y-%m-%d. {}'.format(release)
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'viral-ngsdoc'
 
-
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
-
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
-
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+    # The paper size ('letterpaper' or 'a4paper').
+    #'papersize': 'letterpaper',
+    # The font size ('10pt', '11pt' or '12pt').
+    #'pointsize': '10pt',
+    # Additional stuff for the LaTeX preamble.
+    #'preamble': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-  ('index', 'viral-ngs.tex', 'viral-ngs Documentation',
-   'Broad Institute Viral Genomics', 'manual'),
-]
+latex_documents = [('index', 'viral-ngs.tex', 'viral-ngs Documentation', 'Broad Institute Viral Genomics', 'manual'),]
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
@@ -241,19 +232,14 @@ latex_documents = [
 # If false, no module index is generated.
 #latex_domain_indices = True
 
-
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    ('index', 'viral-ngs', 'viral-ngs Documentation',
-     ['Broad Institute Viral Genomics'], 1)
-]
+man_pages = [('index', 'viral-ngs', 'viral-ngs Documentation', ['Broad Institute Viral Genomics'], 1)]
 
 # If true, show URL addresses after external links.
 #man_show_urls = False
-
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -261,19 +247,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'viral-ngs', 'viral-ngs Documentation',
-   'Broad Institute Viral Genomics', 'viral-ngs', 'Viral genomics analysis pipelines',
-   'Miscellaneous'),
+    ('index', 'viral-ngs', 'viral-ngs Documentation', 'Broad Institute Viral Genomics', 'viral-ngs',
+     'Viral genomics analysis pipelines', 'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.
 #texinfo_appendices = []
-
 # If false, no module index is generated.
 #texinfo_domain_indices = True
-
 # How to display URL addresses: 'footnote', 'no', or 'inline'.
 #texinfo_show_urls = 'footnote'
-
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False

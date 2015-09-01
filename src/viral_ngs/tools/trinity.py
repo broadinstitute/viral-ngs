@@ -16,8 +16,7 @@ import tools
 
 tool_version = "2011-11-26"
 trinityVersion = "trinityrnaseq_r{}".format(tool_version)
-url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(
-    trinityVersion)
+url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(trinityVersion)
 
 log = logging.getLogger(__name__)
 
@@ -27,29 +26,21 @@ class TrinityTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [
-                DownloadAndBuildTrinity(url, trinityVersion + '/Trinity.pl')
-            ]
+            install_methods = [DownloadAndBuildTrinity(url, trinityVersion + '/Trinity.pl')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return tool_version
 
-    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300,
-                JVMmemory=None, threads=1):
+    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300, JVMmemory=None, threads=1):
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         outdir = tempfile.mkdtemp(prefix='trinity-')
         if int(threads) < 1:
             threads = 1
-        cmd = [self.install_and_get_path(),
-               '--CPU', '{}'.format(int(threads)),
-               '--bflyHeapSpace', JVMmemory.upper(),
-               '--min_contig_length', str(min_contig_length),
-               '--seqType', 'fq',
-               '--left', inFastq1,
-               '--right', inFastq2,
-               '--output', outdir]
+        cmd = [self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
+               '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right',
+               inFastq2, '--output', outdir]
         log.debug(' '.join(cmd))
         subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
@@ -62,8 +53,7 @@ class DownloadAndBuildTrinity(tools.DownloadPackage):
         trinityDir = os.path.join(self.destination_dir, trinityVersion)
         if tool_version == "2011-11-26":
             # Chrysalis doesn't compile. Need to add an include file.
-            badFilePath = os.path.join(trinityDir, 'Chrysalis', 'analysis',
-                                       'RunButterfly.cc')
+            badFilePath = os.path.join(trinityDir, 'Chrysalis', 'analysis', 'RunButterfly.cc')
             os.rename(badFilePath, badFilePath + '.orig')
             with open(badFilePath, 'wt') as outf:
                 outf.write('#include <unistd.h>\n')

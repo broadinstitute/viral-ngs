@@ -57,10 +57,8 @@ def chi2_contingency(contingencyTable, correction=True):
         raise ValueError('Not all rows have the same length')
 
     # Eliminate rows and columns with 0 sum
-    colSums = [sum(row[col] for row in contingencyTable)
-               for col in range(len(contingencyTable[0]))]
-    table = [[x for x, colSum in zip(row, colSums) if colSum != 0]
-             for row in contingencyTable if sum(row) != 0]
+    colSums = [sum(row[col] for row in contingencyTable) for col in range(len(contingencyTable[0]))]
+    table = [[x for x, colSum in zip(row, colSums) if colSum != 0] for row in contingencyTable if sum(row) != 0]
 
     if len(table) < 2 or len(table[0]) < 2:
         return 1.0
@@ -72,15 +70,15 @@ def chi2_contingency(contingencyTable, correction=True):
     N = sum(rowSums)
     expect = [[rowSums[i] * colSums[j] / N for j in range(n)] for i in range(m)]
     if correction and m == n == 2:
+
         def corr(i, j):
             if expect[i][j] > table[i][j]:
                 return min(table[i][j] + 0.5, expect[i][j])
             else:
                 return max(table[i][j] - 0.5, expect[i][j])
+
         table = [[corr(i, j) for j in range(n)] for i in range(m)]
-    chisq = sum((table[i][j] - expect[i][j]) ** 2 / expect[i][j]
-                for j in range(n)
-                for i in range(m))
+    chisq = sum((table[i][j] - expect[i][j]) ** 2 / expect[i][j] for j in range(n) for i in range(m))
     pval = 1 - pchisq(chisq, (m - 1) * (n - 1))
     return pval
 
@@ -107,10 +105,8 @@ def fisher_exact(contingencyTable):
         raise ValueError('Some table entry is negative')
 
     # Eliminate rows and columns with 0 sum
-    colSums = [sum(row[col] for row in contingencyTable)
-               for col in range(len(contingencyTable[0]))]
-    table = [[x for x, colSum in zip(row, colSums) if colSum != 0]
-             for row in contingencyTable if sum(row) != 0]
+    colSums = [sum(row[col] for row in contingencyTable) for col in range(len(contingencyTable[0]))]
+    table = [[x for x, colSum in zip(row, colSums) if colSum != 0] for row in contingencyTable if sum(row) != 0]
 
     if len(table) < 2 or len(table[0]) < 2:
         return 1.0
@@ -140,13 +136,11 @@ def fisher_exact(contingencyTable):
     logChooseNrowSum = log_choose(sum(rowSums), rowSums[0])
 
     def prob_of_table(firstRow):
-        return exp(sum(log_choose(cs, a) for cs, a in zip(colSums, firstRow)) -
-                   logChooseNrowSum)
+        return exp(sum(log_choose(cs, a) for cs, a in zip(colSums, firstRow)) - logChooseNrowSum)
 
     p0 = prob_of_table(table[0])
     result = 0
-    for firstRowM1 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1)
-                                          for i in range(n - 1)]):
+    for firstRowM1 in itertools.product(*[range(min(rowSums[0], colSums[i]) + 1) for i in range(n - 1)]):
         lastElmt = rowSums[0] - sum(firstRowM1)
         if lastElmt < 0 or lastElmt > colSums[-1]:
             continue

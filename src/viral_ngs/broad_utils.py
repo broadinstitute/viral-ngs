@@ -22,16 +22,15 @@ import tools.picard
 
 log = logging.getLogger(__name__)
 
-
 # ==========================================
 # ***  get stuff from Picard json file   ***
 # ==========================================
 
+
 def get_json_from_picard(picardDir):
     ''' for example, /seq/walkup/picard/{flowcell_minus_first_char} '''
     analysisDir = max(
-        (os.path.getmtime(os.path.join(picardDir, d)), d)
-        for d in os.listdir(picardDir)
+        (os.path.getmtime(os.path.join(picardDir, d)), d) for d in os.listdir(picardDir)
         if os.path.isdir(os.path.join(picardDir, d)))[1]
     jsonfile = list(glob.glob(os.path.join(picardDir, analysisDir, 'info', 'logs', '*.json')))
     if len(jsonfile) != 1:
@@ -62,6 +61,8 @@ def main_get_bustard_dir(args):
     'Find the basecalls directory from a Picard directory'
     print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
+
+
 __commands__.append(('get_bustard_dir', parser_get_bustard_dir))
 
 
@@ -76,12 +77,14 @@ def main_get_run_date(args):
     'Find the sequencing run date from a Picard directory'
     print(get_run_date(get_json_from_picard(args.inDir)))
     return 0
-__commands__.append(('get_run_date', parser_get_run_date))
 
+
+__commands__.append(('get_run_date', parser_get_run_date))
 
 # ===============
 # ***  misc   ***
 # ===============
+
 
 def iterate_lanes(runfile):
     for flowcellfile in util.file.read_tabfile(runfile):
@@ -96,13 +99,12 @@ def iterate_wells(runfile):
 
 
 def get_all_samples(runfile):
-    return list(sorted(set(well['sample']
-                           for lane, well in iterate_wells(runfile))))
+    return list(sorted(set(well['sample'] for lane, well in iterate_wells(runfile))))
 
 
 def get_all_libraries(runfile):
-    return list(sorted(set(well['sample'] + '.l' + well['library_id_per_sample']
-                           for lane, well in iterate_wells(runfile))))
+    return list(sorted(set(well['sample'] + '.l' + well['library_id_per_sample'] for lane, well in iterate_wells(
+        runfile))))
 
 
 def get_run_id(well):
@@ -115,13 +117,12 @@ def get_run_id(well):
 
 
 def get_all_runs(runfile):
-    return list(sorted(get_run_id(well) + '.' + lane['flowcell'] + '.' + lane['lane']
-                       for lane, well in iterate_wells(runfile)))
+    return list(sorted(get_run_id(well) + '.' + lane['flowcell'] + '.' + lane['lane'] for lane, well in iterate_wells(
+        runfile)))
 
 
 def parser_get_all_names(parser=argparse.ArgumentParser()):
-    parser.add_argument('type', help='Type of name',
-                        choices=['samples', 'libraries', 'runs'])
+    parser.add_argument('type', help='Type of name', choices=['samples', 'libraries', 'runs'])
     parser.add_argument('runfile', help='File with seq run information')
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_all_names)
@@ -139,12 +140,14 @@ def main_get_all_names(args):
     for s in method(args.runfile):
         print(s)
     return 0
-__commands__.append(('get_all_names', parser_get_all_names))
 
+
+__commands__.append(('get_all_names', parser_get_all_names))
 
 # =============================
 # ***  make_barcodes_file   ***
 # =============================
+
 
 def make_barcodes_file(inFile, outFile):
     'Create input file for extract_barcodes'
@@ -155,10 +158,12 @@ def make_barcodes_file(inFile, outFile):
     with open(outFile, 'wt') as outf:
         outf.write('\t'.join(header) + '\n')
         for row in util.file.read_tabfile_dict(inFile):
-            out = {'barcode_sequence_1': row['barcode_1'],
-                   'barcode_sequence_2': row.get('barcode_2', ''),
-                   'barcode_name': row['sample'],
-                   'library_name': row['sample']}
+            out = {
+                'barcode_sequence_1': row['barcode_1'],
+                'barcode_sequence_2': row.get('barcode_2', ''),
+                'barcode_name': row['sample'],
+                'library_name': row['sample']
+            }
             if row.get('library_id_per_sample'):
                 out['library_name'] += '.l' + row['library_id_per_sample']
             outf.write('\t'.join(out[h] for h in header) + '\n')
@@ -171,6 +176,8 @@ def parser_make_barcodes_file(parser=argparse.ArgumentParser()):
     parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
     util.cmd.attach_main(parser, make_barcodes_file, split_args=True)
     return parser
+
+
 __commands__.append(('make_barcodes_file', parser_make_barcodes_file))
 
 # ===========================
@@ -185,9 +192,7 @@ def parser_extract_barcodes(parser=argparse.ArgumentParser()):
                         help='''Input tab file w/header and four named columns:
                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
     parser.add_argument('outDir', help='Output directory for barcodes.')
-    parser.add_argument('--outMetrics',
-                        help='Output metrics file. Default is to dump to a temp file.',
-                        default=None)
+    parser.add_argument('--outMetrics', help='Output metrics file. Default is to dump to a temp file.', default=None)
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
         parser.add_argument('--' + opt,
                             help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
@@ -203,14 +208,19 @@ def parser_extract_barcodes(parser=argparse.ArgumentParser()):
 def main_extract_barcodes(args):
     'Match every read in a lane against their barcode.'
     out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt))
-                      for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
                       if hasattr(args, opt) and getattr(args, opt) != None)
     tools.picard.ExtractIlluminaBarcodesTool().execute(
-        os.path.join(args.inDir, 'Data', 'Intensities', 'BaseCalls'), args.lane, args.barcodeFile,
-        args.outDir, out_metrics,
-        picardOptions=picardOpts, JVMmemory=args.JVMmemory)
+        os.path.join(args.inDir, 'Data', 'Intensities', 'BaseCalls'),
+        args.lane,
+        args.barcodeFile,
+        args.outDir,
+        out_metrics,
+        picardOptions=picardOpts,
+        JVMmemory=args.JVMmemory)
     return 0
+
+
 __commands__.append(('extract_barcodes', parser_extract_barcodes))
 
 # ==============================
@@ -229,10 +239,12 @@ def make_params_file(inFile, bamDir, outFile):
         rows = list(util.file.read_tabfile_dict(inFile))
         rows.append({'barcode_1': 'N', 'barcode_2': 'N', 'sample': 'Unmatched'})
         for row in rows:
-            out = {'BARCODE_1': row['barcode_1'],
-                   'BARCODE_2': row.get('barcode_2', ''),
-                   'SAMPLE_ALIAS': row['sample'],
-                   'LIBRARY_NAME': row['sample']}
+            out = {
+                'BARCODE_1': row['barcode_1'],
+                'BARCODE_2': row.get('barcode_2', ''),
+                'SAMPLE_ALIAS': row['sample'],
+                'LIBRARY_NAME': row['sample']
+            }
             if row.get('library_id_per_sample'):
                 out['LIBRARY_NAME'] += '.l' + row['library_id_per_sample']
             run_id = out['LIBRARY_NAME']
@@ -250,6 +262,8 @@ def parser_make_params_file(parser=argparse.ArgumentParser()):
     parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
     util.cmd.attach_main(parser, make_params_file, split_args=True)
     return parser
+
+
 __commands__.append(('make_params_file', parser_make_params_file))
 
 # =============================
@@ -289,7 +303,8 @@ def parser_illumina_basecalls(parser=argparse.ArgumentParser()):
                 BARCODE_1, BARCODE_2, OUTPUT, SAMPLE_ALIAS, LIBRARY_NAME''')
     for opt in tools.picard.IlluminaBasecallsToSamTool.option_list:
         if opt == 'adapters_to_check':
-            parser.add_argument('--' + opt, nargs='*',
+            parser.add_argument('--' + opt,
+                                nargs='*',
                                 help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
                                 default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
         else:
@@ -306,8 +321,7 @@ def parser_illumina_basecalls(parser=argparse.ArgumentParser()):
 
 def main_illumina_basecalls(args):
     'Demultiplex Illumina runs & produce BAM files, one per sample'
-    picardOpts = dict((opt, getattr(args, opt))
-                      for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
                       if hasattr(args, opt) and getattr(args, opt) != None)
     if not picardOpts.get('run_start_date'):
         picardOpts['run_start_date'] = get_earliest_date(args.inBustardDir)
@@ -315,15 +329,23 @@ def main_illumina_basecalls(args):
     #    picardOpts['read_group_id'] = short_hash('{}.{}'.format(args.flowcell,args.lane), 6)
     tools.picard.IlluminaBasecallsToSamTool().execute(
         os.path.join(args.inBustardDir, 'Data/Intensities/BaseCalls'),
-        args.inBarcodesDir, args.flowcell, args.lane, args.paramsFile,
-        picardOptions=picardOpts, JVMmemory=args.JVMmemory)
+        args.inBarcodesDir,
+        args.flowcell,
+        args.lane,
+        args.paramsFile,
+        picardOptions=picardOpts,
+        JVMmemory=args.JVMmemory)
     return 0
-__commands__.append(('illumina_basecalls', parser_illumina_basecalls))
 
+
+__commands__.append(('illumina_basecalls', parser_illumina_basecalls))
 
 # =======================
 
+
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
+
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

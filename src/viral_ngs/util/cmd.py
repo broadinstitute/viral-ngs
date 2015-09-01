@@ -37,18 +37,21 @@ def common_args(parser, arglist=(('tmpDir', None), ('loglevel', None))):
         if k == 'loglevel':
             if not v:
                 v = 'DEBUG'
-            parser.add_argument("--loglevel", dest="loglevel",
+            parser.add_argument("--loglevel",
+                                dest="loglevel",
                                 help="Verboseness of output.  [default: %(default)s]",
                                 default=v,
                                 choices=('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'EXCEPTION'))
         elif k == 'tmpDir':
             if not v:
                 v = find_tmpDir()
-            parser.add_argument("--tmpDir", dest="tmpDir",
+            parser.add_argument("--tmpDir",
+                                dest="tmpDir",
                                 help="Base directory for temp files. [default: %(default)s]",
                                 default=v)
             parser.add_argument("--tmpDirKeep",
-                                action="store_true", dest="tmpDirKeep",
+                                action="store_true",
+                                dest="tmpDirKeep",
                                 help="""Keep the tmpDir if an exception occurs while
                     running. Default is to delete all temp files at
                     the end, even if there's a failure.""",
@@ -67,10 +70,12 @@ def main_command(mainfunc):
         with an argparse.Namespace object. When called, it will pass all
         the values of the object on as parameters to the function call.
     '''
+
     def _main(args):
         args2 = dict((k, v) for k, v in vars(args).items() if k not in (
             'loglevel', 'tmpDir', 'tmpDirKeep', 'version', 'func_main', 'command'))
         mainfunc(**args2)
+
     _main.__doc__ = mainfunc.__doc__
     return _main
 
@@ -101,8 +106,7 @@ def make_parser(commands, description):
         parser.set_defaults(command='')
     else:
         # multiple commands available
-        parser = argparse.ArgumentParser(description=description,
-                                         usage='%(prog)s subcommand', add_help=False)
+        parser = argparse.ArgumentParser(description=description, usage='%(prog)s subcommand', add_help=False)
         parser.add_argument('--help', '-h', action='help', help=argparse.SUPPRESS)
         parser.add_argument('--version', '-V', action='version', version=__version__, help=argparse.SUPPRESS)
         subparsers = parser.add_subparsers(title='subcommands', dest='command')
@@ -124,8 +128,7 @@ def main_argparse(commands, description):
 
     setup_logger(not hasattr(args, 'loglevel') and 'DEBUG' or args.loglevel)
     log.info("software version: %s, python version: %s", __version__, sys.version)
-    log.info("command: %s %s %s",
-             sys.argv[0], sys.argv[1],
+    log.info("command: %s %s %s", sys.argv[0], sys.argv[1],
              ' '.join(["%s=%s" % (k, v) for k, v in vars(args).items() if k not in ('command', 'func_main')]))
 
     if hasattr(args, 'tmpDir'):
@@ -135,20 +138,18 @@ def main_argparse(commands, description):
         '''
         proposed_dir = 'tmp-%s-%s' % (script_name(), args.command)
         if 'LSB_JOBID' in os.environ:
-            proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command,
-                                                os.environ['LSB_JOBID'], os.environ['LSB_JOBINDEX'])
+            proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ['LSB_JOBID'],
+                                                os.environ['LSB_JOBINDEX'])
         tempfile.tempdir = tempfile.mkdtemp(prefix='%s-' % proposed_dir, dir=args.tmpDir)
         log.debug("using tempDir: %s", tempfile.tempdir)
-        os.environ['TMPDIR'] = tempfile.tempdir     # this is for running R
+        os.environ['TMPDIR'] = tempfile.tempdir  # this is for running R
         try:
             ret = args.func_main(args)
         except:
             if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep and not (
                     tempfile.tempdir.startswith('/tmp') or tempfile.tempdir.startswith('/local')):
                 log.exception(
-                    "Exception occurred while running %s, saving tmpDir at %s",
-                    args.command,
-                    tempfile.tempdir)
+                    "Exception occurred while running %s, saving tmpDir at %s", args.command, tempfile.tempdir)
             else:
                 shutil.rmtree(tempfile.tempdir)
             raise

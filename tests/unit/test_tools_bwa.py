@@ -18,14 +18,11 @@ class TestToolBwa(TestCaseWithTmp):
         self.bwa.install()
 
     def test_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(),
-                                'ebola.fasta')
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
         inRef = util.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
 
-        expected_fasta = os.path.join(
-            util.file.get_test_input_path(self),
-            'ebola_expected.fasta')
+        expected_fasta = os.path.join(util.file.get_test_input_path(self), 'ebola_expected.fasta')
 
         self.bwa.execute('index', [inRef])
         for ext in ('amb', 'ann', 'bwt', 'pac', 'sa'):
@@ -40,9 +37,7 @@ class TestToolBwa(TestCaseWithTmp):
         output = util.file.mkstempfname('.sai')
         expect = os.path.join(expectedDir, 'ebola_aln_expected.sai')
 
-        self.bwa.execute('aln', [reference, fastq],
-                         options={'-q': 5, '-t': 4},
-                         post_cmd=" > {}".format(output))
+        self.bwa.execute('aln', [reference, fastq], options={'-q': 5, '-t': 4}, post_cmd=" > {}".format(output))
 
         self.assertEqualContents(output, expect)
 

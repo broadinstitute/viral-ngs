@@ -203,8 +203,7 @@ class CoordMapper(DictMixin):
                         # (could occur if same sequence is read in from multiple files)
                         if (seq2.id in self.chrMaps[seq1.id]):
                             raise KeyError(
-                                "duplicate sequence name '%s' already in chrMap for %s" %
-                                (seq2.id, seq1.id))
+                                "duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
 
                         mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
                         mapDict = self.chrMaps[seq1.id]
@@ -314,7 +313,7 @@ class CoordMapper2Seqs(object):
             nextFromPos = fromArray[insertInd]
             prevToPos = toArray[insertInd - 1]
             nextToPos = toArray[insertInd]
-            assert(prevFromPos <= fromPos < nextFromPos)
+            assert (prevFromPos <= fromPos < nextFromPos)
             prevPlusOffset = prevToPos + (fromPos - prevFromPos)
             if fromPos == nextFromPos - 1 and prevPlusOffset < nextToPos - 1:
                 result = [prevPlusOffset, nextToPos - 1]
@@ -322,8 +321,8 @@ class CoordMapper2Seqs(object):
                 result = min(prevPlusOffset, nextToPos - 1)
         return result
 
-
 # ========== snpEff annotation of VCF files ==================
+
 
 def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
@@ -337,34 +336,45 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
-__commands__.append(('snpEff', parser_snpEff))
 
+
+__commands__.append(('snpEff', parser_snpEff))
 
 # =======================
 # ***  align_mafft  ***
 # =======================
 
+
 def parser_general_mafft(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastas', nargs='+',
-                        help='Input FASTA files.')
+    parser.add_argument('inFastas', nargs='+', help='Input FASTA files.')
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--localpair', default=None, action='store_true',
+    group.add_argument('--localpair',
+                       default=None,
+                       action='store_true',
                        help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
-    group.add_argument('--globalpair', default=None, action='store_true',
+    group.add_argument('--globalpair',
+                       default=None,
+                       action='store_true',
                        help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
 
-    parser.add_argument('--preservecase', default=None, action='store_true',
+    parser.add_argument('--preservecase',
+                        default=None,
+                        action='store_true',
                         help='Preserve base or aa case, as well as symbols.')
-    parser.add_argument('--reorder', default=None, action='store_true',
+    parser.add_argument('--reorder',
+                        default=None,
+                        action='store_true',
                         help='Output is ordered aligned rather than in the order of the input (default: %(default)s).')
-    parser.add_argument('--gapOpeningPenalty', default=1.53, type=float,
+    parser.add_argument('--gapOpeningPenalty',
+                        default=1.53,
+                        type=float,
                         help='Gap opening penalty (default: %(default)s).')
-    parser.add_argument('--ep', type=float,
-                        help='Offset (works like gap extension penalty).')
-    parser.add_argument('--verbose', default=False, action='store_true',
-                        help='Full output (default: %(default)s).')
-    parser.add_argument('--outputAsClustal', default=None, action='store_true',
+    parser.add_argument('--ep', type=float, help='Offset (works like gap extension penalty).')
+    parser.add_argument('--verbose', default=False, action='store_true', help='Full output (default: %(default)s).')
+    parser.add_argument('--outputAsClustal',
+                        default=None,
+                        action='store_true',
                         help='Write output file in Clustal format rather than FASTA')
     parser.add_argument(
         '--maxiters',
@@ -374,8 +384,7 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
                 Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.""")
     parser.add_argument(
         '--threads',
-        default=-
-        1,
+        default=-1,
         type=int,
         help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
     return parser
@@ -384,8 +393,7 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
 def parser_align_mafft(parser):
     parser = parser_general_mafft(parser)
 
-    parser.add_argument('outFile',
-                        help='Output file containing alignment result (default format: FASTA)')
+    parser.add_argument('outFile', help='Output file containing alignment result (default format: FASTA)')
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, main_align_mafft)
@@ -411,10 +419,11 @@ def main_align_mafft(args):
         verbose=args.verbose,
         outputAsClustal=args.outputAsClustal,
         maxiters=args.maxiters,
-        threads=args.threads
-    )
+        threads=args.threads)
 
     return 0
+
+
 __commands__.append(('align_mafft', parser_align_mafft))
 
 # =======================
@@ -425,15 +434,17 @@ __commands__.append(('align_mafft', parser_align_mafft))
 def parser_multichr_mafft(parser):
     parser = parser_general_mafft(parser)
 
-    parser.add_argument('outDirectory',
-                        help='Location for the output files (default is cwd: %(default)s)')
-    parser.add_argument('--outFilePrefix', default="aligned",
+    parser.add_argument('outDirectory', help='Location for the output files (default is cwd: %(default)s)')
+    parser.add_argument('--outFilePrefix',
+                        default="aligned",
                         help='Prefix for the output file name (default: %(default)s)')
-    parser.add_argument('--sampleRelationFile', default=None,
+    parser.add_argument('--sampleRelationFile',
+                        default=None,
                         help="""If the parameter sampleRelationFile is specified
         (as a file path), a JSON file will be written mapping
         sample name to sequence position in the output.""")
-    parser.add_argument('--sampleNameListFile', default=None,
+    parser.add_argument('--sampleNameListFile',
+                        default=None,
                         help="""If the parameter sampleRelationFile is specified
         (as a file path), a file will be written mapping
         sample names in the order of their sequence
@@ -484,10 +495,11 @@ def multichr_mafft(args):
             verbose=args.verbose,
             outputAsClustal=args.outputAsClustal,
             maxiters=args.maxiters,
-            threads=args.threads
-        )
+            threads=args.threads)
 
     return 0
+
+
 __commands__.append(('multichr_mafft', parser_multichr_mafft))
 
 # ============================
@@ -515,8 +527,8 @@ def vcf_header(a):
     header = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
-    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER',
-                               'INFO', 'FORMAT'] + [x.id for x in a]) + '\n'
+    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in
+                                                                                                          a]) + '\n'
     return header
 
 
@@ -596,5 +608,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
+
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

@@ -5,7 +5,6 @@ __author__ = "dpark@broadinstitute.org"
 import util.vcf
 import util.file
 import unittest
-
 '''
 TODO
 make_intervals
@@ -40,8 +39,8 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_fail_OOB_get_gpos(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        invalids = [('SDF', 0), ('SDF', 124), ('ASDF', -1), ('lala', 48),
-                    ('lala', 200), ('sdf', 80), ('la', 2), (None, 3)]
+        invalids = [('SDF', 0), ('SDF', 124), ('ASDF', -1), ('lala', 48), ('lala', 200), ('sdf', 80), ('la', 2),
+                    (None, 3)]
         gmap = util.vcf.GenomePosition(genome)
         for c, p in invalids:
             self.assertRaises(Exception, gmap.get_gpos, c, p)
@@ -63,8 +62,8 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_spotcheck_edges(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        knowns = [('SDF', 1, 1), ('SDF', 123, 123), ('ASDF', 1, 124),
-                  ('ASDF', 256, 379), ('lala', 1, 380), ('lala', 47, 426)]
+        knowns = [('SDF', 1, 1), ('SDF', 123, 123), ('ASDF', 1, 124), ('ASDF', 256, 379), ('lala', 1, 380),
+                  ('lala', 47, 426)]
         gmap = util.vcf.GenomePosition(genome)
         for c, p, gpos in knowns:
             self.assertEqual(gpos, gmap.get_gpos(c, p))
@@ -75,7 +74,7 @@ class TestGenomePosition(unittest.TestCase):
         c = genome.chrs[0]
         gmap = util.vcf.GenomePosition(genome)
         for i in range(1, genome.totlen + 1):
-            self.assertEqual(i, gmap.get_gpos(c, i))      # c,p -> gpos should produce p=gpos
+            self.assertEqual(i, gmap.get_gpos(c, i))  # c,p -> gpos should produce p=gpos
             self.assertEqual((c, i), gmap.get_chr_pos(i))  # gpos -> c,p should produce p=gpos
 
     def test_equality_3chrGenome(self):

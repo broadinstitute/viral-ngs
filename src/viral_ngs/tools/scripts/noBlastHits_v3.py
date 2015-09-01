@@ -3,12 +3,14 @@ import argparse
 import sys
 
 parser = argparse.ArgumentParser(description='This program outputs to stdout reads that have no blast hits')
-parser.add_argument('-b', action="store", dest="blastPath", required=True,
-                    help="path to the blast hits file")
-parser.add_argument('-r', action="store", dest="readsPath", required=True,
-                    help="path to the reads file")
-parser.add_argument('-m', action="store", dest="hit", required=True,
-                    help="hit => output reads with hits, nohit => output reads with no hits", choices=['hit', 'nohit'])
+parser.add_argument('-b', action="store", dest="blastPath", required=True, help="path to the blast hits file")
+parser.add_argument('-r', action="store", dest="readsPath", required=True, help="path to the reads file")
+parser.add_argument('-m',
+                    action="store",
+                    dest="hit",
+                    required=True,
+                    help="hit => output reads with hits, nohit => output reads with no hits",
+                    choices=['hit', 'nohit'])
 args = parser.parse_args()
 
 blastReads = {}

@@ -67,8 +67,7 @@ class MockVphaserOutput:
             # ...
             raise Exception
 
-        acounts = reversed(sorted((acount[1] + acount[2],) + tuple(acount)
-                                  for acount in acounts))
+        acounts = reversed(sorted((acount[1] + acount[2],) + tuple(acount) for acount in acounts))
         acounts = [tuple(acount[1:]) for acount in acounts]
         if chrom not in self.chroms:
             self.chroms.append(chrom)
@@ -94,8 +93,7 @@ class MockVphaserOutput:
             # ...
             raise Exception
 
-        acounts = reversed(sorted((acount[1] + acount[2],) + tuple(acount)
-                                  for acount in acounts))
+        acounts = reversed(sorted((acount[1] + acount[2],) + tuple(acount) for acount in acounts))
         acounts = [list(acount[1:]) for acount in acounts]
 
         # vphaser funniness here
@@ -146,8 +144,7 @@ class TestPerSample(test.TestCaseWithTmp):
         data.add_snp('c1', 100, [('A', 10, 20), ('T', 5, 2), ('C', 30, 500), ('G', 60, 40)])
         data.add_snp('c2', 100, [('C', 10, 2), ('T', 2, 8)])
         output = list(intrahost.filter_strand_bias(data))
-        expected = ['c1', '100', 'A', 'G', None, 'snp', 23.076923076923078,
-                    'G:60:40:60:40:1', 'A:10:20:10:20:1']
+        expected = ['c1', '100', 'A', 'G', None, 'snp', 23.076923076923078, 'G:60:40:60:40:1', 'A:10:20:10:20:1']
         self.assertEqual(len(output), 1)
         self.assertEqual(output[0][:4], expected[:4])
         self.assertEqual(output[0][5], expected[5])
@@ -171,8 +168,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
-                                     vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -191,8 +187,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.indels.bam')
         refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
-                                     vphaserNumThreads=4, minReadsEach=0)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_indels_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -203,8 +198,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.2libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
-                                     vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -220,8 +214,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.3libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab,
-                                     vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -280,9 +273,7 @@ class VcfMergeRunner:
 
         seqIds = list(itertools.chain.from_iterable(self.sequence_order.values()))
 
-        intrahost.merge_to_vcf(self.ref, outVcf,
-                               seqIds,
-                               list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+        intrahost.merge_to_vcf(self.ref, outVcf, seqIds, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
                                self.alignedFastas)
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
@@ -328,8 +319,7 @@ class VcfMergeRunner:
                 outputAsClustal=None,
                 maxiters=1000,
                 threads=-1,
-                retree=retree
-            )
+                retree=retree)
             self.alignedFastas.append(alignedOutFile)
 
 
@@ -367,9 +357,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         outVcf = util.file.mkstempfname('.vcf.gz')
         self.assertRaises(
             LookupError, intrahost.merge_to_vcf, ref, outVcf, [
-                's1', 's2'], [
-                emptyfile, emptyfile], [
-                s1, s2])
+                's1', 's2'
+            ], [
+                emptyfile, emptyfile
+            ], [
+                s1, s2
+            ])
         with util.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
             self.assertEqual(vcf.chrlens(), {'ref1': 8, 'ref2': 5})
@@ -720,6 +713,6 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 2)
         self.assertEqual(rows[0].ref, 'TC')
         self.assertEqual(rows[0].alt, 'T,TAC')
-        self.assertEqual(rows[0][0].split(':')[0], '0')   # s1 is 0.5 TC, 0.3 T, 0.2 TAC
+        self.assertEqual(rows[0][0].split(':')[0], '0')  # s1 is 0.5 TC, 0.3 T, 0.2 TAC
         for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.3, 0.2]):
             self.assertAlmostEqual(float(actual), expected, places=2)

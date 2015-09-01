@@ -81,11 +81,16 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
-           '-n', str(n_reads),
-           '-mode', 'p',
-           '-in', purgefq[0], purgefq[1],
-           '-out', subsampfq[0], subsampfq[1],
-           ]
+           '-n',
+           str(n_reads),
+           '-mode',
+           'p',
+           '-in',
+           purgefq[0],
+           purgefq[1],
+           '-out',
+           subsampfq[0],
+           subsampfq[1],]
     subprocess.check_call(cmd)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
@@ -103,8 +108,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         opts = ['INPUT=' + tmp_header, 'OUTPUT=' + outBam, 'VERBOSITY=ERROR']
         tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
     else:
-        tools.picard.FastqToSamTool().execute(
-            subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
+        tools.picard.FastqToSamTool().execute(subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
         tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
     os.unlink(tmp_bam)
     os.unlink(tmp_header)
@@ -113,19 +117,21 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
 
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam',
-                        help='Input reads, unaligned BAM format.')
-    parser.add_argument('clipDb',
-                        help='Trimmomatic clip DB.')
+    parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
+    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
     parser.add_argument(
         'outBam',
         help="""Output reads, unaligned BAM format (currently, read groups and other 
                 header information are destroyed in this process).""")
-    parser.add_argument('--n_reads', default=100000, type=int,
+    parser.add_argument('--n_reads',
+                        default=100000,
+                        type=int,
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
     return parser
+
+
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
@@ -151,25 +157,23 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVM
 
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam',
-                        help='Input unaligned reads, BAM format.')
-    parser.add_argument('clipDb',
-                        help='Trimmomatic clip DB.')
-    parser.add_argument('outFasta',
-                        help='Output assembly.')
-    parser.add_argument('--n_reads', default=100000, type=int,
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
+    parser.add_argument('outFasta', help='Output assembly.')
+    parser.add_argument('--n_reads',
+                        default=100000,
+                        type=int,
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
-    parser.add_argument('--outReads', default=None,
-                        help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--JVMmemory',
                         default=tools.trinity.TrinityTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--threads',
-                        default=1,
-                        help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
+
+
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
@@ -198,22 +202,25 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
             Bio.SeqIO.write([seqObj], tmpInputFile, "fasta")
 
             tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
-            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'),
-                   inFasta, tmpInputFile, tmp_prefix,
-                   '-musclepath', musclepath]
+            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'), inFasta, tmpInputFile,
+                   tmp_prefix, '-musclepath', musclepath]
             subprocess.check_call(cmd)
             cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
-                   tmp_prefix + '_orientedContigs', inReference, tmp_prefix,
-                   '-musclepath', musclepath,
+                   tmp_prefix + '_orientedContigs', inReference, tmp_prefix, '-musclepath', musclepath,
                    '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
             if inReads:
                 infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
                 tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
                 mosaik = tools.mosaik.MosaikTool()
                 cmd = cmd + [
-                    '-readfq', infq[0], '-readfq2', infq[1],
-                    '-mosaikpath', os.path.dirname(mosaik.install_and_get_path()),
-                    '-mosaiknetworkpath', mosaik.get_networkFile(),
+                    '-readfq',
+                    infq[0],
+                    '-readfq2',
+                    infq[1],
+                    '-mosaikpath',
+                    os.path.dirname(mosaik.install_and_get_path()),
+                    '-mosaiknetworkpath',
+                    mosaik.get_networkFile(),
                 ]
             subprocess.check_call(cmd)
             shutil.move(tmp_prefix + '_assembly.fa', tmpOutputFile)
@@ -236,19 +243,21 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
 
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFasta',
-                        help='Input de novo assembly/contigs, FASTA format.')
+    parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
                         help='Reference genome for ordering, orienting, and merging contigs, FASTA format.')
     parser.add_argument(
         'outFasta',
         help="""Output assembly, FASTA format, with the same number of 
                 chromosomes as inReference, and in the same order.""")
-    parser.add_argument('--inReads', default=None,
+    parser.add_argument('--inReads',
+                        default=None,
                         help='Input reads in unaligned BAM format. These can be used to improve the merge process.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
+
+
 __commands__.append(('order_and_orient', parser_order_and_orient))
 
 
@@ -260,8 +269,7 @@ class PoorAssemblyError(Exception):
                 chr_idx, seq_len, non_n_count))
 
 
-def impute_from_reference(inFasta, inReference, outFasta,
-                          minLengthFraction, minUnambig, replaceLength, newName=None):
+def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength, newName=None):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -309,11 +317,8 @@ def impute_from_reference(inFasta, inReference, outFasta,
                     Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
 
                 tools.muscle.MuscleTool().execute(concat_file, muscle_align)
-                args = [muscle_align, tmpOutputFile, refName,
-                        '--call-reference-ns', '--trim-ends',
-                        '--replace-5ends', '--replace-3ends',
-                        '--replace-length', str(replaceLength),
-                        '--replace-end-gaps']
+                args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
+                        '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
                     args.extend(['-n', newName + "-" + str(idx + 1)])
@@ -342,21 +347,26 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'inFasta',
         help='Input assembly/contigs, FASTA format, already ordered, oriented and merged with inReference.')
-    parser.add_argument('inReference',
-                        help='Reference genome to impute with, FASTA format.')
-    parser.add_argument('outFasta',
-                        help='Output assembly, FASTA format.')
-    parser.add_argument("--newName", default=None,
-                        help="rename output chromosome (default: do not rename)")
-    parser.add_argument("--minLengthFraction", type=float, default=0.9,
+    parser.add_argument('inReference', help='Reference genome to impute with, FASTA format.')
+    parser.add_argument('outFasta', help='Output assembly, FASTA format.')
+    parser.add_argument("--newName", default=None, help="rename output chromosome (default: do not rename)")
+    parser.add_argument("--minLengthFraction",
+                        type=float,
+                        default=0.9,
                         help="minimum length for contig, as fraction of reference (default: %(default)s)")
-    parser.add_argument("--minUnambig", type=float, default=0.0,
+    parser.add_argument("--minUnambig",
+                        type=float,
+                        default=0.0,
                         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
-    parser.add_argument("--replaceLength", type=int, default=0,
+    parser.add_argument("--replaceLength",
+                        type=int,
+                        default=0,
                         help="length of ends to be replaced with reference (default: %(default)s)")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
+
+
 __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 
@@ -389,14 +399,12 @@ def refine_assembly(inFasta, inBam, outFasta,
     # Novoalign reads to self
     novoBam = util.file.mkstempfname('.novoalign.bam')
     min_qual = 0 if keep_all_reads else 1
-    novoalign.execute(inBam, inFasta, novoBam,
-                      options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
+    novoalign.execute(inBam, inFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
     rmdupBam = util.file.mkstempfname('.rmdup.bam')
     opts = ['CREATE_INDEX=true']
     if not keep_all_reads:
         opts.append('REMOVE_DUPLICATES=true')
-    picard_mkdup.execute([novoBam], rmdupBam,
-                         picardOptions=opts, JVMmemory=JVMmemory)
+    picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
     os.unlink(novoBam)
     realignBam = util.file.mkstempfname('.realign.bam')
     gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
@@ -414,7 +422,11 @@ def refine_assembly(inFasta, inBam, outFasta,
     if chr_names:
         name_opts = ['--name'] + chr_names
     main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
-        tmpVcf, tmpFasta, '--trim_ends', '--min_coverage', str(min_coverage),
+        tmpVcf,
+        tmpFasta,
+        '--trim_ends',
+        '--min_coverage',
+        str(min_coverage),
     ] + name_opts))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
@@ -434,37 +446,40 @@ def refine_assembly(inFasta, inBam, outFasta,
 def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta',
                         help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.')
-    parser.add_argument('inBam',
-                        help='Input reads, unaligned BAM format.')
+    parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument('outFasta',
                         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
-    parser.add_argument('--outBam',
+    parser.add_argument(
+        '--outBam',
         default=None,
         help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed. GATK indel realigned.')
-    parser.add_argument('--outVcf',
-                        default=None,
-                        help='GATK genotype calls for genome in inFasta coordinate space.')
+    parser.add_argument('--outVcf', default=None, help='GATK genotype calls for genome in inFasta coordinate space.')
     parser.add_argument('--min_coverage',
-                        default=3, type=int,
+                        default=3,
+                        type=int,
                         help='Minimum read coverage required to call a position unambiguous.')
     parser.add_argument('--novo_params',
                         default='-r Random -l 40 -g 40 -x 20 -t 100',
                         help='Alignment parameters for Novoalign.')
-    parser.add_argument("--chr_names", dest="chr_names", nargs="*",
+    parser.add_argument("--chr_names",
+                        dest="chr_names",
+                        nargs="*",
                         help="Rename all output chromosomes (default: retain original chromosome names)",
                         default=[])
     parser.add_argument("--keep_all_reads",
                         help="""Retain all reads in BAM file? Default is to remove unaligned and duplicate reads.""",
-                        default=False, action="store_true", dest="keep_all_reads")
+                        default=False,
+                        action="store_true",
+                        dest="keep_all_reads")
     parser.add_argument('--JVMmemory',
                         default=tools.gatk.GATKTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--threads',
-                        default=1,
-                        help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
+
+
 __commands__.append(('refine_assembly', parser_refine_assembly))
 
 
@@ -479,8 +494,10 @@ def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
     parser.add_argument("minUnambig", help="minimum percentage unambiguous bases for contig", type=float)
     parser.add_argument("outFile", help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
-    parser.add_argument("-of", "--output-format",
-                        help="Format for output sequence (default: %(default)s)", default="fasta")
+    parser.add_argument("-of",
+                        "--output-format",
+                        help="Format for output sequence (default: %(default)s)",
+                        default="fasta")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, main_filter_short_seqs)
     return parser
@@ -494,10 +511,11 @@ def main_filter_short_seqs(args):
         with util.file.open_or_gzopen(args.outFile, 'w') as outf:
             Bio.SeqIO.write(
                 [s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength
-                    and unambig_count(s.seq) >= len(s) * args.minUnambig],
-                outf, args.output_format)
+                 if len(s) >= args.minLength and unambig_count(s.seq) >= len(s) * args.minUnambig
+                ], outf, args.output_format)
     return 0
+
+
 __commands__.append(('filter_short_seqs', parser_filter_short_seqs))
 
 
@@ -505,28 +523,42 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
     parser.add_argument("input", help="input alignment of reference and contig (should contain exactly 2 sequences)")
     parser.add_argument("output", help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
-    parser.add_argument("-n", "--name", type=str,
+    parser.add_argument("-n",
+                        "--name",
+                        type=str,
                         help="fasta header output name (default: existing header)",
                         default=None)
-    parser.add_argument("-cn", "--call-reference-ns",
+    parser.add_argument("-cn",
+                        "--call-reference-ns",
                         help="""should the reference sequence be called if there is an
         N in the contig and a more specific base in the reference (default: %(default)s)""",
-                        default=False, action="store_true", dest="call_reference_ns")
-    parser.add_argument("-t", "--trim-ends",
+                        default=False,
+                        action="store_true",
+                        dest="call_reference_ns")
+    parser.add_argument("-t",
+                        "--trim-ends",
                         help="should ends of contig.fasta be trimmed to length of reference (default: %(default)s)",
-                        default=False, action="store_true", dest="trim_ends")
-    parser.add_argument("-r5", "--replace-5ends",
+                        default=False,
+                        action="store_true",
+                        dest="trim_ends")
+    parser.add_argument("-r5",
+                        "--replace-5ends",
                         help="should the 5'-end of contig.fasta be replaced by reference (default: %(default)s)",
-                        default=False, action="store_true", dest="replace_5ends")
-    parser.add_argument("-r3", "--replace-3ends",
+                        default=False,
+                        action="store_true",
+                        dest="replace_5ends")
+    parser.add_argument("-r3",
+                        "--replace-3ends",
                         help="should the 3'-end of contig.fasta be replaced by reference (default: %(default)s)",
-                        default=False, action="store_true", dest="replace_3ends")
-    parser.add_argument("-l", "--replace-length",
+                        default=False,
+                        action="store_true",
+                        dest="replace_3ends")
+    parser.add_argument("-l",
+                        "--replace-length",
                         help="length of ends to be replaced (if replace-ends is yes) (default: %(default)s)",
-                        default=10, type=int)
-    parser.add_argument("-f", "--format",
-                        help="Format for input alignment (default: %(default)s)",
-                        default="fasta")
+                        default=10,
+                        type=int)
+    parser.add_argument("-f", "--format", help="Format for input alignment (default: %(default)s)", default="fasta")
     parser.add_argument(
         "-r",
         "--replace-end-gaps",
@@ -534,14 +566,20 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
         default=False,
         action="store_true",
         dest="replace_end_gaps")
-    parser.add_argument("-rn", "--remove-end-ns",
+    parser.add_argument("-rn",
+                        "--remove-end-ns",
                         help="Remove leading and trailing N's in the contig (default: %(default)s)",
-                        default=False, action="store_true", dest="remove_end_ns")
-    parser.add_argument("-ca", "--call-reference-ambiguous",
+                        default=False,
+                        action="store_true",
+                        dest="remove_end_ns")
+    parser.add_argument("-ca",
+                        "--call-reference-ambiguous",
                         help="""should the reference sequence be called if the contig seq is ambiguous and
         the reference sequence is more informative & consistant with the ambiguous base
         (ie Y->C) (default: %(default)s)""",
-                        default=False, action="store_true", dest="call_reference_ambiguous")
+                        default=False,
+                        action="store_true",
+                        dest="call_reference_ambiguous")
     util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, main_modify_contig)
     return parser
@@ -594,6 +632,8 @@ def main_modify_contig(args):
         for line in util.file.fastaMaker([(name, mc.get_stripped_consensus())]):
             f.write(line)
     return 0
+
+
 __commands__.append(('modify_contig', parser_modify_contig))
 
 
@@ -781,8 +821,8 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
                 continue
             geno = alleles
             if info_dp and float(dp) / info_dp < min_dp_ratio:
-                log.warn("dropping invariant call at %s:%s-%s %s (%s) due to low DP ratio (%s / %s = %s < %s)",
-                         c, start, stop, sample, geno, dp, info_dp, float(dp) / info_dp, min_dp_ratio)
+                log.warn("dropping invariant call at %s:%s-%s %s (%s) due to low DP ratio (%s / %s = %s < %s)", c,
+                         start, stop, sample, geno, dp, info_dp, float(dp) / info_dp, min_dp_ratio)
                 continue
         else:
             # variant: manually call the highest read count allele if it exceeds a threshold
@@ -812,7 +852,11 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     for vcfrow in vcfIter:
         try:
             for c, start, stop, s, alleles in vcfrow_parse_and_call_snps(
-                    vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio):
+                vcfrow,
+                samples,
+                min_dp=min_dp,
+                major_cutoff=major_cutoff,
+                min_dp_ratio=min_dp_ratio):
                 # changing chromosome?
                 if c != cur_c:
                     if cur_c is not None:
@@ -852,29 +896,38 @@ def parser_vcf_to_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outFasta", help="Output FASTA file")
     parser.add_argument("--trim_ends",
-                        action="store_true", dest="trim_ends",
+                        action="store_true",
+                        dest="trim_ends",
                         default=False,
                         help="""If specified, we will strip off continuous runs of N's from the beginning
         and end of the sequences before writing to output.  Interior N's will not be
         changed.""")
-    parser.add_argument("--min_coverage", dest="min_dp", type=int,
+    parser.add_argument("--min_coverage",
+                        dest="min_dp",
+                        type=int,
                         help="""Specify minimum read coverage (with full agreement) to make a call.
         [default: %(default)s]""",
                         default=3)
-    parser.add_argument("--major_cutoff", dest="major_cutoff", type=float,
+    parser.add_argument("--major_cutoff",
+                        dest="major_cutoff",
+                        type=float,
                         help="""If the major allele is present at a frequency higher than this cutoff,
         we will call an unambiguous base at that position.  If it is equal to or below
         this cutoff, we will call an ambiguous base representing all possible alleles at
         that position. [default: %(default)s]""",
                         default=0.5)
-    parser.add_argument("--min_dp_ratio", dest="min_dp_ratio", type=float,
+    parser.add_argument("--min_dp_ratio",
+                        dest="min_dp_ratio",
+                        type=float,
                         help="""The input VCF file often reports two read depth values (DP)--one for
         the position as a whole, and one for the sample in question.  We can optionally
         reject calls in which the sample read count is below a specified fraction of the
         total read count.  This filter will not apply to any sites unless both DP values
         are reported.  [default: %(default)s]""",
                         default=0.0)
-    parser.add_argument("--name", dest="name", nargs="*",
+    parser.add_argument("--name",
+                        dest="name",
+                        nargs="*",
                         help="output sequence names (default: reference names in VCF file)",
                         default=[])
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
@@ -904,7 +957,10 @@ def main_vcf_to_fasta(args):
     with open(args.outFasta, 'wt') as outf:
         chr_idx = 0
         for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
-                                       chrlens, samples, min_dp=args.min_dp, major_cutoff=args.major_cutoff,
+                                       chrlens,
+                                       samples,
+                                       min_dp=args.min_dp,
+                                       major_cutoff=args.major_cutoff,
                                        min_dp_ratio=args.min_dp_ratio):
             if args.trim_ends:
                 seq = seq.strip('Nn')
@@ -916,6 +972,8 @@ def main_vcf_to_fasta(args):
     # done
     log.info("done")
     return 0
+
+
 __commands__.append(('vcf_to_fasta', parser_vcf_to_fasta))
 
 
@@ -938,6 +996,8 @@ def trim_fasta(inFasta, outFasta):
                     outf.write(line)
     log.info("done")
     return 0
+
+
 __commands__.append(('trim_fasta', parser_trim_fasta))
 
 
@@ -966,6 +1026,8 @@ def parser_deambig_fasta(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, deambig_fasta, split_args=True)
     return parser
+
+
 __commands__.append(('deambig_fasta', parser_deambig_fasta))
 
 
@@ -1006,10 +1068,14 @@ def dpdiff(inVcfs, outFile):
         for row in vcf_dpdiff(inVcfs):
             outf.write('\t'.join(map(str, row)) + '\n')
     return 0
+
+
 __commands__.append(('dpdiff', parser_dpdiff))
 
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
+
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

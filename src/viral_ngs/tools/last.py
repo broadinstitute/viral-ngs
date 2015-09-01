@@ -49,8 +49,7 @@ class DownloadAndBuildLast(tools.DownloadPackage):
             fileContents = inf.read()
             fileContents = fileContents.replace('string.maketrans("", "")', 'None')
             fileContents = fileContents.replace(
-                '#! /usr/bin/env python',
-                '#! /usr/bin/env python\nfrom __future__ import print_function')
+                '#! /usr/bin/env python', '#! /usr/bin/env python\nfrom __future__ import print_function')
         with open(mafConvertPath, 'wt') as outf:
             outf.write(fileContents)
 
@@ -58,8 +57,7 @@ class DownloadAndBuildLast(tools.DownloadPackage):
         'Default checks + verify python 2.7/3.x compatibility fixes were done'
         if not tools.DownloadPackage.verify_install(self):
             return False
-        mafConvertPath = os.path.join(self.destination_dir,
-                                      self.lastWithVersion, 'bin', 'maf-convert')
+        mafConvertPath = os.path.join(self.destination_dir, self.lastWithVersion, 'bin', 'maf-convert')
         if not os.access(mafConvertPath, os.X_OK | os.R_OK):
             return False
         with open(mafConvertPath, 'rt') as inf:

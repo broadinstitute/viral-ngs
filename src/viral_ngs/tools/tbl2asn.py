@@ -74,8 +74,7 @@ class DownloadGzipBinary(tools.DownloadPackage):
 
     def unpack(self, download_dir):
         util.file.mkdir_p(self.destination_dir)
-        if (self.download_file.endswith('.gz') and
-                not self.download_file.endswith('.tar.gz')):
+        if (self.download_file.endswith('.gz') and not self.download_file.endswith('.tar.gz')):
             with gzip.open(os.path.join(download_dir, self.download_file)) as inf:
                 with open(self.targetpath, 'wb') as outf:
                     outf.write(inf.read())

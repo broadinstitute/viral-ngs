@@ -51,19 +51,17 @@ class SnpAnnotater(object):
                 ifilter = hasattr(itertools, 'ifilter') and itertools.ifilter or filter  # py2 & py3 compatibility
                 self.cur.executemany("""insert into annot (chr,pos,allele_ref,allele_alt,
                     effect,impact,gene_id,gene_name,protein_pos,residue_ref,residue_alt)
-                    values (?,?,?,?,?,?,?,?,?,?,?)""",
-                                     imap(lambda row:
-                                          [row['CHROM'], int(row['POS']), row['REF'], row['ALT']]
-                                          + parse_eff(row['CHROM'], row['POS'], row['INFO']),
-                                          ifilter(lambda r: r['ALT'] != '.', ffp)))
+                    values (?,?,?,?,?,?,?,?,?,?,?)""", imap(
+                    lambda row: [row['CHROM'], int(row['POS']), row['REF'], row['ALT']] + parse_eff(row['CHROM'], row['POS'], row['INFO']),
+                    ifilter(lambda r: r['ALT'] != '.', ffp)))
             except Exception as e:
                 log.exception("exception processing file %s line %s", snpEffVcf, ffp.line_num)
                 raise
             self.cur.execute("select chr,pos from annot group by chr,pos having count(*)>1")
             dupes = [(c, p) for c, p in self.cur]
             if dupes:
-                log.info("deleting annotation for %d duplicate positions: %s",
-                         len(dupes), ', '.join(['%s:%s' % (c, p) for c, p in dupes]))
+                log.info("deleting annotation for %d duplicate positions: %s", len(dupes),
+                         ', '.join(['%s:%s' % (c, p) for c, p in dupes]))
                 self.cur.executemany("delete from annot where chr=? and pos=?", dupes)
             self.conn.commit()
 
@@ -79,7 +77,8 @@ class SnpAnnotater(object):
         x = self.cur.fetchone()
         if x is not None:
             row['effect'], row['impact'], row['gene_id'], row['gene_name'], row['protein_pos'], row[
-                'allele_ref'], row['allele_alt'], row['residue_ref'], row['residue_alt'] = x
+                'allele_ref'
+            ], row['allele_alt'], row['residue_ref'], row['residue_alt'] = x
             row['alleles'] = '/'.join((row['allele_ref'], row['allele_alt']))
             if row['residue_alt']:
                 row['residues'] = '/'.join((row['residue_ref'], row['residue_alt']))
@@ -140,7 +139,8 @@ def parse_eff(chrom, pos, info, required=True):
                 if effect.startswith('SYNON'):
                     aas = (aa_chg[0], '')
                     codon = int(aa_chg[1:])
-                elif effect.startswith('NON_SYNON') or effect.startswith('START_') or effect.startswith('STOP_') or effect.startswith('CODON_'):
+                elif effect.startswith('NON_SYNON') or effect.startswith('START_') or effect.startswith(
+                        'STOP_') or effect.startswith('CODON_'):
                     mo = re.match(r'^(\D+)(\d+)(\D+)$', aa_chg)
                     assert mo, "unrecognized coding change format for %s (%s)" % (effect, aa_chg)
                     aas = (mo.group(1), mo.group(3))
@@ -155,8 +155,7 @@ def parse_eff(chrom, pos, info, required=True):
             else:
                 aas = ('', '')
                 codon = ''
-            out.append([impact_rank[impact], effect, impact, gene_id, gene_name,
-                        codon, aas[0], aas[1]])
+            out.append([impact_rank[impact], effect, impact, gene_id, gene_name, codon, aas[0], aas[1]])
 
         if len(out) > 1:
             out.sort()

@@ -5,7 +5,6 @@
 
 __author__ = "tomkinsc@broadinstitute.org"
 
-
 from Bio import SeqIO
 import logging
 import tools
@@ -33,11 +32,16 @@ class MafftTool(tools.Tool):
 
             target_rel_path = '{binPath}'.format(binPath=binaryPath)
             verify_command = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
-                dir=util.file.get_build_path(), ver=tool_version, binPath=binaryPath, binDir=binaryDir)
+                dir=util.file.get_build_path(),
+                ver=tool_version,
+                binPath=binaryPath,
+                binDir=binaryDir)
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version)
 
             install_methods.append(
-                tools.DownloadPackage(url.format(ver=tool_version, os=mafft_os, ext=mafft_archive_extension),
+                tools.DownloadPackage(url.format(ver=tool_version,
+                                                 os=mafft_os,
+                                                 ext=mafft_archive_extension),
                                       target_rel_path=target_rel_path,
                                       destination_dir=destination_dir,
                                       verifycmd=verify_command))

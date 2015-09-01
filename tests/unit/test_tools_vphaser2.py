@@ -23,8 +23,7 @@ class TestVPhaser2(TestCaseWithTmp):
             expectedRecs = pickle.load(expf)
         # Vphaser2 p-val calculation is unstable and sometimes varies from
         # run to run, so exclude it from comparison.
-        self.assertEqual([rec[:4] + rec[5:] for rec in recs],
-                         [rec[:4] + rec[5:] for rec in expectedRecs])
+        self.assertEqual([rec[:4] + rec[5:] for rec in recs], [rec[:4] + rec[5:] for rec in expectedRecs])
         """
         Creation of in.bam:
         Start with test file that ships with V-Phaser 2.
