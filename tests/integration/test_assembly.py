@@ -2,11 +2,19 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import assembly, util.cmd, util.file, tools.novoalign
+import assembly
+import util.cmd
+import util.file
+import tools.novoalign
 import Bio.SeqIO
 import unittest
-import os, shutil, tempfile, argparse, itertools
+import os
+import shutil
+import tempfile
+import argparse
+import itertools
 from test import TestCaseWithTmp
+
 
 class TestAssemble(TestCaseWithTmp):
     ''' Test the de novo assembly pipeline '''
@@ -14,7 +22,7 @@ class TestAssemble(TestCaseWithTmp):
     def test_ref_assisted_assembly(self):
         novoalign = tools.novoalign.NovoalignTool()
         novoalign.install()
-        
+
         # prep inputs
         orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
         refGenome = util.file.mkstempfname('.ref.fasta')
@@ -22,7 +30,7 @@ class TestAssemble(TestCaseWithTmp):
         novoalign.index_fasta(refGenome)
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outFasta = util.file.mkstempfname('.refined.fasta')
-        
+
         # run refine_assembly
         args = [refGenome, inBam, outFasta,
                 "--chr_names", 'G5012.3',
@@ -32,7 +40,7 @@ class TestAssemble(TestCaseWithTmp):
         args.func_main(args)
         self.assertTrue(os.path.isfile(outFasta))
         self.assertTrue(os.path.getsize(outFasta) > 1000)
-        
+
         # check assembly quality
         with open(outFasta, 'rt') as inf:
             seq = Bio.SeqIO.read(inf, 'fasta')
@@ -42,4 +50,3 @@ class TestAssemble(TestCaseWithTmp):
 
 # in order to test the actual de novo pipeline, we need to add a clip db for trimmomatic
 # then we should test from G5012.3.testreads.bam all the way through the assembly pipe
-
