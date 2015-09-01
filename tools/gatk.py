@@ -26,7 +26,7 @@ class GATKTool(tools.Tool) :
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def execute(self, command, gatkOptions=[], JVMmemory=None) :
-        if JVMmemory==None:
+        if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java',
             '-Xmx' + JVMmemory,
@@ -40,7 +40,7 @@ class GATKTool(tools.Tool) :
         return ["%s=%s" % (k,v) for k,v in options.items()]
 
     def version(self):
-        if self.tool_version==None:
+        if self.tool_version is None:
             self._get_tool_version()
         return self.tool_version
 

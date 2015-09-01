@@ -60,8 +60,9 @@ __commands__.append(('purge_unmated', parser_purge_unmated))
 # ***  fastq_to_fasta   ***
 # =========================
 def fastq_to_fasta(inFastq, outFasta) :
-    'Convert from fastq format to fasta format.'
-    'Warning: output reads might be split onto multiple lines.'
+    ''' Convert from fastq format to fasta format.
+        Warning: output reads might be split onto multiple lines.
+    '''
     
     # Do this with biopython rather than prinseq, because if the latter fails
     #    it doesn't return an error. (On the other hand, prinseq

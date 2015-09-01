@@ -25,7 +25,7 @@ BWA_DIR = '.'.join( [ x for x in URL.split("/")[-1].split('.') if
 class Bwa(tools.Tool) :
     def __init__(self, install_methods = None) :
         log.debug("BWA_DIR: %s", BWA_DIR)
-        if install_methods == None :
+        if install_methods is None :
             install_methods = []
             install_methods.append( tools.DownloadPackage(
                 URL, os.path.join(BWA_DIR, 'bwa'),
@@ -55,7 +55,7 @@ class Bwa(tools.Tool) :
                                                 options.items() ]),
                                     option_string
                                     )
-        cmd =  "{self.exec_path} {subcommand} {option_str} {arg_str} {post_cmd}" \
-            .format(**locals())
+        cmd =  "{} {} {} {} {}" \
+            .format(self.exec_path, subcommand, option_str, arg_str, post_cmd)
         log.debug("Calling bwa with cmd: {}".format(cmd))
         return os.system(cmd)

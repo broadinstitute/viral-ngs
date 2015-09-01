@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 class SamtoolsTool(tools.Tool) :
     def __init__(self, install_methods = None) :
-        if install_methods == None :
+        if install_methods is None :
             install_methods = [
                 tools.DownloadPackage(url, 'samtools-{}/samtools'.format(tool_version),
                     post_download_command='cd samtools-{}; make -s'.format(tool_version))]
