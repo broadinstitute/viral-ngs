@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 class Tbl2AsnTool(tools.Tool):
     def __init__(self, install_methods = None):
-        if install_methods == None:
+        if install_methods is None:
             install_methods = [DownloadGzipBinary(url.format(os=get_bintype()), 'tbl2asn')]
         tools.Tool.__init__(self, install_methods = install_methods)
 
@@ -65,8 +65,8 @@ def get_bintype():
 class DownloadGzipBinary(tools.DownloadPackage):
     def unpack(self, download_dir):
         util.file.mkdir_p(self.destination_dir)
-        if (self.download_file.endswith('.gz')
-            and not self.download_file.endswith('.tar.gz')):
+        if (self.download_file.endswith('.gz') and
+                not self.download_file.endswith('.tar.gz')):
             with gzip.open(os.path.join(download_dir, self.download_file)) as inf:
                 with open(self.targetpath, 'wb') as outf:
                     outf.write(inf.read())

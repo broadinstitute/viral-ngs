@@ -10,7 +10,7 @@ from Bio import SeqIO
 import logging, tools, util.file
 import os, os.path, subprocess
 
-tool_version = '7.220'
+tool_version = '7.221'
 url = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
 log = logging.getLogger(__name__)
@@ -41,15 +41,17 @@ class MafftTool(tools.Tool):
         return tool_version
 
     def __seqIdsAreAllUnique(self, filePath, inputFormat="fasta"):
-        fastaFile = SeqIO.parse(open(filePath, "rU"), inputFormat)
-        seqIds = [x.id for x in fastaFile]
+        seqIds = []
+        with open(filePath, "r") as inFile:
+            fastaFile = SeqIO.parse(inFile, inputFormat)
+            seqIds = [x.id for x in fastaFile]
 
         # collapse like IDs using set()
         if len(seqIds) > len(set(seqIds)):
             raise LookupError("Not all sequence IDs in input are unique for file: {}".format(os.path.basename(filePath)))
 
     def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder, 
-                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True):
+                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True, retree=None):
 
         inputFileName         = ""
         tempCombinedInputFile = ""
@@ -94,7 +96,8 @@ class MafftTool(tools.Tool):
         # build the MAFFT command
         toolCmd = [self.install_and_get_path()]
 
-        toolCmd.append("--auto")
+        if not retree:
+            toolCmd.append("--auto")
         if threads >= 1 or threads == -1:
             toolCmd.append("--thread {}".format(threads))
         else:
@@ -115,6 +118,8 @@ class MafftTool(tools.Tool):
             toolCmd.append("--preservecase")
         if reorder:
             toolCmd.append("--reorder")
+        if retree:
+            toolCmd.append("--retree {}".format(retree))
         if gapOpeningPenalty:
             toolCmd.append("--op {penalty}".format(penalty=gapOpeningPenalty))
         if offset:
@@ -140,6 +145,8 @@ class MafftTool(tools.Tool):
 
         # restore pwd
         os.chdir(pwdBeforeMafft)
+
+        return outFile
 
 def get_mafft_os():
     uname = os.uname()

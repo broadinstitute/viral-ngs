@@ -87,6 +87,7 @@ rule depletion:
             config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
             revert_bam = config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
@@ -102,13 +103,22 @@ rule filter_to_taxon:
     ''' This step reduces the read set to a specific taxon (usually the genus
         level or greater for the virus of interest).
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    input:  
+        config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
+        expand('{lastal_refDb}/lastal.bck', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.des', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.prj', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.sds', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.ssp', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.suf', lastal_refDb=config["lastal_refDb"]),
+        expand('{lastal_refDb}/lastal.tis', lastal_refDb=config["lastal_refDb"])
     output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            refDb=config["lastal_refDb"],
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            lastalDb=os.path.join(config["lastal_refDb"], "lastal"),
             logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input} {params.refDb} {output}"
+    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
@@ -137,6 +147,7 @@ rule merge_one_per_sample:
     output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:

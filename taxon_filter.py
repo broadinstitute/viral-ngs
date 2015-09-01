@@ -199,7 +199,6 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
-
 def filter_lastal(inFastq, refDb, outFastq):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.  Also, remove duplicates with prinseq.
@@ -702,6 +701,37 @@ def main_deplete_blastn_bam(args):
     return 0
 __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
                      
+# ========================
+# ***  lastal_build_db  ***
+# ========================
+
+def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
+
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
+    tools.last.Lastdb().execute(
+        inputFasta       = inputFasta, 
+        outputDirectory  = outputDirectory, 
+        outputFilePrefix = outPrefix
+    )
+
+def parser_lastal_build_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('inputFasta', 
+        help='Location of the input FASTA file')
+    parser.add_argument('outputDirectory', 
+        help='Location for the output files (default is cwd: %(default)s)')
+    parser.add_argument('--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, lastal_build_db, split_args=True)
+    return parser
+__commands__.append(('lastal_build_db', parser_lastal_build_db))
+
 # ========================
 
 def full_parser():

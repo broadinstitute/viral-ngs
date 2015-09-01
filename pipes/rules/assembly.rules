@@ -38,17 +38,21 @@ rule assemble_trinity:
     '''
     input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
-    resources: mem=4
+    resources: 
+            mem=4,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            n_reads="100000",
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            n_reads=str(config["trinity_n_reads"]),
             logid="{sample}",
             clipDb=config["trim_clipDb"],
-            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam}")
+            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -72,12 +76,17 @@ rule orient_and_impute:
             This is the only step in the pipeline that needs generalization to
             multi-chromosome genomes.
     '''
-    input:  config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    input:  
+        config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            refGenome=config["ref_genome"],
-            length = str(config["assembly_min_length"][0]),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            # length should be defined as a fraction/percentage cutoff, relative to 
+            # reference length for a given sequence. float is in the config.json file
+            length = str(config["assembly_min_length_fraction_of_reference"]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",
             replace_length="55",
@@ -85,8 +94,8 @@ rule orient_and_impute:
             vfat_fasta=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
             subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
-            shell("{config[binDir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLength {params.length} --minUnambig {params.min_unambig}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
+            shell("{config[binDir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the VFAT assembly,
@@ -104,12 +113,16 @@ rule refine_assembly_1:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
-    resources: mem=4
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
-            min_coverage = "2"
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
+            min_coverage = "2",
+            numThreads=str(config.get("number_of_threads", 1))
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
@@ -124,12 +137,16 @@ rule refine_assembly_2:
             config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
             config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
-    resources: mem=4
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
-            min_coverage = "3"
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}'"
+            min_coverage = "3",
+            numThreads=str(config.get("number_of_threads", 1))
+    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
@@ -142,11 +159,15 @@ rule map_reads_to_self:
             config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
-    resources: mem=4
+    resources: 
+            mem=4,
+            cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
-            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3"
+            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
+            numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs([os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
                 os.path.join(config["reportsDir"], "assembly")])
-            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}'")
+            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}' --threads {params.numThreads}")

@@ -60,8 +60,9 @@ __commands__.append(('purge_unmated', parser_purge_unmated))
 # ***  fastq_to_fasta   ***
 # =========================
 def fastq_to_fasta(inFastq, outFasta) :
-    'Convert from fastq format to fasta format.'
-    'Warning: output reads might be split onto multiple lines.'
+    ''' Convert from fastq format to fasta format.
+        Warning: output reads might be split onto multiple lines.
+    '''
     
     # Do this with biopython rather than prinseq, because if the latter fails
     #    it doesn't return an error. (On the other hand, prinseq
@@ -734,11 +735,14 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, main_gatk_realign)
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     return parser
 def main_gatk_realign(args):
     '''Local realignment of BAM files with GATK IndelRealigner.'''
     tools.gatk.GATKTool().local_realign(
-        args.inBam, args.refFasta, args.outBam, JVMmemory=args.JVMmemory)
+        args.inBam, args.refFasta, args.outBam, JVMmemory=args.JVMmemory, threads=args.threads)
     return 0
 __commands__.append(('gatk_realign', parser_gatk_realign))
 
@@ -746,7 +750,7 @@ __commands__.append(('gatk_realign', parser_gatk_realign))
 # =========================
 
 def align_and_fix(inBam, refFasta, outBamAll=None, outBamFiltered=None,
-    novoalign_options='', JVMmemory=None):
+    novoalign_options='', JVMmemory=None, threads=1):
     ''' Take reads, align to reference with Novoalign, mark duplicates
         with Picard, realign indels with GATK, and optionally filter
         final file to mapped/non-dupe reads.
@@ -768,7 +772,7 @@ def align_and_fix(inBam, refFasta, outBamAll=None, outBamFiltered=None,
     
     bam_realigned = mkstempfname('.realigned.bam')
     tools.gatk.GATKTool().local_realign(
-        bam_mkdup, refFasta, bam_realigned, JVMmemory=JVMmemory)
+        bam_mkdup, refFasta, bam_realigned, JVMmemory=JVMmemory, threads=threads)
     os.unlink(bam_mkdup)
     
     if outBamAll:
@@ -797,6 +801,9 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         help='Novoalign options (default: %(default)s)')
     parser.add_argument('--JVMmemory', default = '4g',
         help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads',
+        default=1,
+        help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, align_and_fix, split_args=True)
     return parser

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 '''This script contains a number of utilities for submitting our analyses
-to NCBI's Genbank and SRA databases.
+to NCBI's Genbank and SRA databases, as well as retreiving records from Genbank.
 '''
 
-__author__ = "PLACEHOLDER"
+__author__ = "tomkinsc@broadinstitute.org"
 __commands__ = []
 
 import argparse, logging, collections, shutil, os, os.path
 import Bio.SeqIO
-import util.cmd, util.file, util.version
+import util.cmd, util.file, util.version, util.genbank
 import tools.tbl2asn
 import interhost
 
@@ -23,13 +23,12 @@ def fasta_chrlens(fasta):
             out[seq.id] = len(seq)
     return out
 
-def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
-    ''' This function takes an NCBI TBL file describing features on a genome
-        (genes, etc) and transfers them to a new genome.
-    '''
-    cmap = interhost.CoordMapper(ref_fasta, alt_fasta)
-    alt_chrlens = fasta_chrlens(alt_fasta)
-    
+def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
+    """
+        This function is the feature transfer machinery used by tbl_transfer() 
+        and tbl_transfer_prealigned(). cmap is an instance of CoordMapper.
+    """
+
     with open(ref_tbl, 'rt') as inf:
         with open(out_tbl, 'wt') as outf:
             for line in inf:
@@ -40,11 +39,13 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                     # sequence identifier
                     if not line.startswith('>Feature '):
                         raise Exception("not sure how to handle a non-Feature record")
-                    seqid = line[len('>Feature '):].strip()
-                    if not (seqid.startswith('gb|') and seqid.endswith('|') and len(seqid)>4):
-                        raise Exception("reference annotation does not refer to a GenBank accession")
-                    seqid = seqid[3:-1]
-                    altid = cmap.mapAtoB(seqid)
+                    refID = line[len('>Feature '):].strip()
+                    if not ((refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and len(refID)>4):
+                        raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
+                    refID = refID[refID.find("|")+1:-1]
+                    refSeqID = [x for x in cmap.keys() if refID in x][0]
+                    #altid = cmap.mapChr(refSeqID, altid)
+                    altid =  list(set(cmap.keys()) - set([refSeqID]))[0] #cmap.mapChr(refSeqID, altid)
                     line = '>Feature ' + altid
                     feature_keep = True
                 elif line[0] != '\t':
@@ -55,12 +56,12 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                     row[0] = int(row[0])
                     row[1] = int(row[1])
                     if row[1] >= row[0]:
-                        row[0] = cmap.mapAtoB(seqid, row[0], -1)[1]
-                        row[1] = cmap.mapAtoB(seqid, row[1],  1)[1]
+                        row[0] = cmap.mapChr(refSeqID, altid, row[0], -1)[1]
+                        row[1] = cmap.mapChr(refSeqID, altid,row[1],  1)[1]
                     else:
                         # negative strand feature
-                        row[0] = cmap.mapAtoB(seqid, row[0],  1)[1]
-                        row[1] = cmap.mapAtoB(seqid, row[1], -1)[1]
+                        row[0] = cmap.mapChr(refSeqID, altid, row[0],  1)[1]
+                        row[1] = cmap.mapChr(refSeqID, altid, row[1], -1)[1]
                     
                     if row[0] and row[1]:
                         feature_keep = True
@@ -89,6 +90,16 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
                         continue
                 outf.write(line+'\n')
 
+def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
+    ''' This function takes an NCBI TBL file describing features on a genome
+        (genes, etc) and transfers them to a new genome.
+    '''
+    cmap = interhost.CoordMapper()
+    cmap.align_and_load_sequences([ref_fasta, alt_fasta])
+    alt_chrlens = fasta_chrlens(alt_fasta)
+    
+    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
+
 def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     parser.add_argument("ref_fasta", help="Input sequence of reference genome")
     parser.add_argument("ref_tbl", help="Input reference annotations (NCBI TBL format)")
@@ -104,6 +115,186 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     return parser
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
+def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, oob_clip=False):
+    """
+        This breaks out the ref and alt sequences into separate fasta files, and then
+        creates unified files containing the reference sequence first and the alt second. Each of these unified files
+        is then passed as a cmap to tbl_transfer_common.
+
+        This function expects to receive one fasta file containing a multialignment of a single segment/chromosome along
+        with the respective reference sequence for that segment/chromosome. It also expects a reference containing all
+        reference segments/chromosomes, so that the reference sequence can be identified in the input file by name. It
+        also expects a list of reference tbl files, where each file is named according to the ID present for its 
+        corresponding sequence in the refFasta. For each non-reference sequence present in the inputFasta, two files are
+        written: a fasta containing the segment/chromosome for the same, along with its corresponding feature table as
+        created by tbl_transfer_common.
+    """
+        
+    ref_tbl = "" # must be identified in list of tables
+    ref_fasta_filename = ""
+    matchingRefSeq = None
+
+    if not os.path.exists(outputDir):
+        os.makedirs(outputDir)
+
+    # identify which of the sequences in the multialignment is the reference,
+    # matching by ID to one of the sequences in the refFasta
+    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
+        for seq in Bio.SeqIO.parse(inf, 'fasta'):
+            with util.file.open_or_gzopen(refFasta, 'r') as reff:
+                for refSeq in Bio.SeqIO.parse(reff, 'fasta'):                    
+                    if seq.id == refSeq.id:
+                        ref_fasta_filename = util.file.mkstempfname('.fasta')
+                        matchingRefSeq = seq
+                        break
+            if matchingRefSeq:
+                break
+
+    if ref_fasta_filename == "": 
+        raise KeyError("No reference was found in the input file %s" % (inputFasta) )
+
+    # identify the correct feature table source based on its filename, 
+    # which should correspond to a unique component of the ref sequence ID (i.e. the genbank accession)
+    for tblFilename in refAnnotTblFiles:
+        # identify the correct feature table as the one that has an ID that is
+        # part of the ref seq ID
+        fileAccession = util.genbank.get_feature_table_id(tblFilename)
+        if fileAccession in matchingRefSeq.id:
+            ref_tbl = tblFilename
+            break
+    if ref_tbl == "":
+        raise KeyError("No reference table was found for the reference %s" % (matchingRefSeq.id) )
+    
+    # write out the desired sequences to separate fasta files
+    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
+        for seq in Bio.SeqIO.parse(inf, 'fasta'):
+            # if we are looking at the reference sequence in the multialignment,
+            # continue to the next sequence
+            if seq.id == matchingRefSeq.id:
+                continue
+            
+            alt_fasta_filename = ""
+            combined_fasta_filename = ""
+
+            combined_fasta_filename = util.file.mkstempfname('.fasta')
+            # write ref and alt sequences to a combined fasta file, sourced from the
+            # alignment so gaps are present for the CoordMapper instance, cmap
+            with open(combined_fasta_filename, 'wt') as outf:
+                Bio.SeqIO.write([matchingRefSeq, seq], outf, "fasta")
+
+            # create a filepath for the output table
+            out_tbl = os.path.join(outputDir, seq.id+".tbl")
+
+            cmap = interhost.CoordMapper()
+            cmap.load_alignments([combined_fasta_filename])
+            alt_chrlens = fasta_chrlens(combined_fasta_filename)
+        
+            tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
+
+def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
+    parser.add_argument("inputFasta", help="""FASTA file containing input sequences, 
+        including pre-made alignments and reference sequence""")
+    parser.add_argument("refFasta", help="FASTA file containing the reference genome")
+    parser.add_argument("refAnnotTblFiles", nargs='+', help="""Name of the reference feature tables, 
+        each of which should have a filename comrised of [refId].tbl 
+        so they can be matched against the reference sequences""")    
+    parser.add_argument("outputDir", help="The output directory")
+    parser.add_argument('--oob_clip', default=False, action='store_true',
+        help='''Out of bounds feature behavior.
+        False: drop all features that are completely or partly out of bounds
+        True:  drop all features completely out of bounds
+               but truncate any features that are partly out of bounds''')
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
+    return parser
+__commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))    
+
+
+
+
+def fetch_fastas(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
+    '''
+        This function downloads and saves the FASTA files 
+        from the Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_fastas_from_genbank(accession_IDs, destinationDir, emailAddress, 
+                                            forceOverwrite, combinedFilePrefix, removeSeparateFiles, 
+                                            fileExt, "fasta", chunkSize=chunkSize)
+
+def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
+    '''
+        This function downloads and saves 
+        feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_feature_tables_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
+                                                                combinedFilePrefix, removeSeparateFiles, 
+                                                                fileExt, "ft", chunkSize=chunkSize)
+
+def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, 
+                                    forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles, chunkSize):
+    '''
+        This function downloads and saves 
+        full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
+    '''
+    util.genbank.fetch_full_records_from_genbank(accession_IDs, destinationDir, emailAddress, forceOverwrite, 
+                                                                combinedFilePrefix, removeSeparateFiles, 
+                                                                fileExt, "gb", chunkSize=chunkSize)
+
+def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
+    parser.add_argument("emailAddress",
+        help="""Your email address. To access the Genbank CoreNucleotide database, 
+        NCBI requires you to specify your email address with each request. 
+        In case of excessive usage of the E-utilities, NCBI will attempt to contact
+        a user at the email address provided before blocking access. This email address should
+        be registered with NCBI. To register an email address, simply send 
+        an email to eutilities@ncbi.nlm.nih.gov including your email address and 
+        the tool name (tool='https://github.com/broadinstitute/viral-ngs').""")
+    parser.add_argument("destinationDir",
+        help="Output directory with where .fasta and .tbl files will be saved")    
+    parser.add_argument("accession_IDs", nargs='+',
+        help="List of Genbank nuccore accession IDs")
+    parser.add_argument('--forceOverwrite', default=False, action='store_true',
+        help='''Overwrite existing files, if present.''')
+    parser.add_argument('--combinedFilePrefix', 
+        help='''The prefix of the file containing the combined concatenated
+                 results returned by the list of accession IDs, in the order provided.''')
+    parser.add_argument('--fileExt',  default=None,
+        help='''The extension to use for the downloaded files''')
+    parser.add_argument('--removeSeparateFiles', default=False, action='store_true',
+        help='''If specified, remove the individual files and leave only the combined file.''')
+    parser.add_argument('--chunkSize', default=1, type=int,
+        help='''Causes files to be downloaded from GenBank in chunks of N accessions. 
+        Each chunk will be its own combined file, separate from any combined 
+        file created via --combinedFilePrefix (default: %(default)s). If chunkSize is 
+        unspecified and >500 accessions are provided, chunkSize will be set to 500 to 
+        adhere to the NCBI guidelines on information retreival.''')
+    return parser
+
+def parser_fetch_fastas(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_fastas, split_args=True)
+    return parser
+__commands__.append(('fetch_fastas', parser_fetch_fastas))
+
+def parser_fetch_feature_tables(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_feature_tables, split_args=True)
+    return parser
+__commands__.append(('fetch_feature_tables', parser_fetch_feature_tables))
+
+def parser_fetch_genbank_records(parser):
+    parser = parser_fetch_reference_common(parser)
+
+    util.cmd.common_args(parser, (('tmpDir',None), ('loglevel',None), ('version',None)))
+    util.cmd.attach_main(parser, fetch_genbank_records, split_args=True)
+    return parser
+__commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 def fasta2fsa(infname, outdir, biosample=None):
     ''' copy a fasta file to a new directory and change its filename to end in .fsa

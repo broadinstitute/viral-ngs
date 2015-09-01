@@ -26,7 +26,7 @@ class GATKTool(tools.Tool) :
         tools.Tool.__init__(self, install_methods = install_methods)
     
     def execute(self, command, gatkOptions=[], JVMmemory=None) :
-        if JVMmemory==None:
+        if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java',
             '-Xmx' + JVMmemory,
@@ -40,7 +40,7 @@ class GATKTool(tools.Tool) :
         return ["%s=%s" % (k,v) for k,v in options.items()]
 
     def version(self):
-        if self.tool_version==None:
+        if self.tool_version is None:
             self._get_tool_version()
         return self.tool_version
 
@@ -50,24 +50,32 @@ class GATKTool(tools.Tool) :
     
     def ug(self, inBam, refFasta, outVcf,
             options=["--min_base_quality_score", 15, "-ploidy", 4],
-            JVMmemory=None):
+            JVMmemory=None, threads=1):
+
+        if int(threads) < 1:
+            threads = 1
         opts = ['-I', inBam, '-R', refFasta, '-o', outVcf,
             '-glm', 'BOTH',
             '--baq', 'OFF',
             '--useOriginalQualities',
             '-out_mode', 'EMIT_ALL_SITES',
             '-dt', 'NONE',
-            '--num_threads', 1,
+            '--num_threads', threads,
             '-stand_call_conf', 0,
             '-stand_emit_conf', 0,
             '-A', 'AlleleBalance',
         ]
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
-    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None):
+    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
         intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
-        opts = ['-I', inBam, '-R', refFasta, '-targetIntervals', intervals, '-o', outBam]
+        opts = ['-I', inBam, 
+                '-R', refFasta, 
+                '-targetIntervals', intervals, 
+                '-o', outBam,
+                #'--num_threads', threads,
+               ]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)
