@@ -34,7 +34,7 @@ class TrinityTool(tools.Tool) :
         if JVMmemory==None:
             JVMmemory = self.jvmMemDefault
         outdir = tempfile.mkdtemp(prefix='trinity-')
-        if threads < 1:
+        if int(threads) < 1:
             threads = 1
         cmd = [self.install_and_get_path(),
             '--CPU', '{}'.format(int(threads)),

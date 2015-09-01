@@ -52,7 +52,7 @@ class GATKTool(tools.Tool) :
             options=["--min_base_quality_score", 15, "-ploidy", 4],
             JVMmemory=None, threads=1):
 
-        if threads < 1:
+        if int(threads) < 1:
             threads = 1
         opts = ['-I', inBam, '-R', refFasta, '-o', outVcf,
             '-glm', 'BOTH',
