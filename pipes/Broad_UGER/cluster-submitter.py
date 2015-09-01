@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import os, sys, re
+import os
+import sys
+import re
 from snakemake.utils import read_job_properties
 
 LOGDIR = sys.argv[-2]
@@ -13,24 +15,22 @@ props = read_job_properties(jobscript)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(
-    proj_name='sabeti_lab', jobname=jobname)
+cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(proj_name='sabeti_lab', jobname=jobname)
 
 # log file output
-cmdline += "-o {logdir} -e {logdir} ".format(
-    logdir=LOGDIR, jobname=jobname)
+cmdline += "-o {logdir} -e {logdir} ".format(logdir=LOGDIR, jobname=jobname)
 
 # pass memory resource request to cluster
-mem = props.get('resources',{}).get('mem')
+mem = props.get('resources', {}).get('mem')
 if mem:
-    cmdline += ' -l m_mem_free={}G,h_rss={}G '.format( mem, round(1.2*float(int(mem)),2) )
+    cmdline += ' -l m_mem_free={}G,h_rss={}G '.format(mem, round(1.2 * float(int(mem)), 2))
 
-cores = props.get('resources',{}).get('cores')
+cores = props.get('resources', {}).get('cores')
 if cores:
-    cmdLine += ' -pe smp {} '.format( int(cores) )
+    cmdLine += ' -pe smp {} '.format(int(cores))
 
 # rule-specific UGER parameters (e.g. queue)
-cmdline += props["params"].get("UGER","") + " "
+cmdline += props["params"].get("UGER", "") + " "
 
 # figure out job dependencies
 dependencies = set(sys.argv[1:-2])

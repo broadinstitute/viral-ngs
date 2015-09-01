@@ -1,19 +1,25 @@
 "tools.Tool for mvicuna."
 
-import logging, os, subprocess, shutil
-import tools, util.file
+import logging
+import os
+import subprocess
+import shutil
+import tools
+import util.file
 
 # BroadUnixPath = '/gsap/garage-viral/viral/analysis/xyang/programs'\
 #                 '/M-Vicuna/bin/mvicuna'
 
 log = logging.getLogger(__name__)
 
-class MvicunaTool(tools.Tool) :
-    def __init__(self, install_methods = None):
-        if install_methods == None :
+
+class MvicunaTool(tools.Tool):
+
+    def __init__(self, install_methods=None):
+        if install_methods is None:
             path = _get_mvicuna_path()
             install_methods = [tools.PrexistingUnixCommand(path)]
-        tools.Tool.__init__(self, install_methods = install_methods)
+        tools.Tool.__init__(self, install_methods=install_methods)
 
     def rmdup(self, inPair, outPair, outUnpaired=None):
         """
@@ -36,34 +42,30 @@ class MvicunaTool(tools.Tool) :
         """
         if not outUnpaired:
             outUnpaired = util.file.mkstempfname(suffix='.unpaired.fastq')
-        tmp1OutPair = ( util.file.mkstempfname(suffix='.tmp1out.1.fastq'),
-                        util.file.mkstempfname(suffix='.tmp1out.2.fastq'))
-        tmp2OutPair = ( util.file.mkstempfname(suffix='.tmp2out.1.fastq'),
-                        util.file.mkstempfname(suffix='.tmp2out.2.fastq'))
-        cmdline = [self.install_and_get_path(),
-            '-ipfq', ','.join(inPair),
-            '-opfq', ','.join(tmp2OutPair),
-            '-osfq', outUnpaired,
-            '-drm_op', ','.join(tmp1OutPair),
-            '-tasks', 'DupRm']
+        tmp1OutPair = (util.file.mkstempfname(suffix='.tmp1out.1.fastq'),
+                       util.file.mkstempfname(suffix='.tmp1out.2.fastq'))
+        tmp2OutPair = (util.file.mkstempfname(suffix='.tmp2out.1.fastq'),
+                       util.file.mkstempfname(suffix='.tmp2out.2.fastq'))
+        cmdline = [self.install_and_get_path(), '-ipfq', ','.join(inPair), '-opfq', ','.join(tmp2OutPair), '-osfq',
+                   outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm']
         log.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
 
 
-def _get_mvicuna_path() :
+def _get_mvicuna_path():
     uname = os.uname()
-    if uname[0] == 'Darwin' :
+    if uname[0] == 'Darwin':
         osName = 'MacOSX'
-    elif uname[0] == 'Linux' and uname[4].endswith('64') :
+    elif uname[0] == 'Linux' and uname[4].endswith('64'):
         osName = 'linux64'
-    else :
-        log.debug('mvicuna not implemented for OS %s %s',
-            uname[0], uname[4])
+    else:
+        log.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
         return ''
     binariesPath = util.file.get_binaries_path()
     return os.path.join(binariesPath, 'mvicuna', osName, 'mvicuna')
+
 
 """
 Instructions for building mvicuna on Mac OS X Mavericks:

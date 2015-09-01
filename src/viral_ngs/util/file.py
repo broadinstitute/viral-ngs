@@ -6,7 +6,13 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os, gzip, tempfile, shutil, errno, logging, json
+import os
+import gzip
+import tempfile
+import shutil
+import errno
+import logging
+import json
 import util.cmd
 
 # imports needed for download_file() and webfile_readlines()
@@ -19,49 +25,56 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-def get_project_path() :
+
+def get_project_path():
     '''Return the absolute path of the top-level project, assumed to be the
        parent of the directory containing this script.'''
     # abspath converts relative to absolute path; expanduser interprets ~
-    path = __file__                  # path to this script
+    path = __file__  # path to this script
     path = os.path.expanduser(path)  # interpret ~
-    path = os.path.abspath(path)     # convert to absolute path
-    path = os.path.dirname(path)     # containing directory: util
-    path = os.path.dirname(path)     # containing directory: main project dir
+    path = os.path.abspath(path)  # convert to absolute path
+    path = os.path.dirname(path)  # containing directory: util
+    path = os.path.dirname(path)  # containing directory: main project dir
     return path
 
-def get_build_path() :
+
+def get_build_path():
     '''Return absolute path of "build" directory'''
     return os.path.join(get_project_path(), 'tools', 'build')
 
-def get_scripts_path() :
+
+def get_scripts_path():
     '''Return absolute path of "scripts" directory'''
     return os.path.join(get_project_path(), 'tools', 'scripts')
 
-def get_binaries_path() :
+
+def get_binaries_path():
     '''Return absolute path of "binaries" directory'''
     return os.path.join(get_project_path(), 'tools', 'binaries')
 
-def get_test_path() :
+
+def get_test_path():
     '''Return absolute path of "test" directory'''
     return os.path.join(get_project_path(), 'test')
 
-def get_test_input_path(testClassInstance=None) :
+
+def get_test_input_path(testClassInstance=None):
     '''Return the path to the directory containing input files for the specified
        test class
     '''
-    if testClassInstance is not None :
-        return os.path.join(get_test_path(), 'input',
-                            type(testClassInstance).__name__)
+    if testClassInstance is not None:
+        return os.path.join(get_test_path(), 'input', type(testClassInstance).__name__)
     else:
         return os.path.join(get_test_path(), 'input')
 
-def get_resources() :
+
+def get_resources():
     ''' Return the project resources dictionary '''
     jsonfile = os.path.join(get_project_path(), 'resources.json')
     with open(jsonfile, 'rt') as inf:
         resources = json.load(inf)
     return resources
+
 
 def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
@@ -73,33 +86,38 @@ def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
     os.close(fd)
     return fn
 
+
 def set_tmpDir(name):
     proposed_prefix = ['tmp']
     if name:
         proposed_prefix.append(name)
-    for e in ('LSB_JOBID','LSB_JOBINDEX'):
+    for e in ('LSB_JOBID', 'LSB_JOBINDEX'):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
-    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix)+'-',
-                                        dir=util.cmd.find_tmpDir())
+    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmpDir())
+
 
 def destroy_tmpDir():
     if tempfile.tempdir:
         shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
 
+
 def mkdir_p(dirpath):
     ''' Verify that the directory given exists, and if not, create it.
     '''
     try:
         os.makedirs(dirpath)
-    except OSError as exc: # Python >2.5
+    except OSError as exc:  # Python >2.5
         if exc.errno == errno.EEXIST and os.path.isdir(dirpath):
             pass
-        else: raise
+        else:
+            raise
+
 
 def open_or_gzopen(fname, *opts):
     return fname.endswith('.gz') and gzip.open(fname, *opts) or open(fname, *opts)
+
 
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
@@ -112,11 +130,12 @@ def read_tabfile_dict(inFile):
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = row
-            elif header==None:
+            elif header is None:
                 header = row
             else:
-                assert len(header)==len(row)
-                yield dict((k,v) for k,v in zip(header, row) if v)
+                assert len(header) == len(row)
+                yield dict((k, v) for k, v in zip(header, row) if v)
+
 
 def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
@@ -127,6 +146,7 @@ def read_tabfile(inFile):
             if not line.startswith('#'):
                 yield line.rstrip('\n').split('\t')
 
+
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
     with open_or_gzopen(filename, 'rt') as inf:
         header = inf.readline().rstrip('\n').split(delim)
@@ -134,12 +154,14 @@ def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
         header[0] = header[0][len(headerPrefix):]
     return header
 
+
 class FlatFileParser(object):
     ''' Generic flat file parser that parses tabular text input
     '''
+
     def __init__(self, lineIter=None, name=None, outType='dict',
-            readHeader=True, headerPrefix='#', delim='\t',
-            requireUniqueHeader=False):
+                 readHeader=True, headerPrefix='#', delim='\t',
+                 requireUniqueHeader=False):
         self.lineIter = lineIter
         self.header = None
         self.name = name
@@ -147,9 +169,9 @@ class FlatFileParser(object):
         self.readHeader = readHeader
         self.delim = delim
         self.requireUniqueHeader = requireUniqueHeader
-        self.line_num=0
-        assert outType in ('dict','arrayStrict', 'arrayLoose','both')
-        self.outType=outType
+        self.line_num = 0
+        assert outType in ('dict', 'arrayStrict', 'arrayLoose', 'both')
+        self.outType = outType
         assert readHeader or outType in ('arrayStrict', 'arrayLoose')
 
     def __enter__(self):
@@ -162,7 +184,7 @@ class FlatFileParser(object):
         assert self.lineIter
         for row in self.lineIter:
             out = self.parse(row)
-            if out != None:
+            if out is not None:
                 yield out
 
     def parse(self, row):
@@ -195,16 +217,15 @@ class FlatFileParser(object):
         assert row
         self.header = row
         if self.outType != 'arrayLoose':
-            assert len(row) == len(dict([(x,0) for x in row]))
+            assert len(row) == len(dict([(x, 0) for x in row]))
 
     def parseRow(self, row):
-        assert self.outType == 'arrayLoose' or ( self.header and
-                len(self.header) == len(row) )
+        assert self.outType == 'arrayLoose' or (self.header and len(self.header) == len(row))
 
-        if self.outType =='arrayLoose' or self.outType == 'arrayStrict' :
+        if self.outType == 'arrayLoose' or self.outType == 'arrayStrict':
             return row
-        out = { self.header[i]: row[i] for i in range( len(self.header) ) }
-        if self.outType=='both':
+        out = {self.header[i]: row[i] for i in range(len(self.header))}
+        if self.outType == 'both':
             for i in range(len(self.header)):
                 out[i] = row[i]
         return out
@@ -222,7 +243,8 @@ def fastaMaker(seqs, linewidth=60):
             yield "{}\n".format(line)
 
         if seq:
-            yield seq+"\n"
+            yield seq + "\n"
+
 
 def makeFastaFile(seqs, outFasta):
     with open(outFasta, 'wt') as outf:
@@ -230,6 +252,7 @@ def makeFastaFile(seqs, outFasta):
             outf.write(line)
 
     return outFasta
+
 
 def concat(inputFilePaths, outputFilePath):
     '''
@@ -242,6 +265,7 @@ def concat(inputFilePaths, outputFilePath):
             with open(filePath) as infile:
                 for line in infile:
                     outfile.write(line)
+
 
 def download_file(uriToGet, dest, destFileName=None):
     destDir = os.path.realpath(os.path.expanduser(dest))
@@ -260,15 +284,17 @@ def download_file(uriToGet, dest, destFileName=None):
 
     with open(destPath, "wb") as outf:
         while True:
-           chunk = req.read(1024)
-           if not chunk: break
-           outf.write(chunk)
+            chunk = req.read(1024)
+            if not chunk:
+                break
+            outf.write(chunk)
 
     return destPath
 
+
 def webfile_readlines(uriToGet):
 
-    for line in urlopen(uriToGet):#.readlines():
+    for line in urlopen(uriToGet):  # .readlines():
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
