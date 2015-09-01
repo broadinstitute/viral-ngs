@@ -23,6 +23,7 @@ class TestToolsInstallation(TestCaseWithTmp):
         util.cmd.setup_logger('INFO')
 
     def testAllToolInstallers(self):
+
         def iter_leaf_subclasses(aClass):
             "Iterate over subclasses at all levels that don't themselves have a subclass"
             isLeaf = True
@@ -32,6 +33,7 @@ class TestToolsInstallation(TestCaseWithTmp):
                     yield leafClass
             if isLeaf:
                 yield aClass
+
         '''Load every tool's default chain of install methods and try them.'''
         for tool_class in iter_leaf_subclasses(tools.Tool):
             t = tool_class()

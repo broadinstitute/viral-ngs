@@ -25,27 +25,16 @@ class BlastTools(tools.Tool):
        Subclasses must define class member subtoolName."""
 
     def __init__(self, install_methods=None):
-        unwanted = ['blast_formatter',
-                    'blastdb_aliastool',
-                    'blastdbcheck',
-                    'blastdbcmd',
-                    'convert2blastmask',
-                    'deltablast',
-                    'legacy_blast.pl',
-                    'makembindex',
-                    'makeprofiledb',
-                    'psiblast',
-                    'rpsblast',
-                    'rpstblastn',
-                    'segmasker',
-                    'tblastn',
-                    'tblastx',
-                    'update_blastdb.pl',
-                    'windowmasker']
+        unwanted = ['blast_formatter', 'blastdb_aliastool', 'blastdbcheck', 'blastdbcmd', 'convert2blastmask',
+                    'deltablast', 'legacy_blast.pl', 'makembindex', 'makeprofiledb', 'psiblast', 'rpsblast',
+                    'rpstblastn', 'segmasker', 'tblastn', 'tblastx', 'update_blastdb.pl', 'windowmasker']
         if install_methods is None:
             target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtoolName
-            install_methods = [tools.DownloadPackage(get_url(), target_rel_path, post_download_command=' '.join(
-                ['rm'] + ['ncbi-blast-2.2.29+/bin/' + f for f in unwanted]), post_download_ret=None)]
+            install_methods = [tools.DownloadPackage(get_url(),
+                                                     target_rel_path,
+                                                     post_download_command=' '.join(
+                                                         ['rm'] + ['ncbi-blast-2.2.29+/bin/' + f for f in unwanted]),
+                                                     post_download_ret=None)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
 

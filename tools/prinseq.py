@@ -14,7 +14,8 @@ class PrinseqTool(tools.Tool):
             install_methods = []
             target_rel_path = 'prinseq-lite-0.19.3/prinseq-lite.pl'
             install_methods.append(
-                tools.DownloadPackage(url, target_rel_path,
+                tools.DownloadPackage(url,
+                                      target_rel_path,
                                       post_download_command='chmod +x {}'.format(target_rel_path),
                                       require_executability=True))
         tools.Tool.__init__(self, install_methods=install_methods)

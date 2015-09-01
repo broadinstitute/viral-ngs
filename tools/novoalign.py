@@ -50,8 +50,7 @@ class NovoalignTool(tools.Tool):
             raise ValueError('input file %s must end with .fasta' % fasta)
         return fasta[:-6] + '.nix'
 
-    def execute(self, inBam, refFasta, outBam,
-                options=["-r", "Random"], min_qual=0, JVMmemory=None):
+    def execute(self, inBam, refFasta, outBam, options=["-r", "Random"], min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             If the BAM contains multiple read groups, break up
             the input and perform Novoalign separately on each one
@@ -70,25 +69,28 @@ class NovoalignTool(tools.Tool):
 
         elif len(rgs) == 1:
             # Only one RG, keep it simple
-            self.align_one_rg_bam(inBam, refFasta, outBam,
-                                  options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+            self.align_one_rg_bam(inBam, refFasta, outBam, options=options, min_qual=min_qual, JVMmemory=JVMmemory)
 
         else:
             # Multiple RGs, align one at a time and merge
             align_bams = []
             for rg in rgs:
                 tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
-                self.align_one_rg_bam(inBam, refFasta, tmp_bam,
+                self.align_one_rg_bam(inBam,
+                                      refFasta,
+                                      tmp_bam,
                                       rgid=rg,
-                                      options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+                                      options=options,
+                                      min_qual=min_qual,
+                                      JVMmemory=JVMmemory)
                 if os.path.getsize(tmp_bam) > 0:
                     align_bams.append(tmp_bam)
 
             # Merge BAMs, sort, and index
             tools.picard.MergeSamFilesTool().execute(
-                align_bams, outBam,
-                picardOptions=['SORT_ORDER=coordinate',
-                               'USE_THREADING=true', 'CREATE_INDEX=true'],
+                align_bams,
+                outBam,
+                picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
                 JVMmemory=JVMmemory)
             for bam in align_bams:
                 os.unlink(bam)
@@ -110,13 +112,9 @@ class NovoalignTool(tools.Tool):
             if not rgid:
                 rgid = list(rgs.keys())[0]
         elif not rgid:
-            raise InvalidBamHeaderError(
-                "{} has {} read groups, but we require exactly one".format(
-                    inBam, len(rgs)))
+            raise InvalidBamHeaderError("{} has {} read groups, but we require exactly one".format(inBam, len(rgs)))
         if rgid not in rgs:
-            raise InvalidBamHeaderError(
-                "{} has read groups, but not {}".format(
-                    inBam, rgid))
+            raise InvalidBamHeaderError("{} has read groups, but not {}".format(inBam, rgid))
         rg = rgs[rgid]
 
         # Strip inBam to just one RG (if necessary)
@@ -163,7 +161,9 @@ class NovoalignTool(tools.Tool):
 
         # Picard SortSam
         sorter = tools.picard.SortSamTool()
-        sorter.execute(tmp_sam, outBam, sort_order='coordinate',
+        sorter.execute(tmp_sam,
+                       outBam,
+                       sort_order='coordinate',
                        picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
                        JVMmemory=JVMmemory)
 

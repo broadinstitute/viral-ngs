@@ -31,5 +31,6 @@ class TestToolSamtools(TestCaseWithTmp):
             samtools.faidx(inRef)
             self.assertEqualContents(outFai, expected_fai)
 
+
 if __name__ == '__main__':
     unittest.main()

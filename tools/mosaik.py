@@ -24,10 +24,10 @@ class MosaikTool(tools.Tool):
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
         install_methods = []
-        destination_dir = os.path.join(
-            util.file.get_build_path(), 'mosaik-{}'.format(tool_version))
+        destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(tool_version))
         install_methods.append(
-            DownloadAndBuildMosaik(url.format(ver=tool_version, os='source'),
+            DownloadAndBuildMosaik(url.format(ver=tool_version,
+                                              os='source'),
                                    os.path.join(destination_dir, 'bin', 'MosaikAligner'),
                                    destination_dir))
         tools.Tool.__init__(self, install_methods=install_methods)
@@ -37,10 +37,8 @@ class MosaikTool(tools.Tool):
 
     def get_networkFile(self):
         # this is the directory to return
-        dir = os.path.join(util.file.get_build_path(),
-                           'mosaik-{}'.format(tool_version),
-                           'MOSAIK-{}-source'.format(tool_version),
-                           'networkFile')
+        dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(tool_version),
+                           'MOSAIK-{}-source'.format(tool_version), 'networkFile')
         if not os.path.isdir(dir):
             # if it doesn't exist, run just the download-unpack portion of the
             #     source installer
@@ -52,8 +50,7 @@ class MosaikTool(tools.Tool):
 class DownloadAndBuildMosaik(tools.DownloadPackage):
 
     def post_download(self):
-        mosaikDir = os.path.join(self.destination_dir,
-                                 'MOSAIK-{}-source'.format(tool_version))
+        mosaikDir = os.path.join(self.destination_dir, 'MOSAIK-{}-source'.format(tool_version))
         if tool_version == "2.1.33":
             # In this version, obsolete LDFLAGS breaks make. Remove it
             makeFilePath = os.path.join(mosaikDir, 'Makefile')
@@ -61,8 +58,7 @@ class DownloadAndBuildMosaik(tools.DownloadPackage):
             with open(makeFilePath + '.orig') as inf:
                 makeText = inf.read()
             with open(makeFilePath, 'wt') as outf:
-                outf.write(makeText.replace('export LDFLAGS = -Wl',
-                                            '#export LDFLAGS = -Wl'))
+                outf.write(makeText.replace('export LDFLAGS = -Wl', '#export LDFLAGS = -Wl'))
 
         # Now we can make:
         os.system('cd "{}" && make -s'.format(mosaikDir))

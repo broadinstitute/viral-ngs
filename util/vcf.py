@@ -52,8 +52,10 @@ def make_intervals(i, n, fasta, chr_prefix='', verbose=False):
             out.append((c, start, stop))
 
     if verbose:
-        log.info("Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s" % (
-            tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out])))
+        log.info(
+            "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s"
+            % (
+                tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out])))
     return out
 
 
@@ -215,8 +217,7 @@ class TabixReader(pysam.Tabixfile):
     def get(self, chrom=None, start=None, stop=None, region=None):
         if start is not None:
             start -= 1
-        return self.fetch(reference=chrom, start=start, end=stop,
-                          region=region, parser=self.parser)
+        return self.fetch(reference=chrom, start=start, end=stop, region=region, parser=self.parser)
 
 
 def get_pos_from_vcf_record(vcfrec):
@@ -265,7 +266,8 @@ class VcfReader(TabixReader):
 
     def get_positions(self, c=None, start=None, stop=None, region=None):
         for snp in self.get(c, start, stop, region):
-            yield (bytes_to_string(snp.contig), get_pos_from_vcf_record(snp), get_pos_from_vcf_record(snp) + len(snp.ref) - 1)
+            yield (bytes_to_string(snp.contig), get_pos_from_vcf_record(snp),
+                   get_pos_from_vcf_record(snp) + len(snp.ref) - 1)
 
     def get_range(self, c=None, start=None, stop=None, region=None, as_strings=True, more=False):
         ''' Read a VCF file (optionally just a piece of it) and return contents
@@ -285,15 +287,13 @@ class VcfReader(TabixReader):
             alleles = [bytes_to_string(snp.ref)] + bytes_to_string(snp.alt).split(',')
             alleles = [a for a in alleles if a != '.']
             if self.ploidy == 1:
-                genos = [(self.sample_names[i], int(bytes_to_string(snp[i])[0]))
-                         for i in range(len(self.sample_names))
+                genos = [(self.sample_names[i], int(bytes_to_string(snp[i])[0])) for i in range(len(self.sample_names))
                          if bytes_to_string(snp[i])[0] != '.']
                 if as_strings:
                     genos = [(s, alleles[a]) for s, a in genos]
             else:
                 genos = [(self.sample_names[i], [int(bytes_to_string(snp[i])[j * 2]) for j in range(self.ploidy)])
-                         for i in range(len(self.sample_names))
-                         if bytes_to_string(snp[i])[0] != '.']
+                         for i in range(len(self.sample_names)) if bytes_to_string(snp[i])[0] != '.']
                 if as_strings:
                     genos = [(s, [alleles[a] for a in g]) for s, g in genos]
             if more:
@@ -326,8 +326,11 @@ class VcfReader(TabixReader):
         assert len(na) == 1
 
         # get all the VCF records
-        vcf_records = [(p - start, alleles, dict(genos)) for chrom, p, alleles, genos
-                       in self.get_range(c, start, stop, as_strings=True)
+        vcf_records = [(p - start, alleles, dict(genos))
+                       for chrom, p, alleles, genos in self.get_range(c,
+                                                                      start,
+                                                                      stop,
+                                                                      as_strings=True)
                        if not ignoreIndels or set(map(len, alleles)) == set([1])]
 
         # Construct a list called "seq" into which we will replace alleles as

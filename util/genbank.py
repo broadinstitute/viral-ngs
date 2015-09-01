@@ -24,8 +24,8 @@ def get_feature_table_id(featureTableFile):
                 if not line.startswith('>Feature '):
                     raise Exception("not sure how to handle a non-Feature record")
                 seqid = line[len('>Feature '):].strip()
-                if not ((seqid.startswith('gb|') or seqid.startswith('ref|'))
-                        and seqid.endswith('|') and len(seqid) > 4):
+                if not (
+                    (seqid.startswith('gb|') or seqid.startswith('ref|')) and seqid.endswith('|') and len(seqid) > 4):
                     raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
                 seqid = seqid[seqid.find("|") + 1:-1]
     if len(seqid) > 0:
@@ -51,13 +51,10 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
     if chunkSize > maxChunkSize or (len(accessionList) > maxChunkSize and chunkSize == 1):
         chunkSize = maxChunkSize
 
-    outEx = {
-        "fasta": "fasta",
-        "ft": "tbl",
-        "gb": "gbk"
-    }
+    outEx = {"fasta": "fasta", "ft": "tbl", "gb": "gbk"}
 
-    assert rettype in outEx.keys(), "The return type requested, %s, is not compatible with the nuccore fetch." % rettype
+    assert rettype in outEx.keys(
+    ), "The return type requested, %s, is not compatible with the nuccore fetch." % rettype
 
     outputDirectory = os.path.abspath(os.path.expanduser(destinationDir))
 
@@ -110,9 +107,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
             except IOError as e:
 
                 log.warning(
-                    "Error fetching file %s: %s, try #%s probably because NCBI is too busy.",
-                    chunkNum + 1,
-                    accString,
+                    "Error fetching file %s: %s, try #%s probably because NCBI is too busy.", chunkNum + 1, accString,
                     tryCount)
 
                 tryCount += 1
@@ -172,16 +167,8 @@ def fetch_fastas_from_genbank(
         retmode="text",
         chunkSize=1):
     return _fetch_from_nuccore(
-        accessionList,
-        destinationDir,
-        emailAddress,
-        forceOverwrite,
-        rettype,
-        retmode,
-        fileExt,
-        combinedFilePrefix,
-        removeSeparateFiles,
-        chunkSize)
+        accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
+        removeSeparateFiles, chunkSize)
 
 
 def fetch_feature_tables_from_genbank(
@@ -196,16 +183,8 @@ def fetch_feature_tables_from_genbank(
         retmode="text",
         chunkSize=1):
     return _fetch_from_nuccore(
-        accessionList,
-        destinationDir,
-        emailAddress,
-        forceOverwrite,
-        rettype,
-        retmode,
-        fileExt,
-        combinedFilePrefix,
-        removeSeparateFiles,
-        chunkSize)
+        accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
+        removeSeparateFiles, chunkSize)
 
 
 def fetch_full_records_from_genbank(
@@ -220,13 +199,5 @@ def fetch_full_records_from_genbank(
         retmode="text",
         chunkSize=1):
     return _fetch_from_nuccore(
-        accessionList,
-        destinationDir,
-        emailAddress,
-        forceOverwrite,
-        rettype,
-        retmode,
-        fileExt,
-        combinedFilePrefix,
-        removeSeparateFiles,
-        chunkSize)
+        accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
+        removeSeparateFiles, chunkSize)

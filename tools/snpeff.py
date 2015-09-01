@@ -39,11 +39,8 @@ class SnpEff(tools.Tool):
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        toolCmd = ['java',
-                   '-Xmx' + JVMmemory,
-                   '-Djava.io.tmpdir=' + tempfile.tempdir,
-                   '-jar', self.install_and_get_path(),
-                   command] + args
+        toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
+                   self.install_and_get_path(), command] + args
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout)
 
@@ -89,14 +86,12 @@ class SnpEff(tools.Tool):
 
             add_genomes_to_snpeff_config_file(
                 config_file, [
-                    (databaseId, sortedAccessionString, sortedAccessionString)])
+                    (databaseId, sortedAccessionString, sortedAccessionString)
+                ])
             self.known_dbs.add(databaseId)
             self.installed_dbs.add(databaseId)
 
-            args = [
-                '-genbank',
-                '-v', databaseId
-            ]
+            args = ['-genbank', '-v', databaseId]
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
@@ -143,7 +138,7 @@ class SnpEff(tools.Tool):
                 for row in self.available_databases():
                     if (genomes[0].lower() in row['Genome'].lower()) or (
                             genomes[0].lower() in row['Bundle'].lower()) or (
-                            genomes[0].lower() in row['Organism'].lower()):
+                                    genomes[0].lower() in row['Organism'].lower()):
                         self.download_db(row['Genome'])
 
         # backward compatability for where a single genome name is provided
@@ -161,13 +156,7 @@ class SnpEff(tools.Tool):
             raise Exception()
 
         args = [
-            '-treatAllAsProteinCoding', 'false',
-            '-t',
-            '-noLog',
-            '-ud', '0',
-            '-noStats',
-            '-noShiftHgvs',
-            genomeToUse,
+            '-treatAllAsProteinCoding', 'false', '-t', '-noLog', '-ud', '0', '-noStats', '-noShiftHgvs', genomeToUse,
             os.path.realpath(inVcf)
         ]
 
@@ -216,8 +205,7 @@ class DownloadAndTweakSnpEff(tools.DownloadPackage):
 
     def __init__(self, url, extra_genomes=[]):
         self.extra_genomes = extra_genomes
-        super(DownloadAndTweakSnpEff, self).__init__(
-            url, 'snpEff/snpEff.jar', require_executability=False)
+        super(DownloadAndTweakSnpEff, self).__init__(url, 'snpEff/snpEff.jar', require_executability=False)
 
     def post_download(self):
         config_file = os.path.join(self.destination_dir, 'snpEff', 'snpEff.config')

@@ -19,9 +19,7 @@ if sys.version_info >= (3, 2):
     import snakemake
 
 
-def setup_dummy_simple(
-    sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4',
-                  '9876', 'x.y-7b')):
+def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4', '9876', 'x.y-7b')):
     ''' Set up a very simple project directory with empty input files. '''
 
     workdir = tempfile.mkdtemp()
@@ -35,19 +33,15 @@ def setup_dummy_simple(
     for s in sample_names:
         with open(os.path.join(workdir, 'data', '00_raw', s + '.bam'), 'wt') as outf:
             pass
-    for fn in ('samples-assembly.txt', 'samples-depletion.txt',
-               'samples-runs.txt', 'samples-assembly-failures.txt'):
+    for fn in ('samples-assembly.txt', 'samples-depletion.txt', 'samples-runs.txt', 'samples-assembly-failures.txt'):
         with open(os.path.join(workdir, fn), 'wt') as outf:
             for s in sample_names:
                 outf.write(s + '\n')
 
-    shutil.copy(os.path.join(util.file.get_project_path(),
-                             'pipes', 'Snakefile'), workdir)
-    shutil.copy(os.path.join(util.file.get_project_path(),
-                             'pipes', 'config.json'), workdir)
+    shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'Snakefile'), workdir)
+    shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'config.json'), workdir)
 
-    os.symlink(util.file.get_project_path(),
-               os.path.join(workdir, 'bin'))
+    os.symlink(util.file.get_project_path(), os.path.join(workdir, 'bin'))
 
     return workdir
 
@@ -58,8 +52,7 @@ class TestSimpleDryRuns(TestCaseWithTmp):
     def setUp(self):
         super(TestSimpleDryRuns, self).setUp()
         self.workdir = setup_dummy_simple()
-        self.env = {'GATK_PATH': os.environ.get('GATK_PATH'),
-                    'NOVOALIGN_PATH': os.environ.get('NOVOALIGN_PATH')}
+        self.env = {'GATK_PATH': os.environ.get('GATK_PATH'), 'NOVOALIGN_PATH': os.environ.get('NOVOALIGN_PATH')}
 
     def tearDown(self):
         for k, v in self.env.items():
@@ -72,11 +65,13 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
             #configfile=os.path.join(self.workdir, 'config.json'),
-            workdir=self.workdir, dryrun=True))
+            workdir=self.workdir,
+            dryrun=True))
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
             #configfile=os.path.join(self.workdir, 'config.json'),
-            workdir=self.workdir, dryrun=True,
+            workdir=self.workdir,
+            dryrun=True,
             targets=['all']))
 
     def test_dryrun_all_assemble(self):
@@ -84,7 +79,8 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
             #configfile=os.path.join(self.workdir, 'config.json'),
-            workdir=self.workdir, dryrun=True,
+            workdir=self.workdir,
+            dryrun=True,
             targets=['all_assemble']))
 
     def test_dryrun_all_deplete(self):
@@ -92,5 +88,6 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
             #configfile=os.path.join(self.workdir, 'config.json'),
-            workdir=self.workdir, dryrun=True,
+            workdir=self.workdir,
+            dryrun=True,
             targets=['all_deplete']))

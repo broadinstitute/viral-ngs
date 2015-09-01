@@ -33,8 +33,10 @@ class SamtoolsTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [
-                tools.DownloadPackage(url, 'samtools-{}/samtools'.format(tool_version),
-                                      post_download_command='cd samtools-{}; make -s'.format(tool_version))]
+                tools.DownloadPackage(url,
+                                      'samtools-{}/samtools'.format(tool_version),
+                                      post_download_command='cd samtools-{}; make -s'.format(tool_version))
+            ]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -113,8 +115,7 @@ class SamtoolsTool(tools.Tool):
             and not stripped out. ID is required for all read groups.
             Resulting keys are in same order as @RG lines in bam file.
         '''
-        rgs = [dict(x.split(':', 1) for x in row[1:])
-               for row in self.getHeader(inBam)
+        rgs = [dict(x.split(':', 1) for x in row[1:]) for row in self.getHeader(inBam)
                if len(row) > 0 and row[0] == '@RG']
         return OrderedDict((rg['ID'], rg) for rg in rgs)
 
@@ -124,5 +125,4 @@ class SamtoolsTool(tools.Tool):
         return int(subprocess.check_output(cmd).strip())
 
     def mpileup(self, inBam, outPileup, opts=[]):
-        self.execute('mpileup', opts + [inBam], stdout=outPileup,
-                     stderr='/dev/null')  # Suppress info messages
+        self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')  # Suppress info messages

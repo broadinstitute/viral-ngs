@@ -36,8 +36,7 @@ class TestTrimmomatic(TestCaseWithTmp):
         pairedOutFastq2 = util.file.mkstempfname()
         clipFasta = os.path.join(myInputDir, 'clip.fasta')
         parser = taxon_filter.parser_trim_trimmomatic(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, pairedOutFastq1,
-                                  pairedOutFastq2, clipFasta])
+        args = parser.parse_args([inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta])
         args.func_main(args)
 
         # Check that results match expected
@@ -62,8 +61,7 @@ class TestFilterLastal(TestCaseWithTmp):
         # Call main_filter_lastal
         inFastq = os.path.join(myInputDir, 'in.fastq')
         outFastq = util.file.mkstempfname('.fastq')
-        args = taxon_filter.parser_filter_lastal(argparse.ArgumentParser()).parse_args([
-            inFastq, refDbs, outFastq])
+        args = taxon_filter.parser_filter_lastal(argparse.ArgumentParser()).parse_args([inFastq, refDbs, outFastq])
         args.func_main(args)
 
         # Check that results match expected
@@ -96,42 +94,31 @@ class TestBmtagger(TestCaseWithTmp):
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
 
     def test_partition_bmtagger(self):
-        outMatch = [os.path.join(self.tempDir, 'outMatch.{}.fastq'.format(n))
-                    for n in '12']
-        outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n))
-                      for n in '12']
+        outMatch = [os.path.join(self.tempDir, 'outMatch.{}.fastq'.format(n)) for n in '12']
+        outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n)) for n in '12']
         myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in1.fastq'),
-             os.path.join(myInputDir, 'in2.fastq'),
-             os.path.join(self.tempDir, 'humanChr1Subset'),
-             os.path.join(self.tempDir, 'humanChr9Subset'),
-             '--outMatch', outMatch[0], outMatch[1],
-             '--outNoMatch', outNoMatch[0], outNoMatch[1]])
+            [os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
+                self.tempDir, 'humanChr1Subset'), os.path.join(self.tempDir, 'humanChr9Subset'), '--outMatch',
+             outMatch[0], outMatch[1], '--outNoMatch', outNoMatch[0], outNoMatch[1]])
         args.func_main(args)
 
         # Compare to expected
         for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2']:
-            assert_equal_contents(self,
-                                  os.path.join(self.tempDir, 'out' + case + '.fastq'),
+            assert_equal_contents(self, os.path.join(self.tempDir, 'out' + case + '.fastq'),
                                   os.path.join(myInputDir, 'expected.' + case + '.fastq'))
 
     def test_deplete_bmtagger(self):
         myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in1.fastq'),
-             os.path.join(myInputDir, 'in2.fastq'),
-             os.path.join(self.tempDir, 'humanChr1Subset'),
-             os.path.join(self.tempDir, 'humanChr9Subset'),
-             '--outNoMatch',
-             os.path.join(self.tempDir, 'deplete.1.fastq'),
-             os.path.join(self.tempDir, 'deplete.2.fastq')])
+            [os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
+                self.tempDir, 'humanChr1Subset'), os.path.join(self.tempDir, 'humanChr9Subset'), '--outNoMatch',
+             os.path.join(self.tempDir, 'deplete.1.fastq'), os.path.join(self.tempDir, 'deplete.2.fastq')])
         args.func_main(args)
 
         # Compare to expected
         for case in ['1', '2']:
-            assert_equal_contents(self,
-                                  os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
+            assert_equal_contents(self, os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
                                   os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
 
 
@@ -156,21 +143,16 @@ class TestDepleteBlastn(TestCaseWithTmp):
             refDb = os.path.join(tempDir, dbname)
             os.symlink(os.path.join(myInputDir, dbname), refDb)
             refDbs.append(refDb)
-            subprocess.check_call([
-                makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
+            subprocess.check_call([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
 
         # Run deplete_blastn
         outFile = os.path.join(tempDir, 'out.fastq')
         args = taxon_filter.parser_deplete_blastn(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in.fastq'),
-             outFile,
-             refDbs[0],
-             refDbs[1]])
+            [os.path.join(myInputDir, 'in.fastq'), outFile, refDbs[0], refDbs[1]])
         args.func_main(args)
 
         # Compare to expected
-        assert_equal_contents(self, outFile,
-                              os.path.join(myInputDir, 'expected.fastq'))
+        assert_equal_contents(self, outFile, os.path.join(myInputDir, 'expected.fastq'))
 
 
 class TestDepleteBlastnBam(TestCaseWithTmp):
@@ -187,40 +169,38 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
             refDb = os.path.join(tempDir, dbname)
             os.symlink(os.path.join(myInputDir, dbname), refDb)
             refDbs.append(refDb)
-            subprocess.check_call([
-                makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
+            subprocess.check_call([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
 
         # convert the input fastq's to a bam
         inFastq1 = os.path.join(myInputDir, "in1.fastq")
         inFastq2 = os.path.join(myInputDir, "in2.fastq")
         inBam = os.path.join(tempDir, 'in.bam')
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, inBam,
-                                  '--sampleName', 'FreeSample',
-                                  '--JVMmemory', '1g',
+        args = parser.parse_args([inFastq1,
+                                  inFastq2,
+                                  inBam,
+                                  '--sampleName',
+                                  'FreeSample',
+                                  '--JVMmemory',
+                                  '1g',
                                   '--picardOptions',
                                   'LIBRARY_NAME=Alexandria',
                                   'PLATFORM=9.75',
-                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',
-                                  ])
+                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
         args.func_main(args)
 
         # Run deplete_blastn_bam
         outBam = os.path.join(tempDir, 'out.bam')
         args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
-            [inBam,
-             refDbs[0],
-             refDbs[1],
-             outBam,
-             "--chunkSize", "1"])
+            [inBam, refDbs[0], refDbs[1], outBam, "--chunkSize", "1"])
         args.func_main(args)
 
         # samtools view for out.sam and compare to expected
         outSam = os.path.join(tempDir, 'out.sam')
         samtools = tools.samtools.SamtoolsTool()
         samtools.view(['-h'], outBam, outSam)
-        assert_equal_contents(self, outSam,
-                              os.path.join(myInputDir, 'expected.sam'))
+        assert_equal_contents(self, outSam, os.path.join(myInputDir, 'expected.sam'))
+
 
 if __name__ == '__main__':
     unittest.main()

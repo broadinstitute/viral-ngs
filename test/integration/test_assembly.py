@@ -32,10 +32,8 @@ class TestAssemble(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
-        args = [refGenome, inBam, outFasta,
-                "--chr_names", 'G5012.3',
-                "--min_coverage", '3',
-                "--novo_params", "-r Random -l 30 -g 40 -x 20 -t 502"]
+        args = [refGenome, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
+                "-r Random -l 30 -g 40 -x 20 -t 502"]
         args = assembly.parser_refine_assembly().parse_args(args)
         args.func_main(args)
         self.assertTrue(os.path.isfile(outFasta))
@@ -46,7 +44,6 @@ class TestAssemble(TestCaseWithTmp):
             seq = Bio.SeqIO.read(inf, 'fasta')
             self.assertGreater(len(seq), 17000)
             self.assertGreater(assembly.unambig_count(seq.seq), len(seq) * 0.95)
-
 
 # in order to test the actual de novo pipeline, we need to add a clip db for trimmomatic
 # then we should test from G5012.3.testreads.bam all the way through the assembly pipe

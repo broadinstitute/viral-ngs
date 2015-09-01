@@ -21,11 +21,9 @@ except ImportError:
 # allows "from tools import *" to import all tooles for testtools
 __all__ = [filename[:-3]  # Remove .py
            for filename in os.listdir(os.path.dirname(__file__))  # tools directory
-           if filename.endswith('.py') and filename != '__init__.py' and
-           filename not in [  # Add any files to exclude here:
-    # e.g. 'sometool.py',
-]
-]
+           if filename.endswith('.py') and filename != '__init__.py' and filename not in [  # Add any files to exclude here:
+               # e.g. 'sometool.py',
+           ]]
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -117,8 +115,7 @@ class PrexistingUnixCommand(InstallMethod):
         actually try to install anything.
     '''
 
-    def __init__(self, path, verifycmd=None, verifycode=0,
-                 require_executability=True):
+    def __init__(self, path, verifycmd=None, verifycode=0, require_executability=True):
         self.path = path
         self.verifycmd = verifycmd
         self.verifycode = verifycode
@@ -127,8 +124,7 @@ class PrexistingUnixCommand(InstallMethod):
         InstallMethod.__init__(self)
 
     def _attempt_install(self):
-        if os.access(self.path, (os.X_OK | os.R_OK) if
-                     self.require_executability else os.R_OK):
+        if os.access(self.path, (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             if self.verifycmd:
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
             else:
@@ -179,8 +175,7 @@ class DownloadPackage(InstallMethod):
         return self.installed and self.targetpath or None
 
     def verify_install(self):
-        if os.access(self.targetpath, (os.X_OK | os.R_OK) if
-                     self.require_executability else os.R_OK):
+        if os.access(self.targetpath, (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             if self.verifycmd:
                 log.debug("validating")
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
@@ -205,17 +200,14 @@ class DownloadPackage(InstallMethod):
         util.file.mkdir_p(download_dir)
         filepath = urlparse(self.url).path
         filename = filepath.split('/')[-1]
-        log.info("Downloading from %s to %s/%s ...", self.url,
-                 download_dir,
-                 filename)
+        log.info("Downloading from %s to %s/%s ...", self.url, download_dir, filename)
         urlretrieve(self.url, os.path.join(download_dir, filename))
         self.download_file = filename
         self.unpack(download_dir)
 
     def post_download(self):
         if self.post_download_command:
-            return_code = os.system('cd "{}" && {}'.format(
-                self.destination_dir, self.post_download_command))
+            return_code = os.system('cd "{}" && {}'.format(self.destination_dir, self.post_download_command))
             if self.post_download_ret is not None:
                 assert return_code == self.post_download_ret
 
@@ -223,25 +215,21 @@ class DownloadPackage(InstallMethod):
         log.debug("unpacking")
         util.file.mkdir_p(self.destination_dir)
         if self.download_file.endswith('.zip'):
-            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir,
-                                                               self.download_file, self.destination_dir)):
+            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir
+                                                              )):
 
                 return
             else:
                 os.unlink(os.path.join(download_dir, self.download_file))
-        elif (self.download_file.endswith('.tar.gz') or
-              self.download_file.endswith('.tgz') or
-              self.download_file.endswith('.tar.bz2') or
-              self.download_file.endswith('.tar')):
+        elif (self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz') or
+              self.download_file.endswith('.tar.bz2') or self.download_file.endswith('.tar')):
             if self.download_file.endswith('.tar'):
                 compression_option = ''
             elif self.download_file.endswith('.tar.bz2'):
                 compression_option = 'j'
             else:
                 compression_option = 'z'
-            untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir,
-                                                        compression_option,
-                                                        download_dir,
+            untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir, compression_option, download_dir,
                                                         self.download_file)
             log.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)

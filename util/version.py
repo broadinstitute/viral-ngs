@@ -13,11 +13,11 @@ def get_project_path():
     '''Return the absolute path of the top-level project, assumed to be the
        parent of the directory containing this script.'''
     # abspath converts relative to absolute path; expanduser interprets ~
-    path = __file__                  # path to this script
+    path = __file__  # path to this script
     path = os.path.expanduser(path)  # interpret ~
-    path = os.path.abspath(path)     # convert to absolute path
-    path = os.path.dirname(path)     # containing directory: util
-    path = os.path.dirname(path)     # containing directory: main project dir
+    path = os.path.abspath(path)  # convert to absolute path
+    path = os.path.dirname(path)  # containing directory: util
+    path = os.path.dirname(path)  # containing directory: main project dir
     return path
 
 

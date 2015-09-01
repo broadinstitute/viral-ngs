@@ -20,6 +20,7 @@ class BmtaggerTools(tools.Tool):
     using fink and assuring that /sw/bin comes before /usr/bin in $PATH.
 
     '''
+
     # subtoolName must be defined in subclass
 
     def __init__(self, install_methods=None):
@@ -61,8 +62,7 @@ class DownloadBmtagger(tools.InstallMethod):
         return self.installed and self.targetpath or None
 
     def verify_install(self):
-        self.installed = all(os.access(os.path.join(self.targetDir, executable),
-                                       (os.X_OK | os.R_OK))
+        self.installed = all(os.access(os.path.join(self.targetDir, executable), (os.X_OK | os.R_OK))
                              for executable in self.executables)
         return self.installed
 

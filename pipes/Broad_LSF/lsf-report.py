@@ -57,10 +57,9 @@ def read_lsf_logfile(infname):
 
 
 def read_all_logfiles(dirname):
-    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host',
-              'status', 'run_time', 'start_time', 'end_time',
-              'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads',
-              'logfile']
+    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host', 'status', 'run_time',
+              'start_time', 'end_time', 'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads', 'logfile'
+             ]
     yield header
     for fname in os.listdir(dirname):
         try:
@@ -84,6 +83,7 @@ def main_report(args):
         for row in read_all_logfiles(args.logDir):
             outf.write('\t'.join(row) + '\n')
     return 0
+
 
 if __name__ == '__main__':
     argv = sys.argv[1:]

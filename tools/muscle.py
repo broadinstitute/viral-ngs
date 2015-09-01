@@ -24,14 +24,18 @@ class MuscleTool(tools.Tool):
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
                 install_methods.append(
-                    tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
+                    tools.DownloadPackage(url.format(ver=tool_version,
+                                                     os=muscle_os),
                                           'muscle{}_{}'.format(tool_version, muscle_os),
-                                          verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(util.file.get_build_path(), tool_version, muscle_os)))
+                                          verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
+                                              util.file.get_build_path(), tool_version, muscle_os)))
             install_methods.append(
-                tools.DownloadPackage(url.format(ver=tool_version, os=muscle_os),
+                tools.DownloadPackage(url.format(ver=tool_version,
+                                                 os=muscle_os),
                                       'muscle{}/src/muscle'.format(tool_version),
                                       post_download_command='cd muscle{}/src; make -s'.format(tool_version),
-                                      verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(util.file.get_build_path(), tool_version)))
+                                      verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
+                                          util.file.get_build_path(), tool_version)))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):

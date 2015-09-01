@@ -30,11 +30,11 @@ def get_project_path():
     '''Return the absolute path of the top-level project, assumed to be the
        parent of the directory containing this script.'''
     # abspath converts relative to absolute path; expanduser interprets ~
-    path = __file__                  # path to this script
+    path = __file__  # path to this script
     path = os.path.expanduser(path)  # interpret ~
-    path = os.path.abspath(path)     # convert to absolute path
-    path = os.path.dirname(path)     # containing directory: util
-    path = os.path.dirname(path)     # containing directory: main project dir
+    path = os.path.abspath(path)  # convert to absolute path
+    path = os.path.dirname(path)  # containing directory: util
+    path = os.path.dirname(path)  # containing directory: main project dir
     return path
 
 
@@ -63,8 +63,7 @@ def get_test_input_path(testClassInstance=None):
        test class
     '''
     if testClassInstance is not None:
-        return os.path.join(get_test_path(), 'input',
-                            type(testClassInstance).__name__)
+        return os.path.join(get_test_path(), 'input', type(testClassInstance).__name__)
     else:
         return os.path.join(get_test_path(), 'input')
 
@@ -95,8 +94,7 @@ def set_tmpDir(name):
     for e in ('LSB_JOBID', 'LSB_JOBINDEX'):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
-    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-',
-                                        dir=util.cmd.find_tmpDir())
+    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmpDir())
 
 
 def destroy_tmpDir():
@@ -222,8 +220,7 @@ class FlatFileParser(object):
             assert len(row) == len(dict([(x, 0) for x in row]))
 
     def parseRow(self, row):
-        assert self.outType == 'arrayLoose' or (self.header and
-                                                len(self.header) == len(row))
+        assert self.outType == 'arrayLoose' or (self.header and len(self.header) == len(row))
 
         if self.outType == 'arrayLoose' or self.outType == 'arrayStrict':
             return row

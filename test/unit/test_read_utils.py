@@ -96,14 +96,17 @@ class TestFastqBam(TestCaseWithTmp):
 
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, outBamCmd,
-                                  '--sampleName', 'FreeSample',
-                                  '--JVMmemory', '1g',
+        args = parser.parse_args([inFastq1,
+                                  inFastq2,
+                                  outBamCmd,
+                                  '--sampleName',
+                                  'FreeSample',
+                                  '--JVMmemory',
+                                  '1g',
                                   '--picardOptions',
                                   'LIBRARY_NAME=Alexandria',
                                   'PLATFORM=9.75',
-                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',
-                                  ])
+                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
         args.func_main(args)
 
         # samtools view for out.sam and compare to expected
@@ -111,22 +114,28 @@ class TestFastqBam(TestCaseWithTmp):
         samtools.view(['-h'], outBamCmd, outSam)
         # picard.sam.FastqToSam outputs header fields in different order for
         #    java version 1.8 vs 1.7/1.6, so compare both
-        self.assertTrue(filecmp.cmp(outSam, expected1_7Sam, shallow=False) or
-                        filecmp.cmp(outSam, expected1_8Sam, shallow=False))
+        self.assertTrue(filecmp.cmp(outSam,
+                                    expected1_7Sam,
+                                    shallow=False) or filecmp.cmp(outSam,
+                                                                  expected1_8Sam,
+                                                                  shallow=False))
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, outBamTxt,
-                                  '--header', inHeader])
+        args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
 
         # out.bam -> out1.fastq, out2.fastq, outHeader.txt; trim 1 base from 1
         parser = read_utils.parser_bam_to_fastq(argparse.ArgumentParser())
-        args = parser.parse_args([outBamTxt, outFastq1, outFastq2,
-                                  '--outHeader', outHeader,
-                                  '--JVMmemory', '1g',
-                                  '--picardOptions', 'READ1_TRIM=1',
-                                  ])
+        args = parser.parse_args([outBamTxt,
+                                  outFastq1,
+                                  outFastq2,
+                                  '--outHeader',
+                                  outHeader,
+                                  '--JVMmemory',
+                                  '1g',
+                                  '--picardOptions',
+                                  'READ1_TRIM=1',])
         args.func_main(args)
 
         # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
@@ -146,8 +155,7 @@ class TestSplitReads(TestCaseWithTmp):
 
         # Split
         parser = read_utils.parser_split_reads(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4',
-                                  '--indexLen', '1'])
+        args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4', '--indexLen', '1'])
         args.func_main(args)
 
         # Check that results match expected
@@ -183,8 +191,7 @@ class TestSplitReads(TestCaseWithTmp):
 
         # Split
         parser = read_utils.parser_split_reads(argparse.ArgumentParser())
-        args = parser.parse_args([inFasta, outPrefix, '--numChunks', '2',
-                                  '--format', 'fasta'])
+        args = parser.parse_args([inFasta, outPrefix, '--numChunks', '2', '--format', 'fasta'])
         args.func_main(args)
 
         # Check that results match expected
@@ -218,17 +225,13 @@ class TestMvicuna(TestCaseWithTmp):
         pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
         unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
         args = read_utils.parser_dup_remove_mvicuna(argparse.ArgumentParser()).parse_args(
-            [inFastq1, inFastq2,
-             pairedOutFastq1, pairedOutFastq2,
-             '--unpairedOutFastq', unpairedOutFastq])
+            [inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, '--unpairedOutFastq', unpairedOutFastq])
         args.func_main(args)
 
         # Compare to expected
-        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq',
-                         'unpairedOut.fastq']:
-            self.assertEqualContents(
-                os.path.join(tempDir, filename),
-                os.path.join(myInputDir, 'expected_' + filename))
+        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
+            self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
+
 
 if __name__ == '__main__':
     unittest.main()

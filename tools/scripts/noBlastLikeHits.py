@@ -5,12 +5,14 @@ import argparse
 import sys
 
 parser = argparse.ArgumentParser(description='This program outputs to stdout reads that have no blast hits')
-parser.add_argument('-b', action="store", dest="blastPath", required=True,
-                    help="path to the blast-like hits file")
-parser.add_argument('-r', action="store", dest="readsPath", required=True,
-                    help="path to the reads file")
-parser.add_argument('-m', action="store", dest="hit", required=True,
-                    help="hit => output reads with hits, nohit => output reads with no hits", choices=['hit', 'nohit'])
+parser.add_argument('-b', action="store", dest="blastPath", required=True, help="path to the blast-like hits file")
+parser.add_argument('-r', action="store", dest="readsPath", required=True, help="path to the reads file")
+parser.add_argument('-m',
+                    action="store",
+                    dest="hit",
+                    required=True,
+                    help="hit => output reads with hits, nohit => output reads with no hits",
+                    choices=['hit', 'nohit'])
 args = parser.parse_args()
 
 # finds the nth and n+1th occurrence of a substring
@@ -21,12 +23,13 @@ def find_nth(str, substr, n):
     i = 0
     for j in range(n + 1):
         i = str.find(substr, i + len(substr))
-        if(j == n - 1):
+        if (j == n - 1):
             pos.append(i)
-        elif(j == n):
+        elif (j == n):
             pos.append(i)
             break
     return pos
+
 
 blastReads = {}
 blastFile = open(args.blastPath, 'r')
@@ -72,7 +75,7 @@ if args.hit == "nohit":
     for i in range(0, len(offsets)):
         FILE.seek(offsets[i])
         line = FILE.readline()
-        if not(line.split()[0][1:] in blastReads):
+        if not (line.split()[0][1:] in blastReads):
             if i == count - 1:
                 FILE.seek(offsets[i])
                 while True:

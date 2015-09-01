@@ -6,16 +6,28 @@ import subprocess
 
 parser = argparse.ArgumentParser(
     description='This program outputs to stdout a user-defined number of reads from given reads file[s]')
-parser.add_argument('-mode', action="store", dest="mode", required=True,
-                    help="s => single-end, p => paired-end")
+parser.add_argument('-mode', action="store", dest="mode", required=True, help="s => single-end, p => paired-end")
 # parser.add_argument('-format',action="store",dest="format",required=True,\
 #  help="fasta => fasta, fastq => fastq",choices=['fasta','fastq'])
-parser.add_argument('-n', action="store", type=int, dest="numSeq", required=True,
+parser.add_argument('-n',
+                    action="store",
+                    type=int,
+                    dest="numSeq",
+                    required=True,
                     help="specifies number of reads to output")
-parser.add_argument('-in', action="store", dest="inputs", nargs='+', required=True,
+parser.add_argument('-in',
+                    action="store",
+                    dest="inputs",
+                    nargs='+',
+                    required=True,
                     help="specifies input files (put both input files separated by a space for paired end)")
-parser.add_argument('-out', action="store", dest="outputs", nargs='*', required=False,
-                    default=['/dev/stdout'], help="specifies output files (default for single end is stdout)")
+parser.add_argument('-out',
+                    action="store",
+                    dest="outputs",
+                    nargs='*',
+                    required=False,
+                    default=['/dev/stdout'],
+                    help="specifies output files (default for single end is stdout)")
 args = parser.parse_args()
 #format = args.format
 numSeq = args.numSeq
@@ -33,18 +45,17 @@ elif mode == 'p':
 fileName1 = reads[0]
 if fileName1.find(".gz") != -1:
     subprocess.call("gunzip " + fileName1, shell=True)
-    fileName1 = fileName1[0: -3]
+    fileName1 = fileName1[0:-3]
 FILE = open(fileName1, 'r')
 if mode == 'p':
     fileName2 = reads[1]
     if fileName2.find(".gz") != -1:
         subprocess.call("gunzip " + fileName2, shell=True)
-        fileName2 = fileName1[0: -3]
+        fileName2 = fileName1[0:-3]
     FILE2 = open(fileName2, 'r')
 random.seed()
 # name of the input file (fasta or fastq)
 # assumes input file is standard fasta/fastq format
-
 """
 calculate number of total reads
 pseudorandomly determine which reads will be extracted
@@ -105,7 +116,7 @@ if count < numSeq:
     numSeq = count
 selected = list(range(0, count))
 random.shuffle(selected)
-selected = sorted(selected[0: numSeq])
+selected = sorted(selected[0:numSeq])
 
 if mode == 's':
     out = open(outs[0], 'w')
