@@ -7,35 +7,42 @@ __author__ = "tomkinsc@broadinstitute.org"
 
 
 from Bio import SeqIO
-import logging, tools, util.file
-import os, os.path, subprocess
+import logging
+import tools
+import util.file
+import os
+import os.path
+import subprocess
 
 tool_version = '7.221'
 url = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
 log = logging.getLogger(__name__)
 
+
 class MafftTool(tools.Tool):
-    def __init__(self, install_methods = None):
-        if install_methods == None:
+
+    def __init__(self, install_methods=None):
+        if install_methods is None:
             install_methods = []
-            mafft_os                = get_mafft_os()
-            mafft_bitdepth          = get_mafft_bitdepth()
+            mafft_os = get_mafft_os()
+            mafft_bitdepth = get_mafft_bitdepth()
             mafft_archive_extension = get_mafft_archive_extension(mafft_os)
-            binaryPath              = get_mafft_binary_path(mafft_os, mafft_bitdepth)
-            binaryDir               = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
-            
+            binaryPath = get_mafft_binary_path(mafft_os, mafft_bitdepth)
+            binaryDir = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
+
             target_rel_path = '{binPath}'.format(binPath=binaryPath)
-            verify_command  = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(dir=util.file.get_build_path(), ver=tool_version, binPath=binaryPath, binDir=binaryDir) 
+            verify_command = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
+                dir=util.file.get_build_path(), ver=tool_version, binPath=binaryPath, binDir=binaryDir)
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version)
 
             install_methods.append(
-                    tools.DownloadPackage( url.format(ver=tool_version, os=mafft_os, ext=mafft_archive_extension),
-                    target_rel_path=target_rel_path,
-                    destination_dir=destination_dir,
-                    verifycmd=verify_command))
+                tools.DownloadPackage(url.format(ver=tool_version, os=mafft_os, ext=mafft_archive_extension),
+                                      target_rel_path=target_rel_path,
+                                      destination_dir=destination_dir,
+                                      verifycmd=verify_command))
 
-        tools.Tool.__init__(self, install_methods = install_methods)
+        tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return tool_version
@@ -48,12 +55,14 @@ class MafftTool(tools.Tool):
 
         # collapse like IDs using set()
         if len(seqIds) > len(set(seqIds)):
-            raise LookupError("Not all sequence IDs in input are unique for file: {}".format(os.path.basename(filePath)))
+            raise LookupError(
+                "Not all sequence IDs in input are unique for file: {}".format(
+                    os.path.basename(filePath)))
 
-    def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder, 
+    def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder,
                 outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True, retree=None):
 
-        inputFileName         = ""
+        inputFileName = ""
         tempCombinedInputFile = ""
 
         # get the full paths of input and output files in case the user has specified relative paths
@@ -62,14 +71,14 @@ class MafftTool(tools.Tool):
             inputFiles.append(os.path.abspath(f))
         outFile = os.path.abspath(outFile)
 
-        # ensure that all sequence IDs in each input file are unique 
+        # ensure that all sequence IDs in each input file are unique
         # (otherwise the alignment result makes little sense)
         # we can check before combining to localize duplications to a specific file
         for filePath in inputFiles:
             self.__seqIdsAreAllUnique(filePath)
 
         # if multiple fasta files are specified for input
-        if len(inputFiles)>1:
+        if len(inputFiles) > 1:
             # combined specified input files into a single temp FASTA file so MAFFT can read them
             tempFileSuffix = ""
             for filePath in inputFiles:
@@ -79,7 +88,7 @@ class MafftTool(tools.Tool):
                 for f in inputFiles:
                     with open(f, "r") as infile:
                         outfile.write(infile.read())
-                #outFile.close()
+                # outFile.close()
             inputFileName = tempCombinedInputFile
         # if there is only once file specified, just use it
         else:
@@ -130,7 +139,7 @@ class MafftTool(tools.Tool):
             toolCmd.append("--clustalout")
         if maxiters:
             toolCmd.append("--maxiterate {iters}".format(iters=maxiters))
-        
+
         toolCmd.append(inputFileName)
 
         log.debug(' '.join(toolCmd))
@@ -148,6 +157,7 @@ class MafftTool(tools.Tool):
 
         return outFile
 
+
 def get_mafft_os():
     uname = os.uname()
     if uname[0] == "Darwin":
@@ -155,18 +165,21 @@ def get_mafft_os():
     if uname[0] == "Linux":
         return "linux"
 
+
 def get_mafft_archive_extension(mafft_os):
     if mafft_os == "mac":
         return "zip"
     elif mafft_os == "linux":
         return "tgz"
 
+
 def get_mafft_bitdepth():
     uname = os.uname()
     if uname[4] == "x86_64":
         return "64"
-    if uname[4] in ['i386','i686',"x86"]:
+    if uname[4] in ['i386', 'i686', "x86"]:
         return "32"
+
 
 def get_mafft_binary_path(mafft_os, bitdepth, full=True):
     mafftPath = ""
@@ -180,7 +193,3 @@ def get_mafft_binary_path(mafft_os, bitdepth, full=True):
         mafftPath += "mafft.bat"
 
     return mafftPath
-
-
-
-

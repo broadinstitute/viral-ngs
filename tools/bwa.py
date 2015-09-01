@@ -3,7 +3,9 @@
 __author__ = "hlevitin@broadinstitute.org"
 
 import tools
-import os, os.path, logging
+import os
+import os.path
+import logging
 
 log = logging.getLogger(__name__)
 
@@ -16,27 +18,29 @@ DOWNLOAD_URL = {
         'http://sourceforge.net/projects/bio-bwa/files/bwa-0.6.2.tar.bz2',
     'current':
         'http://sourceforge.net/projects/bio-bwa/files/bwa-0.7.10.tar.bz2'
-    }
+}
 
 URL = DOWNLOAD_URL['current'] if USE_CURRENT else DOWNLOAD_URL['legacy']
-BWA_DIR = '.'.join( [ x for x in URL.split("/")[-1].split('.') if
-                        x != "tar" and x != "bz2" and x != "gz"])
+BWA_DIR = '.'.join([x for x in URL.split("/")[-1].split('.') if
+                    x != "tar" and x != "bz2" and x != "gz"])
 
-class Bwa(tools.Tool) :
-    def __init__(self, install_methods = None) :
+
+class Bwa(tools.Tool):
+
+    def __init__(self, install_methods=None):
         log.debug("BWA_DIR: %s", BWA_DIR)
-        if install_methods is None :
+        if install_methods is None:
             install_methods = []
-            install_methods.append( tools.DownloadPackage(
+            install_methods.append(tools.DownloadPackage(
                 URL, os.path.join(BWA_DIR, 'bwa'),
                 post_download_command="cd {}; make -s".format(BWA_DIR)))
-            tools.Tool.__init__(self, install_methods = install_methods)
+            tools.Tool.__init__(self, install_methods=install_methods)
 
-    def version(self) :
-        return ''.join([c for c in BWA_DIR if c.isdigit() or c=='.'])
+    def version(self):
+        return ''.join([c for c in BWA_DIR if c.isdigit() or c == '.'])
 
     def execute(self, subcommand, args=[], options={}, option_string="",
-            post_cmd=""):
+                post_cmd=""):
         """
         args are required arguments for the specified bwa subcommand
             (order matters for bwa execution)
@@ -51,8 +55,8 @@ class Bwa(tools.Tool) :
             ( "> output.sai")
         """
         arg_str = " ".join(args)
-        option_str = '{} {}'.format(' '.join([ "{} {}".format(k, v) for k, v in
-                                                options.items() ]),
+        option_str = '{} {}'.format(' '.join(["{} {}".format(k, v) for k, v in
+                                              options.items()]),
                                     option_string
                                     )
         cmd =  "{} {} {} {} {}" \

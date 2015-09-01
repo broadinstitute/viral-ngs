@@ -5,17 +5,23 @@ http://snpeff.sourceforge.net/
 
 # built-ins
 import hashlib
-import os, tempfile, logging, subprocess
+import os
+import tempfile
+import logging
+import subprocess
 
 # third-party
 import pysam
 
 # module-specific
-import tools, util.file, util.genbank
+import tools
+import util.file
+import util.genbank
 
 log = logging.getLogger(__name__)
 
 URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
+
 
 class SnpEff(tools.Tool):
     jvmMemDefault = '4g'
@@ -25,7 +31,7 @@ class SnpEff(tools.Tool):
             install_methods = [DownloadAndTweakSnpEff(URL, extra_genomes)]
         self.known_dbs = set()
         self.installed_dbs = set()
-        super(SnpEff, self).__init__(install_methods = install_methods)
+        super(SnpEff, self).__init__(install_methods=install_methods)
 
     def version(self):
         return "4.1"
@@ -34,10 +40,10 @@ class SnpEff(tools.Tool):
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java',
-            '-Xmx' + JVMmemory,
-            '-Djava.io.tmpdir=' + tempfile.tempdir,
-            '-jar', self.install_and_get_path(),
-            command] + args
+                   '-Xmx' + JVMmemory,
+                   '-Djava.io.tmpdir=' + tempfile.tempdir,
+                   '-jar', self.install_and_get_path(),
+                   command] + args
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout)
 
@@ -73,23 +79,25 @@ class SnpEff(tools.Tool):
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), dataDir, databaseId))
 
             #tempDir = tempfile.gettempdir()
-            records = util.genbank.fetch_full_records_from_genbank(accessions, 
-                                                                    outputDir,
-                                                                    emailAddress,
-                                                                    forceOverwrite=True,
-                                                                    combinedFilePrefix="genes",
-                                                                    removeSeparateFiles=False)
+            records = util.genbank.fetch_full_records_from_genbank(accessions,
+                                                                   outputDir,
+                                                                   emailAddress,
+                                                                   forceOverwrite=True,
+                                                                   combinedFilePrefix="genes",
+                                                                   removeSeparateFiles=False)
             combinedGenbankFilepath = records[0]
 
-            add_genomes_to_snpeff_config_file(config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
+            add_genomes_to_snpeff_config_file(
+                config_file, [
+                    (databaseId, sortedAccessionString, sortedAccessionString)])
             self.known_dbs.add(databaseId)
             self.installed_dbs.add(databaseId)
 
             args = [
                 '-genbank',
                 '-v', databaseId
-                ]
-            self.execute('build', args, JVMmemory=JVMmemory)         
+            ]
+            self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
         toolCmd = ['java', '-jar', self.install_and_get_path(), 'databases']
@@ -105,9 +113,9 @@ class SnpEff(tools.Tool):
                 split_points = list(line.index(key) for key in keys)
             elif not line.startswith('----'):
                 indexes = split_points + [len(line)]
-                row = dict((keys[i], line[indexes[i]:indexes[i+1]].strip()) for i in range(len(split_points)))
+                row = dict((keys[i], line[indexes[i]:indexes[i + 1]].strip()) for i in range(len(split_points)))
                 self.known_dbs.add(row['Genome'])
-                if row.get('Status')=='OK':
+                if row.get('Status') == 'OK':
                     self.installed_dbs.add(row['Genome'])
                 yield row
 
@@ -128,14 +136,14 @@ class SnpEff(tools.Tool):
         genomeToUse = ""
 
         # if we don't have the genome, by name (snpEff official) or by hash (custom)
-        if (not self.has_genome(databaseId)): 
+        if (not self.has_genome(databaseId)):
             if (not self.has_genome(genomes[0])):
                 log.info("Checking for snpEff database online...")
                 # check to see if it is available for download, and if so install it
                 for row in self.available_databases():
                     if (genomes[0].lower() in row['Genome'].lower()) or (
-                        genomes[0].lower() in row['Bundle'].lower()) or (
-                        genomes[0].lower() in row['Organism'].lower()):
+                            genomes[0].lower() in row['Bundle'].lower()) or (
+                            genomes[0].lower() in row['Organism'].lower()):
                         self.download_db(row['Genome'])
 
         # backward compatability for where a single genome name is provided
@@ -151,7 +159,7 @@ class SnpEff(tools.Tool):
 
         if not genomeToUse:
             raise Exception()
-        
+
         args = [
             '-treatAllAsProteinCoding', 'false',
             '-t',
@@ -161,11 +169,11 @@ class SnpEff(tools.Tool):
             '-noShiftHgvs',
             genomeToUse,
             os.path.realpath(inVcf)
-            ]
+        ]
 
         with open(tmpVcf, 'wt') as outf:
             self.execute('ann', args, JVMmemory=JVMmemory, stdout=outf)
-        
+
         if outVcf.endswith('.vcf.gz'):
             pysam.tabix_compress(tmpVcf, outVcf, force=True)
             pysam.tabix_index(outVcf, force=True, preset='vcf')
@@ -177,9 +185,10 @@ def get_data_dir(config_file):
     with open(config_file, 'rt') as inf:
         for line in inf:
             if line.strip().startswith('data.dir'):
-                dataDir = line[line.find("=")+1:].strip()
+                dataDir = line[line.find("=") + 1:].strip()
                 break
     return dataDir
+
 
 def add_genomes_to_snpeff_config_file(config_file, new_genomes):
     """
@@ -193,7 +202,7 @@ def add_genomes_to_snpeff_config_file(config_file, new_genomes):
         for line in inf:
             if not line.startswith('#') and line.strip():
                 i = line.find('.genome : ')
-                if i>=0:
+                if i >= 0:
                     genomes.add(line[:i])
     with open(config_file, 'at') as outf:
         for (g, d, c) in new_genomes:
@@ -202,11 +211,14 @@ def add_genomes_to_snpeff_config_file(config_file, new_genomes):
                 if g != c:
                     outf.write("\t{}.chromosomes : {}\n".format(g, c))
 
+
 class DownloadAndTweakSnpEff(tools.DownloadPackage):
+
     def __init__(self, url, extra_genomes=[]):
         self.extra_genomes = extra_genomes
         super(DownloadAndTweakSnpEff, self).__init__(
             url, 'snpEff/snpEff.jar', require_executability=False)
+
     def post_download(self):
         config_file = os.path.join(self.destination_dir, 'snpEff', 'snpEff.config')
         add_genomes_to_snpeff_config_file(config_file, zip(self.extra_genomes, self.extra_genomes, self.extra_genomes))
