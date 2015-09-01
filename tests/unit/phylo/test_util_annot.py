@@ -5,7 +5,9 @@ __author__ = "dpark@broadinstitute.org"
 import util.annot
 import unittest
 
+
 class TestGeneDb(unittest.TestCase):
+
     def setUp(self):
         pass
 
@@ -16,4 +18,3 @@ class TestGeneDb(unittest.TestCase):
     def testTautology(self):
         '''here we test 1 = 1'''
         self.assertEqual(1, 1)
-
