@@ -2,20 +2,24 @@
 
 __author__ = "hlevitin@broadinstitute.org"
 
-import unittest, os.path, shutil
-import util.file, tools.bwa
+import unittest
+import os.path
+import shutil
+import util.file
+import tools.bwa
 from test import TestCaseWithTmp
 
-class TestToolBwa(TestCaseWithTmp) :
 
-    def setUp(self) :
+class TestToolBwa(TestCaseWithTmp):
+
+    def setUp(self):
         super(TestToolBwa, self).setUp()
         self.bwa = tools.bwa.Bwa()
         self.bwa.install()
 
-    def test_index(self) :
+    def test_index(self):
         orig_ref = os.path.join(util.file.get_test_input_path(),
-            'ebola.fasta')
+                                'ebola.fasta')
         inRef = util.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
 
@@ -25,9 +29,9 @@ class TestToolBwa(TestCaseWithTmp) :
 
         self.bwa.execute('index', [inRef])
         for ext in ('amb', 'ann', 'bwt', 'pac', 'sa'):
-            self.assertEqualContents(inRef+'.'+ext, expected_fasta+'.'+ext)
+            self.assertEqualContents(inRef + '.' + ext, expected_fasta + '.' + ext)
 
-    def test_aln(self) :
+    def test_aln(self):
         expectedDir = util.file.get_test_input_path(self)
 
         # can used expected out for index as input
@@ -37,9 +41,9 @@ class TestToolBwa(TestCaseWithTmp) :
         expect = os.path.join(expectedDir, 'ebola_aln_expected.sai')
 
         self.bwa.execute('aln', [reference, fastq],
-            options={'-q': 5, '-t': 4},
-            post_cmd=" > {}".format(output))
-        
+                         options={'-q': 5, '-t': 4},
+                         post_cmd=" > {}".format(output))
+
         self.assertEqualContents(output, expect)
 
 
