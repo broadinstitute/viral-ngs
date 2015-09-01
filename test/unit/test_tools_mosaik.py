@@ -2,11 +2,15 @@
 
 __author__ = "mlin@dnanexus.com"
 
-import unittest, os.path, shutil
-import util.file, tools.mosaik
+import unittest
+import os.path
+import shutil
+import util.file
+import tools.mosaik
 from test import TestCaseWithTmp
 
-class TestToolMosaik(TestCaseWithTmp) :
+
+class TestToolMosaik(TestCaseWithTmp):
 
     def setUp(self):
         super(TestToolMosaik, self).setUp()
@@ -19,4 +23,8 @@ class TestToolMosaik(TestCaseWithTmp) :
 
     # TO DO: further testing of Mosaik invocations
     # system($mosaikpath."MosaikBuild -q ".$option{fq}." -q2 ".$option{fq2}." -out $readdat -st ".$option{st}." -mfl ".$option{mfl});
-    # system($mosaikpath."MosaikAligner -in $readdat -out $output -ia $refdat -hs ".$option{hs}." -act ".$option{act}." -mm 500 -mmp ".$option{mmp}." -minp ".$option{minp}." -ms ".$option{ms}." -mms ".$option{mms}." -gop ".$option{gop}." -hgop ".$option{hgop}." -gep ".$option{gep}."$bw -m ".$option{m}." -annpe ".$option{annpe}." -annse ".$option{annse});
+    # system($mosaikpath."MosaikAligner -in $readdat -out $output -ia $refdat
+    # -hs ".$option{hs}." -act ".$option{act}." -mm 500 -mmp ".$option{mmp}."
+    # -minp ".$option{minp}." -ms ".$option{ms}." -mms ".$option{mms}." -gop
+    # ".$option{gop}." -hgop ".$option{hgop}." -gep ".$option{gep}."$bw -m
+    # ".$option{m}." -annpe ".$option{annpe}." -annse ".$option{annse});

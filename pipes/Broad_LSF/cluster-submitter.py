@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import os, sys, re
+import os
+import sys
+import re
 from snakemake.utils import read_job_properties
 
 LOGDIR = sys.argv[-2]
@@ -13,21 +15,19 @@ props = read_job_properties(jobscript)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "bsub -P {proj_name} -J {jobname} -r ".format(
-    proj_name='viral_ngs', jobname=jobname)
+cmdline = "bsub -P {proj_name} -J {jobname} -r ".format(proj_name='viral_ngs', jobname=jobname)
 
 # log file output
-if "-N" not in props["params"].get("LSF",""):
-    cmdline += "-oo {logdir}/LSF-{jobname}.txt ".format(
-        logdir=LOGDIR, jobname=jobname)
+if "-N" not in props["params"].get("LSF", ""):
+    cmdline += "-oo {logdir}/LSF-{jobname}.txt ".format(logdir=LOGDIR, jobname=jobname)
 
 # pass memory resource request to LSF
-mem = props.get('resources',{}).get('mem')
+mem = props.get('resources', {}).get('mem')
 if mem:
-    cmdline += '-R "rusage[mem={}]" -M {} '.format(mem, 2*int(mem))
+    cmdline += '-R "rusage[mem={}]" -M {} '.format(mem, 2 * int(mem))
 
 # rule-specific LSF parameters (e.g. queue, runtime)
-cmdline += props["params"].get("LSF","") + " "
+cmdline += props["params"].get("LSF", "") + " "
 
 # figure out job dependencies
 dependencies = set(sys.argv[1:-2])

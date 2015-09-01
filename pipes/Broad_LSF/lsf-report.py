@@ -5,10 +5,16 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import argparse, re, time, os, os.path, sys
+import argparse
+import re
+import time
+import os
+import os.path
+import sys
+
 
 def read_lsf_logfile(infname):
-    out = {'logfile':infname}
+    out = {'logfile': infname}
     num_dash_lines = 0
     with open(infname, 'rU', encoding='latin-1') as inf:
         for line in inf:
@@ -42,18 +48,18 @@ def read_lsf_logfile(infname):
                             line = line.split(':')[0]
                         out['status'] = line
                     elif ':' in line:
-                        k,v = [s.strip() for s in line.split(':')]
-                        out[k]=v
+                        k, v = [s.strip() for s in line.split(':')]
+                        out[k] = v
     if 'start_time' in out and 'end_time' in out:
         out['run_time'] = time.mktime(time.strptime(out['end_time'])) \
             - time.mktime(time.strptime(out['start_time']))
     return out
 
+
 def read_all_logfiles(dirname):
-    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host',
-        'status', 'run_time', 'start_time', 'end_time',
-        'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads',
-        'logfile']
+    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host', 'status', 'run_time',
+              'start_time', 'end_time', 'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads', 'logfile'
+             ]
     yield header
     for fname in os.listdir(dirname):
         try:
@@ -61,25 +67,28 @@ def read_all_logfiles(dirname):
         except:
             print("Error parsing " + fname)
             raise
-        yield [str(row.get(h,'')) for h in header]
+        yield [str(row.get(h, '')) for h in header]
+
 
 def parser_report():
     parser = argparse.ArgumentParser(
-        description = "Read a directory full of LSF log files and produce a tabular report.")
+        description="Read a directory full of LSF log files and produce a tabular report.")
     parser.add_argument("logDir", help="Input directory of LSF log files")
     parser.add_argument("outFile", help="Output report file")
     return parser
 
+
 def main_report(args):
     with open(args.outFile, 'wt') as outf:
         for row in read_all_logfiles(args.logDir):
-            outf.write('\t'.join(row)+'\n')
+            outf.write('\t'.join(row) + '\n')
     return 0
+
 
 if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = parser_report()
-    if len(argv)==0:
+    if len(argv) == 0:
         parser.print_help()
     else:
         args = parser.parse_args(argv)

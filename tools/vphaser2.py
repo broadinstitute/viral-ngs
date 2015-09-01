@@ -2,48 +2,52 @@
     V-Phaser 2 variant caller
 '''
 
-import logging, subprocess, os, tempfile, shutil
+import logging
+import subprocess
+import os
+import tempfile
+import shutil
 import pysam
-import tools, util.file
+import tools
+import util.file
 
 log = logging.getLogger(__name__)
 
-class Vphaser2Tool(tools.Tool) :
-    def __init__(self, install_methods = None) :
-        if install_methods == None :
+
+class Vphaser2Tool(tools.Tool):
+
+    def __init__(self, install_methods=None):
+        if install_methods is None:
             path = _get_vphaser2_path()
             install_methods = [tools.PrexistingUnixCommand(path)]
-        tools.Tool.__init__(self, install_methods = install_methods)
+        tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, inBam, outDir, numThreads = None) :
-        cmd = [self.install_and_get_path(),
-               '-i', inBam,
-               '-o', outDir
-              ]
+    def execute(self, inBam, outDir, numThreads=None):
+        cmd = [self.install_and_get_path(), '-i', inBam, '-o', outDir]
         cmdStr = ' '.join(cmd)
         envCopy = os.environ.copy()
-        if numThreads != None :
+        if numThreads is not None:
             envCopy['OMP_NUM_THREADS'] = str(numThreads)
             cmdStr = 'OMP_NUM_THREADS=%d ' % numThreads + cmdStr
         log.debug(cmdStr)
-        
+
         # Use check_output instead of check_call so that we get error information
         #    if the executable can't run on travis.
         # Also has the effect of suppressing informational messages from vphaser,
         #    which is probably a good thing.
-        try :
-            subprocess.check_output(cmd, env = envCopy, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as ex :
-            print(ex.output) # Useful in case of no log handler.
+        try:
+            subprocess.check_output(cmd, env=envCopy, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as ex:
+            print(ex.output)  # Useful in case of no log handler.
             log.error(ex.output)
             raise
 
-    def iterate(self, inBam, numThreads = None) :
+    def iterate(self, inBam, numThreads=None):
         """
-        Run V-Phaser 2 on inBam. Interate through lines in files 
+        Run V-Phaser 2 on inBam. Interate through lines in files
             CHROM.var.raw.txt in order of chroms in the inBam header.
         For each line yield:
-         [CHROM, Ref_Pos, Var, Cons, Strd_bias_pval, Type, Var_perc, 
+         [CHROM, Ref_Pos, Var, Cons, Strd_bias_pval, Type, Var_perc,
           SNP_or_LP_Profile1, SNP_or_LP_Profile2, ...]
         """
         outdir = tempfile.mkdtemp('vphaser2')
@@ -55,25 +59,25 @@ class Vphaser2Tool(tools.Tool) :
             if os.path.isfile(bti):
                 os.unlink(bti)
         chromNames = pysam.Samfile(inBam).references
-        for chromName in chromNames :
+        for chromName in chromNames:
             outfile = os.path.join(outdir, chromName + '.var.raw.txt')
-            if not os.path.exists(outfile) :
+            if not os.path.exists(outfile):
                 continue
-            with open(outfile, 'rt') as inf :
-                for line in inf :
-                    if not line.startswith('#') :
+            with open(outfile, 'rt') as inf:
+                for line in inf:
+                    if not line.startswith('#'):
                         yield [chromName] + line.strip().split()
         shutil.rmtree(outdir)
 
-def _get_vphaser2_path() :
+
+def _get_vphaser2_path():
     uname = os.uname()
-    if uname[0] == 'Darwin' :
+    if uname[0] == 'Darwin':
         osName = 'MacOSX'
-    elif uname[0] == 'Linux' and uname[4].endswith('64') :
+    elif uname[0] == 'Linux' and uname[4].endswith('64'):
         osName = 'linux64'
-    else :
-        log.debug('V-Phaser 2 not implemented for OS %s %s',
-            uname[0], uname[4])
+    else:
+        log.debug('V-Phaser 2 not implemented for OS %s %s', uname[0], uname[4])
         return ''
     binariesPath = util.file.get_binaries_path()
     return os.path.join(binariesPath, 'V-Phaser-2.0', osName, 'variant_caller')
