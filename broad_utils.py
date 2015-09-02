@@ -11,11 +11,14 @@ import argparse
 import logging
 import os
 import os.path
+import shutil
+import tempfile
 import time
 import json
 import glob
 import hashlib
 import base64
+import xml.etree.ElementTree
 import util.cmd
 import util.file
 import tools.picard
@@ -37,12 +40,10 @@ def get_json_from_picard(picardDir):
         raise Exception("error")
     return jsonfile[0]
 
-
 def get_run_date(jsonfile):
     with open(jsonfile, 'rt') as inf:
         runDate = json.load(inf)['workflow']['runDate']
     return runDate
-
 
 def get_bustard_dir(jsonfile):
     with open(jsonfile, 'rt') as inf:
@@ -55,14 +56,10 @@ def parser_get_bustard_dir(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_bustard_dir)
     return parser
-
-
 def main_get_bustard_dir(args):
     'Find the basecalls directory from a Picard directory'
     print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
-
-
 __commands__.append(('get_bustard_dir', parser_get_bustard_dir))
 
 
@@ -71,20 +68,16 @@ def parser_get_run_date(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_run_date)
     return parser
-
-
 def main_get_run_date(args):
     'Find the sequencing run date from a Picard directory'
     print(get_run_date(get_json_from_picard(args.inDir)))
     return 0
-
-
 __commands__.append(('get_run_date', parser_get_run_date))
+
 
 # ===============
 # ***  misc   ***
 # ===============
-
 
 def iterate_lanes(runfile):
     for flowcellfile in util.file.read_tabfile(runfile):
@@ -127,8 +120,6 @@ def parser_get_all_names(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_all_names)
     return parser
-
-
 def main_get_all_names(args):
     'Get all samples'
     if args.type == 'samples':
@@ -140,14 +131,13 @@ def main_get_all_names(args):
     for s in method(args.runfile):
         print(s)
     return 0
-
-
 __commands__.append(('get_all_names', parser_get_all_names))
 
-# =============================
-# ***  make_barcodes_file   ***
-# =============================
 
+
+# =========================
+# ***  illumina_demux   ***
+# =========================
 
 def make_barcodes_file(inFile, outFile):
     'Create input file for extract_barcodes'
@@ -167,66 +157,6 @@ def make_barcodes_file(inFile, outFile):
             if row.get('library_id_per_sample'):
                 out['library_name'] += '.l' + row['library_id_per_sample']
             outf.write('\t'.join(out[h] for h in header) + '\n')
-
-
-def parser_make_barcodes_file(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFile',
-                        help='''Input tab file w/header and 2-5 named columns (last three are optional):
-                sample, barcode_1, barcode_2, library_id_per_sample, run_id_per_library''')
-    parser.add_argument('outFile', help='Output BARCODE_FILE file for Picard.')
-    util.cmd.attach_main(parser, make_barcodes_file, split_args=True)
-    return parser
-
-
-__commands__.append(('make_barcodes_file', parser_make_barcodes_file))
-
-# ===========================
-# ***  extract_barcodes   ***
-# ===========================
-
-
-def parser_extract_barcodes(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Bustard directory.')
-    parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('barcodeFile',
-                        help='''Input tab file w/header and four named columns:
-                barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
-    parser.add_argument('outDir', help='Output directory for barcodes.')
-    parser.add_argument('--outMetrics', help='Output metrics file. Default is to dump to a temp file.', default=None)
-    for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
-        parser.add_argument('--' + opt,
-                            help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
-                            default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
-    util.cmd.attach_main(parser, main_extract_barcodes)
-    return parser
-
-
-def main_extract_barcodes(args):
-    'Match every read in a lane against their barcode.'
-    out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    tools.picard.ExtractIlluminaBarcodesTool().execute(
-        os.path.join(args.inDir, 'Data', 'Intensities', 'BaseCalls'),
-        args.lane,
-        args.barcodeFile,
-        args.outDir,
-        out_metrics,
-        picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
-    return 0
-
-
-__commands__.append(('extract_barcodes', parser_extract_barcodes))
-
-# ==============================
-# ***  make_library_params   ***
-# ==============================
-
 
 def make_params_file(inFile, bamDir, outFile):
     'Create input file for illumina_basecalls'
@@ -253,24 +183,6 @@ def make_params_file(inFile, bamDir, outFile):
             out['OUTPUT'] = os.path.join(bamDir, run_id + ".bam")
             outf.write('\t'.join(out[h] for h in header) + '\n')
 
-
-def parser_make_params_file(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFile',
-                        help='''Input tab file w/header and four named columns:
-                barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
-    parser.add_argument('bamDir', help='Directory for output bams')
-    parser.add_argument('outFile', help='Output LIBRARY_PARAMS file for Picard')
-    util.cmd.attach_main(parser, make_params_file, split_args=True)
-    return parser
-
-
-__commands__.append(('make_params_file', parser_make_params_file))
-
-# =============================
-# ***  illumina_basecalls   ***
-# =============================
-
-
 def get_earliest_date(inDir):
     ''' Looks at the dates of all first-level members of a directory, plus the directory
         itself, and returns the earliest date seen.
@@ -282,70 +194,230 @@ def get_earliest_date(inDir):
     return time.strftime("%m/%d/%Y", time.localtime(earliest))
 
 
-def short_hash(inString, length=None):
-    ''' Returns a base32 encoding of a SHA1 hash of the inString, optionally truncated
-        to a maximum length.  The base32 encoding is uppercase A-Z and 2-7.
-    '''
-    hash_obj = hashlib.sha1(inString.encode('utf-8'))
-    b32_str = base64.b32encode(bytes(hash_obj.digest())).decode('utf-8')
-    if length > 0 and len(b32_str) > length:
-        b32_str = b32_str[:length]
-    return b32_str
-
-
-def parser_illumina_basecalls(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBustardDir', help='Bustard directory.')
-    parser.add_argument('inBarcodesDir', help='Barcodes directory.')
-    parser.add_argument('flowcell', help='Flowcell ID')
+def parser_illumina_demux(parser=argparse.ArgumentParser()):
+    parser.add_argument('sampleSheet',
+                        help='''Input tab file w/header and four named columns:
+                barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
+    parser.add_argument('bclDir', help='Illumina BCL directory (or tar.gz of BCL directory).')
     parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('paramsFile',
-                        help='''Input tab file w/header and five named columns:
-                BARCODE_1, BARCODE_2, OUTPUT, SAMPLE_ALIAS, LIBRARY_NAME''')
+    parser.add_argument('outDir', help='Output directory for BAM files.')
+    
+    parser.add_argument('--outMetrics', help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.', default=None)
+    parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
+    parser.add_argument('--read_structure', help='Override read structure (default: read from RunInfo.xml).', default=None)
+    
+    for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
+        if opt not in ('read_structure', 'num_processors'):
+            parser.add_argument('--' + opt,
+                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
+                                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
     for opt in tools.picard.IlluminaBasecallsToSamTool.option_list:
         if opt == 'adapters_to_check':
             parser.add_argument('--' + opt,
                                 nargs='*',
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
+                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
                                 default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
+        elif opt == 'read_structure':
+            pass
         else:
             parser.add_argument('--' + opt,
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
+                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
                                 default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
+    
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
-    util.cmd.attach_main(parser, main_illumina_basecalls)
+    util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
-
-def main_illumina_basecalls(args):
-    'Demultiplex Illumina runs & produce BAM files, one per sample'
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
+def main_illumina_demux(args):
+    ''' Demultiplex Illumina runs & produce BAM files, one per sample.
+        Wraps together Picard's ExtractBarcodes and IlluminaBasecallsToSam
+        while handling the various required input formats. Also can
+        read Illumina BCL directories, tar.gz BCL directories.
+        TO DO: read BCL or tar.gz BCL directories from S3 / object store.
+    '''
+    
+    # prepare
+    illumina = IlluminaDirectory(args.bclDir)
+    illumina.load()
+    if args.flowcell:
+        flowcell = args.flowcell
+    else:
+        flowcell = illumina.get_RunInfo().get_flowcell()
+    if args.run_start_date:
+        run_date = args.run_start_date
+    else:
+        run_date = illumina.get_RunInfo().get_rundate()
+    if args.read_structure:
+        read_structure = args.read_structure
+    else:
+        read_struture = illumina.get_RunInfo().get_read_structure()
+    
+    # Picard ExtractIlluminaBarcodes
+    extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
+    barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+    make_barcodes_file(args.sampleSheet, extract_input)
+    out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
                       if hasattr(args, opt) and getattr(args, opt) != None)
-    if not picardOpts.get('run_start_date'):
-        picardOpts['run_start_date'] = get_earliest_date(args.inBustardDir)
-    # if not picardOpts.get('read_group_id'):
-    #    picardOpts['read_group_id'] = short_hash('{}.{}'.format(args.flowcell,args.lane), 6)
-    tools.picard.IlluminaBasecallsToSamTool().execute(
-        os.path.join(args.inBustardDir, 'Data/Intensities/BaseCalls'),
-        args.inBarcodesDir,
-        args.flowcell,
+    picardOpts['read_structure'] = read_structure
+    tools.picard.ExtractIlluminaBarcodesTool().execute(
+        illumina.get_BCLdir(),
         args.lane,
-        args.paramsFile,
+        extract_input,
+        barcodes_tmpdir,
+        out_metrics,
         picardOptions=picardOpts,
         JVMmemory=args.JVMmemory)
+    
+    # Picard IlluminaBasecallsToSam
+    basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
+    make_params_file(args.sampleSheet, args.outDir, basecalls_input)
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
+                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts['run_start_date'] = run_date
+    picardOpts['read_structure'] = read_structure
+    tools.picard.IlluminaBasecallsToSamTool().execute(
+        illumina.get_BCLdir(),
+        barcodes_tmpdir,
+        flowcell,
+        args.lane,
+        basecalls_input,
+        picardOptions=picardOpts,
+        JVMmemory=args.JVMmemory)
+    
+    # clean up
+    os.unlink(extract_input)
+    os.unlink(basecalls_input)
+    shutil.rmtree(barcodes_tmpdir)
+    illumina.close()
     return 0
+__commands__.append(('illumina_demux', parser_illumina_demux))
 
 
-__commands__.append(('illumina_basecalls', parser_illumina_basecalls))
+# ============================
+# ***  IlluminaDirectory   ***
+# ============================
+
+class IlluminaDirectory(object):
+    ''' A class that handles Illumina data directories
+    '''
+
+    def __init__(self, uri):
+        self.uri = uri
+        self.path = None
+        self.tempDir = None
+        self.runinfo = None
+        self.samplesheet = None
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return 0
+    
+    def load(self):
+        if self.path is None:
+            if '://' in self.uri:
+                tarball = util.file.mkstempfname('.tar.gz')
+                raise NotImplementedError('boto s3 download here uri -> tarball')
+                self._extract_tarball(tarball)
+                os.unlink(tarball)
+            else:
+                if os.path.isdir(self.uri):
+                    self.path = self.uri
+                else:
+                    self._extract_tarball(self.uri)
+            self._fix_path()
+    
+    def _fix_path(self):
+        if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
+            # this is not the correct root-level directory
+            # sometimes this points to one level up
+            subdirs = list(x for x in os.listdir(self.path) if os.path.isdir(x))
+            if len(subdirs) != 1:
+                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s' % self.uri)
+            self.path = subdirs[0]
+            if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
+                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s' % self.uri)
+    
+    def _extract_tarball(self, tarfile):
+        if tarfile.endswith('.tar.gz') or tarfile.endswith('.tgz'):
+            compression_option = 'z'
+        elif tarfile.endswith('.tar.bz2'):
+            compression_option = 'j'
+        elif tarfile.endwith('.tar'):
+            compression_option = ''
+        else:
+            raise Exception("unsupported file type: %s" % tarfile)
+        self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
+        untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
+        subprocess.check_call(untar_cmd)
+    
+    def close(self):
+        if self.tempDir:
+            shutil.rmtree(self.tempDir)
+            self.tempDir = None
+    
+    def get_RunInfo(self):
+        if self.runinfo is None:
+            self.runinfo = RunInfo(os.path.join(self.path, 'RunInfo.xml'))
+        return self.runinfo
+    
+    def get_SampleSheet(self):
+        if self.samplesheet is None:
+            self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'))
+        return self.samplesheet
+    
+    def get_BCLdir(self):
+        return os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')
+
+
+class RunInfo(object):
+    ''' A class that reads the RunInfo.xml file emitted by Illumina
+        MiSeq and HiSeq machines.
+    '''
+    def __init__(self, xml_fname):
+        self.root = xml.etree.ElementTree.parse(xml_fname).getroot()
+    
+    def get_flowcell(self):
+        fc = self.root[0].find('Flowcell').text
+        if '-' in fc:
+            # miseq often adds a bunch of leading zeros and a dash in front
+            fc = fc.split('-')[1]
+        assert 4 <= len(fc) <= 9
+        return fc
+    
+    def get_rundate(self):
+        rundate = self.root[0].find('Date').text
+        assert len(rundate) == 6
+        return '%s/%s/20%s' % (rundate[2:4], rundate[4:6], rundate[0:2])
+        
+    def get_machine(self):
+        return self.root[0].find('Instrument').text
+    
+    def get_read_structure(self):
+        reads = []
+        for x in self.root[0].find('Reads').findall('Read'):
+            order  = int(x.attrib['Number'])
+            read  = x.attrib['NumCycles'] + (x.attrib['IsIndexedRead'] == 'Y' and 'B' or 'T')
+            reads.append((order, read))
+        return ''.join([r for o,r in sorted(reads)])
+
+class SampleSheet(object):
+    ''' A class that reads an Illumina SampleSheet.csv or alternative/simplified
+        tab-delimited versions as well.
+    '''
+    def __init__(self, infile):
+        pass
+
 
 # =======================
-
-
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
-
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
