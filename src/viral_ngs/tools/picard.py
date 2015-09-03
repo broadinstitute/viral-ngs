@@ -81,7 +81,10 @@ class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
 
     def execute(self, inFastq1, inFastq2, sampleName, outBam, picardOptions=[], JVMmemory=None):
-        opts = ['FASTQ=' + inFastq1, 'FASTQ2=' + inFastq2, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
+        if inFastq2:
+            opts = ['FASTQ=' + inFastq1, 'FASTQ2=' + inFastq2, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
+        else:
+            opts = ['FASTQ=' + inFastq1, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
