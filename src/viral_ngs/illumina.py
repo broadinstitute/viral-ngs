@@ -288,10 +288,11 @@ class SampleSheet(object):
     ''' A class that reads an Illumina SampleSheet.csv or alternative/simplified
         tab-delimited versions as well.
     '''
-    def __init__(self, infile, use_sample_name=True, only_lane=None):
+    def __init__(self, infile, use_sample_name=True, only_lane=None, allow_non_unique=False):
         self.fname = infile
         self.use_sample_name = use_sample_name
         self.only_lane = str(only_lane)
+        self.allow_non_unique = allow_non_unique
         self.rows = []
         self._detect_and_load_sheet(infile)
     
@@ -334,7 +335,6 @@ class SampleSheet(object):
                         assert len(header) == len(row)
                         row = dict((k, v) for k, v in zip(header, row) if k and v)
                         row['row_num'] = str(row_num)
-                        row['run_id_per_library'] = row['row_num']
                         if (self.only_lane is not None
                                 and row.get('lane')
                                 and self.only_lane != row['lane']):
@@ -351,15 +351,13 @@ class SampleSheet(object):
                 if 'sample_name' in row:
                     del row['sample_name']
         elif infile.endswith('.txt'):
-            # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample, run_id_per_library
+            # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
             self.rows = []
             row_num = 0
             for row in util.file.read_tabfile_dict(infile):
                 assert row.get('sample') and row.get('barcode_1')
                 row_num += 1
                 row['row_num'] = str(row_num)
-                if not row.get('run_id_per_library'):
-                    row['run_id_per_library'] = row['row_num']
                 self.rows.append(row)
         else:
             raise Exception('unrecognized filetype: %s' % infile)
@@ -371,10 +369,15 @@ class SampleSheet(object):
                 row['library'] += '.l' + row['library_id_per_sample']
             row['run'] = row['library']
         if len(set(row['run'] for row in self.rows)) != len(self.rows):
-            log.warn("non-unique libraries in this pool")
-            #for row in self.rows:
-            #    if row.get('run_id_per_library'):
-            #        row['run'] += '.r' + row['run_id_per_library']
+            if self.allow_non_unique:
+                log.warn("non-unique library IDs in this lane")
+                unique_count = {}
+                for row in self.rows:
+                    unique_count.setdefault(row['library'], 0)
+                    unique_count[row['library']] += 1
+                    row['run'] += '.r' + unique_count[row['library']]
+            else:
+                raise Exception('non-unique library IDs in this lane')
         
         # are we single or double indexed?
         if all(row.get('barcode_2') for row in self.rows):
@@ -469,7 +472,7 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
         assert mo.group(1) == sample_num, "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (sample_num, mo_group(1))
     
     # load metadata
-    samples = SampleSheet(sampleSheet)
+    samples = SampleSheet(sampleSheet, allow_non_unique=True)
     sample_info = samples.fetch_by_index(sample_num)
     assert sample_info, "sample %s not found in %s" % (sample_num, sampleSheet)
     sampleName = sample_info['sample']
