@@ -89,9 +89,9 @@ def main_illumina_demux(args):
     else:
         read_structure = illumina.get_RunInfo().get_read_structure()
     if args.sampleSheet:
-        samples = SampleSheet(args.sampleSheet)
+        samples = SampleSheet(args.sampleSheet, only_lane=args.lane)
     else:
-        samples = illumina.get_SampleSheet()
+        samples = illumina.get_SampleSheet(only_lane=args.lane)
     
     # Picard ExtractIlluminaBarcodes
     extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
@@ -214,9 +214,9 @@ class IlluminaDirectory(object):
             self.runinfo = RunInfo(os.path.join(self.path, 'RunInfo.xml'))
         return self.runinfo
     
-    def get_SampleSheet(self):
+    def get_SampleSheet(self, only_lane=None):
         if self.samplesheet is None and os.path.isfile(os.path.join(self.path, 'SampleSheet.csv')):
-            self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'))
+            self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'), only_lane=only_lane)
         return self.samplesheet
     
     def get_BCLdir(self):
