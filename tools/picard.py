@@ -202,7 +202,6 @@ class IlluminaBasecallsToSamTool(PicardTools):
     jvmMemDefault = '54g'
     defaults = {
         'read_structure': '101T8B8B101T',
-        'sequencing_center': 'BI',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
         'max_reads_in_ram_per_tile': 100000,
         'max_records_in_ram': 100000,

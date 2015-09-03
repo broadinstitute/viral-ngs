@@ -117,6 +117,8 @@ def main_illumina_demux(args):
                       if hasattr(args, opt) and getattr(args, opt) != None)
     picardOpts['run_start_date'] = run_date
     picardOpts['read_structure'] = read_structure
+    if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
+        picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
     tools.picard.IlluminaBasecallsToSamTool().execute(
         illumina.get_BCLdir(),
         barcodes_tmpdir,
@@ -208,12 +210,12 @@ class IlluminaDirectory(object):
             self.tempDir = None
     
     def get_RunInfo(self):
-        if self.runinfo is None:
+        if self.runinfo is None and os.path.isfile(os.path.join(self.path, 'RunInfo.xml')):
             self.runinfo = RunInfo(os.path.join(self.path, 'RunInfo.xml'))
         return self.runinfo
     
     def get_SampleSheet(self):
-        if self.samplesheet is None:
+        if self.samplesheet is None and os.path.isfile(os.path.join(self.path, 'SampleSheet.csv')):
             self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'))
         return self.samplesheet
     
