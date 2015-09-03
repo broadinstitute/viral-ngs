@@ -9,6 +9,7 @@ Command line tools
    intrahost
    read_utils
    reports
+   illumina
    broad_utils
 
 
