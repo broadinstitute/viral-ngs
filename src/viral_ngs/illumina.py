@@ -173,6 +173,7 @@ class IlluminaDirectory(object):
             self._fix_path()
     
     def _fix_path(self):
+        assert self.path is not None
         if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
             # this is not the correct root-level directory
             # sometimes this points to one level up
@@ -195,6 +196,7 @@ class IlluminaDirectory(object):
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
         untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
         subprocess.check_call(untar_cmd)
+        self.path = self.tempDir
     
     def close(self):
         if self.tempDir:
