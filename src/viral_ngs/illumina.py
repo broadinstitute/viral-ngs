@@ -291,7 +291,9 @@ class SampleSheet(object):
     def __init__(self, infile, use_sample_name=True, only_lane=None, allow_non_unique=False):
         self.fname = infile
         self.use_sample_name = use_sample_name
-        self.only_lane = str(only_lane)
+        if only_lane is not None:
+            only_lane = str(only_lane)
+        self.only_lane = only_lane
         self.allow_non_unique = allow_non_unique
         self.rows = []
         self._detect_and_load_sheet(infile)
@@ -362,6 +364,9 @@ class SampleSheet(object):
         else:
             raise Exception('unrecognized filetype: %s' % infile)
         
+        if not self.rows:
+            raise Exception('empty file')
+
         # populate library IDs, run IDs (ie BAM filenames)
         for row in self.rows:
             row['library'] = row['sample']
