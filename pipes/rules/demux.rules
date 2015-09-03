@@ -99,7 +99,7 @@ rule illumina_demux:
             for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality'):
                 if lane.get(opt):
                     opts += ' --%s=%s' % (opt, lane[opt])
-            shell("{config[binDir]}/broad_utils.py illumina_demux {lane[barcode_file]} {lane[bustard_dir]} {wildcards.lane} {outdir} --include_non_pf_reads=false --sequencing_center={params.center} --outMetrics={output[1]} {opts}")
+            shell("{config[binDir]}/illumina.py illumina_demux {lane[barcode_file]} {lane[bustard_dir]} {wildcards.lane} {outdir} --include_non_pf_reads=false --sequencing_center={params.center} --outMetrics={output[1]} {opts}")
 
 
 def demux_move_bams_inputs(wildcards):
