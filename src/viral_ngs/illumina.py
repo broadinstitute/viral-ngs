@@ -26,14 +26,15 @@ log = logging.getLogger(__name__)
 # =========================
 
 def parser_illumina_demux(parser=argparse.ArgumentParser()):
-    parser.add_argument('sampleSheet',
-                        help='''Input tab file w/header and four named columns:
-                barcode_name, library_name, barcode_sequence_1, barcode_sequence_2''')
-    parser.add_argument('bclDir', help='Illumina BCL directory (or tar.gz of BCL directory).')
+    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory).')
     parser.add_argument('lane', help='Lane number.', type=int)
     parser.add_argument('outDir', help='Output directory for BAM files.')
     
     parser.add_argument('--outMetrics', help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.', default=None)
+    parser.add_argument('--sampleSheet', default=None,
+                        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
+                                barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
+                                Default is to look for a SampleSheet.csv in the inDir.''')
     parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
     parser.add_argument('--read_structure', help='Override read structure (default: read from RunInfo.xml).', default=None)
     
@@ -71,7 +72,7 @@ def main_illumina_demux(args):
     '''
     
     # prepare
-    illumina = IlluminaDirectory(args.bclDir)
+    illumina = IlluminaDirectory(args.inDir)
     illumina.load()
     if args.flowcell:
         flowcell = args.flowcell
