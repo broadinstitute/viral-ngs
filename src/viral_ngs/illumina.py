@@ -87,7 +87,7 @@ def main_illumina_demux(args):
     if args.read_structure:
         read_structure = args.read_structure
     else:
-        read_struture = illumina.get_RunInfo().get_read_structure()
+        read_structure = illumina.get_RunInfo().get_read_structure()
     if args.sampleSheet:
         samples = SampleSheet(args.sampleSheet)
     else:
