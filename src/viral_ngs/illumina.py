@@ -177,12 +177,14 @@ class IlluminaDirectory(object):
         if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
             # this is not the correct root-level directory
             # sometimes this points to one level up
-            subdirs = list(x for x in os.listdir(self.path) if os.path.isdir(x))
+            subdirs = list(os.path.join(self.path, x)
+                        for x in os.listdir(self.path)
+                        if os.path.isdir(os.path.join(self.path, x)))
             if len(subdirs) != 1:
-                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s' % self.uri)
+                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (subdirectories: %s)' % (self.uri, str(subdirs)))
             self.path = subdirs[0]
             if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
-                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s' % self.uri)
+                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
     
     def _extract_tarball(self, tarfile):
         if tarfile.endswith('.tar.gz') or tarfile.endswith('.tgz'):
@@ -195,7 +197,9 @@ class IlluminaDirectory(object):
             raise Exception("unsupported file type: %s" % tarfile)
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
         untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
-        subprocess.check_call(untar_cmd)
+        log.debug(' '.join(untar_cmd))
+        with open(os.devnull, 'w') as fnull:
+            subprocess.check_call(untar_cmd, stderr=fnull)
         self.path = self.tempDir
     
     def close(self):

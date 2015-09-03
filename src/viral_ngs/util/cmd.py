@@ -146,8 +146,7 @@ def main_argparse(commands, description):
         try:
             ret = args.func_main(args)
         except:
-            if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep and not (
-                    tempfile.tempdir.startswith('/tmp') or tempfile.tempdir.startswith('/local')):
+            if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep:
                 log.exception(
                     "Exception occurred while running %s, saving tmpDir at %s", args.command, tempfile.tempdir)
             else:
