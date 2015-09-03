@@ -8,12 +8,14 @@ __commands__ = []
 
 import argparse
 import logging
-import re
 import os
 import os.path
+import re
 import shutil
+import subprocess
 import tempfile
 import xml.etree.ElementTree
+
 import util.cmd
 import util.file
 import tools.picard
@@ -149,6 +151,7 @@ class IlluminaDirectory(object):
         self.samplesheet = None
 
     def __enter__(self):
+        self.load()
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
