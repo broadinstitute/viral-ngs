@@ -370,8 +370,11 @@ class SampleSheet(object):
             if row.get('library_id_per_sample'):
                 row['library'] += '.l' + row['library_id_per_sample']
             row['run'] = row['library']
-            if row.get('run_id_per_library'):
-                row['run'] += '.r' + row['run_id_per_library']
+        if len(set(row['run'] for row in self.rows)) != len(self.rows):
+            log.warn("non-unique libraries in this pool")
+            #for row in self.rows:
+            #    if row.get('run_id_per_library'):
+            #        row['run'] += '.r' + row['run_id_per_library']
         
         # are we single or double indexed?
         if all(row.get('barcode_2') for row in self.rows):
