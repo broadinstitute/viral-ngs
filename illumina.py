@@ -189,6 +189,8 @@ class IlluminaDirectory(object):
                 raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
     
     def _extract_tarball(self, tarfile):
+        if not os.path.isfile(tarfile):
+            raise Exception('file does not exist: %s' % tarfile)
         if tarfile.endswith('.tar.gz') or tarfile.endswith('.tgz'):
             compression_option = 'z'
         elif tarfile.endswith('.tar.bz2'):
@@ -300,8 +302,8 @@ class SampleSheet(object):
     
     def _detect_and_load_sheet(self, infile):
         if infile.endswith('.csv'):
-            # one of a few possible CSV formats
-            with util.file.open_or_gzopen(infile, 'rt') as inf:
+            # one of a few possible CSV formats (watch out for line endings from other OSes)
+            with util.file.open_or_gzopen(infile, 'rU') as inf:
                 header = None
                 miseq_skip = False
                 row_num = 0
@@ -320,15 +322,22 @@ class SampleSheet(object):
                         if 'Sample_ID' in header:
                             # this is a MiSeq-generated SampleSheet.csv
                             keymapper = {'Sample_ID':'sample', 'index':'barcode_1', 'index2':'barcode_2', 'Sample_Name':'sample_name'}
+                            header = list(map(keymapper.get, header))
                         elif 'SampleID' in header:
                             # this is a Broad Platform generated SampleSheet.csv
                             keymapper = {'SampleID':'sample', 'Index':'barcode_1', 'Index2':'barcode_2', 'libraryName':'library_id_per_sample', 'FCID':'flowcell', 'Lane':'lane'}
-                        elif 'SampleName' in header:
-                            # this is a Broad walk-up submission sheet (_web_iww_htdocs_seq...)
-                            keymapper = {'SampleName':'sample', 'Nextera i7':'barcode_1', 'Nextera i5':'barcode_2'}
+                            header = list(map(keymapper.get, header))
+                        elif len(row)==3:
+                            # hopefully this is a Broad walk-up submission sheet (_web_iww_htdocs_seq...)
+                            header = ['sample', 'barcode_1', 'barcode_2']
+                            if 'sample' not in row[0].lower():
+                                # this is an actual data row! (no header exists in this file)
+                                row_num += 1
+                                self.rows.append({'sample':row[0],
+                                    'barcode_1':row[1], 'barcode_2':row[2],
+                                    'row_num':str(row_num)})
                         else:
                             raise Exception('unrecognized filetype: %s' % infile)
-                        header = list(map(keymapper.get, header))
                         for h in ('sample', 'barcode_1'):
                             assert h in header
                     else:
@@ -380,7 +389,7 @@ class SampleSheet(object):
                 for row in self.rows:
                     unique_count.setdefault(row['library'], 0)
                     unique_count[row['library']] += 1
-                    row['run'] += '.r' + unique_count[row['library']]
+                    row['run'] += '.r' + str(unique_count[row['library']])
             else:
                 raise Exception('non-unique library IDs in this lane')
         
