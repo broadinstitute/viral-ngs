@@ -76,13 +76,11 @@ rule illumina_demux:
     input:  config.get('seqruns_demux','DNE')
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
-            # leave for later: at some point fix the below stuff
-            #expand("{dir}/{flowcell}.{lane}/{sample}.bam",
+            #expand("{dir}/{{flowcell}}.{{lane}}/{sample}.bam",
             #    dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
-            #    flowcell = flowcell, lane = lane,
             #    sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
-            #    ),
-    resources: mem=50
+            #    )
+    resources: mem=80
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{flowcell}.{lane}",
@@ -115,7 +113,9 @@ rule move_bams_demux:
 
 rule bams_from_fastq:
     input:  os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R1_001.fastq.gz'),
-            os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz')
+            os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz'),
+            os.path.join(config['dataDir'],config['subdirs']['source'],'SampleSheet.csv'),
+            os.path.join(config['dataDir'],config['subdirs']['source'],'RunInfo.xml')
     output: os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}.bam')
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
@@ -123,7 +123,7 @@ rule bams_from_fastq:
             center=config["seq_center"]
     run:
             makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
-            shell("{config[binDir]}/read_utils.py fastq_to_bam {input} {output} --sampleName {wildcards.sample} --picardOptions PLATFORM=illumina SEQUENCING_CENTER={params.center} LIBRARY_NAME={wildcards.sample} SORT_ORDER=queryname")
+            shell("{config[binDir]}/illumina.py miseq_fastq_to_bam {output} {input[2]} {input[0]} --inFastq2 {input[1]} --runInfo {input[3]} --sequencing_center {params.center}")
 
 ruleorder: move_bams_demux > bams_from_fastq
 
