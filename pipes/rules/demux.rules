@@ -18,7 +18,7 @@ import os, os.path, time, shutil
 def iterate_lanes(runfile):
     if not os.path.isfile(runfile):
         return []
-    for lane in read_tab_file(flowcellfile):
+    for lane in read_tab_file(runfile):
         yield lane
     
 def iterate_wells(runfile):
@@ -75,12 +75,13 @@ rule all_demux:
 rule illumina_demux:
     input:  config.get('seqruns_demux','DNE')
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
-            expand("{dir}/{flowcell}.{lane}/{sample}.bam",
-                dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
-                flowcell = flowcell, lane = lane,
-                sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
-                ),
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
+            # leave for later: at some point fix the below stuff
+            #expand("{dir}/{flowcell}.{lane}/{sample}.bam",
+            #    dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
+            #    flowcell = flowcell, lane = lane,
+            #    sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
+            #    ),
     resources: mem=50
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
