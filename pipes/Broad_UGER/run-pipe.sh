@@ -12,7 +12,7 @@ source "$VENVDIR/bin/activate"
 
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
-    --jobs 100000 --immediate-submit \
+    --jobs 100 --immediate-submit \
         --latency-wait 20 \
     --config mode=UGER \
     --directory . \
