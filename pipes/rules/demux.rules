@@ -18,9 +18,8 @@ import os, os.path, time, shutil
 def iterate_lanes(runfile):
     if not os.path.isfile(runfile):
         return []
-    for flowcellfile in read_samples_file(runfile):
-        for lane in read_tab_file(flowcellfile):
-            yield lane
+    for lane in read_tab_file(flowcellfile):
+        yield lane
     
 def iterate_wells(runfile):
     for lane in iterate_lanes(runfile):
@@ -32,17 +31,6 @@ def get_one_lane_from_run(flowcell, lane, runfile):
     assert len(lanes)==1
     return lanes[0]
 
-def get_one_lane_from_flowcell(flowcell, lane, flowcellfile):
-    lanes = [x for x in read_tab_file(flowcellfile) if x['flowcell']==flowcell and x['lane']==lane]
-    assert len(lanes)==1
-    return lanes[0]
-
-def get_all_samples(runfile):
-    samples = set()
-    for lane, well in iterate_wells(runfile):
-        samples.add(well['sample'])
-    return list(sorted(samples))
-
 def get_all_lanes(runfile):
     return list(sorted(set(
         '.'.join((lane['flowcell'], lane['lane']))
@@ -52,14 +40,17 @@ def get_run_id(well):
     run_id = well['sample']
     if well.get('library_id_per_sample'):
         run_id += '.l' + well['library_id_per_sample']
-    if well.get('run_id_per_library'):
-        run_id += '.r' + well['run_id_per_library']
     return run_id
 
 def get_bam_path(lane, well):
     return os.path.join(config['tmpDir'], config['subdirs']['demux'],
         'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         get_run_id(well) + ".bam")
+
+def get_all_demux_outs(runfile, flowcell, lane):
+    for lane, well in iterate_wells(runfile):
+        if lane['flowcell'] == flowcell and lane['lane'] == lane:
+            yield get_run_id(well)
     
 def get_all_runs(runfile):
     for lane, well in iterate_wells(runfile):
@@ -84,6 +75,11 @@ rule all_demux:
 rule illumina_demux:
     input:  config.get('seqruns_demux','DNE')
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
+            expand("{dir}/{flowcell}.{lane}/{sample}.bam",
+                dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
+                flowcell = flowcell, lane = lane,
+                sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
+                ),
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
     resources: mem=50
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
@@ -105,12 +101,12 @@ rule illumina_demux:
 def demux_move_bams_inputs(wildcards):
     lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config.get('seqruns_demux',''))
     for well in read_tab_file(lane['barcode_file']):
-        if well['sample']==wildcards.sample and well['library_id_per_sample']==wildcards.library and well['run_id_per_library']==wildcards.run:
+        if well['sample']==wildcards.sample and well['library_id_per_sample']==wildcards.library:
             return get_bam_path(lane, well)
     return "unreachable-{}-{}-{}-{}".format(wildcards.sample, wildcards.library, wildcards.flowcell, wildcards.lane)
 rule move_bams_demux:
     input:  demux_move_bams_inputs
-    output: config['dataDir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.r{run}.{flowcell}.{lane}.bam'
+    output: config['dataDir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
     params: logid="{sample}.l{library}.r{run}.{flowcell}.{lane}"
     run:
             makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
