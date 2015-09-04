@@ -280,6 +280,12 @@ class RunInfo(object):
             read  = x.attrib['NumCycles'] + (x.attrib['IsIndexedRead'] == 'Y' and 'B' or 'T')
             reads.append((order, read))
         return ''.join([r for o,r in sorted(reads)])
+    
+    def num_reads(self):
+        return sum(1
+            for x in self.root[0].find('Reads').findall('Read') 
+            if x.attrib['IsIndexedRead'] == 'N')
+
 
 
 # ======================
@@ -498,11 +504,17 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
     picardOpts = {
         'LIBRARY_NAME':sample_info['library'],
         'PLATFORM':'illumina',
+        'VERBOSITY':'WARNING',
+        'QUIET':'TRUE',
     }
     if runInfo:
         runInfo = RunInfo(runInfo)
         flowcell = runInfo.get_flowcell()
         picardOpts['RUN_DATE'] = runInfo.get_rundate_iso()
+        if inFastq2:
+            assert runInfo.num_reads() == 2, "paired fastqs given for a single-end RunInfo.xml"
+        else:
+            assert runInfo.num_reads() == 1, "second fastq missing for a paired-end RunInfo.xml"
     else:
         flowcell = 'A'
     if sequencing_center == None and runInfo:

@@ -11,6 +11,7 @@ import filecmp
 import util
 import util.file
 import illumina
+import tools.samtools
 from test import TestCaseWithTmp
 
 
@@ -75,6 +76,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_rundate_iso(), '2015-08-21')
         self.assertEqual(runinfo.get_machine(), 'M04004')
         self.assertEqual(runinfo.get_read_structure(), '101T8B8B101T')
+        self.assertEqual(runinfo.num_reads(), 2)
     
     def test_hiseq(self):
         inDir = util.file.get_test_input_path(self)
@@ -84,6 +86,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_rundate_iso(), '2015-08-21')
         self.assertEqual(runinfo.get_machine(), 'SL-HDF')
         self.assertEqual(runinfo.get_read_structure(), '101T8B8B101T')
+        self.assertEqual(runinfo.num_reads(), 2)
 
 
 class TestIlluminaDir(TestCaseWithTmp):
@@ -137,9 +140,91 @@ class TestIlluminaDir(TestCaseWithTmp):
 
 class TestMiseqToBam(TestCaseWithTmp):
     
-    def test_paired(self):
-        pass
+    def test_paired_1(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        outHeader = util.file.mkstempfname('.txt')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-0-1_S5_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-0-1_S5_L001_R2_001.fastq.gz'))
+        illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
+        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
+        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.0.1.bam.header.txt'))
         
+    def test_paired_2(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        outHeader = util.file.mkstempfname('.txt')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
+        illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
+        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
+        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.48.5.bam.header.txt'))
+
+    def test_paired_custom_seq_center(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        outHeader = util.file.mkstempfname('.txt')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
+        illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo, sequencing_center='CustomSeqCenter')
+        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
+        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.48.5.custom.bam.header.txt'))
+
+    def test_fail_missing_pair(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),)
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], runInfo=runInfo)
+
+    def test_fail_backwards_pair(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+
+    def test_fail_mismatched_pair(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S16_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+
+    def test_fail_oob_index(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S33_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S33_L001_R2_001.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+
+    def test_fail_bad_format(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_002.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L001_R2_002.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+        fastq = (os.path.join(inDir, 'mebv-48-5_S17_L002_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_S17_L002_R2_001.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+        fastq = (os.path.join(inDir, 'mebv-48-5_17_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-48-5_17_L001_R2_001.fastq.gz'))
+        self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
 
 
