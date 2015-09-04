@@ -24,6 +24,7 @@
     "NOVOALIGN_PATH":  "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
   },
 
+
   "seq_center": "BI",
   "genbank": {
     "author_template":        "NCBI/authors.sbt",
@@ -32,9 +33,6 @@
     "sequencing_technology":  "Illumina HiSeq 2500; Nextera LC",
     "comment":                "Please be aware that the annotation is done automatically with little or no manual curation."
   },
-
-
-
 
 
   "dataDir":    "data",
@@ -47,7 +45,7 @@
   "ref_genome":     "ref_genome",
   "lastal_refDb":   "lastal_db",
 
-  "seqruns_demux":     "samples/seqruns.txt",
+  "seqruns_demux":     "flowcells.txt",
   "samples_depletion": "samples-depletion.txt",
   "samples_assembly":  "samples-assembly.txt",
   "samples_assembly_failures":  "samples-assembly-failures.txt",
@@ -65,7 +63,7 @@
   "LSF_queues": {
     "short":   "-W 4:00",
     "long":    "-q forest",
-    "bigmem":  "-q forest"
+    "bigmem":  "-q flower"
   },
 
   "UGER_queues": {
