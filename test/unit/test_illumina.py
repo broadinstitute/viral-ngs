@@ -149,8 +149,16 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-0-1_S5_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-0-1_S5_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
-        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
-        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.0.1.bam.header.txt'))
+        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        self.assertEqual(len(rgs), 1)
+        rgs = rgs[0]
+        self.assertEqual(rgs.get('ID'), 'AEF96')
+        self.assertEqual(rgs.get('PL'), 'illumina')
+        self.assertEqual(rgs.get('PU'), 'AEF96.1.CGTACTAG-CTAAGCCT')
+        self.assertEqual(rgs.get('LB'), 'mebv.0.1')
+        self.assertEqual(rgs.get('SM'), 'mebv.0.1')
+        self.assertEqual(rgs.get('CN'), 'M04004')
+        self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
         
     def test_paired_2(self):
         inDir = util.file.get_test_input_path(self)
@@ -161,8 +169,16 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
-        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
-        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.48.5.bam.header.txt'))
+        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        self.assertEqual(len(rgs), 1)
+        rgs = rgs[0]
+        self.assertEqual(rgs.get('ID'), 'AEF96')
+        self.assertEqual(rgs.get('PL'), 'illumina')
+        self.assertEqual(rgs.get('PU'), 'AEF96.1.GGACTCCT-TATCCTCT')
+        self.assertEqual(rgs.get('LB'), 'mebv.48.5')
+        self.assertEqual(rgs.get('SM'), 'mebv.48.5')
+        self.assertEqual(rgs.get('CN'), 'M04004')
+        self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_paired_custom_seq_center(self):
         inDir = util.file.get_test_input_path(self)
@@ -173,8 +189,16 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo, sequencing_center='CustomSeqCenter')
-        tools.samtools.SamtoolsTool().dumpHeader(outBam, outHeader)
-        self.assertEqualContents(outHeader, os.path.join(inDir, 'mebv.48.5.custom.bam.header.txt'))
+        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        self.assertEqual(len(rgs), 1)
+        rgs = rgs[0]
+        self.assertEqual(rgs.get('ID'), 'AEF96')
+        self.assertEqual(rgs.get('PL'), 'illumina')
+        self.assertEqual(rgs.get('PU'), 'AEF96.1.GGACTCCT-TATCCTCT')
+        self.assertEqual(rgs.get('LB'), 'mebv.48.5')
+        self.assertEqual(rgs.get('SM'), 'mebv.48.5')
+        self.assertEqual(rgs.get('CN'), 'CustomSeqCenter')
+        self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_fail_missing_pair(self):
         inDir = util.file.get_test_input_path(self)
