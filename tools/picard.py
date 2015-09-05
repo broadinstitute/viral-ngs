@@ -81,7 +81,10 @@ class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
 
     def execute(self, inFastq1, inFastq2, sampleName, outBam, picardOptions=[], JVMmemory=None):
-        opts = ['FASTQ=' + inFastq1, 'FASTQ2=' + inFastq2, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
+        if inFastq2:
+            opts = ['FASTQ=' + inFastq1, 'FASTQ2=' + inFastq2, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
+        else:
+            opts = ['FASTQ=' + inFastq1, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
@@ -171,7 +174,7 @@ class BuildBamIndexTool(PicardTools):
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
-    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 25, 'num_processors': 8}
+    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 25, 'num_processors': 0}
     option_list = ('read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
                    'minimum_quality', 'compress_outputs', 'num_processors')
 
@@ -199,12 +202,12 @@ class IlluminaBasecallsToSamTool(PicardTools):
     jvmMemDefault = '54g'
     defaults = {
         'read_structure': '101T8B8B101T',
-        'sequencing_center': 'BI',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
         'max_reads_in_ram_per_tile': 100000,
         'max_records_in_ram': 100000,
-        'num_processors': 8,
-        'force_gc': False
+        'num_processors': 4,
+        'force_gc': False,
+        'include_non_pf_reads': False,
     }
     option_list = ('read_structure', 'sequencing_center', 'adapters_to_check', 'platform', 'max_reads_in_ram_per_tile',
                    'max_records_in_ram', 'num_processors', 'apply_eamss_filter', 'force_gc', 'first_tile',
