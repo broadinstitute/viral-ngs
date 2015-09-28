@@ -9,6 +9,7 @@ import subprocess
 import tools
 import util.file
 
+tool_version = '2.2.30'
 commit_hash = '5c25216d3522d6a33e53875cd76a6d65001e4e67'
 url = 'https://github.com/wanpinglee/MOSAIK/archive/{commit_hash}.zip'
 
@@ -24,7 +25,8 @@ class MosaikTool(tools.Tool):
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
         install_methods = []
-        destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash))
+        destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash), 'MOSAIK-{}'.format(commit_hash))
+        print("destination_dir", destination_dir)
         install_methods.append(
             DownloadAndBuildMosaik(url.format(commit_hash=commit_hash,
                                               os='source'),
@@ -33,7 +35,7 @@ class MosaikTool(tools.Tool):
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return commit_hash
 
     def get_networkFile(self):
         # this is the directory to return
