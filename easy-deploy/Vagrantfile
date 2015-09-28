@@ -5,8 +5,8 @@ Vagrant.configure("2") do |config|
 
   config.vm.provision "ansible" do |ansible|
       ansible.playbook = "ansible-playbook.yml"
-      ansible.sudo = true
-      ansible.sudo_user = user_name
+      #ansible.sudo = true
+      #ansible.sudo_user = user_name
       ansible.extra_vars = {
         user: user_name,
       }
@@ -15,11 +15,13 @@ Vagrant.configure("2") do |config|
   # This configuration is for our local box, when we use virtualbox as the provider
   config.vm.provider :virtualbox do |vb, override|
     #override.ssh.username = "viral-ngs-user"
+    vb.customize ["modifyvm", :id, "--memory", 4096]
     config.vm.hostname = "viral-ngs-vm"
     config.vm.synced_folder "./data/", "/home/vagrant/data/", create: true
     #config.vm.synced_folder "../", "/home/vagrant/viral-ngs/", create: true
     override.vm.box = "viral-ngs-vm"
-    override.vm.box = "ubuntu/trusty64"
+    #override.vm.box = "ubuntu/trusty64"
+    override.vm.box = "ubuntu/vivid64"
   end
 
   # This configuration is for our EC2 instance
@@ -28,7 +30,9 @@ Vagrant.configure("2") do |config|
     aws.secret_access_key = "secret access key"
     # ubuntu AMI, see: https://cloud-images.ubuntu.com/locator/ec2/
     # Trusty 14.04 LTS, amd64 hvm:ebs-ssd @ us-east-1
-    aws.ami = "ami-3387fe56"
+    #aws.ami = "ami-3387fe56"
+    # Vivid 15.04, amd64 hvm:ebs-ssd @ us-east-1
+    aws.ami = "ami-f3caa396"
     aws.keypair_name = "viral-ngs-user"
     #aws.security_groups = ["default", "quicklaunch-1"]
 
