@@ -9,8 +9,9 @@ import subprocess
 import tools
 import util.file
 
-tool_version = '2.1.33'
-url = 'https://mosaik-aligner.googlecode.com/files/MOSAIK-{ver}-{os}.tar'
+tool_version = '2.2.30'
+commit_hash = '5c25216d3522d6a33e53875cd76a6d65001e4e67'
+url = 'https://github.com/wanpinglee/MOSAIK/archive/{commit_hash}.zip'
 
 log = logging.getLogger(__name__)
 
@@ -24,21 +25,20 @@ class MosaikTool(tools.Tool):
             else:
                 os.environ['BLD_PLATFORM'] = 'macosx'
         install_methods = []
-        destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(tool_version))
+        destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash))
         install_methods.append(
-            DownloadAndBuildMosaik(url.format(ver=tool_version,
+            DownloadAndBuildMosaik(url.format(commit_hash=commit_hash,
                                               os='source'),
-                                   os.path.join(destination_dir, 'bin', 'MosaikAligner'),
+                                   os.path.join(destination_dir, 'MOSAIK-{}'.format(commit_hash), 'bin', 'MosaikAligner'),
                                    destination_dir))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return commit_hash
 
     def get_networkFile(self):
         # this is the directory to return
-        dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(tool_version),
-                           'MOSAIK-{}-source'.format(tool_version), 'networkFile')
+        dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash), 'MOSAIK-{}'.format(commit_hash) , 'src', 'networkFile')
         if not os.path.isdir(dir):
             # if it doesn't exist, run just the download-unpack portion of the
             #     source installer
@@ -50,15 +50,7 @@ class MosaikTool(tools.Tool):
 class DownloadAndBuildMosaik(tools.DownloadPackage):
 
     def post_download(self):
-        mosaikDir = os.path.join(self.destination_dir, 'MOSAIK-{}-source'.format(tool_version))
-        if tool_version == "2.1.33":
-            # In this version, obsolete LDFLAGS breaks make. Remove it
-            makeFilePath = os.path.join(mosaikDir, 'Makefile')
-            os.rename(makeFilePath, makeFilePath + '.orig')
-            with open(makeFilePath + '.orig') as inf:
-                makeText = inf.read()
-            with open(makeFilePath, 'wt') as outf:
-                outf.write(makeText.replace('export LDFLAGS = -Wl', '#export LDFLAGS = -Wl'))
+        mosaikDir = os.path.join(self.destination_dir, 'MOSAIK-{}/src'.format(commit_hash))
 
         # Now we can make:
         os.system('cd "{}" && make -s'.format(mosaikDir))
