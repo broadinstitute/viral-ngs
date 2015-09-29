@@ -255,31 +255,35 @@ if all_commands_exist $relevant_commands; then
             fi
             ;;
         A*|a*) 
-            echo "AWS support not yet implemented."
-            exit 1
-
             echo "Running on AWS...";
 
             if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2."; then
                 echo "Running viral-ngs on AWS needs ruby >2.0"
                 exit 1
             else
-                if ! $(vagrant plugin list | grep aws); then
+                if ! echo $(vagrant plugin list) | grep "aws"; then
                     install_with_blocking "vagrant plugin install vagrant-aws" 'vagrant-aws'
                 fi
             fi
 
+            if [ -z "$EC2_ACCESS_KEY_ID" ] && [ -z "$EC2_SECRET_ACCESS_KEY" ]; then 
+                echo "Prior to deploying to EC2 you must obtain AWS IAM credentials permitting instance creation." 
+                echo "You must then set the environment variables:"
+                echo "    EC2_ACCESS_KEY_ID"
+                echo "    EC2_SECRET_ACCESS_KEY"
+                exit 1;
+            else
+                echo "EC2_ACCESS_KEY_ID is set, and EC2_SECRET_ACCESS_KEY is set"
+                echo "Continuing..."
+            fi
+
+            # ask for private key, if not set (store in env)
+            # ask for EC2 credentials, if not set (store in env)
+            # ask "Have you copied any data you would like to work on in this session to data/ ?" --> continue after the prompt
+            #
+
             vagrant up --provider=aws
             vagrant ssh
-            vagrant suspend
-            if [[ $? ]]; then
-                echo $'\nThe Viral-NGS virtual machine has been suspended. Next time you run this'
-                echo $'script, you will be connected exactly where you left off.\n'
-                exit 0
-            else
-                echo $'The Vial-NGS virtual machine did not close cleanly.'
-                exit 1
-            fi
             ;;
     esac
 fi
