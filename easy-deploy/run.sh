@@ -104,7 +104,7 @@ function use_or_install_with_checks() {
                 exit 1
             fi
         else
-            echo "Aborting. Please install $2 manually."
+            echo "Exiting. Please install $2 manually."
             exit 1
         fi
     else
@@ -142,10 +142,15 @@ echo $' |                   __/ |            | |             __/ |  | '
 echo $' |                  |___/             |_|            |___/   | '
 echo $' |                                                           | '
 echo $' +-----------------------------------------------------------+ '
+echo  '    Hosts known to work: OSX 10.10 and Ubuntu 15.04 x64        '
+relevant_commands='ansible vagrant VirtualBox'
 
-relevant_commands=('ansible vagrant VirtualBox')
+if ! [ $(uname -m) == 'x86_64' ]; then
+    echo "This script is intended to be run on 64-bit machines."
+    exit 1
+fi
 
-if ! all_commands_exist $relevant_commands; then
+if ! all_commands_exist "$relevant_commands"; then
     if $(ask "Install local dependencies for running viral-ngs?" Y); then
         echo "Setting up dependencies..."
 
@@ -180,18 +185,15 @@ if ! all_commands_exist $relevant_commands; then
                 echo "Homebrew found, installing cask..."
                 use_or_install_with_checks 'ansible' "Ansible deploy and config manager" 'brew install ansible' 1
                 if use_or_install_with_checks 'brew-cask' "Homebrew cask" 'brew install caskroom/cask/brew-cask' 1 ; then
-                    #install_with_blocking 'brew cask install virtualbox'
                     use_or_install_with_checks 'VirtualBox' "VirtualBox VM manager" 'brew cask install virtualbox' 1
-                    #install_with_blocking 'brew cask install vagrant'
                     use_or_install_with_checks 'vagrant' "Vagrant VM provisioning tool" 'brew cask install vagrant' 1
                     install_with_blocking 'brew cask install vagrant-manager' 'vagrant-manager'
                 fi          
                 # if the version of ruby is not 2.0 ( OSX < 10.10 )
-                if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2."; then
+                if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2." &> /dev/null ; then
                     echo "Ruby is not at version 2.x. Installing 2.0 from Homebrew..."
                     install_with_blocking "brew install ruby20" "Ruby 2.0"
                 fi
-                install_with_blocking "vagrant plugin install vagrant-aws" 'vagrant-aws'
             fi
 
         elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
@@ -199,13 +201,19 @@ if ! all_commands_exist $relevant_commands; then
 
             if cmd_exists "apt-get"; then
                 use_or_install_with_checks "VirtualBox" "VirtualBox VM manager" 'sudo apt-get -y install virtualbox virtualbox-dkms' 1
-                use_or_install_with_checks "ansible" "Ansible deploy and config manager" 'sudo apt-get -y install ansible' 1
-                use_or_install_with_checks "vagrant" "Vagrant VM provisioning tool" 'sudo apt-get -y install vagrant' 1
+                #use_or_install_with_checks "ansible" "Ansible deploy and config manager" 'sudo apt-get -y install ansible' 1
+                use_or_install_with_checks "ansible" "ansible" "sudo apt-get -y install software-properties-common && sudo apt-add-repository -y ppa:ansible/ansible && sudo apt-get -y update && sudo apt-get -y install ansible" 1
+                #use_or_install_with_checks "vagrant" "Vagrant VM provisioning tool" 'sudo apt-get -y install vagrant' 1
+                if use_or_install_with_checks "wget" "wget" "sudo apt-get -y install wget" 1; then                        
+                    use_or_install_with_checks "vagrant" "vagrant" "wget https://dl.bintray.com/mitchellh/vagrant/vagrant_1.7.4_x86_64.deb && sudo dpkg --install vagrant_1.7.4_x86_64.deb && rm vagrant_1.7.4_x86_64.deb" 1
+                fi
+                install_with_blocking 'sudo apt-get -y install zlibc zlib1g zlib1g-dev' 'zlibc'
 
-                if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2."; then
-                    echo "Please update your system ruby to >2.0 and re-run this script"
-                else
-                    install_with_blocking '$(vagrant plugin install vagrant-aws)' 'vagrant-aws'
+                if use_or_install_with_checks "ruby" "Ruby" 'sudo apt-get -y install ruby' 1 ; then                
+                    if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2." &> /dev/null ; then
+                        echo "Please update your system ruby to >2.0 and re-run this script"
+                        exit 1
+                    fi
                 fi
             else
                 echo "This script is intended to be used on a system with apt. If you are using a Linux distro without apt, please set up the environment manually."
@@ -217,7 +225,7 @@ if ! all_commands_exist $relevant_commands; then
             exit 1
         fi
     else
-        echo "Aborting."
+        echo "Exiting."
         exit 1
     fi
 fi
@@ -229,7 +237,6 @@ if all_commands_exist $relevant_commands; then
     echo $'In either case, you will be directed to an ssh session on a VM where'
     echo $'you can work with viral-ngs.\n'
 
-    # Ask the question
     read -p "Run viral-ngs locally or on AWS EC2? [LOCAL/aws] " REPLY
     
     # Default?
@@ -242,10 +249,17 @@ if all_commands_exist $relevant_commands; then
         L*|l*) # could also be explicit LOCAL|local)
             echo "Running locally..."; 
             vagrant up --provider=virtualbox
+            
+            if ! [ $? -eq 0 ]; then
+                echo "The VM was not set up correctly. Check above for error messages."
+                exit 1
+            fi
+
             vagrant box update
             vagrant ssh
+            
             vagrant suspend
-            if [[ $? ]]; then
+            if [ $? -eq 0 ]; then
                 echo $'\nThe Viral-NGS virtual machine has been suspended. Next time you run this'
                 echo $'script, you will be connected exactly where you left off.\n'
                 exit 0
@@ -254,36 +268,111 @@ if all_commands_exist $relevant_commands; then
                 exit 1
             fi
             ;;
-        A*|a*) 
-            echo "Running on AWS...";
+        A*|a*)
+            echo "Starting on AWS...";
 
-            if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2."; then
+            if ! echo $(ruby -e 'print RUBY_VERSION') | grep "2." &> /dev/null ; then
                 echo "Running viral-ngs on AWS needs ruby >2.0"
                 exit 1
             else
-                if ! echo $(vagrant plugin list) | grep "aws"; then
+                if ! echo $(vagrant plugin list) | grep "aws" &> /dev/null ; then
                     install_with_blocking "vagrant plugin install vagrant-aws" 'vagrant-aws'
                 fi
             fi
 
-            if [ -z "$EC2_ACCESS_KEY_ID" ] && [ -z "$EC2_SECRET_ACCESS_KEY" ]; then 
+            if [ -z "$EC2_ACCESS_KEY_ID" ] || [ -z "$EC2_SECRET_ACCESS_KEY" ] || [ -z "$EC2_KEYPAIR_NAME" ] || [ -z "$EC2_PRIVATE_KEY_PATH" ] || [ -z "$EC2_REGION" ]; then 
+                echo "==========================================================================================="
                 echo "Prior to deploying to EC2 you must obtain AWS IAM credentials permitting instance creation." 
-                echo "You must then set the environment variables:"
-                echo "    EC2_ACCESS_KEY_ID"
-                echo "    EC2_SECRET_ACCESS_KEY"
-                exit 1;
+                echo "You must also create a private/public keypair for use with EC2." 
+                echo "The following environment variables are not set:"
+                echo ""
+                if [ -z "$EC2_ACCESS_KEY_ID" ]; then
+                    echo "    EC2_ACCESS_KEY_ID"
+                fi
+                if [ -z "$EC2_SECRET_ACCESS_KEY" ]; then
+                    echo "    EC2_SECRET_ACCESS_KEY"
+                fi
+                if [ -z "$EC2_KEYPAIR_NAME" ]; then
+                    echo "    EC2_KEYPAIR_NAME"
+                fi
+                if [ -z "$EC2_PRIVATE_KEY_PATH" ]; then
+                    echo "    EC2_PRIVATE_KEY_PATH"
+                fi
+                if [ -z "$EC2_REGION" ]; then
+                    echo "    EC2_REGION"
+                fi
+                echo ""
+                echo "If you wish, you may specify these values now for use in only this session."
+                echo "Unless the environment variables are set you will be prompted again next time"
+                echo "you run this script."
+                echo ""
+                if $(ask "Specify the missing values now?" Y); then
+                    while [ -z "$EC2_ACCESS_KEY_ID" ]; do
+                        read -p "What is the AWS access_key_id to use? " EC2_ACCESS_KEY_ID
+                        if [ $(echo ${#EC2_ACCESS_KEY_ID}) -gt 0 ]; then
+                            export EC2_ACCESS_KEY_ID="$EC2_ACCESS_KEY_ID"
+                        fi
+                    done
+
+                    while [ -z "$EC2_SECRET_ACCESS_KEY" ]; do
+                        read -p "What is the AWS secret_access_key to use? " EC2_SECRET_ACCESS_KEY
+                        if [ $(echo ${#EC2_SECRET_ACCESS_KEY}) -gt 0 ]; then
+                            export EC2_SECRET_ACCESS_KEY="$EC2_SECRET_ACCESS_KEY"
+                        fi
+                    done
+
+                    while [ -z "$EC2_KEYPAIR_NAME" ]; do
+                        read -p "What is AWS keypair name? " EC2_KEYPAIR_NAME
+                        if [ $(echo ${#EC2_KEYPAIR_NAME}) -gt 0 ]; then
+                            export EC2_KEYPAIR_NAME="$EC2_KEYPAIR_NAME"
+                        fi
+                    done
+
+                    while [ -z "$EC2_PRIVATE_KEY_PATH" ]; do
+                        read -p "Where is the local private key (*.pem) file for the AWS keypair (file path)? " EC2_PRIVATE_KEY_PATH
+                        if [ $(echo ${#EC2_PRIVATE_KEY_PATH}) -gt 0 ]; then
+                            export EC2_PRIVATE_KEY_PATH="$EC2_PRIVATE_KEY_PATH"
+                        fi
+                    done
+
+                    while [ -z "$EC2_REGION" ]; do
+                        read -p "What is the EC2 region? " EC2_REGION
+                        if [ $(echo ${#EC2_REGION}) -gt 0 ]; then
+                            export EC2_REGION="$EC2_REGION"
+                        fi
+                    done
+                else
+                    echo "Exiting. Please set the AWS environment variables."
+                    exit 1
+                fi
             else
-                echo "EC2_ACCESS_KEY_ID is set, and EC2_SECRET_ACCESS_KEY is set"
-                echo "Continuing..."
+               echo "EC2_ACCESS_KEY_ID is set."
+               echo "EC2_SECRET_ACCESS_KEY is set."
+               echo "EC2_KEYPAIR_NAME is set."
+               echo "EC2_PRIVATE_KEY_PATH is set."
+               echo "EC2_REGION is set."
+               echo "Continuing..."
             fi
 
-            # ask for private key, if not set (store in env)
-            # ask for EC2 credentials, if not set (store in env)
-            # ask "Have you copied any data you would like to work on in this session to data/ ?" --> continue after the prompt
-            #
+            echo "====================================================================================="
+            echo "Data sync to the AWS VM is currently one-way. You will be responsible for downloading"
+            echo "or otherwise transferring data from the AWS VM once processing is complete."
+            echo ""
+            if $(ask "Have you copied any new data you would like to work with in this session to 'data/' ?" Y); then
+                vagrant up --provider=aws
 
-            vagrant up --provider=aws
-            vagrant ssh
+                if ! [ $? -eq 0 ]; then
+                    echo "The VM was not set up correctly. Check above for error messages."
+                    exit 1
+                fi
+
+                vagrant rsync # one-way sync of files, local->ec2
+                vagrant ssh
+            fi
+
             ;;
+        *)
+            echo "Exiting."
+        ;;
     esac
 fi
