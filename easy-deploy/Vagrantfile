@@ -1,6 +1,6 @@
 Vagrant.configure("2") do |config|
   config.vm.provider :virtualbox do |vb, override|
-    vb.customize ["modifyvm", :id, "--memory", 4096]
+    vb.customize ["modifyvm", :id, "--memory", 8192]
     config.vm.hostname = "viral-ngs-vm"
     
     override.vm.box = "viral-ngs-vm"
@@ -23,6 +23,8 @@ Vagrant.configure("2") do |config|
     # ubuntu AMI, see: https://cloud-images.ubuntu.com/locator/ec2/
     # Vivid 15.04, amd64 hvm:ebs-ssd @ us-west-2
     aws.ami = "ami-73b4af43"
+    aws.instance_type = "m4.2xlarge"
+    aws.instance_ready_timeout = 180 # default: 120
     aws.keypair_name = ENV["EC2_KEYPAIR_NAME"]
     aws.region = ENV["EC2_REGION"]
 
