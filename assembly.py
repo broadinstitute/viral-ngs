@@ -372,7 +372,7 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 def refine_assembly(inFasta, inBam, outFasta,
                     outVcf=None, outBam=None, novo_params='', min_coverage=2,
-                    chr_names=[], keep_all_reads=False, JVMmemory=None, threads=1):
+                    chr_names=None, keep_all_reads=False, JVMmemory=None, threads=1):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -383,6 +383,8 @@ def refine_assembly(inFasta, inBam, outFasta,
         and realigned with GATK's IndelRealigner (in order to call indels).
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
+    chr_names = chr_names or []
+
     # Get tools
     picard_index = tools.picard.CreateSequenceDictionaryTool()
     picard_mkdup = tools.picard.MarkDuplicatesTool()

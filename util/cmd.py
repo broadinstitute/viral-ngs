@@ -132,10 +132,10 @@ def main_argparse(commands, description):
              ' '.join(["%s=%s" % (k, v) for k, v in vars(args).items() if k not in ('command', 'func_main')]))
 
     if hasattr(args, 'tmpDir'):
-        ''' If this command has a tmpDir option, use that as a base directory
-            and create a subdirectory within it which we will then destroy at
-            the end of execution.
-        '''
+        # If this command has a tmpDir option, use that as a base directory
+        # and create a subdirectory within it which we will then destroy at
+        # the end of execution.
+
         proposed_dir = 'tmp-%s-%s' % (script_name(), args.command)
         if 'LSB_JOBID' in os.environ:
             proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ['LSB_JOBID'],

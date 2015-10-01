@@ -75,7 +75,7 @@ class DownloadBmtagger(tools.InstallMethod):
         if uname[0] == 'Darwin':
             urlBase += 'mac-os/'
         elif uname[0] != 'Linux' or not uname[4].endswith('64'):
-            log.debug('OS {} not implemented'.format(uname[0]))
+            log.debug('OS %s not implemented', uname[0])
             return
         for executable in self.executables:
             path = os.path.join(self.targetDir, executable)

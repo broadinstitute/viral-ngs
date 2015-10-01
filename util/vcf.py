@@ -5,11 +5,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os
-import shutil
 import logging
-import itertools
-import sqlite3
 import pysam
 import util.file
 import util.misc
@@ -53,9 +49,8 @@ def make_intervals(i, n, fasta, chr_prefix='', verbose=False):
 
     if verbose:
         log.info(
-            "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s"
-            % (
-                tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out])))
+            "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s",
+                tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out]) )
     return out
 
 
@@ -75,7 +70,7 @@ def sliding_windows(fasta, width, offset, chr_prefix=''):
                 start += offset
 
 
-class GenomePosition:
+class GenomePosition(object):
     ''' Provide a mapping from chr:pos to genomic position.
         Read chromosome lengths and order from either a Picard/GATK-index for
         a FASTA file (a .dict file) or from a VCF header.
@@ -386,8 +381,8 @@ def replaceAlleles(sample, seq, vcf_records):
                 continue
             if isinstance(samp_geno, list):
                 log.warn(
-                    "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s)." %
-                    (i, sample, '/'.join(samp_geno)))
+                    "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s).",
+                    i, sample, '/'.join(samp_geno) )
                 continue
             allele = samp_geno
 

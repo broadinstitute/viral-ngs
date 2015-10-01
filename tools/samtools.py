@@ -59,10 +59,14 @@ class SamtoolsTool(tools.Tool):
         if stderr:
             stderr.close()
 
-    def view(self, args, inFile, outFile, regions=[]):
+    def view(self, args, inFile, outFile, regions=None):
+        regions = regions or []
+
         self.execute('view', args + ['-o', outFile, inFile] + regions)
 
-    def merge(self, inFiles, outFile, options=['-f']):
+    def merge(self, inFiles, outFile, options=None):
+        options = options or ['-f']
+
         "Merge a list of inFiles to create outFile."
         # We are using -f for now because mkstempfname actually makes an empty
         # file, and merge fails with that as output target without the -f.
@@ -119,10 +123,15 @@ class SamtoolsTool(tools.Tool):
                if len(row) > 0 and row[0] == '@RG']
         return OrderedDict((rg['ID'], rg) for rg in rgs)
 
-    def count(self, inBam, opts=[], regions=[]):
+    def count(self, inBam, opts=None, regions=None):
+        opts = opts or []
+        regions = regions or []
+
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
         # return int(pysam.view(*cmd)[0].strip())
         return int(subprocess.check_output(cmd).strip())
 
-    def mpileup(self, inBam, outPileup, opts=[]):
+    def mpileup(self, inBam, outPileup, opts=None):
+        opts = opts or []
+        
         self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')  # Suppress info messages

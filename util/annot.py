@@ -132,7 +132,7 @@ def parse_eff(chrom, pos, info, required=True):
                 try:
                     gene_name = urllib.unquote_plus(other[5]).encode('ascii')
                 except UnicodeDecodeError as e:
-                    log.error("error at %s:%s decoding the string '%s'" % (chrom, pos, other[5]))
+                    log.error("error at %s:%s decoding the string '%s'", chrom, pos, other[5])
                     raise
             aa_chg = other[3]
             if aa_chg:
@@ -166,6 +166,6 @@ def parse_eff(chrom, pos, info, required=True):
         eff = out[0][1:]
         return eff
 
-    except Exception as e:
+    except Exception:
         log.exception("exception parsing snpEff on row %s:%s - %s", chrom, pos, info)
         raise
