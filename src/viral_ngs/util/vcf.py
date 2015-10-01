@@ -327,7 +327,7 @@ class VcfReader(TabixReader):
 
         # get all the VCF records
         vcf_records = [(p - start, alleles, dict(genos))
-                       for chrom, p, alleles, genos in self.get_range(c,
+                       for _, p, alleles, genos in self.get_range(c,
                                                                       start,
                                                                       stop,
                                                                       as_strings=True)

@@ -47,7 +47,7 @@ class SnpEff(tools.Tool):
 
     def has_genome(self, genome):
         if not self.known_dbs:
-            for row in self.available_databases():
+            for _ in self.available_databases():
                 pass
 
         return genome in self.installed_dbs

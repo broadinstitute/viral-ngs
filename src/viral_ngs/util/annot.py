@@ -54,7 +54,7 @@ class SnpAnnotater(object):
                     values (?,?,?,?,?,?,?,?,?,?,?)""", imap(
                     lambda row: [row['CHROM'], int(row['POS']), row['REF'], row['ALT']] + parse_eff(row['CHROM'], row['POS'], row['INFO']),
                     ifilter(lambda r: r['ALT'] != '.', ffp)))
-            except Exception as e:
+            except Exception:
                 log.exception("exception processing file %s line %s", snpEffVcf, ffp.line_num)
                 raise
             self.cur.execute("select chr,pos from annot group by chr,pos having count(*)>1")
@@ -131,7 +131,7 @@ def parse_eff(chrom, pos, info, required=True):
             else:
                 try:
                     gene_name = urllib.unquote_plus(other[5]).encode('ascii')
-                except UnicodeDecodeError as e:
+                except UnicodeDecodeError:
                     log.error("error at %s:%s decoding the string '%s'", chrom, pos, other[5])
                     raise
             aa_chg = other[3]
