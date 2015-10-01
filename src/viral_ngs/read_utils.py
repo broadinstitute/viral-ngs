@@ -539,7 +539,7 @@ def parser_split_reads(parser=argparse.ArgumentParser()):
                output file (default %(default)s).
                Number of files must not exceed 10^INDEXLEN.''')
     parser.add_argument('--format',
-                        dest="fmt"
+                        dest="fmt",
                         choices=['fastq', 'fasta'],
                         default=defaultFormat,
                         help='Input fastq or fasta file (default: %(default)s).')

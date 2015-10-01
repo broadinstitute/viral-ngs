@@ -65,9 +65,9 @@ class SamtoolsTool(tools.Tool):
         self.execute('view', args + ['-o', outFile, inFile] + regions)
 
     def merge(self, inFiles, outFile, options=None):
-        options = options or ['-f']
-
         "Merge a list of inFiles to create outFile."
+        options = options or ['-f']
+        
         # We are using -f for now because mkstempfname actually makes an empty
         # file, and merge fails with that as output target without the -f.
         # When mkstempfname is fixed, we should remove the -f.
@@ -133,5 +133,5 @@ class SamtoolsTool(tools.Tool):
 
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
-        
+
         self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')  # Suppress info messages
