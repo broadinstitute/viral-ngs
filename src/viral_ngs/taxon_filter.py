@@ -231,13 +231,10 @@ def filter_lastal(inFastq, refDb, outFastq):
     prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
     noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 
-    # each pipe separated cmd gets own line
-    # unfortunately, it doesn't seem to work to do .format(**locals()) on the
-    # final string as opposed to the individual parts.
     lastalCmd = ' '.join([
-        '{lastalPath} -Q1 {refDb} {inFastq}'.format(**locals()),
-        '| {mafSortPath} -n2'.format(**locals()),
-        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(**locals()),
+        '{lastalPath} -Q1 {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq),
+        '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
+        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
     ])
     log.debug(lastalCmd)
     assert not os.system(lastalCmd)
