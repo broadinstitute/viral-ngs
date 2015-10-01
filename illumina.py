@@ -280,7 +280,7 @@ class RunInfo(object):
             order  = int(x.attrib['Number'])
             read  = x.attrib['NumCycles'] + (x.attrib['IsIndexedRead'] == 'Y' and 'B' or 'T')
             reads.append((order, read))
-        return ''.join([r for o,r in sorted(reads)])
+        return ''.join([r for _,r in sorted(reads)])
     
     def num_reads(self):
         return sum(1

@@ -842,7 +842,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
                 geno = [allele_depths[0][1]]
             else:
                 # call multiple alleles at this position if there is no clear winner
-                geno = [a for n, a in allele_depths]
+                geno = [a for _, a in allele_depths]
         if geno:
             yield (c, start, stop, sample, geno)
 
