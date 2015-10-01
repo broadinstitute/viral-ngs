@@ -18,7 +18,7 @@ if props["params"].get("logid"):
 cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(proj_name='sabeti_lab', jobname=jobname)
 
 # log file output
-cmdline += "-o {logdir} -e {logdir} ".format(logdir=LOGDIR, jobname=jobname)
+cmdline += "-o {logdir} -e {logdir} ".format(logdir=LOGDIR)
 
 # pass memory resource request to cluster
 mem = props.get('resources', {}).get('mem')
@@ -27,7 +27,7 @@ if mem:
 
 cores = props.get('resources', {}).get('cores')
 if cores:
-    cmdLine += ' -pe smp {} '.format(int(cores))
+    cmdline += ' -pe smp {} '.format(int(cores))
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER", "") + " "

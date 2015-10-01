@@ -234,8 +234,8 @@ class FlatFileParser(object):
 def fastaMaker(seqs, linewidth=60):
     assert linewidth > 0
 
-    for id, seq in seqs:
-        yield ">{}\n".format(id)
+    for idVal, seq in seqs:
+        yield ">{}\n".format(idVal)
 
         while len(seq) > linewidth:
             line = seq[:linewidth]

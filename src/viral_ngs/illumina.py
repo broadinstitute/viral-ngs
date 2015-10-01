@@ -489,14 +489,14 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
         mo = re.match(r"^\S+_S(\d+)_L001_R(\d)_001.fastq(?:.gz|)$", inFastq2)
         assert mo, "fastq filename %s does not match the patterns used by an Illumina Miseq machine" % inFastq2
         assert mo.group(2) == '2', "fastq2 must correspond to read 2, not read %s" % mo.group(2)
-        assert mo.group(1) == sample_num, "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (sample_num, mo_group(1))
+        assert mo.group(1) == sample_num, "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (sample_num, mo.group(1))
     
     # load metadata
     samples = SampleSheet(sampleSheet, allow_non_unique=True)
     sample_info = samples.fetch_by_index(sample_num)
     assert sample_info, "sample %s not found in %s" % (sample_num, sampleSheet)
     sampleName = sample_info['sample']
-    log.info("Using sample name: %s" % sampleName)
+    log.info("Using sample name: %s", sampleName)
     if sample_info.get('barcode_2'):
         barcode = '-'.join((sample_info['barcode_1'], sample_info['barcode_2']))
     else:

@@ -1,7 +1,6 @@
 "tools.Tool for prinseq."
 
 import tools
-import util.file
 
 url = 'http://sourceforge.net/projects/prinseq/files/standalone/' \
       'prinseq-lite-0.19.3.tar.gz'

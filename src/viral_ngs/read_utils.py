@@ -373,10 +373,12 @@ __commands__.append(('filter_bam', parser_filter_bam))
 
 
 def bam_to_fastq(inBam, outFastq1, outFastq2, outHeader=None,
-                 JVMmemory=tools.picard.SamToFastqTool.jvmMemDefault, picardOptions=[]):
+                 JVMmemory=tools.picard.SamToFastqTool.jvmMemDefault, picardOptions=None):
     ''' Convert a bam file to a pair of fastq paired-end read files and optional
         text header.
     '''
+    picardOptions = picardOptions or []
+
     tools.picard.SamToFastqTool().execute(inBam,
                                           outFastq1,
                                           outFastq2,
@@ -412,10 +414,12 @@ __commands__.append(('bam_to_fastq', parser_bam_to_fastq))
 
 
 def fastq_to_bam(inFastq1, inFastq2, outBam, sampleName=None, header=None,
-                 JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault, picardOptions=[]):
+                 JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault, picardOptions=None):
     ''' Convert a pair of fastq paired-end read files and optional text header
         to a single bam file.
     '''
+    picardOptions = picardOptions or []
+
     if header:
         fastqToSamOut = mkstempfname('.bam')
     else:
@@ -475,7 +479,7 @@ defaultFormat = 'fastq'
 
 def split_reads(inFileName, outPrefix, outSuffix="",
                 maxReads=None, numChunks=None,
-                indexLen=defaultIndexLen, format=defaultFormat):
+                indexLen=defaultIndexLen, fmt=defaultFormat):
     '''Split fasta or fastq file into chunks of maxReads reads or into
            numChunks chunks named outPrefix01, outPrefix02, etc.
        If both maxReads and numChunks are None, use defaultMaxReads.
@@ -488,7 +492,7 @@ def split_reads(inFileName, outPrefix, outSuffix="",
         else:
             with util.file.open_or_gzopen(inFileName, 'rt') as inFile:
                 totalReadCount = 0
-                for rec in SeqIO.parse(inFile, format):
+                for rec in SeqIO.parse(inFile, fmt):
                     totalReadCount += 1
                 maxReads = int(totalReadCount / numChunks + 0.5)
 
@@ -496,12 +500,12 @@ def split_reads(inFileName, outPrefix, outSuffix="",
         readsWritten = 0
         curIndex = 0
         outFile = None
-        for rec in SeqIO.parse(inFile, format):
+        for rec in SeqIO.parse(inFile, fmt):
             if outFile is None:
                 indexstring = "%0" + str(indexLen) + "d"
                 outFileName = outPrefix + (indexstring % (curIndex + 1)) + outSuffix
                 outFile = util.file.open_or_gzopen(outFileName, 'wt')
-            SeqIO.write([rec], outFile, format)
+            SeqIO.write([rec], outFile, fmt)
             readsWritten += 1
             if readsWritten == maxReads:
                 outFile.close()
@@ -535,6 +539,7 @@ def parser_split_reads(parser=argparse.ArgumentParser()):
                output file (default %(default)s).
                Number of files must not exceed 10^INDEXLEN.''')
     parser.add_argument('--format',
+                        dest="fmt"
                         choices=['fastq', 'fasta'],
                         default=defaultFormat,
                         help='Input fastq or fasta file (default: %(default)s).')
@@ -626,9 +631,9 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
                 line_num = 0
                 for line in inf:
                     if (line_num % 4) == 0:
-                        id = line.rstrip('\n')[1:]
-                        if id.endswith('/1'):
-                            outf.write(id[:-2] + '\n')
+                        idVal = line.rstrip('\n')[1:]
+                        if idVal.endswith('/1'):
+                            outf.write(idVal[:-2] + '\n')
                     line_num += 1
     os.unlink(outFastq1)
     os.unlink(outFastq2)

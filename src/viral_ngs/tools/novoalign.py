@@ -50,7 +50,7 @@ class NovoalignTool(tools.Tool):
             raise ValueError('input file %s must end with .fasta' % fasta)
         return fasta[:-6] + '.nix'
 
-    def execute(self, inBam, refFasta, outBam, options=["-r", "Random"], min_qual=0, JVMmemory=None):
+    def execute(self, inBam, refFasta, outBam, options=None, min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             If the BAM contains multiple read groups, break up
             the input and perform Novoalign separately on each one
@@ -58,6 +58,8 @@ class NovoalignTool(tools.Tool):
             Use Picard to sort and index the output BAM.
             If min_qual>0, use Samtools to filter on mapping quality.
         '''
+        options = options or ["-r", "Random"]
+
         samtools = tools.samtools.SamtoolsTool()
 
         # fetch list of RGs
@@ -96,12 +98,14 @@ class NovoalignTool(tools.Tool):
                 os.unlink(bam)
 
     def align_one_rg_bam(self, inBam, refFasta, outBam,
-                         rgid=None, options=["-r", "Random"], min_qual=0, JVMmemory=None):
+                         rgid=None, options=None, min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             Requires that only one RG exists (will error otherwise).
             Use Picard to sort and index the output BAM.
             If min_qual>0, use Samtools to filter on mapping quality.
         '''
+        options = options or ["-r", "Random"]
+        
         samtools = tools.samtools.SamtoolsTool()
 
         # Require exactly one RG

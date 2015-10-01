@@ -41,7 +41,9 @@ class Tool(object):
         TO DO: add something about dependencies..
     '''
 
-    def __init__(self, install_methods=[]):
+    def __init__(self, install_methods=None):
+        install_methods = install_methods or []
+        
         self.install_methods = install_methods
         self.installed_method = None
         self.exec_path = None

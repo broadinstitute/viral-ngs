@@ -67,14 +67,12 @@ def _get_mvicuna_path():
     return os.path.join(binariesPath, 'mvicuna', osName, 'mvicuna')
 
 
-"""
-Instructions for building mvicuna on Mac OS X Mavericks:
-- Install brew
-- brew install homebrew/versions/gcc49
-- Copy src files and empty bin directory from:
-    /gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna
-- Edit makefile in src directory:
-    - Set COMPILER to /usr/local/bin/gcc-4.9
-    - Add  -lstdc++ to end of compile command
-- make (in src directory)
-"""
+# Instructions for building mvicuna on Mac OS X Mavericks:
+# - Install brew
+# - brew install homebrew/versions/gcc49
+# - Copy src files and empty bin directory from:
+#     /gsap/garage-viral/viral/analysis/xyang/programs/M-Vicuna
+# - Edit makefile in src directory:
+#     - Set COMPILER to /usr/local/bin/gcc-4.9
+#     - Add  -lstdc++ to end of compile command
+# - make (in src directory)

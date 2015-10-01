@@ -29,9 +29,10 @@ class Tbl2AsnTool(tools.Tool):
         return None
 
     def execute(self, templateFile, inputDir, outputDir=None,
-                source_quals=[], comment=None, verification='vb',
+                source_quals=None, comment=None, verification='vb',
                 file_type='s', structured_comment_file=None,
                 per_genome_comment=False):
+        source_quals = source_quals or []
 
         toolCmd = [self.install_and_get_path(), '-t', templateFile]
 
