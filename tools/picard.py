@@ -51,7 +51,8 @@ class PicardTools(tools.Tool):
 class RevertSamTool(PicardTools):
     subtoolName = 'RevertSam'
 
-    def execute(self, inBam, outBam, picardOptions=[], JVMmemory=None):
+    def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None):
+        picardOptions = picardOptions or []
         opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 

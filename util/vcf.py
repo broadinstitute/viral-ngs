@@ -50,7 +50,7 @@ def make_intervals(i, n, fasta, chr_prefix='', verbose=False):
     if verbose:
         log.info(
             "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s",
-                tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out]) )
+            tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out]))
     return out
 
 

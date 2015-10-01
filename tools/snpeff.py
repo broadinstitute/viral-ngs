@@ -76,12 +76,12 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), dataDir, databaseId))
 
-            records = util.genbank.fetch_full_records_from_genbank(accessions,
-                                                                   outputDir,
-                                                                   emailAddress,
-                                                                   forceOverwrite=True,
-                                                                   combinedFilePrefix="genes",
-                                                                   removeSeparateFiles=False)
+            util.genbank.fetch_full_records_from_genbank(accessions,
+                                                           outputDir,
+                                                           emailAddress,
+                                                           forceOverwrite=True,
+                                                           combinedFilePrefix="genes",
+                                                           removeSeparateFiles=False)
 
             add_genomes_to_snpeff_config_file(
                 config_file, [
