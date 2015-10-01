@@ -169,16 +169,16 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
     header_sam = util.file.mkstempfname('.sam')
     samtoolsTool.dumpHeader(inBam, header_sam)
     for lib, rgs in rgs_by_lib:
-        rgs = list(id for lb, id in rgs)
+        rgs = list(idVal for lb, idVal in rgs)
 
         # Create libBam containing all the readgroups in rgs.
         # In samtools 1.1, this can be done by including -r multiple times on
         # a single command line, but that doesn't work in 0.1.19, so instead
         # extract readgroups one by one and then concatenate.
         rgBams = []
-        for id in rgs:
+        for idVal in rgs:
             rgBam = util.file.mkstempfname('.bam')
-            samtoolsTool.view(['-b', '-r', id], inBam, rgBam)
+            samtoolsTool.view(['-b', '-r', idVal], inBam, rgBam)
             samtoolsTool.index(rgBam)
             if samtoolsTool.count(rgBam) > 0:
                 rgBams.append(rgBam)
@@ -203,7 +203,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
         consensusAllele = row[3]
         pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
         chrom = row[0]
-        libCounts = [get_mpileup_allele_counts(libBam, chrom, pos, inConsFasta) for libBam in libBams]
+        libCounts = [get_mpileup_allele_counts(libBamItem, chrom, pos, inConsFasta) for libBamItem in libBams]
         numAlleles = len(row) - alleleCol
         countsMatrix = [[0] * numAlleles for lib in libBams]
         libCountsByAllele = []
@@ -502,7 +502,7 @@ def merge_to_vcf(
             for refSeq in Bio.SeqIO.parse(inf, 'fasta'):
                 for alignmentFile in alignmentFiles:
                     with util.file.open_or_gzopen(alignmentFile, 'r') as inf2:
-                        for idx, seq in enumerate(Bio.SeqIO.parse(inf2, 'fasta')):
+                        for seq in Bio.SeqIO.parse(inf2, 'fasta'):
                             if refSeq.id == seq.id:
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
                                 ref_seq_in_alignment_file[seq.id] = seq.seq.ungap('-')
@@ -517,8 +517,7 @@ def merge_to_vcf(
         for fileName in alignments:
             with util.file.open_or_gzopen(fileName, 'r') as inf:
                 # get two independent iterators into the alignment file
-                alignmentSeqIter, alignmentSeqIter2 = itertools.tee(Bio.SeqIO.parse(inf, 'fasta'), 2)
-                number_of_aligned_sequences = count_iter_items(alignmentSeqIter2)
+                number_of_aligned_sequences = count_iter_items(Bio.SeqIO.parse(inf, 'fasta'))
                 # -1 is to account for inclusion of reference in the alignement in addition
                 # to the assemblies
                 if not (number_of_aligned_sequences - 1) == len(isnvs) == len(samples):
@@ -945,8 +944,10 @@ class SnpEffException(Exception):
     pass
 
 
-def parse_ann(ann_field, alleles, transcript_blacklist=set(('GP.2', 'GP.3'))):
+def parse_ann(ann_field, alleles, transcript_blacklist=None):
     ''' parse the new snpEff "ANN" INFO field '''
+
+    transcript_blacklist = transcript_blacklist or set(('GP.2', 'GP.3'))
 
     # only work on alt alleles
     alleles = alleles[1:]

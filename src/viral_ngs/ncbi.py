@@ -189,7 +189,6 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
             if seq.id == matchingRefSeq.id:
                 continue
 
-            alt_fasta_filename = ""
             combined_fasta_filename = ""
 
             combined_fasta_filename = util.file.mkstempfname('.fasta')
