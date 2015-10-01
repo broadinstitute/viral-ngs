@@ -756,9 +756,9 @@ def merge_to_vcf(
                     # finally: all other alleles, sorted first by number of containing samples,
                     #          then by intrahost read frequency summed over the population,
                     #          then by the allele string itself.
-                    alleles_cons = [a for a, n in sorted(util.misc.histogram(consAlleles.values()).items(),
+                    alleles_cons = [alleleItem for alleleItem, n in sorted(util.misc.histogram(consAlleles.values()).items(),
                                                          key=lambda x: x[1],
-                                                         reverse=True) if a != refAllele]
+                                                         reverse=True) if alleleItem != refAllele]
                     alleles_isnv = list(itertools.chain.from_iterable(
                         [iSNVs[s].items() for s in samplesToUse if s in iSNVs]))
                     alleles_isnv2 = []
@@ -1065,7 +1065,7 @@ __commands__.append(('iSNV_table', parser_iSNV_table))
 def iSNP_per_patient(table, agg_fun=median):
     data = sorted(table, key=lambda row: (int(row['pos']), row['patient']))
     data = itertools.groupby(data, lambda row: (int(row['pos']), row['patient']))
-    for x, rows in data:
+    for _, rows in data:
         rows = list(rows)
         row = rows[0]
         if set(r['time'] for r in rows if r.get('time')):
