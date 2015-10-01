@@ -163,10 +163,11 @@ class IlluminaDirectory(object):
     def load(self):
         if self.path is None:
             if '://' in self.uri:
-                tarball = util.file.mkstempfname('.tar.gz')
                 raise NotImplementedError('boto s3 download here uri -> tarball')
-                self._extract_tarball(tarball)
-                os.unlink(tarball)
+                # tarball = util.file.mkstempfname('.tar.gz')
+                # # TODO: download here, uri -> tarball
+                # self._extract_tarball(tarball)
+                # os.unlink(tarball)
             else:
                 if os.path.isdir(self.uri):
                     self.path = self.uri

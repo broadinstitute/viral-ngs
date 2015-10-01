@@ -181,7 +181,6 @@ def calc_maf(genos, ancestral=None, ploidy=1):
 
     return out
 
-
 class TabixReader(pysam.Tabixfile):
     ''' A wrapper around pysam.Tabixfile that provides a context and
         allows us to query using 1-based coordinates.
@@ -203,8 +202,9 @@ class TabixReader(pysam.Tabixfile):
         self.close()
         return 0
 
-    def close(self):
-        super(TabixReader, self).close()
+    # close() is being inherited from pysam.Tabixfile, why call it ourselves?
+    # def close(self):
+    #     super(TabixReader, self).close()
 
     def chroms(self):
         return self.contigs
@@ -235,7 +235,12 @@ class VcfReader(TabixReader):
     '''
 
     def __init__(self, inFile, ploidy=1, parser=pysam.asVCF()):
-        super(VcfReader, self).__init__(inFile, parser=parser)
+        # using old-style class superclass calling here
+        # since TabixReader is derived from pysam.TabixFile
+        # which is itself an old-style class (due to Cython version?)
+        TabixReader.__init__(self, inFile, parser=parser)
+        # when pysam uses new-style classes, we can replace with:
+        #super(VcfReader, self).__init__(inFile, parser=parser)
         assert ploidy in (1, 2)
         self.ploidy = ploidy
         self.clens = []

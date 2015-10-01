@@ -1,0 +1,5 @@
+# the default of five is a bit too restrictive
+max-args = 12
+
+# some sci computations require many local variables
+max-locals = 20
