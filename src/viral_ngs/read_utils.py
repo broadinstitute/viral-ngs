@@ -586,7 +586,7 @@ def split_bam(inBam, outBams):
             with open(tmp_sam_reads, 'wt') as outf:
                 for row in header:
                     outf.write('\t'.join(row) + '\n')
-                for i in range(maxReads):
+                for _ in range(maxReads):
                     line = inf.readline()
                     if not line:
                         break
