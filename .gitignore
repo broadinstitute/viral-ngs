@@ -51,3 +51,9 @@ nosetests.xml
 coverage.xml
 
 test/input/TestVPhaser2/in.bam.bti
+
+easy-deploy/data/Snakefile
+
+easy-deploy/data/config.json
+
+easy-deploy/.vagrant/

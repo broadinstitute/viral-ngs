@@ -1,0 +1,47 @@
+Vagrant.configure("2") do |config|
+  config.vm.provider :virtualbox do |vb, override|
+    vb.customize ["modifyvm", :id, "--memory", 8192]
+    config.vm.hostname = "viral-ngs-vm"
+    
+    override.vm.box = "viral-ngs-vm"
+    override.vm.box = "ubuntu/vivid64"
+
+    override.vm.synced_folder ".", "/vagrant", disabled: true
+    override.vm.synced_folder "./data/", "/home/vagrant/data/", create: true
+
+    override.vm.provision "ansible" do |ansible|
+        ansible.playbook = "ansible-playbook.yml"
+        ansible.extra_vars = {
+          user: "vagrant",
+        }
+    end
+  end
+
+  config.vm.provider :aws do |aws, override|
+    aws.access_key_id = ENV["EC2_ACCESS_KEY_ID"]
+    aws.secret_access_key = ENV["EC2_SECRET_ACCESS_KEY"]
+    # ubuntu AMI, see: https://cloud-images.ubuntu.com/locator/ec2/
+    # Vivid 15.04, amd64 hvm:ebs-ssd @ us-west-2
+    aws.ami = "ami-73b4af43"
+    aws.instance_type = "m4.2xlarge"
+    aws.instance_ready_timeout = 180 # default: 120
+    aws.keypair_name = ENV["EC2_KEYPAIR_NAME"]
+    aws.region = ENV["EC2_REGION"]
+
+    override.vm.box = "viral-ngs-vm"
+    override.vm.box_url = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
+    override.ssh.username = "ubuntu"
+    override.ssh.private_key_path = ENV["EC2_PRIVATE_KEY_PATH"]
+
+    override.vm.synced_folder ".", "/vagrant", disabled: true # this disables the default Vagrant synced folder mount point
+    override.vm.synced_folder "./data/", "/home/ubuntu/data/", create: true, type: "rsync"
+
+    override.vm.provision "ansible" do |ansible|
+        ansible.playbook = "ansible-playbook.yml"
+        ansible.extra_vars = {
+          user: "ubuntu",
+        }
+    end
+
+  end 
+end
