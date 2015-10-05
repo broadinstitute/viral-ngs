@@ -231,13 +231,10 @@ def filter_lastal(inFastq, refDb, outFastq):
     prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
     noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 
-    # each pipe separated cmd gets own line
-    # unfortunately, it doesn't seem to work to do .format(**locals()) on the
-    # final string as opposed to the individual parts.
     lastalCmd = ' '.join([
-        '{lastalPath} -Q1 {refDb} {inFastq}'.format(**locals()),
-        '| {mafSortPath} -n2'.format(**locals()),
-        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(**locals()),
+        '{lastalPath} -Q1 {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq),
+        '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
+        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
     ])
     log.debug(lastalCmd)
     assert not os.system(lastalCmd)
@@ -369,12 +366,12 @@ def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=
     curReads1, curReads2 = inFastq1, inFastq2
     for count, (db, matchesFile) in \
             enumerate(zip(databases, matchesFiles)):
-        """
-        Loop invariants:
-            At the end of the kth loop, curReadsN has the original reads
-            depleted by all matches to the first k databases, and
-            matchesFiles[:k] contain the list of matching read names.
-        """
+        
+        # Loop invariants:
+        #     At the end of the kth loop, curReadsN has the original reads
+        #     depleted by all matches to the first k databases, and
+        #     matchesFiles[:k] contain the list of matching read names.
+        
         cmdline = [bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1,
                    '-2', curReads2, '-o', matchesFile]
         log.debug(' '.join(cmdline))
@@ -448,7 +445,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
     shutil.copyfile(curReads2, outFastq2)
-    for fn in tempfile:
+    for fn in tempfiles:
         os.unlink(fn)
     log.debug("deplete_bmtagger complete")
 
@@ -639,7 +636,7 @@ __commands__.append(('deplete_blastn_paired', parser_deplete_blastn_paired))
 def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    #blastnPath = tools.blast.BlastnTool().install_and_get_path()
     fastq1 = mkstempfname('.1.fastq')
     fastq2 = mkstempfname('.2.fastq')
     fasta = mkstempfname('.1.fasta')
@@ -660,10 +657,10 @@ def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
                 for line in inf:
-                    id = line.split('\t')[0].strip()
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id + '\n')
+                    idVal = line.split('\t')[0].strip()
+                    if idVal.endswith('/1') or idVal.endswith('/2'):
+                        idVal = idVal[:-2]
+                    outf.write(idVal + '\n')
             os.unlink(blastOutFile)
 
     # Deplete BAM of hits in FASTQ1
@@ -682,10 +679,10 @@ def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
                 for line in inf:
-                    id = line.split('\t')[0].strip()
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id + '\n')
+                    idVal = line.split('\t')[0].strip()
+                    if idVal.endswith('/1') or idVal.endswith('/2'):
+                        idVal = idVal[:-2]
+                    outf.write(idVal + '\n')
             os.unlink(blastOutFile)
 
     # Deplete BAM of hits against FASTQ2

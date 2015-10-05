@@ -83,42 +83,42 @@ def _get_vphaser2_path():
     return os.path.join(binariesPath, 'V-Phaser-2.0', osName, 'variant_caller')
 
 
-"""
-Process used to get the files in binaries/V-Phaser-2.0:
 
-wget http://www.broadinstitute.org/software/viral/v_phaser_2/v_phaser_2.zip
-unzip
-Add "#include <limits.h>" to bam_manip.cpp
-Modify src/makefile to create makefile.MacOSX and makefile.linux64
-Create linux64 and MacOSX subdirectories
+# Process used to get the files in binaries/V-Phaser-2.0:
 
-On mac, gcc-4.9 and boost were installed using brew.
+# wget http://www.broadinstitute.org/software/viral/v_phaser_2/v_phaser_2.zip
+# unzip
+# Add "#include <limits.h>" to bam_manip.cpp
+# Modify src/makefile to create makefile.MacOSX and makefile.linux64
+# Create linux64 and MacOSX subdirectories
+
+# On mac, gcc-4.9 and boost were installed using brew.
 
 
-# CMake
-on linux, "use CMake" (perhaps instead download from www.cmake.org/download)
-on mac, "brew install cmake"
+# # CMake
+# on linux, "use CMake" (perhaps instead download from www.cmake.org/download)
+# on mac, "brew install cmake"
 
-# Bamtools (Note: must use same compiler as V-Phaser 2, otherwise link can fail.)
-git clone git://github.com/pezmaster31/bamtools.git
-cd bamtools
-mkdir build
-cd build
-on linux "cmake .."
-on mac "cmake -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-4.9 \
-              -DCMAKE_CC_COMPILER=/usr/local/bin/gcc-4.9 .."
-make
-cd ../..    # back to V-Phaser-2.0 directory
+# # Bamtools (Note: must use same compiler as V-Phaser 2, otherwise link can fail.)
+# git clone git://github.com/pezmaster31/bamtools.git
+# cd bamtools
+# mkdir build
+# cd build
+# on linux "cmake .."
+# on mac "cmake -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-4.9 \
+#               -DCMAKE_CC_COMPILER=/usr/local/bin/gcc-4.9 .."
+# make
+# cd ../..    # back to V-Phaser-2.0 directory
 
-# boost (only on linux; for mac used brew)
-wget http://sourceforge.net/projects/boost/files/latest/download?source=files
-tar -xzf boost_1_57_0.tar.gz
+# # boost (only on linux; for mac used brew)
+# wget http://sourceforge.net/projects/boost/files/latest/download?source=files
+# tar -xzf boost_1_57_0.tar.gz
 
-# make V-Phaser 2
-cd src
-make -f makefile.linux64 or makefile.MacOSX
+# # make V-Phaser 2
+# cd src
+# make -f makefile.linux64 or makefile.MacOSX
 
-# Cleanup
-delete all bamtools stuff
-delete all boost stuff
-"""
+# # Cleanup
+# delete all bamtools stuff
+# delete all boost stuff
+

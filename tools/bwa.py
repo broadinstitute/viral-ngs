@@ -37,7 +37,7 @@ class Bwa(tools.Tool):
     def version(self):
         return ''.join([c for c in BWA_DIR if c.isdigit() or c == '.'])
 
-    def execute(self, subcommand, args=[], options={}, option_string="", post_cmd=""):
+    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""):
         """
         args are required arguments for the specified bwa subcommand
             (order matters for bwa execution)
@@ -51,9 +51,12 @@ class Bwa(tools.Tool):
             used as a pipe ("| <other shell command>"), or to store output
             ( "> output.sai")
         """
+        args = args or []
+        options = options or {}
+
         arg_str = " ".join(args)
         option_str = '{} {}'.format(' '.join(["{} {}".format(k, v) for k, v in options.items()]), option_string)
         cmd =  "{} {} {} {} {}" \
             .format(self.exec_path, subcommand, option_str, arg_str, post_cmd)
-        log.debug("Calling bwa with cmd: {}".format(cmd))
+        log.debug("Calling bwa with cmd: %s", cmd)
         return os.system(cmd)

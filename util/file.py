@@ -76,13 +76,13 @@ def get_resources():
     return resources
 
 
-def mkstempfname(suffix='', prefix='tmp', dir=None, text=False):
+def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
         filename only.  This calls mkstemp, which does what we want, except
         that it returns an open file handle, which causes huge problems on NFS
         if we don't close it.  So close it first then return the name part only.
     '''
-    fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=dir, text=text)
+    fd, fn = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=directory, text=text)
     os.close(fd)
     return fn
 
@@ -204,7 +204,7 @@ class FlatFileParser(object):
                     return self.parseRow(line)
             else:
                 return self.parseRow(line)
-        except Exception as e:
+        except Exception:
             template = "Exception parsing file at line {}. Line contents: '{}'"
             message = template.format(self.line_num, row)
             if self.name:
@@ -234,8 +234,8 @@ class FlatFileParser(object):
 def fastaMaker(seqs, linewidth=60):
     assert linewidth > 0
 
-    for id, seq in seqs:
-        yield ">{}\n".format(id)
+    for idVal, seq in seqs:
+        yield ">{}\n".format(idVal)
 
         while len(seq) > linewidth:
             line = seq[:linewidth]
