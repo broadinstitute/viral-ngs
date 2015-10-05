@@ -26,7 +26,8 @@ URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 class SnpEff(tools.Tool):
     jvmMemDefault = '4g'
 
-    def __init__(self, install_methods=None, extra_genomes=['KJ660346.2']):
+    def __init__(self, install_methods=None, extra_genomes=None):
+        extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
             install_methods = [DownloadAndTweakSnpEff(URL, extra_genomes)]
         self.known_dbs = set()
@@ -46,7 +47,7 @@ class SnpEff(tools.Tool):
 
     def has_genome(self, genome):
         if not self.known_dbs:
-            for row in self.available_databases():
+            for _ in self.available_databases():
                 pass
 
         return genome in self.installed_dbs
@@ -75,14 +76,12 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), dataDir, databaseId))
 
-            #tempDir = tempfile.gettempdir()
-            records = util.genbank.fetch_full_records_from_genbank(accessions,
-                                                                   outputDir,
-                                                                   emailAddress,
-                                                                   forceOverwrite=True,
-                                                                   combinedFilePrefix="genes",
-                                                                   removeSeparateFiles=False)
-            combinedGenbankFilepath = records[0]
+            util.genbank.fetch_full_records_from_genbank(accessions,
+                                                           outputDir,
+                                                           emailAddress,
+                                                           forceOverwrite=True,
+                                                           combinedFilePrefix="genes",
+                                                           removeSeparateFiles=False)
 
             add_genomes_to_snpeff_config_file(
                 config_file, [
@@ -203,7 +202,9 @@ def add_genomes_to_snpeff_config_file(config_file, new_genomes):
 
 class DownloadAndTweakSnpEff(tools.DownloadPackage):
 
-    def __init__(self, url, extra_genomes=[]):
+    def __init__(self, url, extra_genomes=None):
+        extra_genomes = extra_genomes or []
+
         self.extra_genomes = extra_genomes
         super(DownloadAndTweakSnpEff, self).__init__(url, 'snpEff/snpEff.jar', require_executability=False)
 

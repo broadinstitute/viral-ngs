@@ -5,11 +5,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
-import os
-import shutil
 import logging
-import itertools
-import sqlite3
 import pysam
 import util.file
 import util.misc
@@ -53,9 +49,8 @@ def make_intervals(i, n, fasta, chr_prefix='', verbose=False):
 
     if verbose:
         log.info(
-            "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s"
-            % (
-                tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out])))
+            "Dividing the %d bp genome into %d chunks of %d bp each.  The %dth chunk contains the following %d intervals: %s",
+            tot, n, part_size, i, len(out), ', '.join(["%s:%d-%d" % x for x in out]))
     return out
 
 
@@ -75,7 +70,7 @@ def sliding_windows(fasta, width, offset, chr_prefix=''):
                 start += offset
 
 
-class GenomePosition:
+class GenomePosition(object):
     ''' Provide a mapping from chr:pos to genomic position.
         Read chromosome lengths and order from either a Picard/GATK-index for
         a FASTA file (a .dict file) or from a VCF header.
@@ -186,7 +181,6 @@ def calc_maf(genos, ancestral=None, ploidy=1):
 
     return out
 
-
 class TabixReader(pysam.Tabixfile):
     ''' A wrapper around pysam.Tabixfile that provides a context and
         allows us to query using 1-based coordinates.
@@ -208,8 +202,9 @@ class TabixReader(pysam.Tabixfile):
         self.close()
         return 0
 
-    def close(self):
-        super(TabixReader, self).close()
+    # close() is being inherited from pysam.Tabixfile, why call it ourselves?
+    # def close(self):
+    #     super(TabixReader, self).close()
 
     def chroms(self):
         return self.contigs
@@ -240,7 +235,12 @@ class VcfReader(TabixReader):
     '''
 
     def __init__(self, inFile, ploidy=1, parser=pysam.asVCF()):
-        super(VcfReader, self).__init__(inFile, parser=parser)
+        # using old-style class superclass calling here
+        # since TabixReader is derived from pysam.TabixFile
+        # which is itself an old-style class (due to Cython version?)
+        TabixReader.__init__(self, inFile, parser=parser)
+        # when pysam uses new-style classes, we can replace with:
+        #super(VcfReader, self).__init__(inFile, parser=parser)
         assert ploidy in (1, 2)
         self.ploidy = ploidy
         self.clens = []
@@ -327,7 +327,7 @@ class VcfReader(TabixReader):
 
         # get all the VCF records
         vcf_records = [(p - start, alleles, dict(genos))
-                       for chrom, p, alleles, genos in self.get_range(c,
+                       for _, p, alleles, genos in self.get_range(c,
                                                                       start,
                                                                       stop,
                                                                       as_strings=True)
@@ -386,8 +386,8 @@ def replaceAlleles(sample, seq, vcf_records):
                 continue
             if isinstance(samp_geno, list):
                 log.warn(
-                    "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s)." %
-                    (i, sample, '/'.join(samp_geno)))
+                    "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s).",
+                    i, sample, '/'.join(samp_geno) )
                 continue
             allele = samp_geno
 

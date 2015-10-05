@@ -7,7 +7,6 @@ __commands__ = []
 
 import argparse
 import logging
-import subprocess
 import glob
 import os
 import time

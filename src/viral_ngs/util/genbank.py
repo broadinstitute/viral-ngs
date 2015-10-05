@@ -104,7 +104,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
                     for line in handle:
                         outf.write(line)
                 outputFiles.append(outputFilePath)
-            except IOError as e:
+            except IOError:
 
                 log.warning(
                     "Error fetching file %s: %s, try #%s probably because NCBI is too busy.", chunkNum + 1, accString,

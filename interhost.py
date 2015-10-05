@@ -20,10 +20,8 @@ try:
 except ImportError:
     from itertools import izip_longest as zip_longest
 try:
-    from UserDict import UserDict
     from UserDict import DictMixin
 except ImportError:  # for Py3
-    from collections import UserDict
     from collections import MutableMapping as DictMixin
 
 # third-party libraries
@@ -255,17 +253,17 @@ class CoordMapper2Seqs(object):
             - A gap in one sequence is never adjacent to a gap in the other;
                 there must always be an intervening real base between two gaps.
     """
-    """
-    Implementation:
-        mapArrays is a pair of arrays of equal length such that
-        (mapArrays[0][n], mapArrays[1][n]) are the coordinates of a pair of
-        aligned real bases on the two sequences. The only pairs that are
-        included are the first, the last, and the pair immediately following
-        any gap. Pairs are in increasing order. Coordinate mapping
-        requires binary search in one of the arrays.
-        Total space required, in bytes, is const + 8 * (number of indels).
-        Time for a map in either direction is O(log(number of indels)).
-    """
+    # 
+    # Implementation:
+    #     mapArrays is a pair of arrays of equal length such that
+    #     (mapArrays[0][n], mapArrays[1][n]) are the coordinates of a pair of
+    #     aligned real bases on the two sequences. The only pairs that are
+    #     included are the first, the last, and the pair immediately following
+    #     any gap. Pairs are in increasing order. Coordinate mapping
+    #     requires binary search in one of the arrays.
+    #     Total space required, in bytes, is const + 8 * (number of indels).
+    #     Time for a map in either direction is O(log(number of indels)).
+    # 
 
     def __init__(self, seq0, seq1):
         self.mapArrays = [array.array('I'), array.array('I')]

@@ -36,7 +36,9 @@ class GATKTool(tools.Tool):
                     require_executability=False))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, command, gatkOptions=[], JVMmemory=None):
+    def execute(self, command, gatkOptions=None, JVMmemory=None):
+        gatkOptions = gatkOptions or []
+
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
@@ -57,8 +59,9 @@ class GATKTool(tools.Tool):
         self.tool_version = subprocess.check_output(cmd).strip()
 
     def ug(self, inBam, refFasta, outVcf,
-            options=["--min_base_quality_score", 15, "-ploidy", 4],
+            options=None,
             JVMmemory=None, threads=1):
+        options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
 
         if int(threads) < 1:
             threads = 1
