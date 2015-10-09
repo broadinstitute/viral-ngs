@@ -613,6 +613,49 @@ def parser_split_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('split_bam', parser_split_bam))
 
+
+# =======================
+# ***  reheader_bam   ***
+# =======================
+
+
+def parser_reheader_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('rgMap', help='Tabular file containing three columns: field, old, new.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, main_reheader_bam)
+    return parser
+
+
+def main_reheader_bam(args):
+    ''' Copy a BAM file (inBam to outBam) while renaming elements of the BAM header.
+        The mapping file specifies which (key, old value, new value) mappings. For
+        example:
+            LB  lib1  lib_one
+            SM  sample1 Sample_1
+            SM  sample2 Sample_2
+            SM  sample3 Sample_3
+            CN  broad   BI
+    '''
+    # read mapping file
+    mapper = dict((a+':'+b, a+':'+c) for a,b,c in util.file.read_tabfile(rgMap))
+    # read and convert bam header
+    header_file = mkstempfname('.sam')
+    with open(header_file, 'wt') as outf:
+        for row in tools.samtools.SamtoolsTool().getHeader(inBam):
+            if row[0] == '@RG':
+                row = [mapper.get(x, x) for x in row]
+            outf.write('\t'.join(row)+'\n')
+    # write new bam with new header
+    tools.samtools.SamtoolsTool().reheader(inBam, header_file, outBam)
+    os.unlink(header_file)
+    return 0
+
+
+__commands__.append(('reheader_bam', parser_reheader_bam))
+
+
 # ============================
 # ***  dup_remove_mvicuna  ***
 # ============================
