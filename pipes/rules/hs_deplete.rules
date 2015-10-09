@@ -1,9 +1,9 @@
 """
     This is a basic framework for depleting human and other contaminant 
     reads from NGS data.  All non-human reads should remain behind.
-	
-	note: the length of runtime per step is highly variable depending on
-	the size of the input data. Eventually replace with something TANGO-based.
+    
+    note: the length of runtime per step is highly variable depending on
+    the size of the input data. Eventually replace with something TANGO-based.
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
@@ -124,15 +124,15 @@ def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
         return config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     runs = set()
-	for lane in read_tab_file(config['seqruns_demux']):
-		for well in read_tab_file(lane['barcode_file']):
-			if well['sample'] == wildcards.sample:
-			  if wildcards.adjective=='raw':
-				 runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
-					get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
-			  else:
-				 runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
-					get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
+    for lane in read_tab_file(config['seqruns_demux']):
+        for well in read_tab_file(lane['barcode_file']):
+            if well['sample'] == wildcards.sample:
+              if wildcards.adjective=='raw':
+                 runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
+                    get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
+              else:
+                 runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                    get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
     ''' All of the above depletion steps are run once per flowcell per lane per
