@@ -679,13 +679,14 @@ def main_reheader_bams(args):
     header_file = mkstempfname('.sam')
     # read and convert bam headers
     for inBam, outBam in files:
-        with open(header_file, 'wt') as outf:
-            for row in tools.samtools.SamtoolsTool().getHeader(inBam):
-                if row[0] == '@RG':
-                    row = [mapper.get(x, x) for x in row]
-                outf.write('\t'.join(row)+'\n')
-        # write new bam with new header
-        tools.samtools.SamtoolsTool().reheader(inBam, header_file, outBam)
+        if os.path.isfile(inBam):
+            with open(header_file, 'wt') as outf:
+                for row in tools.samtools.SamtoolsTool().getHeader(inBam):
+                    if row[0] == '@RG':
+                        row = [mapper.get(x, x) for x in row]
+                    outf.write('\t'.join(row)+'\n')
+            # write new bam with new header
+            tools.samtools.SamtoolsTool().reheader(inBam, header_file, outBam)
     os.unlink(header_file)
     return 0
 __commands__.append(('reheader_bams', parser_reheader_bams))
