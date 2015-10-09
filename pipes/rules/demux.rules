@@ -106,7 +106,7 @@ def demux_move_bams_inputs(wildcards):
 rule move_bams_demux:
     input:  demux_move_bams_inputs
     output: config['dataDir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
-    params: logid="{sample}.l{library}.r{run}.{flowcell}.{lane}"
+    params: logid="{sample}.l{library}.{flowcell}.{lane}"
     run:
             makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
             shutil.move(input[0], output[0])
