@@ -581,6 +581,28 @@ def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('miseq_fastq_to_bam', parser_miseq_fastq_to_bam))
 
 
+
+# ==============================
+# ***  extract_fc_metadata   ***
+# ==============================
+def extract_fc_metadata(flowcell, outRunInfo, outSampleSheet):
+    ''' Extract RunInfo.xml and SampleSheet.csv from the provided Illumina directory
+    '''
+    illumina = IlluminaDirectory(flowcell)
+    illumina.load()
+    shutil.copy(illumina.get_RunInfo().get_fname(), outRunInfo)
+    shutil.copy(illumina.get_SampleSheet().get_fname(), outSampleSheet)
+    return 0
+def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
+    parser.add_argument('flowcell', help='Illumina directory (possibly tarball)')
+    parser.add_argument('outRunInfo', help='Output RunInfo.xml file.')
+    parser.add_argument('outSampleSheet', help='Output SampleSheet.csv file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
+    return parser
+__commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))
+
+
 # =======================
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
