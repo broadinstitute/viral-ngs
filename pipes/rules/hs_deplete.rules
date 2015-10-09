@@ -2,8 +2,8 @@
     This is a basic framework for depleting human and other contaminant 
     reads from NGS data.  All non-human reads should remain behind.
     
-    note: the length of runtime per step is highly variable depending on
-    the size of the input data. Eventually replace with something TANGO-based.
+    note: runtime and memory per step can be highly variable depending on
+    the size of the input data.
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
@@ -19,64 +19,6 @@ rule all_deplete:
             adjective=['cleaned','taxfilt'],
             sample=read_samples_file(config["samples_depletion"])),
     params: LSF="-N"
-
-
-"""
-rule revert_bam:
-    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
-    output: config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    resources: mem=3
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            logid="{sample}"
-    run:
-            makedirs(expand("{dir}/{subdir}",
-                dir=[config["dataDir"],config["tmpDir"]],
-                subdir=config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/read_utils.py revert_bam_picard {input} {output} --picardOptions SORT_ORDER=queryname SANITIZE=true")
-
-rule deplete_bmtagger:
-    ''' This step depletes human reads using BMTagger
-        This sometimes takes just over 4 hrs for highly dense lanes
-    '''
-    input:  config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam'
-    #       expand("{dbdir}/{db}.{suffix}",
-    #           dbdir=config["bmTaggerDbDir"],
-    #           db=config["bmTaggerDbs_remove"],
-    #           suffix=["bitmask","srprism.idx","srprism.map"])
-    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
-    resources: mem=10
-    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
-            refDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
-            logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py deplete_bam_bmtagger {input} {params.refDbs} {output}"
-
-rule rmdup_mvicuna:
-    ''' This step removes PCR duplicate reads using M-Vicuna (our custom
-        tool included here).  
-        Unlike Picard MarkDuplicates, M-Vicuna does not require reads to be
-        previously aligned.
-    '''
-    input:  config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam'
-    output: config["tmpDir"]+ '/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
-    resources: mem=3
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            logid="{sample}"
-    shell:  "{config[binDir]}/read_utils.py rmdup_mvicuna_bam {input} {output}"
-
-rule deplete_blastn:
-    ''' This step depletes human reads using BLASTN, which is more sensitive,
-        but much slower than BMTagger, so we run it last.
-        This sometimes takes just over 4 hrs for highly dense lanes.
-    '''
-    input:  config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=15
-    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
-            refDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
-            logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py deplete_blastn_bam {input} {params.refDbs} {output}"
-"""
-
 
 rule depletion:
     ''' Runs a full human read depletion pipeline and removes PCR duplicates
