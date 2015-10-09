@@ -124,16 +124,15 @@ def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
         return config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     runs = set()
-    for flowcell in read_samples_file(config['seqruns_demux']):
-        for lane in read_tab_file(flowcell):
-            for well in read_tab_file(lane['barcode_file']):
-                if well['sample'] == wildcards.sample:
-                  if wildcards.adjective=='raw':
-                     runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
-                        get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
-                  else:
-                     runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
-                        get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
+	for lane in read_tab_file(config['seqruns_demux']):
+		for well in read_tab_file(lane['barcode_file']):
+			if well['sample'] == wildcards.sample:
+			  if wildcards.adjective=='raw':
+				 runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
+					get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
+			  else:
+				 runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+					get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
     ''' All of the above depletion steps are run once per flowcell per lane per
