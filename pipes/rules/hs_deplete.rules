@@ -96,7 +96,7 @@ rule depletion:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["dataDir"],config["tmpDir"]],
                 subdir=config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs}")
+            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --JVMmemory 15g")
             os.unlink(params.revert_bam)
 
 rule filter_to_taxon:
