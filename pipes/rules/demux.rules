@@ -91,7 +91,7 @@ rule illumina_demux:
             makedirs(set(map(os.path.dirname, output)))
             lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
             opts = ''
-            for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality'):
+            for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
                 if lane.get(opt):
                     opts += ' --%s=%s' % (opt, lane[opt])
             shell("{config[binDir]}/illumina.py illumina_demux {lane[bustard_dir]} {wildcards.lane} {outdir} --sampleSheet={lane[barcode_file]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
@@ -106,7 +106,7 @@ def demux_move_bams_inputs(wildcards):
 rule move_bams_demux:
     input:  demux_move_bams_inputs
     output: config['dataDir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
-    params: logid="{sample}.l{library}.r{run}.{flowcell}.{lane}"
+    params: logid="{sample}.l{library}.{flowcell}.{lane}"
     run:
             makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
             shutil.move(input[0], output[0])
