@@ -8,8 +8,8 @@ import os.path
 import tools
 import util.file
 
-tool_version = '2.2.30'
-commit_hash = '5c25216d3522d6a33e53875cd76a6d65001e4e67'
+tool_version = '2.2.26'
+commit_hash = 'e04c806bb1410cf1dbd1534991c46d696aec6723'
 url = 'https://github.com/wanpinglee/MOSAIK/archive/{commit_hash}.zip'
 
 log = logging.getLogger(__name__)
