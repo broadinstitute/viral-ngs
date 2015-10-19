@@ -20,6 +20,8 @@ import util.file
 log = logging.getLogger(__name__)
 
 
+skip_test = True
+
 class TestNcbiFetch(TestCaseWithTmp):
 
     def setUp(self):
@@ -62,6 +64,7 @@ class TestFastaFetch(TestNcbiFetch):
     def setUp(self):
         super(TestFastaFetch, self).setUp()
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_download(self):
         args = []
         expectedFiles = [a + ".fasta" for a in self.accessions]
@@ -72,6 +75,7 @@ class TestFastaFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.fasta"]
@@ -82,6 +86,7 @@ class TestFastaFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
         args = ["--combinedFilePrefix", "orungo", "--removeSeparateFiles"]
         expectedFiles = ["orungo.fasta"]
@@ -92,6 +97,7 @@ class TestFastaFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
         # since the arguments are positional, including an accession here makes a duplicate that should
         # raise an Error
@@ -106,6 +112,7 @@ class TestFastaFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.fasta"]
@@ -124,6 +131,7 @@ class TestFastaFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
         args = ["--combinedFilePrefix", "orungo", "--forceOverwrite"]
         expectedFiles = ["orungo.fasta"]
@@ -141,6 +149,7 @@ class TestFastaFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
         args = ["--fileExt", "fa", "--combinedFilePrefix", "orungo"]
         expectedFiles = [a + ".fa" for a in self.accessions]
@@ -158,6 +167,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
     def setUp(self):
         super(TestFeatureTableFetch, self).setUp()
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_download(self):
         args = []
         expectedFiles = [a + ".tbl" for a in self.accessions]
@@ -168,6 +178,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.tbl"]
@@ -178,6 +189,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
         args = ["--combinedFilePrefix", "orungo", "--removeSeparateFiles"]
         expectedFiles = ["orungo.tbl"]
@@ -188,6 +200,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
         # since the arguments are positional, including an accession here makes a duplicate that should
         # raise an Error
@@ -202,6 +215,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.tbl"]
@@ -220,6 +234,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
         args = ["--combinedFilePrefix", "orungo", "--forceOverwrite"]
         expectedFiles = ["orungo.tbl"]
@@ -237,6 +252,7 @@ class TestFeatureTableFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
         args = ["--fileExt", "table", "--combinedFilePrefix", "orungo"]
         expectedFiles = [a + ".table" for a in self.accessions]
@@ -254,6 +270,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
     def setUp(self):
         super(TestGenbankRecordFetch, self).setUp()
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_download(self):
         args = []
         expectedFiles = [a + ".gbk" for a in self.accessions]
@@ -264,6 +281,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.gbk"]
@@ -274,6 +292,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
         args = ["--combinedFilePrefix", "orungo", "--removeSeparateFiles"]
         expectedFiles = ["orungo.gbk"]
@@ -284,6 +303,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
         # since the arguments are positional, including an accession here makes a duplicate that should
         # raise an Error
@@ -298,6 +318,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
         args = ["--combinedFilePrefix", "orungo"]
         expectedFiles = ["orungo.gbk"]
@@ -316,6 +337,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                             expected_files=expectedFiles,
                                             null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
         args = ["--combinedFilePrefix", "orungo", "--forceOverwrite"]
         expectedFiles = ["orungo.gbk"]
@@ -333,6 +355,7 @@ class TestGenbankRecordFetch(TestNcbiFetch):
                                         expected_files=expectedFiles,
                                         null_files=null_files)
 
+    @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
         args = ["--fileExt", "gb", "--combinedFilePrefix", "orungo"]
         expectedFiles = [a + ".gb" for a in self.accessions]
