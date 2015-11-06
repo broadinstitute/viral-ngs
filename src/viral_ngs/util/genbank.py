@@ -7,7 +7,6 @@ import logging
 
 # third-party
 from Bio import Entrez
-import boltons.iterutils
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +30,12 @@ def get_feature_table_id(featureTableFile):
     if len(seqid) > 0:
         return seqid
 
+
+def _seq_chunks(seq, n):
+    # http://stackoverflow.com/a/312464/190597 (Ned Batchelder)
+    """ Yield successive n-sized chunks from seq."""
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
 
 def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
                         forceOverwrite=False, rettype="fasta", retmode="text",
@@ -77,8 +82,7 @@ def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
     log.info("Fetching %s entries from GenBank: %s\n", str(len(accessionList)), ", ".join(accessionList[:10]))
     outputFiles = []
 
-    for chunkNum, chunk in enumerate(boltons.iterutils.chunked_iter(accessionList, chunkSize)):
-        #    for i,acc in enumerate(chunk):
+    for chunkNum, chunk in enumerate(_seq_chunks(accessionList, chunkSize)):
 
         accString = ",".join(chunk)
 
