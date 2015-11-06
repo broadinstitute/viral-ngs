@@ -204,7 +204,7 @@ class IlluminaDirectory(object):
             compression_option = 'z'
         elif tarfile.endswith('.tar.bz2'):
             compression_option = 'j'
-        elif tarfile.endwith('.tar'):
+        elif tarfile.endswith('.tar'):
             compression_option = ''
         else:
             raise Exception("unsupported file type: %s" % tarfile)
