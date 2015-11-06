@@ -195,6 +195,15 @@ to represent the full reference genome file used downstream.
     "accessions_for_ref_genome_build": ["KJ660346.2"],
     "ref_genome_file_prefix": "ebov",
 
+An optional file containing a list of accessions may be specified for 
+filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is 
+intended to narrow to a genus. If this file is not provided, viral-ngs 
+defaults to using the accessions specified for the reference genome.
+
+::
+
+    "accessions_file_for_lastal_db_build": "/path/to/lastal_accessions.txt",  
+
 A FASTA file to be used by Trimmomatic during assembly to remove
 contaminents from reads:
 
