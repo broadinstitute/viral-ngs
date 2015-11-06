@@ -72,14 +72,8 @@ __commands__.append(('get_run_date', parser_get_run_date))
 # ***  misc   ***
 # ===============
 
-def iterate_lanes(runfile):
-    for flowcellfile in util.file.read_tabfile(runfile):
-        for lane in util.file.read_tabfile_dict(flowcellfile[0]):
-            yield lane
-
-
 def iterate_wells(runfile):
-    for lane in iterate_lanes(runfile):
+    for lane in util.file.read_tabfile_dict(runfile):
         for well in util.file.read_tabfile_dict(lane['barcode_file']):
             yield (lane, well)
 
