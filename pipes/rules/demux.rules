@@ -4,16 +4,30 @@
 
 
     Basically the inputs are:
-     - a tabular file describing sample name, library #, run #, barcode1 seq, and barcode2 seq
-        for each sample. One such tab file per lane.
+     - a tabular file describing sample name, barcode1 seq, barcode2 seq, and library id
+        for each sample. One such tab file per pool.
      - the flowcell ID and lane number
-     - the Bustard directory (ask the person who did the run)
+     - the Illumina data directory (optionally compressed, optionally remote)
 """
 
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
+import snakemake.remote
+from snakemake.remote import S3, GS, SFTP
 import os, os.path, time, shutil
+
+def objectify_remote(uri):
+    if uri.lower().startswith('s3://'):
+        remote = snakemake.remote.S3.RemoteProvider()
+        return remote.remote(uri[5:])
+    elif uri.lower().startswith('gs://'):
+        remote = snakemake.remote.GS.RemoteProvider()
+        return remote.remote(uri[5:])
+    elif uri.lower().startswith('sftp://'):
+        remote = snakemake.remote.SFTP.RemoteProvider()
+        return remote.remote(uri[7:])
+    return uri
 
 def iterate_lanes(runfile):
     if not os.path.isfile(runfile):
@@ -36,7 +50,8 @@ def get_all_lanes(runfile):
         '.'.join((lane['flowcell'], lane['lane']))
         for lane in iterate_lanes(runfile))))
 
-def get_run_id(well):    
+def get_run_id(well):
+    # this is actually used by hs_deplete.rules also!
     run_id = well['sample']
     if well.get('library_id_per_sample'):
         run_id += '.l' + well['library_id_per_sample']
@@ -47,11 +62,6 @@ def get_bam_path(lane, well):
         'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         get_run_id(well) + ".bam")
 
-def get_all_demux_outs(runfile, flowcell, lane):
-    for lane, well in iterate_wells(runfile):
-        if lane['flowcell'] == flowcell and lane['lane'] == lane:
-            yield get_run_id(well)
-    
 def get_all_runs(runfile):
     for lane, well in iterate_wells(runfile):
         yield get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane']
@@ -72,15 +82,16 @@ rule all_demux:
     params: LSF="-N"
 
 
+def illumina_demux_inputs(wildcards):
+    if not config.get('seqruns_demux'):
+        return "unreachable-{}-{}".format(wildcards.flowcell, wildcards.lane)
+    lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+    return [objectify_remote(x) for x in [lane['bustard_dir'], lane['barcode_file']]]
 rule illumina_demux:
-    input:  config.get('seqruns_demux','DNE')
+    input:  illumina_demux_inputs
     output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
             config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
-            #expand("{dir}/{{flowcell}}.{{lane}}/{sample}.bam",
-            #    dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
-            #    sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
-            #    )
-    resources: mem=80
+    resources: mem=60
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{flowcell}.{lane}",
@@ -94,7 +105,7 @@ rule illumina_demux:
             for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
                 if lane.get(opt):
                     opts += ' --%s=%s' % (opt, lane[opt])
-            shell("{config[binDir]}/illumina.py illumina_demux {lane[bustard_dir]} {wildcards.lane} {outdir} --sampleSheet={lane[barcode_file]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
+            shell("{config[binDir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
 
 
 def demux_move_bams_inputs(wildcards):
