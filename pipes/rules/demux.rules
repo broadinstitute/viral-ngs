@@ -13,17 +13,19 @@
 __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpark@broadinstitute.org>'
 
 from snakemake.utils import makedirs
-import snakemake.remote
 import os, os.path, time, shutil
 
 def objectify_remote(uri):
     if uri.lower().startswith('s3://'):
+        import snakemake.remote.S3
         remote = snakemake.remote.S3.RemoteProvider()
         return remote.remote(uri[5:])
     elif uri.lower().startswith('gs://'):
+        import snakemake.remote.GS
         remote = snakemake.remote.GS.RemoteProvider()
         return remote.remote(uri[5:])
     elif uri.lower().startswith('sftp://'):
+        import snakemake.remote.SFTP
         remote = snakemake.remote.SFTP.RemoteProvider()
         return remote.remote(uri[7:])
     return uri
