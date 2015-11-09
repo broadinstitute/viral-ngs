@@ -202,7 +202,7 @@ class IlluminaDirectory(object):
             raise Exception('file does not exist: %s' % tarfile)
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
         if tarfile.lower().endswith('.zip'):
-            untar_cmd = ['unzip', tarfile, '-d', self.tempDir]
+            untar_cmd = ['unzip', '-q', tarfile, '-d', self.tempDir]
         else:
             if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
                 compression_option = 'z'

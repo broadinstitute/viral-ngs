@@ -14,7 +14,6 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 
 from snakemake.utils import makedirs
 import snakemake.remote
-from snakemake.remote import S3, GS, SFTP
 import os, os.path, time, shutil
 
 def objectify_remote(uri):
