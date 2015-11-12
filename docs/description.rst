@@ -36,10 +36,10 @@ Viral genome analysis
 Viral genome assembly
 ~~~~~~~~~~~~~~~~~~~~~
 
-The filtered and trimmed reads were subsampled to at most 100,000 pairs.
+The filtered and trimmed reads are subsampled to at most 100,000 pairs.
 *de novo* assemby is performed using Trinity_.
 Reference-assisted assembly improvements follow (contig scaffolding, orienting, etc.)
-with VFAT_ (which relies on MUSCLE_).
+with MUMMER_ and MUSCLE_.
 
 Each sample's reads are aligned to its *de novo* assembly using Novoalign_
 and any remaining duplicates were removed using Picard_ MarkDuplicates.
@@ -51,7 +51,7 @@ reads were changed to N.
 This align-call-refine cycle is iterated twice, to minimize reference bias in the assembly.
  
 .. _Trinity: http://trinityrnaseq.github.io/
-.. _VFAT: http://www.broadinstitute.org/scientific-community/science/projects/viral-genomics/v-fat
+.. _MUMMER http://mummer.sourceforge.net/
 .. _MUSCLE: http://www.drive5.com/muscle/
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
 .. _Picard: http://broadinstitute.github.io/picard
