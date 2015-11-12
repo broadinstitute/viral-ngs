@@ -193,7 +193,6 @@ to represent the full reference genome file used downstream.
 ::
 
     "accessions_for_ref_genome_build": ["KJ660346.2"],
-    "ref_genome_file_prefix": "ebov",
 
 An optional file containing a list of accessions may be specified for 
 filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is 

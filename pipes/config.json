@@ -4,7 +4,6 @@
   "number_of_chromosomes": 1,
   "accessions_for_ref_genome_build": ["KJ660346.2"],
   "accessions_file_for_lastal_db_build": "",
-  "ref_genome_file_prefix": "ebov",
 
 
   "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",

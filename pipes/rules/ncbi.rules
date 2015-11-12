@@ -22,14 +22,14 @@ rule all_annot:
 
 rule download_reference_genome:
     output:
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" ),
         expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"]
     run:
         makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
-        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedFilePrefix {config[ref_genome_file_prefix]} --removeSeparateFiles --forceOverwrite")
+        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedFilePrefix reference --removeSeparateFiles --forceOverwrite")
         shell("{config[binDir]}/ncbi.py fetch_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --forceOverwrite")
 
 rule download_lastal_sources:
@@ -67,7 +67,7 @@ rule annot_transfer:
                     subdir=config["subdirs"]["multialign_ref"],
                     chrom=range(1, config["number_of_chromosomes"]+1)),
                 expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
-                expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+                expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output:     
                 #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
                 expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
@@ -80,7 +80,7 @@ rule annot_transfer:
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 UGER=config.get('UGER_queues', {}).get('short', '-q short'),
                 #logid="{samp}",
-                refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
+                refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" ),
                 refAnnot=expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
                 outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
     run:      
