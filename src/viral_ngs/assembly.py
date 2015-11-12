@@ -179,11 +179,9 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
         circular=False, min_pct_id=0.6, min_contig_len=200):
-    ''' This step cleans up the Trinity assembly with a known reference genome.
-        Uses VFAT (switch to Bellini later):
-        Take the Trinity contigs, align them to the known reference genome,
-        switch it to the same strand as the reference, and produce
-        chromosome-level assemblies (with runs of N's in between the Trinity
+    ''' This step cleans up the de novo assembly with a known reference genome.
+        Uses MUMmer (nucmer or promer) to create a reference-based consensus
+        sequence of aligned contigs (with runs of N's in between the de novo
         contigs).
     '''
     mummer = tools.mummer.MummerTool()
@@ -220,12 +218,10 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
 
-
 __commands__.append(('order_and_orient', parser_order_and_orient))
 
 
 class PoorAssemblyError(Exception):
-
     def __init__(self, chr_idx, seq_len, non_n_count):
         super(PoorAssemblyError, self).__init__(
             'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}'.format(
@@ -319,7 +315,7 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
                         help="minimum length for contig, as fraction of reference (default: %(default)s)")
     parser.add_argument("--minUnambig",
                         type=float,
-                        default=0.0,
+                        default=0.8,
                         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
     parser.add_argument("--replaceLength",
                         type=int,
@@ -603,7 +599,7 @@ __commands__.append(('modify_contig', parser_modify_contig))
 
 
 class ContigModifier(object):
-    ''' Initial modifications to Trinity+VFAT assembly output based on
+    ''' Initial modifications to Trinity+MUMmer assembly output based on
         MUSCLE alignment to known reference genome
         author: rsealfon
     '''
