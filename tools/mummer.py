@@ -54,5 +54,50 @@ class MummerTool(tools.Tool):
             '--prefix={}'.format(outDelta), refFasta, qryFasta]
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
+    
+    def delta_filter(self, inDelta, outDelta):
+        toolCmd = ['/'.join(self.install_and_get_path(), 'delta-filter'),
+            '-q', inDelta]
+        log.debug(' '.join(toolCmd))
+        with open(outDelta, 'w') as outf:
+            subprocess.check_call(toolCmd, stdout=outf)
+
+    def show_tiling(self, inDelta, outTiling, outFasta,
+            circular=False, min_pct_id=None, min_contig_len=None):
+        opts = []
+        if circular:
+            opts.append('-c')
+        if min_pct_id is not None:
+            opts.append('-i')
+            opts.append(str(min_pct_id))
+        if min_contig_len is not None:
+            opts.append('-l')
+            opts.append(str(min_contig_len))
+        toolCmd = ['/'.join(self.install_and_get_path(), 'show-tiling'),
+            '-p', outFasta] + opts + [inDelta]
+        log.debug(' '.join(toolCmd))
+        with open(outTiling, 'w') as outf:
+            subprocess.check_call(toolCmd, stdout=outf)
+    
+    def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
+            aligner='nucmer', circular=False,
+            min_pct_id=0.6, min_contig_len=200):
+        
+        if aligner=='nucmer':
+            aligner = self.nucmer
+        elif aligner=='promer':
+            aligner = self.promer
+        else:
+            raise NameError()
+        delta_1 = util.file.mkstempfname('.delta')
+        delta_2 = util.file.mkstempfname('.delta')
+        tiling = util.file.mkstempfname('.tiling')
+        aligner(refFasta, contigsFasta, delta_1)
+        self.delta_filter(delta_1, delta_2)
+        self.show_tiling(delta_2, tiling, outFasta, circular=circular,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+        os.unlink(delta_1)
+        os.unlink(delta_2)
+        os.unlink(tiling)
         
 
