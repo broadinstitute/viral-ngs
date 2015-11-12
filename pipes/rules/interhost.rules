@@ -33,7 +33,7 @@ rule all_ref_guided:
 rule ref_guided_consensus:
     input:  
             config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam',
-            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output: config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
             config["dataDir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
@@ -43,7 +43,7 @@ rule ref_guided_consensus:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome"],"reference"+".fasta"),
             novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage="3",
             numThreads=str(config.get("number_of_threads", 1))
@@ -60,7 +60,7 @@ rule ref_guided_diversity:
                 subdir=config["subdirs"]["align_ref"],
                 ext = ['fasta', 'vcf.gz'],
                 sample=read_samples_file(config["samples_per_run"])),
-            expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+            expand( '{refDir}/'+'/{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output: 
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
             os.path.join(config["dataDir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
@@ -68,7 +68,7 @@ rule ref_guided_diversity:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome"],"reference"+".fasta"),
             inFastas = expand("{dataDir}/{subdir}/{sample}.fasta",
                 dataDir=config["dataDir"], subdir=config["subdirs"]["align_ref"],
                 sample=read_samples_file(config["samples_per_run"])),
@@ -86,20 +86,20 @@ rule multi_align_mafft:
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["assembly"],
                 sample=read_samples_file(config["samples_assembly"])),
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output:
         config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt",
         expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                 dataDir=config["dataDir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(1, config["number_of_chromosomes"]+1))        
+                chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))        
     resources: 
             mem=8,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
             samples=read_samples_file(config["samples_assembly"]),
             ep=str(config["mafft_ep"]),

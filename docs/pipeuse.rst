@@ -149,12 +149,6 @@ API <http://www.ncbi.nlm.nih.gov/books/NBK25501/>`__:
 
     "email_point_of_contact_for_ncbi" : "someone@example.com"
 
-The number of chomosomes (or segments) in the reference organism:
-
-::
-
-    "number_of_chromosomes": 2,
-
 The path to the depletion databases to be used by BMTagger, along with
 the file prefixes of the specific databases to use. The process for
 creating BMTagger depletion databases is described in the `NIH BMTagger
