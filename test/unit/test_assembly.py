@@ -45,6 +45,44 @@ class TestAmbiguityBases(unittest.TestCase):
                 self.assertEqual(out, out.upper())
 
 
+class TestOrderAndOrient(TestCaseWithTmp):
+    ''' Test the MUMmer-based order_and_orient command '''
+
+    def test_varicella_big(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hhv3.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hhv3.fasta'),
+            os.path.join(inDir, 'ref.hhv3.fasta'),
+            outFasta)
+        self.assertEqualContents(outFasta, expected)
+        os.unlink(outFasta)
+
+    def test_lassa_multisegment(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.lasv.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.lasv.fasta'),
+            os.path.join(inDir, 'ref.lasv.fasta'),
+            outFasta)
+        self.assertEqualContents(outFasta, expected)
+        os.unlink(outFasta)
+        
+    def test_lassa_protein(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.lasv.promer.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.lasv.fasta'),
+            os.path.join(inDir, 'ref.lasv.fasta'),
+            outFasta,
+            aligner='promer')
+        self.assertEqualContents(outFasta, expected)
+        os.unlink(outFasta)
+        
+
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
 
