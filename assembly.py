@@ -34,7 +34,6 @@ import tools.samtools
 import tools.gatk
 import tools.novoalign
 import tools.trinity
-import tools.mosaik
 import tools.muscle
 
 # third-party
@@ -177,7 +176,8 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta, inReads=None):
+def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
+        circular=False, min_pct_id=0.6, min_contig_len=200):
     ''' This step cleans up the Trinity assembly with a known reference genome.
         Uses VFAT (switch to Bellini later):
         Take the Trinity contigs, align them to the known reference genome,
@@ -185,74 +185,36 @@ def order_and_orient(inFasta, inReference, outFasta, inReads=None):
         chromosome-level assemblies (with runs of N's in between the Trinity
         contigs).
     '''
-    # VFAT to order, orient, and merge contigs
-
-    # split out trinity input into separate fastas, then iterate over each, running perl scripts
-
-    # TO DO: replace with Bellini?
-    musclepath = tools.muscle.MuscleTool().install_and_get_path()
-
-    tempFastas = []
-
-    with open(inReference, 'r') as inf:
-        for idx, seqObj in enumerate(Bio.SeqIO.parse(inf, 'fasta')):
-            tmpInputFile = util.file.mkstempfname(prefix='seq-{idx}'.format(idx=idx), suffix=".fasta")
-            tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}'.format(idx=idx), suffix=".fasta")
-
-            Bio.SeqIO.write([seqObj], tmpInputFile, "fasta")
-
-            tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
-            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'), inFasta, tmpInputFile,
-                   tmp_prefix, '-musclepath', musclepath]
-            subprocess.check_call(cmd)
-            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
-                   tmp_prefix + '_orientedContigs', inReference, tmp_prefix, '-musclepath', musclepath,
-                   '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
-            if inReads:
-                infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
-                tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
-                mosaik = tools.mosaik.MosaikTool()
-                cmd = cmd + [
-                    '-readfq',
-                    infq[0],
-                    '-readfq2',
-                    infq[1],
-                    '-mosaikpath',
-                    os.path.dirname(mosaik.install_and_get_path()),
-                    '-mosaiknetworkpath',
-                    mosaik.get_networkFile(),
-                ]
-            subprocess.check_call(cmd)
-            shutil.move(tmp_prefix + '_assembly.fa', tmpOutputFile)
-            tempFastas.append(tmpOutputFile)
-
-    # append
-    util.file.concat(tempFastas, outFasta)
-    for tmpFile in tempFastas:
-        os.unlink(tmpFile)
-
-    for fn in glob.glob(tmp_prefix + '*'):
-        os.unlink(fn)
-    with open(outFasta, 'rt') as inf:
-        out_chr_count = len([1 for x in inf if x.startswith('>')])
-    with open(inReference, 'rt') as inf:
-        ref_chr_count = len([1 for x in inf if x.startswith('>')])
-    if out_chr_count != ref_chr_count:
-        raise Exception("error: expected {} chromosomes, only got {} chromosomes".format(ref_chr_count, out_chr_count))
+    mummer = tools.mummer.MummerTool()
+    mummer.scaffold_contigs(inReference, inFasta, outFasta,
+            aligner=aligner, circular=circular,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
     return 0
-
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
                         help='Reference genome for ordering, orienting, and merging contigs, FASTA format.')
-    parser.add_argument(
-        'outFasta',
+    parser.add_argument('outFasta',
         help="""Output assembly, FASTA format, with the same number of 
                 chromosomes as inReference, and in the same order.""")
-    parser.add_argument('--inReads',
-                        default=None,
-                        help='Input reads in unaligned BAM format. These can be used to improve the merge process.')
+    parser.add_argument('aligner',
+                        help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
+                        choices=['nucmer', 'promer'],
+                        default='nucmer')
+    parser.add_argument("--circular",
+                        help="""Allow contigs to wrap around the ends of the chromosome.""",
+                        default=False,
+                        action="store_true",
+                        dest="circular")
+    parser.add_argument("--min_pct_id",
+                        type=float,
+                        default=0.6,
+                        help="minimum percent identity for contig alignment (default: %(default)s)")
+    parser.add_argument("--min_contig_len",
+                        type=int,
+                        default=200,
+                        help="reject contigs smaller than this (default: %(default)s)")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser

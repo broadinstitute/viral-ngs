@@ -56,7 +56,7 @@ rule assemble_trinity:
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
-        order_and_orient (VFAT, maybe Bellini later): take the de novo assembly,
+        order_and_orient (MUMmer): take the de novo assembly,
             align them to the known reference genome, switch it to the same
             strand as the reference, and produce chromosome-level assemblies
             (with runs of N's in between the de novo contigs).
@@ -73,8 +73,6 @@ rule orient_and_impute:
             de novo step is still important because it allows for significant
             structural / indel changes (or significant substitution distances)
             which will be captured in this output.
-            This is the only step in the pipeline that needs generalization to
-            multi-chromosome genomes.
     '''
     input:  
         config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
@@ -91,10 +89,9 @@ rule orient_and_impute:
             renamed_prefix="",
             replace_length="55",
             logid="{sample}",
-            vfat_fasta=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
-            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+            vfat_fasta=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
+            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.vfat_fasta}")
             shell("{config[binDir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
