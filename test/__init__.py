@@ -17,10 +17,10 @@ class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'
 
     def setUp(self):
-        util.file.set_tmpDir(type(self).__name__)
+        util.file.set_tmp_dir(type(self).__name__)
 
     def tearDown(self):
-        util.file.destroy_tmpDir()
+        util.file.destroy_tmp_dir()
 
     def assertEqualContents(self, f1, f2):
         assert_equal_contents(self, f1, f2)

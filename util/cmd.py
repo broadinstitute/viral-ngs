@@ -16,7 +16,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
 
 log = logging.getLogger()
-tmpDir = None
+tmp_dir = None
 
 
 def setup_logger(log_level):
@@ -32,7 +32,7 @@ def script_name():
     return os.path.basename(sys.argv[0]).rsplit('.', 1)[0]
 
 
-def common_args(parser, arglist=(('tmpDir', None), ('loglevel', None))):
+def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
     for k, v in arglist:
         if k == 'loglevel':
             if not v:
@@ -42,17 +42,17 @@ def common_args(parser, arglist=(('tmpDir', None), ('loglevel', None))):
                                 help="Verboseness of output.  [default: %(default)s]",
                                 default=v,
                                 choices=('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'EXCEPTION'))
-        elif k == 'tmpDir':
+        elif k == 'tmp_dir':
             if not v:
-                v = find_tmpDir()
-            parser.add_argument("--tmpDir",
-                                dest="tmpDir",
+                v = find_tmp_dir()
+            parser.add_argument("--tmp_dir",
+                                dest="tmp_dir",
                                 help="Base directory for temp files. [default: %(default)s]",
                                 default=v)
-            parser.add_argument("--tmpDirKeep",
+            parser.add_argument("--tmp_dirKeep",
                                 action="store_true",
-                                dest="tmpDirKeep",
-                                help="""Keep the tmpDir if an exception occurs while
+                                dest="tmp_dirKeep",
+                                help="""Keep the tmp_dir if an exception occurs while
                     running. Default is to delete all temp files at
                     the end, even if there's a failure.""",
                                 default=False)
@@ -73,7 +73,7 @@ def main_command(mainfunc):
 
     def _main(args):
         args2 = dict((k, v) for k, v in vars(args).items() if k not in (
-            'loglevel', 'tmpDir', 'tmpDirKeep', 'version', 'func_main', 'command'))
+            'loglevel', 'tmp_dir', 'tmp_dirKeep', 'version', 'func_main', 'command'))
         mainfunc(**args2)
 
     _main.__doc__ = mainfunc.__doc__
@@ -131,8 +131,8 @@ def main_argparse(commands, description):
     log.info("command: %s %s %s", sys.argv[0], sys.argv[1],
              ' '.join(["%s=%s" % (k, v) for k, v in vars(args).items() if k not in ('command', 'func_main')]))
 
-    if hasattr(args, 'tmpDir'):
-        # If this command has a tmpDir option, use that as a base directory
+    if hasattr(args, 'tmp_dir'):
+        # If this command has a tmp_dir option, use that as a base directory
         # and create a subdirectory within it which we will then destroy at
         # the end of execution.
 
@@ -140,15 +140,15 @@ def main_argparse(commands, description):
         if 'LSB_JOBID' in os.environ:
             proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ['LSB_JOBID'],
                                                 os.environ['LSB_JOBINDEX'])
-        tempfile.tempdir = tempfile.mkdtemp(prefix='%s-' % proposed_dir, dir=args.tmpDir)
+        tempfile.tempdir = tempfile.mkdtemp(prefix='%s-' % proposed_dir, dir=args.tmp_dir)
         log.debug("using tempDir: %s", tempfile.tempdir)
         os.environ['TMPDIR'] = tempfile.tempdir  # this is for running R
         try:
             ret = args.func_main(args)
         except:
-            if hasattr(args, 'tmpDirKeep') and args.tmpDirKeep:
+            if hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep:
                 log.exception(
-                    "Exception occurred while running %s, saving tmpDir at %s", args.command, tempfile.tempdir)
+                    "Exception occurred while running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
             else:
                 shutil.rmtree(tempfile.tempdir)
             raise
@@ -162,9 +162,9 @@ def main_argparse(commands, description):
     return ret
 
 
-def find_tmpDir():
+def find_tmp_dir():
     ''' This provides a suggested base directory for a temp dir for use in your
-        argparse-based tmpDir option.
+        argparse-based tmp_dir option.
     '''
     tmpdir = '/tmp'
     if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):

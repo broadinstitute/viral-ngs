@@ -43,7 +43,7 @@ def get_run_id(well):
     return run_id
 
 def get_bam_path(lane, well):
-    return os.path.join(config['tmpDir'], config['subdirs']['demux'],
+    return os.path.join(config['tmp_dir'], config['subdirs']['demux'],
         'bams_per_lane', lane['flowcell'] + '.' + lane['lane'],
         get_run_id(well) + ".bam")
 
@@ -59,7 +59,7 @@ def get_all_runs(runfile):
 rule all_demux_basecalls:
     input:  
             expand("{dir}/{flowlane}/{lib}.bam",
-                dir = os.path.join(config['tmpDir'], config['subdirs']['demux'], 'bams_per_lane'),
+                dir = os.path.join(config['tmp_dir'], config['subdirs']['demux'], 'bams_per_lane'),
                 flowlane = get_all_lanes(config.get('seqruns_demux','')),
                 lib = 'Unmatched')
     params: LSF="-N"
@@ -67,17 +67,17 @@ rule all_demux_basecalls:
 rule all_demux:
     input:
             expand("{dir}/{run}.bam",
-                dir = os.path.join(config['dataDir'], config['subdirs']['source']),
+                dir = os.path.join(config['data_dir'], config['subdirs']['source']),
                 run=get_all_runs(config.get('seqruns_demux','')))
     params: LSF="-N"
 
 
 rule illumina_demux:
     input:  config.get('seqruns_demux','DNE')
-    output: config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
-            config['reportsDir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
+    output: config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
+            config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
             #expand("{dir}/{{flowcell}}.{{lane}}/{sample}.bam",
-            #    dir = config['tmpDir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
+            #    dir = config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/',
             #    sample = get_all_demux_outs(config.get('seqruns_demux','DNE'), flowcell, lane),
             #    )
     resources: mem=80
@@ -94,7 +94,7 @@ rule illumina_demux:
             for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
                 if lane.get(opt):
                     opts += ' --%s=%s' % (opt, lane[opt])
-            shell("{config[binDir]}/illumina.py illumina_demux {lane[bustard_dir]} {wildcards.lane} {outdir} --sampleSheet={lane[barcode_file]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
+            shell("{config[bin_dir]}/illumina.py illumina_demux {lane[bustard_dir]} {wildcards.lane} {outdir} --sampleSheet={lane[barcode_file]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
 
 
 def demux_move_bams_inputs(wildcards):
@@ -105,25 +105,25 @@ def demux_move_bams_inputs(wildcards):
     return "unreachable-{}-{}-{}-{}".format(wildcards.sample, wildcards.library, wildcards.flowcell, wildcards.lane)
 rule move_bams_demux:
     input:  demux_move_bams_inputs
-    output: config['dataDir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
+    output: config['data_dir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
     params: logid="{sample}.l{library}.{flowcell}.{lane}"
     run:
-            makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
+            makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
             shutil.move(input[0], output[0])
 
 rule bams_from_fastq:
-    input:  os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R1_001.fastq.gz'),
-            os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz'),
-            os.path.join(config['dataDir'],config['subdirs']['source'],'SampleSheet.csv'),
-            os.path.join(config['dataDir'],config['subdirs']['source'],'RunInfo.xml')
-    output: os.path.join(config['dataDir'],config['subdirs']['source'],'{sample}.bam')
+    input:  os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R1_001.fastq.gz'),
+            os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz'),
+            os.path.join(config['data_dir'],config['subdirs']['source'],'SampleSheet.csv'),
+            os.path.join(config['data_dir'],config['subdirs']['source'],'RunInfo.xml')
+    output: os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}.bam')
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
             center=config["seq_center"]
     run:
-            makedirs(os.path.join(config['dataDir'], config['subdirs']['source']))
-            shell("{config[binDir]}/illumina.py miseq_fastq_to_bam {output} {input[2]} {input[0]} --inFastq2 {input[1]} --runInfo {input[3]} --sequencing_center {params.center}")
+            makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
+            shell("{config[bin_dir]}/illumina.py miseq_fastq_to_bam {output} {input[2]} {input[0]} --inFastq2 {input[1]} --runInfo {input[3]} --sequencing_center {params.center}")
 
 ruleorder: move_bams_demux > bams_from_fastq
 

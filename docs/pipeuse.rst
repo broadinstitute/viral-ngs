@@ -156,8 +156,8 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
 
 ::
 
-    "bmTaggerDbDir":  "/path/to/depletion_databases",
-    "bmTaggerDbs_remove": [
+    "bm_tagger_db_dir":  "/path/to/depletion_databases",
+    "bm_tagger_dbs_remove": [
         "hg19",
         "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
         "metagenomics_contaminants_v3"
@@ -174,8 +174,8 @@ from the University of Oxford.
 
 ::
 
-    "blastDbDir":     "/path/to/depletion_databases",
-    "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
+    "blast_db_dir":     "/path/to/depletion_databases",
+    "blast_db_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
 An array of the `NCBI GenBank
 CoreNucleotide <http://www.ncbi.nlm.nih.gov/nuccore/>`__ accessions for
@@ -202,13 +202,13 @@ contaminents from reads:
 
 ::
 
-    "trim_clipDb":    "/path/to/depletion_databases/contaminants.fasta",
+    "trim_clip_db":    "/path/to/depletion_databases/contaminants.fasta",
 
 A FASTA file containing spike-ins to be reported:
 
 ::
 
-    "spikeinsDb":     "/path/to/references/ercc_spike-ins.fasta",
+    "spikeins_db":     "/path/to/references/ercc_spike-ins.fasta",
 
 Modifying the ``Snakefile``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
