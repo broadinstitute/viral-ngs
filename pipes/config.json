@@ -5,17 +5,17 @@
   "accessions_file_for_lastal_db_build": "",
 
 
-  "bmTaggerDbDir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",
-  "bmTaggerDbs_remove": [
+  "bm_tagger_db_dir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",
+  "bm_tagger_dbs_remove": [
     "hg19",
     "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
     "metagenomics_contaminants_v3"],
 
-  "blastDbDir":     "/idi/sabeti-scratch/kandersen/references/depletion_databases",
-  "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
+  "blast_db_dir":     "/idi/sabeti-scratch/kandersen/references/depletion_databases",
+  "blast_db_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
-  "trim_clipDb":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
-  "spikeinsDb":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
+  "trim_clip_db":    "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta",
+  "spikeins_db":     "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta",
 
   "env_vars": {
     "GATK_PATH":       "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af",
@@ -33,15 +33,16 @@
   },
 
 
-  "dataDir":    "data",
-  "tmpDir":     "tmp",
-  "logDir":     "log",
-  "reportsDir": "reports",
-  "binDir":     "bin",
-  "venvDir":    "venv",
   "project":    "viral_ngs",
-  "ref_genome":     "ref_genome",
-  "lastal_refDb":   "lastal_db",
+
+  "data_dir":    "data",
+  "tmp_dir":     "tmp",
+  "log_dir":     "log",
+  "reports_dir": "reports",
+  "bin_dir":     "bin",
+  "venv_dir":    "venv",
+  "ref_genome_dir":     "ref_genome",
+  "lastal_ref_db_dir":   "lastal_db",
 
   "seqruns_demux":     "flowcells.txt",
   "samples_depletion": "samples-depletion.txt",

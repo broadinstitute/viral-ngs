@@ -63,8 +63,8 @@ def make_run_hash(fname, length=6):
 
 rule all:
     input:
-        expand("{dataDir}/{sample}.fasta",
-            dataDir=config["dataDir"],
+        expand("{data_dir}/{sample}.fasta",
+            data_dir=config["data_dir"],
             sample=get_sample_list(config["samples"]))
 
 ##############################################
@@ -88,7 +88,7 @@ rule bams_from_fastq:
             run_date = get_file_date(input[0])
             info = get_sample_info(wildcards.sample, config["samples"])
             hash = make_run_hash(config["samples"])
-            shell("{config[binDir]}/read_utils.py fastq_to_bam {input} {output} " \
+            shell("{config[bin_dir]}/read_utils.py fastq_to_bam {input} {output} " \
                 + "--sampleName {wildcards.sample} --picardOptions " \
                 + "SEQUENCING_CENTER={params.center} " \
                 + "RUN_DATE={run_date} " \
@@ -106,10 +106,10 @@ rule ref_guided_consensus:
     resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
-            refGenome=os.path.expanduser(os.path.join(config["ref_genome"],"reference"+".fasta")),
+            refGenome=os.path.expanduser(os.path.join(config["ref_genome_dir"],"reference"+".fasta")),
             novoalign_options=config["refine_options"]["novoalign"],
             min_coverage=config["refine_options"]["min_coverage"]
-    shell:  "{config[binDir]}/assembly.py refine_assembly " \
+    shell:  "{config[bin_dir]}/assembly.py refine_assembly " \
                 + "{params.refGenome} {input} {output[2]} " \
                 + "--outBam {output[0]} " \
                 + "--outVcf {output[1]} " \

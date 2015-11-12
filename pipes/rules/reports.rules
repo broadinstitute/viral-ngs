@@ -10,25 +10,25 @@ import os, os.path, gzip, shutil
 
 rule all_reports:
     input:
-        config["reportsDir"]+'/summary.fastqc.txt',
-        config["reportsDir"]+'/summary.spike_count.txt'
+        config["reports_dir"]+'/summary.fastqc.txt',
+        config["reports_dir"]+'/summary.spike_count.txt'
     params: LSF="-N"
 
 
 #-----------FASTQC---------------------
 
 rule fastqc_report:
-    input:  config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam'
-    output: config["reportsDir"]+'/fastqc/{sample}_fastqc'
+    input:  config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam'
+    output: config["reports_dir"]+'/fastqc/{sample}_fastqc'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}"
     run:
-            makedirs(config["reportsDir"])
+            makedirs(config["reports_dir"])
             shutil.rmtree(output[0], ignore_errors=True)
-            makedirs(os.path.join(config["reportsDir"], 'fastqc'))
-            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input} -o {config[reportsDir]}/fastqc")
+            makedirs(os.path.join(config["reports_dir"], 'fastqc'))
+            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input} -o {config[reports_dir]}/fastqc")
             os.unlink(output[0]+'.zip')
 
 rule consolidate_fastqc:
@@ -37,25 +37,25 @@ rule consolidate_fastqc:
                 sample=read_samples_file(config["samples_assembly"]))
     output: '{dir}/summary.fastqc.txt'
     params: logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_fastqc {input} {output}"
+    shell:  "{config[bin_dir]}/reports.py consolidate_fastqc {input} {output}"
 
 
 #-----------SPIKE-INS------------------
 
 rule spikein_report:
-    input:  config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    output: config["reportsDir"]+'/spike_count/{sample}.spike_count.txt'
+    input:  config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    output: config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
-            spike_in_fasta=config["spikeinsDb"],
+            spike_in_fasta=config["spikeins_db"],
             novoalign_options="-r Random",
-            tmpf_spike_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
+            tmpf_spike_bam=config["tmp_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.aligned_to_spikes.bam'
     run:
-            makedirs(os.path.join(config["reportsDir"], 'spike_count'))
-            makedirs(os.path.join(config["tmpDir"], config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/read_utils.py novoalign {input} {params.spike_in_fasta} {params.tmpf_spike_bam} --options '{params.novoalign_options}'")
+            makedirs(os.path.join(config["reports_dir"], 'spike_count'))
+            makedirs(os.path.join(config["tmp_dir"], config["subdirs"]["depletion"]))
+            shell("{config[bin_dir]}/read_utils.py novoalign {input} {params.spike_in_fasta} {params.tmpf_spike_bam} --options '{params.novoalign_options}'")
             shell("/idi/sabeti-scratch/kandersen/bin/scripts/CountAlignmentsByDescriptionLine -bam {params.tmpf_spike_bam} > {output}")
             os.unlink(params.tmpf_spike_bam)
             os.unlink(params.tmpf_spike_bam[:-1] + 'i')
@@ -65,5 +65,5 @@ rule consolidate_spike_count:
                 sample=read_samples_file(config["samples_per_run"]))
     output: '{dir}/summary.spike_count.txt'
     params: logid="all"
-    shell:  "{config[binDir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
+    shell:  "{config[bin_dir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
 

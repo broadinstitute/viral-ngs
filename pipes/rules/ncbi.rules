@@ -12,99 +12,99 @@ localrules: download_reference_genome, download_lastal_sources, build_lastal_db
 
 rule all_annot:
     input:
-        config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'#,
-        #expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
-        #            dataDir=config["dataDir"],
+        config["data_dir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'#,
+        #expand("{data_dir}/{subdir}/{samp}-{chrom}.tbl",
+        #            data_dir=config["data_dir"],
         #            subdir=config["subdirs"]["annot"],
         #            samp=read_samples_file(config["samples_assembly"]),
         #            chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
-        #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
+        #config["data_dir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
 
 rule download_reference_genome:
     output:
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" ),
-        expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
+        expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome_dir"], feature_tbl_name=config["accessions_for_ref_genome_build"] )
     params:
         emailAddress=config["email_point_of_contact_for_ncbi"],
         accessionsList=config["accessions_for_ref_genome_build"]
     run:
-        makedirs( expand( "{dir}", dir=[config["ref_genome"]] ) )
-        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome]} {params.accessionsList} --combinedFilePrefix reference --removeSeparateFiles --forceOverwrite")
-        shell("{config[binDir]}/ncbi.py fetch_feature_tables {params.emailAddress} {config[ref_genome]} {params.accessionsList} --forceOverwrite")
+        makedirs( expand( "{dir}", dir=[config["ref_genome_dir"]] ) )
+        shell("{config[bin_dir]}/ncbi.py fetch_fastas {params.emailAddress} {config[ref_genome_dir]} {params.accessionsList} --combinedFilePrefix reference --removeSeparateFiles --forceOverwrite")
+        shell("{config[bin_dir]}/ncbi.py fetch_feature_tables {params.emailAddress} {config[ref_genome_dir]} {params.accessionsList} --forceOverwrite")
 
 rule download_lastal_sources:
     output:
-        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_refDb"] )
+        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_ref_db_dir"] )
     params:
         accessionsList=read_accessions_file(config["accessions_file_for_lastal_db_build"]) if "accessions_file_for_lastal_db_build" in config and len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"],
         emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
-        makedirs( expand( "{dir}", dir=[config["lastal_refDb"]] ) )
-        shell("{config[binDir]}/ncbi.py fetch_fastas {params.emailAddress} {config[lastal_refDb]} {params.accessionsList} --combinedFilePrefix lastal --removeSeparateFiles --forceOverwrite --chunkSize 300")
+        makedirs( expand( "{dir}", dir=[config["lastal_ref_db_dir"]] ) )
+        shell("{config[bin_dir]}/ncbi.py fetch_fastas {params.emailAddress} {config[lastal_ref_db_dir]} {params.accessionsList} --combinedFilePrefix lastal --removeSeparateFiles --forceOverwrite --chunkSize 300")
 
 
 rule build_lastal_db:
     input:
-        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_refDb"] )
+        expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_ref_db_dir"] )
     output:
-        expand('{lastal_refDb}/lastal.bck', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.des', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.prj', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.sds', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.ssp', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.suf', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.tis', lastal_refDb=config["lastal_refDb"])
+        expand('{lastal_ref_db_dir}/lastal.bck', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.des', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.prj', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.sds', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.ssp', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.suf', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.tis', lastal_ref_db_dir=config["lastal_ref_db_dir"])
     params:
         UGER=config.get('UGER_queues', {}).get('short', '-q short'),
         emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
-        shell("{config[binDir]}/taxon_filter.py lastal_build_db {input[0]} {config[lastal_refDb]}")
+        shell("{config[bin_dir]}/taxon_filter.py lastal_build_db {input[0]} {config[lastal_ref_db_dir]}")
 
 rule annot_transfer:
     input:      
-                expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
-                    dataDir=config["dataDir"],
+                expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
+                    data_dir=config["data_dir"],
                     subdir=config["subdirs"]["multialign_ref"],
                     chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)),
-                expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
-                expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
+                expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome_dir"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
+                expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
     output:     
-                #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
-                expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
-                    dataDir=config["dataDir"],
+                #config["data_dir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'#,
+                expand("{data_dir}/{subdir}/{samp}-{chrom}.tbl",
+                    data_dir=config["data_dir"],
                     subdir=config["subdirs"]["annot"],
                     samp=read_samples_file(config["samples_assembly"]),
                     chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
-                #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
+                #config["data_dir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 UGER=config.get('UGER_queues', {}).get('short', '-q short'),
                 #logid="{samp}",
-                refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" ),
-                refAnnot=expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
-                outputDir=config["dataDir"]+'/'+config["subdirs"]["annot"]
+                refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
+                refAnnot=expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome_dir"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
+                outputDir=config["data_dir"]+'/'+config["subdirs"]["annot"]
     run:      
-        for alignmentFile in expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
-                                        dataDir=config["dataDir"],
+        for alignmentFile in expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
+                                        data_dir=config["data_dir"],
                                         subdir=config["subdirs"]["multialign_ref"],
                                         chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)):
-            shell("{config[binDir]}/ncbi.py tbl_transfer_prealigned " + alignmentFile + " {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip")
+            shell("{config[bin_dir]}/ncbi.py tbl_transfer_prealigned " + alignmentFile + " {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip")
 
 rule prepare_genbank:
     input:
-                config["reportsDir"]+"/summary.assembly.txt",
-                expand("{dataDir}/{subdir}/{samp}-{chrom}.tbl",
-                    dataDir=config["dataDir"],
+                config["reports_dir"]+"/summary.assembly.txt",
+                expand("{data_dir}/{subdir}/{samp}-{chrom}.tbl",
+                    data_dir=config["data_dir"],
                     subdir=config["subdirs"]["annot"],
                     samp=read_samples_file(config["samples_assembly"]),
                     chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
     output:
-                config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
+                config["data_dir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
                 LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
                 UGER=config.get('UGER_queues', {}).get('short', '-q short'),
                 fasta_files=expand("{dir}/{subdir}/{sample}.fasta",
-                    dir=[config["dataDir"]], subdir=[config["subdirs"]["assembly"]],
+                    dir=[config["data_dir"]], subdir=[config["subdirs"]["assembly"]],
                     sample=read_samples_file(config["samples_assembly"])),
                 genbank_template=config.get('genbank',{}).get('author_template', ''),
                 genbank_source_table=config.get('genbank',{}).get('source_modifier_table', ''),
@@ -113,11 +113,11 @@ rule prepare_genbank:
                 comment=config.get('genbank',{}).get('comment', ''),
                 logid="all"
     shell:
-                ' '.join(["{config[binDir]}/ncbi.py prep_genbank_files",
+                ' '.join(["{config[bin_dir]}/ncbi.py prep_genbank_files",
                     "{params.genbank_template} {params.fasta_files}",
-                    "{config[dataDir]}/{config[subdirs][annot]}",
+                    "{config[data_dir]}/{config[subdirs][annot]}",
                     "--master_source_table {params.genbank_source_table}",
                     "--sequencing_tech '{params.seq_tech}'",
                     "--biosample_map {params.biosample_map}",
-                    "--coverage_table {config[reportsDir]}/summary.assembly.txt",
+                    "--coverage_table {config[reports_dir]}/summary.assembly.txt",
                     "--comment '{params.comment}'"])
