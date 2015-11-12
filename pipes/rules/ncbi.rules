@@ -17,7 +17,7 @@ rule all_annot:
         #            dataDir=config["dataDir"],
         #            subdir=config["subdirs"]["annot"],
         #            samp=read_samples_file(config["samples_assembly"]),
-        #            chrom=range(1, config["number_of_chromosomes"]+1))
+        #            chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
         #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.tbl'
 
 rule download_reference_genome:
@@ -65,7 +65,7 @@ rule annot_transfer:
                 expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                     dataDir=config["dataDir"],
                     subdir=config["subdirs"]["multialign_ref"],
-                    chrom=range(1, config["number_of_chromosomes"]+1)),
+                    chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)),
                 expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome"], feature_tbl_name=config["accessions_for_ref_genome_build"] ),
                 expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output:     
@@ -74,7 +74,7 @@ rule annot_transfer:
                     dataDir=config["dataDir"],
                     subdir=config["subdirs"]["annot"],
                     samp=read_samples_file(config["samples_assembly"]),
-                    chrom=range(1, config["number_of_chromosomes"]+1))
+                    chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
                 #config["dataDir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -87,7 +87,7 @@ rule annot_transfer:
         for alignmentFile in expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
                                         dataDir=config["dataDir"],
                                         subdir=config["subdirs"]["multialign_ref"],
-                                        chrom=range(1, config["number_of_chromosomes"]+1)):
+                                        chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)):
             shell("{config[binDir]}/ncbi.py tbl_transfer_prealigned " + alignmentFile + " {params.refGenome} {params.refAnnot} {params.outputDir} --oob_clip")
 
 rule prepare_genbank:
@@ -97,7 +97,7 @@ rule prepare_genbank:
                     dataDir=config["dataDir"],
                     subdir=config["subdirs"]["annot"],
                     samp=read_samples_file(config["samples_assembly"]),
-                    chrom=range(1, config["number_of_chromosomes"]+1))
+                    chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
     output:
                 config["dataDir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:

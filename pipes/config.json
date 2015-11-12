@@ -1,7 +1,6 @@
 {
   
   "email_point_of_contact_for_ncbi" : "someone@example.com",
-  "number_of_chromosomes": 1,
   "accessions_for_ref_genome_build": ["KJ660346.2"],
   "accessions_file_for_lastal_db_build": "",
 

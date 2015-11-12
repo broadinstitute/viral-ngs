@@ -78,12 +78,12 @@ rule orient_and_impute:
     '''
     input:  
         config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name="reference" )
     output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome"],"reference"+".fasta"),
             # length should be defined as a fraction/percentage cutoff, relative to 
             # reference length for a given sequence. float is in the config.json file
             length = str(config["assembly_min_length_fraction_of_reference"]),

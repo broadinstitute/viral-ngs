@@ -106,7 +106,7 @@ rule ref_guided_consensus:
     resources: mem=4
     params: LSF='-W 4:00',
             logid="{sample}",
-            refGenome=os.path.expanduser(os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta")),
+            refGenome=os.path.expanduser(os.path.join(config["ref_genome"],"reference"+".fasta")),
             novoalign_options=config["refine_options"]["novoalign"],
             min_coverage=config["refine_options"]["min_coverage"]
     shell:  "{config[binDir]}/assembly.py refine_assembly " \
