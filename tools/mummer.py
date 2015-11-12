@@ -58,7 +58,7 @@ class MummerTool(tools.Tool):
     
     def delta_filter(self, inDelta, outDelta):
         toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),
-            '-q', inDelta]
+            '-q', '-u', '0', '-o', '75', '-i', '0', '-l', '0', inDelta]
         log.debug(' '.join(toolCmd))
         with open(outDelta, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
