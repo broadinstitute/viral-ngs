@@ -33,7 +33,7 @@ class MummerTool(tools.Tool):
         return tool_version
 
     def execute(self, refFasta, qryFastas):
-        toolCmd = ['/'.join([self.install_and_get_path(), 'mummer']),
+        toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
             refFasta] + qryFastas
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
@@ -42,7 +42,7 @@ class MummerTool(tools.Tool):
         if not outDelta.endswith('.delta'):
             raise Exception()
         outDelta = outDelta[:-6]
-        toolCmd = ['/'.join([self.install_and_get_path(), 'nucmer']),
+        toolCmd = [os.path.join(self.install_and_get_path(), 'nucmer'),
             '--prefix={}'.format(outDelta), refFasta, qryFasta]
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
@@ -51,13 +51,13 @@ class MummerTool(tools.Tool):
         if not outDelta.endswith('.delta'):
             raise Exception()
         outDelta = outDelta[:-6]
-        toolCmd = ['/'.join([self.install_and_get_path(), 'nucmer']),
+        toolCmd = [os.path.join(self.install_and_get_path(), 'promer'),
             '--prefix={}'.format(outDelta), refFasta, qryFasta]
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
     
     def delta_filter(self, inDelta, outDelta):
-        toolCmd = ['/'.join([self.install_and_get_path(), 'delta-filter']),
+        toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),
             '-q', inDelta]
         log.debug(' '.join(toolCmd))
         with open(outDelta, 'w') as outf:
@@ -74,7 +74,7 @@ class MummerTool(tools.Tool):
         if min_contig_len is not None:
             opts.append('-l')
             opts.append(str(min_contig_len))
-        toolCmd = ['/'.join([self.install_and_get_path(), 'show-tiling']),
+        toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling'),
             '-p', outFasta] + opts + [inDelta]
         log.debug(' '.join(toolCmd))
         with open(outTiling, 'w') as outf:
