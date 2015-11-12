@@ -52,7 +52,7 @@
   "samples_per_run":   "samples-runs.txt",
 
   "assembly_min_length_fraction_of_reference": 0.90,
-  "assembly_min_unambig":      0.95,
+  "assembly_min_unambig":      0.80,
 
   "number_of_threads": 8,
 
