@@ -34,6 +34,7 @@ import tools.samtools
 import tools.gatk
 import tools.novoalign
 import tools.trinity
+import tools.mummer
 import tools.muscle
 
 # third-party
@@ -198,7 +199,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('outFasta',
         help="""Output assembly, FASTA format, with the same number of 
                 chromosomes as inReference, and in the same order.""")
-    parser.add_argument('aligner',
+    parser.add_argument('--aligner',
                         help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
                         choices=['nucmer', 'promer'],
                         default='nucmer')
