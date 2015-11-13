@@ -123,7 +123,7 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
                but truncate any features that are partly out of bounds''')
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer, split_args=True)
     return parser
 
@@ -225,7 +225,7 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
                but truncate any features that are partly out of bounds''')
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
     return parser
 
@@ -321,7 +321,7 @@ def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
 def parser_fetch_fastas(parser):
     parser = parser_fetch_reference_common(parser)
 
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, fetch_fastas, split_args=True)
     return parser
 
@@ -332,7 +332,7 @@ __commands__.append(('fetch_fastas', parser_fetch_fastas))
 def parser_fetch_feature_tables(parser):
     parser = parser_fetch_reference_common(parser)
 
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, fetch_feature_tables, split_args=True)
     return parser
 
@@ -343,7 +343,7 @@ __commands__.append(('fetch_feature_tables', parser_fetch_feature_tables))
 def parser_fetch_genbank_records(parser):
     parser = parser_fetch_reference_common(parser)
 
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, fetch_genbank_records, split_args=True)
     return parser
 
@@ -448,7 +448,7 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
         have at least two columns named sample and aln2self_cov_median.  All other
         columns are ignored. Rows referring to samples not in this submission are
         ignored.''')
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser
 

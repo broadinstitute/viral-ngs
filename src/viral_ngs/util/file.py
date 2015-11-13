@@ -87,17 +87,17 @@ def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     return fn
 
 
-def set_tmpDir(name):
+def set_tmp_dir(name):
     proposed_prefix = ['tmp']
     if name:
         proposed_prefix.append(name)
     for e in ('LSB_JOBID', 'LSB_JOBINDEX'):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
-    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmpDir())
+    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
 
 
-def destroy_tmpDir():
+def destroy_tmp_dir():
     if tempfile.tempdir:
         shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None

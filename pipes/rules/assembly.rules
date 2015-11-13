@@ -13,19 +13,19 @@ import os, os.path, time, shutil
 rule all_assemble:
     input:
         # create final assemblies for all samples
-        expand("{dataDir}/{subdir}/{sample}.fasta",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
+        expand("{data_dir}/{subdir}/{sample}.fasta",
+            data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus
-        expand("{dataDir}/{subdir}/{sample}.bam",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
+        expand("{data_dir}/{subdir}/{sample}.bam",
+            data_dir=config["data_dir"], subdir=config["subdirs"]["align_self"],
             sample=read_samples_file(config["samples_assembly"]))
     params: LSF="-N"
 
 rule all_assemble_failures:
     input:
-        expand("{dataDir}/{subdir}/{sample}.fasta",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
+        expand("{data_dir}/{subdir}/{sample}.fasta",
+            data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config.get("samples_assembly_failures")))
     params: LSF="-N"
 
@@ -36,8 +36,8 @@ rule assemble_trinity:
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    input:  config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
+    output: config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: 
             mem=4,
             cores=int(config.get("number_of_threads", 1))
@@ -45,14 +45,14 @@ rule assemble_trinity:
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             n_reads=str(config["trinity_n_reads"]),
             logid="{sample}",
-            clipDb=config["trim_clipDb"],
-            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            clipDb=config["trim_clip_db"],
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
             numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(expand("{dir}/{subdir}",
-                dir=[config["dataDir"],config["tmpDir"]],
+                dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[binDir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads}")
+            shell("{config[bin_dir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -77,13 +77,13 @@ rule orient_and_impute:
             multi-chromosome genomes.
     '''
     input:  
-        config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
-    output: config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
+        config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
+    output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             # length should be defined as a fraction/percentage cutoff, relative to 
             # reference length for a given sequence. float is in the config.json file
             length = str(config["assembly_min_length_fraction_of_reference"]),
@@ -91,11 +91,11 @@ rule orient_and_impute:
             renamed_prefix="",
             replace_length="55",
             logid="{sample}",
-            vfat_fasta=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
-            subsamp_bam=config["tmpDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+            vfat_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-vfat.fasta',
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
-            shell("{config[binDir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
-            shell("{config[binDir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig}")
+            shell("{config[bin_dir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.vfat_fasta} --inReads {params.subsamp_bam}")
+            shell("{config[bin_dir]}/assembly.py impute_from_reference {params.vfat_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig}")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the VFAT assembly,
@@ -109,10 +109,10 @@ rule refine_assembly_1:
         IndelRealigner (in order to call indels).
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
-    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
+    input:  config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta',
+            config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
+    output: config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
+            config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3.vcf.gz'
     resources: 
             mem=7,
             cores=int(config.get("number_of_threads", 1))
@@ -122,7 +122,7 @@ rule refine_assembly_1:
             novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
             min_coverage = "2",
             numThreads=str(config.get("number_of_threads", 1))
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
+    shell:  "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
@@ -133,10 +133,10 @@ rule refine_assembly_2:
         The output of this step is the final assembly for this sample.
         Final FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
-    input:  config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
-            config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
-    output: config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
-            config["tmpDir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
+    input:  config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4-refined.fasta',
+            config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
+    output: config["data_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta',
+            config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly4.vcf.gz'
     resources: 
             mem=7,
             cores=int(config.get("number_of_threads", 1))
@@ -146,7 +146,7 @@ rule refine_assembly_2:
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
             min_coverage = "3",
             numThreads=str(config.get("number_of_threads", 1))
-    shell:  "{config[binDir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
+    shell:  "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {params.numThreads}"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
@@ -155,10 +155,10 @@ rule map_reads_to_self:
             {sample}.mapped.bam - only mapped reads, duplicates removed by Picard,
                                   realigned with GATK IndelRealigner
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
-            config["dataDir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
-    output: config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
+    input:  config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
+            config["data_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
+    output: config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
+            config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
     resources: 
             mem=4,
             cores=int(config.get("number_of_threads", 1))
@@ -168,6 +168,6 @@ rule map_reads_to_self:
             novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
             numThreads=str(config.get("number_of_threads", 1))
     run:
-            makedirs([os.path.join(config["dataDir"], config["subdirs"]["align_self"]),
-                os.path.join(config["reportsDir"], "assembly")])
-            shell("{config[binDir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}' --threads {params.numThreads}")
+            makedirs([os.path.join(config["data_dir"], config["subdirs"]["align_self"]),
+                os.path.join(config["reports_dir"], "assembly")])
+            shell("{config[bin_dir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --novoalign_options '{params.novoalign_options}' --threads {params.numThreads}")
