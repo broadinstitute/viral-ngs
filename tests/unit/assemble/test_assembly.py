@@ -89,10 +89,10 @@ class TestImputeFromReference(TestCaseWithTmp):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hhv3.fasta')
-        inDirScaffold = util.file.get_test_input_path(TestOrderAndOrient)
+        inDirBase = util.file.get_test_input_path()
         assembly.impute_from_reference(
-            os.path.join(inDirScaffold, 'expected.hhv3.fasta'),
-            os.path.join(inDirScaffold, 'ref.hhv3.fasta'),
+            os.path.join(inDirBase, 'TestOrderAndOrient', 'expected.hhv3.fasta'),
+            os.path.join(inDirBase, 'TestOrderAndOrient', 'ref.hhv3.fasta'),
             outFasta,
             minLengthFraction=0.8,
             minUnambig=0.6,
