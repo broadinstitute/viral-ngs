@@ -81,6 +81,23 @@ class TestOrderAndOrient(TestCaseWithTmp):
             aligner='promer')
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
+
+class TestImputeFromReference(TestCaseWithTmp):
+    ''' Test the MUMmer-based order_and_orient command '''
+
+    def test_varicella_big(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hhv3.fasta')
+        inDirScaffold = util.file.get_test_input_path(TestOrderAndOrient)
+        assembly.impute_from_reference(
+            os.path.join(inDirScaffold, 'expected.hhv3.fasta'),
+            os.path.join(inDirScaffold, 'ref.hhv3.fasta'),
+            outFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.6,
+            replaceLength=55,
+            newName='HHV3-test')
         
 
 class TestMutableSequence(unittest.TestCase):
