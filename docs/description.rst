@@ -39,7 +39,7 @@ Viral genome assembly
 The filtered and trimmed reads are subsampled to at most 100,000 pairs.
 *de novo* assemby is performed using Trinity_.
 Reference-assisted assembly improvements follow (contig scaffolding, orienting, etc.)
-with MUMMER_ and MUSCLE_.
+with MUMMER_ and MAFFT_.
 
 Each sample's reads are aligned to its *de novo* assembly using Novoalign_
 and any remaining duplicates were removed using Picard_ MarkDuplicates.
@@ -52,7 +52,7 @@ This align-call-refine cycle is iterated twice, to minimize reference bias in th
  
 .. _Trinity: http://trinityrnaseq.github.io/
 .. _MUMMER http://mummer.sourceforge.net/
-.. _MUSCLE: http://www.drive5.com/muscle/
+.. _MAFFT: http://mafft.cbrc.jp/alignment/software/
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
 .. _Picard: http://broadinstitute.github.io/picard
 .. _GATK: https://www.broadinstitute.org/gatk/
