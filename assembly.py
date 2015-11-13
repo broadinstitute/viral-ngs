@@ -35,7 +35,7 @@ import tools.gatk
 import tools.novoalign
 import tools.trinity
 import tools.mummer
-import tools.muscle
+import tools.mafft
 
 # third-party
 import Bio.AlignIO
