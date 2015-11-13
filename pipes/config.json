@@ -5,8 +5,8 @@
   "accessions_file_for_lastal_db_build": "",
 
 
-  "bm_tagger_db_dir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",
-  "bm_tagger_dbs_remove": [
+  "bmtagger_db_dir":  "/idi/sabeti-scratch/kandersen/references/depletion_databases",
+  "bmtagger_dbs_remove": [
     "hg19",
     "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
     "metagenomics_contaminants_v3"],

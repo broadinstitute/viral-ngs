@@ -30,7 +30,7 @@ rule depletion:
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
-            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bm_tagger_db_dir"], db=config["bm_tagger_dbs_remove"]),
+            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmtagger_db_dir"], db=config["bmtagger_dbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blast_db_dir"], db=config["blast_db_remove"]),
             revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
             logid="{sample}"
