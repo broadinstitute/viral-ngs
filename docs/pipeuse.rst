@@ -156,8 +156,8 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
 
 ::
 
-    "bm_tagger_db_dir":  "/path/to/depletion_databases",
-    "bm_tagger_dbs_remove": [
+    "bmtagger_db_dir":  "/path/to/depletion_databases",
+    "bmtagger_dbs_remove": [
         "hg19",
         "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
         "metagenomics_contaminants_v3"
