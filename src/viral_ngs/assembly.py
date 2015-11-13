@@ -269,13 +269,15 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
 
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
 
-                concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
+                #concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
                 muscle_align = util.file.mkstempfname('.muscle.fasta')
                 refName = refSeqObj.id
-                with open(concat_file, 'wt') as outf:
-                    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
+                #with open(concat_file, 'wt') as outf:
+                #    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
 
-                tools.muscle.MuscleTool().execute(concat_file, muscle_align)
+                tools.mafft.MafftTool().execute([refSeqObj, asmSeqObj], muscle_align,
+                        false, true, false, false, false, None
+                    )
                 args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
                         '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
                 if newName:
@@ -284,8 +286,8 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
 
                 args = pmc.parse_args(args)
                 args.func_main(args)
-                os.unlink(concat_file)
-                os.unlink(muscle_align)
+                #os.unlink(concat_file)
+                #os.unlink(muscle_align)
 
                 tempFastas.append(tmpOutputFile)
 
