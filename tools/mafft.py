@@ -31,11 +31,11 @@ class MafftTool(tools.Tool):
             binaryDir = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
 
             target_rel_path = '{binPath}'.format(binPath=binaryPath)
-            verify_command = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
+            verify_command = 'cd {dir}/mafft-{ver}/{bin_dir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
                 dir=util.file.get_build_path(),
                 ver=tool_version,
                 binPath=binaryPath,
-                binDir=binaryDir)
+                bin_dir=binaryDir)
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version)
 
             install_methods.append(
