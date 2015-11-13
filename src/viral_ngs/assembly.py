@@ -275,7 +275,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 #with open(concat_file, 'wt') as outf:
                 #    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
 
-                tools.mafft.MafftTool().execute([refSeqObj, asmSeqObj], muscle_align,
+                tools.mafft.MafftTool().execute([refFasta, asmFasta], muscle_align,
                         False, True, False, False, False, None
                     )
                 args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
