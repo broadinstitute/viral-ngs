@@ -10,11 +10,11 @@
   "fastqs_gzipped":  false,
   "n_cores":         4,
   "max_ram":         16,
-  "ref_genome":      "~/resources/ref_genome/genome.fasta",
+  "ref_genome_dir":      "~/resources/ref_genome/genome.fasta",
 
-  "dataDir":         "data",
-  "logDir":          "log",
-  "binDir":          "~/viral-ngs",
-  "venvDir":         "~/venv",
+  "data_dir":         "data",
+  "log_dir":          "log",
+  "bin_dir":          "~/viral-ngs",
+  "venv_dir":         "~/venv",
   "project":         "viral_ngs"
 }
