@@ -331,7 +331,7 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access.""")
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
 
@@ -393,7 +393,7 @@ def parser_align_mafft(parser):
 
     parser.add_argument('outFile', help='Output file containing alignment result (default format: FASTA)')
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_align_mafft)
     return parser
 
@@ -448,7 +448,7 @@ def parser_multichr_mafft(parser):
         sample names in the order of their sequence
         positions in the output.""")
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, multichr_mafft)
     return parser
 

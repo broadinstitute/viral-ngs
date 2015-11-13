@@ -10,14 +10,14 @@ import os, os.path, time
 
 rule all_intrahost:
     input:
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz'
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz'
 
 rule isnvs_per_sample:
     input:
-            config["dataDir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
-            config["dataDir"]+'/'+config["subdirs"]["assembly"]  +'/{sample}.fasta',
-    output: config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
+            config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
+            config["data_dir"]+'/'+config["subdirs"]["assembly"]  +'/{sample}.fasta',
+    output: config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/vphaser2.{sample}.txt.gz'
     resources: 
             mem=7,
             cores=int(config.get("number_of_threads", 1))
@@ -26,77 +26,77 @@ rule isnvs_per_sample:
             logid="{sample}",
             numThreads=str(config.get("number_of_threads", 1))
     run:
-            makedirs(config["dataDir"]+'/'+config["subdirs"]["intrahost"])
-            shell("{config[binDir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads} --removeDoublyMappedReads")
+            makedirs(config["data_dir"]+'/'+config["subdirs"]["intrahost"])
+            shell("{config[bin_dir]}/intrahost.py vphaser_one_sample {input} {output} --vphaserNumThreads {params.numThreads} --removeDoublyMappedReads")
             
 rule isnvs_vcf:
     input:
-            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt.gz",
-                dataDir=config["dataDir"],
+            expand("{data_dir}/{subdir}/vphaser2.{sample}.txt.gz",
+                data_dir=config["data_dir"],
                 subdir=config["subdirs"]["intrahost"],
                 sample=read_samples_file(config["samples_assembly"])),
-            expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
-                dataDir=config["dataDir"],
+            expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
+                data_dir=config["data_dir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(1, config["number_of_chromosomes"]+1)),
-            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] ),
-            config["dataDir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
+                chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)),
+            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
+            config["data_dir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt"
     output:
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz.tbi',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz.tbi'
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz.tbi',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.txt.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz.tbi'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
             samples=read_samples_file(config["samples_assembly"]),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
-            shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
+            shell("{config[bin_dir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
-                + " --isnvs " + " ".join(["{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
-                + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, config["number_of_chromosomes"]+1)])
+                + " --isnvs " + " ".join(["{config[data_dir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
+                + " --alignments " + " ".join(["{config[data_dir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, len(config["accessions_for_ref_genome_build"])+1)])
                 + " --strip_chr_version"
                 + " --parse_accession" # the vcf chr column must match a chr known to snpEff; we have an option to parse out only the accession
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[2]} {params.emailAddress}")
-            shell("{config[binDir]}/intrahost.py iSNV_table {output[2]} {output[3]}")
+            shell("{config[bin_dir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[2]} {params.emailAddress}")
+            shell("{config[bin_dir]}/intrahost.py iSNV_table {output[2]} {output[3]}")
             
 rule isnvs_vcf_filtered:
     input:
-            expand("{dataDir}/{subdir}/vphaser2.{sample}.txt.gz",
-                dataDir=config["dataDir"],
+            expand("{data_dir}/{subdir}/vphaser2.{sample}.txt.gz",
+                data_dir=config["data_dir"],
                 subdir=config["subdirs"]["intrahost"],
                 sample=read_samples_file(config["samples_assembly"])),
-            expand("{dataDir}/{subdir}/aligned_{chrom}.fasta",
-                dataDir=config["dataDir"],
+            expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
+                data_dir=config["data_dir"],
                 subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(1, config["number_of_chromosomes"]+1)),
-            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome"], ref_name=config["ref_genome_file_prefix"] )
+                chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)),
+            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
     output:
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.vcf.gz',
-            config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.txt.gz'
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.vcf.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.vcf.gz',
+            config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.txt.gz'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
-            refGenome=os.path.join(config["ref_genome"],config["ref_genome_file_prefix"]+".fasta"),
+            refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
             samples=read_samples_file(config["samples_assembly"]),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
-            shell("{config[binDir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
+            shell("{config[bin_dir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples {params.samples}"
-                + " --isnvs " + " ".join(["{config[dataDir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
-                + " --alignments " + " ".join(["{config[dataDir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, config["number_of_chromosomes"]+1)])
+                + " --isnvs " + " ".join(["{config[data_dir]}/{config[subdirs][intrahost]}/vphaser2."+s+".txt.gz" for s in params.samples])
+                + " --alignments " + " ".join(["{config[data_dir]}/{config[subdirs][multialign_ref]}/aligned_" + str(n) + ".fasta" for n in range(1, len(config["accessions_for_ref_genome_build"])+1)])
                 + " --strip_chr_version"
                 + "--parse_accession" # the vcf chr column must match a chr known to snpEff; we have an option to parse out only the accession
                 )
-            shell("{config[binDir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
-            shell("{config[binDir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
+            shell("{config[bin_dir]}/interhost.py snpEff {output[0]} {params.snpEff_ref} {output[1]} {params.emailAddress}")
+            shell("{config[bin_dir]}/intrahost.py iSNV_table {output[1]} {output[2]}")
 

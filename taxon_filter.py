@@ -60,7 +60,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
                         help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
 
@@ -115,7 +115,7 @@ def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
     parser.add_argument("pairedOutFastq1", help="Paired output 1")
     parser.add_argument("pairedOutFastq2", help="Paired output 2")
     parser.add_argument("clipFasta", help="Fasta file with adapters, PCR sequences, etc. to clip off")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, trimmomatic, split_args=True)
     return parser
 
@@ -211,7 +211,7 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
 
@@ -266,7 +266,7 @@ def parser_filter_lastal(parser=argparse.ArgumentParser()):
     parser.add_argument("inFastq", help="Input fastq file")
     parser.add_argument("refDb", help="Reference database to retain from input")
     parser.add_argument("outFastq", help="Output fastq file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal, split_args=True)
     return parser
 
@@ -463,7 +463,7 @@ def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
              ''')
     parser.add_argument('--outMatch', nargs=2, help='Filenames for fastq output of matching reads.')
     parser.add_argument('--outNoMatch', nargs=2, help='Filenames for fastq output of unmatched reads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_partition_bmtagger)
     return parser
 
@@ -502,7 +502,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
     return parser
 
@@ -594,7 +594,7 @@ def parser_deplete_blastn(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq', help='Input fastq file.')
     parser.add_argument('outFastq', help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, deplete_blastn, split_args=True)
     return parser
 
@@ -625,7 +625,7 @@ def parser_deplete_blastn_paired(parser=argparse.ArgumentParser()):
     parser.add_argument('outfq1', help='Output fastq file with matching reads removed.')
     parser.add_argument('outfq2', help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, deplete_blastn_paired, split_args=True)
     return parser
 
@@ -701,7 +701,7 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
 
@@ -740,7 +740,7 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('outputDirectory', help='Location for the output files (default is cwd: %(default)s)')
     parser.add_argument('--outputFilePrefix',
                         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, lastal_build_db, split_args=True)
     return parser
 

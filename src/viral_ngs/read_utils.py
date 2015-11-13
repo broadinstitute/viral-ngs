@@ -57,7 +57,7 @@ def parser_purge_unmated(parser=argparse.ArgumentParser()):
     parser.add_argument("--regex",
                         help="Perl regular expression to parse paired read IDs (default: %(default)s)",
                         default='^@(\S+)/[1|2]$')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, purge_unmated, split_args=True)
     return parser
 
@@ -88,7 +88,7 @@ def fastq_to_fasta(inFastq, outFasta):
 def parser_fastq_to_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq', help='Input fastq file.')
     parser.add_argument('outFasta', help='Output fasta file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, fastq_to_fasta, split_args=True)
     return parser
 
@@ -129,7 +129,7 @@ def parser_index_fasta_picard(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s CreateSequenceDictionary, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_index_fasta_picard)
     return parser
 
@@ -167,7 +167,7 @@ def parser_mkdup_picard(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s MarkDuplicates, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_mkdup_picard)
     return parser
 
@@ -203,7 +203,7 @@ def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s RevertSam, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_revert_bam_picard)
     return parser
 
@@ -231,7 +231,7 @@ def parser_picard(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_picard)
     return parser
 
@@ -273,7 +273,7 @@ def parser_sort_bam(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s SortSam, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_sort_bam)
     return parser
 
@@ -311,7 +311,7 @@ def parser_merge_bams(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s MergeSamFiles, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_merge_bams)
     return parser
 
@@ -348,7 +348,7 @@ def parser_filter_bam(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s FilterSamReads, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_filter_bam)
     return parser
 
@@ -401,7 +401,7 @@ def parser_bam_to_fastq(parser=argparse.ArgumentParser()):
                         default=[],
                         nargs='*',
                         help='Optional arguments to Picard\'s SamToFastq, OPTIONNAME=value ...')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bam_to_fastq, split_args=True)
     return parser
 
@@ -462,7 +462,7 @@ def parser_fastq_to_bam(parser=argparse.ArgumentParser()):
                         help='''Optional arguments to Picard\'s FastqToSam,
                 OPTIONNAME=value ...  Note that header-related options will be
                 overwritten by HEADER if present.''')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, fastq_to_bam, split_args=True)
     return parser
 
@@ -606,7 +606,7 @@ def split_bam(inBam, outBams):
 def parser_split_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('outBams', nargs='+', help='Output BAM files')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, split_bam, split_args=True)
     return parser
 
@@ -623,7 +623,7 @@ def parser_reheader_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('rgMap', help='Tabular file containing three columns: field, old, new.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_reheader_bam)
     return parser
 
@@ -658,7 +658,7 @@ __commands__.append(('reheader_bam', parser_reheader_bam))
 
 def parser_reheader_bams(parser=argparse.ArgumentParser()):
     parser.add_argument('rgMap', help='Tabular file containing three columns: field, old, new.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_reheader_bams)
     return parser
 def main_reheader_bams(args):
@@ -777,7 +777,7 @@ def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_mvicuna_bam, split_args=True)
     return parser
 
@@ -791,7 +791,7 @@ def parser_dup_remove_mvicuna(parser=argparse.ArgumentParser()):
     parser.add_argument('pairedOutFastq1', help='Output fastq file; 1st end of paired-end reads.')
     parser.add_argument('pairedOutFastq2', help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument('--unpairedOutFastq', default=None, help='File name of output unpaired reads')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_dup_remove_mvicuna)
     return parser
 
@@ -829,7 +829,7 @@ def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
     parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
     parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_rmdup_prinseq_fastq)
     return parser
 
@@ -859,7 +859,7 @@ def filter_bam_mapped_only(inBam, outBam):
 def parser_filter_bam_mapped_only(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input aligned reads, BAM format.')
     parser.add_argument('outBam', help='Output sorted indexed reads, filtered to aligned-only, BAM format.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_bam_mapped_only, split_args=True)
     return parser
 
@@ -880,7 +880,7 @@ def parser_novoalign(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.SortSamTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_novoalign)
     return parser
 
@@ -924,7 +924,7 @@ def parser_gatk_ug(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.gatk.GATKTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_ug)
     return parser
 
@@ -949,7 +949,7 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.gatk.GATKTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_realign)
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     return parser
@@ -1023,7 +1023,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument('--novoalign_options', default='-r Random', help='Novoalign options (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_and_fix, split_args=True)
     return parser
 

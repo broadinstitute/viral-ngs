@@ -8,8 +8,9 @@ reuse -q Python-3.4
 reuse -q Perl-5.10
 
 # load config dirs from config.json
-VENVDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["venvDir"]);f.close()'`
-BINDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["binDir"]);f.close()'`
+VENVDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["venv_dir"]);f.close()'`
+BINDIR=`python -c 'import json;f=open("config.json");print(json.load(f)["bin_dir"]);f.close()'`
+DATADIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["data_dir"]));f.close()'`
 
 # load Python virtual environment
 source "$VENVDIR/bin/activate"
@@ -21,5 +22,5 @@ snakemake --timestamp --rerun-incomplete --keep-going --nolock \
 	--config mode=LSF job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \
 	--directory . \
 	--jobscript "$BINDIR/pipes/Broad_LSF/jobscript.sh" \
-	--cluster $BINDIR'/pipes/Broad_LSF/cluster-submitter.py {dependencies} {config[logDir]}' \
+	--cluster $BINDIR"/pipes/Broad_LSF/cluster-submitter.py {dependencies} $DATADIR {config[log_dir]}" \
 	"$@"

@@ -24,7 +24,7 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
 
     workdir = tempfile.mkdtemp()
     os.mkdir(os.path.join(workdir, 'data'))
-    os.mkdir(os.path.join(workdir, 'ref_genome'))
+    os.mkdir(os.path.join(workdir, 'ref_genome_dir'))
     os.mkdir(os.path.join(workdir, 'data', '00_raw'))
     os.mkdir(os.path.join(workdir, 'log'))
     os.mkdir(os.path.join(workdir, 'reports'))

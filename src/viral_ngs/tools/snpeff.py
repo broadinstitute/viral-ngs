@@ -67,14 +67,14 @@ class SnpEff(tools.Tool):
         # if the database is not installed, we need to make it
         if not self.has_genome(databaseId):
             config_file = os.path.join(os.path.dirname(self.install_and_get_path()), 'snpEff.config')
-            dataDir = get_data_dir(config_file)
+            data_dir = get_data_dir(config_file)
 
             # if the data directory specified in the config is absolute, use it
             # otherwise get the data directory relative to the location of the config file
-            if os.path.isabs(dataDir):
-                outputDir = os.path.join(dataDir, databaseId)
+            if os.path.isabs(data_dir):
+                outputDir = os.path.join(data_dir, databaseId)
             else:
-                outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), dataDir, databaseId))
+                outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
             util.genbank.fetch_full_records_from_genbank(accessions,
                                                            outputDir,
@@ -169,13 +169,13 @@ class SnpEff(tools.Tool):
 
 
 def get_data_dir(config_file):
-    dataDir = ""
+    data_dir = ""
     with open(config_file, 'rt') as inf:
         for line in inf:
             if line.strip().startswith('data.dir'):
-                dataDir = line[line.find("=") + 1:].strip()
+                data_dir = line[line.find("=") + 1:].strip()
                 break
-    return dataDir
+    return data_dir
 
 
 def add_genomes_to_snpeff_config_file(config_file, new_genomes):
