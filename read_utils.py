@@ -1049,7 +1049,7 @@ def align_and_count_hits(inBam, refFasta, outCounts, includeZeros=False,
 
     samtools = tools.samtools.SamtoolsTool()
     seqs = list(dict(x.split(':', 1) for x in row[1:])['SN']
-        for row in samtools.getHeader()
+        for row in samtools.getHeader(bam_aligned)
         if row[0]=='@SQ')
 
     with util.file.open_or_gzopen(outCounts, 'w') as outf:
