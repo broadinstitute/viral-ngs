@@ -43,19 +43,18 @@ rule consolidate_fastqc:
 #-----------SPIKE-INS------------------
 
 rule spikein_report:
-    input:
-            config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
-            config["spikeins_db"]
+    input:  config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     output: config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
+            spikeins_db=config["spikeins_db"],
             numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs(os.path.join(config["reports_dir"], 'spike_count'))
             makedirs(os.path.join(config["tmp_dir"], config["subdirs"]["depletion"]))
-            shell("{config[bin_dir]}/read_utils.py align_and_count_hits {input} {output} --threads={params.numThreads}")
+            shell("{config[bin_dir]}/read_utils.py align_and_count_hits {input} {params.spikeins_db} {output} --threads={params.numThreads}")
 
 rule consolidate_spike_count:
     input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
