@@ -1063,7 +1063,7 @@ def align_and_count_hits(inBam, refFasta, outCounts, includeZeros=False,
 def parser_align_and_count_hits(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
-    parser.add_argument('outcounts', help='Output counts file')
+    parser.add_argument('outCounts', help='Output counts file')
     parser.add_argument("--includeZeros",
                         help="Output lines with no hits (default: %(default)s)",
                         default=False,
