@@ -1030,6 +1030,53 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
 
 __commands__.append(('align_and_fix', parser_align_and_fix))
 
+
+# =========================
+
+def align_and_count_hits(inBam, refFasta, outCounts, includeZeros=False,
+                  JVMmemory=None, threads=1):
+    ''' Take reads, align to reference with Novoalign and return aligned
+        read counts for each reference sequence.
+    '''
+
+    bam_aligned = mkstempfname('.aligned.bam')
+    tools.novoalign.NovoalignTool().execute(
+        inBam,
+        refFasta,
+        bam_aligned,
+        options=['-r', 'Random'],
+        JVMmemory=JVMmemory)
+
+    samtools = tools.samtools.SamtoolsTool()
+    seqs = list(dict(x.split(':', 1) for x in row[1:])['SN']
+        for row in samtools.getHeader()
+        if row[0]=='@SQ')
+
+    with util.file.open_or_gzopen(outCounts, 'w') as outf:
+        for seq in seqs:
+            n = samtools.count(bam_aligned, regions=[seq])
+            if n>0 or includeZeros:
+                outf.write("{}\t{}\n".format(seq, n))
+
+    os.unlink(bam_aligned)
+
+def parser_align_and_count_hits(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument('outcounts', help='Output counts file')
+    parser.add_argument("--includeZeros",
+                        help="Output lines with no hits (default: %(default)s)",
+                        default=False,
+                        action="store_true",
+                        dest="remove")
+    parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('--threads', default=8, help='Number of threads (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, align_and_count_hits, split_args=True)
+    return parser
+
+__commands__.append(('align_and_count_hits', parser_align_and_count_hits))
+
 # =========================
 
 
