@@ -1068,7 +1068,7 @@ def parser_align_and_count_hits(parser=argparse.ArgumentParser()):
                         help="Output lines with no hits (default: %(default)s)",
                         default=False,
                         action="store_true",
-                        dest="remove")
+                        dest="includeZeros")
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=8, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
