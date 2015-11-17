@@ -2,9 +2,9 @@
 # properties = {properties}
 # this is identical to the default jobscript with the exception of the exit code
 
-BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["binDir"]));f.close()'`
-DATADIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["dataDir"]));f.close()'`
-VENVDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["venvDir"]));f.close()'`
+BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["bin_dir"]));f.close()'`
+DATADIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["data_dir"]));f.close()'`
+VENVDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["venv_dir"]));f.close()'`
 
 source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
 
