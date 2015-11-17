@@ -13,8 +13,8 @@ import os
 
 rule all_deplete:
     input:
-        expand("{dataDir}/{subdir}/{sample}.{adjective}.bam",
-            dataDir=config["dataDir"],
+        expand("{data_dir}/{subdir}/{sample}.{adjective}.bam",
+            data_dir=config["data_dir"],
             subdir=config["subdirs"]["per_sample"],
             adjective=['cleaned','taxfilt'],
             sample=read_samples_file(config["samples_depletion"])),
@@ -23,22 +23,22 @@ rule all_deplete:
 rule depletion:
     ''' Runs a full human read depletion pipeline and removes PCR duplicates
     '''
-    input:  config["dataDir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
-    output: config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
-            config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
-            config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    input:  config["data_dir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam'
+    output: config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
+            config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
+            config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
-            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmTaggerDbDir"], db=config["bmTaggerDbs_remove"]),
-            blastDbs = expand("{dbdir}/{db}", dbdir=config["blastDbDir"], db=config["blastDb_remove"]),
-            revert_bam = config["tmpDir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
+            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmtagger_db_dir"], db=config["bmtagger_dbs_remove"]),
+            blastDbs = expand("{dbdir}/{db}", dbdir=config["blast_db_dir"], db=config["blast_db_remove"]),
+            revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
             logid="{sample}"
     run:
             makedirs(expand("{dir}/{subdir}",
-                dir=[config["dataDir"],config["tmpDir"]],
+                dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["depletion"]))
-            shell("{config[binDir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --JVMmemory 15g")
+            shell("{config[bin_dir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --JVMmemory 15g")
             os.unlink(params.revert_bam)
 
 rule filter_to_taxon:
@@ -46,34 +46,34 @@ rule filter_to_taxon:
         level or greater for the virus of interest).
     '''
     input:  
-        config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
-        expand('{lastal_refDb}/lastal.bck', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.des', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.prj', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.sds', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.ssp', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.suf', lastal_refDb=config["lastal_refDb"]),
-        expand('{lastal_refDb}/lastal.tis', lastal_refDb=config["lastal_refDb"])
-    output: config["dataDir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
+        config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
+        expand('{lastal_ref_db_dir}/lastal.bck', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.des', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.prj', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.sds', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.ssp', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.suf', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
+        expand('{lastal_ref_db_dir}/lastal.tis', lastal_ref_db_dir=config["lastal_ref_db_dir"])
+    output: config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=3
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-            lastalDb=os.path.join(config["lastal_refDb"], "lastal"),
+            lastalDb=os.path.join(config["lastal_ref_db_dir"], "lastal"),
             logid="{sample}"
-    shell:  "{config[binDir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
+    shell:  "{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
-        return config["dataDir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
+        return config["data_dir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     runs = set()
     for lane in read_tab_file(config['seqruns_demux']):
         for well in read_tab_file(lane['barcode_file']):
             if well['sample'] == wildcards.sample:
               if wildcards.adjective=='raw':
-                 runs.add(os.path.join(config["dataDir"], config["subdirs"]["source"],
+                 runs.add(os.path.join(config["data_dir"], config["subdirs"]["source"],
                     get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] + '.bam'))
               else:
-                 runs.add(os.path.join(config["dataDir"], config["subdirs"]["depletion"],
+                 runs.add(os.path.join(config["data_dir"], config["subdirs"]["depletion"],
                     get_run_id(well) +'.'+ lane['flowcell'] +'.'+ lane['lane'] +'.'+ wildcards.adjective + '.bam'))
     return sorted(runs)
 rule merge_one_per_sample:
@@ -85,17 +85,17 @@ rule merge_one_per_sample:
         the rmdup step on a per-library basis after merging.
     '''
     input:  merge_one_per_sample_inputs
-    output: config["dataDir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
+    output: config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=7
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}-{adjective}",
-            tmpf_bam=config["tmpDir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
+            tmpf_bam=config["tmp_dir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
-            makedirs(config["dataDir"]+'/'+config["subdirs"]["per_sample"])
+            makedirs(config["data_dir"]+'/'+config["subdirs"]["per_sample"])
             if wildcards.adjective == 'raw':
-                shell("{config[binDir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
+                shell("{config[bin_dir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
             else:
-                shell("{config[binDir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
-                shell("{config[binDir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory 8g")
+                shell("{config[bin_dir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
+                shell("{config[bin_dir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory 8g")
 

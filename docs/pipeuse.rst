@@ -149,12 +149,6 @@ API <http://www.ncbi.nlm.nih.gov/books/NBK25501/>`__:
 
     "email_point_of_contact_for_ncbi" : "someone@example.com"
 
-The number of chomosomes (or segments) in the reference organism:
-
-::
-
-    "number_of_chromosomes": 2,
-
 The path to the depletion databases to be used by BMTagger, along with
 the file prefixes of the specific databases to use. The process for
 creating BMTagger depletion databases is described in the `NIH BMTagger
@@ -162,8 +156,8 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
 
 ::
 
-    "bmTaggerDbDir":  "/path/to/depletion_databases",
-    "bmTaggerDbs_remove": [
+    "bmtagger_db_dir":  "/path/to/depletion_databases",
+    "bmtagger_dbs_remove": [
         "hg19",
         "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
         "metagenomics_contaminants_v3"
@@ -180,8 +174,8 @@ from the University of Oxford.
 
 ::
 
-    "blastDbDir":     "/path/to/depletion_databases",
-    "blastDb_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
+    "blast_db_dir":     "/path/to/depletion_databases",
+    "blast_db_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
 
 An array of the `NCBI GenBank
 CoreNucleotide <http://www.ncbi.nlm.nih.gov/nuccore/>`__ accessions for
@@ -193,7 +187,6 @@ to represent the full reference genome file used downstream.
 ::
 
     "accessions_for_ref_genome_build": ["KJ660346.2"],
-    "ref_genome_file_prefix": "ebov",
 
 An optional file containing a list of accessions may be specified for 
 filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is 
@@ -209,13 +202,13 @@ contaminents from reads:
 
 ::
 
-    "trim_clipDb":    "/path/to/depletion_databases/contaminants.fasta",
+    "trim_clip_db":    "/path/to/depletion_databases/contaminants.fasta",
 
 A FASTA file containing spike-ins to be reported:
 
 ::
 
-    "spikeinsDb":     "/path/to/references/ercc_spike-ins.fasta",
+    "spikeins_db":     "/path/to/references/ercc_spike-ins.fasta",
 
 Modifying the ``Snakefile``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

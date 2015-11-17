@@ -37,25 +37,25 @@ def cat_files_with_header(inFiles, outFile):
 
 rule all_assembly_reports:
     input:
-            expand("{reportsDir}/assembly/{sample}.txt",
-                reportsDir=config["reportsDir"],
+            expand("{reports_dir}/assembly/{sample}.txt",
+                reports_dir=config["reports_dir"],
                 sample=read_file(config["samples_depletion"]))
     output:
-            config["reportsDir"]+"/summary.assembly.txt"
+            config["reports_dir"]+"/summary.assembly.txt"
     params: LSF="-N"
     run:
             cat_files_with_header(input, output[0])
         
 
 rule assembly_report:
-    output: config["reportsDir"]+'/assembly/{sample}.txt'
+    output: config["reports_dir"]+'/assembly/{sample}.txt'
     resources: mem=2
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             logid="{sample}"
-    shell:  "{config[binDir]}/reports.py assembly_stats {wildcards.sample} {output}" \
-            " --assembly_dir {config[dataDir]}/{config[subdirs][assembly]}" \
-            " --assembly_tmp {config[tmpDir]}/{config[subdirs][assembly]}" \
-            " --align_dir {config[dataDir]}/{config[subdirs][align_self]}" \
-            " --reads_dir {config[dataDir]}/{config[subdirs][per_sample]}" \
-            " --raw_reads_dir {config[dataDir]}/{config[subdirs][source]}"
+    shell:  "{config[bin_dir]}/reports.py assembly_stats {wildcards.sample} {output}" \
+            " --assembly_dir {config[data_dir]}/{config[subdirs][assembly]}" \
+            " --assembly_tmp {config[tmp_dir]}/{config[subdirs][assembly]}" \
+            " --align_dir {config[data_dir]}/{config[subdirs][align_self]}" \
+            " --reads_dir {config[data_dir]}/{config[subdirs][per_sample]}" \
+            " --raw_reads_dir {config[data_dir]}/{config[subdirs][source]}"
 

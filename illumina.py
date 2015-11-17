@@ -66,7 +66,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
@@ -576,7 +576,7 @@ def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FastqToSamTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, miseq_fastq_to_bam, split_args=True)
     return parser
 
@@ -600,7 +600,7 @@ def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
     parser.add_argument('flowcell', help='Illumina directory (possibly tarball)')
     parser.add_argument('outRunInfo', help='Output RunInfo.xml file.')
     parser.add_argument('outSampleSheet', help='Output SampleSheet.csv file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
     return parser
 __commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))
