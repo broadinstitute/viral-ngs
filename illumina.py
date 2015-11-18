@@ -200,16 +200,19 @@ class IlluminaDirectory(object):
     def _extract_tarball(self, tarfile):
         if not os.path.isfile(tarfile):
             raise Exception('file does not exist: %s' % tarfile)
-        if tarfile.endswith('.tar.gz') or tarfile.endswith('.tgz'):
-            compression_option = 'z'
-        elif tarfile.endswith('.tar.bz2'):
-            compression_option = 'j'
-        elif tarfile.endswith('.tar'):
-            compression_option = ''
-        else:
-            raise Exception("unsupported file type: %s" % tarfile)
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
-        untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
+        if tarfile.lower().endswith('.zip'):
+            untar_cmd = ['unzip', '-q', tarfile, '-d', self.tempDir]
+        else:
+            if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
+                compression_option = 'z'
+            elif tarfile.lower().endswith('.tar.bz2'):
+                compression_option = 'j'
+            elif tarfile.lower().endswith('.tar'):
+                compression_option = ''
+            else:
+                raise Exception("unsupported file type: %s" % tarfile)
+            untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
         log.debug(' '.join(untar_cmd))
         with open(os.devnull, 'w') as fnull:
             subprocess.check_call(untar_cmd, stderr=fnull)
