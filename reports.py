@@ -158,13 +158,10 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
 __commands__.append(('assembly_stats', parser_assembly_stats))
 
 
-def get_refalign_stats(sample):
-    pass
-
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
     gap = '-'
     ambiguous = 'N'
-    aligner = tools.muscle.MuscleTool()#.install_and_get_path()
+    aligner = tools.muscle.MuscleTool()
 
     per_chr_fastas = interhost.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
 
