@@ -1,4 +1,4 @@
 boto==2.38.0
 filechunkio==1.6
--e git+https://git@bitbucket.org/johanneskoester/snakemake.git@76fb98707b2b4a0ec7a2fcc54a3ca2274914c5bb#egg=snakemake
+snakemake==3.5.1
 yappi==0.94
