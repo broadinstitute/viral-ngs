@@ -92,9 +92,8 @@ class MafftTool(tools.Tool):
                 for f in inputFiles:
                     with open(f, "r") as infile:
                         outfile.write(infile.read())
-                # outFile.close()
             inputFileName = tempCombinedInputFile
-        # if there is only once file specified, just use it
+        # if there is only one file specified, just use it
         else:
             inputFileName = inputFiles[0]
 
@@ -109,7 +108,7 @@ class MafftTool(tools.Tool):
         # build the MAFFT command
         toolCmd = [self.install_and_get_path()]
 
-        if not retree:
+        if not (retree or localpair or globalpair):
             toolCmd.append("--auto")
         if threads >= 1 or threads == -1:
             toolCmd.append("--thread {}".format(threads))
