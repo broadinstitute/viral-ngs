@@ -282,7 +282,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                     Bio.SeqIO.write([asmSeqObj], outf, "fasta")
 
                 tools.mafft.MafftTool().execute([ref_file, actual_file], mafft_align,
-                        False, True, False, False, False, None
+                        False, True, True, False, False, None
                     )
                 args = [mafft_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
                         '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
