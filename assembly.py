@@ -272,19 +272,23 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 #concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
                 ref_file = util.file.mkstempfname('.ref.fasta')
                 actual_file = util.file.mkstempfname('.actual.fasta')
-                mafft_align = util.file.mkstempfname('.mafft.fasta')
+                aligned_file = util.file.mkstempfname('.mafft.fasta')
                 refName = refSeqObj.id
-                #with open(concat_file, 'wt') as outf:
-                #    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
-                with open(ref_file, 'wt') as outf:
-                    Bio.SeqIO.write([refSeqObj], outf, "fasta")
-                with open(actual_file, 'wt') as outf:
-                    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
+                with open(concat_file, 'wt') as outf:
+                    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
+                #with open(ref_file, 'wt') as outf:
+                #    Bio.SeqIO.write([refSeqObj], outf, "fasta")
+                #with open(actual_file, 'wt') as outf:
+                #    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
 
-                tools.mafft.MafftTool().execute([ref_file, actual_file], mafft_align,
-                        False, True, True, False, False, None
-                    )
-                args = [mafft_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
+                #tools.mafft.MafftTool().execute([ref_file, actual_file], mafft_align,
+                #        False, True, True, False, False, None
+                #    )
+                if len(refSeqOj) > 40000:
+                    tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False, maxiters=2, diags=True)
+                else:
+                    tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
+                args = [aligned_file, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
                         '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
@@ -292,10 +296,10 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
 
                 args = pmc.parse_args(args)
                 args.func_main(args)
-                #os.unlink(concat_file)
-                os.unlink(ref_file)
-                os.unlink(actual_file)
-                os.unlink(mafft_align)
+                os.unlink(concat_file)
+                #os.unlink(ref_file)
+                #os.unlink(actual_file)
+                os.unlink(aligned_file)
 
                 tempFastas.append(tmpOutputFile)
 

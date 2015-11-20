@@ -63,7 +63,7 @@ class MummerTool(tools.Tool):
         with open(outDelta, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
 
-    def show_tiling(self, inDelta, outTiling, outFasta,
+    def show_tiling(self, inDelta, outTiling, outFasta=None,
             circular=False, min_pct_id=None, min_contig_len=None):
         opts = []
         if circular:
@@ -74,8 +74,10 @@ class MummerTool(tools.Tool):
         if min_contig_len is not None:
             opts.append('-l')
             opts.append(str(min_contig_len))
-        toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling'),
-            '-p', outFasta] + opts + [inDelta]
+        toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling')]
+        if outFasta:
+            toolCmd = toolCmd + ['-p', outFasta]
+        toolCmd = toolCmd + opts + [inDelta]
         log.debug(' '.join(toolCmd))
         with open(outTiling, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
@@ -95,7 +97,7 @@ class MummerTool(tools.Tool):
         tiling = util.file.mkstempfname('.tiling')
         aligner(refFasta, contigsFasta, delta_1)
         self.delta_filter(delta_1, delta_2)
-        self.show_tiling(delta_2, tiling, outFasta, circular=circular,
+        self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len)
         os.unlink(delta_1)
         os.unlink(delta_2)
