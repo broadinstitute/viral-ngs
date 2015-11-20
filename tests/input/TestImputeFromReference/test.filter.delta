@@ -1,0 +1,20 @@
+/Users/dpark/dev/viral-ngs/test/input/TestImputeFromReference/ref.sub.ebov.fasta /Users/dpark/dev/viral-ngs/test/input/TestImputeFromReference/contigs.sub.ebov.fasta
+NUCMER
+>test_ref c1_with_snp 1697 486
+44 529 1 486 1 1 0
+0
+>test_ref c2_with_6bp_ins_and_tail_snps 1697 420
+1162 1575 1 420 8 8 0
+-178
+-1
+-1
+-1
+-1
+-1
+0
+>test_ref c4_too_short 1697 104
+627 730 1 104 0 0 0
+0
+>test_ref c5_overlap_end_revcomp 1697 176
+1540 1697 176 19 2 2 0
+0
