@@ -34,8 +34,9 @@ import tools.samtools
 import tools.gatk
 import tools.novoalign
 import tools.trinity
-import tools.mummer
 import tools.mafft
+import tools.mummer
+import tools.muscle
 
 # third-party
 import Bio.AlignIO
@@ -228,7 +229,8 @@ class PoorAssemblyError(Exception):
                 chr_idx, seq_len, non_n_count))
 
 
-def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength, newName=None):
+def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength,
+    newName=None, aligner='muscle'):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -251,6 +253,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
     tempFastas = []
 
     pmc = parser_modify_contig()
+    assert aligner in ('muscle', 'mafft', 'mummer')
 
     with open(inFasta, 'r') as asmFastaFile:
         with open(inReference, 'r') as refFastaFile:
@@ -261,46 +264,61 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 if not refSeqObj or not asmSeqObj:
                     raise KeyError("inFasta and inReference do not have the same number of sequences.")
 
+                # error if PoorAssembly
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
                     raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
 
+                # prepare temp input and output files
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
-
                 concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
-                #ref_file = util.file.mkstempfname('.ref.fasta')
-                #actual_file = util.file.mkstempfname('.actual.fasta')
+                ref_file = util.file.mkstempfname('.ref.fasta')
+                actual_file = util.file.mkstempfname('.actual.fasta')
                 aligned_file = util.file.mkstempfname('.mafft.fasta')
                 refName = refSeqObj.id
                 with open(concat_file, 'wt') as outf:
                     Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
-                #with open(ref_file, 'wt') as outf:
-                #    Bio.SeqIO.write([refSeqObj], outf, "fasta")
-                #with open(actual_file, 'wt') as outf:
-                #    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
+                with open(ref_file, 'wt') as outf:
+                    Bio.SeqIO.write([refSeqObj], outf, "fasta")
+                with open(actual_file, 'wt') as outf:
+                    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
 
-                #tools.mafft.MafftTool().execute([ref_file, actual_file], mafft_align,
-                #        False, True, True, False, False, None
-                #    )
-                if len(refSeqOj) > 40000:
-                    tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False, maxiters=2, diags=True)
-                else:
-                    tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
-                args = [aligned_file, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
-                        '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
+                # align scaffolded genome to reference (choose one of three aligners)
+                if aligner=='mafft':
+                    tools.mafft.MafftTool().execute(
+                        [ref_file, actual_file], aligned_file,
+                        False, True, True, False, False, None)
+                elif aligner=='muscle':
+                    if len(refSeqObj) > 40000:
+                        tools.muscle.MuscleTool().execute(
+                            concat_file, aligned_file,
+                            quiet=False, maxiters=2, diags=True)
+                    else:
+                        tools.muscle.MuscleTool().execute(
+                            concat_file, aligned_file,
+                            quiet=False)
+                elif aligner=='mummer':
+                    raise NotImplementedError('TO DO')
+
+                # run modify_contig
+                args = [aligned_file, tmpOutputFile, refName,
+                    '--call-reference-ns', '--trim-ends',
+                    '--replace-5ends', '--replace-3ends',
+                    '--replace-length', str(replaceLength),
+                    '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
                     args.extend(['-n', newName + "-" + str(idx + 1)])
-
                 args = pmc.parse_args(args)
                 args.func_main(args)
-                os.unlink(concat_file)
-                #os.unlink(ref_file)
-                #os.unlink(actual_file)
-                os.unlink(aligned_file)
 
+                # clean up
+                os.unlink(concat_file)
+                os.unlink(ref_file)
+                os.unlink(actual_file)
+                os.unlink(aligned_file)
                 tempFastas.append(tmpOutputFile)
 
     util.file.concat(tempFastas, outFasta)
@@ -335,6 +353,12 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
                         type=int,
                         default=0,
                         help="length of ends to be replaced with reference (default: %(default)s)")
+    parser.add_argument('--aligner',
+                        help="""which method to use to align inFasta to
+                        inReference. "muscle" = MUSCLE, "mafft" = MAFFT,
+                        "mummer" = nucmer.  [default: %(default)s]""",
+                        choices=['muscle', 'mafft', 'mummer'],
+                        default='muscle')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
