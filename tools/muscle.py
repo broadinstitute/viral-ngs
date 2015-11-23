@@ -60,21 +60,22 @@ class MuscleTool(tools.Tool):
         if diags:
             toolCmd.append('-diags')
         if maxiters:
-            toolCmd.append('-maxiters {}'.fmt(maxiters))
+            toolCmd.extend(('-maxiters', str(maxiters)))
         if maxhours:
-            toolCmd.append('-maxhours {}'.fmt(maxhours))
+            toolCmd.extend(('-maxhours', str(maxhours)))
         if logFile:
-            toolCmd.append('-log {}'.fmt(logFile))
+            toolCmd.extend(('-log', logFile))
 
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
 
-
+'''
 def get_muscle_os():
     uname = os.uname()
     if uname[4].startswith('x86') and uname[0] in ('Darwin', 'Linux'):
         return 'i86' + uname[0].lower() + uname[4][-2:]
     return 'src'
+'''
 
 class DownloadAndBuildMuscle(tools.DownloadPackage):
 
