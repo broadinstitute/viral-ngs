@@ -416,12 +416,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
     def test_sample_major_allele_not_ref_allele(self):
         # make sure we can invert the allele frequency of the isnv
         # if necessary to match the reference's definition of ref & alt
-        merger = VcfMergeRunner([('ref1', 'ATCG')])
+        merger = VcfMergeRunner([('ref1', 'ATCGCAC')])
         merger.add_genome('s1', [('s1_1', 'ATAGCCC')])
         merger.add_snp('s1', 's1_1', 3, [('C', 10, 10), ('A', 90, 90)])
-        # we need to specify retree as None
-        # so the test sequence aligns as expected
-        rows = merger.run_and_get_vcf_rows(retree=None)
+        rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos + 1, 3)
