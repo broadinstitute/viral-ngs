@@ -83,8 +83,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
         os.unlink(outFasta)
 
 class TestImputeFromReference(TestCaseWithTmp):
-    ''' Test the MUMmer-based order_and_orient command '''
+    ''' Test the impute_from_reference command (align and modify_contig) '''
 
+    @unittest.skip('requires 10 mins and 16GB RAM')
     def test_varicella_big(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
@@ -98,6 +99,52 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.6,
             replaceLength=55,
             newName='HHV3-test')
+
+    def test_small_muscle(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
+        assembly.impute_from_reference(
+            os.path.join(inDir, 'test.pseudo.fasta'),
+            os.path.join(inDir, 'ref.sub.ebov.fasta'),
+            outFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.2,
+            replaceLength=5,
+            newName='test_sub-EBOV.genome',
+            aligner='muscle')
+        self.assertEqualContents(outFasta, expected)
+
+    def test_small_mafft(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
+        assembly.impute_from_reference(
+            os.path.join(inDir, 'test.pseudo.fasta'),
+            os.path.join(inDir, 'ref.sub.ebov.fasta'),
+            outFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.2,
+            replaceLength=5,
+            newName='test_sub-EBOV.genome',
+            aligner='mafft')
+        self.assertEqualContents(outFasta, expected)
+
+    @unittest.skip('not yet implemented')
+    def test_small_mummer(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
+        assembly.impute_from_reference(
+            os.path.join(inDir, 'test.pseudo.fasta'),
+            os.path.join(inDir, 'ref.sub.ebov.fasta'),
+            outFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.2,
+            replaceLength=5,
+            newName='test_sub-EBOV.genome',
+            aligner='mummer')
+        self.assertEqualContents(outFasta, expected)
         
 
 class TestMutableSequence(unittest.TestCase):
