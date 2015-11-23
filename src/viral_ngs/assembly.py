@@ -252,7 +252,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
     '''
     tempFastas = []
 
-    pmc = parser_modify_contig()
+    pmc = parser_modify_contig(argparse.ArgumentParser())
     assert aligner in ('muscle', 'mafft', 'mummer')
 
     with open(inFasta, 'r') as asmFastaFile:
@@ -310,7 +310,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                     '--replace-end-gaps']
                 if newName:
                     # TODO: may need to add/remove the "-idx" for downstream
-                    args.extend(['-n', newName + "-" + str(idx + 1)])
+                    args.extend(['--name', newName + "-" + str(idx + 1)])
                 args = pmc.parse_args(args)
                 args.func_main(args)
 
