@@ -81,10 +81,13 @@ class MummerTool(tools.Tool):
             subprocess.check_call(toolCmd, stdout=outf)
 
     def show_tiling(self, inDelta, outTiling, outFasta=None,
-            circular=False, min_pct_id=None, min_contig_len=None):
+            circular=False, min_pct_id=None, min_contig_len=None,
+            tab_delim=False):
         opts = []
         if circular:
             opts.append('-c')
+        if tab_delim:
+            opts.append('-a')
         if min_pct_id is not None:
             opts.append('-i')
             opts.append(str(min_pct_id))
@@ -99,6 +102,51 @@ class MummerTool(tools.Tool):
         with open(outTiling, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
     
+    def trim_contigs(self, refFasta, contigsFasta, outFasta,
+            aligner='nucmer', circular=False, extend=False, breaklen=None,
+            min_pct_id=0.6, min_contig_len=200):
+        ''' Align contigs with MUMmer and trim off the unused portions.
+        '''
+        # run MUMmer to get best alignments
+        if aligner=='nucmer':
+            aligner = self.nucmer
+        elif aligner=='promer':
+            aligner = self.promer
+        else:
+            raise NameError()
+        delta_1 = util.file.mkstempfname('.delta')
+        delta_2 = util.file.mkstempfname('.delta')
+        tiling = util.file.mkstempfname('.tiling')
+        aligner(refFasta, contigsFasta, delta_1, extend=extend)
+        self.delta_filter(delta_1, delta_2)
+        self.show_tiling(delta_2, tiling, circular=circular, tab_delim=True,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+        os.unlink(delta_1)
+        os.unlink(delta_2)
+
+        # get trim boundaries per contig
+        seq_bounds = {}
+        with open(tiling, 'rt') as inf:
+            for line in inf:
+                row = line.rstrip().split('\t')
+                seq_bounds.setdefault(row[-1], [float('inf'), 0])
+                start = min(int(row[2]), int(row[3]))
+                stop  = max(int(row[2]), int(row[3]))
+                seq_bounds[row[-1]][0] = min(seq_bounds[row[-1]][0], start)
+                seq_bounds[row[-1]][1] = max(seq_bounds[row[-1]][1], stop)
+        os.unlink(tiling)
+
+        # trim contigs
+        out = []
+        with open(contigsFasta, 'rt') as inf:
+            for record in Bio.SeqIO.parse(inf, 'fasta'):
+                if record.id in seq_bounds:
+                    seq = record.seq[seq_bounds[record.id][0]-1:seq_bounds[record.id][1]]
+                    record.seq = seq
+                    out.append(record)
+        with open(outFasta, 'wt') as outf:
+            Bio.SeqIO.write(out, outf, 'fasta')
+
     def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=None, breaklen=None,
             min_pct_id=0.6, min_contig_len=200):
