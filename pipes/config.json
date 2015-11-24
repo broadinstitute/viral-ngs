@@ -57,7 +57,7 @@
 
   "mafft_ep":       0.123,
   "mafft_maxiters": 1000,
-  "trinity_n_reads": 100000,
+  "trinity_n_reads": 250000,
 
   "LSF_queues": {
     "short":   "-W 4:00",
