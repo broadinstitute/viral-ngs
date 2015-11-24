@@ -186,9 +186,14 @@ def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
         contigs).
     '''
     mummer = tools.mummer.MummerTool()
-    mummer.scaffold_contigs(inReference, inFasta, outFasta,
+    trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
+    mummer.trim_contigs(inReference, inFasta, trimmed,
             aligner=aligner, circular=circular, extend=extend, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+    mummer.scaffold_contigs(inReference, trimmed, outFasta,
+            aligner=aligner, circular=circular, extend=extend, breaklen=breaklen,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+    os.unlink(trimmed)
     return 0
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
