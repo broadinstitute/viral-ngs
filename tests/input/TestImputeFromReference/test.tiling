@@ -1,3 +1,0 @@
-44	529	1	486	486	486	99.79	1697	486	28.64	100.00	test_ref	c1_with_snp
-1162	1575	1	420	414	420	98.10	1697	420	24.40	100.00	test_ref	c2_with_6bp_ins_and_tail_snps
-1540	1697	176	19	158	158	98.73	1697	176	9.31	89.77	test_ref	c5_overlap_end_revcomp
