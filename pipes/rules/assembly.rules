@@ -92,7 +92,7 @@ rule orient_and_impute:
             scaffolded_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffolded.fasta'
     run:
             shell("{config[bin_dir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.scaffolded_fasta}")
-            shell("{config[bin_dir]}/assembly.py impute_from_reference {params.scaffolded_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig}")
+            shell("{config[bin_dir]}/assembly.py impute_from_reference {params.scaffolded_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the scaffolded assembly,

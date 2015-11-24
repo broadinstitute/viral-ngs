@@ -242,7 +242,7 @@ class PoorAssemblyError(Exception):
 
 
 def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength,
-    newName=None, aligner='muscle'):
+    newName=None, aligner='muscle', index=False):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -334,15 +334,16 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 os.unlink(aligned_file)
                 tempFastas.append(tmpOutputFile)
 
+    # merge outputs
     util.file.concat(tempFastas, outFasta)
-
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
-    tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
-    tools.novoalign.NovoalignTool().index_fasta(outFasta)
-
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
+
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    if index:
+        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
+        tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+        tools.novoalign.NovoalignTool().index_fasta(outFasta)
 
     return 0
 
@@ -372,6 +373,11 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
                         "mummer" = nucmer.  [default: %(default)s]""",
                         choices=['muscle', 'mafft', 'mummer'],
                         default='muscle')
+    parser.add_argument("--index",
+                        help="""Index outFasta for Picard/GATK, Samtools, and Novoalign.""",
+                        default=False,
+                        action="store_true",
+                        dest="index")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
