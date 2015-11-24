@@ -86,10 +86,10 @@ class TestImputeFromReference(TestCaseWithTmp):
     ''' Test the impute_from_reference command (align and modify_contig) '''
 
     @unittest.skip('requires 10 mins and 16GB RAM')
-    def test_varicella_big(self):
+    def test_varicella_big_muscle(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
-        expected = os.path.join(inDir, 'expected.hhv3.fasta')
+        expected = os.path.join(inDir, 'expected.hhv3.muscle.fasta')
         inDirBase = util.file.get_test_input_path()
         assembly.impute_from_reference(
             os.path.join(inDirBase, 'TestOrderAndOrient', 'expected.hhv3.fasta'),
@@ -98,6 +98,21 @@ class TestImputeFromReference(TestCaseWithTmp):
             minLengthFraction=0.8,
             minUnambig=0.6,
             replaceLength=55,
+            newName='HHV3-test')
+
+    def test_varicella_big_mummer(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hhv3.mummer.fasta')
+        inDirBase = util.file.get_test_input_path()
+        assembly.impute_from_reference(
+            os.path.join(inDirBase, 'TestOrderAndOrient', 'expected.hhv3.fasta'),
+            os.path.join(inDirBase, 'TestOrderAndOrient', 'ref.hhv3.fasta'),
+            outFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.6,
+            replaceLength=55,
+            aligner='mummer',
             newName='HHV3-test')
 
     def test_small_muscle(self):
@@ -130,7 +145,6 @@ class TestImputeFromReference(TestCaseWithTmp):
             aligner='mafft')
         self.assertEqualContents(outFasta, expected)
 
-    @unittest.skip('not yet implemented')
     def test_small_mummer(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')

@@ -179,7 +179,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
-        circular=False, min_pct_id=0.6, min_contig_len=200):
+        circular=False, extend=None, breaklen=None, min_pct_id=0.6, min_contig_len=200):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -187,7 +187,7 @@ def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
     '''
     mummer = tools.mummer.MummerTool()
     mummer.scaffold_contigs(inReference, inFasta, outFasta,
-            aligner=aligner, circular=circular,
+            aligner=aligner, circular=circular, extend=extend, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len)
     return 0
 
@@ -207,6 +207,18 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         default=False,
                         action="store_true",
                         dest="circular")
+    parser.add_argument("--extend",
+                        help="""Extend alignment clusters (nucmer/promer default).
+                        OUR default is not to extend alignments beyond the last MUM.""",
+                        default=False,
+                        action="store_true",
+                        dest="extend")
+    parser.add_argument("--breaklen",
+                        help="""Amount to extend alignment clusters by (if --extend).
+                        nucmer default 200, promer default 60.""",
+                        type=int,
+                        default=None,
+                        dest="breaklen")
     parser.add_argument("--min_pct_id",
                         type=float,
                         default=0.6,
@@ -300,7 +312,8 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                             concat_file, aligned_file,
                             quiet=False)
                 elif aligner=='mummer':
-                    raise NotImplementedError('TO DO')
+                    tools.mummer.MummerTool().align_one_to_one(
+                        ref_file, actual_file, aligned_file)
 
                 # run modify_contig
                 args = [aligned_file, tmpOutputFile, refName,
