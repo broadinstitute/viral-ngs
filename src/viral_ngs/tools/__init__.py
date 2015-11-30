@@ -168,6 +168,7 @@ class DownloadPackage(InstallMethod):
         self.require_executability = require_executability
         self.post_download_command = post_download_command
         self.post_download_ret = post_download_ret
+        self.download_file = None
         InstallMethod.__init__(self)
 
     def is_installed(self):
@@ -201,10 +202,10 @@ class DownloadPackage(InstallMethod):
         download_dir = tempfile.gettempdir()
         util.file.mkdir_p(download_dir)
         filepath = urlparse(self.url).path
-        filename = filepath.split('/')[-1]
-        log.info("Downloading from %s to %s/%s ...", self.url, download_dir, filename)
-        urlretrieve(self.url, os.path.join(download_dir, filename))
-        self.download_file = filename
+        file_basename = filepath.split('/')[-1]
+        log.info("Downloading from %s to %s/%s ...", self.url, download_dir, file_basename)
+        urlretrieve(self.url, os.path.join(download_dir, file_basename))
+        self.download_file = file_basename
         self.unpack(download_dir)
 
     def post_download(self):

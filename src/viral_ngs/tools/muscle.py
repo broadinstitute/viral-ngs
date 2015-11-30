@@ -55,11 +55,11 @@ class MuscleTool(tools.Tool):
         if diags:
             toolCmd.append('-diags')
         if maxiters:
-            toolCmd.append('-maxiters {}'.fmt(maxiters))
+            toolCmd.append('-maxiters {}'.format(maxiters))
         if maxhours:
-            toolCmd.append('-maxhours {}'.fmt(maxhours))
+            toolCmd.append('-maxhours {}'.format(maxhours))
         if logFile:
-            toolCmd.append('-log {}'.fmt(logFile))
+            toolCmd.append('-log {}'.format(logFile))
 
         log.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
