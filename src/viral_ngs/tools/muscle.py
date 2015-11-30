@@ -41,8 +41,9 @@ class MuscleTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
+    # pylint: disable=W0221
     def execute(self, inFasta, outFasta,
-                maxiters=None, maxhours=None, fmt='fasta', diags=None, quiet=True, logFile=None): # pylint: disable=W0221
+                maxiters=None, maxhours=None, fmt='fasta', diags=None, quiet=True, logFile=None):
         tool_cmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
 
         if fmt in ('html', 'msf', 'clw', 'clwstrict'):
@@ -63,6 +64,7 @@ class MuscleTool(tools.Tool):
 
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
+    # pylint: enable=W0221
 
 
 def get_muscle_os():

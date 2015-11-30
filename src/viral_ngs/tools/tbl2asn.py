@@ -28,10 +28,11 @@ class Tbl2AsnTool(tools.Tool):
     def version(self):
         return None
 
+    # pylint: disable=W0221
     def execute(self, templateFile, inputDir, outputDir=None,
                 source_quals=None, comment=None, verification='vb',
                 file_type='s', structured_comment_file=None,
-                per_genome_comment=False): # pylint: disable=W0221
+                per_genome_comment=False):
         source_quals = source_quals or []
 
         tool_cmd = [self.install_and_get_path(), '-t', templateFile]
@@ -56,7 +57,7 @@ class Tbl2AsnTool(tools.Tool):
 
         log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
-
+    # pylint: enable=W0221
 
 def get_bintype():
     uname = os.uname()
