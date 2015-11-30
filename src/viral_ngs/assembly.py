@@ -320,7 +320,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
                         '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
                 if newName:
-                    # TODO: may need to add/remove the "-idx" for downstream
+                    # renames the segment name "sampleName-idx" where idx is the segment number
                     args.extend(['-n', newName + "-" + str(idx + 1)])
 
                 args = pmc.parse_args(args)
