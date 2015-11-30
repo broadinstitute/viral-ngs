@@ -84,7 +84,7 @@ class Lastdb(LastTools):
     subtool_name = 'lastdb'
     subtool_name_on_broad = 'lastdb'
 
-    def execute(self, inputFasta, outputDirectory, outputFilePrefix):
+    def execute(self, inputFasta, outputDirectory, outputFilePrefix): # pylint: disable=W0221
         # get the path to the binary
         tool_cmd = [self.install_and_get_path()]
 

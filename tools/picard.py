@@ -12,13 +12,13 @@ import pysam
 import tools
 import util.file
 
-tool_version = '1.126'
-url = 'https://github.com/broadinstitute/picard/releases/download/' \
-    + '{ver}/picard-tools-{ver}.zip'.format(ver=tool_version)
+TOOL_VERSION = '1.126'
+TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
+    + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: Version 1.126 is latest as of 2014-12-02
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class PicardTools(tools.Tool):
@@ -27,24 +27,25 @@ class PicardTools(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            target_rel_path = 'picard-tools-{}/picard.jar'.format(tool_version)
-            install_methods = [tools.DownloadPackage(url, target_rel_path, require_executability=False)]
+            target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
+            install_methods = [tools.DownloadPackage(TOOL_URL, target_rel_path, require_executability=False)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return TOOL_VERSION
 
-    def execute(self, command, picardOptions=None, JVMmemory=None):
+    def execute(self, command, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
+        tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
                    self.install_and_get_path(), command] + picardOptions
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        LOG.debug(' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
 
-    def dict_to_picard_opts(self, options):
+    @staticmethod
+    def dict_to_picard_opts(options):
         return ["%s=%s" % (k, v) for k, v in options.items()]
 
 

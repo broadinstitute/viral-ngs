@@ -36,15 +36,15 @@ class GATKTool(tools.Tool):
                     require_executability=False))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, command, gatkOptions=None, JVMmemory=None):
+    def execute(self, command, gatkOptions=None, JVMmemory=None): # pylint: disable=W0221
         gatkOptions = gatkOptions or []
 
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
+        tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
                    self.install_and_get_path(), '-T', command] + list(map(str, gatkOptions))
-        LOG.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        LOG.debug(' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
 
     @staticmethod
     def dict_to_gatk_opts(options):
@@ -94,6 +94,7 @@ class GATKTool(tools.Tool):
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
         intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
+        LOG.debug("Running local realign with %s threads", threads)
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
         opts = ['-I',
                 inBam,
