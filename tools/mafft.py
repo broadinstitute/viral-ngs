@@ -63,9 +63,9 @@ class MafftTool(tools.Tool):
                 "Not all sequence IDs in input are unique for file: {}".format(
                     os.path.basename(filePath)))
 
+    # pylint: disable=W0221
     def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder,
                 outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True, retree=None):
-
         inputFileName = ""
         tempCombinedInputFile = ""
 
@@ -159,7 +159,7 @@ class MafftTool(tools.Tool):
         os.chdir(pwdBeforeMafft)
 
         return outFile
-
+    # pylint: enable=W0221
 
 def get_mafft_os():
     uname = os.uname()
