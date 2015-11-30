@@ -1,3 +1,4 @@
+[DESIGN]
 # the default of five is a bit too restrictive
 max-args = 12
 
