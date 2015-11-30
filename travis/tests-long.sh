@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+echo travis_fold:start:tests-long
+
 echo "TRAVIS_BRANCH: $TRAVIS_BRANCH"
 echo "TRAVIS_PULL_REQUEST: $TRAVIS_PULL_REQUEST"
 
@@ -14,3 +16,5 @@ if [ $TRAVIS_PULL_REQUEST != "false" -o $TRAVIS_BRANCH = "master" -o -n "$TRAVIS
 else
     echo "This is not a pull request: skipping long running tests."
 fi
+
+echo travis_fold:end:tests-long
