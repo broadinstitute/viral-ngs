@@ -189,7 +189,6 @@ class NovoalignTool(tools.Tool):
             os.chmod(outfname, mode)
         except (IOError, OSError):
             log.warning('could not chmod "%s", this is likely OK', refFasta)
-            pass
 
 
 class InvalidBamHeaderError(ValueError):

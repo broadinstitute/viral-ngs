@@ -6,7 +6,6 @@ max-args = 12
 max-locals = 20
 
 [MESSAGES CONTROL]
-
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time.
@@ -19,3 +18,11 @@ max-locals = 20
 
 # module has too many lines
 disable=C0302
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=120
+
+[TYPECHECK]
+# to prevent (incorrect) no-member errors from cython modules
+ignored-modules=cython 

@@ -19,7 +19,7 @@ import util.cmd
 import re
 # since py3 split up urllib
 try:
-    from urllib.request import urlopen
+    from urllib.request import urlopen # pylint: disable=E0611
 except ImportError:
     from urllib2 import urlopen
 
