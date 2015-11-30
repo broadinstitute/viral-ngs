@@ -14,6 +14,9 @@
     TEST_VAR: "foo"
   sudo: yes
   tasks:
+    - name: update apt cache (apt-get update)
+      apt: update_cache=yes
+
     - name: Install gcc-4.7 # needed to build MOSAIK
       apt: pkg=gcc-4.7 state=installed
 
