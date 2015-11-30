@@ -10,11 +10,11 @@ import util.file
 
 try:
     # Python 3.x
-    from urllib.request import urlretrieve
-    from urllib.parse import urlparse
+    from urllib.request import urlretrieve # pylint: disable=E0611
+    from urllib.parse import urlparse # pylint: disable=E0611
 except ImportError:
     # Python 2.x
-    from urllib import urlretrieve
+    from urllib import urlretrieve 
     from urlparse import urlparse
 
 # Put all tool files in __all__
@@ -74,7 +74,7 @@ class Tool(object):
     def executable_path(self):
         return self.exec_path
 
-    def execute(self, args):
+    def execute(self, *args, **kwargs):
         assert not os.system(self.exec_path + ' ' + args)
 
     def install_and_get_path(self):

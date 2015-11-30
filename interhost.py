@@ -16,11 +16,11 @@ import json
 from itertools import permutations
 from collections import OrderedDict, Sequence
 try:
-    from itertools import zip_longest
+    from itertools import zip_longest # pylint: disable=E0611
 except ImportError:
     from itertools import izip_longest as zip_longest
 try:
-    from UserDict import DictMixin
+    from UserDict import DictMixin # pylint: disable=E0611
 except ImportError:  # for Py3
     from collections import MutableMapping as DictMixin
 
@@ -521,8 +521,8 @@ def vcf_header(a):
     header = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
-    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [str(x.id) for x in
-                                                                                                          a]) + '\n'
+    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 
+        'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]) + '\n'
     return header
 
 
