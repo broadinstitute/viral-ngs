@@ -22,20 +22,21 @@ class Vphaser2Tool(tools.Tool):
             install_methods = [tools.PrexistingUnixCommand(path)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, inBam, outDir, numThreads=None):
+    def execute(self, inBam, outDir, numThreads=None): # pylint: disable=W0221
         cmd = [self.install_and_get_path(), '-i', inBam, '-o', outDir]
-        cmdStr = ' '.join(cmd)
+        cmd_str = ' '.join(cmd)
         envCopy = os.environ.copy()
         if numThreads is not None:
             envCopy['OMP_NUM_THREADS'] = str(numThreads)
-            cmdStr = 'OMP_NUM_THREADS=%d ' % numThreads + cmdStr
-        log.debug(cmdStr)
+            cmd_str = 'OMP_NUM_THREADS=%d ' % numThreads + cmd_str
+        log.debug(cmd_str)
 
         # Use check_output instead of check_call so that we get error information
         #    if the executable can't run on travis.
         # Also has the effect of suppressing informational messages from vphaser,
         #    which is probably a good thing.
         try:
+            # TODO: should this be cmd_str?
             subprocess.check_output(cmd, env=envCopy, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as ex:
             print(ex.output)  # Useful in case of no log handler.

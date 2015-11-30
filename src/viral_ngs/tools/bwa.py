@@ -37,7 +37,7 @@ class Bwa(tools.Tool):
     def version(self):
         return ''.join([c for c in BWA_DIR if c.isdigit() or c == '.'])
 
-    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""):
+    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""): # pylint: disable=W0221
         """
         args are required arguments for the specified bwa subcommand
             (order matters for bwa execution)
