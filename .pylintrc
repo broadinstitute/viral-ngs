@@ -25,4 +25,4 @@ max-line-length=120
 
 [TYPECHECK]
 # to prevent (incorrect) no-member errors from cython modules
-ignored-modules=cython 
+ignored-modules=cython,pysam

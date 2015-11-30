@@ -521,8 +521,9 @@ def vcf_header(a):
     header = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
-    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 
-        'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]) + '\n'
+    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT',
+                               'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]) + '\n' # pylint: disable=E1101
+
     return header
 
 
