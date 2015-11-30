@@ -119,7 +119,7 @@ class NovoalignTool(tools.Tool):
             raise InvalidBamHeaderError("{} has {} read groups, but we require exactly one".format(inBam, len(rgs)))
         if rgid not in rgs:
             raise InvalidBamHeaderError("{} has read groups, but not {}".format(inBam, rgid))
-        rg = rgs[rgid]
+        #rg = rgs[rgid]
 
         # Strip inBam to just one RG (if necessary)
         if len(rgs) == 1:
@@ -188,6 +188,7 @@ class NovoalignTool(tools.Tool):
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)
         except (IOError, OSError):
+            log.warning('could not chmod "%s", this is likely OK', refFasta)
             pass
 
 

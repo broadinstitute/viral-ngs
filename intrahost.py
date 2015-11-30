@@ -422,7 +422,7 @@ def parse_accession_str(chr_ref):
         This tries to match an NCBI accession as defined here:
             http://www.ncbi.nlm.nih.gov/Sequin/acc.html
     '''
-    m = re.search("(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
+    m = re.search(r"(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
     if m:
         chr_ref = m.group("accession")
     return chr_ref
@@ -936,7 +936,7 @@ def parse_eff(eff_field):
         out['eff_aa_pos'] = int(m.group(1))
     (out['eff_type'], out['eff_codon_dna'], out['eff_aa'], out[
         'eff_prot_len'
-    ], out['eff_gene'], out['eff_protein'], rank) = eff
+    ], out['eff_gene'], out['eff_protein'], _) = eff # _ is placeholder for rank
     return out
 
 
@@ -1109,13 +1109,13 @@ def sampleIDMatch(inputString):
         Given a sample name in the form of [sample] or [sample]-#,
         return only [sample]
     """
-    idRegex = re.compile("(.*?)(?:-\d+|$)+")
+    idRegex = re.compile(r"(.*?)(?:-\d+|$)+")
     m = idRegex.match(inputString)
 
     if m:
         return m.group(1)
     else:
-        raise LookupError("The ID was not of the form (.*?)(?:-\d+|$)+, ex. 5985-0")
+        raise LookupError(r"The ID was not of the form (.*?)(?:-\d+|$)+, ex. 5985-0")
 
 
 def full_parser():

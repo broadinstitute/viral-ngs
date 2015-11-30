@@ -156,9 +156,6 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
 __commands__.append(('assembly_stats', parser_assembly_stats))
 
 
-def get_refalign_stats(sample):
-    pass
-
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
     gap = '-'
     ambiguous = 'N'

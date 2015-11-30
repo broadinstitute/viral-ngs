@@ -168,10 +168,10 @@ def lastal_get_hits(inFastq, db, outList):
             line_num = 0
             for line in inf:
                 if (line_num % 4) == 0:
-                    id = line.rstrip('\n\r')[1:]
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id + '\n')
+                    seq_id = line.rstrip('\n\r')[1:]
+                    if seq_id.endswith('/1') or seq_id.endswith('/2'):
+                        seq_id = seq_id[:-2]
+                    outf.write(seq_id + '\n')
                 line_num += 1
 
 
@@ -559,11 +559,40 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
     return hits_files
 
 
+def no_blast_hits(blastOutCombined, inFastq, outFastq):
+    '''
+        outputs to outFastq: reads that have no blast hits
+    '''
+
+    blastReads = {}
+    with open(blastOutCombined, 'r') as blastFile:
+        for line in blastFile:
+            blastReads[(line[0:line.find('\t')])] = True
+
+    with util.file.open_or_gzopen(outFastq, 'wt') as outf:
+        with open(inFastq, 'r') as readsFile:
+            nohit = True
+            isFastq = inFastq.endswith('.fastq')
+            while True:
+                line1 = readsFile.readline()
+                line2 = readsFile.readline()
+                if not line2:
+                    break
+                line3 = ''
+                line4 = ''
+                if isFastq:
+                    line3 = readsFile.readline()
+                    if not line3:
+                        break
+                    line4 = readsFile.readline()
+                    if not line4:
+                        break
+                if nohit != (line1[1:line1.find('\n')] in blastReads):
+                    outf.write(line1 + line2 + line3 + line4)
+
+
 def deplete_blastn(inFastq, outFastq, refDbs):
     'Use blastn to remove reads that match at least one of the databases.'
-
-    # Get tools
-    noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(), 'noBlastHits_v3.py')
 
     # Convert to fasta
     inFasta = mkstempfname('.fasta')
@@ -582,12 +611,8 @@ def deplete_blastn(inFastq, outFastq, refDbs):
     with open(blastOutCombined, 'wt') as outf:
         subprocess.check_call(catCmd, stdout=outf)
 
-    # run noBlastHits_v3.py to extract reads with no blast hits
-    # TODO: slurp the small amount of code in this script into here
-    noBlastHitsCmd = ['python', noBlastHits_v3Path, '-b', blastOutCombined, '-r', inFastq, '-m', 'nohit']
-    log.debug(' '.join(noBlastHitsCmd) + '> ' + outFastq)
-    with util.file.open_or_gzopen(outFastq, 'wt') as outf:
-        subprocess.check_call(noBlastHitsCmd, stdout=outf)
+    # extract reads with no blast hits
+    no_blast_hits(blastOutCombined, inFastq, outFastq)
 
 
 def parser_deplete_blastn(parser=argparse.ArgumentParser()):

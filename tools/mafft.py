@@ -92,7 +92,6 @@ class MafftTool(tools.Tool):
                 for f in inputFiles:
                     with open(f, "r") as infile:
                         outfile.write(infile.read())
-                # outFile.close()
             inputFileName = tempCombinedInputFile
         # if there is only once file specified, just use it
         else:

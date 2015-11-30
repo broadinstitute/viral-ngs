@@ -68,7 +68,7 @@ class DownloadAndBuildTrinity(tools.DownloadPackage):
                 with open(badFilePath + '.orig', 'rt') as inf:
                     for line in inf:
                         if line.startswith('unless ($java_version =~ /java version'):
-                            outf.write('$java_version =~ /java version \"1\.(\d+)\./;\n')
+                            outf.write(r'$java_version =~ /java version \"1\.(\d+)\./;\n')
                             outf.write('unless ($1 >= 6) {\n')
                         else:
                             outf.write(line)
