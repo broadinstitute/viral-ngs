@@ -7,7 +7,7 @@ import os
 import os.path
 import logging
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 # magic vars for now, later can set with config variables
 # legacy version is version used in pipeline recipes (see old_scripts dir)
@@ -23,9 +23,9 @@ BWA_DIR = '.'.join([x for x in URL.split("/")[-1].split('.') if x != "tar" and x
 
 
 class Bwa(tools.Tool):
-
+    """ tool wrapper for bwa """
     def __init__(self, install_methods=None):
-        log.debug("BWA_DIR: %s", BWA_DIR)
+        LOG.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.DownloadPackage(
@@ -56,7 +56,7 @@ class Bwa(tools.Tool):
 
         arg_str = " ".join(args)
         option_str = '{} {}'.format(' '.join(["{} {}".format(k, v) for k, v in options.items()]), option_string)
-        cmd =  "{} {} {} {} {}" \
+        cmd = "{} {} {} {} {}" \
             .format(self.exec_path, subcommand, option_str, arg_str, post_cmd)
-        log.debug("Calling bwa with cmd: %s", cmd)
+        LOG.debug("Calling bwa with cmd: %s", cmd)
         return os.system(cmd)

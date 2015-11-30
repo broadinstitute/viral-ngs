@@ -16,7 +16,7 @@ import os.path
 import subprocess
 import tempfile
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class GATKTool(tools.Tool):
@@ -43,10 +43,11 @@ class GATKTool(tools.Tool):
             JVMmemory = self.jvmMemDefault
         toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
                    self.install_and_get_path(), '-T', command] + list(map(str, gatkOptions))
-        log.debug(' '.join(toolCmd))
+        LOG.debug(' '.join(toolCmd))
         subprocess.check_call(toolCmd)
 
-    def dict_to_gatk_opts(self, options):
+    @staticmethod
+    def dict_to_gatk_opts(options):
         return ["%s=%s" % (k, v) for k, v in options.items()]
 
     def version(self):

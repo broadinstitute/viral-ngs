@@ -14,7 +14,7 @@ try:
     from urllib.parse import urlparse # pylint: disable=E0611
 except ImportError:
     # Python 2.x
-    from urllib import urlretrieve 
+    from urllib import urlretrieve
     from urlparse import urlparse
 
 # Put all tool files in __all__
