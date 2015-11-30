@@ -166,7 +166,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--JVMmemory',
-                        default=tools.trinity.TrinityTool.jvmMemDefault,
+                        default=tools.trinity.TrinityTool.jvm_mem_default,
                         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
