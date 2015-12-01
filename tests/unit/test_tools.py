@@ -30,7 +30,8 @@ class TestToolsInstallation(TestCaseWithTmp):
             for subclass in aClass.__subclasses__():
                 isLeaf = False
                 for leafClass in iter_leaf_subclasses(subclass):
-                    yield leafClass
+                    if not getattr(leafClass, '_skiptest', False):
+                        yield leafClass
             if isLeaf:
                 yield aClass
 
