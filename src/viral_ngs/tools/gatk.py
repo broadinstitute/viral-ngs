@@ -57,7 +57,7 @@ class GATKTool(tools.Tool):
 
     def _get_tool_version(self):
         cmd = ['java', '-jar', self.install_and_get_path(), '--version']
-        self.tool_version = subprocess.check_output(cmd).strip()
+        self.tool_version = util.misc.run_and_print(cmd).stdout.strip()
 
     def ug(self, inBam, refFasta, outVcf,
             options=None,

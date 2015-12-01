@@ -2,4 +2,5 @@
 --index-url https://pypi.python.org/simple/
 
 biopython==1.64
+future>=0.15.2
 pysam==0.8.1
