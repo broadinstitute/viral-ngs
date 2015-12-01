@@ -59,4 +59,6 @@ easy-deploy/data/Snakefile
 
 easy-deploy/data/config.json
 
+easy-deploy/data/viral-ngs/
+
 easy-deploy/.vagrant/
