@@ -35,6 +35,20 @@ def get_tool_by_name(name):
     return installed_tools[name]
 
 
+def skip_install_test(condition=None):
+    '''Decorate the Tool class to skip the installation test.'''
+    def decorator(klass):
+        if callable(condition) and not condition():
+            return klass
+        klass._skiptest = True
+        return klass
+    return decorator
+
+
+def is_osx():
+    return os.uname()[0] == 'Darwin'
+
+
 class Tool(object):
     ''' Base tool class that includes install machinery.
 
@@ -43,7 +57,7 @@ class Tool(object):
 
     def __init__(self, install_methods=None):
         install_methods = install_methods or []
-        
+
         self.install_methods = install_methods
         self.installed_method = None
         self.exec_path = None
