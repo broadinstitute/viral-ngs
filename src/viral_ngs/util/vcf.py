@@ -199,7 +199,7 @@ class TabixReader(pysam.Tabixfile):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        self.close() # pylint: disable=E1101
         return 0
 
     # close() is being inherited from pysam.Tabixfile, why call it ourselves?
@@ -207,12 +207,12 @@ class TabixReader(pysam.Tabixfile):
     #     super(TabixReader, self).close()
 
     def chroms(self):
-        return self.contigs
+        return self.contigs # pylint: disable=E1101
 
     def get(self, chrom=None, start=None, stop=None, region=None):
         if start is not None:
             start -= 1
-        return self.fetch(reference=chrom, start=start, end=stop, region=region, parser=self.parser)
+        return self.fetch(reference=chrom, start=start, end=stop, region=region, parser=self.parser) # pylint: disable=E1101
 
 
 def get_pos_from_vcf_record(vcfrec):
@@ -245,7 +245,7 @@ class VcfReader(TabixReader):
         self.ploidy = ploidy
         self.clens = []
         self.sample_names = None
-        for line in self.header:
+        for line in self.header: # pylint: disable=E1101
             line = bytes_to_string(line)
             if line.startswith('##contig=<ID=') and line.endswith('>'):
                 line = line[13:-1]
@@ -387,7 +387,7 @@ def replaceAlleles(sample, seq, vcf_records):
             if isinstance(samp_geno, list):
                 log.warn(
                     "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s).",
-                    i, sample, '/'.join(samp_geno) )
+                    i, sample, '/'.join(samp_geno))
                 continue
             allele = samp_geno
 

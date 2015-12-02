@@ -13,7 +13,7 @@ import os.path
 import subprocess
 import gzip
 
-url = 'ftp://ftp.ncbi.nih.gov/toolbox/ncbi_tools/converters/by_program/tbl2asn/{os}.tbl2asn.gz'
+TOOL_URL = 'ftp://ftp.ncbi.nih.gov/toolbox/ncbi_tools/converters/by_program/tbl2asn/{os}.tbl2asn.gz'
 
 log = logging.getLogger(__name__)
 
@@ -22,41 +22,42 @@ class Tbl2AsnTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [DownloadGzipBinary(url.format(os=get_bintype()), 'tbl2asn')]
+            install_methods = [DownloadGzipBinary(TOOL_URL.format(os=get_bintype()), 'tbl2asn')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return None
 
+    # pylint: disable=W0221
     def execute(self, templateFile, inputDir, outputDir=None,
                 source_quals=None, comment=None, verification='vb',
                 file_type='s', structured_comment_file=None,
                 per_genome_comment=False):
         source_quals = source_quals or []
 
-        toolCmd = [self.install_and_get_path(), '-t', templateFile]
+        tool_cmd = [self.install_and_get_path(), '-t', templateFile]
 
         if inputDir:
-            toolCmd += ['-p', inputDir]
+            tool_cmd += ['-p', inputDir]
         if outputDir:
-            toolCmd += ['-r', outputDir]
+            tool_cmd += ['-r', outputDir]
         if source_quals:
-            toolCmd.append('-j')
-            toolCmd.append(' '.join("[{}={}]".format(k, v) for k, v in source_quals))
+            tool_cmd.append('-j')
+            tool_cmd.append(' '.join("[{}={}]".format(k, v) for k, v in source_quals))
         if comment:
-            toolCmd += ['-y', comment]
+            tool_cmd += ['-y', comment]
         if structured_comment_file:
-            toolCmd += ['-w', structured_comment_file]
+            tool_cmd += ['-w', structured_comment_file]
         if verification:
-            toolCmd += ['-V', verification]
+            tool_cmd += ['-V', verification]
         if file_type:
-            toolCmd += ['-a', file_type]
+            tool_cmd += ['-a', file_type]
         if per_genome_comment:
-            toolCmd += ['-X', 'C']
+            tool_cmd += ['-X', 'C']
 
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
-
+        log.debug(' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
+    # pylint: enable=W0221
 
 def get_bintype():
     uname = os.uname()
