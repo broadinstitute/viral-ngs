@@ -15,6 +15,7 @@ url = 'https://github.com/wanpinglee/MOSAIK/archive/{commit_hash}.zip'
 log = logging.getLogger(__name__)
 
 
+@tools.skip_install_test(condition=tools.is_osx)
 class MosaikTool(tools.Tool):
 
     def __init__(self):

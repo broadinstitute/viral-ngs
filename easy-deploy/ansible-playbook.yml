@@ -50,10 +50,21 @@
     - name: Install libncursesw5-dev
       apt: pkg=libncursesw5-dev state=installed
 
+    # Kraken deps
+    - name: Install cmake
+      apt: pkg=cmake state=installed
+    - name: Install autoconf
+      apt: pkg=autoconf state=installed
+    - name: Install libtool
+      apt: pkg=libtool state=installed
+    # Diamond deps
+    - name: Install libboost-all-dev
+      apt: pkg=libboost-all-dev state=installed
+
     # these apt packages are perhaps unnecessary
-    - name: Install zlibc 
+    - name: Install zlibc
       apt: pkg=zlibc state=installed
-    - name: Install libzip2 
+    - name: Install libzip2
       apt: pkg=libzip2 state=installed
     - name: Install libz-dev
       apt: pkg=libz-dev state=installed
