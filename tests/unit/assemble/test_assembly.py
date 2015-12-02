@@ -37,8 +37,8 @@ class TestAssembleTrinity(TestCaseWithTmp):
     ''' Test the assemble_trinity command (no validation of output) '''
 
     def test_execution(self):
-        inDir = util.file.get_test_input_path()
-        inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
+        inDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(inDir, 'G3952.1.subsamp.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
         assembly.assemble_trinity(inBam, outFasta, clipDb)
