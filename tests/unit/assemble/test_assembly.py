@@ -10,7 +10,6 @@ import Bio.Data.IUPACData
 import unittest
 import argparse
 import os
-import os.path
 import shutil
 import tempfile
 import argparse
@@ -31,19 +30,6 @@ class TestCommandHelp(unittest.TestCase):
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
-
-
-class TestAssembleTrinity(TestCaseWithTmp):
-    ''' Test the assemble_trinity command (no validation of output) '''
-
-    def test_execution(self):
-        inDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(inDir, 'G3952.1.subsamp.bam')
-        clipDb = os.path.join(inDir, 'clipDb.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, outFasta, clipDb)
-        self.assertGreater(os.path.getsize(outFasta), 0)
-        os.unlink(outFasta)
 
 
 class TestAmbiguityBases(unittest.TestCase):
