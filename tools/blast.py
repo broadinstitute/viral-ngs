@@ -2,34 +2,36 @@
 import tools
 import os
 
-urlPrefix = 'ftp://ftp.ncbi.nlm.nih.gov/blast/executables' \
+URL_PREFIX = 'ftp://ftp.ncbi.nlm.nih.gov/blast/executables' \
             '/blast+/2.2.29/ncbi-blast-2.2.29+-'
 
 
 def get_url():
+    """ creates the download url for this tool """
     uname = os.uname()
     if uname[0] == 'Darwin':
-        osStr = 'universal-macosx'
+        os_str = 'universal-macosx'
     elif uname[0] == 'Linux':
         if uname[4].endswith('64'):
-            osStr = 'x64-linux'
+            os_str = 'x64-linux'
         else:
-            osStr = 'ia32-linux'
+            os_str = 'ia32-linux'
     else:
         raise NotImplementedError('OS {} not implemented'.format(uname[0]))
-    return urlPrefix + osStr + '.tar.gz'
+    return URL_PREFIX + os_str + '.tar.gz'
 
 
 class BlastTools(tools.Tool):
     """'Abstract' base class for tools in the blast+ suite.
-       Subclasses must define class member subtoolName."""
+       Subclasses must define class member subtool_name."""
 
     def __init__(self, install_methods=None):
         unwanted = ['blast_formatter', 'blastdb_aliastool', 'blastdbcheck', 'blastdbcmd', 'convert2blastmask',
                     'deltablast', 'legacy_blast.pl', 'makembindex', 'makeprofiledb', 'psiblast', 'rpsblast',
                     'rpstblastn', 'segmasker', 'tblastn', 'tblastx', 'update_blastdb.pl', 'windowmasker']
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         if install_methods is None:
-            target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtoolName
+            target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtool_name
             install_methods = [tools.DownloadPackage(get_url(),
                                                      target_rel_path,
                                                      post_download_command=' '.join(
@@ -39,8 +41,10 @@ class BlastTools(tools.Tool):
 
 
 class BlastnTool(BlastTools):
-    subtoolName = 'blastn'
+    """ Tool wrapper for blastn """
+    subtool_name = 'blastn'
 
 
 class MakeblastdbTool(BlastTools):
-    subtoolName = 'makeblastdb'
+    """ Tool wrapper for makeblastdb """
+    subtool_name = 'makeblastdb'

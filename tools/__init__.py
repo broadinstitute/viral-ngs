@@ -10,8 +10,8 @@ import util.file
 
 try:
     # Python 3.x
-    from urllib.request import urlretrieve
-    from urllib.parse import urlparse
+    from urllib.request import urlretrieve # pylint: disable=E0611
+    from urllib.parse import urlparse # pylint: disable=E0611
 except ImportError:
     # Python 2.x
     from urllib import urlretrieve
@@ -26,7 +26,7 @@ __all__ = [filename[:-3]  # Remove .py
            ]]
 installed_tools = {}
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def get_tool_by_name(name):
@@ -88,7 +88,7 @@ class Tool(object):
     def executable_path(self):
         return self.exec_path
 
-    def execute(self, args):
+    def execute(self, *args):
         assert not os.system(self.exec_path + ' ' + args)
 
     def install_and_get_path(self):
@@ -182,6 +182,7 @@ class DownloadPackage(InstallMethod):
         self.require_executability = require_executability
         self.post_download_command = post_download_command
         self.post_download_ret = post_download_ret
+        self.download_file = None
         InstallMethod.__init__(self)
 
     def is_installed(self):
@@ -193,7 +194,7 @@ class DownloadPackage(InstallMethod):
     def verify_install(self):
         if os.access(self.targetpath, (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             if self.verifycmd:
-                log.debug("validating")
+                LOG.debug("validating")
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
             else:
                 self.installed = True
@@ -215,10 +216,10 @@ class DownloadPackage(InstallMethod):
         download_dir = tempfile.gettempdir()
         util.file.mkdir_p(download_dir)
         filepath = urlparse(self.url).path
-        filename = filepath.split('/')[-1]
-        log.info("Downloading from %s to %s/%s ...", self.url, download_dir, filename)
-        urlretrieve(self.url, os.path.join(download_dir, filename))
-        self.download_file = filename
+        file_basename = filepath.split('/')[-1]
+        LOG.info("Downloading from %s to %s/%s ...", self.url, download_dir, file_basename)
+        urlretrieve(self.url, os.path.join(download_dir, file_basename))
+        self.download_file = file_basename
         self.unpack(download_dir)
 
     def post_download(self):
@@ -228,7 +229,7 @@ class DownloadPackage(InstallMethod):
                 assert return_code == self.post_download_ret
 
     def unpack(self, download_dir):
-        log.debug("unpacking")
+        LOG.debug("unpacking")
         util.file.mkdir_p(self.destination_dir)
         if self.download_file.endswith('.zip'):
             if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir
@@ -247,13 +248,13 @@ class DownloadPackage(InstallMethod):
                 compression_option = 'z'
             untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir, compression_option, download_dir,
                                                         self.download_file)
-            log.debug("Untaring with command: %s", untar_cmd)
+            LOG.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)
             if exitCode:
-                log.info("tar returned non-zero exitcode %s", exitCode)
+                LOG.info("tar returned non-zero exitcode %s", exitCode)
                 return
             else:
-                log.debug("tar returned with exit code 0")
+                LOG.debug("tar returned with exit code 0")
                 os.unlink(os.path.join(download_dir, self.download_file))
         else:
             shutil.move(os.path.join(download_dir, self.download_file),
