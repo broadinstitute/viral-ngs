@@ -113,7 +113,7 @@ class MafftTool(tools.Tool):
         if not retree:
             tool_cmd.append("--auto")
         if threads >= 1 or threads == -1:
-            tool_cmd.append("--thread {}".format(threads))
+            tool_cmd.extend(["--thread", "{}".format(threads)])
         else:
             raise Exception("invalid value for threads: {}".format(threads))
 
@@ -133,17 +133,17 @@ class MafftTool(tools.Tool):
         if reorder:
             tool_cmd.append("--reorder")
         if retree:
-            tool_cmd.append("--retree {}".format(retree))
+            tool_cmd.extend(["--retree", "{}".format(retree)])
         if gapOpeningPenalty:
-            tool_cmd.append("--op {penalty}".format(penalty=gapOpeningPenalty))
+            tool_cmd.extend(["--op", "{penalty}".format(penalty=gapOpeningPenalty)])
         if offset:
-            tool_cmd.append("--ep {num}".format(num=offset))
+            tool_cmd.extend(["--ep", "{num}".format(num=offset)])
         if not verbose:
             tool_cmd.append("--quiet")
         if outputAsClustal:
             tool_cmd.append("--clustalout")
         if maxiters:
-            tool_cmd.append("--maxiterate {iters}".format(iters=maxiters))
+            tool_cmd.extend(["--maxiterate", "{iters}".format(iters=maxiters)])
 
         tool_cmd.append(inputFileName)
 
