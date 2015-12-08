@@ -213,7 +213,7 @@ class CondaPackage(InstallMethod):
         return os.path.join(self.env_path, "bin")
 
     def executable_path(self):
-        return self.installed and os.path.join(self.bin_path, self.executable) or None
+        return os.path.join(self.bin_path, self.executable)
 
     def is_installed(self):
         result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True)
