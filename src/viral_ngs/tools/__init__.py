@@ -202,7 +202,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_str(self):
-        if len(self.version) and float(self.version) > 0.0:
+        if len(self.version):
             ver_str = "{pkg}={ver}".format(pkg=self.package, ver=self.version)
         else:
             ver_str = self.package
