@@ -39,8 +39,7 @@ class MafftTool(tools.Tool):
                 bin_dir=binaryDir)
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=TOOL_VERSION)
 
-            install_methods.append(
-                tools.CondaPackage(TOOL_NAME, "bioconda", version=TOOL_VERSION))
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
             install_methods.append(
                 tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
                                                  os=mafft_os,

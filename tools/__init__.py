@@ -164,7 +164,7 @@ class CondaPackage(InstallMethod):
 
     def __init__(self, 
                  package, 
-                 channel, 
+                 channel="bioconda", 
                  executable=None, 
                  version="", 
                  verifycmd=None, verifycode=0, require_executability=True,
