@@ -16,7 +16,6 @@ url = 'https://github.com/wanpinglee/MOSAIK/archive/{commit_hash}.zip'
 log = logging.getLogger(__name__)
 
 
-#@tools.skip_install_test(condition=tools.is_osx)
 class MosaikTool(tools.Tool):
 
     def __init__(self):
@@ -24,11 +23,14 @@ class MosaikTool(tools.Tool):
         install_methods = []
         destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash))
         install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
-        #install_methods.append(
-        #    DownloadAndBuildMosaik(url.format(commit_hash=commit_hash,
-        #                                      os='source'),
-        #                           os.path.join(destination_dir, 'MOSAIK-{}'.format(commit_hash), 'bin', 'MosaikAligner'),
-        #                           destination_dir))
+        # mosaik tends to be difficult to build on a mac sans conda
+        # only use that install method if we are not on a mac
+        if os.uname()[0] != 'Darwin':
+            install_methods.append(
+               DownloadAndBuildMosaik(url.format(commit_hash=commit_hash,
+                                                 os='source'),
+                                      os.path.join(destination_dir, 'MOSAIK-{}'.format(commit_hash), 'bin', 'MosaikAligner'),
+                                      destination_dir))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
