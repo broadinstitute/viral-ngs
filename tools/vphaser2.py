@@ -13,13 +13,17 @@ import util.file
 
 log = logging.getLogger(__name__)
 
+TOOL_NAME = "vphaser2"
+TOOL_VERSION = "2.0"
 
 class Vphaser2Tool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
             path = _get_vphaser2_path()
-            install_methods = [tools.PrexistingUnixCommand(path)]
+            install_methods = []
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, inBam, outDir, numThreads=None): # pylint: disable=W0221
