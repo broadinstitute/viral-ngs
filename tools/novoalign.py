@@ -19,6 +19,9 @@ import stat
 
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "novoalign"
+TOOL_VERSION = "3.03.02"
+
 
 class NovoalignTool(tools.Tool):
 
@@ -30,6 +33,7 @@ class NovoalignTool(tools.Tool):
                 install_methods.append(tools.PrexistingUnixCommand(
                     os.path.join(novopath, 'novoalign'),
                     require_executability=True))
+        install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
