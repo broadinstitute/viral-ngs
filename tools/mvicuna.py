@@ -10,6 +10,9 @@ import util.file
 # BroadUnixPath = '/gsap/garage-viral/viral/analysis/xyang/programs'\
 #                 '/M-Vicuna/bin/mvicuna'
 
+TOOL_NAME = "mvicuna"
+TOOL_VERSION = "1.0"
+
 LOG = logging.getLogger(__name__)
 
 
@@ -18,7 +21,9 @@ class MvicunaTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             path = _get_mvicuna_path()
-            install_methods = [tools.PrexistingUnixCommand(path)]
+            install_methods = []
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def rmdup(self, inPair, outPair, outUnpaired=None):
