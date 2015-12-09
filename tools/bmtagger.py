@@ -7,6 +7,8 @@ import logging
 from tools import urlretrieve
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "bmtagger"
+TOOL_VERSION = "3.101"
 
 class BmtaggerTools(tools.Tool):
     '''
@@ -27,6 +29,7 @@ class BmtaggerTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         if install_methods is None:
             install_methods = []
+            install_methods.append(install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) ))
             install_methods.append(DownloadBmtagger(self.subtool_name))
         tools.Tool.__init__(self, install_methods=install_methods)
 
