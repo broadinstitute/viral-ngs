@@ -14,7 +14,9 @@ import tempfile
 import shutil
 import tools
 
+TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
+CONDA_TOOL_VERSION = "2.1.1"
 TRINITY_VERSION = "trinityrnaseq_r{}".format(TOOL_VERSION)
 url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(TRINITY_VERSION)
 
@@ -26,7 +28,9 @@ class TrinityTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl')]
+            install_methods = []
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION) )
+            install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
