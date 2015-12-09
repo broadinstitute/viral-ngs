@@ -71,6 +71,7 @@ class Tool(object):
         print(self.__class__)
         if not self.is_installed():
             for m in self.install_methods:
+
                 print(m)
                 if not m.is_attempted():
                     m.attempt_install()
@@ -200,7 +201,8 @@ class CondaPackage(InstallMethod):
             log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
-        InstallMethod.__init__(self)
+        #InstallMethod.__init__(self)
+        super(CondaPackage, self).__init__()
 
     @property
     def _package_str(self):
