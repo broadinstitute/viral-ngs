@@ -103,7 +103,7 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     if trimmomaticPath.endswith(".jar"):
         #  This java program has a lot of argments...
         javaCmd.extend(['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
-                   'org.usadellab.trimmomatic.TrimmomaticPE']
+                   'org.usadellab.trimmomatic.TrimmomaticPE'])
     else:
         javaCmd.extend([trimmomaticPath, "PE"])
 
