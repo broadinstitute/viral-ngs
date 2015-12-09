@@ -548,21 +548,22 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
     hits_files = []
-    record_iter = SeqIO.parse(open(fasta, "rt"), "fasta")
-    for batch in batch_iterator(record_iter, chunkSize):
-        chunk_fasta = mkstempfname('.fasta')
-        with open(chunk_fasta, "wt") as handle:
-            SeqIO.write(batch, handle, "fasta")
-        batch = None
+    with open(fasta, "rt") as fastaFile:
+        record_iter = SeqIO.parse(fastaFile, "fasta")
+        for batch in batch_iterator(record_iter, chunkSize):
+            chunk_fasta = mkstempfname('.fasta')
+            with open(chunk_fasta, "wt") as handle:
+                SeqIO.write(batch, handle, "fasta")
+            batch = None
 
-        chunk_hits = mkstempfname('.hits.txt')
-        blastnCmd = [blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs',
-                     '2', '-query', chunk_fasta, '-out', chunk_hits]
-        log.debug(' '.join(blastnCmd))
-        subprocess.check_call(blastnCmd)
+            chunk_hits = mkstempfname('.hits.txt')
+            blastnCmd = [blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs',
+                         '2', '-query', chunk_fasta, '-out', chunk_hits]
+            log.debug(' '.join(blastnCmd))
+            subprocess.check_call(blastnCmd)
 
-        os.unlink(chunk_fasta)
-        hits_files.append(chunk_hits)
+            os.unlink(chunk_fasta)
+            hits_files.append(chunk_hits)
 
     return hits_files
 
