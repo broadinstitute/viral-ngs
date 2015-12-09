@@ -215,13 +215,17 @@ class CondaPackage(InstallMethod):
     def executable_path(self):
         return os.path.join(self.bin_path, self.executable)
 
-    def is_installed(self):
+    @property
+    def _package_installed(self):
         result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True)
         if result.returncode == 0:
             data = json.loads(result.stdout.decode("UTF-8"))
             if len(data) > 0:
                 return True
         return False
+
+    def is_installed(self):
+        return self.installed
 
     def verify_install(self):
         if os.access(self.executable_path(), (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
@@ -237,7 +241,7 @@ class CondaPackage(InstallMethod):
     def _attempt_install(self):
         self.installed = self.is_installed()
 
-        if not self.installed:
+        if not self.verify_install():
             # try to create the environment and install the package
             result = util.misc.run_and_print(["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str], silent=True)
             data = json.loads(result.stdout.decode("UTF-8"))
