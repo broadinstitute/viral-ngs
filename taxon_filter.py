@@ -97,11 +97,19 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     tmpUnpaired1 = mkstempfname()
     tmpUnpaired2 = mkstempfname()
 
-    #  This java program has a lot of argments...
-    javaCmd = ['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
-               'org.usadellab.trimmomatic.TrimmomaticPE', inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1,
-               pairedOutFastq2, tmpUnpaired2, 'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
-               'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)]
+    javaCmd = []
+
+    # the conda version wraps the jar file with a shell script
+    if trimmomaticPath.endswith(".jar"):
+        #  This java program has a lot of argments...
+        javaCmd.extend(['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
+                   'org.usadellab.trimmomatic.TrimmomaticPE']
+    else:
+        javaCmd.extend([trimmomaticPath, "PE"])
+
+    javaCmd.extend([inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1,
+                   pairedOutFastq2, tmpUnpaired2, 'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
+                   'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)])
 
     log.debug(' '.join(javaCmd))
     subprocess.check_call(javaCmd)
