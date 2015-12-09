@@ -21,7 +21,9 @@ import subprocess
 from collections import OrderedDict
 #import pysam
 
+TOOL_NAME = 'samtools'
 TOOL_VERSION = '0.1.19'
+CONDA_TOOL_VERSION = '1.2'
 TOOL_URL = 'http://sourceforge.net/projects/samtools/files/samtools/' \
     + '{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
 
@@ -32,11 +34,11 @@ class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [
-                tools.DownloadPackage(TOOL_URL,
+            install_methods = []
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION) )
+            install_methods.append(tools.DownloadPackage(TOOL_URL,
                                       'samtools-{}/samtools'.format(TOOL_VERSION),
-                                      post_download_command='cd samtools-{}; make -s'.format(TOOL_VERSION))
-            ]
+                                      post_download_command='cd samtools-{}; make -s'.format(TOOL_VERSION)))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
