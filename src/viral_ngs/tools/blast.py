@@ -5,6 +5,8 @@ import os
 URL_PREFIX = 'ftp://ftp.ncbi.nlm.nih.gov/blast/executables' \
             '/blast+/2.2.29/ncbi-blast-2.2.29+-'
 
+TOOL_NAME = "blast"
+TOOL_VERSION = "2.2.31"
 
 def get_url():
     """ creates the download url for this tool """
@@ -32,11 +34,13 @@ class BlastTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         if install_methods is None:
             target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtool_name
-            install_methods = [tools.DownloadPackage(get_url(),
+            install_methods = []
+            install_methods.append(install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) ))
+            install_methods.append(tools.DownloadPackage(get_url(),
                                                      target_rel_path,
                                                      post_download_command=' '.join(
                                                          ['rm'] + ['ncbi-blast-2.2.29+/bin/' + f for f in unwanted]),
-                                                     post_download_ret=None)]
+                                                     post_download_ret=None))
         tools.Tool.__init__(self, install_methods=install_methods)
 
 
