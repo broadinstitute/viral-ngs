@@ -22,7 +22,7 @@ class MosaikTool(tools.Tool):
         os.environ['BLD_PLATFORM'] = get_build_env()
         install_methods = []
         destination_dir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash))
-        install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+        install_methods.append( tools.CondaPackage(TOOL_NAME, executable="MosaikAligner", version=TOOL_VERSION) )
         # mosaik tends to be difficult to build on a mac sans conda
         # only use that install method if we are not on a mac
         if os.uname()[0] != 'Darwin':

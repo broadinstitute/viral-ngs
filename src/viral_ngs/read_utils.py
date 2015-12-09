@@ -81,6 +81,7 @@ def fastq_to_fasta(inFastq, outFasta):
     outFile = util.file.open_or_gzopen(outFasta, 'w')
     for rec in SeqIO.parse(inFile, 'fastq'):
         SeqIO.write([rec], outFile, 'fasta')
+    inFile.close()
     outFile.close()
     return 0
 

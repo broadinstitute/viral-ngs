@@ -187,7 +187,7 @@ class CondaPackage(InstallMethod):
         # conda must be installed
         try:
             util.misc.run_and_print(["conda", "-h"], silent=True)
-            log.debug("conda is installed")
+            #log.debug("conda is installed")
         except:  
             log.error("conda must be installed")
             raise
