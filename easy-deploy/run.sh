@@ -143,6 +143,10 @@ echo $' |                  |___/             |_|            |___/   | '
 echo $' |                                                           | '
 echo $' +-----------------------------------------------------------+ '
 echo  '    Hosts known to work: OSX 10.10 and Ubuntu 15.04 x64        '
+
+# cd to directory of this file so we are in the same location as the Vagrantfile
+cd ${0%/*}
+
 relevant_commands='ansible vagrant VirtualBox'
 
 if ! [ $(uname -m) == 'x86_64' ]; then
