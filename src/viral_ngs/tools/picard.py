@@ -14,7 +14,6 @@ import util.file
 
 TOOL_NAME = "picard"
 TOOL_VERSION = '1.126'
-CONDA_TOOL_VERSION = '1.141'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: Version 1.126 is latest as of 2014-12-02
@@ -33,7 +32,7 @@ class PicardTools(tools.Tool):
         if install_methods is None:
             target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=CONDA_TOOL_VERSION) )
+            install_methods.append( tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION) )
             install_methods.append(tools.DownloadPackage(TOOL_URL, target_rel_path, require_executability=False))
         tools.Tool.__init__(self, install_methods=install_methods)
 
