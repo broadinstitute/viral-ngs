@@ -9,6 +9,9 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "bwa"
+TOOL_VERSION = "0.7.12"
+
 # magic vars for now, later can set with config variables
 # legacy version is version used in pipeline recipes (see old_scripts dir)
 # current is lates version as of 8/27/2014
@@ -28,6 +31,7 @@ class Bwa(tools.Tool):
         LOG.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
+            install_methods.append(install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) ))
             install_methods.append(tools.DownloadPackage(
                 URL,
                 os.path.join(BWA_DIR, 'bwa'),
