@@ -10,7 +10,8 @@ import os
 import os.path
 import subprocess
 
-TOOL_VERSION = '3.8.31'
+TOOL_NAME = "muscle"
+TOOL_VERSION = '3.8.1551'
 TOOL_URL = 'http://www.drive5.com/muscle/downloads{ver}/muscle{ver}_{os}.tar.gz'
 
 LOG = logging.getLogger(__name__)
@@ -21,6 +22,9 @@ class MuscleTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
+
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
                 install_methods.append(
