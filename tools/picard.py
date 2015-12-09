@@ -29,7 +29,7 @@ class PicardTools(tools.Tool):
 
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
-        
+
         if install_methods is None:
             target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
             install_methods = []
@@ -45,8 +45,14 @@ class PicardTools(tools.Tool):
 
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                   self.install_and_get_path(), command] + picardOptions
+
+        # the conda version wraps the jar file with a shell script
+        if self.install_and_get_path().endswith(".jar"):
+            tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
+                       self.install_and_get_path(), command] + picardOptions
+        else:
+            tool_cmd = [self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir,
+                       command] + picardOptions
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
