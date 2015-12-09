@@ -11,8 +11,11 @@ import os.path
 import subprocess
 
 TOOL_NAME = "muscle"
-TOOL_VERSION = '3.8.1551'
+TOOL_VERSION = '3.8.31'
+CONDA_TOOL_VERSION = '3.8.1551'
 TOOL_URL = 'http://www.drive5.com/muscle/downloads{ver}/muscle{ver}_{os}.tar.gz'
+
+UNRELEASED_URL = 'http://www.drive5.com/muscle/muscle_src_3.8.1551.tar.gz'
 
 LOG = logging.getLogger(__name__)
 
@@ -23,7 +26,7 @@ class MuscleTool(tools.Tool):
         if install_methods is None:
             install_methods = []
 
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append( tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION) )
 
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
@@ -33,9 +36,15 @@ class MuscleTool(tools.Tool):
                                           'muscle{}_{}'.format(TOOL_VERSION, muscle_os),
                                           verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
                                               util.file.get_build_path(), TOOL_VERSION, muscle_os)))
+            # install_methods.append(
+            #     tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
+            #                                      os=muscle_os),
+            #                           'muscle{}/src/muscle'.format(TOOL_VERSION),
+            #                           post_download_command='cd muscle{}/src; make -s'.format(TOOL_VERSION),
+            #                           verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
+            #                               util.file.get_build_path(), TOOL_VERSION)))
             install_methods.append(
-                tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
-                                                 os=muscle_os),
+                tools.DownloadPackage(UNRELEASED_URL,
                                       'muscle{}/src/muscle'.format(TOOL_VERSION),
                                       post_download_command='cd muscle{}/src; make -s'.format(TOOL_VERSION),
                                       verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
