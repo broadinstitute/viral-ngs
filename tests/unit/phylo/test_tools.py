@@ -38,7 +38,11 @@ class TestToolsInstallation(TestCaseWithTmp):
         '''Load every tool's default chain of install methods and try them.'''
         for tool_class in iter_leaf_subclasses(tools.Tool):
             t = tool_class()
-            t.install()
-            self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
-            log.info(".. installation of %s succeeded with installer %s" %
-                     (tool_class.__name__, t.installed_method.__class__.__name__))
+            if hasattr(t, "is_installed"):
+                t.install()
+                self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
+                log.info(".. installation of %s succeeded with installer %s" %
+                         (tool_class.__name__, t.installed_method.__class__.__name__))
+            else:
+                print(tool_class.__name__)
+                print(t.installed_method.__class__.__name__)
