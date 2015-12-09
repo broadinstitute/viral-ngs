@@ -41,7 +41,8 @@ class BlastTools(tools.Tool):
                                                      post_download_command=' '.join(
                                                          ['rm'] + ['ncbi-blast-2.2.29+/bin/' + f for f in unwanted]),
                                                      post_download_ret=None))
-        tools.Tool.__init__(self, install_methods=install_methods)
+        #tools.Tool.__init__(self, install_methods=install_methods)
+        super(BlastTools, self).__init__(install_methods=install_methods)
 
 
 class BlastnTool(BlastTools):
