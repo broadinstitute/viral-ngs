@@ -86,6 +86,7 @@ class TestFastqBam(TestCaseWithTmp):
         inHeader = os.path.join(myInputDir, 'inHeader.txt')
         expected1_7Sam = os.path.join(myInputDir, 'expected.java1_7.sam')
         expected1_8Sam = os.path.join(myInputDir, 'expected.java1_8.sam')
+        expected1_8Sam_v15 = os.path.join(myInputDir, 'expected.java1_8_v1.5.sam')
         expectedFastq1 = os.path.join(myInputDir, 'expected.fastq1')
         outBamCmd = util.file.mkstempfname('.bam')
         outBamTxt = util.file.mkstempfname('.bam')
@@ -118,6 +119,9 @@ class TestFastqBam(TestCaseWithTmp):
                                     expected1_7Sam,
                                     shallow=False) or filecmp.cmp(outSam,
                                                                   expected1_8Sam,
+                                                                  shallow=False) or
+                                                      filecmp.cmp(outSam,
+                                                                  expected1_8Sam_v15,
                                                                   shallow=False))
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
