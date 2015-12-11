@@ -126,7 +126,7 @@
       when: deploy == "sync"
 
     - name: copy viral-ngs config.yaml
-      command: "cp {{ project_dir }}/pipes/config.yampl  {{ home_dir }}/config.yaml" # {{ data_dir }}/config.yaml
+      command: "cp {{ project_dir }}/pipes/config.yaml  {{ home_dir }}/config.yaml" # {{ data_dir }}/config.yaml
       args:
         chdir: "{{ home_dir }}"
         creates: "{{ data_dir }}/config.yaml"
