@@ -1,0 +1,62 @@
+email_point_of_contact_for_ncbi: "someone@example.com"
+accessions_for_ref_genome_build: 
+  - "KJ660346.2"
+accessions_file_for_lastal_db_build: ""
+bmtagger_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
+bmtagger_dbs_remove: 
+  - "hg19"
+  - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
+  - "metagenomics_contaminants_v3"
+blast_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
+blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
+trim_clip_db: "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta"
+spikeins_db: "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta"
+env_vars: 
+  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af"
+  NOVOALIGN_PATH: "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
+seq_center: "BI"
+genbank: 
+  author_template: "NCBI/authors.sbt"
+  source_modifier_table: "NCBI/sample_meta.src"
+  biosample_map: "NCBI/biosample-map.txt"
+  sequencing_technology: "Illumina HiSeq 2500; Nextera LC"
+  comment: "Please be aware that the annotation is done automatically with little or no manual curation."
+project: "viral_ngs"
+data_dir: "data"
+tmp_dir: "tmp"
+log_dir: "log"
+reports_dir: "reports"
+bin_dir: "bin"
+venv_dir: "venv"
+ref_genome_dir: "ref_genome"
+lastal_ref_db_dir: "lastal_db"
+seqruns_demux: "flowcells.txt"
+samples_depletion: "samples-depletion.txt"
+samples_assembly: "samples-assembly.txt"
+samples_assembly_failures: "samples-assembly-failures.txt"
+samples_per_run: "samples-runs.txt"
+assembly_min_length_fraction_of_reference: 0.9
+assembly_min_unambig: 0.95
+number_of_threads: 8
+mafft_ep: 0.123
+mafft_maxiters: 1000
+trinity_n_reads: 100000
+LSF_queues: 
+  short: "-W 4:00"
+  long: "-q forest"
+  bigmem: "-q flower"
+UGER_queues: 
+  short: "-q short"
+  long: "-q long"
+subdirs: 
+  demux: "00_demux"
+  source: "00_raw"
+  depletion: "01_cleaned"
+  per_sample: "01_per_sample"
+  assembly: "02_assembly"
+  align_self: "02_align_to_self"
+  align_ref: "03_align_to_ref"
+  multialign_ref: "03_multialign_to_ref"
+  interhost: "03_interhost"
+  intrahost: "04_intrahost"
+  annot: "05_genbank"

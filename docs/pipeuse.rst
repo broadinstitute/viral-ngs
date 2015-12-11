@@ -73,10 +73,10 @@ directory:
 
 ::
 
-    config.json
+    config.yaml
     Snakefile
 
-Since the file ``config.json`` is project-specific, you will need to
+Since the file ``config.yaml`` is project-specific, you will need to
 make changes to it as approprate for your usage. The config file changes
 are described in greater detail below.
 
@@ -111,7 +111,7 @@ the Snakemake pipeline:
     tmp/
 
 The directory structure created needs to match the locations specified
-in ``config.json``.
+in ``config.yaml``.
 
 Adding input data
 ~~~~~~~~~~~~~~~~~
@@ -135,7 +135,7 @@ Adding input data
 -  Create a blank file, ``samples-assembly-failures.txt``, that may be
    filled in later.
 
-Modifying the ``config.json`` file
+Modifying the ``config.yaml`` file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Minimal modification to the config file is necessary, though there are a
@@ -147,7 +147,7 @@ API <http://www.ncbi.nlm.nih.gov/books/NBK25501/>`__:
 
 ::
 
-    "email_point_of_contact_for_ncbi" : "someone@example.com"
+    email_point_of_contact_for_ncbi: "someone@example.com"
 
 The path to the depletion databases to be used by BMTagger, along with
 the file prefixes of the specific databases to use. The process for
@@ -156,12 +156,11 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
 
 ::
 
-    "bmtagger_db_dir":  "/path/to/depletion_databases",
-    "bmtagger_dbs_remove": [
-        "hg19",
-        "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA",
-        "metagenomics_contaminants_v3"
-    ]
+    bmtagger_db_dir: "/path/to/depletion_databases"
+    bmtagger_dbs_remove: 
+      - "hg19"
+      - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
+      - "metagenomics_contaminants_v3"
 
 In addition to the databases used by BMTagger, you will need to specify
 the location and file prefix of the BLAST database to be used for
@@ -174,8 +173,8 @@ from the University of Oxford.
 
 ::
 
-    "blast_db_dir":     "/path/to/depletion_databases",
-    "blast_db_remove": "metag_v3.ncRNA.mRNA.mitRNA.consensus",
+    blast_db_dir: "/path/to/depletion_databases"
+    blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
 
 An array of the `NCBI GenBank
 CoreNucleotide <http://www.ncbi.nlm.nih.gov/nuccore/>`__ accessions for
@@ -186,7 +185,8 @@ to represent the full reference genome file used downstream.
 
 ::
 
-    "accessions_for_ref_genome_build": ["KJ660346.2"],
+    accessions_for_ref_genome_build: 
+      - "KJ660346.2"
 
 An optional file containing a list of accessions may be specified for 
 filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is 
@@ -195,20 +195,20 @@ defaults to using the accessions specified for the reference genome.
 
 ::
 
-    "accessions_file_for_lastal_db_build": "/path/to/lastal_accessions.txt",  
+    accessions_file_for_lastal_db_build: "/path/to/lastal_accessions.txt"  
 
 A FASTA file to be used by Trimmomatic during assembly to remove
 contaminents from reads:
 
 ::
 
-    "trim_clip_db":    "/path/to/depletion_databases/contaminants.fasta",
+    trim_clip_db: "/path/to/depletion_databases/contaminants.fasta"
 
 A FASTA file containing spike-ins to be reported:
 
 ::
 
-    "spikeins_db":     "/path/to/references/ercc_spike-ins.fasta",
+    spikeins_db: "/path/to/references/ercc_spike-ins.fasta"
 
 Modifying the ``Snakefile``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -238,7 +238,7 @@ After the above setup is complete, run the pipeline directly by calling
 Running the pipeline on GridEngine (UGER)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Within ``config.json``, set the "project" to one that exists on the
+Within ``config.yaml``, set the "project" to one that exists on the
 cluster system.
 
 Inside the analysis directory, run the job submission command. Ex.:
