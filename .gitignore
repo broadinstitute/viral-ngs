@@ -58,6 +58,7 @@ test/input/TestVPhaser2/in.bam.bti
 easy-deploy/data/Snakefile
 
 easy-deploy/data/config.json
+easy-deploy/data/config.yaml
 
 easy-deploy/data/viral-ngs/
 

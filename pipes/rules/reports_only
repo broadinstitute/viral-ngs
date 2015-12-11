@@ -6,7 +6,7 @@ __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os
 
-configfile: "config.json"
+configfile: "config.yaml"
 
 def read_file(fname):
     with open(fname, 'rt') as inf:

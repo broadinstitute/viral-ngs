@@ -2,13 +2,13 @@
     This performs reference-assisted assembly of viral genomes, starting
     from fastqs produced directly from MiSeq machines.
     
-    Make copies of this Snakefile and config.json to your analysis directory and
+    Make copies of this Snakefile and config.yaml to your analysis directory and
     customize as needed.
     
     This operates on the SampleSheet.csv file that is used as input to the MiSeq
     machine and all of the fastq files that are emitted by that machine. Put
     the SampleSheet.csv in the project directory and put the fastq files in a
-    subdirectory called "data". Copy the config.json to the project directory.
+    subdirectory called "data". Copy the config.yaml to the project directory.
     Then type "ref_assisted" and wait a few hours for aligned BAMs, VCFs, and
     FASTAs.
     
@@ -19,7 +19,7 @@ __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os, os.path, time, hashlib, base64
 
-configfile: "config.json"
+configfile: "config.yaml"
 
 for k,v in config.get('env_vars', {}).items():
     os.environ[k] = v
