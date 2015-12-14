@@ -70,11 +70,8 @@ class Tool(object):
         return (self.installed_method is not None)
 
     def install(self):
-        print(self.__class__)
         if not self.is_installed():
             for m in self.install_methods:
-
-                print(m)
                 if not m.is_attempted():
                     m.attempt_install()
                 if m.is_installed():
