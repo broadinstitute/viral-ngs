@@ -65,9 +65,7 @@ class Megan(tools.Tool):
         return os.path.join(self.data_dir, 'gi_taxid-March2015X.bin')
 
     def execute(self, commands, memory=None, shell=False):
-        with tempfile.NamedTemporaryFile(mode='w',
-                                         prefix='megan_commands_',
-                                         suffix='.txt') as command_file:
+        with tempfile.NamedTemporaryFile(mode='w', prefix='megan_commands_', suffix='.txt') as command_file:
             command_file.write(commands)
             command_file.flush()
 
@@ -77,8 +75,8 @@ class Megan(tools.Tool):
             # Changing mem dynamically like this actually requires a slightly
             # modified version of MEGAN to work.
             env['INSTALL4J_ADD_VM_PARAMS'] = '-Xmx{}'.format(memory)
-            megan_cmd = [megan, '--commandLineMode', '--licenseFile',
-                         self.license_file, '--commandFile', command_file.name]
+            megan_cmd = [megan, '--commandLineMode', '--licenseFile', self.license_file, '--commandFile',
+                         command_file.name]
             if os.uname()[0] == 'Darwin':
                 # OS X is an Aqua app which ignores $DISPLAY so we're going to
                 # have to open the GUI.
@@ -100,9 +98,7 @@ class Megan(tools.Tool):
         # We don't really care about the megan file since it's an on disk cache
         # of the imported blast file to make future imports faster. We just
         # want to do one shot analysis
-        with tempfile.NamedTemporaryFile(
-            prefix='megan_',
-            suffix='.rma') as megan_file:
+        with tempfile.NamedTemporaryFile(prefix='megan_', suffix='.rma') as megan_file:
             commands = SPECIES_PROJECTION.format(
                 gi_taxid=self.gi_taxid,
                 blast_file=blast_file,

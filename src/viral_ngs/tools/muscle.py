@@ -26,13 +26,13 @@ class MuscleTool(tools.Tool):
         if install_methods is None:
             install_methods = []
 
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
 
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
                 install_methods.append(
                     tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
-                                                     os=muscle_os),
+                                                          os=muscle_os),
                                           'muscle{}_{}'.format(TOOL_VERSION, muscle_os),
                                           verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
                                               util.file.get_build_path(), TOOL_VERSION, muscle_os)))

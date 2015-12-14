@@ -12,8 +12,8 @@ import json
 
 try:
     # Python 3.x
-    from urllib.request import urlretrieve # pylint: disable=E0611
-    from urllib.parse import urlparse # pylint: disable=E0611
+    from urllib.request import urlretrieve  # pylint: disable=E0611
+    from urllib.parse import urlparse  # pylint: disable=E0611
 except ImportError:
     # Python 2.x
     from urllib import urlretrieve
@@ -39,11 +39,13 @@ def get_tool_by_name(name):
 
 def skip_install_test(condition=None):
     '''Decorate the Tool class to skip the installation test.'''
+
     def decorator(klass):
         if callable(condition) and not condition():
             return klass
         klass._skiptest = True
         return klass
+
     return decorator
 
 
@@ -129,6 +131,7 @@ class InstallMethod(object):
     def executable_path(self):
         raise NotImplementedError
 
+
 class PrexistingUnixCommand(InstallMethod):
     ''' This is an install method that tries to find whether an executable
         binary already exists for free on the unix file system--it doesn't
@@ -160,30 +163,31 @@ class PrexistingUnixCommand(InstallMethod):
     def executable_path(self):
         return self.installed and self.path or None
 
+
 class CondaPackage(InstallMethod):
     ''' This is an install method for tools that can be installed via 
         conda.
     '''
 
-    def __init__(self, 
-                 package, 
-                 channel="bioconda", 
-                 executable=None, 
-                 version="", 
+    def __init__(self,
+                 package,
+                 channel="bioconda",
+                 executable=None,
+                 version="",
                  verifycmd=None, verifycode=0, require_executability=True,
                  env_path=None):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
-        self.package    = package        
-        self.channel    = channel
-        self.version    = version
+        self.package = package
+        self.channel = channel
+        self.version = version
 
         self.verifycmd = verifycmd
         self.verifycode = verifycode
         self.require_executability = require_executability
 
         env_path = env_path or os.path.join(util.file.get_build_path(), 'conda-tools')
-        self.env_path   = os.path.realpath(os.path.expanduser(env_path))
+        self.env_path = os.path.realpath(os.path.expanduser(env_path))
 
         self.installed = False
 
@@ -191,13 +195,13 @@ class CondaPackage(InstallMethod):
         try:
             util.misc.run_and_print(["conda", "-h"], silent=True)
             #log.debug("conda is installed")
-        except:  
+        except:
             log.error("conda must be installed")
             raise
 
         try:
             util.misc.run_and_print(["conda", "build", "-h"], silent=True)
-        except:  
+        except:
             log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
@@ -247,13 +251,17 @@ class CondaPackage(InstallMethod):
 
         if not self.verify_install():
             # try to create the environment and install the package
-            result = util.misc.run_and_print(["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str], silent=True)
+            result = util.misc.run_and_print(["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p",
+                                              self.env_path, self._package_str],
+                                             silent=True)
             data = json.loads(result.stdout.decode("UTF-8"))
             if "error" in data.keys() and "prefix already exists" in data["error"]:
                 # the environment already exists
                 # the package may not be installed...
-                log.debug("Conda environment already exists...")                
-                result = util.misc.run_and_print(["conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path, self._package_str], silent=True)
+                log.debug("Conda environment already exists...")
+                result = util.misc.run_and_print(["conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p",
+                                                  self.env_path, self._package_str],
+                                                 silent=True)
                 if result.returncode == 0:
                     data = json.loads(result.stdout.decode("UTF-8"))
                     if data["success"] == True:
@@ -266,6 +274,7 @@ class CondaPackage(InstallMethod):
                     if self.is_installed():
                         # set self.installed = True
                         self.verify_install()
+
 
 class DownloadPackage(InstallMethod):
     ''' This is an install method for downloading, unpacking, and post-

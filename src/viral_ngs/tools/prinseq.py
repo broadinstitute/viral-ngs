@@ -14,8 +14,8 @@ class PrinseqTool(tools.Tool):
         if install_methods is None:
             install_methods = []
 
-            install_methods.append( tools.CondaPackage(TOOL_NAME, executable="prinseq-lite.pl", version=TOOL_VERSION) )
-            
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="prinseq-lite.pl", version=TOOL_VERSION))
+
             target_rel_path = 'prinseq-lite-{ver}/prinseq-lite.pl'.format(ver=TOOL_VERSION)
             install_methods.append(
                 tools.DownloadPackage(TOOL_URL,

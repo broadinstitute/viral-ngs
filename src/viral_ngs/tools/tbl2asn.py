@@ -59,6 +59,7 @@ class Tbl2AsnTool(tools.Tool):
         subprocess.check_call(tool_cmd)
     # pylint: enable=W0221
 
+
 def get_bintype():
     uname = os.uname()
     if uname[0] == 'Darwin':
