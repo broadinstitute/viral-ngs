@@ -157,7 +157,7 @@ class Kraken(tools.Tool):
                     if x is not None])
         cmd.extend(shlex.split(option_string))
         cmd.extend(args)
-        log.debug('Calling {}: {}'.format(command, ' '.join(cmd)))
+        log.debug('Calling %s: %s', command, ' '.join(cmd) )
         return util.misc.run_and_print(cmd, env=env)
 
 
@@ -177,6 +177,6 @@ class DownloadAndInstallKraken(tools.DownloadPackage):
         util.misc.run_and_print(['./install_kraken.sh', 'libexec'],
                                 cwd=kraken_dir, env=env)
         util.file.mkdir_p(bin_dir)
-        for bin in Kraken.BINS:
-            libexec_bin = os.path.join(libexec_dir, bin)
-            os.symlink(libexec_bin, os.path.join(bin_dir, bin))
+        for bin_name in Kraken.BINS:
+            libexec_bin = os.path.join(libexec_dir, bin_name)
+            os.symlink(libexec_bin, os.path.join(bin_dir, bin_name))
