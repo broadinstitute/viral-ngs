@@ -3,7 +3,7 @@
     tailored for EBOV. Some generalization work needed to expand this
     to generic viral genomes with an arbitrary number of segments/chromosomes.
     
-    Make copies of this Snakefile and config.json to your analysis directory and
+    Make copies of this Snakefile and config.yaml to your analysis directory and
     customize as needed.
 """
 
@@ -11,7 +11,7 @@ __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os
 
-configfile: "config.json"
+configfile: "config.yaml"
 pipesDir = os.path.join(os.path.expanduser(config['bin_dir']), 'pipes', 'rules')
 
 include: os.path.join(pipesDir, 'common.rules')
