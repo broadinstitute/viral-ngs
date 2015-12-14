@@ -30,11 +30,10 @@ log = logging.getLogger(__name__)
 
 
 class Yaggo(tools.Tool):
+
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [
-                DownloadAndInstallYaggo(
-                    YAGGO_URL, 'yaggo')]
+            install_methods = [DownloadAndInstallYaggo(YAGGO_URL, 'yaggo')]
         super().__init__(install_methods=install_methods)
 
 
@@ -42,8 +41,7 @@ class DownloadAndInstallYaggo(tools.DownloadPackage):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.verifycmd = '{}/yaggo -v > /dev/null 2>& 1'.format(
-            util.file.get_build_path())
+        self.verifycmd = '{}/yaggo -v > /dev/null 2>& 1'.format(util.file.get_build_path())
 
     def post_download(self):
         yaggo_path = os.path.join(self.destination_dir, 'yaggo')
@@ -51,12 +49,13 @@ class DownloadAndInstallYaggo(tools.DownloadPackage):
 
 
 class Jellyfish(tools.Tool):
+
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [
                 DownloadAndInstallJellyfish(
-                    JELLYFISH_URL,
-                    os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish'))]
+                    JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish'))
+            ]
         super().__init__(install_methods=install_methods)
 
 
@@ -68,39 +67,24 @@ class DownloadAndInstallJellyfish(tools.DownloadPackage):
         env['PATH'] = '{}:{}'.format(os.path.dirname(yaggo_path), env['PATH'])
         jellyfish_dir = os.path.join(self.destination_dir, JELLYFISH_DIR)
 
-        shutil.move(os.path.join(self.destination_dir, JELLYFISH_COMMIT_DIR),
-                    jellyfish_dir)
+        shutil.move(os.path.join(self.destination_dir, JELLYFISH_COMMIT_DIR), jellyfish_dir)
 
         install_dir = os.path.join(jellyfish_dir, 'local')
         util.file.replace_in_file(
-            os.path.join(jellyfish_dir, 'Makefile.am'),
-            'AM_CXXFLAGS = -g -O3',
+            os.path.join(jellyfish_dir, 'Makefile.am'), 'AM_CXXFLAGS = -g -O3',
             'AM_CXXFLAGS = -g -O3 -Wno-maybe-uninitialized')
-        util.misc.run_and_print(['autoreconf', '-i'], cwd=jellyfish_dir,
-                                env=env)
-        util.misc.run_and_print(
-            ['./configure', '--prefix={}'.format(install_dir)],
-            cwd=jellyfish_dir, env=env)
+        util.misc.run_and_print(['autoreconf', '-i'], cwd=jellyfish_dir, env=env)
+        util.misc.run_and_print(['./configure', '--prefix={}'.format(install_dir)], cwd=jellyfish_dir, env=env)
         util.misc.run_and_print(['make', 'install'], cwd=jellyfish_dir, env=env)
 
 
 class Kraken(tools.Tool):
 
-    BINS = [
-        'kraken',
-        'kraken-build',
-        'kraken-filter',
-        'kraken-mpa-report',
-        'kraken-report',
-        'kraken-translate'
-    ]
+    BINS = ['kraken', 'kraken-build', 'kraken-filter', 'kraken-mpa-report', 'kraken-report', 'kraken-translate']
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [
-                DownloadAndInstallKraken(
-                    URL,
-                    os.path.join(KRAKEN_DIR, 'bin', 'kraken'))]
+            install_methods = [DownloadAndInstallKraken(URL, os.path.join(KRAKEN_DIR, 'bin', 'kraken'))]
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -118,8 +102,7 @@ class Kraken(tools.Tool):
             taxonomy/ subdirectories to build from.
           *args: List of input filenames to process.
         '''
-        return self.execute('kraken-build', db, options=options,
-                            option_string=option_string)
+        return self.execute('kraken-build', db, options=options, option_string=option_string)
 
     def classify(self, db, args=None, options=None, option_string=None):
         """Classify input fasta/fastq
@@ -129,8 +112,7 @@ class Kraken(tools.Tool):
           args: List of input filenames to process.
         """
         assert len(args), 'Kraken requires input filenames.'
-        return self.execute('kraken', db, args=args, options=options,
-                            option_string=option_string)
+        return self.execute('kraken', db, args=args, options=options, option_string=option_string)
 
     def execute(self, command, db, args=None, options=None, option_string=None):
         '''Run a kraken-* command.
@@ -148,16 +130,14 @@ class Kraken(tools.Tool):
 
         jellyfish_path = Jellyfish().install_and_get_path()
         env = os.environ.copy()
-        env['PATH'] = '{}:{}'.format(
-            os.path.dirname(jellyfish_path), env['PATH'])
+        env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path), env['PATH'])
         cmd = [os.path.join(self.libexec, command), '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
-        cmd.extend([str(x) for x in itertools.chain(*options.items())
-                    if x is not None])
+        cmd.extend([str(x) for x in itertools.chain(*options.items()) if x is not None])
         cmd.extend(shlex.split(option_string))
         cmd.extend(args)
-        log.debug('Calling %s: %s', command, ' '.join(cmd) )
+        log.debug('Calling %s: %s', command, ' '.join(cmd))
         return util.misc.run_and_print(cmd, env=env)
 
 
@@ -166,16 +146,13 @@ class DownloadAndInstallKraken(tools.DownloadPackage):
     def post_download(self):
         jellyfish_path = Jellyfish().install_and_get_path()
         env = os.environ.copy()
-        env['PATH'] = '{}:{}'.format(
-            os.path.dirname(jellyfish_path), env['PATH'])
+        env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path), env['PATH'])
         kraken_dir = os.path.join(self.destination_dir, KRAKEN_DIR)
 
-        shutil.move(os.path.join(self.destination_dir, KRAKEN_COMMIT_DIR),
-                    kraken_dir)
+        shutil.move(os.path.join(self.destination_dir, KRAKEN_COMMIT_DIR), kraken_dir)
         libexec_dir = os.path.join(kraken_dir, 'libexec')
         bin_dir = os.path.join(kraken_dir, 'bin')
-        util.misc.run_and_print(['./install_kraken.sh', 'libexec'],
-                                cwd=kraken_dir, env=env)
+        util.misc.run_and_print(['./install_kraken.sh', 'libexec'], cwd=kraken_dir, env=env)
         util.file.mkdir_p(bin_dir)
         for bin_name in Kraken.BINS:
             libexec_bin = os.path.join(libexec_dir, bin_name)

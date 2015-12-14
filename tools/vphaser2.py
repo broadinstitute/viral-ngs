@@ -16,17 +16,18 @@ log = logging.getLogger(__name__)
 TOOL_NAME = "vphaser2"
 TOOL_VERSION = "2.0"
 
+
 class Vphaser2Tool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
             path = _get_vphaser2_path()
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, inBam, outDir, numThreads=None): # pylint: disable=W0221
+    def execute(self, inBam, outDir, numThreads=None):  # pylint: disable=W0221
         cmd = [self.install_and_get_path(), '-i', inBam, '-o', outDir]
         cmd_str = ' '.join(cmd)
         envCopy = os.environ.copy()
@@ -87,8 +88,6 @@ def _get_vphaser2_path():
     binariesPath = util.file.get_binaries_path()
     return os.path.join(binariesPath, 'V-Phaser-2.0', osName, 'variant_caller')
 
-
-
 # Process used to get the files in binaries/V-Phaser-2.0:
 
 # wget http://www.broadinstitute.org/software/viral/v_phaser_2/v_phaser_2.zip
@@ -98,7 +97,6 @@ def _get_vphaser2_path():
 # Create linux64 and MacOSX subdirectories
 
 # On mac, gcc-4.9 and boost were installed using brew.
-
 
 # # CMake
 # on linux, "use CMake" (perhaps instead download from www.cmake.org/download)
@@ -126,4 +124,3 @@ def _get_vphaser2_path():
 # # Cleanup
 # delete all bamtools stuff
 # delete all boost stuff
-

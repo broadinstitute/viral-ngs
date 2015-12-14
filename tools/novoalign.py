@@ -33,7 +33,7 @@ class NovoalignTool(tools.Tool):
                 install_methods.append(tools.PrexistingUnixCommand(
                     os.path.join(novopath, 'novoalign'),
                     require_executability=True))
-        install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -54,7 +54,7 @@ class NovoalignTool(tools.Tool):
             raise ValueError('input file %s must end with .fasta' % fasta)
         return fasta[:-6] + '.nix'
 
-    def execute(self, inBam, refFasta, outBam, options=None, min_qual=0, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, refFasta, outBam, options=None, min_qual=0, JVMmemory=None):  # pylint: disable=W0221
         ''' Execute Novoalign on BAM inputs and outputs.
             If the BAM contains multiple read groups, break up
             the input and perform Novoalign separately on each one
@@ -101,15 +101,14 @@ class NovoalignTool(tools.Tool):
             for bam in align_bams:
                 os.unlink(bam)
 
-    def align_one_rg_bam(self, inBam, refFasta, outBam,
-                         rgid=None, options=None, min_qual=0, JVMmemory=None):
+    def align_one_rg_bam(self, inBam, refFasta, outBam, rgid=None, options=None, min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             Requires that only one RG exists (will error otherwise).
             Use Picard to sort and index the output BAM.
             If min_qual>0, use Samtools to filter on mapping quality.
         '''
         options = options or ["-r", "Random"]
-        
+
         samtools = tools.samtools.SamtoolsTool()
 
         # Require exactly one RG

@@ -36,13 +36,13 @@ class GATKTool(tools.Tool):
                     require_executability=False))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, command, gatkOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, command, gatkOptions=None, JVMmemory=None):  # pylint: disable=W0221
         gatkOptions = gatkOptions or []
 
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
         tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                   self.install_and_get_path(), '-T', command] + list(map(str, gatkOptions))
+                    self.install_and_get_path(), '-T', command] + list(map(str, gatkOptions))
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
@@ -59,9 +59,7 @@ class GATKTool(tools.Tool):
         cmd = ['java', '-jar', self.install_and_get_path(), '--version']
         self.tool_version = util.misc.run_and_print(cmd).stdout.strip()
 
-    def ug(self, inBam, refFasta, outVcf,
-            options=None,
-            JVMmemory=None, threads=1):
+    def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=1):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
 
         if int(threads) < 1:

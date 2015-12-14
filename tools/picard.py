@@ -30,16 +30,17 @@ class PicardTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
 
         if install_methods is None:
-            target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+
+            target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
             install_methods.append(tools.DownloadPackage(TOOL_URL, target_rel_path, require_executability=False))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, command, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if JVMmemory is None:
@@ -48,10 +49,10 @@ class PicardTools(tools.Tool):
         # the conda version wraps the jar file with a shell script
         if self.install_and_get_path().endswith(".jar"):
             tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                       self.install_and_get_path(), command] + picardOptions
+                        self.install_and_get_path(), command] + picardOptions
         else:
             tool_cmd = [self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir,
-                       command] + picardOptions
+                        command] + picardOptions
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
@@ -63,7 +64,7 @@ class PicardTools(tools.Tool):
 class RevertSamTool(PicardTools):
     subtoolName = 'RevertSam'
 
-    def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
         opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
@@ -72,7 +73,7 @@ class RevertSamTool(PicardTools):
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
-    def execute(self, inBams, outBam, outMetrics=None, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBams, outBam, outMetrics=None, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if not outMetrics:
@@ -84,7 +85,7 @@ class MarkDuplicatesTool(PicardTools):
 class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
 
-    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + inBam, 'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'VALIDATION_STRINGENCY=SILENT'
@@ -101,7 +102,7 @@ class SamToFastqTool(PicardTools):
 class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
 
-    def execute(self, inFastq1, inFastq2, sampleName, outBam, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inFastq1, inFastq2, sampleName, outBam, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if inFastq2:
@@ -116,7 +117,7 @@ class SortSamTool(PicardTools):
     valid_sort_orders = ['unsorted', 'queryname', 'coordinate']
     default_sort_order = 'coordinate'
 
-    def execute(self, inBam, outBam, sort_order=default_sort_order, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, outBam, sort_order=default_sort_order, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if sort_order not in self.valid_sort_orders:
@@ -128,7 +129,7 @@ class SortSamTool(PicardTools):
 class MergeSamFilesTool(PicardTools):
     subtoolName = 'MergeSamFiles'
 
-    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam]
@@ -143,7 +144,7 @@ class FilterSamReadsTool(PicardTools):
     subtoolName = 'FilterSamReads'
     jvmMemDefault = '4g'
 
-    def execute(self, inBam, exclude, readList, outBam, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, exclude, readList, outBam, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if os.path.getsize(readList) == 0:
@@ -174,7 +175,7 @@ class CreateSequenceDictionaryTool(PicardTools):
     subtoolName = 'CreateSequenceDictionary'
     jvmMemDefault = '512m'
 
-    def execute(self, inFasta, outDict=None, overwrite=False, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inFasta, outDict=None, overwrite=False, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if not outDict:
@@ -197,7 +198,7 @@ class BuildBamIndexTool(PicardTools):
     subtoolName = 'BuildBamIndex'
     jvmMemDefault = '512m'
 
-    def execute(self, inBam, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + inBam]
@@ -211,7 +212,7 @@ class ExtractIlluminaBarcodesTool(PicardTools):
     option_list = ('read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
                    'minimum_quality', 'compress_outputs', 'num_processors')
 
-    def execute(self, basecalls_dir, lane, barcode_file, output_dir, metrics, picardOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, basecalls_dir, lane, barcode_file, output_dir, metrics, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or {}
 
         opts_dict = self.defaults.copy()
@@ -249,7 +250,7 @@ class IlluminaBasecallsToSamTool(PicardTools):
                    'tile_limit', 'include_non_pf_reads', 'run_start_date', 'read_group_id')
 
     # pylint: disable=W0221
-    def execute(self, basecalls_dir, barcodes_dir, 
+    def execute(self, basecalls_dir, barcodes_dir,
                 run_barcode, lane, library_params,
                 picardOptions=None, JVMmemory=None):
         picardOptions = picardOptions or {}

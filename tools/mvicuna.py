@@ -22,7 +22,7 @@ class MvicunaTool(tools.Tool):
         if install_methods is None:
             path = _get_mvicuna_path()
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods=install_methods)
 
@@ -70,7 +70,6 @@ def _get_mvicuna_path():
         return ''
     binaries_path = util.file.get_binaries_path()
     return os.path.join(binaries_path, 'mvicuna', osName, 'mvicuna')
-
 
 # Instructions for building mvicuna on Mac OS X Mavericks:
 # - Install brew

@@ -39,11 +39,11 @@ class MafftTool(tools.Tool):
                 bin_dir=binaryDir)
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=TOOL_VERSION)
 
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(
                 tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
-                                                 os=mafft_os,
-                                                 ext=mafft_archive_extension),
+                                                      os=mafft_os,
+                                                      ext=mafft_archive_extension),
                                       target_rel_path=target_rel_path,
                                       destination_dir=destination_dir,
                                       verifycmd=verify_command))
@@ -162,6 +162,7 @@ class MafftTool(tools.Tool):
 
         return outFile
     # pylint: enable=W0221
+
 
 def get_mafft_os():
     uname = os.uname()

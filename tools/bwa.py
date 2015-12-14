@@ -27,11 +27,12 @@ BWA_DIR = '.'.join([x for x in URL.split("/")[-1].split('.') if x != "tar" and x
 
 class Bwa(tools.Tool):
     """ tool wrapper for bwa """
+
     def __init__(self, install_methods=None):
         LOG.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
-            install_methods.append(install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) ))
+            install_methods.append(install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)))
             install_methods.append(tools.DownloadPackage(
                 URL,
                 os.path.join(BWA_DIR, 'bwa'),
@@ -41,7 +42,7 @@ class Bwa(tools.Tool):
     def version(self):
         return ''.join([c for c in BWA_DIR if c.isdigit() or c == '.'])
 
-    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""): # pylint: disable=W0221
+    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""):  # pylint: disable=W0221
         """
         args are required arguments for the specified bwa subcommand
             (order matters for bwa execution)

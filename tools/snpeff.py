@@ -25,6 +25,7 @@ TOOL_VERSION = '4.1l'
 
 URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
+
 class SnpEff(tools.Tool):
     jvmMemDefault = '4g'
 
@@ -32,7 +33,7 @@ class SnpEff(tools.Tool):
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(DownloadAndTweakSnpEff(URL, extra_genomes))
         self.known_dbs = set()
         self.installed_dbs = set()
@@ -41,17 +42,18 @@ class SnpEff(tools.Tool):
     def version(self):
         return "4.1"
 
-    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None): # pylint: disable=W0221
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):  # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
 
         # the conda version wraps the jar file with a shell script
         if self.install_and_get_path().endswith(".jar"):
             tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                       self.install_and_get_path(), command] + args
+                        self.install_and_get_path(), command] + args
         else:
-            tool_cmd = [self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command] + args
-            
+            tool_cmd = [self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir,
+                        command] + args
+
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
 
@@ -87,11 +89,11 @@ class SnpEff(tools.Tool):
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
             util.genbank.fetch_full_records_from_genbank(accessions,
-                                                           outputDir,
-                                                           emailAddress,
-                                                           forceOverwrite=True,
-                                                           combinedFilePrefix="genes",
-                                                           removeSeparateFiles=False)
+                                                         outputDir,
+                                                         emailAddress,
+                                                         forceOverwrite=True,
+                                                         combinedFilePrefix="genes",
+                                                         removeSeparateFiles=False)
 
             add_genomes_to_snpeff_config_file(
                 config_file, [

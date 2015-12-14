@@ -29,14 +29,14 @@ class TrinityTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append( tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION) )
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
             install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300, JVMmemory=None, threads=1): # pylint: disable=W0221
+    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300, JVMmemory=None, threads=1):  # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvm_mem_default
         outdir = tempfile.mkdtemp(prefix='trinity-')
