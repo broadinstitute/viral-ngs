@@ -80,7 +80,7 @@ the Java JDK installed. As of this writing, Java 1.7 is required for
 GATK 3.3.0. 
 
 Alternatively, if you are using the Snakemake pipelines, you can create
-a dictionary called "env_vars" in the config.json file for Snakemake,
+a dictionary called "env_vars" in the config.yaml file for Snakemake,
 and the pipelines will automatically set all environment variables prior
 to running any scripts.
 
@@ -147,4 +147,4 @@ Details on Easy Deploy
 
 Per the Vagrantfile, local VM RAM usage is set to 8GB. On EC2 it currently uses an m4.2xlarge instance with 32GB of RAM and 8 vCPUs.
 
-Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: /home/ubuntu/), along with an associated ``config.json`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
+Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: /home/ubuntu/), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.

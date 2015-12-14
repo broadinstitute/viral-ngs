@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# load config dirs from config.json
-BIN_DIR=`python -c 'import json,os.path;f=open("config.json");print(os.path.expanduser(json.load(f)["bin_dir"]));f.close()'`
-N_CORES=`python -c 'import json;f=open("config.json");print(json.load(f)["n_cores"]);f.close()'`
-MAX_RAM=`python -c 'import json;f=open("config.json");print(json.load(f)["max_ram"]);f.close()'`
+# load config dirs from config.yaml
+BIN_DIR=`python -c 'import yaml,os.path;f=open("config.yaml");print(os.path.expanduser(yaml.safe_load(f)["bin_dir"]));f.close()'`
+N_CORES=`python -c 'import yaml;f=open("config.yaml");print(yaml.safe_load(f)["n_cores"]);f.close()'`
+MAX_RAM=`python -c 'import yaml;f=open("config.yaml");print(yaml.safe_load(f)["max_ram"]);f.close()'`
 
 # execute snakemake on this machine with specified resources
 snakemake --timestamp --rerun-incomplete --keep-going \
