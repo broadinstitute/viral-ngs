@@ -202,11 +202,15 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         samtools.view(['-h'], outBam, outSam)
 
         # the header field ordering may be different with Java 1.8
-        self.assertTrue(filecmp.cmp(outSam, os.path.join(myInputDir, 
-                                    'expected.sam'),
-                                    shallow=False) or filecmp.cmp(outSam, os.path.join(myInputDir, 
-                                                    'expected_1_8.sam'),
-                                                                  shallow=False))
+        self.assertTrue(filecmp.cmp(outSam,
+                                    os.path.join(myInputDir, 'expected.sam'),
+                                    shallow=False) or 
+                        filecmp.cmp(outSam,
+                                    os.path.join(myInputDir, 'expected_1_8.sam'),
+                                    shallow=False) or
+                        filecmp.cmp(outSam,
+                                    os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
+                                    shallow=False))
 
 
 if __name__ == '__main__':
