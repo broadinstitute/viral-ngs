@@ -36,6 +36,8 @@ quit;
 
 @tools.skip_install_test()
 class Megan(tools.Tool):
+    """ Tool wrapper for the MEGAN metagenome analyzer
+    """
     JVM_DEFAULT_MEM = '2G'
 
     def __init__(self, path=None):
@@ -60,9 +62,9 @@ class Megan(tools.Tool):
 
     @property
     def gi_taxid(self):
-        return os.path.append(self.data_dir, 'gi_taxid-March2015X.bin')
+        return os.path.join(self.data_dir, 'gi_taxid-March2015X.bin')
 
-    def execute(self, commands, memory=None):
+    def execute(self, commands, memory=None, shell=False):
         with tempfile.NamedTemporaryFile(mode='w',
                                          prefix='megan_commands_',
                                          suffix='.txt') as command_file:
@@ -75,9 +77,8 @@ class Megan(tools.Tool):
             # Changing mem dynamically like this actually requires a slightly
             # modified version of MEGAN to work.
             env['INSTALL4J_ADD_VM_PARAMS'] = '-Xmx{}'.format(memory)
-            megan_cmd = [megan, '--commandLineMode',
-                         '--licenseFile', self.license_file, '--commandFile',
-                         command_file.name]
+            megan_cmd = [megan, '--commandLineMode', '--licenseFile',
+                         self.license_file, '--commandFile', command_file.name]
             if os.uname()[0] == 'Darwin':
                 # OS X is an Aqua app which ignores $DISPLAY so we're going to
                 # have to open the GUI.
@@ -100,13 +101,11 @@ class Megan(tools.Tool):
         # of the imported blast file to make future imports faster. We just
         # want to do one shot analysis
         with tempfile.NamedTemporaryFile(
-                prefix='megan_', suffix='.rma') as megan_file:
+            prefix='megan_',
+            suffix='.rma') as megan_file:
             commands = SPECIES_PROJECTION.format(
                 gi_taxid=self.gi_taxid,
                 blast_file=blast_file,
                 megan_file=megan_file.name,
-                species_file=output_file
-                )
+                species_file=output_file)
             self.execute(commands, memory=memory)
-
-
