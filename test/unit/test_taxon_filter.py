@@ -213,6 +213,9 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                                     os.path.join(myInputDir, 'expected_1_8.sam'),
                                     shallow=False) or
                         filecmp.cmp(outSam,
+                                    os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
+                                    shallow=False) or
+                        filecmp.cmp(outSam,
                                     os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
                                     shallow=False))
 
