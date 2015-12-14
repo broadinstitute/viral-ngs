@@ -201,6 +201,10 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         samtools = tools.samtools.SamtoolsTool()
         samtools.view(['-h'], outBam, outSam)
 
+        with open(outSam, "r") as outSamFile:
+            for line in outSamFile.readlines():
+                print(line)
+
         # the header field ordering may be different with Java 1.8
         self.assertTrue(filecmp.cmp(outSam,
                                     os.path.join(myInputDir, 'expected.sam'),
