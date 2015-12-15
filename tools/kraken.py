@@ -35,8 +35,7 @@ class Yaggo(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            #install_methods.append(tools.CondaPackage("yaggo", version=YAGGO_VERSION)) # <--- when yaggo is at 1.5.9 on bioconda
-            install_methods.append(tools.CondaPackage("yaggo", version="1.5.8"))
+            install_methods.append(tools.CondaPackage("yaggo", version=YAGGO_VERSION))
             install_methods.append(DownloadAndInstallYaggo(YAGGO_URL, 'yaggo'))
         super().__init__(install_methods=install_methods)
 
