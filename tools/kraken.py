@@ -14,6 +14,7 @@ import util.misc
 from builtins import super
 
 URL = 'https://github.com/yesimon/kraken/archive/75154106773b41b1d0e55b3274178134eb14723d.zip'
+TOOL_NAME = "kraken"
 TOOL_VERSION = '0.10.5-beta'
 KRAKEN_COMMIT_DIR = 'kraken-75154106773b41b1d0e55b3274178134eb14723d'
 KRAKEN_DIR = 'kraken-{}'.format(TOOL_VERSION)
@@ -33,7 +34,10 @@ class Yaggo(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [DownloadAndInstallYaggo(YAGGO_URL, 'yaggo')]
+            install_methods = []
+            #install_methods.append(tools.CondaPackage("yaggo", version=YAGGO_VERSION)) # <--- when yaggo is at 1.5.9 on bioconda
+            install_methods.append(tools.CondaPackage("yaggo", version="1.5.8"))
+            install_methods.append(DownloadAndInstallYaggo(YAGGO_URL, 'yaggo'))
         super().__init__(install_methods=install_methods)
 
 
@@ -52,10 +56,12 @@ class Jellyfish(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [
+            install_methods = []
+            install_methods.append(tools.CondaPackage("jellyfish1", version=JELLYFISH_VERSION))
+            install_methods.append(
                 DownloadAndInstallJellyfish(
                     JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish'))
-            ]
+            )
         super().__init__(install_methods=install_methods)
 
 
@@ -84,7 +90,9 @@ class Kraken(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [DownloadAndInstallKraken(URL, os.path.join(KRAKEN_DIR, 'bin', 'kraken'))]
+            install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(DownloadAndInstallKraken(URL, os.path.join(KRAKEN_DIR, 'bin', 'kraken')))
         super().__init__(install_methods=install_methods)
 
     def version(self):
