@@ -32,7 +32,7 @@ class BlastTools(tools.Tool):
         unwanted = ['blast_formatter', 'blastdb_aliastool', 'blastdbcheck', 'blastdbcmd', 'convert2blastmask',
                     'deltablast', 'legacy_blast.pl', 'makembindex', 'makeprofiledb', 'psiblast', 'rpsblast',
                     'rpstblastn', 'segmasker', 'tblastn', 'tblastx', 'update_blastdb.pl', 'windowmasker']
-        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "blastn"
         if install_methods is None:
             target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtool_name
             install_methods = []
