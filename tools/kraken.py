@@ -11,7 +11,7 @@ import stat
 import tools
 import util.file
 import util.misc
-from builtins import super
+#from builtins import super
 
 URL = 'https://github.com/yesimon/kraken/archive/75154106773b41b1d0e55b3274178134eb14723d.zip'
 TOOL_NAME = "kraken"
@@ -37,13 +37,15 @@ class Yaggo(tools.Tool):
             install_methods = []
             install_methods.append(tools.CondaPackage("yaggo", version=YAGGO_VERSION))
             install_methods.append(DownloadAndInstallYaggo(YAGGO_URL, 'yaggo'))
-        super().__init__(install_methods=install_methods)
+        #super().__init__(install_methods=install_methods)
+        super(Yaggo, self).__init__(install_methods=install_methods)
 
 
 class DownloadAndInstallYaggo(tools.DownloadPackage):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        #super().__init__(*args, **kwargs)
+        super(DownloadAndInstallYaggo, self).__init__(*args, **kwargs)
         self.verifycmd = '{}/yaggo -v > /dev/null 2>& 1'.format(util.file.get_build_path())
 
     def post_download(self):
@@ -61,7 +63,8 @@ class Jellyfish(tools.Tool):
                 DownloadAndInstallJellyfish(
                     JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish'))
             )
-        super().__init__(install_methods=install_methods)
+        #super().__init__(install_methods=install_methods)
+        super(Jellyfish, self).__init__(install_methods=install_methods)
 
 
 class DownloadAndInstallJellyfish(tools.DownloadPackage):
@@ -92,7 +95,8 @@ class Kraken(tools.Tool):
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(DownloadAndInstallKraken(URL, os.path.join(KRAKEN_DIR, 'bin', 'kraken')))
-        super().__init__(install_methods=install_methods)
+        #super().__init__(install_methods=install_methods)
+        super(Kraken, self).__init__(install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION

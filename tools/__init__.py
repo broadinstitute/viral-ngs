@@ -21,11 +21,11 @@ except ImportError:
 
 # Put all tool files in __all__
 # allows "from tools import *" to import all tooles for testtools
-__all__ = [filename[:-3]  # Remove .py
+__all__ = sorted([filename[:-3]  # Remove .py
            for filename in os.listdir(os.path.dirname(__file__))  # tools directory
            if filename.endswith('.py') and filename != '__init__.py' and filename not in [  # Add any files to exclude here:
                # e.g. 'sometool.py',
-           ]]
+           ]])
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -202,8 +202,8 @@ class CondaPackage(InstallMethod):
             log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
-        #InstallMethod.__init__(self)
-        super(CondaPackage, self).__init__()
+        InstallMethod.__init__(self)
+        #super(CondaPackage, self).__init__()
 
     @property
     def _package_str(self):

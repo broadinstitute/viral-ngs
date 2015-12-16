@@ -1,6 +1,6 @@
 # Unit tests for kraken
 
-from builtins import super
+#from builtins import super
 import os.path
 import tempfile
 import unittest
@@ -12,7 +12,8 @@ from test import TestCaseWithTmp
 class TestToolKraken(TestCaseWithTmp):
 
     def setUp(self):
-        super().setUp()
+        #super().setUp()
+        super(TestToolKraken, self).setUp()
         self.kraken = tools.kraken.Kraken()
         self.kraken.install()
 
