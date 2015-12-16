@@ -12,7 +12,7 @@ import logging
 import util.cmd
 import util.file
 from test import TestCaseWithTmp
-import functools
+import operator
 
 log = logging.getLogger(__name__)
 util.cmd.setup_logger('INFO')
@@ -28,7 +28,7 @@ class TestToolsInstallation(TestCaseWithTmp):
         def iter_leaf_subclasses(aClass):
             "Iterate over subclasses at all levels that don't themselves have a subclass"
             isLeaf = True
-            for subclass in aClass.__subclasses__():
+            for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
                 isLeaf = False
                 for leafClass in iter_leaf_subclasses(subclass):
                     if not getattr(leafClass, '_skiptest', False):
@@ -38,6 +38,7 @@ class TestToolsInstallation(TestCaseWithTmp):
 
         '''Load every tool's default chain of install methods and try them.'''
         for tool_class in iter_leaf_subclasses(tools.Tool):
+            print(tool_class.__name__)
             t = tool_class()
             t.install()
             self.assertTrue(t.is_installed(), "installation of tool %s failed" % tool_class.__name__)
