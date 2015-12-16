@@ -11,5 +11,5 @@ if [ "$PYVER" = "3" ]; then
     pip install -r requirements-pipes.txt
 fi
 
-echo "pip installing coveralls"
-pip install -q coveralls nose-cov
+echo "pip installing test-related packages (coveralls, etc.)"
+pip install -r requirements-tests.txt
