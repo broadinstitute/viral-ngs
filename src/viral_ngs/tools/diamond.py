@@ -1,7 +1,7 @@
 '''
 DIAMOND - blastx replacement for large database protein sequence queries
 '''
-#from builtins import super
+from builtins import super
 import itertools
 import logging
 import os
@@ -27,8 +27,7 @@ class Diamond(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'build', 'diamond'))]
-        #super().__init__(install_methods=install_methods)
-        super(Diamond, self).__init__(install_methods=install_methods)
+        super().__init__(install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
