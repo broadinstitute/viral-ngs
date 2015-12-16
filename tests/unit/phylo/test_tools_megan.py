@@ -1,6 +1,6 @@
 # Unit tests for MEGAN
 
-#from builtins import super
+from builtins import super
 import unittest
 import tools.megan
 from test import TestCaseWithTmp
@@ -9,8 +9,7 @@ from test import TestCaseWithTmp
 class TestToolMegan(TestCaseWithTmp):
 
     def setUp(self):
-        #super().setUp()
-        super(TestToolMegan, self).setUp()
+        super().setUp()
         self.megan = tools.megan.Megan()
         self.megan.install()
 
