@@ -82,7 +82,7 @@ class MummerTool(tools.Tool):
 
     def show_tiling(self, inDelta, outTiling, outFasta=None,
             circular=False, min_pct_id=None, min_contig_len=None,
-            tab_delim=False):
+            min_pct_contig_aligned=None, tab_delim=False):
         opts = []
         if circular:
             opts.append('-c')
@@ -94,6 +94,9 @@ class MummerTool(tools.Tool):
         if min_contig_len is not None:
             opts.append('-l')
             opts.append(str(min_contig_len))
+        if min_pct_contig_aligned is not None:
+            opts.append('-v')
+            opts.append(str(100.0 * min_pct_contig_aligned))
         toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling')]
         if outFasta:
             toolCmd = toolCmd + ['-p', outFasta]
@@ -104,7 +107,7 @@ class MummerTool(tools.Tool):
     
     def trim_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=False, breaklen=None,
-            min_pct_id=0.6, min_contig_len=200):
+            min_pct_id=0.6, min_pct_contig_aligned=0.5, min_contig_len=200):
         ''' Align contigs with MUMmer and trim off the unused portions.
         '''
         # run MUMmer to get best alignments
@@ -120,7 +123,8 @@ class MummerTool(tools.Tool):
         aligner(refFasta, contigsFasta, delta_1, extend=extend)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, circular=circular, tab_delim=True,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
         os.unlink(delta_2)
 
@@ -149,7 +153,7 @@ class MummerTool(tools.Tool):
 
     def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=None, breaklen=None,
-            min_pct_id=0.6, min_contig_len=200):
+            min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Use MUMmer's pseudomolecule feature to scaffold contigs
             onto a reference genome.
         '''
@@ -165,7 +169,8 @@ class MummerTool(tools.Tool):
         aligner(refFasta, contigsFasta, delta_1, extend=extend)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
         os.unlink(delta_2)
         os.unlink(tiling)
