@@ -16,6 +16,21 @@ env:
 python:
   - 2.7
   - 3.4
+  - 3.5
+
+# Container pkgs for building diamond.
+# These versioned and sources hacks should be removed once travis upgrades to
+# Ubuntu 14.04.
+addons:
+  apt:
+    sources:
+    - boost-latest # For newer boost
+    - ubuntu-toolchain-r-test # For newer gcc
+    packages:
+    - cmake
+    - gcc-4.9
+    - g++-4.9
+    - libboost1.55-all-dev
 
 before_install:
   - travis/before_install.sh

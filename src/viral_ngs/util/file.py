@@ -6,6 +6,7 @@ __author__ = "dpark@broadinstitute.org"
 __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
+import contextlib
 import os
 import gzip
 import tempfile
@@ -19,11 +20,16 @@ import util.cmd
 import re
 # since py3 split up urllib
 try:
-    from urllib.request import urlopen
+    from urllib.request import urlopen # pylint: disable=E0611
 except ImportError:
     from urllib2 import urlopen
 
 log = logging.getLogger(__name__)
+
+
+class StringNotFoundException(Exception):
+    """When a substring is not found."""
+    pass
 
 
 def get_project_path():
@@ -298,3 +304,38 @@ def webfile_readlines(uriToGet):
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
+
+
+def replace_in_file(filename, original, new):
+    '''Replace the original string with new in file.
+
+    Raises error if the original is not in the file.
+    '''
+    with open(filename) as f:
+        s = f.read()
+    if original not in s:
+        raise StringNotFoundException("String '%s' not found." % s)
+    s = s.replace(original, new)
+    with open(filename, 'w') as f:
+        f.write(s)
+
+
+def cat(output_file, input_files):
+    '''Cat list of input filenames to output filename.'''
+    with open(output_file, 'wb') as wfd:
+        for f in input_files:
+            with open(f, 'rb') as fd:
+                shutil.copyfileobj(fd, wfd, 1024*1024*10)
+
+
+@contextlib.contextmanager
+def temp_catted_files(input_files, prefix=None, suffix=None):
+    '''Create a temporary file holding catted contents of input_files.'''
+    if len(input_files) == 1:
+        yield input_files[0]
+    try:
+        fn = util.file.mkstempfname(prefix=prefix, suffix=suffix)
+        cat(fn, input_files)
+        yield fn
+    finally:
+        os.remove(fn)

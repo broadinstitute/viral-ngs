@@ -21,9 +21,9 @@ import subprocess
 from collections import OrderedDict
 #import pysam
 
-tool_version = '0.1.19'
-url = 'http://sourceforge.net/projects/samtools/files/samtools/' \
-    + '{ver}/samtools-{ver}.tar.bz2'.format(ver=tool_version)
+TOOL_VERSION = '0.1.19'
+TOOL_URL = 'http://sourceforge.net/projects/samtools/files/samtools/' \
+    + '{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
 
 log = logging.getLogger(__name__)
 
@@ -33,25 +33,25 @@ class SamtoolsTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [
-                tools.DownloadPackage(url,
-                                      'samtools-{}/samtools'.format(tool_version),
-                                      post_download_command='cd samtools-{}; make -s'.format(tool_version))
+                tools.DownloadPackage(TOOL_URL,
+                                      'samtools-{}/samtools'.format(TOOL_VERSION),
+                                      post_download_command='cd samtools-{}; make -s'.format(TOOL_VERSION))
             ]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return TOOL_VERSION
 
-    def execute(self, command, args, stdin=None, stdout=None, stderr=None):
-        toolCmd = [self.install_and_get_path(), command] + args
-        log.debug(' '.join(toolCmd))
+    def execute(self, command, args, stdin=None, stdout=None, stderr=None): # pylint: disable=W0221
+        tool_cmd = [self.install_and_get_path(), command] + args
+        log.debug(' '.join(tool_cmd))
         if stdin:
             stdin = open(stdin, 'r')
         if stdout:
             stdout = open(stdout, 'w')
         if stderr:
             stderr = open(stderr, 'w')
-        subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout, stderr=stderr)
+        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout, stderr=stderr)
         if stdin:
             stdin.close()
         if stdout:

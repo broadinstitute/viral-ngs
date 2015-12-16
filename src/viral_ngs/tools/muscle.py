@@ -10,12 +10,12 @@ import os
 import os.path
 import subprocess
 
-#tool_version = '3.8.31'
-#url = 'http://www.drive5.com/muscle/downloads{ver}/muscle{ver}_{os}.tar.gz'
-tool_version = '3.8.1551'
-url = 'http://www.drive5.com/muscle/muscle_{os}_{ver}.tar.gz'
+#TOOL_VERSION = '3.8.31'
+#TOOL_URL = 'http://www.drive5.com/muscle/downloads{ver}/muscle{ver}_{os}.tar.gz'
+TOOL_VERSION = '3.8.1551'
+TOOL_URL = 'http://www.drive5.com/muscle/muscle_{os}_{ver}.tar.gz'
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class MuscleTool(tools.Tool):
@@ -27,38 +27,39 @@ class MuscleTool(tools.Tool):
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
                 install_methods.append(
-                    tools.DownloadPackage(url.format(ver=tool_version,
+                    tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
                                                      os=muscle_os),
-                                          'muscle{}_{}'.format(tool_version, muscle_os),
+                                          'muscle{}_{}'.format(TOOL_VERSION, muscle_os),
                                           verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
-                                              util.file.get_build_path(), tool_version, muscle_os)))
+                                              util.file.get_build_path(), TOOL_VERSION, muscle_os)))
             install_methods.append(
-                tools.DownloadPackage(url.format(ver=tool_version,
+                tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
                                                  os=muscle_os),
-                                      'muscle{}/src/muscle'.format(tool_version),
-                                      post_download_command='cd muscle{}/src; make -s'.format(tool_version),
+                                      'muscle{}/src/muscle'.format(TOOL_VERSION),
+                                      post_download_command='cd muscle{}/src; make -s'.format(TOOL_VERSION),
                                       verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
-                                          util.file.get_build_path(), tool_version)))
+                                          util.file.get_build_path(), TOOL_VERSION)))
             '''
-            install_methods.append(DownloadAndBuildMuscle(tool_version))
+            install_methods.append(DownloadAndBuildMuscle(TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return TOOL_VERSION
 
+    # pylint: disable=W0221
     def execute(self, inFasta, outFasta,
                 maxiters=None, maxhours=None, fmt='fasta', diags=None, quiet=True, logFile=None):
-        toolCmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
+        tool_cmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
 
         if fmt in ('html', 'msf', 'clw', 'clwstrict'):
-            toolCmd.append('-' + fmt)
+            tool_cmd.append('-' + fmt)
         else:
             if fmt != 'fasta':
                 raise Exception()
         if quiet:
-            toolCmd.append('-quiet')
+            tool_cmd.append('-quiet')
         if diags:
-            toolCmd.append('-diags')
+            tool_cmd.append('-diags')
         if maxiters:
             toolCmd.extend(('-maxiters', str(maxiters)))
         if maxhours:
@@ -66,8 +67,9 @@ class MuscleTool(tools.Tool):
         if logFile:
             toolCmd.extend(('-log', logFile))
 
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        LOG.debug(' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
+    # pylint: enable=W0221
 
 '''
 def get_muscle_os():
@@ -81,7 +83,7 @@ class DownloadAndBuildMuscle(tools.DownloadPackage):
 
     def __init__(self, ver):
         tools.DownloadPackage.__init__(self,
-            url.format(ver=ver, os='src'),
+            TOOL_URL.format(ver=ver, os='src'),
             'muscle',
             destination_dir=os.path.join(
                 util.file.get_build_path(),

@@ -10,7 +10,7 @@ import util.file
 # BroadUnixPath = '/gsap/garage-viral/viral/analysis/xyang/programs'\
 #                 '/M-Vicuna/bin/mvicuna'
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class MvicunaTool(tools.Tool):
@@ -48,7 +48,7 @@ class MvicunaTool(tools.Tool):
                        util.file.mkstempfname(suffix='.tmp2out.2.fastq'))
         cmdline = [self.install_and_get_path(), '-ipfq', ','.join(inPair), '-opfq', ','.join(tmp2OutPair), '-osfq',
                    outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm']
-        log.debug(' '.join(cmdline))
+        LOG.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
@@ -61,10 +61,10 @@ def _get_mvicuna_path():
     elif uname[0] == 'Linux' and uname[4].endswith('64'):
         osName = 'linux64'
     else:
-        log.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
+        LOG.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
         return ''
-    binariesPath = util.file.get_binaries_path()
-    return os.path.join(binariesPath, 'mvicuna', osName, 'mvicuna')
+    binaries_path = util.file.get_binaries_path()
+    return os.path.join(binaries_path, 'mvicuna', osName, 'mvicuna')
 
 
 # Instructions for building mvicuna on Mac OS X Mavericks:
