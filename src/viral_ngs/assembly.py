@@ -178,8 +178,9 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
-        circular=False, extend=None, breaklen=None, min_pct_id=0.6, min_contig_len=200):
+def order_and_orient(inFasta, inReference, outFasta,
+        aligner='nucmer', circular=False, breaklen=None,
+        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -188,11 +189,13 @@ def order_and_orient(inFasta, inReference, outFasta, aligner='nucmer',
     mummer = tools.mummer.MummerTool()
     trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
     mummer.trim_contigs(inReference, inFasta, trimmed,
-            aligner=aligner, circular=circular, extend=extend, breaklen=breaklen,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+            aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
     mummer.scaffold_contigs(inReference, trimmed, outFasta,
-            aligner=aligner, circular=circular, extend=extend, breaklen=breaklen,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len)
+            aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
     os.unlink(trimmed)
     return 0
 
@@ -212,12 +215,6 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         default=False,
                         action="store_true",
                         dest="circular")
-    parser.add_argument("--extend",
-                        help="""Extend alignment clusters (nucmer/promer default).
-                        OUR default is not to extend alignments beyond the last MUM.""",
-                        default=False,
-                        action="store_true",
-                        dest="extend")
     parser.add_argument("--breaklen",
                         help="""Amount to extend alignment clusters by (if --extend).
                         nucmer default 200, promer default 60.""",
@@ -227,11 +224,15 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument("--min_pct_id",
                         type=float,
                         default=0.6,
-                        help="minimum percent identity for contig alignment (default: %(default)s)")
+                        help="minimum percent identity for contig alignment (0.0 - 1.0, default: %(default)s)")
     parser.add_argument("--min_contig_len",
                         type=int,
                         default=200,
                         help="reject contigs smaller than this (default: %(default)s)")
+    parser.add_argument("--min_pct_contig_aligned",
+                        type=float,
+                        default=0.6,
+                        help="minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
