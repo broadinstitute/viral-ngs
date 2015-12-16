@@ -15,7 +15,7 @@ http://ab.inf.uni-tuebingen.de/data/software/megan5/download/welcome.html
 If installed on MacOS, the likely MEGAN_PATH will be:
 /Applications/MEGAN/MEGAN.app/Contents/MacOS/JavaApplicationStub
 '''
-#from builtins import super
+from builtins import super
 import os
 import subprocess
 import tempfile
@@ -58,8 +58,7 @@ class Megan(tools.Tool):
         self.license_file = os.environ.get('MEGAN_LICENSE_PATH')
         self.data_dir = os.environ.get('MEGAN_DATA_PATH')
 
-        #super().__init__(install_methods=install_methods)
-        super(Megan, self).__init__(install_methods=install_methods)
+        super().__init__(install_methods=install_methods)
 
     @property
     def gi_taxid(self):

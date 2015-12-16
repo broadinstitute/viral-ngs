@@ -1,6 +1,6 @@
 # Unit tests for diamond
 
-#from builtins import super
+from builtins import super
 import glob
 import os.path
 import tempfile
@@ -13,8 +13,7 @@ from test import TestCaseWithTmp
 class TestToolDiamond(TestCaseWithTmp):
 
     def setUp(self):
-        #super().setUp()
-        super(TestToolDiamond, self).setUp()
+        super().setUp()
         self.diamond = tools.diamond.Diamond()
         self.diamond.install()
 
