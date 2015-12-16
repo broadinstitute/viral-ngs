@@ -16,11 +16,11 @@ import json
 from itertools import permutations
 from collections import OrderedDict, Sequence
 try:
-    from itertools import zip_longest
+    from itertools import zip_longest # pylint: disable=E0611
 except ImportError:
     from itertools import izip_longest as zip_longest
 try:
-    from UserDict import DictMixin
+    from UserDict import DictMixin # pylint: disable=E0611
 except ImportError:  # for Py3
     from collections import MutableMapping as DictMixin
 
@@ -126,7 +126,7 @@ class CoordMapper(DictMixin):
 
         return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
 
-    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0, ungapped=False):
+    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0):
         """ Map (chrom, coordinate) from seq "fromChrom" to seq "toChrom".
             If fromPos is None, map only the chromosome name
             If side is:
@@ -141,10 +141,6 @@ class CoordMapper(DictMixin):
             raise KeyError("chr '%s' not found in CoordMapper relation map" % toChrom)
 
         mapper = self.chrMaps[fromChrom][toChrom]
-        # if not ungapped:
-        #    mapper = self.chrMaps[fromChrom][toChrom]
-        # else:
-        #    mapper = self.chrMapsUngapped[fromChrom][toChrom]
 
         if fromPos is None:
             return toChrom
@@ -525,8 +521,9 @@ def vcf_header(a):
     header = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
-    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in
-                                                                                                          a]) + '\n'
+    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT',
+                               'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]) + '\n' # pylint: disable=E1101
+
     return header
 
 
