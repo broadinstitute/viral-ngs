@@ -89,7 +89,7 @@ class DownloadAndBuildMuscle(tools.DownloadPackage):
                 util.file.get_build_path(),
                 'muscle-{}'.format(ver)),
             verifycmd='{}/muscle-{}/muscle -version > /dev/null 2>&1'.format(
-                util.file.get_build_path(), tool_version),
+                util.file.get_build_path(), TOOL_VERSION),
             post_download_command='make -s')
 
     def post_download(self):
