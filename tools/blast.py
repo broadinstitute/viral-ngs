@@ -36,9 +36,9 @@ class BlastTools(tools.Tool):
         if install_methods is None:
             target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtool_name
             install_methods = []
-            install_methods.append(install_methods.append(tools.CondaPackage(TOOL_NAME,
-                                                                             executable=self.subtool_name,
-                                                                             version=TOOL_VERSION)))
+            install_methods.append(tools.CondaPackage(TOOL_NAME,
+                                                         executable=self.subtool_name,
+                                                         version=TOOL_VERSION))
             install_methods.append(tools.DownloadPackage(get_url(),
                                                          target_rel_path,
                                                          post_download_command=' '.join(
