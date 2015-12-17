@@ -257,14 +257,12 @@ class CondaPackage(InstallMethod):
 
         if not self.verify_install():
             # try to create the environment and install the package
-            run_cmd = ["conda", "create", "-q", "-y", "--json"]
+            run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
 
             python_version = os.environ.get("TRAVIS_PYTHON_VERSION")
             if python_version:
                 python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
-
-            run_cmd.extend(["-c", self.channel, "-p", self.env_path, self._package_str])
 
             result = util.misc.run_and_print(run_cmd, silent=True)
             data = json.loads(result.stdout.decode("UTF-8"))
