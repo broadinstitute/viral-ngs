@@ -33,7 +33,7 @@ class SnpEff(tools.Tool):
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="snpEff", version=TOOL_VERSION))
             install_methods.append(DownloadAndTweakSnpEff(URL, extra_genomes))
         self.known_dbs = set()
         self.installed_dbs = set()
