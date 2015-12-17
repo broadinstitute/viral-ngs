@@ -16,6 +16,7 @@ from builtins import super
 URL = 'https://github.com/yesimon/kraken/archive/75154106773b41b1d0e55b3274178134eb14723d.zip'
 TOOL_NAME = "kraken"
 TOOL_VERSION = '0.10.5-beta'
+CONDA_TOOL_VERSION = '0.10.5beta'
 KRAKEN_COMMIT_DIR = 'kraken-75154106773b41b1d0e55b3274178134eb14723d'
 KRAKEN_DIR = 'kraken-{}'.format(TOOL_VERSION)
 
@@ -92,7 +93,7 @@ class Kraken(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
             install_methods.append(DownloadAndInstallKraken(URL, os.path.join(KRAKEN_DIR, 'bin', 'kraken')))
         super().__init__(install_methods=install_methods)
 
