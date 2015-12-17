@@ -32,7 +32,7 @@ class Bwa(tools.Tool):
         LOG.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
-            install_methods.append(install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(
                 tools.DownloadPackage(
                     URL,
