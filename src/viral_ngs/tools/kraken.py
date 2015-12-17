@@ -59,7 +59,8 @@ class Jellyfish(tools.Tool):
             install_methods.append(tools.CondaPackage("jellyfish1", version=JELLYFISH_VERSION))
             install_methods.append(
                 DownloadAndInstallJellyfish(
-                    JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish'))
+                    JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish')
+                )
             )
         super().__init__(install_methods=install_methods)
 
@@ -77,7 +78,8 @@ class DownloadAndInstallJellyfish(tools.DownloadPackage):
         install_dir = os.path.join(jellyfish_dir, 'local')
         util.file.replace_in_file(
             os.path.join(jellyfish_dir, 'Makefile.am'), 'AM_CXXFLAGS = -g -O3',
-            'AM_CXXFLAGS = -g -O3 -Wno-maybe-uninitialized')
+            'AM_CXXFLAGS = -g -O3 -Wno-maybe-uninitialized'
+        )
         util.misc.run_and_print(['autoreconf', '-i'], cwd=jellyfish_dir, env=env)
         util.misc.run_and_print(['./configure', '--prefix={}'.format(install_dir)], cwd=jellyfish_dir, env=env)
         util.misc.run_and_print(['make', 'install'], cwd=jellyfish_dir, env=env)

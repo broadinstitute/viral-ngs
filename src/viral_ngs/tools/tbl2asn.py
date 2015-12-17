@@ -29,10 +29,18 @@ class Tbl2AsnTool(tools.Tool):
         return None
 
     # pylint: disable=W0221
-    def execute(self, templateFile, inputDir, outputDir=None,
-                source_quals=None, comment=None, verification='vb',
-                file_type='s', structured_comment_file=None,
-                per_genome_comment=False):
+    def execute(
+        self,
+        templateFile,
+        inputDir,
+        outputDir=None,
+        source_quals=None,
+        comment=None,
+        verification='vb',
+        file_type='s',
+        structured_comment_file=None,
+        per_genome_comment=False
+    ):
         source_quals = source_quals or []
 
         tool_cmd = [self.install_and_get_path(), '-t', templateFile]

@@ -47,12 +47,16 @@ class MvicunaTool(tools.Tool):
         """
         if not outUnpaired:
             outUnpaired = util.file.mkstempfname(suffix='.unpaired.fastq')
-        tmp1OutPair = (util.file.mkstempfname(suffix='.tmp1out.1.fastq'),
-                       util.file.mkstempfname(suffix='.tmp1out.2.fastq'))
-        tmp2OutPair = (util.file.mkstempfname(suffix='.tmp2out.1.fastq'),
-                       util.file.mkstempfname(suffix='.tmp2out.2.fastq'))
-        cmdline = [self.install_and_get_path(), '-ipfq', ','.join(inPair), '-opfq', ','.join(tmp2OutPair), '-osfq',
-                   outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm']
+        tmp1OutPair = (
+            util.file.mkstempfname(suffix='.tmp1out.1.fastq'), util.file.mkstempfname(suffix='.tmp1out.2.fastq')
+        )
+        tmp2OutPair = (
+            util.file.mkstempfname(suffix='.tmp2out.1.fastq'), util.file.mkstempfname(suffix='.tmp2out.2.fastq')
+        )
+        cmdline = [
+            self.install_and_get_path(), '-ipfq', ','.join(inPair), '-opfq', ','.join(tmp2OutPair), '-osfq',
+            outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm'
+        ]
         LOG.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):

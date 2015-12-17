@@ -2,4 +2,4 @@
 based_on_style = google
 spaces_before_comment = 4
 column_limit = 120
-# deindent_closing_brackets = true
+dedent_closing_brackets = true

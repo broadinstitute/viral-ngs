@@ -22,7 +22,8 @@ import tempfile
 import textwrap
 import tools
 
-SPECIES_PROJECTION = textwrap.dedent('''
+SPECIES_PROJECTION = textwrap.dedent(
+    '''
 load taxGIFile='{gi_taxid}';
 import blastFile='{blast_file}' meganFile='{megan_file}' maxMatches=100 minScore=50.0 maxExpected=0.01 topPercent=10.0 minSupportPercent=0.1 minSupport=1 minComplexity=0.3 useMinimalCoverageHeuristic=false useSeed=false useCOG=false useKegg=false paired=false useIdentityFilter=false textStoragePolicy=Embed blastFormat=BlastTAB mapping='Taxonomy:BUILT_IN=true,Taxonomy:GI_MAP=true';
 
@@ -31,7 +32,8 @@ compute profile=Projection rank=Species minPercent=1.0;
 select rank=Species;
 export what=CSV format=taxonname_count separator=tab counts=summarized file='{species_file}';
 quit;
-''')
+'''
+)
 
 
 @tools.skip_install_test()
@@ -52,7 +54,8 @@ class Megan(tools.Tool):
                     megan_path,
                     verifycmd='{} -h > /dev/null'.format(megan_path),
                     verifycode=0,
-                    require_executability=True)
+                    require_executability=True
+                )
             ]
 
         self.license_file = os.environ.get('MEGAN_LICENSE_PATH')
@@ -75,8 +78,9 @@ class Megan(tools.Tool):
             # Changing mem dynamically like this actually requires a slightly
             # modified version of MEGAN to work.
             env['INSTALL4J_ADD_VM_PARAMS'] = '-Xmx{}'.format(memory)
-            megan_cmd = [megan, '--commandLineMode', '--licenseFile', self.license_file, '--commandFile',
-                         command_file.name]
+            megan_cmd = [
+                megan, '--commandLineMode', '--licenseFile', self.license_file, '--commandFile', command_file.name
+            ]
             if os.uname()[0] == 'Darwin':
                 # OS X is an Aqua app which ignores $DISPLAY so we're going to
                 # have to open the GUI.
@@ -103,5 +107,6 @@ class Megan(tools.Tool):
                 gi_taxid=self.gi_taxid,
                 blast_file=blast_file,
                 megan_file=megan_file.name,
-                species_file=output_file)
+                species_file=output_file
+            )
             self.execute(commands, memory=memory)

@@ -36,15 +36,23 @@ class TrinityTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, inFastq1, inFastq2, outFasta, min_contig_length=300, JVMmemory=None, threads=1):  # pylint: disable=W0221
+    def execute(self,
+                inFastq1,
+                inFastq2,
+                outFasta,
+                min_contig_length=300,
+                JVMmemory=None,
+                threads=1):    # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvm_mem_default
         outdir = tempfile.mkdtemp(prefix='trinity-')
         if int(threads) < 1:
             threads = 1
-        cmd = [self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
-               '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right',
-               inFastq2, '--output', outdir]
+        cmd = [
+            self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
+            '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right', inFastq2,
+            '--output', outdir
+        ]
         log.debug(' '.join(cmd))
         subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)

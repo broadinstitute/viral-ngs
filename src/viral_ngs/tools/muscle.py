@@ -31,11 +31,17 @@ class MuscleTool(tools.Tool):
             muscle_os = get_muscle_os()
             if muscle_os != 'src':
                 install_methods.append(
-                    tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
-                                                          os=muscle_os),
-                                          'muscle{}_{}'.format(TOOL_VERSION, muscle_os),
-                                          verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
-                                              util.file.get_build_path(), TOOL_VERSION, muscle_os)))
+                    tools.DownloadPackage(
+                        TOOL_URL.format(
+                            ver=TOOL_VERSION,
+                            os=muscle_os
+                        ),
+                        'muscle{}_{}'.format(TOOL_VERSION, muscle_os),
+                        verifycmd='{}/muscle{}_{} -version > /dev/null 2>&1'.format(
+                            util.file.get_build_path(), TOOL_VERSION, muscle_os
+                        )
+                    )
+                )
             # install_methods.append(
             #     tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
             #                                      os=muscle_os),
@@ -44,19 +50,32 @@ class MuscleTool(tools.Tool):
             #                           verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
             #                               util.file.get_build_path(), TOOL_VERSION)))
             install_methods.append(
-                tools.DownloadPackage(UNRELEASED_URL,
-                                      'muscle{}/src/muscle'.format(TOOL_VERSION),
-                                      post_download_command='cd muscle{}/src; make -s'.format(TOOL_VERSION),
-                                      verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
-                                          util.file.get_build_path(), TOOL_VERSION)))
+                tools.DownloadPackage(
+                    UNRELEASED_URL,
+                    'muscle{}/src/muscle'.format(TOOL_VERSION),
+                    post_download_command='cd muscle{}/src; make -s'.format(TOOL_VERSION),
+                    verifycmd='{}/muscle{}/src/muscle -version > /dev/null 2>&1'.format(
+                        util.file.get_build_path(), TOOL_VERSION
+                    )
+                )
+            )
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
     # pylint: disable=W0221
-    def execute(self, inFasta, outFasta,
-                maxiters=None, maxhours=None, fmt='fasta', diags=None, quiet=True, logFile=None):
+    def execute(
+        self,
+        inFasta,
+        outFasta,
+        maxiters=None,
+        maxhours=None,
+        fmt='fasta',
+        diags=None,
+        quiet=True,
+        logFile=None
+    ):
         tool_cmd = [self.install_and_get_path(), '-in', inFasta, '-out', outFasta]
 
         if fmt in ('html', 'msf', 'clw', 'clwstrict'):

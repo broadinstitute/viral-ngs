@@ -27,11 +27,17 @@ class MosaikTool(tools.Tool):
         # only use that install method if we are not on a mac
         if os.uname()[0] != 'Darwin':
             install_methods.append(
-                DownloadAndBuildMosaik(url.format(commit_hash=commit_hash,
-                                                  os='source'),
-                                       os.path.join(destination_dir, 'MOSAIK-{}'.format(commit_hash), 'bin',
-                                                    'MosaikAligner'),
-                                       destination_dir))
+                DownloadAndBuildMosaik(
+                    url.format(
+                        commit_hash=commit_hash,
+                        os='source'
+                    ),
+                    os.path.join(
+                        destination_dir, 'MOSAIK-{}'.format(commit_hash), 'bin', 'MosaikAligner'
+                    ),
+                    destination_dir
+                )
+            )
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -39,8 +45,10 @@ class MosaikTool(tools.Tool):
 
     def get_networkFile(self):
         # this is the directory to return
-        mosaikDir = os.path.join(util.file.get_build_path(), 'mosaik-{}'.format(commit_hash),
-                                 'MOSAIK-{}'.format(commit_hash), 'src', 'networkFile')
+        mosaikDir = os.path.join(
+            util.file.get_build_path(), 'mosaik-{}'.format(commit_hash), 'MOSAIK-{}'.format(commit_hash), 'src',
+            'networkFile'
+        )
         if not os.path.isdir(mosaikDir):
             # if it doesn't exist, run just the download-unpack portion of the
             #     source installer
