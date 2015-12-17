@@ -73,8 +73,10 @@ class DownloadBmtagger(tools.InstallMethod):
 
     def verify_install(self):
         """ confirms that the tools are present and executable """
-        self.installed = all(os.access(os.path.join(self.target_dir, executable), (os.X_OK | os.R_OK))
-                             for executable in self.executables)
+        self.installed = all(
+            os.access(
+                os.path.join(self.target_dir, executable), (os.X_OK | os.R_OK)) for executable in self.executables
+        )
         return self.installed
 
     def _attempt_install(self):

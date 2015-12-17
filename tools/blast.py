@@ -29,22 +29,28 @@ class BlastTools(tools.Tool):
        Subclasses must define class member subtool_name."""
 
     def __init__(self, install_methods=None):
-        unwanted = ['blast_formatter', 'blastdb_aliastool', 'blastdbcheck', 'blastdbcmd', 'convert2blastmask',
-                    'deltablast', 'legacy_blast.pl', 'makembindex', 'makeprofiledb', 'psiblast', 'rpsblast',
-                    'rpstblastn', 'segmasker', 'tblastn', 'tblastx', 'update_blastdb.pl', 'windowmasker']
+        unwanted = [
+            'blast_formatter', 'blastdb_aliastool', 'blastdbcheck', 'blastdbcmd', 'convert2blastmask', 'deltablast',
+            'legacy_blast.pl', 'makembindex', 'makeprofiledb', 'psiblast', 'rpsblast', 'rpstblastn', 'segmasker',
+            'tblastn', 'tblastx', 'update_blastdb.pl', 'windowmasker'
+        ]
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "blastn"
         if install_methods is None:
             target_rel_path = 'ncbi-blast-2.2.29+/bin/' + self.subtool_name
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME,
-                                                         executable=self.subtool_name,
-                                                         version=TOOL_VERSION))
-            install_methods.append(tools.DownloadPackage(get_url(),
-                                                         target_rel_path,
-                                                         post_download_command=' '.join(
-                                                             ['rm'] + ['ncbi-blast-2.2.29+/bin/' + f for f in unwanted
-                                                                  ]),
-                                                         post_download_ret=None))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            install_methods.append(
+                tools.DownloadPackage(
+                    get_url(),
+                    target_rel_path,
+                    post_download_command=' '.join(
+                        ['rm'] + [
+                            'ncbi-blast-2.2.29+/bin/' + f for f in unwanted
+                        ]
+                    ),
+                    post_download_ret=None
+                )
+            )
         #tools.Tool.__init__(self, install_methods=install_methods)
         super(BlastTools, self).__init__(install_methods=install_methods)
 

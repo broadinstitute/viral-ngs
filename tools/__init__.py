@@ -12,8 +12,8 @@ import json
 
 try:
     # Python 3.x
-    from urllib.request import urlretrieve  # pylint: disable=E0611
-    from urllib.parse import urlparse  # pylint: disable=E0611
+    from urllib.request import urlretrieve    # pylint: disable=E0611
+    from urllib.parse import urlparse    # pylint: disable=E0611
 except ImportError:
     # Python 2.x
     from urllib import urlretrieve
@@ -21,11 +21,16 @@ except ImportError:
 
 # Put all tool files in __all__
 # allows "from tools import *" to import all tooles for testtools
-__all__ = sorted([filename[:-3]  # Remove .py
-           for filename in os.listdir(os.path.dirname(__file__))  # tools directory
-           if filename.endswith('.py') and filename != '__init__.py' and filename not in [  # Add any files to exclude here:
-               # e.g. 'sometool.py',
-           ]])
+__all__ = sorted(
+    [
+        filename[:-3]    # Remove .py
+        for filename in os.listdir(os.path.dirname(__file__))    # tools directory
+        if filename.endswith(
+            '.py') and filename != '__init__.py' and filename not in [    # Add any files to exclude here:
+    # e.g. 'sometool.py',
+            ]
+    ]
+)
 installed_tools = {}
 
 log = logging.getLogger(__name__)
@@ -115,7 +120,7 @@ class InstallMethod(object):
     def is_attempted(self):
         return self.attempts
 
-    def attempt_install(self):  # Override _attempt_install, not this.
+    def attempt_install(self):    # Override _attempt_install, not this.
         self.attempts += 1
         self._attempt_install()
 
@@ -166,13 +171,17 @@ class CondaPackage(InstallMethod):
         conda.
     '''
 
-    def __init__(self,
-                 package,
-                 channel="bioconda",
-                 executable=None,
-                 version="",
-                 verifycmd=None, verifycode=0, require_executability=True,
-                 env_path=None):
+    def __init__(
+        self,
+        package,
+        channel="bioconda",
+        executable=None,
+        version="",
+        verifycmd=None,
+        verifycode=0,
+        require_executability=True,
+        env_path=None
+    ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
         self.package = package
@@ -248,11 +257,11 @@ class CondaPackage(InstallMethod):
 
         if not self.verify_install():
             # try to create the environment and install the package
-            run_cmd = ["conda", "create", "-q", "-y", "--json"] 
+            run_cmd = ["conda", "create", "-q", "-y", "--json"]
 
             python_version = os.environ.get("TRAVIS_PYTHON_VERSION")
             if python_version:
-                python_version = "python="+python_version if python_version else ""
+                python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
 
             run_cmd.extend(["-c", self.channel, "-p", self.env_path, self._package_str])
@@ -263,9 +272,13 @@ class CondaPackage(InstallMethod):
                 # the environment already exists
                 # the package may not be installed...
                 log.debug("Conda environment already exists...")
-                result = util.misc.run_and_print(["conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p",
-                                                  self.env_path, self._package_str],
-                                                 silent=True)
+                result = util.misc.run_and_print(
+                    [
+                        "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                        self._package_str
+                    ],
+                    silent=True
+                )
                 if result.returncode == 0:
                     data = json.loads(result.stdout.decode("UTF-8"))
                     if data["success"] == True:
@@ -291,9 +304,17 @@ class DownloadPackage(InstallMethod):
             post_download_command
     '''
 
-    def __init__(self, url, target_rel_path, destination_dir=None,
-                 verifycmd=None, verifycode=0, require_executability=True,
-                 post_download_command=None, post_download_ret=0):
+    def __init__(
+        self,
+        url,
+        target_rel_path,
+        destination_dir=None,
+        verifycmd=None,
+        verifycode=0,
+        require_executability=True,
+        post_download_command=None,
+        post_download_ret=0
+    ):
         if destination_dir is None:
             destination_dir = util.file.get_build_path()
         self.url = url
@@ -355,22 +376,24 @@ class DownloadPackage(InstallMethod):
         log.debug("unpacking")
         util.file.mkdir_p(self.destination_dir)
         if self.download_file.endswith('.zip'):
-            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir
-                                                              )):
+            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir)):
 
                 return
             else:
                 os.unlink(os.path.join(download_dir, self.download_file))
-        elif (self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz') or
-              self.download_file.endswith('.tar.bz2') or self.download_file.endswith('.tar')):
+        elif (
+            self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz') or
+            self.download_file.endswith('.tar.bz2') or self.download_file.endswith('.tar')
+        ):
             if self.download_file.endswith('.tar'):
                 compression_option = ''
             elif self.download_file.endswith('.tar.bz2'):
                 compression_option = 'j'
             else:
                 compression_option = 'z'
-            untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir, compression_option, download_dir,
-                                                        self.download_file)
+            untar_cmd = "tar -C {} -x{}pf {}/{}".format(
+                self.destination_dir, compression_option, download_dir, self.download_file
+            )
             log.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)
             if exitCode:
@@ -380,5 +403,6 @@ class DownloadPackage(InstallMethod):
                 log.debug("tar returned with exit code 0")
                 os.unlink(os.path.join(download_dir, self.download_file))
         else:
-            shutil.move(os.path.join(download_dir, self.download_file),
-                        os.path.join(self.destination_dir, self.download_file))
+            shutil.move(
+                os.path.join(download_dir, self.download_file), os.path.join(self.destination_dir, self.download_file)
+            )

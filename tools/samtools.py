@@ -36,16 +36,21 @@ class SamtoolsTool(tools.Tool):
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
-            install_methods.append(tools.DownloadPackage(TOOL_URL,
-                                                         'samtools-{}/samtools'.format(TOOL_VERSION),
-                                                         post_download_command='cd samtools-{}; make -s'.format(
-                                                             TOOL_VERSION)))
+            install_methods.append(
+                tools.DownloadPackage(
+                    TOOL_URL,
+                    'samtools-{}/samtools'.format(TOOL_VERSION),
+                    post_download_command='cd samtools-{}; make -s'.format(
+                        TOOL_VERSION
+                    )
+                )
+            )
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdin=None, stdout=None, stderr=None):  # pylint: disable=W0221
+    def execute(self, command, args, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
         if stdin:
@@ -122,8 +127,9 @@ class SamtoolsTool(tools.Tool):
             and not stripped out. ID is required for all read groups.
             Resulting keys are in same order as @RG lines in bam file.
         '''
-        rgs = [dict(x.split(':', 1) for x in row[1:]) for row in self.getHeader(inBam)
-               if len(row) > 0 and row[0] == '@RG']
+        rgs = [
+            dict(x.split(':', 1) for x in row[1:]) for row in self.getHeader(inBam) if len(row) > 0 and row[0] == '@RG'
+        ]
         return OrderedDict((rg['ID'], rg) for rg in rgs)
 
     def count(self, inBam, opts=None, regions=None):
@@ -137,4 +143,4 @@ class SamtoolsTool(tools.Tool):
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
 
-        self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')  # Suppress info messages
+        self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')    # Suppress info messages

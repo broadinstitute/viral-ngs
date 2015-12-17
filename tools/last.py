@@ -56,7 +56,8 @@ class DownloadAndBuildLast(tools.DownloadPackage):
             file_contents = inf.read()
             file_contents = file_contents.replace('string.maketrans("", "")', 'None')
             file_contents = file_contents.replace(
-                '#! /usr/bin/env python', '#! /usr/bin/env python\nfrom __future__ import print_function')
+                '#! /usr/bin/env python', '#! /usr/bin/env python\nfrom __future__ import print_function'
+            )
         with open(maf_convert_path, 'wt') as outf:
             outf.write(file_contents)
 
@@ -88,7 +89,7 @@ class Lastdb(LastTools):
     subtool_name = 'lastdb'
     subtool_name_on_broad = 'lastdb'
 
-    def execute(self, inputFasta, outputDirectory, outputFilePrefix):  # pylint: disable=W0221
+    def execute(self, inputFasta, outputDirectory, outputFilePrefix):    # pylint: disable=W0221
         # get the path to the binary
         tool_cmd = [self.install_and_get_path()]
 

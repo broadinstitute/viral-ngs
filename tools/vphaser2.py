@@ -27,7 +27,7 @@ class Vphaser2Tool(tools.Tool):
             install_methods.append(tools.PrexistingUnixCommand(path))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, inBam, outDir, numThreads=None):  # pylint: disable=W0221
+    def execute(self, inBam, outDir, numThreads=None):    # pylint: disable=W0221
         cmd = [self.install_and_get_path(), '-i', inBam, '-o', outDir]
         cmd_str = ' '.join(cmd)
         envCopy = os.environ.copy()
@@ -44,7 +44,7 @@ class Vphaser2Tool(tools.Tool):
             # TODO: should this be cmd_str?
             subprocess.check_output(cmd, env=envCopy, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as ex:
-            print(ex.output)  # Useful in case of no log handler.
+            print(ex.output)    # Useful in case of no log handler.
             log.error(ex.output)
             raise
 
