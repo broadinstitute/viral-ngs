@@ -82,6 +82,18 @@ class TestOrderAndOrient(TestCaseWithTmp):
             aligner='promer')
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
+    
+    def test_multi_overlap(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.ebov.small.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.ebov.fasta'),
+            os.path.join(inDir, 'ref.ebov.small.fasta'),
+            outFasta)
+        self.assertEqualContents(outFasta, expected)
+        os.unlink(outFasta)
+        
 
 class TestImputeFromReference(TestCaseWithTmp):
     ''' Test the impute_from_reference command (align and modify_contig) '''
