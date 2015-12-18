@@ -179,7 +179,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
-        aligner='nucmer', circular=False, breaklen=None,
+        aligner='nucmer', circular=False, breaklen=None, trimmed_contigs=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
@@ -187,7 +187,10 @@ def order_and_orient(inFasta, inReference, outFasta,
         contigs).
     '''
     mummer = tools.mummer.MummerTool()
-    trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
+    if trimmed_contigs:
+        trimmed = trimmed_contigs
+    else:
+        trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
     mummer.trim_contigs(inReference, inFasta, trimmed,
             aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
@@ -196,7 +199,8 @@ def order_and_orient(inFasta, inReference, outFasta,
             aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
             min_pct_contig_aligned=min_pct_contig_aligned)
-    os.unlink(trimmed)
+    if not trimmed_contigs:
+        os.unlink(trimmed)
     return 0
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
@@ -233,6 +237,9 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         type=float,
                         default=0.6,
                         help="minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
+    parser.add_argument("--trimmed_contigs",
+                        default=None,
+                        help="optional output file for trimmed contigs")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
