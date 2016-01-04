@@ -22,19 +22,11 @@ log = logging.getLogger(__name__)
 
 class Diamond(tools.Tool):
 
-    SUBCOMMANDS = [
-        'makedb',
-        'blastx',
-        'blastp',
-        'view'
-    ]
+    SUBCOMMANDS = ['makedb', 'blastx', 'blastp', 'view']
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [
-                DownloadAndBuildDiamond(
-                    URL,
-                    os.path.join(DIAMOND_DIR, 'build', 'diamond'))]
+            install_methods = [DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'build', 'diamond'))]
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -47,20 +39,16 @@ class Diamond(tools.Tool):
           db: Diamond database file to create.
           protein_fastas: List of input fasta files to process.
         '''
-        assert len(protein_fastas), (
-            'Diamond requires input files to create a database.')
+        assert len(protein_fastas), ('Diamond requires input files to create a database.')
         options = options or {}
-        temp_file = util.file.temp_catted_files(
-            protein_fastas, prefix='diamond_', suffix='.fasta')
+        temp_file = util.file.temp_catted_files(protein_fastas, prefix='diamond_', suffix='.fasta')
         with temp_file as input_fasta:
             options['--in'] = input_fasta
             options['--db'] = db
 
-            return self.execute('makedb', options=options,
-                                option_string=option_string)
+            return self.execute('makedb', options=options, option_string=option_string)
 
-    def blastx(self, db, query_files, diamond_alignment, options=None,
-               option_string=None):
+    def blastx(self, db, query_files, diamond_alignment, options=None, option_string=None):
         '''Perform a blastx-like search from query file to database.
 
         Args:
@@ -70,17 +58,14 @@ class Diamond(tools.Tool):
         '''
         assert diamond_alignment.endswith('.daa'), 'Output must end in .daa'
         options = options or {}
-        temp_file = util.file.temp_catted_files(
-            query_files, prefix='diamond_', suffix='.fasta')
+        temp_file = util.file.temp_catted_files(query_files, prefix='diamond_', suffix='.fasta')
         with temp_file as query:
             options['--db'] = db
             options['--query'] = query
             options['--daa'] = diamond_alignment
-            return self.execute('blastx', options=options,
-                                option_string=option_string)
+            return self.execute('blastx', options=options, option_string=option_string)
 
-    def view(self, diamond_alignment, output_file, output_format='tab',
-             options=None, option_string=None):
+    def view(self, diamond_alignment, output_file, output_format='tab', options=None, option_string=None):
         '''Perform translation between diamond output and blast tab/sam output.
         '''
 
@@ -89,11 +74,9 @@ class Diamond(tools.Tool):
         options['--out'] = output_file
         options['--daa'] = diamond_alignment
         options['--outfmt'] = output_format
-        return self.execute('view', options=options,
-                            option_string=option_string)
+        return self.execute('view', options=options, option_string=option_string)
 
-    def execute(self, command, options=None, option_string=None,
-                return_stdout=False):
+    def execute(self, command, options=None, option_string=None, return_stdout=False):
         '''Run a diamond command
 
         Args:
@@ -108,8 +91,7 @@ class Diamond(tools.Tool):
         if options:
             # We need some way to allow empty options args like --log, hence
             # we filter out on 'x is None'.
-            cmd.extend([str(x) for x in
-                        itertools.chain(*options.items()) if x is not None])
+            cmd.extend([str(x) for x in itertools.chain(*options.items()) if x is not None])
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
@@ -123,8 +105,7 @@ class DownloadAndBuildDiamond(tools.DownloadPackage):
         diamond_dir = os.path.join(self.destination_dir, DIAMOND_DIR)
         # We should rather have a way to rename self.download_file in
         # DownloadPackage generically.
-        shutil.move(os.path.join(self.destination_dir, DIAMOND_COMMIT_DIR),
-                    diamond_dir)
+        shutil.move(os.path.join(self.destination_dir, DIAMOND_COMMIT_DIR), diamond_dir)
         build_dir = os.path.join(diamond_dir, 'build')
         util.file.mkdir_p(build_dir)
         env = os.environ.copy()

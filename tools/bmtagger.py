@@ -7,6 +7,9 @@ import logging
 from tools import urlretrieve
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "bmtagger"
+TOOL_VERSION = "3.101"
+
 
 class BmtaggerTools(tools.Tool):
     '''
@@ -27,6 +30,7 @@ class BmtaggerTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         if install_methods is None:
             install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
             install_methods.append(DownloadBmtagger(self.subtool_name))
         tools.Tool.__init__(self, install_methods=install_methods)
 
@@ -69,8 +73,10 @@ class DownloadBmtagger(tools.InstallMethod):
 
     def verify_install(self):
         """ confirms that the tools are present and executable """
-        self.installed = all(os.access(os.path.join(self.target_dir, executable), (os.X_OK | os.R_OK))
-                             for executable in self.executables)
+        self.installed = all(
+            os.access(
+                os.path.join(self.target_dir, executable), (os.X_OK | os.R_OK)) for executable in self.executables
+        )
         return self.installed
 
     def _attempt_install(self):

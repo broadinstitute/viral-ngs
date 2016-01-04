@@ -211,7 +211,7 @@
         mode: 0755
 
     - name: Install viral-ngs tools
-      command: "{{ venv_dir }}/exec python -m unittest test.unit.test_tools -v"
+      command: "{{ venv_dir }}/exec nosetests -v test.unit.test_tools.TestToolsInstallation"
       args:
         chdir: "{{ project_dir }}"
 

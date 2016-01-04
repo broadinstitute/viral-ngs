@@ -29,20 +29,25 @@ class GATKTool(tools.Tool):
             if jarpath:
                 if not jarpath.endswith('.jar'):
                     jarpath = os.path.join(jarpath, 'GenomeAnalysisTK.jar')
-                install_methods.append(tools.PrexistingUnixCommand(
-                    jarpath,
-                    verifycmd='java -jar %s --version' % jarpath,
-                    verifycode=0,
-                    require_executability=False))
+                install_methods.append(
+                    tools.PrexistingUnixCommand(
+                        jarpath,
+                        verifycmd='java -jar %s --version' % jarpath,
+                        verifycode=0,
+                        require_executability=False
+                    )
+                )
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, command, gatkOptions=None, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, command, gatkOptions=None, JVMmemory=None):    # pylint: disable=W0221
         gatkOptions = gatkOptions or []
 
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                   self.install_and_get_path(), '-T', command] + list(map(str, gatkOptions))
+        tool_cmd = [
+            'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+            '-T', command
+        ] + list(map(str, gatkOptions))
         LOG.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
@@ -59,36 +64,36 @@ class GATKTool(tools.Tool):
         cmd = ['java', '-jar', self.install_and_get_path(), '--version']
         self.tool_version = util.misc.run_and_print(cmd).stdout.strip()
 
-    def ug(self, inBam, refFasta, outVcf,
-            options=None,
-            JVMmemory=None, threads=1):
+    def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=1):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
 
         if int(threads) < 1:
             threads = 1
-        opts = ['-I',
-                inBam,
-                '-R',
-                refFasta,
-                '-o',
-                outVcf,
-                '-glm',
-                'BOTH',
-                '--baq',
-                'OFF',
-                '--useOriginalQualities',
-                '-out_mode',
-                'EMIT_ALL_SITES',
-                '-dt',
-                'NONE',
-                '--num_threads',
-                threads,
-                '-stand_call_conf',
-                0,
-                '-stand_emit_conf',
-                0,
-                '-A',
-                'AlleleBalance',]
+        opts = [
+            '-I',
+            inBam,
+            '-R',
+            refFasta,
+            '-o',
+            outVcf,
+            '-glm',
+            'BOTH',
+            '--baq',
+            'OFF',
+            '--useOriginalQualities',
+            '-out_mode',
+            'EMIT_ALL_SITES',
+            '-dt',
+            'NONE',
+            '--num_threads',
+            threads,
+            '-stand_call_conf',
+            0,
+            '-stand_emit_conf',
+            0,
+            '-A',
+            'AlleleBalance',
+        ]
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
@@ -103,7 +108,7 @@ class GATKTool(tools.Tool):
                 '-targetIntervals',
                 intervals,
                 '-o',
-                outBam,  #'--num_threads', threads,
+                outBam,    #'--num_threads', threads,
                ]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)

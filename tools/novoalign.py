@@ -19,6 +19,9 @@ import stat
 
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "novoalign"
+TOOL_VERSION = "3.03.02"
+
 
 class NovoalignTool(tools.Tool):
 
@@ -27,9 +30,13 @@ class NovoalignTool(tools.Tool):
         install_methods = []
         for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
             if novopath is not None:
-                install_methods.append(tools.PrexistingUnixCommand(
-                    os.path.join(novopath, 'novoalign'),
-                    require_executability=True))
+                install_methods.append(
+                    tools.PrexistingUnixCommand(
+                        os.path.join(novopath, 'novoalign'),
+                        require_executability=True
+                    )
+                )
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -50,7 +57,7 @@ class NovoalignTool(tools.Tool):
             raise ValueError('input file %s must end with .fasta' % fasta)
         return fasta[:-6] + '.nix'
 
-    def execute(self, inBam, refFasta, outBam, options=None, min_qual=0, JVMmemory=None): # pylint: disable=W0221
+    def execute(self, inBam, refFasta, outBam, options=None, min_qual=0, JVMmemory=None):    # pylint: disable=W0221
         ''' Execute Novoalign on BAM inputs and outputs.
             If the BAM contains multiple read groups, break up
             the input and perform Novoalign separately on each one
@@ -78,13 +85,15 @@ class NovoalignTool(tools.Tool):
             align_bams = []
             for rg in rgs:
                 tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
-                self.align_one_rg_bam(inBam,
-                                      refFasta,
-                                      tmp_bam,
-                                      rgid=rg,
-                                      options=options,
-                                      min_qual=min_qual,
-                                      JVMmemory=JVMmemory)
+                self.align_one_rg_bam(
+                    inBam,
+                    refFasta,
+                    tmp_bam,
+                    rgid=rg,
+                    options=options,
+                    min_qual=min_qual,
+                    JVMmemory=JVMmemory
+                )
                 if os.path.getsize(tmp_bam) > 0:
                     align_bams.append(tmp_bam)
 
@@ -93,19 +102,19 @@ class NovoalignTool(tools.Tool):
                 align_bams,
                 outBam,
                 picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
-                JVMmemory=JVMmemory)
+                JVMmemory=JVMmemory
+            )
             for bam in align_bams:
                 os.unlink(bam)
 
-    def align_one_rg_bam(self, inBam, refFasta, outBam,
-                         rgid=None, options=None, min_qual=0, JVMmemory=None):
+    def align_one_rg_bam(self, inBam, refFasta, outBam, rgid=None, options=None, min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             Requires that only one RG exists (will error otherwise).
             Use Picard to sort and index the output BAM.
             If min_qual>0, use Samtools to filter on mapping quality.
         '''
         options = options or ["-r", "Random"]
-        
+
         samtools = tools.samtools.SamtoolsTool()
 
         # Require exactly one RG
@@ -165,11 +174,13 @@ class NovoalignTool(tools.Tool):
 
         # Picard SortSam
         sorter = tools.picard.SortSamTool()
-        sorter.execute(tmp_sam,
-                       outBam,
-                       sort_order='coordinate',
-                       picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
-                       JVMmemory=JVMmemory)
+        sorter.execute(
+            tmp_sam,
+            outBam,
+            sort_order='coordinate',
+            picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
+            JVMmemory=JVMmemory
+        )
 
     def index_fasta(self, refFasta):
         ''' Index a FASTA file (reference genome) for use with Novoalign.
