@@ -13,7 +13,7 @@ import util.file
 TOOL_NAME = "mvicuna"
 TOOL_VERSION = "1.0"
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class MvicunaTool(tools.Tool):
@@ -57,7 +57,7 @@ class MvicunaTool(tools.Tool):
             self.install_and_get_path(), '-ipfq', ','.join(inPair), '-opfq', ','.join(tmp2OutPair), '-osfq',
             outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm'
         ]
-        LOG.debug(' '.join(cmdline))
+        _log.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
@@ -70,7 +70,7 @@ def _get_mvicuna_path():
     elif uname[0] == 'Linux' and uname[4].endswith('64'):
         osName = 'linux64'
     else:
-        LOG.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
+        _log.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
         return ''
     binaries_path = util.file.get_binaries_path()
     return os.path.join(binaries_path, 'mvicuna', osName, 'mvicuna')

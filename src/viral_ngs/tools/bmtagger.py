@@ -5,7 +5,7 @@ import util.file
 import os
 import logging
 from tools import urlretrieve
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 TOOL_NAME = "bmtagger"
 TOOL_VERSION = "3.101"
@@ -88,12 +88,12 @@ class DownloadBmtagger(tools.InstallMethod):
         if uname[0] == 'Darwin':
             url_base += 'mac-os/'
         elif uname[0] != 'Linux' or not uname[4].endswith('64'):
-            LOG.debug('OS %s not implemented', uname[0])
+            _log.debug('OS %s not implemented', uname[0])
             return
         for executable in self.executables:
             path = os.path.join(self.target_dir, executable)
             url = url_base + executable
-            LOG.info('Downloading from %s ...', url)
+            _log.info('Downloading from %s ...', url)
             urlretrieve(url, path)
             os.system('chmod +x ' + path)
         self.verify_install()
