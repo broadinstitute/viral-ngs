@@ -97,11 +97,19 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     tmpUnpaired1 = mkstempfname()
     tmpUnpaired2 = mkstempfname()
 
-    #  This java program has a lot of argments...
-    javaCmd = ['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
-               'org.usadellab.trimmomatic.TrimmomaticPE', inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1,
-               pairedOutFastq2, tmpUnpaired2, 'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
-               'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)]
+    javaCmd = []
+
+    # the conda version wraps the jar file with a shell script
+    if trimmomaticPath.endswith(".jar"):
+        #  This java program has a lot of argments...
+        javaCmd.extend(['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
+                   'org.usadellab.trimmomatic.TrimmomaticPE'])
+    else:
+        javaCmd.extend([trimmomaticPath, "PE"])
+
+    javaCmd.extend([inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1,
+                   pairedOutFastq2, tmpUnpaired2, 'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
+                   'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)])
 
     log.debug(' '.join(javaCmd))
     subprocess.check_call(javaCmd)
@@ -168,10 +176,10 @@ def lastal_get_hits(inFastq, db, outList):
             line_num = 0
             for line in inf:
                 if (line_num % 4) == 0:
-                    id = line.rstrip('\n\r')[1:]
-                    if id.endswith('/1') or id.endswith('/2'):
-                        id = id[:-2]
-                    outf.write(id + '\n')
+                    seq_id = line.rstrip('\n\r')[1:]
+                    if seq_id.endswith('/1') or seq_id.endswith('/2'):
+                        seq_id = seq_id[:-2]
+                    outf.write(seq_id + '\n')
                 line_num += 1
 
 
@@ -540,30 +548,60 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
     hits_files = []
-    record_iter = SeqIO.parse(open(fasta, "rt"), "fasta")
-    for batch in batch_iterator(record_iter, chunkSize):
-        chunk_fasta = mkstempfname('.fasta')
-        with open(chunk_fasta, "wt") as handle:
-            SeqIO.write(batch, handle, "fasta")
-        batch = None
+    with open(fasta, "rt") as fastaFile:
+        record_iter = SeqIO.parse(fastaFile, "fasta")
+        for batch in batch_iterator(record_iter, chunkSize):
+            chunk_fasta = mkstempfname('.fasta')
+            with open(chunk_fasta, "wt") as handle:
+                SeqIO.write(batch, handle, "fasta")
+            batch = None
 
-        chunk_hits = mkstempfname('.hits.txt')
-        blastnCmd = [blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs',
-                     '2', '-query', chunk_fasta, '-out', chunk_hits]
-        log.debug(' '.join(blastnCmd))
-        subprocess.check_call(blastnCmd)
+            chunk_hits = mkstempfname('.hits.txt')
+            blastnCmd = [blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs',
+                         '2', '-query', chunk_fasta, '-out', chunk_hits]
+            log.debug(' '.join(blastnCmd))
+            subprocess.check_call(blastnCmd)
 
-        os.unlink(chunk_fasta)
-        hits_files.append(chunk_hits)
+            os.unlink(chunk_fasta)
+            hits_files.append(chunk_hits)
 
     return hits_files
 
 
+def no_blast_hits(blastOutCombined, inFastq, outFastq):
+    '''
+        outputs to outFastq: reads that have no blast hits
+    '''
+
+    blastReads = {}
+    with open(blastOutCombined, 'r') as blastFile:
+        for line in blastFile:
+            blastReads[(line[0:line.find('\t')])] = True
+
+    with util.file.open_or_gzopen(outFastq, 'wt') as outf:
+        with open(inFastq, 'r') as readsFile:
+            nohit = True
+            isFastq = inFastq.endswith('.fastq')
+            while True:
+                line1 = readsFile.readline()
+                line2 = readsFile.readline()
+                if not line2:
+                    break
+                line3 = ''
+                line4 = ''
+                if isFastq:
+                    line3 = readsFile.readline()
+                    if not line3:
+                        break
+                    line4 = readsFile.readline()
+                    if not line4:
+                        break
+                if nohit != (line1[1:line1.find('\n')] in blastReads):
+                    outf.write(line1 + line2 + line3 + line4)
+
+
 def deplete_blastn(inFastq, outFastq, refDbs):
     'Use blastn to remove reads that match at least one of the databases.'
-
-    # Get tools
-    noBlastHits_v3Path = os.path.join(util.file.get_scripts_path(), 'noBlastHits_v3.py')
 
     # Convert to fasta
     inFasta = mkstempfname('.fasta')
@@ -582,12 +620,8 @@ def deplete_blastn(inFastq, outFastq, refDbs):
     with open(blastOutCombined, 'wt') as outf:
         subprocess.check_call(catCmd, stdout=outf)
 
-    # run noBlastHits_v3.py to extract reads with no blast hits
-    # TODO: slurp the small amount of code in this script into here
-    noBlastHitsCmd = ['python', noBlastHits_v3Path, '-b', blastOutCombined, '-r', inFastq, '-m', 'nohit']
-    log.debug(' '.join(noBlastHitsCmd) + '> ' + outFastq)
-    with util.file.open_or_gzopen(outFastq, 'wt') as outf:
-        subprocess.check_call(noBlastHitsCmd, stdout=outf)
+    # extract reads with no blast hits
+    no_blast_hits(blastOutCombined, inFastq, outFastq)
 
 
 def parser_deplete_blastn(parser=argparse.ArgumentParser()):
