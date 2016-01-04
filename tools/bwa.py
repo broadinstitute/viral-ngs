@@ -7,7 +7,7 @@ import os
 import os.path
 import logging
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 TOOL_NAME = "bwa"
 TOOL_VERSION = "0.7.12"
@@ -29,7 +29,7 @@ class Bwa(tools.Tool):
     """ tool wrapper for bwa """
 
     def __init__(self, install_methods=None):
-        LOG.debug("BWA_DIR: %s", BWA_DIR)
+        _log.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
@@ -66,5 +66,5 @@ class Bwa(tools.Tool):
         option_str = '{} {}'.format(' '.join(["{} {}".format(k, v) for k, v in options.items()]), option_string)
         cmd = "{} {} {} {} {}" \
             .format(self.exec_path, subcommand, option_str, arg_str, post_cmd)
-        LOG.debug("Calling bwa with cmd: %s", cmd)
+        _log.debug("Calling bwa with cmd: %s", cmd)
         return os.system(cmd)
