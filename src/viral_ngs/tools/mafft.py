@@ -13,6 +13,7 @@ import os
 import os.path
 import subprocess
 
+TOOL_NAME = "mafft"
 TOOL_VERSION = '7.221'
 TOOL_URL = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
@@ -35,16 +36,23 @@ class MafftTool(tools.Tool):
                 dir=util.file.get_build_path(),
                 ver=TOOL_VERSION,
                 binPath=binaryPath,
-                bin_dir=binaryDir)
+                bin_dir=binaryDir
+            )
             destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=TOOL_VERSION)
 
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(
-                tools.DownloadPackage(TOOL_URL.format(ver=TOOL_VERSION,
-                                                 os=mafft_os,
-                                                 ext=mafft_archive_extension),
-                                      target_rel_path=target_rel_path,
-                                      destination_dir=destination_dir,
-                                      verifycmd=verify_command))
+                tools.DownloadPackage(
+                    TOOL_URL.format(
+                        ver=TOOL_VERSION,
+                        os=mafft_os,
+                        ext=mafft_archive_extension
+                    ),
+                    target_rel_path=target_rel_path,
+                    destination_dir=destination_dir,
+                    verifycmd=verify_command
+                )
+            )
 
         tools.Tool.__init__(self, install_methods=install_methods)
 
@@ -61,11 +69,27 @@ class MafftTool(tools.Tool):
         if len(seqIds) > len(set(seqIds)):
             raise LookupError(
                 "Not all sequence IDs in input are unique for file: {}".format(
-                    os.path.basename(filePath)))
+                    os.path.basename(filePath)
+                )
+            )
 
     # pylint: disable=W0221
-    def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder,
-                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True, retree=None):
+    def execute(
+        self,
+        inFastas,
+        outFile,
+        localpair,
+        globalpair,
+        preservecase,
+        reorder,
+        outputAsClustal,
+        maxiters,
+        gapOpeningPenalty=None,
+        offset=None,
+        threads=-1,
+        verbose=True,
+        retree=None
+    ):
         inputFileName = ""
         tempCombinedInputFile = ""
 
@@ -111,7 +135,7 @@ class MafftTool(tools.Tool):
         if not retree:
             tool_cmd.append("--auto")
         if threads >= 1 or threads == -1:
-            tool_cmd.append("--thread {}".format(threads))
+            tool_cmd.extend(["--thread", "{}".format(threads)])
         else:
             raise Exception("invalid value for threads: {}".format(threads))
 
@@ -131,17 +155,17 @@ class MafftTool(tools.Tool):
         if reorder:
             tool_cmd.append("--reorder")
         if retree:
-            tool_cmd.append("--retree {}".format(retree))
+            tool_cmd.extend(["--retree", "{}".format(retree)])
         if gapOpeningPenalty:
-            tool_cmd.append("--op {penalty}".format(penalty=gapOpeningPenalty))
+            tool_cmd.extend(["--op", "{penalty}".format(penalty=gapOpeningPenalty)])
         if offset:
-            tool_cmd.append("--ep {num}".format(num=offset))
+            tool_cmd.extend(["--ep", "{num}".format(num=offset)])
         if not verbose:
             tool_cmd.append("--quiet")
         if outputAsClustal:
             tool_cmd.append("--clustalout")
         if maxiters:
-            tool_cmd.append("--maxiterate {iters}".format(iters=maxiters))
+            tool_cmd.extend(["--maxiterate", "{iters}".format(iters=maxiters)])
 
         tool_cmd.append(inputFileName)
 
@@ -160,6 +184,7 @@ class MafftTool(tools.Tool):
 
         return outFile
     # pylint: enable=W0221
+
 
 def get_mafft_os():
     uname = os.uname()

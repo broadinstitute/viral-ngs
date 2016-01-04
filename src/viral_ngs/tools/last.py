@@ -10,6 +10,9 @@ import tools
 
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "last"
+TOOL_VERSION = "638"
+
 
 class LastTools(tools.Tool):
     """
@@ -22,6 +25,7 @@ class LastTools(tools.Tool):
         self.subtool_name_on_broad = self.subtool_name_on_broad if hasattr(self, "subtool_name_on_broad") else None
         if install_methods is None:
             install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
             install_methods.append(DownloadAndBuildLast(self.subtool_name))
             # Version of last on broad is old, database-incompatible with newer
             # one, so don't use it and always load the newer version
@@ -52,7 +56,8 @@ class DownloadAndBuildLast(tools.DownloadPackage):
             file_contents = inf.read()
             file_contents = file_contents.replace('string.maketrans("", "")', 'None')
             file_contents = file_contents.replace(
-                '#! /usr/bin/env python', '#! /usr/bin/env python\nfrom __future__ import print_function')
+                '#! /usr/bin/env python', '#! /usr/bin/env python\nfrom __future__ import print_function'
+            )
         with open(maf_convert_path, 'wt') as outf:
             outf.write(file_contents)
 
@@ -84,7 +89,7 @@ class Lastdb(LastTools):
     subtool_name = 'lastdb'
     subtool_name_on_broad = 'lastdb'
 
-    def execute(self, inputFasta, outputDirectory, outputFilePrefix): # pylint: disable=W0221
+    def execute(self, inputFasta, outputDirectory, outputFilePrefix):    # pylint: disable=W0221
         # get the path to the binary
         tool_cmd = [self.install_and_get_path()]
 

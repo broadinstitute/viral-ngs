@@ -60,7 +60,7 @@ most of the bioinformatic tools we rely on here. They will auto-download
 and install the first time they are needed by any command. If you want
 to pre-install all of the external tools, simply type this::
 
-  python -m unittest test.unit.test_tools.TestToolsInstallation -v
+  nosetests -v test.unit.test_tools
 
 However, there are two tools in particular that cannot be auto-installed
 due to licensing restrictions.  You will need to download and install

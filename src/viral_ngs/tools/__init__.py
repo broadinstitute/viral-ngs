@@ -7,11 +7,13 @@ import logging
 import tempfile
 import shutil
 import util.file
+import util.misc
+import json
 
 try:
     # Python 3.x
-    from urllib.request import urlretrieve # pylint: disable=E0611
-    from urllib.parse import urlparse # pylint: disable=E0611
+    from urllib.request import urlretrieve    # pylint: disable=E0611
+    from urllib.parse import urlparse    # pylint: disable=E0611
 except ImportError:
     # Python 2.x
     from urllib import urlretrieve
@@ -19,11 +21,16 @@ except ImportError:
 
 # Put all tool files in __all__
 # allows "from tools import *" to import all tooles for testtools
-__all__ = [filename[:-3]  # Remove .py
-           for filename in os.listdir(os.path.dirname(__file__))  # tools directory
-           if filename.endswith('.py') and filename != '__init__.py' and filename not in [  # Add any files to exclude here:
-               # e.g. 'sometool.py',
-           ]]
+__all__ = sorted(
+    [
+        filename[:-3]    # Remove .py
+        for filename in os.listdir(os.path.dirname(__file__))    # tools directory
+        if filename.endswith(
+            '.py') and filename != '__init__.py' and filename not in [    # Add any files to exclude here:
+    # e.g. 'sometool.py',
+            ]
+    ]
+)
 installed_tools = {}
 
 LOG = logging.getLogger(__name__)
@@ -37,11 +44,13 @@ def get_tool_by_name(name):
 
 def skip_install_test(condition=None):
     '''Decorate the Tool class to skip the installation test.'''
+
     def decorator(klass):
         if callable(condition) and not condition():
             return klass
         klass._skiptest = True
         return klass
+
     return decorator
 
 
@@ -111,7 +120,7 @@ class InstallMethod(object):
     def is_attempted(self):
         return self.attempts
 
-    def attempt_install(self):  # Override _attempt_install, not this.
+    def attempt_install(self):    # Override _attempt_install, not this.
         self.attempts += 1
         self._attempt_install()
 
@@ -157,6 +166,131 @@ class PrexistingUnixCommand(InstallMethod):
         return self.installed and self.path or None
 
 
+class CondaPackage(InstallMethod):
+    ''' This is an install method for tools that can be installed via 
+        conda.
+    '''
+
+    def __init__(
+        self,
+        package,
+        channel="bioconda",
+        executable=None,
+        version="",
+        verifycmd=None,
+        verifycode=0,
+        require_executability=True,
+        env_path=None
+    ):
+        # if the executable name is specifed, use it; otherwise use the package name
+        self.executable = executable or package
+        self.package = package
+        self.channel = channel
+        self.version = version
+
+        self.verifycmd = verifycmd
+        self.verifycode = verifycode
+        self.require_executability = require_executability
+
+        env_path = env_path or os.path.join(util.file.get_build_path(), 'conda-tools')
+        self.env_path = os.path.realpath(os.path.expanduser(env_path))
+
+        self.installed = False
+
+        # conda must be installed
+        try:
+            util.misc.run_and_print(["conda", "-h"], silent=True)
+            #log.debug("conda is installed")
+        except:
+            LOG.error("conda must be installed")
+            raise
+
+        try:
+            util.misc.run_and_print(["conda", "build", "-h"], silent=True)
+        except:
+            LOG.warning("conda-build must be installed; installing...")
+            util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
+
+        #InstallMethod.__init__(self)
+        super(CondaPackage, self).__init__()
+
+    @property
+    def _package_str(self):
+        if len(self.version):
+            ver_str = "{pkg}={ver}".format(pkg=self.package, ver=self.version)
+        else:
+            ver_str = self.package
+        return ver_str
+
+    @property
+    def bin_path(self):
+        return os.path.join(self.env_path, "bin")
+
+    def executable_path(self):
+        return os.path.join(self.bin_path, self.executable)
+
+    @property
+    def _package_installed(self):
+        result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True)
+        if result.returncode == 0:
+            data = json.loads(result.stdout.decode("UTF-8"))
+            if len(data) > 0:
+                return True
+        return False
+
+    def is_installed(self):
+        return self.installed
+
+    def verify_install(self):
+        if os.access(self.executable_path(), (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
+            if self.verifycmd:
+                LOG.debug("validating")
+                self.installed = (os.system(self.verifycmd) == self.verifycode)
+            else:
+                self.installed = True
+        else:
+            self.installed = False
+        return self.installed
+
+    def _attempt_install(self):
+        self.installed = self.is_installed()
+
+        if not self.verify_install():
+            # try to create the environment and install the package
+            run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
+
+            python_version = os.environ.get("TRAVIS_PYTHON_VERSION")
+            if python_version:
+                python_version = "python=" + python_version if python_version else ""
+                run_cmd.extend([python_version])
+
+            result = util.misc.run_and_print(run_cmd, silent=True)
+            data = json.loads(result.stdout.decode("UTF-8"))
+            if "error" in data.keys() and "prefix already exists" in data["error"]:
+                # the environment already exists
+                # the package may not be installed...
+                LOG.debug("Conda environment already exists...")
+                result = util.misc.run_and_print(
+                    [
+                        "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                        self._package_str
+                    ],
+                    silent=True
+                )
+                if result.returncode == 0:
+                    data = json.loads(result.stdout.decode("UTF-8"))
+                    if data["success"] == True:
+                        # set self.installed = True
+                        self.verify_install()
+            else:
+                if "success" in data.keys() and data["success"]:
+                    # we were able to create the environment and install the package
+                    LOG.debug("Conda environment created.")
+                    if self.is_installed():
+                        # set self.installed = True
+                        self.verify_install()
+
+
 class DownloadPackage(InstallMethod):
     ''' This is an install method for downloading, unpacking, and post-
             processing straight from the source.
@@ -168,9 +302,17 @@ class DownloadPackage(InstallMethod):
             post_download_command
     '''
 
-    def __init__(self, url, target_rel_path, destination_dir=None,
-                 verifycmd=None, verifycode=0, require_executability=True,
-                 post_download_command=None, post_download_ret=0):
+    def __init__(
+        self,
+        url,
+        target_rel_path,
+        destination_dir=None,
+        verifycmd=None,
+        verifycode=0,
+        require_executability=True,
+        post_download_command=None,
+        post_download_ret=0
+    ):
         if destination_dir is None:
             destination_dir = util.file.get_build_path()
         self.url = url
@@ -232,22 +374,24 @@ class DownloadPackage(InstallMethod):
         LOG.debug("unpacking")
         util.file.mkdir_p(self.destination_dir)
         if self.download_file.endswith('.zip'):
-            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir
-                                                              )):
+            if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir)):
 
                 return
             else:
                 os.unlink(os.path.join(download_dir, self.download_file))
-        elif (self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz') or
-              self.download_file.endswith('.tar.bz2') or self.download_file.endswith('.tar')):
+        elif (
+            self.download_file.endswith('.tar.gz') or self.download_file.endswith('.tgz') or
+            self.download_file.endswith('.tar.bz2') or self.download_file.endswith('.tar')
+        ):
             if self.download_file.endswith('.tar'):
                 compression_option = ''
             elif self.download_file.endswith('.tar.bz2'):
                 compression_option = 'j'
             else:
                 compression_option = 'z'
-            untar_cmd = "tar -C {} -x{}pf {}/{}".format(self.destination_dir, compression_option, download_dir,
-                                                        self.download_file)
+            untar_cmd = "tar -C {} -x{}pf {}/{}".format(
+                self.destination_dir, compression_option, download_dir, self.download_file
+            )
             LOG.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)
             if exitCode:
@@ -257,5 +401,6 @@ class DownloadPackage(InstallMethod):
                 LOG.debug("tar returned with exit code 0")
                 os.unlink(os.path.join(download_dir, self.download_file))
         else:
-            shutil.move(os.path.join(download_dir, self.download_file),
-                        os.path.join(self.destination_dir, self.download_file))
+            shutil.move(
+                os.path.join(download_dir, self.download_file), os.path.join(self.destination_dir, self.download_file)
+            )

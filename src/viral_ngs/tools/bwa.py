@@ -9,6 +9,9 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
+TOOL_NAME = "bwa"
+TOOL_VERSION = "0.7.12"
+
 # magic vars for now, later can set with config variables
 # legacy version is version used in pipeline recipes (see old_scripts dir)
 # current is lates version as of 8/27/2014
@@ -24,20 +27,25 @@ BWA_DIR = '.'.join([x for x in URL.split("/")[-1].split('.') if x != "tar" and x
 
 class Bwa(tools.Tool):
     """ tool wrapper for bwa """
+
     def __init__(self, install_methods=None):
         LOG.debug("BWA_DIR: %s", BWA_DIR)
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.DownloadPackage(
-                URL,
-                os.path.join(BWA_DIR, 'bwa'),
-                post_download_command="cd {}; make -s".format(BWA_DIR)))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(
+                tools.DownloadPackage(
+                    URL,
+                    os.path.join(BWA_DIR, 'bwa'),
+                    post_download_command="cd {}; make -s".format(BWA_DIR)
+                )
+            )
             tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return ''.join([c for c in BWA_DIR if c.isdigit() or c == '.'])
 
-    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""): # pylint: disable=W0221
+    def execute(self, subcommand, args=None, options=None, option_string="", post_cmd=""):    # pylint: disable=W0221
         """
         args are required arguments for the specified bwa subcommand
             (order matters for bwa execution)
