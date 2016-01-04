@@ -19,7 +19,7 @@ TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
 # Note: Version 1.126 is latest as of 2014-12-02
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class PicardTools(tools.Tool):
@@ -56,7 +56,7 @@ class PicardTools(tools.Tool):
             tool_cmd = [
                 self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
             ] + picardOptions
-        LOG.debug(' '.join(tool_cmd))
+        _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
     @staticmethod

@@ -18,7 +18,7 @@ import tools
 import util.file
 import util.genbank
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 TOOL_NAME = 'snpeff'
 TOOL_VERSION = '4.1l'
@@ -57,7 +57,7 @@ class SnpEff(tools.Tool):
                 self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
             ] + args
 
-        LOG.debug(' '.join(tool_cmd))
+        _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
 
     def has_genome(self, genome):
@@ -146,7 +146,7 @@ class SnpEff(tools.Tool):
         # if we don't have the genome, by name (snpEff official) or by hash (custom)
         if (not self.has_genome(databaseId)):
             if (not self.has_genome(genomes[0])):
-                LOG.info("Checking for snpEff database online...")
+                _log.info("Checking for snpEff database online...")
                 # check to see if it is available for download, and if so install it
                 for row in self.available_databases():
                     if (genomes[0].lower() in row['Genome'].lower()) or (
