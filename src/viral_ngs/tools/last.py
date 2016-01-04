@@ -8,7 +8,7 @@ import subprocess
 # within this module
 import tools
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
 TOOL_VERSION = "638"
@@ -111,7 +111,7 @@ class Lastdb(LastTools):
         os.chdir(os.path.realpath(outputDirectory))
 
         # execute the lastdb command
-        LOG.debug(" ".join(tool_cmd))
+        _log.debug(" ".join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
         # restore cwd
