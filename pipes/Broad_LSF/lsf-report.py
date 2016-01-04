@@ -87,9 +87,9 @@ def main_report(args):
 
 if __name__ == '__main__':
     argv = sys.argv[1:]
-    parser = parser_report()
+    report_parser = parser_report()
     if len(argv) == 0:
-        parser.print_help()
+        report_parser.print_help()
     else:
-        args = parser.parse_args(argv)
-        main_report(args)
+        report_args = report_parser.parse_args(argv)
+        main_report(report_args)
