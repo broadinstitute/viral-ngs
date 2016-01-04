@@ -85,7 +85,7 @@ rule orient_and_impute:
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             # length should be defined as a fraction/percentage cutoff, relative to 
-            # reference length for a given sequence. float is in the config.json file
+            # reference length for a given sequence. float is in the config.yaml file
             length = str(config["assembly_min_length_fraction_of_reference"]),
             min_unambig = str(config["assembly_min_unambig"]),
             renamed_prefix="",

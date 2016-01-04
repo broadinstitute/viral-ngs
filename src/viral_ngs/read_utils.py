@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 # =======================
 
 
-def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex='^@(\S+)/[1|2]$'):
+def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex=r'^@(\S+)/[1|2]$'):
     '''Use mergeShuffledFastqSeqs to purge unmated reads, and
        put corresponding reads in the same order.
        Corresponding sequences must have sequence identifiers
@@ -56,7 +56,7 @@ def parser_purge_unmated(parser=argparse.ArgumentParser()):
     parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument("--regex",
                         help="Perl regular expression to parse paired read IDs (default: %(default)s)",
-                        default='^@(\S+)/[1|2]$')
+                        default=r'^@(\S+)/[1|2]$')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, purge_unmated, split_args=True)
     return parser
@@ -81,6 +81,7 @@ def fastq_to_fasta(inFastq, outFasta):
     outFile = util.file.open_or_gzopen(outFasta, 'w')
     for rec in SeqIO.parse(inFile, 'fastq'):
         SeqIO.write([rec], outFile, 'fasta')
+    inFile.close()
     outFile.close()
     return 0
 

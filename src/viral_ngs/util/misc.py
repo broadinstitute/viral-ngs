@@ -115,7 +115,7 @@ except ImportError:
 
 
 def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None):
+                  timeout=None, silent=False):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
@@ -123,5 +123,6 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
     '''
     result = run(args, stdin=stdin, stdout=subprocess.PIPE,
                  stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
-    print(result.stdout.decode('utf-8'))
+    if not silent:
+        print(result.stdout.decode('utf-8'))
     return result

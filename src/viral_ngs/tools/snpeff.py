@@ -18,7 +18,10 @@ import tools
 import util.file
 import util.genbank
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
+
+TOOL_NAME = 'snpeff'
+TOOL_VERSION = '4.1l'
 
 URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
@@ -29,7 +32,9 @@ class SnpEff(tools.Tool):
     def __init__(self, install_methods=None, extra_genomes=None):
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
-            install_methods = [DownloadAndTweakSnpEff(URL, extra_genomes)]
+            install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="snpEff", version=TOOL_VERSION))
+            install_methods.append(DownloadAndTweakSnpEff(URL, extra_genomes))
         self.known_dbs = set()
         self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods=install_methods)
@@ -37,13 +42,23 @@ class SnpEff(tools.Tool):
     def version(self):
         return "4.1"
 
-    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        toolCmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                   self.install_and_get_path(), command] + args
-        log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd, stdin=stdin, stdout=stdout)
+
+        # the conda version wraps the jar file with a shell script
+        if self.install_and_get_path().endswith(".jar"):
+            tool_cmd = [
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+                command
+            ] + args
+        else:
+            tool_cmd = [
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
+            ] + args
+
+        LOG.debug(' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -76,17 +91,16 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
-            util.genbank.fetch_full_records_from_genbank(accessions,
-                                                           outputDir,
-                                                           emailAddress,
-                                                           forceOverwrite=True,
-                                                           combinedFilePrefix="genes",
-                                                           removeSeparateFiles=False)
+            util.genbank.fetch_full_records_from_genbank(
+                accessions,
+                outputDir,
+                emailAddress,
+                forceOverwrite=True,
+                combinedFilePrefix="genes",
+                removeSeparateFiles=False
+            )
 
-            add_genomes_to_snpeff_config_file(
-                config_file, [
-                    (databaseId, sortedAccessionString, sortedAccessionString)
-                ])
+            add_genomes_to_snpeff_config_file(config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
             self.known_dbs.add(databaseId)
             self.installed_dbs.add(databaseId)
 
@@ -94,12 +108,12 @@ class SnpEff(tools.Tool):
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
-        toolCmd = ['java', '-jar', self.install_and_get_path(), 'databases']
+        tool_cmd = ['java', '-jar', self.install_and_get_path(), 'databases']
         split_points = []
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
         self.installed_dbs = set()
         self.known_dbs = set()
-        for line in subprocess.check_output(toolCmd, universal_newlines=True).split('\n'):
+        for line in subprocess.check_output(tool_cmd, universal_newlines=True).split('\n'):
             line = line.strip()
             if not split_points:
                 if not line.startswith('Genome'):
@@ -132,12 +146,14 @@ class SnpEff(tools.Tool):
         # if we don't have the genome, by name (snpEff official) or by hash (custom)
         if (not self.has_genome(databaseId)):
             if (not self.has_genome(genomes[0])):
-                log.info("Checking for snpEff database online...")
+                LOG.info("Checking for snpEff database online...")
                 # check to see if it is available for download, and if so install it
                 for row in self.available_databases():
                     if (genomes[0].lower() in row['Genome'].lower()) or (
-                            genomes[0].lower() in row['Bundle'].lower()) or (
-                                    genomes[0].lower() in row['Organism'].lower()):
+                        genomes[0].lower() in row['Bundle'].lower()
+                    ) or (
+                        genomes[0].lower() in row['Organism'].lower()
+                    ):
                         self.download_db(row['Genome'])
 
         # backward compatability for where a single genome name is provided
