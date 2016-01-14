@@ -56,9 +56,13 @@ Tool dependencies
 ~~~~~~~~~~~~~~~~~
 
 A lot of effort has gone into writing auto download/compile wrappers for
-most of the bioinformatic tools we rely on here. They will auto-download
-and install the first time they are needed by any command. If you want
-to pre-install all of the external tools, simply type this::
+most of the bioinformatic tools we rely on here. 
+
+Most tools will attemp a conda-based install first, before falling back to an install handled entirely by our wrappers. To make use of the conda-based install, you will need to have Anaconda or miniconda installed on your system:
+
+http://conda.pydata.org/docs/install/quick.html#miniconda-quick-install-requirements
+
+The tools will auto-download and install the first time they are needed by any command. If you want to pre-install all of the external tools, simply type this::
 
   nosetests -v test.unit.test_tools
 
