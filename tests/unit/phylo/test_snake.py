@@ -24,7 +24,7 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
 
     workdir = tempfile.mkdtemp()
     os.mkdir(os.path.join(workdir, 'data'))
-    os.mkdir(os.path.join(workdir, 'ref_genome'))
+    os.mkdir(os.path.join(workdir, 'ref_genome_dir'))
     os.mkdir(os.path.join(workdir, 'data', '00_raw'))
     os.mkdir(os.path.join(workdir, 'log'))
     os.mkdir(os.path.join(workdir, 'reports'))
@@ -39,7 +39,7 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
                 outf.write(s + '\n')
 
     shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'Snakefile'), workdir)
-    shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'config.json'), workdir)
+    shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'config.yaml'), workdir)
 
     os.symlink(util.file.get_project_path(), os.path.join(workdir, 'bin'))
 
@@ -64,12 +64,12 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         ''' Test that the "all" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.yaml'),
             workdir=self.workdir,
             dryrun=True))
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.yaml'),
             workdir=self.workdir,
             dryrun=True,
             targets=['all']))
@@ -78,7 +78,7 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         ''' Test that the "all_assemble" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.yaml'),
             workdir=self.workdir,
             dryrun=True,
             targets=['all_assemble']))
@@ -87,7 +87,7 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         ''' Test that the "all_deplete" rule dryruns properly '''
         self.assertTrue(snakemake.snakemake(
             os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.json'),
+            #configfile=os.path.join(self.workdir, 'config.yaml'),
             workdir=self.workdir,
             dryrun=True,
             targets=['all_deplete']))
