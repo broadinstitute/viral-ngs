@@ -31,6 +31,7 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
+
 class TestAmbiguityBases(unittest.TestCase):
 
     def test_non_failure(self):
