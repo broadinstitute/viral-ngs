@@ -264,12 +264,20 @@ class CondaPackage(InstallMethod):
                 python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
 
-            result = util.misc.run_and_print(run_cmd, silent=True)
-            data = json.loads(result.stdout.decode("UTF-8"))
+            result = util.misc.run_and_print(run_cmd, silent=False)
+            try:
+                data = json.loads(result.stdout.decode("UTF-8"))
+                #data = json.loads("!!\"")
+            except:
+                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+                self.installed = False
+                return 
+                
             if "error" in data.keys() and "prefix already exists" in data["error"]:
                 # the environment already exists
                 # the package may not be installed...
                 _log.debug("Conda environment already exists...")
+                
                 result = util.misc.run_and_print(
                     [
                         "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
@@ -277,8 +285,15 @@ class CondaPackage(InstallMethod):
                     ],
                     silent=True
                 )
+
                 if result.returncode == 0:
-                    data = json.loads(result.stdout.decode("UTF-8"))
+                    try:
+                        data = json.loads(result.stdout.decode("UTF-8"))
+                    except:
+                        _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
+                        self.installed = False
+                        return 
+
                     if data["success"] == True:
                         # set self.installed = True
                         self.verify_install()
