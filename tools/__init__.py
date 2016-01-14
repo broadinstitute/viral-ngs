@@ -264,11 +264,12 @@ class CondaPackage(InstallMethod):
                 python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
 
+            result = util.misc.run_and_print(run_cmd, silent=False)
             try:
-                result = util.misc.run_and_print(run_cmd, silent=False)
                 data = json.loads(result.stdout.decode("UTF-8"))
+                #data = json.loads("!!\"")
             except:
-                _log.warning("failed to decode JSON output from conda create")
+                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
                 self.installed = False
                 return 
                 
@@ -276,21 +277,23 @@ class CondaPackage(InstallMethod):
                 # the environment already exists
                 # the package may not be installed...
                 _log.debug("Conda environment already exists...")
-                try:
-                    result = util.misc.run_and_print(
-                        [
-                            "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
-                            self._package_str
-                        ],
-                        silent=True
-                    )
-                    data = json.loads(result.stdout.decode("UTF-8"))
-                except:
-                    _log.warning("failed to decode JSON output from conda install")
-                    self.installed = False
-                    return 
+                
+                result = util.misc.run_and_print(
+                    [
+                        "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                        self._package_str
+                    ],
+                    silent=True
+                )
 
                 if result.returncode == 0:
+                    try:
+                        data = json.loads(result.stdout.decode("UTF-8"))
+                    except:
+                        _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
+                        self.installed = False
+                        return 
+
                     if data["success"] == True:
                         # set self.installed = True
                         self.verify_install()
