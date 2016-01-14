@@ -18,7 +18,7 @@ import subprocess
 import glob
 
 try:
-    from itertools import zip_longest
+    from itertools import zip_longest # pylint: disable=E0611
 except ImportError:
     from itertools import izip_longest as zip_longest
 
@@ -127,7 +127,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
                         default=100000,
                         type=int,
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
     return parser
 
@@ -166,10 +166,10 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--JVMmemory',
-                        default=tools.trinity.TrinityTool.jvmMemDefault,
+                        default=tools.trinity.TrinityTool.jvm_mem_default,
                         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
 
@@ -253,7 +253,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('--inReads',
                         default=None,
                         help='Input reads in unaligned BAM format. These can be used to improve the merge process.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
 
@@ -320,7 +320,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
                         '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
                 if newName:
-                    # TODO: may need to add/remove the "-idx" for downstream
+                    # renames the segment name "sampleName-idx" where idx is the segment number
                     args.extend(['-n', newName + "-" + str(idx + 1)])
 
                 args = pmc.parse_args(args)
@@ -362,7 +362,7 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
                         type=int,
                         default=0,
                         help="length of ends to be replaced with reference (default: %(default)s)")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
 
@@ -477,7 +477,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
                         default=tools.gatk.GATKTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
 
@@ -582,7 +582,7 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
                         default=False,
                         action="store_true",
                         dest="call_reference_ambiguous")
-    util.cmd.common_args(parser, (('tmpDir', None), ('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, main_modify_contig)
     return parser
 

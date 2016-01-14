@@ -1,9 +1,9 @@
 #!/bin/bash
 # Wrappers around Snakemake for use on the Broad LSF cluster
 
-# load config dirs from config.json
-VENVDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["venvDir"]));f.close()'`
-BINDIR=`python -c 'import json; import os; f=open("config.json");print(os.path.realpath(json.load(f)["binDir"]));f.close()'`
+# load config dirs from config.yaml
+VENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["venv_dir"]));f.close()'`
+BINDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["bin_dir"]));f.close()'`
 
 source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
 
@@ -17,5 +17,5 @@ snakemake --timestamp --rerun-incomplete --keep-going --nolock \
     --config mode=UGER \
     --directory . \
     --jobscript "$BINDIR/pipes/Broad_UGER/jobscript.sh" \
-    --cluster $BINDIR'/pipes/Broad_UGER/cluster-submitter.py {dependencies} {config[logDir]}' \
+    --cluster $BINDIR'/pipes/Broad_UGER/cluster-submitter.py {dependencies} {config[log_dir]}' \
     "$@"

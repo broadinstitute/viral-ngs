@@ -3,7 +3,7 @@
     tailored for EBOV. Some generalization work needed to expand this
     to generic viral genomes with an arbitrary number of segments/chromosomes.
     
-    Make copies of this Snakefile and config.json to your analysis directory and
+    Make copies of this Snakefile and config.yaml to your analysis directory and
     customize as needed.
 """
 
@@ -11,8 +11,8 @@ __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os
 
-configfile: "config.json"
-pipesDir = os.path.join(os.path.expanduser(config['binDir']), 'pipes', 'rules')
+configfile: "config.yaml"
+pipesDir = os.path.join(os.path.expanduser(config['bin_dir']), 'pipes', 'rules')
 
 include: os.path.join(pipesDir, 'common.rules')
 set_env_vars()
@@ -28,25 +28,25 @@ include: os.path.join(pipesDir, 'reports.rules')
 rule all:
     input:
         # create final assemblies for all samples
-        expand("{dataDir}/{subdir}/{sample}.fasta",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["assembly"],
+        expand("{data_dir}/{subdir}/{sample}.fasta",
+            data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
             sample=read_samples_file(config["samples_assembly"])),
         # create BAMs of aligned reads to own consensus and to common ref
-        expand("{dataDir}/{subdir}/{sample}.bam",
-            dataDir=config["dataDir"], subdir=config["subdirs"]["align_self"],
+        expand("{data_dir}/{subdir}/{sample}.bam",
+            data_dir=config["data_dir"], subdir=config["subdirs"]["align_self"],
             sample=read_samples_file(config["samples_assembly"])),
         # intrahost variant calling
-        config["dataDir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+        config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
         # create summary reports
-        config["reportsDir"]+'/summary.fastqc.txt',
-        config["reportsDir"]+'/summary.spike_count.txt'
+        config["reports_dir"]+'/summary.fastqc.txt',
+        config["reports_dir"]+'/summary.spike_count.txt'
     params: LSF="-N"
     run:
             if "job_profiler" in config:
                 print("running report on all job runs")
-                shell("{config[job_profiler]} {config[logDir]} {config[reportsDir]}/summary.job_stats.txt")
+                shell("{config[job_profiler]} {config[log_dir]} {config[reports_dir]}/summary.job_stats.txt")
             print("echo all done!")
 
 rule clean:
     params: LSF="-N"
-    shell: "rm -rf {config[tmpDir]}/* .snakemake/tmp.*"
+    shell: "rm -rf {config[tmp_dir]}/* .snakemake/tmp.*"

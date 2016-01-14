@@ -73,23 +73,23 @@ def read_all_logfiles(dirname):
 def parser_report():
     parser = argparse.ArgumentParser(
         description="Read a directory full of LSF log files and produce a tabular report.")
-    parser.add_argument("logDir", help="Input directory of LSF log files")
+    parser.add_argument("log_dir", help="Input directory of LSF log files")
     parser.add_argument("outFile", help="Output report file")
     return parser
 
 
 def main_report(args):
     with open(args.outFile, 'wt') as outf:
-        for row in read_all_logfiles(args.logDir):
+        for row in read_all_logfiles(args.log_dir):
             outf.write('\t'.join(row) + '\n')
     return 0
 
 
 if __name__ == '__main__':
     argv = sys.argv[1:]
-    parser = parser_report()
+    report_parser = parser_report()
     if len(argv) == 0:
-        parser.print_help()
+        report_parser.print_help()
     else:
-        args = parser.parse_args(argv)
-        main_report(args)
+        report_args = report_parser.parse_args(argv)
+        main_report(report_args)

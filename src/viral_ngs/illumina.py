@@ -66,7 +66,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
@@ -200,16 +200,19 @@ class IlluminaDirectory(object):
     def _extract_tarball(self, tarfile):
         if not os.path.isfile(tarfile):
             raise Exception('file does not exist: %s' % tarfile)
-        if tarfile.endswith('.tar.gz') or tarfile.endswith('.tgz'):
-            compression_option = 'z'
-        elif tarfile.endswith('.tar.bz2'):
-            compression_option = 'j'
-        elif tarfile.endswith('.tar'):
-            compression_option = ''
-        else:
-            raise Exception("unsupported file type: %s" % tarfile)
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
-        untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
+        if tarfile.lower().endswith('.zip'):
+            untar_cmd = ['unzip', '-q', tarfile, '-d', self.tempDir]
+        else:
+            if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
+                compression_option = 'z'
+            elif tarfile.lower().endswith('.tar.bz2'):
+                compression_option = 'j'
+            elif tarfile.lower().endswith('.tar'):
+                compression_option = ''
+            else:
+                raise Exception("unsupported file type: %s" % tarfile)
+            untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
         log.debug(' '.join(untar_cmd))
         with open(os.devnull, 'w') as fnull:
             subprocess.check_call(untar_cmd, stderr=fnull)
@@ -573,7 +576,7 @@ def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         default=tools.picard.FastqToSamTool.jvmMemDefault,
                         help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, miseq_fastq_to_bam, split_args=True)
     return parser
 
@@ -597,7 +600,7 @@ def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
     parser.add_argument('flowcell', help='Illumina directory (possibly tarball)')
     parser.add_argument('outRunInfo', help='Output RunInfo.xml file.')
     parser.add_argument('outSampleSheet', help='Output SampleSheet.csv file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmpDir', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
     return parser
 __commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))

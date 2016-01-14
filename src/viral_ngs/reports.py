@@ -10,13 +10,20 @@ import logging
 import glob
 import os
 import time
+from collections import OrderedDict
+import csv
+
 import pysam
 import Bio.SeqIO
+import Bio.AlignIO
+from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
+
 import util.cmd
 import util.file
 import util.misc
 import tools.samtools
 import assembly
+import interhost
 from util.stats import mean, median
 
 log = logging.getLogger(__name__)
@@ -149,8 +156,117 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
 __commands__.append(('assembly_stats', parser_assembly_stats))
 
 
-def get_refalign_stats(sample):
-    pass
+def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
+    gap = '-'
+    ambiguous = 'N'
+    aligner = tools.muscle.MuscleTool()#.install_and_get_path()
+
+    per_chr_fastas = interhost.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
+
+    results = OrderedDict()
+    results["same_unambig"]  = 0
+    results["snp_unambig"]   = 0
+    results["indel_unambig"] = 0
+    results["indel_ambig"]   = 0
+    results["ambig_one"]     = 0
+    results["ambig_two"]     = 0
+    results["ambig_both"]    = 0
+    results["unambig_both"]  = 0
+
+    for chr_fasta in per_chr_fastas:
+        same_unambig  = 0
+        snp_unambig   = 0
+        indel_unambig = 0
+        indel_ambig   = 0
+        ambig_one     = 0
+        ambig_two     = 0
+        ambig_both    = 0
+        unambig_both  = 0
+
+        alignOutFileName = util.file.mkstempfname('.fasta')
+        aligner.execute(chr_fasta, alignOutFileName, fmt="clw")
+
+        with open(alignOutFileName, "r") as f:
+            alignment = Bio.AlignIO.read(f, "clustal")
+
+            for col_idx in range(0, alignment.get_alignment_length()):
+                col = alignment[:, col_idx]
+                c1 = col[0]
+                c2 = col[1]
+
+                if (c1 in ambiguous
+                   and c2 in ambiguous):
+                    ambig_both +=1
+                elif c1 in ambiguous:
+                    ambig_one += 1
+                elif c2 in ambiguous:
+                    ambig_two += 1
+
+                if (c1 in IUPACUnambiguousDNA().letters
+                   and c2 in IUPACUnambiguousDNA().letters):
+                    unambig_both += 1
+                    if c1 == c2:
+                        same_unambig += 1
+                    else:
+                        snp_unambig += 1
+
+                if ((c1 == gap and
+                    c2 in IUPACUnambiguousDNA().letters) or
+                   (c2 == gap and
+                    c1 in IUPACUnambiguousDNA().letters)):
+                    indel_unambig += 1
+
+                if ((c1 == gap and
+                    c2 in ambiguous) or
+                   (c2 == gap and
+                    c1 in ambiguous)):
+                    indel_ambig += 1
+
+        if printCounts:
+            print("Counts for this segment/chromosome:")
+            print("same_unambig ", same_unambig) 
+            print("snp_unambig  ", snp_unambig) 
+            print("indel_unambig", indel_unambig) 
+            print("indel_ambig  ", indel_ambig) 
+            print("ambig_one    ", ambig_one) 
+            print("ambig_two    ", ambig_two) 
+            print("ambig_both   ", ambig_both) 
+            print("unambig_both ", unambig_both) 
+
+        results["same_unambig"]  += same_unambig
+        results["snp_unambig"]   += snp_unambig
+        results["indel_unambig"] += indel_unambig
+        results["indel_ambig"]   += indel_ambig
+        results["ambig_one"]     += ambig_one
+        results["ambig_two"]     += ambig_two
+        results["ambig_both"]    += ambig_both
+        results["unambig_both"]  += unambig_both
+
+    if printCounts:
+        print("\nCounts for this sample:")
+        print("same_unambig ", results["same_unambig"])
+        print("snp_unambig  ", results["snp_unambig"])
+        print("indel_unambig", results["indel_unambig"])
+        print("indel_ambig  ", results["indel_ambig"])
+        print("ambig_one    ", results["ambig_one"])
+        print("ambig_two    ", results["ambig_two"])
+        print("ambig_both   ", results["ambig_both"])
+        print("unambig_both ", results["unambig_both"])
+
+    if outfileName:
+        with open(outfileName, "wt") as of:
+            csvout = csv.writer(of, delimiter='\t')
+            csvout.writerow(list(results.keys()))
+            csvout.writerow(list(results.values()))
+
+def parser_alignment_summary(parser=argparse.ArgumentParser()):
+    parser.add_argument('inFastaFileOne', help='First fasta file for an alignment')
+    parser.add_argument('inFastaFileTwo', help='First fasta file for an alignment')
+    parser.add_argument('--outfileName', help='Output file for counts in TSV format')
+    parser.add_argument('--printCounts', help='', action='store_true')
+    util.cmd.attach_main(parser, alignment_summary, split_args=True)
+    return parser
+__commands__.append(('alignment_summary', parser_alignment_summary))
 
 
 def consolidate_fastqc(inDirs, outFile):

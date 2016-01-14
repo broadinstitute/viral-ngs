@@ -44,7 +44,7 @@ cmdline += jobscript
 cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
-cmdline += " | tail -1 | cut -f 3 -d \ "
+cmdline += r" | tail -1 | cut -f 3 -d \ "
 
 # call the command
 os.system(cmdline)

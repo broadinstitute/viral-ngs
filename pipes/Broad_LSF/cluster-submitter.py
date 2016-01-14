@@ -5,6 +5,7 @@ import re
 from snakemake.utils import read_job_properties
 
 LOGDIR = sys.argv[-2]
+DATADIR = sys.argv[-3]
 jobscript = sys.argv[-1]
 mo = re.match(r'(\S+)/snakejob\.\S+\.(\d+)\.sh', jobscript)
 assert mo
@@ -15,7 +16,10 @@ props = read_job_properties(jobscript)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "bsub -P {proj_name} -J {jobname} -r ".format(proj_name='viral_ngs', jobname=jobname)
+
+# -E is a pre-exec command, that reschedules the job if the command fails
+#   in this case, if the data dir is unavailable (as may be the case for a hot-mounted file path)
+cmdline = 'bsub -P {proj_name} -J {jobname} -r -E "ls {datadir}" '.format(proj_name='viral_ngs', jobname=jobname, datadir=DATADIR)
 
 # log file output
 if "-N" not in props["params"].get("LSF", ""):
@@ -30,7 +34,7 @@ if mem:
 cmdline += props["params"].get("LSF", "") + " "
 
 # figure out job dependencies
-dependencies = set(sys.argv[1:-2])
+dependencies = set(sys.argv[1:-3])
 if dependencies:
     cmdline += "-w '{}' ".format(" && ".join(dependencies))
 
@@ -41,7 +45,7 @@ cmdline += jobscript
 cmdline += " %s/%s.jobfinished" % (sm_tmpdir, sm_jobid)
 
 # the part that strips bsub's output to just the job id
-cmdline += " | tail -1 | cut -f 2 -d \< | cut -f 1 -d \>"
+cmdline += r" | tail -1 | cut -f 2 -d \< | cut -f 1 -d \>"
 
 # call the command
 os.system(cmdline)
