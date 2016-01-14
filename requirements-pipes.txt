@@ -1,2 +1,5 @@
-snakemake==3.2.1
+boto==2.38.0
+filechunkio==1.6
+snakemake==3.5.1
 yappi==0.94
+PyYAML==3.11

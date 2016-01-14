@@ -13,10 +13,11 @@ import os
 import os.path
 import subprocess
 
-tool_version = '7.221'
-url = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
+TOOL_NAME = "mafft"
+TOOL_VERSION = '7.221'
+TOOL_URL = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class MafftTool(tools.Tool):
@@ -31,25 +32,32 @@ class MafftTool(tools.Tool):
             binaryDir = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
 
             target_rel_path = '{binPath}'.format(binPath=binaryPath)
-            verify_command = 'cd {dir}/mafft-{ver}/{binDir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
+            verify_command = 'cd {dir}/mafft-{ver}/{bin_dir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
                 dir=util.file.get_build_path(),
-                ver=tool_version,
+                ver=TOOL_VERSION,
                 binPath=binaryPath,
-                binDir=binaryDir)
-            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=tool_version)
+                bin_dir=binaryDir
+            )
+            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=TOOL_VERSION)
 
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
             install_methods.append(
-                tools.DownloadPackage(url.format(ver=tool_version,
-                                                 os=mafft_os,
-                                                 ext=mafft_archive_extension),
-                                      target_rel_path=target_rel_path,
-                                      destination_dir=destination_dir,
-                                      verifycmd=verify_command))
+                tools.DownloadPackage(
+                    TOOL_URL.format(
+                        ver=TOOL_VERSION,
+                        os=mafft_os,
+                        ext=mafft_archive_extension
+                    ),
+                    target_rel_path=target_rel_path,
+                    destination_dir=destination_dir,
+                    verifycmd=verify_command
+                )
+            )
 
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        return TOOL_VERSION
 
     def __seqIdsAreAllUnique(self, filePath, inputFormat="fasta"):
         seqIds = []
@@ -61,11 +69,27 @@ class MafftTool(tools.Tool):
         if len(seqIds) > len(set(seqIds)):
             raise LookupError(
                 "Not all sequence IDs in input are unique for file: {}".format(
-                    os.path.basename(filePath)))
+                    os.path.basename(filePath)
+                )
+            )
 
-    def execute(self, inFastas, outFile, localpair, globalpair, preservecase, reorder,
-                outputAsClustal, maxiters, gapOpeningPenalty=None, offset=None, threads=-1, verbose=True, retree=None):
-
+    # pylint: disable=W0221
+    def execute(
+        self,
+        inFastas,
+        outFile,
+        localpair,
+        globalpair,
+        preservecase,
+        reorder,
+        outputAsClustal,
+        maxiters,
+        gapOpeningPenalty=None,
+        offset=None,
+        threads=-1,
+        verbose=True,
+        retree=None
+    ):
         inputFileName = ""
         tempCombinedInputFile = ""
 
@@ -92,7 +116,6 @@ class MafftTool(tools.Tool):
                 for f in inputFiles:
                     with open(f, "r") as infile:
                         outfile.write(infile.read())
-                # outFile.close()
             inputFileName = tempCombinedInputFile
         # if there is only once file specified, just use it
         else:
@@ -107,12 +130,12 @@ class MafftTool(tools.Tool):
         os.chdir(os.path.dirname(self.install_and_get_path()))
 
         # build the MAFFT command
-        toolCmd = [self.install_and_get_path()]
+        tool_cmd = [self.install_and_get_path()]
 
         if not retree:
-            toolCmd.append("--auto")
+            tool_cmd.append("--auto")
         if threads >= 1 or threads == -1:
-            toolCmd.append("--thread {}".format(threads))
+            tool_cmd.extend(["--thread", "{}".format(threads)])
         else:
             raise Exception("invalid value for threads: {}".format(threads))
 
@@ -120,37 +143,37 @@ class MafftTool(tools.Tool):
             raise Exception("Alignment type must be either local or global, not both.")
 
         if localpair:
-            toolCmd.append("--localpair")
+            tool_cmd.append("--localpair")
             if not maxiters:
                 maxiters = 1000
         if globalpair:
-            toolCmd.append("--globalpair")
+            tool_cmd.append("--globalpair")
             if not maxiters:
                 maxiters = 1000
         if preservecase:
-            toolCmd.append("--preservecase")
+            tool_cmd.append("--preservecase")
         if reorder:
-            toolCmd.append("--reorder")
+            tool_cmd.append("--reorder")
         if retree:
-            toolCmd.append("--retree {}".format(retree))
+            tool_cmd.extend(["--retree", "{}".format(retree)])
         if gapOpeningPenalty:
-            toolCmd.append("--op {penalty}".format(penalty=gapOpeningPenalty))
+            tool_cmd.extend(["--op", "{penalty}".format(penalty=gapOpeningPenalty)])
         if offset:
-            toolCmd.append("--ep {num}".format(num=offset))
+            tool_cmd.extend(["--ep", "{num}".format(num=offset)])
         if not verbose:
-            toolCmd.append("--quiet")
+            tool_cmd.append("--quiet")
         if outputAsClustal:
-            toolCmd.append("--clustalout")
+            tool_cmd.append("--clustalout")
         if maxiters:
-            toolCmd.append("--maxiterate {iters}".format(iters=maxiters))
+            tool_cmd.extend(["--maxiterate", "{iters}".format(iters=maxiters)])
 
-        toolCmd.append(inputFileName)
+        tool_cmd.append(inputFileName)
 
-        log.debug(' '.join(toolCmd))
+        _log.debug(' '.join(tool_cmd))
 
         # run the MAFFT alignment
         with open(outFile, 'w') as outf:
-            subprocess.check_call(toolCmd, stdout=outf)
+            subprocess.check_call(tool_cmd, stdout=outf)
 
         if len(tempCombinedInputFile):
             # remove temp FASTA file
@@ -160,6 +183,7 @@ class MafftTool(tools.Tool):
         os.chdir(pwdBeforeMafft)
 
         return outFile
+    # pylint: enable=W0221
 
 
 def get_mafft_os():

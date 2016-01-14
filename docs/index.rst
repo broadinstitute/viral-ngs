@@ -18,3 +18,4 @@ Contents
    install
    cmdline
    pipeuse
+   development

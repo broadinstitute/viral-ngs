@@ -1,6 +1,8 @@
 '''A few miscellaneous tools. '''
 from __future__ import division  # Division of integers with / should never round!
+import collections
 import itertools
+import subprocess
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -83,3 +85,44 @@ def batch_iterator(iterator, batch_size):
     while item:
         yield item
         item = list(itertools.islice(it, batch_size))
+
+
+try:
+    from subprocess import run
+except ImportError:
+    CompletedProcess = collections.namedtuple(
+        'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
+
+    def run(args, stdin=None, stdout=None, stderr=None, shell=False,
+            env=None, cwd=None, timeout=None):
+        '''A poor man's substitute of python 3.5's subprocess.run().
+
+        Definitely a poor man's substitute because stdout and stderr are
+        forcibly merged into stdout and capturing always takes place even when
+        they should require subprocess.PIPE assignments, but the interface is
+        fairly similar.
+        '''
+        try:
+            output = subprocess.check_output(
+                args, stdin=stdin, stderr=subprocess.STDOUT, shell=shell,
+                env=env, cwd=cwd)
+            returncode = 0
+        except subprocess.CalledProcessError as e:
+            output = e.output
+            returncode = e.returncode
+
+        return CompletedProcess(args, returncode, output, '')
+
+
+def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
+                  timeout=None, silent=False):
+    '''Capture stdout+stderr and print.
+
+    This is useful for nose, which has difficulty capturing stdout of
+    subprocess invocations.
+    '''
+    result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                 stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
+    if not silent:
+        print(result.stdout.decode('utf-8'))
+    return result
