@@ -72,6 +72,11 @@ class SamtoolsTool(tools.Tool):
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
 
+    def sort(self, inFile, outFile, args=None):
+        args = args or []
+
+        self.execute('sort', args + ['-o', outFile, inFile])
+
     def merge(self, inFiles, outFile, options=None):
         "Merge a list of inFiles to create outFile."
         options = options or ['-f']
