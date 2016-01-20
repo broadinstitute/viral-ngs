@@ -26,7 +26,7 @@ class Diamond(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'build', 'diamond'))]
+            install_methods = [DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond'))]
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -105,14 +105,15 @@ class DownloadAndBuildDiamond(tools.DownloadPackage):
         diamond_dir = os.path.join(self.destination_dir, DIAMOND_DIR)
         # We should rather have a way to rename self.download_file in
         # DownloadPackage generically.
-        shutil.move(os.path.join(self.destination_dir, DIAMOND_COMMIT_DIR), diamond_dir)
-        build_dir = os.path.join(diamond_dir, 'build')
-        util.file.mkdir_p(build_dir)
+        if not os.path.exists(diamond_dir):
+            shutil.move(os.path.join(self.destination_dir, DIAMOND_COMMIT_DIR), diamond_dir)
+        build_dir = os.path.join(diamond_dir, 'src')
+        #util.file.mkdir_p(build_dir)
         env = os.environ.copy()
         # The default travis gcc version is 4.6, which is too old to build
         # diamond properly.
         if os.environ.get('TRAVIS') == 'true':
             env['CC'] = 'gcc-4.9'
             env['CXX'] = 'g++-4.9'
-        util.misc.run_and_print(['cmake', '..'], env=env, cwd=build_dir)
+        #util.misc.run_and_print(['cmake', '..'], env=env, cwd=build_dir)
         util.misc.run_and_print(['make'], env=env, cwd=build_dir)

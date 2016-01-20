@@ -74,7 +74,8 @@ class DownloadAndInstallJellyfish(tools.DownloadPackage):
         env['PATH'] = '{}:{}'.format(os.path.dirname(yaggo_path), env['PATH'])
         jellyfish_dir = os.path.join(self.destination_dir, JELLYFISH_DIR)
 
-        shutil.move(os.path.join(self.destination_dir, JELLYFISH_COMMIT_DIR), jellyfish_dir)
+        if not os.path.exists(jellyfish_dir):
+            shutil.move(os.path.join(self.destination_dir, JELLYFISH_COMMIT_DIR), jellyfish_dir)
 
         install_dir = os.path.join(jellyfish_dir, 'local')
         util.file.replace_in_file(
@@ -159,7 +160,8 @@ class DownloadAndInstallKraken(tools.DownloadPackage):
         env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path), env['PATH'])
         kraken_dir = os.path.join(self.destination_dir, KRAKEN_DIR)
 
-        shutil.move(os.path.join(self.destination_dir, KRAKEN_COMMIT_DIR), kraken_dir)
+        if not os.path.exists(kraken_dir):
+            shutil.move(os.path.join(self.destination_dir, KRAKEN_COMMIT_DIR), kraken_dir)
         libexec_dir = os.path.join(kraken_dir, 'libexec')
         bin_dir = os.path.join(kraken_dir, 'bin')
         util.misc.run_and_print(['./install_kraken.sh', 'libexec'], cwd=kraken_dir, env=env)
