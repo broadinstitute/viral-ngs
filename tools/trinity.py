@@ -93,13 +93,16 @@ class DownloadAndBuildTrinity(tools.DownloadPackage):
     def verify_install(self):
         if not tools.DownloadPackage.verify_install(self):
             return False
+        self.installed = True
+
         # Verify that chrysalis and inchworm were built
         trinity_dir = os.path.join(self.destination_dir, TRINITY_VERSION)
         chrysalisPath = os.path.join(trinity_dir, 'Chrysalis', 'Chrysalis')
         inchwormPath = os.path.join(trinity_dir, 'Inchworm', 'src', 'inchworm')
-        for path in [chrysalisPath, inchwormPath]:
+        merylPath = os.path.join(trinity_dir, 'trinity-plugins', 'kmer', 'meryl', 'meryl')
+        for path in [chrysalisPath, inchwormPath, merylPath]:
             if not os.access(path, (os.X_OK | os.R_OK)):
                 log.debug('%s was not built.', path)
                 self.installed = False
-        self.installed = True
+        
         return self.installed
