@@ -13,11 +13,12 @@
     licensed_tools_dir: "{{ home_dir }}/licensed_tools"
     gatk_path: "{{ licensed_tools_dir }}/gatk"
     novoalign_path: "{{ licensed_tools_dir }}/novoalign"
+    conda_path: "{{home_dir}}/miniconda3/bin"
   environment:
     GATK_PATH: "{{ gatk_path }}"
     NOVOALIGN_PATH: "{{ novoalign_path }}"
     TEST_VAR: "foo"
-  sudo: yes
+  become: yes
   tasks:
     - name: update apt cache (apt-get update)
       apt: update_cache=yes
@@ -34,6 +35,31 @@
       apt: pkg=htop state=installed
     - name: Install git
       apt: pkg=git state=installed
+
+    - name: download conda installer script
+      get_url: 
+        url: https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh 
+        dest: "{{ home_dir }}/Miniconda3-latest-Linux-x86_64.sh"
+        mode: "0755"
+      register: conda_script_downloaded
+    - name: install conda
+      command: "bash {{ home_dir }}/Miniconda3-latest-Linux-x86_64.sh -b" # -b indicates agreement with license
+      become: no
+      args:
+        creates: "{{home_dir}}/miniconda3"
+      when: conda_script_downloaded|success
+    - name: "add {{conda_path}} to path"
+      lineinfile:
+        dest: /etc/environment
+        state: present
+        backrefs: yes
+        regexp: 'PATH=(["]*)((?!.*?{{conda_path}}).*?)(["]*)$'
+        line: 'PATH=\1\2:{{conda_path}}\3'
+    - name: "run conda_setup.sh"
+      script: conda_setup.sh
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
+
     - name: Install python-virtualenv
       apt: pkg=python-virtualenv state=installed
     - name: Install python3
@@ -214,6 +240,8 @@
       command: "{{ venv_dir }}/exec nosetests -v test.unit.test_tools.TestToolsInstallation"
       args:
         chdir: "{{ project_dir }}"
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
 
     - name: Modify .bashrc so venv is loaded on connect
       lineinfile:
