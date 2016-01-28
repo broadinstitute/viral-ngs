@@ -68,6 +68,19 @@ def intervals(i, n, l):
 # from http://stackoverflow.com/a/312467
 
 
+def pairwise(iterable):
+    """ from itertools recipes
+        s -> (s0,s1), (s1,s2), (s2, s3), ..."""
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    if hasattr(itertools, 'izip'):
+        # Python 2
+        return itertools.izip(a, b)
+    else:
+        # Python 3
+        return zip(a, b)
+
+
 def batch_iterator(iterator, batch_size):
     """Returns lists of length batch_size.
 
