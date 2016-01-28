@@ -109,19 +109,28 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
             sequence/chrom name, and library counts and p-values appended to
             the counts for each allele.
     '''
+    samtoolsTool = SamtoolsTool()
+
     if minReadsEach is not None and minReadsEach < 0:
         raise Exception('minReadsEach must be at least 0.')
 
-    bamToProcess = inBam
+    sorted_bam_file = inBam
+    if not bam_is_sorted(inBam):
+        sorted_bam_file = util.file.mkstempfname('.mapped-sorted.bam')
+        sorted_bam_file_tmp = util.file.mkstempfname('.mapped-sorted.bam')
+        samtoolsTool.sort(args=['-T', sorted_bam_file_tmp], inFile=inBam, outFile=sorted_bam_file)
+    
+    bam_to_process = sorted_bam_file
     if removeDoublyMappedReads:
-        bamToProcess = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
-        samtoolsTool = SamtoolsTool()
-        samtoolsTool.removeDoublyMappedReads(inBam, bamToProcess)
-        samtoolsTool.index(bamToProcess)
-    variantIter = Vphaser2Tool().iterate(bamToProcess, vphaserNumThreads)
+        bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
+        
+        samtoolsTool.removeDoublyMappedReads(sorted_bam_file, bam_to_process)
+        samtoolsTool.index(bam_to_process)
+
+    variantIter = Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
 
-    libraryFilteredIter = compute_library_bias(filteredIter, bamToProcess, inConsFasta)
+    libraryFilteredIter = compute_library_bias(filteredIter, bam_to_process, inConsFasta)
     with util.file.open_or_gzopen(outTab, 'wt') as outf:
         for row in libraryFilteredIter:
             outf.write('\t'.join(row) + '\n')
@@ -1103,6 +1112,14 @@ __commands__.append(('iSNP_per_patient', parser_iSNP_per_patient))
 
 #  ===============[ Utility functions ]================
 
+
+def bam_is_sorted(bam_file_path):
+    # Should perhaps be in samtools.py once it moves to pysam
+    samfile = pysam.AlignmentFile(bam_file_path, "rb")
+    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
+        return samfile.header["HD"]["SO"] == "unsorted"
+    else:
+        raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 def sampleIDMatch(inputString):
     """
