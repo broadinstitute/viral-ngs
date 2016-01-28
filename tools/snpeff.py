@@ -18,7 +18,10 @@ import tools
 import util.file
 import util.genbank
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
+
+TOOL_NAME = 'snpeff'
+TOOL_VERSION = '4.1l'
 
 URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
@@ -29,7 +32,9 @@ class SnpEff(tools.Tool):
     def __init__(self, install_methods=None, extra_genomes=None):
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
-            install_methods = [DownloadAndTweakSnpEff(URL, extra_genomes)]
+            install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="snpEff", version=TOOL_VERSION))
+            install_methods.append(DownloadAndTweakSnpEff(URL, extra_genomes))
         self.known_dbs = set()
         self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods=install_methods)
@@ -37,12 +42,22 @@ class SnpEff(tools.Tool):
     def version(self):
         return "4.1"
 
-    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None): # pylint: disable=W0221
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvmMemDefault
-        tool_cmd = ['java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar',
-                   self.install_and_get_path(), command] + args
-        LOG.debug(' '.join(tool_cmd))
+
+        # the conda version wraps the jar file with a shell script
+        if self.install_and_get_path().endswith(".jar"):
+            tool_cmd = [
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+                command
+            ] + args
+        else:
+            tool_cmd = [
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
+            ] + args
+
+        _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
 
     def has_genome(self, genome):
@@ -76,17 +91,16 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
-            util.genbank.fetch_full_records_from_genbank(accessions,
-                                                           outputDir,
-                                                           emailAddress,
-                                                           forceOverwrite=True,
-                                                           combinedFilePrefix="genes",
-                                                           removeSeparateFiles=False)
+            util.genbank.fetch_full_records_from_genbank(
+                accessions,
+                outputDir,
+                emailAddress,
+                forceOverwrite=True,
+                combinedFilePrefix="genes",
+                removeSeparateFiles=False
+            )
 
-            add_genomes_to_snpeff_config_file(
-                config_file, [
-                    (databaseId, sortedAccessionString, sortedAccessionString)
-                ])
+            add_genomes_to_snpeff_config_file(config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
             self.known_dbs.add(databaseId)
             self.installed_dbs.add(databaseId)
 
@@ -132,12 +146,14 @@ class SnpEff(tools.Tool):
         # if we don't have the genome, by name (snpEff official) or by hash (custom)
         if (not self.has_genome(databaseId)):
             if (not self.has_genome(genomes[0])):
-                LOG.info("Checking for snpEff database online...")
+                _log.info("Checking for snpEff database online...")
                 # check to see if it is available for download, and if so install it
                 for row in self.available_databases():
                     if (genomes[0].lower() in row['Genome'].lower()) or (
-                            genomes[0].lower() in row['Bundle'].lower()) or (
-                                    genomes[0].lower() in row['Organism'].lower()):
+                        genomes[0].lower() in row['Bundle'].lower()
+                    ) or (
+                        genomes[0].lower() in row['Organism'].lower()
+                    ):
                         self.download_db(row['Genome'])
 
         # backward compatability for where a single genome name is provided
