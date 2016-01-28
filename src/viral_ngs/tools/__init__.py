@@ -33,7 +33,7 @@ __all__ = sorted(
 )
 installed_tools = {}
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 def get_tool_by_name(name):
@@ -202,13 +202,13 @@ class CondaPackage(InstallMethod):
             util.misc.run_and_print(["conda", "-h"], silent=True)
             #log.debug("conda is installed")
         except:
-            LOG.error("conda must be installed")
+            _log.error("conda must be installed")
             raise
 
         try:
             util.misc.run_and_print(["conda", "build", "-h"], silent=True)
         except:
-            LOG.warning("conda-build must be installed; installing...")
+            _log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
         #InstallMethod.__init__(self)
@@ -244,7 +244,7 @@ class CondaPackage(InstallMethod):
     def verify_install(self):
         if os.access(self.executable_path(), (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             if self.verifycmd:
-                LOG.debug("validating")
+                _log.debug("validating")
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
             else:
                 self.installed = True
@@ -264,12 +264,20 @@ class CondaPackage(InstallMethod):
                 python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
 
-            result = util.misc.run_and_print(run_cmd, silent=True)
-            data = json.loads(result.stdout.decode("UTF-8"))
+            result = util.misc.run_and_print(run_cmd, silent=False)
+            try:
+                data = json.loads(result.stdout.decode("UTF-8"))
+                #data = json.loads("!!\"")
+            except:
+                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+                self.installed = False
+                return 
+                
             if "error" in data.keys() and "prefix already exists" in data["error"]:
                 # the environment already exists
                 # the package may not be installed...
-                LOG.debug("Conda environment already exists...")
+                _log.debug("Conda environment already exists...")
+                
                 result = util.misc.run_and_print(
                     [
                         "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
@@ -277,15 +285,22 @@ class CondaPackage(InstallMethod):
                     ],
                     silent=True
                 )
+
                 if result.returncode == 0:
-                    data = json.loads(result.stdout.decode("UTF-8"))
+                    try:
+                        data = json.loads(result.stdout.decode("UTF-8"))
+                    except:
+                        _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
+                        self.installed = False
+                        return 
+
                     if data["success"] == True:
                         # set self.installed = True
                         self.verify_install()
             else:
                 if "success" in data.keys() and data["success"]:
                     # we were able to create the environment and install the package
-                    LOG.debug("Conda environment created.")
+                    _log.debug("Conda environment created.")
                     if self.is_installed():
                         # set self.installed = True
                         self.verify_install()
@@ -336,7 +351,7 @@ class DownloadPackage(InstallMethod):
     def verify_install(self):
         if os.access(self.targetpath, (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             if self.verifycmd:
-                LOG.debug("validating")
+                _log.debug("validating")
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
             else:
                 self.installed = True
@@ -359,7 +374,7 @@ class DownloadPackage(InstallMethod):
         util.file.mkdir_p(download_dir)
         filepath = urlparse(self.url).path
         file_basename = filepath.split('/')[-1]
-        LOG.info("Downloading from %s to %s/%s ...", self.url, download_dir, file_basename)
+        _log.info("Downloading from %s to %s/%s ...", self.url, download_dir, file_basename)
         urlretrieve(self.url, os.path.join(download_dir, file_basename))
         self.download_file = file_basename
         self.unpack(download_dir)
@@ -371,7 +386,7 @@ class DownloadPackage(InstallMethod):
                 assert return_code == self.post_download_ret
 
     def unpack(self, download_dir):
-        LOG.debug("unpacking")
+        _log.debug("unpacking")
         util.file.mkdir_p(self.destination_dir)
         if self.download_file.endswith('.zip'):
             if os.system("unzip -o %s/%s -d %s > /dev/null" % (download_dir, self.download_file, self.destination_dir)):
@@ -392,13 +407,13 @@ class DownloadPackage(InstallMethod):
             untar_cmd = "tar -C {} -x{}pf {}/{}".format(
                 self.destination_dir, compression_option, download_dir, self.download_file
             )
-            LOG.debug("Untaring with command: %s", untar_cmd)
+            _log.debug("Untaring with command: %s", untar_cmd)
             exitCode = os.system(untar_cmd)
             if exitCode:
-                LOG.info("tar returned non-zero exitcode %s", exitCode)
+                _log.info("tar returned non-zero exitcode %s", exitCode)
                 return
             else:
-                LOG.debug("tar returned with exit code 0")
+                _log.debug("tar returned with exit code 0")
                 os.unlink(os.path.join(download_dir, self.download_file))
         else:
             shutil.move(

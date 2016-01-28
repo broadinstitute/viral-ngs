@@ -16,7 +16,7 @@ import os.path
 import subprocess
 import tempfile
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class GATKTool(tools.Tool):
@@ -48,7 +48,7 @@ class GATKTool(tools.Tool):
             'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
             '-T', command
         ] + list(map(str, gatkOptions))
-        LOG.debug(' '.join(tool_cmd))
+        _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
     @staticmethod
@@ -99,7 +99,7 @@ class GATKTool(tools.Tool):
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
         intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
-        LOG.debug("Running local realign with %s threads", threads)
+        _log.debug("Running local realign with %s threads", threads)
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
         opts = ['-I',
                 inBam,

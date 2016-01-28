@@ -17,7 +17,7 @@ import os.path
 import subprocess
 import stat
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
 TOOL_VERSION = "3.03.02"
@@ -158,7 +158,7 @@ class NovoalignTool(tools.Tool):
         tmp_sam = util.file.mkstempfname('.novoalign.sam')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
-        LOG.debug(' '.join(cmd))
+        _log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
             subprocess.check_call(cmd, stdout=outf)
 
@@ -166,7 +166,7 @@ class NovoalignTool(tools.Tool):
         if min_qual:
             tmp_bam2 = util.file.mkstempfname('.filtered.bam')
             cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
-            LOG.debug('%s > %s', ' '.join(cmd), tmp_bam2)
+            _log.debug('%s > %s', ' '.join(cmd), tmp_bam2)
             with open(tmp_bam2, 'wb') as outf:
                 subprocess.check_call(cmd, stdout=outf)
             os.unlink(tmp_sam)
@@ -193,13 +193,13 @@ class NovoalignTool(tools.Tool):
         if os.path.isfile(outfname):
             os.unlink(outfname)
         cmd = [novoindex, outfname, refFasta]
-        LOG.debug(' '.join(cmd))
+        _log.debug(' '.join(cmd))
         subprocess.check_call(cmd)
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)
         except (IOError, OSError):
-            LOG.warning('could not chmod "%s", this is likely OK', refFasta)
+            _log.warning('could not chmod "%s", this is likely OK', refFasta)
 
 
 class InvalidBamHeaderError(ValueError):

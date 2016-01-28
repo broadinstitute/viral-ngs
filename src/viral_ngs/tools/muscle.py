@@ -17,7 +17,7 @@ TOOL_URL = 'http://www.drive5.com/muscle/downloads{ver}/muscle{ver}_{os}.tar.gz'
 
 UNRELEASED_URL = 'http://www.drive5.com/muscle/muscle_src_3.8.1551.tar.gz'
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class MuscleTool(tools.Tool):
@@ -94,7 +94,7 @@ class MuscleTool(tools.Tool):
         if logFile:
             tool_cmd.append('-log {}'.format(logFile))
 
-        LOG.debug(' '.join(tool_cmd))
+        _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
     # pylint: enable=W0221
 

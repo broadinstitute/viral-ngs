@@ -17,7 +17,7 @@ TOOL_NAME = "mafft"
 TOOL_VERSION = '7.221'
 TOOL_URL = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
-LOG = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class MafftTool(tools.Tool):
@@ -169,7 +169,7 @@ class MafftTool(tools.Tool):
 
         tool_cmd.append(inputFileName)
 
-        LOG.debug(' '.join(tool_cmd))
+        _log.debug(' '.join(tool_cmd))
 
         # run the MAFFT alignment
         with open(outFile, 'w') as outf:
