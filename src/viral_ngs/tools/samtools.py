@@ -21,7 +21,9 @@ import subprocess
 from collections import OrderedDict
 #import pysam
 
+TOOL_NAME = 'samtools'
 TOOL_VERSION = '0.1.19'
+CONDA_TOOL_VERSION = '1.2'
 TOOL_URL = 'http://sourceforge.net/projects/samtools/files/samtools/' \
     + '{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
 
@@ -32,17 +34,23 @@ class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [
-                tools.DownloadPackage(TOOL_URL,
-                                      'samtools-{}/samtools'.format(TOOL_VERSION),
-                                      post_download_command='cd samtools-{}; make -s'.format(TOOL_VERSION))
-            ]
+            install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
+            install_methods.append(
+                tools.DownloadPackage(
+                    TOOL_URL,
+                    'samtools-{}/samtools'.format(TOOL_VERSION),
+                    post_download_command='cd samtools-{}; make -s'.format(
+                        TOOL_VERSION
+                    )
+                )
+            )
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdin=None, stdout=None, stderr=None): # pylint: disable=W0221
+    def execute(self, command, args, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
         if stdin:
@@ -64,10 +72,15 @@ class SamtoolsTool(tools.Tool):
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
 
+    def sort(self, inFile, outFile, args=None):
+        args = args or []
+
+        self.execute('sort', args + ['-o', outFile, inFile])
+
     def merge(self, inFiles, outFile, options=None):
         "Merge a list of inFiles to create outFile."
         options = options or ['-f']
-        
+
         # We are using -f for now because mkstempfname actually makes an empty
         # file, and merge fails with that as output target without the -f.
         # When mkstempfname is fixed, we should remove the -f.
@@ -119,8 +132,9 @@ class SamtoolsTool(tools.Tool):
             and not stripped out. ID is required for all read groups.
             Resulting keys are in same order as @RG lines in bam file.
         '''
-        rgs = [dict(x.split(':', 1) for x in row[1:]) for row in self.getHeader(inBam)
-               if len(row) > 0 and row[0] == '@RG']
+        rgs = [
+            dict(x.split(':', 1) for x in row[1:]) for row in self.getHeader(inBam) if len(row) > 0 and row[0] == '@RG'
+        ]
         return OrderedDict((rg['ID'], rg) for rg in rgs)
 
     def count(self, inBam, opts=None, regions=None):
@@ -134,4 +148,4 @@ class SamtoolsTool(tools.Tool):
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
 
-        self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')  # Suppress info messages
+        self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')    # Suppress info messages

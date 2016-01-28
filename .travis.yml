@@ -36,6 +36,9 @@ before_install:
   - travis/before_install.sh
 
 install:
+  - travis/install-conda.sh
+  - export PATH="$PATH:$HOME/miniconda/bin"
+  - hash -r
   - travis/install-pip.sh
   - travis/install-tools.sh
 

@@ -56,11 +56,15 @@ Tool dependencies
 ~~~~~~~~~~~~~~~~~
 
 A lot of effort has gone into writing auto download/compile wrappers for
-most of the bioinformatic tools we rely on here. They will auto-download
-and install the first time they are needed by any command. If you want
-to pre-install all of the external tools, simply type this::
+most of the bioinformatic tools we rely on here. 
 
-  python -m unittest test.unit.test_tools.TestToolsInstallation -v
+Most tools will attemp a conda-based install first, before falling back to an install handled entirely by our wrappers. To make use of the conda-based install, you will need to have Anaconda or miniconda installed on your system:
+
+http://conda.pydata.org/docs/install/quick.html#miniconda-quick-install-requirements
+
+The tools will auto-download and install the first time they are needed by any command. If you want to pre-install all of the external tools, simply type this::
+
+  nosetests -v test.unit.test_tools
 
 However, there are two tools in particular that cannot be auto-installed
 due to licensing restrictions.  You will need to download and install
@@ -147,4 +151,4 @@ Details on Easy Deploy
 
 Per the Vagrantfile, local VM RAM usage is set to 8GB. On EC2 it currently uses an m4.2xlarge instance with 32GB of RAM and 8 vCPUs.
 
-Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: /home/ubuntu/), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
+Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: `/home/ubuntu/`), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
