@@ -175,6 +175,81 @@ class MummerTool(tools.Tool):
         os.unlink(delta_1)
         os.unlink(delta_2)
         os.unlink(tiling)
+    
+    def scaffold_contigs_custom(self, refFasta, contigsFasta, outFasta,
+            aligner='nucmer', extend=None, breaklen=None,
+            min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
+        ''' Re-implement a less buggy version of MUMmer's pseudomolecule
+            feature to scaffold contigs onto a reference genome.
+        '''
+        
+        # create tiling path with nucmer/promer and show-tiling
+        if aligner=='nucmer':
+            aligner = self.nucmer
+        elif aligner=='promer':
+            aligner = self.promer
+        else:
+            raise NameError()
+        delta_1 = util.file.mkstempfname('.delta')
+        delta_2 = util.file.mkstempfname('.delta')
+        tiling = util.file.mkstempfname('.tiling')
+        aligner(refFasta, contigsFasta, delta_1, extend=extend)
+        self.delta_filter(delta_1, delta_2)
+        self.show_tiling(delta_2, tiling, tab_delim=True,
+            min_pct_id=min_pct_id,
+            min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
+        os.unlink(delta_1)
+        
+        # load intervals into a FeatureSorter
+        fs = util.misc.FeatureSorter()
+        with open(tiling, 'rU') as inf:
+            for line in inf:
+                row = line.rstrip('\n\r').split('\t')
+                c = row[11]
+                start, stop = (int(row[0]), int(row[1]))
+                alt_seq = (row[12], int(row[2]), int(row[3]))
+                if stop<start:
+                    raise ValueError()
+                if alt_seq[2]<alt_seq[1]:
+                    s = '-'
+                else:
+                    s = '+'
+                fs.add(c, start, stop, strand=s, other=alt_seq)
+        os.unlink(tiling)
+        
+        # load all contig-to-ref alignments into AlignsReaders
+        alnReaders = {}
+        aln_file = util.file.mkstempfname('.aligns')
+        for c, start, stop, strand, other in fs.get_features():
+            chr_pair = (c, other[0])
+            if chr_pair not in alnReaders:
+                toolCmd = [os.path.join(self.install_and_get_path(), 'show-aligns'),
+                    '-r', delta_2, chr_pair[0], chr_pair[1]]
+                log.debug(' '.join(toolCmd))
+                with open(aln_file, 'wt') as outf:
+                    subprocess.check_call(toolCmd, stdout=outf)
+                alnReaders[chr_pair] = AlignsReader(aln_file, refFasta)
+        os.unlink(aln_file)
+        os.unlink(delta_2)
+        
+        # for each interval, emit the appropriate sequence
+        for c in fs.get_seqids():
+            seq = []
+            for _, left, right, n_features, features in fs.get_intervals(c):
+                if n_features == 0:
+                    # nothing aligns here
+                    seq.append(str('N' * (right-left+1)))
+                elif n_features == 1:
+                    # only one contig aligns here
+                    raise NotImplementedError('pull from alnReaders')
+                else:
+                    # multiple contigs align here
+                    raise NotImplementedError('harder scenarios')
+            seq = ''.join(seq)
+            raise NotImplementedError('write fasta sequence here')
+        
+        
         
     def align_one_to_one(self, refFasta, otherFasta, outFasta):
         ''' Take two sequences, align with nucmer, and produce
