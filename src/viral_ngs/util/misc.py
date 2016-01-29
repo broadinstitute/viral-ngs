@@ -173,6 +173,9 @@ class FeatureSorter(object):
             for c in self.seqids:
                 self.seq_to_features[c].sort()
     
+    def get_seqids(self):
+        return tuple(self.seqids)
+    
     def get_features(self, c=None, left=0, right=float('inf')):
         ''' Get all features on all chromosomes in sorted order. Chromosomes
             are emitted in order of first appearance (via add). Features on
@@ -190,13 +193,17 @@ class FeatureSorter(object):
                 if stop>=left and start<=right:
                     yield (c, start, stop, strand, other)
     
-    def get_intervals(self):
+    def get_intervals(self, c=None):
         ''' Get all intervals on the reference where the overlapping feature
             set remains the same. Output will be sorted, adjacent intervals
             and will describe how many and which features overlap it.
         '''
         self._cleanup()
-        for c in self.seqids:
+        if c is not None:
+            seqlist = [c]
+        else:
+            seqlist = self.seqids
+        for c in seqlist:
             for left, right in pairwise(sorted(self.seq_to_breakpoints[c])):
                 right = right - 1
                 features = list(self.get_features(c, left, right))
