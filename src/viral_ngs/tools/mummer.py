@@ -9,6 +9,7 @@ import util.file
 import util.misc
 import os
 import os.path
+import random
 import subprocess
 import Bio.SeqIO
 
@@ -233,22 +234,24 @@ class MummerTool(tools.Tool):
         os.unlink(aln_file)
         os.unlink(delta_2)
         
-        # for each interval, emit the appropriate sequence
-        for c in fs.get_seqids():
-            seq = []
-            for _, left, right, n_features, features in fs.get_intervals(c):
-                if n_features == 0:
-                    # nothing aligns here
-                    seq.append(str('N' * (right-left+1)))
-                elif n_features == 1:
-                    # only one contig aligns here
-                    raise NotImplementedError('pull from alnReaders')
-                else:
-                    # multiple contigs align here
-                    raise NotImplementedError('harder scenarios')
-            seq = ''.join(seq)
-            raise NotImplementedError('write fasta sequence here')
-        
+        # for each chromosome, create the scaffolded sequence and write everything to fasta
+        with open(outFasta, 'wt') as outf:
+            for c in fs.get_seqids():
+            
+                # construct scaffolded sequence for this chromosome
+                seq = []
+                for _, left, right, n_features, features in fs.get_intervals(c):
+                    # get all proposed sequences for this specific region
+                    alt_seqs = list(
+                            alnReaders[(c, f[0])].retrieve_alt_by_ref(left, right)
+                            for f in features
+                        )
+                    # pick the "right" one and glue together into a chromosome
+                    seq.append(contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right)))
+                
+                # write this chromosome to fasta file
+                for line in util.file.fastaMaker([(c, ''.join(seq))]):
+                    outf.write(line)
         
         
     def align_one_to_one(self, refFasta, otherFasta, outFasta):
@@ -288,6 +291,64 @@ class MummerTool(tools.Tool):
         for fn in (delta_1, delta_2, aln_file):
             os.unlink(fn)
 
+def contig_chooser(alt_seqs, ref_len, coords_debug=""):
+    ''' Our little heuristic to choose an alternative sequence from a pile
+        of alignments to a reference. Takes a list of strings.
+    '''
+    if not alt_seqs:
+        # no contigs align here, emit Ns of appropriate length
+        new_seq = 'N' * ref_len
+    elif len(alt_seqs) == 1:
+        # only one contig aligns here
+        new_seq = alt_seqs[0]
+    else:
+        # multiple contigs align here
+        ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
+            key=lambda a,n:n, reverse=True))
+        if len(ranks)==1:
+            # only one unique sequence exists
+            new_seq = ranks[0][0]
+        elif ranks[0][1]>ranks[1][1]:
+            # clear winner: a most popular sequence exists
+            new_seq = ranks[0][0]
+        else:
+            # multiple possible replacement sequences
+            len_ranks = list(sorted(util.misc.histogram(len(s) for s in alt_seqs).items(),
+                key=lambda a,n:n, reverse=True))
+            len_ranks.append(ref_len) # let the reference have one vote
+            if len(len_ranks)==1 or len_ranks[0][1]>len_ranks[1][1]:
+                # a most popular replacement length exists
+                # remove all alt_seqs that don't use that length
+                alt_seqs = list(s for s in alt_seqs if len(s)==len_ranks[0][0])
+                assert alt_seqs
+                ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
+                    key=lambda a,n:n, reverse=True))
+                if len(ranks)==1 or ranks[0][1]>ranks[1][1]:
+                    # clear winner amongst remaining sequences of most popular length
+                    new_seq = ranks[0][0]
+                else:
+                    # more complicated scenario. choose randomly.
+                    # perhaps in future, vote based on aligned read count?
+                    if len(alt_seqs)>1:
+                        log.warn("choosing random contig from %d choices of most popular length in %s" % (len(alt_seqs), coords_debug))
+                    new_seq = random.choice(alt_seqs)
+            else:
+                # no clear winner on replacement length
+                alt_ref_len_seqs = list(s for s in alt_seqs if len(s)==ref_len)
+                if alt_ref_len_seqs:
+                    # choose randomly among same-as-ref-length sequences
+                    alt_seqs = alt_ref_len_seqs
+                    if len(alt_seqs)>1:
+                        log.warn("choosing random contig from %d choices of reference length in %s" % (len(alt_seqs), coords_debug))
+                    new_seq = random.choice(alt_seqs)
+                else:
+                    # no clear winner and all replacement lengths are different from reference length
+                    # just choose randomly
+                    if len(alt_seqs)>1:
+                        log.warn("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
+                    new_seq = random.choice(alt_seqs)
+    return new_seq
+    
 
 class AlignsReader(object):
     ''' This class assists in the parsing and reading of show-aligns output.
@@ -393,7 +454,17 @@ class AlignsReader(object):
             filler * (stop-start+1)]
         
     def get_ref_seq(self, start, stop):
+        ''' Retrieve a sub-sequence from the reference (1st) sequence in the
+            alignment using coordinates relative to the reference sequence.
+            No gaps will be emitted.
+        '''
         return str(self.reference_seq.seq[start-1:stop])
 
+    def retrieve_alt_by_ref(self, start, stop):
+        ''' Retrieve a sub-sequence from the alternate (2nd) sequence in the
+            alignment using coordinates relative to the reference sequence.
+            No gaps will be emitted.
+        '''
+        raise NotImplementedError('pull appropriate alt sequence')
         
 
