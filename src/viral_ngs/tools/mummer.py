@@ -227,7 +227,7 @@ class MummerTool(tools.Tool):
             if chr_pair not in alnReaders:
                 toolCmd = [os.path.join(self.install_and_get_path(), 'show-aligns'),
                     '-r', delta_2, chr_pair[0], chr_pair[1]]
-                log.debug(' '.join(toolCmd))
+                #log.debug(' '.join(toolCmd))
                 with open(aln_file, 'wt') as outf:
                     subprocess.check_call(toolCmd, stdout=outf)
                 alnReaders[chr_pair] = AlignsReader(aln_file, refFasta)
@@ -243,7 +243,7 @@ class MummerTool(tools.Tool):
                 for _, left, right, n_features, features in fs.get_intervals(c):
                     # get all proposed sequences for this specific region
                     alt_seqs = list(
-                            alnReaders[(c, f[0])].retrieve_alt_by_ref(left, right)
+                            alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right)
                             for f in features
                         )
                     # pick the "right" one and glue together into a chromosome
@@ -304,7 +304,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
     else:
         # multiple contigs align here
         ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
-            key=lambda a,n:n, reverse=True))
+            key=lambda x:x[1], reverse=True))
         if len(ranks)==1:
             # only one unique sequence exists
             new_seq = ranks[0][0]
@@ -314,7 +314,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
         else:
             # multiple possible replacement sequences
             len_ranks = list(sorted(util.misc.histogram(len(s) for s in alt_seqs).items(),
-                key=lambda a,n:n, reverse=True))
+                key=lambda x:x[1], reverse=True))
             len_ranks.append(ref_len) # let the reference have one vote
             if len(len_ranks)==1 or len_ranks[0][1]>len_ranks[1][1]:
                 # a most popular replacement length exists
@@ -322,7 +322,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                 alt_seqs = list(s for s in alt_seqs if len(s)==len_ranks[0][0])
                 assert alt_seqs
                 ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
-                    key=lambda a,n:n, reverse=True))
+                    key=lambda x:x[1], reverse=True))
                 if len(ranks)==1 or ranks[0][1]>ranks[1][1]:
                     # clear winner amongst remaining sequences of most popular length
                     new_seq = ranks[0][0]
@@ -393,7 +393,7 @@ class AlignsReader(object):
                         mode = 'align'
                         coords = list(x.split() for x in line[21:-2].split(' | '))
                         assert len(coords) == 2 and coords[0][2] == coords[1][2] == '-'
-                        assert coords[0][0] == '+1'
+                        assert coords[0][0] == '+1', "error with line: %s" % line
                         seqs = [[], []]
                         align_lines = 0
                     elif line.startswith('--   END alignment [ '):
@@ -420,8 +420,8 @@ class AlignsReader(object):
                     align_lines += 1
 
     def _load_fastas(self):
-        assert self.ref_fasta
-        self.reference_seq = Bio.SeqIO.read(self.ref_fasta, 'fasta')
+        assert self.ref_fasta and self.seq_ids
+        self.reference_seq = Bio.SeqIO.index(self.ref_fasta, 'fasta')[self.seq_ids[0]]
         
     def get_alignments(self):
         for a in self.alignments:

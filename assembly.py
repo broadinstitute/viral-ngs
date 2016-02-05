@@ -196,9 +196,13 @@ def order_and_orient(inFasta, inReference, outFasta,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
             min_pct_contig_aligned=min_pct_contig_aligned)
     mummer.scaffold_contigs_custom(inReference, trimmed, outFasta,
-            aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
+            aligner=aligner, extend=True, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
             min_pct_contig_aligned=min_pct_contig_aligned)
+    #mummer.scaffold_contigs_custom(inReference, trimmed, outFasta,
+    #        aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
+    #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+    #        min_pct_contig_aligned=min_pct_contig_aligned)
     if not trimmed_contigs:
         os.unlink(trimmed)
     return 0
