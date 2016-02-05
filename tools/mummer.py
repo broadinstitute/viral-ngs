@@ -122,7 +122,7 @@ class MummerTool(tools.Tool):
         delta_1 = util.file.mkstempfname('.delta')
         delta_2 = util.file.mkstempfname('.delta')
         tiling = util.file.mkstempfname('.tiling')
-        aligner(refFasta, contigsFasta, delta_1, extend=extend)
+        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, circular=circular, tab_delim=True,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
@@ -168,7 +168,7 @@ class MummerTool(tools.Tool):
         delta_1 = util.file.mkstempfname('.delta')
         delta_2 = util.file.mkstempfname('.delta')
         tiling = util.file.mkstempfname('.tiling')
-        aligner(refFasta, contigsFasta, delta_1, extend=extend)
+        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
@@ -194,7 +194,7 @@ class MummerTool(tools.Tool):
         delta_1 = util.file.mkstempfname('.delta')
         delta_2 = util.file.mkstempfname('.delta')
         tiling = util.file.mkstempfname('.tiling')
-        aligner(refFasta, contigsFasta, delta_1, extend=extend)
+        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, tab_delim=True,
             min_pct_id=min_pct_id,
@@ -464,7 +464,46 @@ class AlignsReader(object):
         ''' Retrieve a sub-sequence from the alternate (2nd) sequence in the
             alignment using coordinates relative to the reference sequence.
             No gaps will be emitted.
+            Required: start-stop interval must be wholly contained within
+            an alignment.
         '''
-        raise NotImplementedError('pull appropriate alt sequence')
         
+        # grab the one alignment that contains this window
+        aln = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
+        if len(aln) != 1:
+            raise ValueError("invalid %s:%d-%d specified, %d alignments found that contain it" % (
+                self.seq_ids[0], start, stop, len(aln)))
+        aln = aln[0]
+        ref_l, ref_r, ref_seq, alt_seq = (aln[1], aln[2], aln[-2], aln[-1])
+        
+        # convert desired start/stop relative to this reference window
+        #  such that 0 <= start <= stop <= ref_r-ref_l+1
+        start = start - ref_l
+        stop = stop - ref_l
+        
+        # travel down alignment until we've reached the left edge
+        #  (because of gaps, you must check each position one by one)
+        #  end loop when ref_seq[:i_left] contains {start} bases
+        n_ref_bases = 0
+        i_left = 0
+        while n_ref_bases < start:
+            if ref_seq[i_left] != '-':
+                n_ref_bases += 1
+            i_left += 1
+        
+        # travel down alignment until we've reached the right edge
+        #  (because of gaps, you must check each position one by one)
+        #  end loop when ref_seq[:i_right] contains {stop} bases
+        i_right = i_left
+        while n_ref_bases < stop:
+            if ref_seq[i_right] != '-':
+                n_ref_bases += 1
+            i_right += 1
+        # consume and include any trailing gaps
+        while i_right < len(ref_seq) and ref_seq[i_right] == '-':
+            i_right += 1
+
+        # grab the alternate sequence and strip gaps
+        alt_seq = str(s for s in alt_seq[i_left:i_right+1] if s != '-')
+        return alt_seq
 
