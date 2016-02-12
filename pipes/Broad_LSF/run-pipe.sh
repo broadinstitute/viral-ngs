@@ -2,10 +2,7 @@
 # Wrappers around Snakemake for use on the Broad LSF cluster
 
 # load necessary Broad dotkits
-eval `/broad/software/dotkit/init -b`
-reuse -q LSF
-reuse -q Python-3.4
-reuse -q Perl-5.10
+source "$BINDIR/pipes/Broad_common/setup_dotkits.sh"
 
 # load config dirs from config.yaml
 VENVDIR=`python -c 'import yaml;f=open("config.yaml");print(yaml.safe_load(f)["venv_dir"]);f.close()'`
