@@ -5,7 +5,7 @@
 VENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["venv_dir"]));f.close()'`
 BINDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["bin_dir"]));f.close()'`
 
-source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
+source "$BINDIR/pipes/Broad_common/setup_dotkits.sh"
 
 # load Python virtual environment
 source "$VENVDIR/bin/activate"
