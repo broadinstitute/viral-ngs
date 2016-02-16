@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import argparse
 import itertools
+import tools.mummer
 from test import TestCaseWithTmp
 
 
@@ -399,3 +400,42 @@ class TestDeambigAndTrimFasta(TestCaseWithTmp):
                 outseq = str(rec.seq)
                 for i in range(len(outseq)):
                     self.assertIn(outseq[i], vals[i])
+
+
+class TestContigChooser(unittest.TestCase):
+    ''' Test the contig_chooser heuristic used by our MUMmer-based custom scaffolder. '''
+
+    def test_no_seqs(self):
+        for test_len in (7,2,228,52):
+            actual = tools.mummer.contig_chooser([], test_len)
+            self.assertEqual(actual, 'N' * test_len)
+
+    def test_one_seq(self):
+        for test_seq in ('A', '', 'GACTGATG', 'non-biological :characters!'):
+            actual = tools.mummer.contig_chooser([test_seq], 90)
+            self.assertEqual(actual, test_seq)
+    
+    def test_most_popular_seq(self):
+        alt_seqs = ['AA', 'aa', 'GGA', 'T', 'GGA']
+        expected = 'GGA'
+        actual = tools.mummer.contig_chooser(alt_seqs, 2)
+        self.assertEqual(actual, expected)
+
+    def test_most_popular_seq_len(self):
+        alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
+        actual = tools.mummer.contig_chooser(alt_seqs, 2)
+        self.assertEqual(actual, 'aa')
+        actual = tools.mummer.contig_chooser(alt_seqs, 3)
+        self.assertEqual(actual, 'GGA')
+        alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC']
+        actual = tools.mummer.contig_chooser(alt_seqs, 20)
+        self.assertEqual(actual, 'GGA')
+        actual = tools.mummer.contig_chooser(alt_seqs, 1)
+        self.assertEqual(actual, 'GGA')
+    
+    def test_same_as_ref_len(self):
+        alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
+        actual = tools.mummer.contig_chooser(alt_seqs, 1)
+        self.assertEqual(actual, 'T')
+
+
