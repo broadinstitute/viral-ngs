@@ -515,6 +515,6 @@ class AlignsReader(object):
             i_right += 1
 
         # grab the alternate sequence and strip gaps
-        alt_seq = str(s for s in alt_seq[i_left:i_right+1] if s != '-')
+        alt_seq = alt_seq[i_left:i_right+1].replace('-','')
         return alt_seq
 
