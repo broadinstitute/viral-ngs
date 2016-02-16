@@ -179,7 +179,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
-        aligner='nucmer', breaklen=None, # circular=False, trimmed_contigs=None,
+        breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
@@ -200,7 +200,7 @@ def order_and_orient(inFasta, inReference, outFasta,
     #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
     #        min_pct_contig_aligned=min_pct_contig_aligned)
     mummer.scaffold_contigs_custom(inReference, inFasta, outFasta,
-            aligner=aligner, extend=True, breaklen=breaklen,
+            extend=True, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
             min_pct_contig_aligned=min_pct_contig_aligned)
     #if not trimmed_contigs:
@@ -214,10 +214,10 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('outFasta',
         help="""Output assembly, FASTA format, with the same number of 
                 chromosomes as inReference, and in the same order.""")
-    parser.add_argument('--aligner',
-                        help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
-                        choices=['nucmer', 'promer'],
-                        default='nucmer')
+    #parser.add_argument('--aligner',
+    #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
+    #                    choices=['nucmer', 'promer'],
+    #                    default='nucmer')
     #parser.add_argument("--circular",
     #                    help="""Allow contigs to wrap around the ends of the chromosome.""",
     #                    default=False,

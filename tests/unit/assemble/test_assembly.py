@@ -72,6 +72,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
         
+    @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
