@@ -192,7 +192,8 @@ class TestScaffoldImputeImprove(TestCaseWithTmp):
             os.path.join(inDir, 'ref.hhv3.fasta'),
             imputeFasta,
             aligner='mummer',
-            newName='HHV3-test')
+            newName='HHV3-test',
+            index=True)
         assembly.refine_assembly(
             imputeFasta,
             os.path.join(inDir, 'reads.hhv3.bam'),
