@@ -16,6 +16,7 @@ import pysam
 # module-specific
 import tools
 import util.file
+import util.misc
 import util.genbank
 
 _log = logging.getLogger(__name__)
@@ -27,9 +28,9 @@ URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
 
 class SnpEff(tools.Tool):
-    jvmMemDefault = '4g'
 
     def __init__(self, install_methods=None, extra_genomes=None):
+        self.jvmMemDefault = '4g'
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
             install_methods = []
@@ -43,22 +44,22 @@ class SnpEff(tools.Tool):
         return "4.1"
 
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
-        if JVMmemory is None:
+        if not JVMmemory:
             JVMmemory = self.jvmMemDefault
 
         # the conda version wraps the jar file with a shell script
         if self.install_and_get_path().endswith(".jar"):
             tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
                 command
             ] + args
         else:
             tool_cmd = [
-                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
+        return util.misc.run(tool_cmd)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -108,12 +109,13 @@ class SnpEff(tools.Tool):
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
-        tool_cmd = ['java', '-jar', self.install_and_get_path(), 'databases']
+        command_ps = self.execute("databases", args=[])
+
         split_points = []
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
         self.installed_dbs = set()
         self.known_dbs = set()
-        for line in subprocess.check_output(tool_cmd, universal_newlines=True).split('\n'):
+        for line in command_ps.stdout.splitlines():
             line = line.strip()
             if not split_points:
                 if not line.startswith('Genome'):
