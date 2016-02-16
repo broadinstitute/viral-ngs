@@ -16,6 +16,7 @@ import pysam
 # module-specific
 import tools
 import util.file
+import util.misc
 import util.genbank
 
 _log = logging.getLogger(__name__)
@@ -27,9 +28,9 @@ URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
 
 
 class SnpEff(tools.Tool):
-    jvmMemDefault = '4g'
 
     def __init__(self, install_methods=None, extra_genomes=None):
+        self.jvmMemDefault = '4g'
         extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
             install_methods = []
@@ -43,22 +44,22 @@ class SnpEff(tools.Tool):
         return "4.1"
 
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
-        if JVMmemory is None:
+        if not JVMmemory:
             JVMmemory = self.jvmMemDefault
 
         # the conda version wraps the jar file with a shell script
         if self.install_and_get_path().endswith(".jar"):
             tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
                 command
             ] + args
         else:
             tool_cmd = [
-                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout)
+        return util.misc.run(tool_cmd, stdin=stdin)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -81,7 +82,7 @@ class SnpEff(tools.Tool):
 
         # if the database is not installed, we need to make it
         if not self.has_genome(databaseId):
-            config_file = os.path.join(os.path.dirname(self.install_and_get_path()), 'snpEff.config')
+            config_file = os.path.join(os.path.dirname(os.path.realpath(self.install_and_get_path())), 'snpEff.config')
             data_dir = get_data_dir(config_file)
 
             # if the data directory specified in the config is absolute, use it
@@ -108,12 +109,13 @@ class SnpEff(tools.Tool):
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
-        tool_cmd = ['java', '-jar', self.install_and_get_path(), 'databases']
+        command_ps = self.execute("databases", args=[])
+
         split_points = []
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
         self.installed_dbs = set()
         self.known_dbs = set()
-        for line in subprocess.check_output(tool_cmd, universal_newlines=True).split('\n'):
+        for line in command_ps.stdout.decode("utf-8").splitlines():
             line = line.strip()
             if not split_points:
                 if not line.startswith('Genome'):
@@ -175,13 +177,17 @@ class SnpEff(tools.Tool):
             os.path.realpath(inVcf)
         ]
 
-        with open(tmpVcf, 'wt') as outf:
-            self.execute('ann', args, JVMmemory=JVMmemory, stdout=outf)
+        command_ps = self.execute('ann', args, JVMmemory=JVMmemory)
+        if command_ps.returncode == 0:
+            with open(tmpVcf, 'wt') as outf:
+               outf.write(command_ps.stdout.decode("utf-8"))
 
-        if outVcf.endswith('.vcf.gz'):
-            pysam.tabix_compress(tmpVcf, outVcf, force=True)
-            pysam.tabix_index(outVcf, force=True, preset='vcf')
-            os.unlink(tmpVcf)
+            if outVcf.endswith('.vcf.gz'):
+                pysam.tabix_compress(tmpVcf, outVcf, force=True)
+                pysam.tabix_index(outVcf, force=True, preset='vcf')
+                os.unlink(tmpVcf)
+        else:
+            raise subprocess.CalledProcessError(command_ps.stdout)
 
 
 def get_data_dir(config_file):
