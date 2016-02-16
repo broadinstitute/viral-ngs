@@ -179,7 +179,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
-        aligner='nucmer', circular=False, breaklen=None, trimmed_contigs=None,
+        aligner='nucmer', breaklen=None, # circular=False, trimmed_contigs=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
@@ -187,24 +187,24 @@ def order_and_orient(inFasta, inReference, outFasta,
         contigs).
     '''
     mummer = tools.mummer.MummerTool()
-    if trimmed_contigs:
-        trimmed = trimmed_contigs
-    else:
-        trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
-    mummer.trim_contigs(inReference, inFasta, trimmed,
-            aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
-            min_pct_contig_aligned=min_pct_contig_aligned)
-    mummer.scaffold_contigs_custom(inReference, trimmed, outFasta,
-            aligner=aligner, extend=True, breaklen=breaklen,
-            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
-            min_pct_contig_aligned=min_pct_contig_aligned)
-    #mummer.scaffold_contigs_custom(inReference, trimmed, outFasta,
+    #if trimmed_contigs:
+    #    trimmed = trimmed_contigs
+    #else:
+    #    trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
+    #mummer.trim_contigs(inReference, inFasta, trimmed,
+    #        aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
+    #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+    #        min_pct_contig_aligned=min_pct_contig_aligned)
+    #mummer.scaffold_contigs(inReference, trimmed, outFasta,
     #        aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
     #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
     #        min_pct_contig_aligned=min_pct_contig_aligned)
-    if not trimmed_contigs:
-        os.unlink(trimmed)
+    mummer.scaffold_contigs_custom(inReference, inFasta, outFasta,
+            aligner=aligner, extend=True, breaklen=breaklen,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
+    #if not trimmed_contigs:
+    #    os.unlink(trimmed)
     return 0
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
@@ -218,11 +218,11 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
                         choices=['nucmer', 'promer'],
                         default='nucmer')
-    parser.add_argument("--circular",
-                        help="""Allow contigs to wrap around the ends of the chromosome.""",
-                        default=False,
-                        action="store_true",
-                        dest="circular")
+    #parser.add_argument("--circular",
+    #                    help="""Allow contigs to wrap around the ends of the chromosome.""",
+    #                    default=False,
+    #                    action="store_true",
+    #                    dest="circular")
     parser.add_argument("--breaklen",
                         help="""Amount to extend alignment clusters by (if --extend).
                         nucmer default 200, promer default 60.""",
@@ -241,9 +241,9 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         type=float,
                         default=0.6,
                         help="minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
-    parser.add_argument("--trimmed_contigs",
-                        default=None,
-                        help="optional output file for trimmed contigs")
+    #parser.add_argument("--trimmed_contigs",
+    #                    default=None,
+    #                    help="optional output file for trimmed contigs")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser

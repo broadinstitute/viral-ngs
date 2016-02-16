@@ -293,7 +293,17 @@ class MummerTool(tools.Tool):
 
 def contig_chooser(alt_seqs, ref_len, coords_debug=""):
     ''' Our little heuristic to choose an alternative sequence from a pile
-        of alignments to a reference. Takes a list of strings.
+        of alignments to a reference. Takes a list of strings (one string per
+        contig). The output will be a single string:
+            1. if there are no alt_seqs, emit a stretch of Ns, same length as ref
+            2. if there is only one alt_seq, emit that one
+            3. if there are many alt_seqs, emit the most popular (if there is one)
+            4. otherwise, if there is a most popular sequence length (including
+                the ref_len as one vote), filter the alt_seqs to those of the
+                most popular length and emit the most popular sequence (if there
+                is one), otherwise, choose randomly amongst the remainder
+            5. otherwise, choose randomly amongst the same-as-ref length sequences
+            6. or just choose randomly if there are no same-as-ref length sequences
     '''
     if not alt_seqs:
         # no contigs align here, emit Ns of appropriate length
@@ -313,9 +323,9 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
             new_seq = ranks[0][0]
         else:
             # multiple possible replacement sequences
-            len_ranks = list(sorted(util.misc.histogram(len(s) for s in alt_seqs).items(),
-                key=lambda x:x[1], reverse=True))
-            len_ranks.append(ref_len) # let the reference have one vote
+            len_ranks = list(sorted(util.misc.histogram(
+                [len(s) for s in alt_seqs] + [ref_len] # let the reference have one vote
+                ).items(), key=lambda x:x[1], reverse=True))
             if len(len_ranks)==1 or len_ranks[0][1]>len_ranks[1][1]:
                 # a most popular replacement length exists
                 # remove all alt_seqs that don't use that length
