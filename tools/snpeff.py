@@ -59,7 +59,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run(tool_cmd)
+        return util.misc.run(tool_cmd, stdin=stdin)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -82,7 +82,7 @@ class SnpEff(tools.Tool):
 
         # if the database is not installed, we need to make it
         if not self.has_genome(databaseId):
-            config_file = os.path.join(os.path.dirname(self.install_and_get_path()), 'snpEff.config')
+            config_file = os.path.join(os.path.dirname(os.path.realpath(self.install_and_get_path())), 'snpEff.config')
             data_dir = get_data_dir(config_file)
 
             # if the data directory specified in the config is absolute, use it
@@ -115,7 +115,7 @@ class SnpEff(tools.Tool):
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
         self.installed_dbs = set()
         self.known_dbs = set()
-        for line in command_ps.stdout.splitlines():
+        for line in command_ps.stdout.decode("utf-8").splitlines():
             line = line.strip()
             if not split_points:
                 if not line.startswith('Genome'):
@@ -177,13 +177,17 @@ class SnpEff(tools.Tool):
             os.path.realpath(inVcf)
         ]
 
-        with open(tmpVcf, 'wt') as outf:
-            self.execute('ann', args, JVMmemory=JVMmemory, stdout=outf)
+        command_ps = self.execute('ann', args, JVMmemory=JVMmemory)
+        if command_ps.returncode == 0:
+            with open(tmpVcf, 'wt') as outf:
+               outf.write(command_ps.stdout.decode("utf-8"))
 
-        if outVcf.endswith('.vcf.gz'):
-            pysam.tabix_compress(tmpVcf, outVcf, force=True)
-            pysam.tabix_index(outVcf, force=True, preset='vcf')
-            os.unlink(tmpVcf)
+            if outVcf.endswith('.vcf.gz'):
+                pysam.tabix_compress(tmpVcf, outVcf, force=True)
+                pysam.tabix_index(outVcf, force=True, preset='vcf')
+                os.unlink(tmpVcf)
+        else:
+            raise subprocess.CalledProcessError(command_ps.stdout)
 
 
 def get_data_dir(config_file):
