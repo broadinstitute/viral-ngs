@@ -174,7 +174,41 @@ class TestImputeFromReference(TestCaseWithTmp):
             newName='test_sub-EBOV.genome',
             aligner='mummer')
         self.assertEqualContents(outFasta, expected)
-        
+
+class TestScaffoldImputeImprove(TestCaseWithTmp):
+    def test_varicella_big(self):
+        inDir = util.file.get_test_input_path(self)
+        scaffoldFasta = util.file.mkstempfname('.fasta')
+        imputeFasta = util.file.mkstempfname('.fasta')
+        refine1Fasta = util.file.mkstempfname('.fasta')
+        refine2Fasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hhv3.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hhv3.fasta'),
+            os.path.join(inDir, 'ref.hhv3.fasta'),
+            scaffoldFasta)
+        assembly.impute_from_reference(
+            scaffoldFasta,
+            os.path.join(inDir, 'ref.hhv3.fasta'),
+            imputeFasta,
+            aligner='mummer',
+            newName='HHV3-test')
+        assembly.refine_assembly(
+            imputeFasta,
+            os.path.join(inDir, 'reads.hhv3.bam'),
+            refine1Fasta,
+            novo_params='-r Random -l 30 -g 40 -x 20 -t 502',
+            min_coverage=2,
+            threads=4)
+        assembly.refine_assembly(
+            refine1Fasta,
+            os.path.join(inDir, 'reads.hhv3.bam'),
+            refine2Fasta,
+            novo_params='-r Random -l 40 -g 40 -x 20 -t 100',
+            min_coverage=3,
+            threads=4)
+        self.assertEqualContents(refine2Fasta, expected)
+
 
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
