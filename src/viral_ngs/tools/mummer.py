@@ -189,6 +189,7 @@ class MummerTool(tools.Tool):
             aligner = self.nucmer
         elif aligner=='promer':
             aligner = self.promer
+            raise NotImplementedError('we have not implemented a show-aligns file reader that works for protein alignments')
         else:
             raise NameError()
         delta_1 = util.file.mkstempfname('.delta')
