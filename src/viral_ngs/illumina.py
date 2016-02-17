@@ -375,6 +375,13 @@ class SampleSheet(object):
                     else:
                         # data rows
                         row_num += 1
+
+                        # pad the row with null strings if it is shorter than the header list
+                        # sometimes a MiSeq produces an out-of-spec CSV file that lacks trailing commas,
+                        # removing null values that should be present to ensure a length match with the header
+                        while len(row) < len(header):
+                            row.append("")
+
                         assert len(header) == len(row)
                         row = dict((k, v) for k, v in zip(header, row) if k and v)
                         row['row_num'] = str(row_num)
