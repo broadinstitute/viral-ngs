@@ -191,6 +191,9 @@ class TestScaffoldImputeImprove(TestCaseWithTmp):
             scaffoldFasta,
             os.path.join(inDir, 'ref.hhv3.fasta'),
             imputeFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.6,
+            replaceLength=55,
             aligner='mummer',
             newName='HHV3-test',
             index=True)
