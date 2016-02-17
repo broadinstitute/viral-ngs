@@ -211,7 +211,10 @@ class TestScaffoldImputeImprove(TestCaseWithTmp):
             novo_params='-r Random -l 40 -g 40 -x 20 -t 100',
             min_coverage=3,
             threads=4)
-        self.assertEqualContents(refine2Fasta, expected)
+        actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(expected, 'fasta').seq)
+        self.assertEqual(actual, expected)
+        #self.assertEqualContents(refine2Fasta, expected)
 
 
 class TestMutableSequence(unittest.TestCase):
