@@ -178,15 +178,17 @@ class TestImputeFromReference(TestCaseWithTmp):
 class TestScaffoldImputeImprove(TestCaseWithTmp):
     def test_varicella_big(self):
         inDir = util.file.get_test_input_path(self)
-        scaffoldFasta = util.file.mkstempfname('.fasta')
-        imputeFasta = util.file.mkstempfname('.fasta')
-        refine1Fasta = util.file.mkstempfname('.fasta')
-        refine2Fasta = util.file.mkstempfname('.fasta')
-        expected = os.path.join(inDir, 'expected.hhv3.fasta')
+        scaffoldFasta = util.file.mkstempfname('.scaffold.fasta')
+        imputeFasta = util.file.mkstempfname('.imputed.fasta')
+        refine1Fasta = util.file.mkstempfname('.refine1.fasta')
+        refine2Fasta = util.file.mkstempfname('.refine2.fasta')
         assembly.order_and_orient(
             os.path.join(inDir, 'contigs.hhv3.fasta'),
             os.path.join(inDir, 'ref.hhv3.fasta'),
             scaffoldFasta)
+        actual = str(Bio.SeqIO.read(scaffoldFasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.scaffold.fasta'), 'fasta').seq)
+        self.assertEqual(actual, expected)
         assembly.impute_from_reference(
             scaffoldFasta,
             os.path.join(inDir, 'ref.hhv3.fasta'),
@@ -197,22 +199,30 @@ class TestScaffoldImputeImprove(TestCaseWithTmp):
             aligner='mummer',
             newName='HHV3-test',
             index=True)
+        actual = str(Bio.SeqIO.read(imputeFasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.imputed.fasta'), 'fasta').seq)
+        self.assertEqual(actual, expected)
         assembly.refine_assembly(
             imputeFasta,
             os.path.join(inDir, 'reads.hhv3.bam'),
             refine1Fasta,
-            novo_params='-r Random -l 30 -g 40 -x 20 -t 502',
+            # normally -r Random, but for unit tests, we want deterministic behavior
+            novo_params='-r None -l 30 -g 40 -x 20 -t 502',
             min_coverage=2,
             threads=4)
+        actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.refine1.fasta'), 'fasta').seq)
+        self.assertEqual(actual, expected)
         assembly.refine_assembly(
             refine1Fasta,
             os.path.join(inDir, 'reads.hhv3.bam'),
             refine2Fasta,
-            novo_params='-r Random -l 40 -g 40 -x 20 -t 100',
+            # normally -r Random, but for unit tests, we want deterministic behavior
+            novo_params='-r None -l 40 -g 40 -x 20 -t 100',
             min_coverage=3,
             threads=4)
         actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(expected, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.refine2.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
         #self.assertEqualContents(refine2Fasta, expected)
 
