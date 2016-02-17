@@ -29,7 +29,7 @@ class TrinityTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
+            install_methods.append(TrinityCondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
             install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
@@ -57,6 +57,18 @@ class TrinityTool(tools.Tool):
         subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
+
+
+class TrinityCondaPackage(tools.CondaPackage):
+    def _attempt_install(self):
+        self.installed = self.is_installed()
+        if not self.verify_install():
+            tools.CondaPackage._attempt_install(self)
+            target = os.path.join(self.bin_path, 'trinity-plugins')
+            if not os.path.exists(target):
+                os.symlink(
+                    os.path.join(self.env_path, 'opt', self._package_str),
+                    target)
 
 
 class DownloadAndBuildTrinity(tools.DownloadPackage):
