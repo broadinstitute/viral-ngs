@@ -456,7 +456,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     name_opts = []
     if chr_names:
         name_opts = ['--name'] + chr_names
-    main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
+    main_vcf_to_fasta(parser_vcf_to_fasta(argparse.ArgumentParser()).parse_args([
         tmpVcf,
         tmpFasta,
         '--trim_ends',
