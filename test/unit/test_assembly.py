@@ -16,6 +16,8 @@ import tempfile
 import argparse
 import itertools
 import tools.mummer
+import tools.novoalign
+import tools.picard
 from test import TestCaseWithTmp
 
 
@@ -72,8 +74,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contigs.hhv3.fasta'),
             os.path.join(inDir, 'ref.hhv3.fasta'),
             outFasta)
-        self.assertEqualContents(outFasta, expected)
-        os.unlink(outFasta)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_lassa_multisegment(self):
         inDir = util.file.get_test_input_path(self)
@@ -107,8 +110,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contigs.ebov.fasta'),
             os.path.join(inDir, 'ref.ebov.small.fasta'),
             outFasta)
-        self.assertEqualContents(outFasta, expected)
-        os.unlink(outFasta)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
         
 
 class TestImputeFromReference(TestCaseWithTmp):
@@ -128,6 +132,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.6,
             replaceLength=55,
             newName='HHV3-test')
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_varicella_big_mummer(self):
         inDir = util.file.get_test_input_path(self)
@@ -143,6 +150,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             replaceLength=55,
             aligner='mummer',
             newName='HHV3-test')
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_muscle(self):
         inDir = util.file.get_test_input_path(self)
@@ -157,7 +167,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             replaceLength=5,
             newName='test_sub-EBOV.genome',
             aligner='muscle')
-        self.assertEqualContents(outFasta, expected)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mafft(self):
         inDir = util.file.get_test_input_path(self)
@@ -172,7 +184,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             replaceLength=5,
             newName='test_sub-EBOV.genome',
             aligner='mafft')
-        self.assertEqualContents(outFasta, expected)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mummer(self):
         inDir = util.file.get_test_input_path(self)
@@ -187,8 +201,51 @@ class TestImputeFromReference(TestCaseWithTmp):
             replaceLength=5,
             newName='test_sub-EBOV.genome',
             aligner='mummer')
-        self.assertEqualContents(outFasta, expected)
-        
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+class TestRefineAssembly(TestCaseWithTmp):
+    def test_ebov_refine1(self):
+        inDir = util.file.get_test_input_path(self)
+        inFasta = os.path.join(inDir, 'impute.ebov.fasta')
+        imputeFasta = util.file.mkstempfname('.imputed.fasta')
+        refine1Fasta = util.file.mkstempfname('.refine1.fasta')
+        shutil.copy(inFasta, imputeFasta)
+        tools.picard.CreateSequenceDictionaryTool().execute(imputeFasta)
+        tools.novoalign.NovoalignTool().index_fasta(imputeFasta)
+        assembly.refine_assembly(
+            imputeFasta,
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
+            refine1Fasta,
+            # normally -r Random, but for unit tests, we want deterministic behavior
+            novo_params='-r None -l 30 -x 20 -t 502',
+            min_coverage=2,
+            threads=4)
+        actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.fasta'), 'fasta').seq)
+        self.assertEqual(actual, expected)
+
+    def test_ebov_refine2(self):
+        inDir = util.file.get_test_input_path(self)
+        inFasta = os.path.join(inDir, 'expected.ebov.refine1.fasta')
+        refine1Fasta = util.file.mkstempfname('.refine1.fasta')
+        refine2Fasta = util.file.mkstempfname('.refine2.fasta')
+        shutil.copy(inFasta, refine1Fasta)
+        tools.picard.CreateSequenceDictionaryTool().execute(refine1Fasta)
+        tools.novoalign.NovoalignTool().index_fasta(refine1Fasta)
+        assembly.refine_assembly(
+            refine1Fasta,
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
+            refine2Fasta,
+            # normally -r Random, but for unit tests, we want deterministic behavior
+            novo_params='-r None -l 40 -x 20 -t 100',
+            min_coverage=3,
+            threads=4)
+        actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.fasta'), 'fasta').seq)
+        self.assertEqual(actual, expected)
+
 
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
