@@ -233,7 +233,10 @@ class CondaPackage(InstallMethod):
     def _package_installed(self):
         result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True)
         if result.returncode == 0:
-            data = json.loads(result.stdout.decode("UTF-8"))
+            command_output = result.stdout.decode("UTF-8")
+            # load the JSON, but
+            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+            data = json.loads(command_output[command_output.index("{"):]) 
             if len(data) > 0:
                 return True
         return False
@@ -266,8 +269,10 @@ class CondaPackage(InstallMethod):
 
             result = util.misc.run_and_print(run_cmd, silent=False)
             try:
-                data = json.loads(result.stdout.decode("UTF-8"))
-                #data = json.loads("!!\"")
+                command_output = result.stdout.decode("UTF-8")
+                # load the JSON, but
+                # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+                data = json.loads(command_output[command_output.index("{"):])
             except:
                 _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
                 self.installed = False
@@ -288,7 +293,10 @@ class CondaPackage(InstallMethod):
 
                 if result.returncode == 0:
                     try:
-                        data = json.loads(result.stdout.decode("UTF-8"))
+                        command_output = result.stdout.decode("UTF-8")
+                        # load the JSON, but
+                        # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+                        data = json.loads(command_output[command_output.index("{"):]) 
                     except:
                         _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
                         self.installed = False
@@ -301,9 +309,7 @@ class CondaPackage(InstallMethod):
                 if "success" in data.keys() and data["success"]:
                     # we were able to create the environment and install the package
                     _log.debug("Conda environment created.")
-                    if self.is_installed():
-                        # set self.installed = True
-                        self.verify_install()
+                    self.verify_install()
 
 
 class DownloadPackage(InstallMethod):
