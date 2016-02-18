@@ -37,6 +37,13 @@ class MummerTool(tools.Tool):
     def version(self):
         return tool_version
 
+    def executable_path(self):
+        exec_path = tools.Tool.executable_path(self)
+        if os.path.isdir(exec_path):
+            return exec_path
+        else:
+            return os.path.dirname(exec_path)
+
     def execute(self, refFasta, qryFastas):
         toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
             refFasta] + qryFastas
@@ -517,6 +524,6 @@ class AlignsReader(object):
             i_right += 1
 
         # grab the alternate sequence and strip gaps
-        alt_seq = str(s for s in alt_seq[i_left:i_right+1] if s != '-')
+        alt_seq = alt_seq[i_left:i_right+1].replace('-','')
         return alt_seq
 
