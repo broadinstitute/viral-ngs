@@ -192,48 +192,6 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
 class TestRefineAssembly(TestCaseWithTmp):
-    @unittest.skip('unstable between mac/Travis?')
-    def test_varicella_refine1(self):
-        inDir = util.file.get_test_input_path(self)
-        inFasta = os.path.join(inDir, 'imputed.hhv3.fasta')
-        imputeFasta = util.file.mkstempfname('.imputed.fasta')
-        refine1Fasta = util.file.mkstempfname('.refine1.fasta')
-        shutil.copy(inFasta, imputeFasta)
-        tools.picard.CreateSequenceDictionaryTool().execute(imputeFasta)
-        tools.novoalign.NovoalignTool().index_fasta(imputeFasta)
-        assembly.refine_assembly(
-            imputeFasta,
-            os.path.join(inDir, 'reads.hhv3.bam'),
-            refine1Fasta,
-            # normally -r Random, but for unit tests, we want deterministic behavior
-            novo_params='-r None -l 30 -x 20 -t 502',
-            min_coverage=2,
-            threads=4)
-        actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.refine1.fasta'), 'fasta').seq)
-        self.assertEqual(actual, expected)
-
-    @unittest.skip('unstable between mac/Travis?')
-    def test_varicella_refine2(self):
-        inDir = util.file.get_test_input_path(self)
-        inFasta = os.path.join(inDir, 'expected.refine1.fasta')
-        refine1Fasta = util.file.mkstempfname('.refine1.fasta')
-        refine2Fasta = util.file.mkstempfname('.refine2.fasta')
-        shutil.copy(inFasta, refine1Fasta)
-        tools.picard.CreateSequenceDictionaryTool().execute(refine1Fasta)
-        tools.novoalign.NovoalignTool().index_fasta(refine1Fasta)
-        assembly.refine_assembly(
-            refine1Fasta,
-            os.path.join(inDir, 'reads.hhv3.bam'),
-            refine2Fasta,
-            # normally -r Random, but for unit tests, we want deterministic behavior
-            novo_params='-r None -l 40 -x 20 -t 100',
-            min_coverage=3,
-            threads=4)
-        actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.refine2.fasta'), 'fasta').seq)
-        self.assertEqual(actual, expected)
-
     def test_ebov_refine1(self):
         inDir = util.file.get_test_input_path(self)
         inFasta = os.path.join(inDir, 'impute.ebov.fasta')
