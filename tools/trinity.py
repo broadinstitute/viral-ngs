@@ -67,7 +67,7 @@ class TrinityCondaPackage(tools.CondaPackage):
             target = os.path.join(self.bin_path, 'trinity-plugins')
             if not os.path.exists(target):
                 os.symlink(
-                    os.path.join(self.env_path, 'opt', self._package_str),
+                    os.path.join(self.env_path, 'opt', self.package+'-'+self.version, 'trinity-plugins'),
                     target)
 
 
