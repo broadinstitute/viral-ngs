@@ -13,6 +13,7 @@ import random
 import subprocess
 import Bio.SeqIO
 
+TOOL_NAME = "mummer"
 tool_version = '3.23'
 url = 'http://iweb.dl.sourceforge.net/project/mummer/mummer/{ver}/MUMmer{ver}.tar.gz'
 
@@ -24,6 +25,7 @@ class MummerTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [
+                tools.CondaPackage(TOOL_NAME, version=tool_version),
                 tools.DownloadPackage(url.format(ver=tool_version),
                                       'MUMmer{}'.format(tool_version),
                                       post_download_command='cd MUMmer{}; make -s'.format(tool_version),
@@ -34,6 +36,13 @@ class MummerTool(tools.Tool):
 
     def version(self):
         return tool_version
+
+    def executable_path(self):
+        exec_path = tools.Tool.executable_path(self)
+        if os.path.isdir(exec_path):
+            return exec_path
+        else:
+            return os.path.dirname(exec_path)
 
     def execute(self, refFasta, qryFastas):
         toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
