@@ -2,7 +2,7 @@
 # Wrappers around Snakemake for use on the Broad LSF cluster
 
 # determine the directory of this script
-SCRIPT_DIRECTORY=$(dirname $0)
+SCRIPT_DIRECTORY=$(dirname $(readlink --canonicalize-existing $0))
 
 # load necessary Broad dotkits
 source /broad/software/scripts/useuse 
