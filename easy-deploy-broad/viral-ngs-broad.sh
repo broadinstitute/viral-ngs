@@ -25,16 +25,18 @@ VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 
 function load_dotkits(){
     source /broad/software/scripts/useuse
-    reuse .python-3.4.3
+    #reuse .anaconda3-2.5.0
+    reuse .anaconda-2.1.0
     reuse .oracle-java-jdk-1.7.0-51-x86-64
     reuse .bzip2-1.0.6
     reuse .zlib-1.2.6
     reuse .gcc-4.5.3
+    reuse .python-3.4.3
 
     if [ -z "$GATK_PATH" ]; then 
         reuse .gatk3-2.2
         # the Broad sets an alias for GATK, so we need to parse out the path
-        $GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
+        export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
     else
         echo "GATK_PATH is set to '$GATK_PATH'"
         echo "Continuing..."
@@ -42,7 +44,7 @@ function load_dotkits(){
 
     if [ -z "$NOVOALIGN_PATH" ]; then 
         reuse .novocraft-3.02.08
-        $NOVOALIGN_PATH="$(dirname $(which novoalign))"
+        export NOVOALIGN_PATH="$(dirname $(which novoalign))"
     else
         echo "NOVOALIGN_PATH is set to '$NOVOALIGN_PATH'"
         echo "Continuing..."
@@ -136,7 +138,7 @@ else
                     load_dotkits            
 
                     if [ ! -d "$PYTHON_VENV_PATH" ]; then
-                        pyvenv-3.4 $PYTHON_VENV_PATH
+                        pyvenv $PYTHON_VENV_PATH
                     else
                         echo "$PYTHON_VENV_PATH/ already exists. Skipping python venv setup."
                     fi
