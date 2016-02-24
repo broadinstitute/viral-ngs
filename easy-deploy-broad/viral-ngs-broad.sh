@@ -149,7 +149,7 @@ else
                     pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
 
                     # install tools
-                    nosetests -v $VIRAL_NGS_PATH/test/unit/test_tools.py
+                    nosetests $VIRAL_NGS_PATH/test/unit/test_tools.py
 
                     echo "Setup complete. Do you want to start a project? Run:"
                     echo "$0 create-project <project_name>"
