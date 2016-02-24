@@ -70,8 +70,6 @@ function create_project(){
     cp $VIRAL_NGS_PATH/pipes/config.yaml ../../$VIRAL_NGS_DIR/pipes/Snakefile ./
     ln -s $VIRAL_NGS_PATH/ $(pwd)/bin
     ln -s $PYTHON_VENV_PATH/ $(pwd)/venv
-    # TODO: symlinked scripts may themselves need to resolve whether or not they are symlinks...
-    #       (since they access resources by relative path)
     ln -s $VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh $(pwd)/run-pipe_UGER.sh
     ln -s $VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh $(pwd)/run-pipe_LSF.sh
 
@@ -106,7 +104,7 @@ function activate_environment(){
 }
 
 function print_usage(){
-    echo "Usage: $0 {setup,load,create-project}"
+    echo "Usage: $(basename $SCRIPT) {setup,load,create-project}"
 }
 
 if [ $# -eq 0 ]; then
@@ -156,7 +154,7 @@ else
                     echo ""
                 fi
             else
-                echo "Usage: $0 setup"
+                echo "Usage: $(basename $SCRIPT) setup"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
@@ -167,15 +165,15 @@ else
        "load") 
             if [ $# -eq 1 ]; then
                 if [[ $sourced -eq 0 ]]; then
-                    echo "ABORTING. $0 must be sourced."
-                    echo "Usage: source $0 load"
+                    echo "ABORTING. $(basename $SCRIPT) must be sourced."
+                    echo "Usage: source $(basename $SCRIPT) load"
                 else
                     activate_environment
                     ls -lah
                     return 0
                 fi
             else
-                echo "Usage: source $0 load"
+                echo "Usage: source $(basename $SCRIPT) load"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
@@ -185,7 +183,7 @@ else
        ;;
        "create-project") 
             if [ $# -ne 2 ]; then
-                echo "Usage: $0 create-project <project_name>"
+                echo "Usage: $(basename $SCRIPT) create-project <project_name>"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
@@ -193,8 +191,7 @@ else
                 fi
             else
                 if [ ! -d "$PROJECTS_PATH/$2" ]; then
-                    create_project $2
-                    echo "OK"
+                    create_project $2 && echo "Project created: $PROJECTS_PATH/$2" && echo "OK"
                 else
                     echo "WARNING: $PROJECTS_PATH/$2/ already exists."
                     echo "Skipping project creation."
@@ -202,12 +199,19 @@ else
                 
                 echo ""
                 
-                if [[ $sourced -eq 0 ]]; then
-                    echo "To use viral-ngs with your project. Source this file."
-                    echo "Example: source $0 load"
+                if [[ "$VIRTUAL_ENV" != "$PYTHON_VENV_PATH" ]]; then
+                    echo "It looks like the vial-ngs environment is not active."
+                    echo "To use viral-ngs with your project, source this file."
+                    echo "Example: source $(basename $SCRIPT) load"
                 else
-                    activate_environment
-                    return 0
+                    # if the viral-ngs environment is active and we have sourced this file
+                    if [[ $sourced -eq 1 ]]; then
+                        # change to the project directory
+                        if [ -d "$PROJECTS_PATH/$2" ]; then
+                            cd "$PROJECTS_PATH/$2"
+                        fi
+                        return 0
+                    fi
                 fi
             fi
        ;;

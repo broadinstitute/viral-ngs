@@ -36,5 +36,19 @@ viral-ngs-analysis-software/
 viral-ngs-analysis-software/
     projects/
         <project_name>/
-            [...project files...]
+            Snakefile
+            bin/ (symlink)
+            config.yaml
+            data/
+            log/
+            reports/
+            run-pipe_LSF.sh (symlink)
+            run-pipe_UGER.sh (symlink)
+            samples-assembly-failures.txt
+            samples-assembly.txt
+            samples-depletion.txt
+            samples-runs.txt
+            tmp/
+            venv/ (symlink)
+            [...other project files...]
 ```
