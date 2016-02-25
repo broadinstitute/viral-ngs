@@ -437,8 +437,8 @@ class AlignsReader(object):
                             if self.start == aln[1] and self.stop == aln[2]:
                                 self.alignments.append(aln)
                             else:
-                                log.debug("dropping undesired alignment: %s:%s-%s to %s:%s-%s",
-                                    aln[0], aln[1], aln[2], aln[3], aln[4], aln[5])
+                                log.debug("dropping undesired alignment: %s:%s-%s to %s:%s-%s (%s:%s-%s requested)",
+                                    aln[0], aln[1], aln[2], aln[3], aln[4], aln[5], aln[0], self.start, self.stop)
                         else:
                             # read all alignments
                             self.alignments.append(aln)
@@ -508,9 +508,7 @@ class AlignsReader(object):
             log.error("invalid %s:%d-%d specified, %d alignments found that contain it",
                 self.seq_ids[0], start, stop, len(aln))
             for x in aln:
-                log.debug("alignment: %s", str(x))
-            with open(self.aligns_file, 'rt') as inf:
-                log.debug(inf.readlines())
+                log.debug("alignment: %s", str(x[:6]))
             raise AmbiguousAlignmentException()
         aln = aln[0]
         ref_l, ref_r, ref_seq, alt_seq = (aln[1], aln[2], aln[-2], aln[-1])
