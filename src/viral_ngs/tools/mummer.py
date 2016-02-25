@@ -370,6 +370,9 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
     return new_seq
     
 
+class AmbiguousAlignmentException(Exception):
+    pass
+
 class AlignsReader(object):
     ''' This class assists in the parsing and reading of show-aligns output.
     '''
@@ -491,8 +494,13 @@ class AlignsReader(object):
         # grab the one alignment that contains this window
         aln = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
         if len(aln) != 1:
-            raise ValueError("invalid %s:%d-%d specified, %d alignments found that contain it" % (
-                self.seq_ids[0], start, stop, len(aln)))
+            log.error("invalid %s:%d-%d specified, %d alignments found that contain it",
+                self.seq_ids[0], start, stop, len(aln))
+            for x in aln:
+                log.debug("alignment: %s", str(x))
+            with open(self.aligns_file, 'rt') as inf:
+                log.debug(inf.readlines())
+            raise AmbiguousAlignmentException()
         aln = aln[0]
         ref_l, ref_r, ref_seq, alt_seq = (aln[1], aln[2], aln[-2], aln[-1])
         
