@@ -240,7 +240,7 @@ class MummerTool(tools.Tool):
                 #log.debug(' '.join(toolCmd))
                 with open(aln_file, 'wt') as outf:
                     subprocess.check_call(toolCmd, stdout=outf)
-                alnReaders[chr_pair] = AlignsReader(aln_file, refFasta, start=start, stop=stop)
+                alnReaders[chr_pair] = AlignsReader(aln_file, refFasta)
         os.unlink(aln_file)
         os.unlink(delta_2)
         
@@ -253,7 +253,7 @@ class MummerTool(tools.Tool):
                 for _, left, right, n_features, features in fs.get_intervals(c):
                     # get all proposed sequences for this specific region
                     alt_seqs = list(
-                            alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right)
+                            alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
                             for f in features
                         )
                     # pick the "right" one and glue together into a chromosome
@@ -376,12 +376,10 @@ class AmbiguousAlignmentException(Exception):
 class AlignsReader(object):
     ''' This class assists in the parsing and reading of show-aligns output.
     '''
-    def __init__(self, aligns_file, ref_fasta=None, start=None, stop=None):
+    def __init__(self, aligns_file, ref_fasta=None):
         self.aligns_file = aligns_file
         self.ref_fasta = ref_fasta
         self.reference_seq = None
-        self.start = start
-        self.stop = stop
         self.alignments = []
         self.seq_ids = []
         self._load_align()
@@ -429,19 +427,9 @@ class AlignsReader(object):
                         assert len(seqs[0]) == len(seqs[1])
                         seqs = list(''.join(x) for x in seqs)
                         assert len(seqs[0]) == len(seqs[1])
-                        aln = [coords[0][0], int(coords[0][1]), int(coords[0][3]),
+                        self.alignments.append([coords[0][0], int(coords[0][1]), int(coords[0][3]),
                                coords[1][0], int(coords[1][1]), int(coords[1][3]),
-                               seqs[0], seqs[1]]
-                        if self.start is not None and self.stop is not None:
-                            # filter to a specified alignment
-                            if self.start == aln[1] and self.stop == aln[2]:
-                                self.alignments.append(aln)
-                            else:
-                                log.debug("dropping undesired alignment: %s:%s-%s to %s:%s-%s (%s:%s-%s requested)",
-                                    aln[0], aln[1], aln[2], aln[3], aln[4], aln[5], aln[0], self.start, self.stop)
-                        else:
-                            # read all alignments
-                            self.alignments.append(aln)
+                               seqs[0], seqs[1]])
                         coords = None
                         seqs = None
                     else:
@@ -494,7 +482,7 @@ class AlignsReader(object):
         '''
         return str(self.reference_seq.seq[start-1:stop])
 
-    def retrieve_alt_by_ref(self, start, stop):
+    def retrieve_alt_by_ref(self, start, stop, aln_start=None, aln_stop=None):
         ''' Retrieve a sub-sequence from the alternate (2nd) sequence in the
             alignment using coordinates relative to the reference sequence.
             No gaps will be emitted.
@@ -504,9 +492,22 @@ class AlignsReader(object):
         
         # grab the one alignment that contains this window
         aln = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
+        if aln_start is not None and aln_stop is not None:
+            # if specified, restrict to a specific alignment that comes from show-tiling
+            # (sometimes show-aligns is more promiscuous than show-tiling)
+            new_aln = []
+            for a in aln:
+                if a[1] > aln_start or a[2] < aln_stop:
+                    log.debug("dropping undesired alignment: %s(%s):%s-%s to %s(%s):%s-%s (%s:%s-%s requested)",
+                        self.seq_ids[0], a[0], a[1], a[2],
+                        self.seq_ids[1], a[3], a[4], a[5],
+                        self.seq_ids[0], aln_start, aln_stop)
+                else:
+                    new_aln.append(a)
+            aln = new_aln
         if len(aln) != 1:
-            log.error("invalid %s:%d-%d specified, %d alignments found that contain it",
-                self.seq_ids[0], start, stop, len(aln))
+            log.error("invalid %s:%d-%d -> %s specified, %d alignments found that contain it",
+                self.seq_ids[0], start, stop, self.seq_ids[1], len(aln))
             for x in aln:
                 log.debug("alignment: %s", str(x[:6]))
             raise AmbiguousAlignmentException()
