@@ -88,6 +88,19 @@ class TestOrderAndOrient(TestCaseWithTmp):
             outFasta)
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
+
+    def test_ebov_palindrome(self):
+        # this tests a scenario where show-aligns has more alignments than show-tiling
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.ebov.doublehit.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.ebov.doublehit.fasta'),
+            os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'),
+            outFasta)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
         
     @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
