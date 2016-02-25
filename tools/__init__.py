@@ -180,7 +180,8 @@ class CondaPackage(InstallMethod):
         verifycmd=None,
         verifycode=0,
         require_executability=True,
-        env_path=None
+        env_path=None,
+        conda_cache_path=None
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -195,18 +196,26 @@ class CondaPackage(InstallMethod):
         env_path = env_path or os.path.join(util.file.get_build_path(), 'conda-tools')
         self.env_path = os.path.realpath(os.path.expanduser(env_path))
 
+        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
+        self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
+
+        # set an env variable to the conda cache path. this env gets passed to the
+        # the subprocess, and the variable instructs conda where to place its cache files
+        self.conda_env = os.environ
+        self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path
+
         self.installed = False
 
         # conda must be installed
         try:
-            util.misc.run_and_print(["conda", "-h"], silent=True)
+            util.misc.run_and_print(["conda", "-h"], silent=True, env=self.conda_env)
             #log.debug("conda is installed")
         except:
             _log.error("conda must be installed")
             raise
 
         try:
-            util.misc.run_and_print(["conda", "build", "-h"], silent=True)
+            util.misc.run_and_print(["conda", "build", "-h"], silent=True, env=self.conda_env)
         except:
             _log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
@@ -231,7 +240,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True)
+        result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             # load the JSON, but
@@ -267,7 +276,7 @@ class CondaPackage(InstallMethod):
                 python_version = "python=" + python_version if python_version else ""
                 run_cmd.extend([python_version])
 
-            result = util.misc.run_and_print(run_cmd, silent=False)
+            result = util.misc.run_and_print(run_cmd, silent=False, env=self.conda_env)
             try:
                 command_output = result.stdout.decode("UTF-8")
                 # load the JSON, but
@@ -288,7 +297,8 @@ class CondaPackage(InstallMethod):
                         "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
                         self._package_str
                     ],
-                    silent=True
+                    silent=True,
+                    env=self.conda_env
                 )
 
                 if result.returncode == 0:
