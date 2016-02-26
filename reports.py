@@ -60,7 +60,9 @@ def get_assembly_stats(sample,
         reads_bam = os.path.join(reads_dir, '.'.join((sample, adj, 'bam')))
         if os.path.isfile(reads_bam):
             out['reads_' + adj] = samtools.count(reads_bam)
-    out['reads_raw'] = sum(samtools.count(bam) for bam in glob.glob(os.path.join(raw_reads_dir, sample + "*.bam")))
+    if os.path.isdir(raw_reads_dir):
+        out['reads_raw'] = sum(samtools.count(bam)
+            for bam in glob.glob(os.path.join(raw_reads_dir, sample + "*.bam")))
 
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample +
@@ -72,36 +74,36 @@ def get_assembly_stats(sample,
     # assembly stats
     assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
     if not os.path.isfile(assembly_fname):
-        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly2-vfat.fasta')
+        assembly_fname = os.path.join(assembly_tmp, sample + '.assembly2-scaffolded.fasta')
         if not os.path.isfile(assembly_fname):
             out['n_contigs'] = 0
-            return (header, out)
-    with open(assembly_fname, 'rt') as inf:
-        counts = [(len(s), assembly.unambig_count(s.seq)) for s in Bio.SeqIO.parse(inf, 'fasta') if len(s) > 0]
-    out['n_contigs'] = len(counts)
-    out['contig_len'] = ','.join(str(x) for x, y in counts)
-    out['unambig_bases'] = ','.join(str(y) for x, y in counts)
-    out['pct_unambig'] = ','.join(str(float(y) / x) for x, y in counts)
+    if os.path.isfile(assembly_fname):
+        with open(assembly_fname, 'rt') as inf:
+            counts = [(len(s), assembly.unambig_count(s.seq)) for s in Bio.SeqIO.parse(inf, 'fasta') if len(s) > 0]
+        out['n_contigs'] = len(counts)
+        out['contig_len'] = ','.join(str(x) for x, y in counts)
+        out['unambig_bases'] = ','.join(str(y) for x, y in counts)
+        out['pct_unambig'] = ','.join(str(float(y) / x) for x, y in counts)
 
     # read counts from align-to-self
     bam_fname = os.path.join(align_dir, sample + '.bam')
-    if not os.path.isfile(bam_fname):
-        return (header, out)
-    out['aln2self_reads_tot'] = samtools.count(bam_fname)
-    out['aln2self_reads_aln'] = samtools.count(bam_fname, opts=['-F', '4'])
-    out['aln2self_reads_rmdup'] = samtools.count(bam_fname, opts=['-F', '1028'])
-    if out['aln2self_reads_aln']:
-        out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
+    if os.path.isfile(bam_fname):
+        out['aln2self_reads_tot'] = samtools.count(bam_fname)
+        out['aln2self_reads_aln'] = samtools.count(bam_fname, opts=['-F', '4'])
+        out['aln2self_reads_rmdup'] = samtools.count(bam_fname, opts=['-F', '1028'])
+        if out['aln2self_reads_aln']:
+            out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
 
     # genome coverage stats
     bam_fname = os.path.join(align_dir, sample + '.mapped.bam')
-    with pysam.AlignmentFile(bam_fname, 'rb') as bam:
-        coverages = list([pcol.nsegments for pcol in bam.pileup()])
-    out['aln2self_cov_median'] = median(coverages)
-    out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
-    out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
-    for thresh in cov_thresholds:
-        out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
+    if os.path.isfile(bam_fname):
+        with pysam.AlignmentFile(bam_fname, 'rb') as bam:
+            coverages = list([pcol.nsegments for pcol in bam.pileup()])
+        out['aln2self_cov_median'] = median(coverages)
+        out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
+        out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
+        for thresh in cov_thresholds:
+            out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
 
     return (header, out)
 
@@ -159,7 +161,7 @@ __commands__.append(('assembly_stats', parser_assembly_stats))
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
     gap = '-'
     ambiguous = 'N'
-    aligner = tools.muscle.MuscleTool()#.install_and_get_path()
+    aligner = tools.muscle.MuscleTool()
 
     per_chr_fastas = interhost.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
 
