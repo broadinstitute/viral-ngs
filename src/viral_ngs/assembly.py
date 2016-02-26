@@ -34,7 +34,8 @@ import tools.samtools
 import tools.gatk
 import tools.novoalign
 import tools.trinity
-import tools.mosaik
+import tools.mafft
+import tools.mummer
 import tools.muscle
 
 # third-party
@@ -177,99 +178,88 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
-def order_and_orient(inFasta, inReference, outFasta, inReads=None):
-    ''' This step cleans up the Trinity assembly with a known reference genome.
-        Uses VFAT (switch to Bellini later):
-        Take the Trinity contigs, align them to the known reference genome,
-        switch it to the same strand as the reference, and produce
-        chromosome-level assemblies (with runs of N's in between the Trinity
+def order_and_orient(inFasta, inReference, outFasta,
+        breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
+        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
+    ''' This step cleans up the de novo assembly with a known reference genome.
+        Uses MUMmer (nucmer or promer) to create a reference-based consensus
+        sequence of aligned contigs (with runs of N's in between the de novo
         contigs).
     '''
-    # VFAT to order, orient, and merge contigs
-
-    # split out trinity input into separate fastas, then iterate over each, running perl scripts
-
-    # TO DO: replace with Bellini?
-    musclepath = tools.muscle.MuscleTool().install_and_get_path()
-
-    tempFastas = []
-
-    with open(inReference, 'r') as inf:
-        for idx, seqObj in enumerate(Bio.SeqIO.parse(inf, 'fasta')):
-            tmpInputFile = util.file.mkstempfname(prefix='seq-{idx}'.format(idx=idx), suffix=".fasta")
-            tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}'.format(idx=idx), suffix=".fasta")
-
-            Bio.SeqIO.write([seqObj], tmpInputFile, "fasta")
-
-            tmp_prefix = util.file.mkstempfname(prefix='VFAT-')
-            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'orientContig.pl'), inFasta, tmpInputFile,
-                   tmp_prefix, '-musclepath', musclepath]
-            subprocess.check_call(cmd)
-            cmd = [os.path.join(util.file.get_scripts_path(), 'vfat', 'contigMerger.pl'),
-                   tmp_prefix + '_orientedContigs', inReference, tmp_prefix, '-musclepath', musclepath,
-                   '-samtoolspath', tools.samtools.SamtoolsTool().install_and_get_path()]
-            if inReads:
-                infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
-                tools.picard.SamToFastqTool().execute(inReads, infq[0], infq[1])
-                mosaik = tools.mosaik.MosaikTool()
-                cmd = cmd + [
-                    '-readfq',
-                    infq[0],
-                    '-readfq2',
-                    infq[1],
-                    '-mosaikpath',
-                    os.path.dirname(mosaik.install_and_get_path()),
-                    '-mosaiknetworkpath',
-                    mosaik.get_networkFile(),
-                ]
-            subprocess.check_call(cmd)
-            shutil.move(tmp_prefix + '_assembly.fa', tmpOutputFile)
-            tempFastas.append(tmpOutputFile)
-
-    # append
-    util.file.concat(tempFastas, outFasta)
-    for tmpFile in tempFastas:
-        os.unlink(tmpFile)
-
-    for fn in glob.glob(tmp_prefix + '*'):
-        os.unlink(fn)
-    with open(outFasta, 'rt') as inf:
-        out_chr_count = len([1 for x in inf if x.startswith('>')])
-    with open(inReference, 'rt') as inf:
-        ref_chr_count = len([1 for x in inf if x.startswith('>')])
-    if out_chr_count != ref_chr_count:
-        raise Exception("error: expected {} chromosomes, only got {} chromosomes".format(ref_chr_count, out_chr_count))
+    mummer = tools.mummer.MummerTool()
+    #if trimmed_contigs:
+    #    trimmed = trimmed_contigs
+    #else:
+    #    trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
+    #mummer.trim_contigs(inReference, inFasta, trimmed,
+    #        aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
+    #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+    #        min_pct_contig_aligned=min_pct_contig_aligned)
+    #mummer.scaffold_contigs(inReference, trimmed, outFasta,
+    #        aligner=aligner, circular=circular, extend=True, breaklen=breaklen,
+    #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+    #        min_pct_contig_aligned=min_pct_contig_aligned)
+    mummer.scaffold_contigs_custom(inReference, inFasta, outFasta,
+            extend=True, breaklen=breaklen,
+            min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_pct_contig_aligned=min_pct_contig_aligned)
+    #if not trimmed_contigs:
+    #    os.unlink(trimmed)
     return 0
-
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument('inReference',
                         help='Reference genome for ordering, orienting, and merging contigs, FASTA format.')
-    parser.add_argument(
-        'outFasta',
+    parser.add_argument('outFasta',
         help="""Output assembly, FASTA format, with the same number of 
                 chromosomes as inReference, and in the same order.""")
-    parser.add_argument('--inReads',
+    #parser.add_argument('--aligner',
+    #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
+    #                    choices=['nucmer', 'promer'],
+    #                    default='nucmer')
+    #parser.add_argument("--circular",
+    #                    help="""Allow contigs to wrap around the ends of the chromosome.""",
+    #                    default=False,
+    #                    action="store_true",
+    #                    dest="circular")
+    parser.add_argument("--breaklen",
+                        help="""Amount to extend alignment clusters by (if --extend).
+                        nucmer default 200, promer default 60.""",
+                        type=int,
                         default=None,
-                        help='Input reads in unaligned BAM format. These can be used to improve the merge process.')
+                        dest="breaklen")
+    parser.add_argument("--min_pct_id",
+                        type=float,
+                        default=0.6,
+                        help="minimum percent identity for contig alignment (0.0 - 1.0, default: %(default)s)")
+    parser.add_argument("--min_contig_len",
+                        type=int,
+                        default=200,
+                        help="reject contigs smaller than this (default: %(default)s)")
+    parser.add_argument("--min_pct_contig_aligned",
+                        type=float,
+                        default=0.6,
+                        help="minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
+    #parser.add_argument("--trimmed_contigs",
+    #                    default=None,
+    #                    help="optional output file for trimmed contigs")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
-
 
 __commands__.append(('order_and_orient', parser_order_and_orient))
 
 
 class PoorAssemblyError(Exception):
-
     def __init__(self, chr_idx, seq_len, non_n_count):
         super(PoorAssemblyError, self).__init__(
             'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}'.format(
                 chr_idx, seq_len, non_n_count))
 
 
-def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength, newName=None):
+def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, minUnambig, replaceLength,
+    newName=None, aligner='muscle', index=False):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
         imputes all missing positions (plus some of the chromosome ends)
@@ -291,7 +281,8 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
     '''
     tempFastas = []
 
-    pmc = parser_modify_contig()
+    pmc = parser_modify_contig(argparse.ArgumentParser())
+    assert aligner in ('muscle', 'mafft', 'mummer')
 
     with open(inFasta, 'r') as asmFastaFile:
         with open(inReference, 'r') as refFastaFile:
@@ -302,43 +293,74 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 if not refSeqObj or not asmSeqObj:
                     raise KeyError("inFasta and inReference do not have the same number of sequences.")
 
+                # error if PoorAssembly
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
                     raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
 
+                # prepare temp input and output files
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
-
                 concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
-                muscle_align = util.file.mkstempfname('.muscle.fasta')
+                ref_file = util.file.mkstempfname('.ref.fasta')
+                actual_file = util.file.mkstempfname('.actual.fasta')
+                aligned_file = util.file.mkstempfname('.mafft.fasta')
                 refName = refSeqObj.id
                 with open(concat_file, 'wt') as outf:
                     Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
+                with open(ref_file, 'wt') as outf:
+                    Bio.SeqIO.write([refSeqObj], outf, "fasta")
+                with open(actual_file, 'wt') as outf:
+                    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
 
-                tools.muscle.MuscleTool().execute(concat_file, muscle_align)
-                args = [muscle_align, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
-                        '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps']
+                # align scaffolded genome to reference (choose one of three aligners)
+                if aligner=='mafft':
+                    tools.mafft.MafftTool().execute(
+                        [ref_file, actual_file], aligned_file,
+                        False, True, True, False, False, None)
+                elif aligner=='muscle':
+                    if len(refSeqObj) > 40000:
+                        tools.muscle.MuscleTool().execute(
+                            concat_file, aligned_file,
+                            quiet=False, maxiters=2, diags=True)
+                    else:
+                        tools.muscle.MuscleTool().execute(
+                            concat_file, aligned_file,
+                            quiet=False)
+                elif aligner=='mummer':
+                    tools.mummer.MummerTool().align_one_to_one(
+                        ref_file, actual_file, aligned_file)
+
+                # run modify_contig
+                args = [aligned_file, tmpOutputFile, refName,
+                    '--call-reference-ns', '--trim-ends',
+                    '--replace-5ends', '--replace-3ends',
+                    '--replace-length', str(replaceLength),
+                    '--replace-end-gaps']
                 if newName:
                     # renames the segment name "sampleName-idx" where idx is the segment number
-                    args.extend(['-n', newName + "-" + str(idx + 1)])
-
+                    args.extend(['--name', newName + "-" + str(idx + 1)])
                 args = pmc.parse_args(args)
                 args.func_main(args)
-                os.unlink(concat_file)
-                os.unlink(muscle_align)
 
+                # clean up
+                os.unlink(concat_file)
+                os.unlink(ref_file)
+                os.unlink(actual_file)
+                os.unlink(aligned_file)
                 tempFastas.append(tmpOutputFile)
 
+    # merge outputs
     util.file.concat(tempFastas, outFasta)
-
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
-    tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
-    tools.novoalign.NovoalignTool().index_fasta(outFasta)
-
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
+
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    if index:
+        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
+        tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+        tools.novoalign.NovoalignTool().index_fasta(outFasta)
 
     return 0
 
@@ -356,12 +378,23 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
                         help="minimum length for contig, as fraction of reference (default: %(default)s)")
     parser.add_argument("--minUnambig",
                         type=float,
-                        default=0.0,
+                        default=0.8,
                         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
     parser.add_argument("--replaceLength",
                         type=int,
                         default=0,
                         help="length of ends to be replaced with reference (default: %(default)s)")
+    parser.add_argument('--aligner',
+                        help="""which method to use to align inFasta to
+                        inReference. "muscle" = MUSCLE, "mafft" = MAFFT,
+                        "mummer" = nucmer.  [default: %(default)s]""",
+                        choices=['muscle', 'mafft', 'mummer'],
+                        default='muscle')
+    parser.add_argument("--index",
+                        help="""Index outFasta for Picard/GATK, Samtools, and Novoalign.""",
+                        default=False,
+                        action="store_true",
+                        dest="index")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
@@ -423,7 +456,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     name_opts = []
     if chr_names:
         name_opts = ['--name'] + chr_names
-    main_vcf_to_fasta(parser_vcf_to_fasta().parse_args([
+    main_vcf_to_fasta(parser_vcf_to_fasta(argparse.ArgumentParser()).parse_args([
         tmpVcf,
         tmpFasta,
         '--trim_ends',
@@ -640,7 +673,7 @@ __commands__.append(('modify_contig', parser_modify_contig))
 
 
 class ContigModifier(object):
-    ''' Initial modifications to Trinity+VFAT assembly output based on
+    ''' Initial modifications to Trinity+MUMmer assembly output based on
         MUSCLE alignment to known reference genome
         author: rsealfon
     '''
