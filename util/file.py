@@ -371,8 +371,7 @@ def string_to_file_name(string_value):
     control_char_re = re.compile('[%s]' % re.escape(control_chars))
     string_value = control_char_re.sub("_", string_value)
 
-    #for replacements_dict in replacements_dicts:
-    #    # replacements from the dictionary above
+    # replacements from the dictionary above
     strs_to_replace_re = re.compile(r'|'.join(re.escape(key) for key in replacements_dict.keys()))
     string_value = strs_to_replace_re.sub(lambda x: replacements_dict.get(x.group(), "_"), string_value)
 
