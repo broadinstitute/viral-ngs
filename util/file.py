@@ -342,7 +342,7 @@ def temp_catted_files(input_files, prefix=None, suffix=None):
 
 def string_to_file_name(string_value):
     replacements_dict = {
-        "\\": "_", # win directory separator 
+        "\\": "-", # win directory separator 
         "/": "-", # posix directory separator 
         "^": "_", # caret
         "&": "_and_", # background
