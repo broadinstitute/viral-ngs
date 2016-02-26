@@ -92,11 +92,11 @@ accessions_file_for_lastal_db_build: ""
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
 # This is specific to a particular segment/chromosome.
-assembly_min_length_fraction_of_reference: 0.9
+assembly_min_length_fraction_of_reference: 0.90
 
 # The minimum fraction of unambiguous (non-N) bases an assembled
 # sequence must have to be considered acceptible quality.
-assembly_min_unambig: 0.95
+assembly_min_unambig: 0.80
 
 # The number of threads to use for tools supporting multiple threads.
 # Should equal the number of CPU cores present on the machine(s)
@@ -116,7 +116,7 @@ mafft_maxiters: 1000
 # and used as input to assembly via Trinity.
 # Roughly, ~1/2 hour to 1 hour required per million reads.
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
-trinity_n_reads: 100000
+trinity_n_reads: 250000
 
 #    |----------------------- Data storage locations ---------------------------
 
@@ -141,8 +141,9 @@ subdirs:
   intrahost: "04_intrahost"
   annot: "05_genbank"
 
-# The location to use for temp file storage. Should be large and fast.
-# At the Broad, consider /local/scratch
+# The location to use for temp file storage. Should be large and fast and
+# shared between jobs.
+# At the Broad, consider /broad/hptmp/myusername
 tmp_dir: "tmp"
 
 # The directory to store log files for specific jobs
