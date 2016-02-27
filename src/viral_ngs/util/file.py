@@ -339,3 +339,51 @@ def temp_catted_files(input_files, prefix=None, suffix=None):
         yield fn
     finally:
         os.remove(fn)
+
+def string_to_file_name(string_value):
+    replacements_dict = {
+        "\\": "-", # win directory separator 
+        "/": "-", # posix directory separator 
+        "^": "_", # caret
+        "&": "_and_", # background
+        "\"": "", # double quotes
+        r"'": "", # single quotes
+        r":": "_", # colon (problem for ntfs)
+        r" ": "_", # spaces
+        r"|": "-", # shouldn't confuse a vertical bar for a shell pipe
+        r"!": ".", # not a bash operator
+        r";": ".", # not a terminator
+        r"?": "_", # could be mistaken for a wildcard
+        r"*": "_", # could be mistaken for a wildcard
+        r"`": "_", # no subshells
+        r" -": "_-", # could be mistaken for an argument
+        r" --": "_--", # could be mistaken for an argument
+        r">": "]", # no redirect chars
+        r"<": "[", # no redirect chars
+        r"\\x": "_", # hex char
+        r"\\o": "_", # octal char
+        #r"\\u": "", # unicode char
+        #"": "", # other illegal strings to replace
+    }
+
+    # group of ascii control and non-printable characters    
+    control_chars = ''.join( map(chr, list(range(0,32)) + list(range(127,160)) ) )
+    control_char_re = re.compile('[%s]' % re.escape(control_chars))
+    string_value = control_char_re.sub("_", string_value)
+
+    # replacements from the dictionary above
+    strs_to_replace_re = re.compile(r'|'.join(re.escape(key) for key in replacements_dict.keys()))
+    string_value = strs_to_replace_re.sub(lambda x: replacements_dict.get(x.group(), "_"), string_value)
+
+    # condense runs of underscores
+    double_underscore_re = re.compile(r'_{2,}')
+    string_value = double_underscore_re.sub("_", string_value)
+
+    # condense runs of dashes
+    double_dash_re = re.compile(r'-{2,}')
+    string_value = double_dash_re.sub("-", string_value)
+
+    # remove leading or trailing periods (no hidden files (*NIX) or missing file extensions (NTFS))
+    string_value = string_value.strip(".")
+
+    return string_value

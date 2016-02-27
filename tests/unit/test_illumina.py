@@ -1,4 +1,5 @@
 # Unit tests for illumina.py
+# -*- coding: utf-8 -*-
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -149,6 +150,28 @@ class TestIlluminaDir(TestCaseWithTmp):
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-samplesheet.tar.gz')) as idir:
             self.assertRaises(Exception, idir.get_RunInfo())
 
+
+class TestDifficultSampleNames(TestCaseWithTmp):
+    
+    def test_paired_1(self):
+        inDir = util.file.get_test_input_path(self)
+        outBam = util.file.mkstempfname('.bam')
+        outHeader = util.file.mkstempfname('.txt')
+        sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
+        runInfo = os.path.join(inDir, 'RunInfo.xml')
+        fastq = (os.path.join(inDir, 'mebv-0-1_S5_L001_R1_001.fastq.gz'),
+                 os.path.join(inDir, 'mebv-0-1_S5_L001_R2_001.fastq.gz'))
+        illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
+        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        self.assertEqual(len(rgs), 1)
+        rgs = rgs[0]
+        self.assertEqual(rgs.get('ID'), 'AEF96')
+        self.assertEqual(rgs.get('PL'), 'illumina')
+        self.assertEqual(rgs.get('PU'), 'AEF96.1.CGTACTAG-CTAAGCCT')
+        self.assertEqual(rgs.get('LB'), u'difficult-value+for_-Sénégalsample_name0.1')
+        self.assertEqual(rgs.get('SM'), u'difficult-value+for_-Sénégalsample_name0.1')
+        self.assertEqual(rgs.get('CN'), 'M04004')
+        self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
 class TestMiseqToBam(TestCaseWithTmp):
     

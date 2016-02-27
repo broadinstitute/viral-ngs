@@ -414,6 +414,7 @@ class SampleSheet(object):
 
         # populate library IDs, run IDs (ie BAM filenames)
         for row in self.rows:
+            row['sample'] = util.file.string_to_file_name(row['sample'])
             row['library'] = row['sample']
             if row.get('library_id_per_sample'):
                 row['library'] += '.l' + row['library_id_per_sample']
