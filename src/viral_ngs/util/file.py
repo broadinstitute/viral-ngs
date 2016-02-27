@@ -362,7 +362,7 @@ def string_to_file_name(string_value):
         r"<": "[", # no redirect chars
         r"\\x": "_", # hex char
         r"\\o": "_", # octal char
-        r"\\u": "", # unicode char
+        #r"\\u": "", # unicode char
         #"": "", # other illegal strings to replace
     }
 
