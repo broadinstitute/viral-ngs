@@ -25,7 +25,7 @@ class LastTools(tools.Tool):
         self.subtool_name_on_broad = self.subtool_name_on_broad if hasattr(self, "subtool_name_on_broad") else None
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            #install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
             install_methods.append(DownloadAndBuildLast(self.subtool_name))
             # Version of last on broad is old, database-incompatible with newer
             # one, so don't use it and always load the newer version
