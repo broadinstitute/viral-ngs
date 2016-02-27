@@ -7,3 +7,4 @@ reuse -q .bzip2-1.0.6
 reuse -q .zlib-1.2.6
 reuse -q .gcc-4.5.3
 reuse -q .anaconda3-2.5.0
+reuse -q .python-3.4.3
