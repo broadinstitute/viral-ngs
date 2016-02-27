@@ -57,7 +57,7 @@ class Jellyfish(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage("jellyfish1", version=JELLYFISH_VERSION))
+            install_methods.append(tools.CondaPackage("jellyfish", version=JELLYFISH_VERSION))
             install_methods.append(
                 DownloadAndInstallJellyfish(
                     JELLYFISH_URL, os.path.join(JELLYFISH_DIR, 'bin', 'jellyfish')
