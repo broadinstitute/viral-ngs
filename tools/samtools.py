@@ -120,7 +120,7 @@ class SamtoolsTool(tools.Tool):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''
         tmpf = util.file.mkstempfname('.txt')
         self.dumpHeader(inBam, tmpf)
-        with open(tmpf, 'rt') as inf:
+        with open(tmpf, 'r', encoding="latin-1") as inf:
             header = list(line.rstrip('\n').split('\t') for line in inf)
         os.unlink(tmpf)
         return header

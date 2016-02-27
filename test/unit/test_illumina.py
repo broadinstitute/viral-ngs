@@ -167,9 +167,8 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         self.assertEqual(rgs.get('ID'), 'AEF96')
         self.assertEqual(rgs.get('PL'), 'illumina')
         self.assertEqual(rgs.get('PU'), 'AEF96.1.CGTACTAG-CTAAGCCT')
-        # we care more about Picard not failing, but if we care about how filenames are processed:
-        #self.assertEqual(rgs.get('LB'), 'difficult-value+for_-sample_name0.1')
-        #self.assertEqual(rgs.get('SM'), 'difficult-value+for_-sample_name0.1')
+        self.assertEqual(rgs.get('LB'), 'difficult-value+for_-Sénégalsample_name0.1')
+        self.assertEqual(rgs.get('SM'), 'difficult-value+for_-Sénégalsample_name0.1')
         self.assertEqual(rgs.get('CN'), 'M04004')
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
