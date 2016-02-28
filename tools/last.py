@@ -11,7 +11,7 @@ import tools
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
-TOOL_VERSION = "638"
+TOOL_VERSION = "719"
 
 
 class LastTools(tools.Tool):

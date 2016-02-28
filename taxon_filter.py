@@ -242,7 +242,7 @@ def filter_lastal(inFastq, refDb, outFastq):
     lastalCmd = ' '.join([
         '{lastalPath} -Q1 {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq),
         '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
-        '| {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
+        '| python {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
     ])
     log.debug(lastalCmd)
     assert not os.system(lastalCmd)
