@@ -11,5 +11,7 @@ if [ "$PYVER" = "3" ]; then
     pip install -r requirements-pipes.txt
 fi
 
+python --version
+
 echo "pip installing test-related packages (coveralls, etc.)"
 pip install -r requirements-tests.txt
