@@ -414,7 +414,6 @@ class SampleSheet(object):
 
         # populate library IDs, run IDs (ie BAM filenames)
         for row in self.rows:
-            row['sample'] = util.file.string_to_file_name(row['sample'])
             row['library'] = row['sample']
             if row.get('library_id_per_sample'):
                 row['library'] += '.l' + row['library_id_per_sample']
@@ -429,6 +428,12 @@ class SampleSheet(object):
                     row['run'] += '.r' + str(unique_count[row['library']])
             else:
                 raise Exception('non-unique library IDs in this lane')
+
+        # escape sample, run, and library IDs to be filename-compatible 
+        for row in self.rows:
+            row['sample'] = util.file.string_to_file_name(row['sample'])
+            row['library'] = util.file.string_to_file_name(row['library'])
+            row['run'] = util.file.string_to_file_name(row['run'])
 
         # are we single or double indexed?
         if all(row.get('barcode_2') for row in self.rows):
