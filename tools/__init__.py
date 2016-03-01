@@ -224,6 +224,17 @@ class CondaPackage(InstallMethod):
         #InstallMethod.__init__(self)
         super(CondaPackage, self).__init__()
 
+    @staticmethod
+    def _string_from_start_of_json(string_with_json):
+        # JSON can start with "{" or "["
+        # via http://www.json.org/
+        matches = re.compile("\{|\[").search(string_with_json)
+        if matches:
+            return string_with_json[matches.start():]
+        else:
+            _log.warn("Does not look like json: %s" % string_with_json)
+            return None
+
     @property
     def _package_str(self):
         if len(self.version):
@@ -244,9 +255,7 @@ class CondaPackage(InstallMethod):
         result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
-            # load the JSON, but
-            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-            data = json.loads(command_output[command_output.index("{"):]) 
+            data = json.loads(self._string_from_start_of_json(command_output))
             if len(data) > 0:
                 return True
         return False
@@ -299,9 +308,7 @@ class CondaPackage(InstallMethod):
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
-            # load the JSON, but
-            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-            data = json.loads(command_output[command_output.index("["):])
+            data = json.loads(self._string_from_start_of_json(command_output))
         except:
             raise
             _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
@@ -332,9 +339,7 @@ class CondaPackage(InstallMethod):
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
-                # load the JSON, but
-                # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-                data = json.loads(command_output[command_output.index("{"):]) 
+                data = json.loads(self._string_from_start_of_json(command_output))
             except:
                 _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
                 return # return rather than raise so we can fall back to the next install method
@@ -359,9 +364,7 @@ class CondaPackage(InstallMethod):
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
-            # load the JSON, but
-            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-            data = json.loads(command_output[command_output.index("{"):])
+            data = json.loads(self._string_from_start_of_json(command_output))
         except:
             _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
             return # return rather than raise so we can fall back to the next install method
@@ -383,9 +386,7 @@ class CondaPackage(InstallMethod):
             if result.returncode == 0:
                 try:
                     command_output = result.stdout.decode("UTF-8")
-                    # load the JSON, but
-                    # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-                    data = json.loads(command_output[command_output.index("{"):]) 
+                    data = json.loads(self._string_from_start_of_json(command_output))
                 except:
                     _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
                     return # return rather than raise so we can fall back to the next install method
