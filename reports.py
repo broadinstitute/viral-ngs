@@ -62,7 +62,14 @@ def get_assembly_stats(sample,
             out['reads_' + adj] = samtools.count(reads_bam)
     if os.path.isdir(raw_reads_dir):
         out['reads_raw'] = sum(samtools.count(bam)
-            for bam in glob.glob(os.path.join(raw_reads_dir, sample + "*.bam")))
+            # correct issue where sample names containing other sample names as substrings leads 
+            # to extra files being included in the count
+            # 
+            # add a dot before the wildcard, and assume the sample name is found before the dot.
+            # this works for now since dots are the filename field separators
+            # and leading/trailing dots are stripped from sample names in util.file.string_to_file_name()
+            # TODO: replace this with better filtering?
+            for bam in glob.glob(os.path.join(raw_reads_dir, sample + ".*.bam")))
 
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample +
