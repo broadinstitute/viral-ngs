@@ -54,6 +54,3 @@ class TestToolsInstallation(object):
         '''Load every tool's default chain of install methods and try them.'''
         for tool_class in iter_leaf_subclasses(tools.Tool):
             yield self.check_tool, tool_class
-
-
-

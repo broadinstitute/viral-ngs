@@ -3,6 +3,7 @@
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
 import os
+import re
 import logging
 import tempfile
 import shutil
@@ -254,7 +255,14 @@ class CondaPackage(InstallMethod):
         return self.installed
 
     def verify_install(self):
+        # if conda does not the package as installed, no need to check further
+        if not self.get_installed_version():
+            # report the package as not installed
+            return False
+
+        # if the package is installed, check the binary for executability
         if os.access(self.executable_path(), (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
+            # optionally use the verify command, if specified
             if self.verifycmd:
                 _log.debug("validating")
                 self.installed = (os.system(self.verifycmd) == self.verifycode)
@@ -262,64 +270,132 @@ class CondaPackage(InstallMethod):
                 self.installed = True
         else:
             self.installed = False
+
         return self.installed
 
     def _attempt_install(self):
-        self.installed = self.is_installed()
+        # if the package is already installed, we need to check if the version is correct
+        if self.verify_install():
+            # if the installed version is not the one specified
+            if self.version != self.get_installed_version():
+                _log.debug("Expected version of {package}:            {version}".format(package=self.package, version=self.version))
+                _log.debug("Currently installed version of {package}: {version}".format(package=self.package, version=self.get_installed_version()))
+                _log.debug("Incorrect version of {package} installed. Removing it...".format(package=self.package) )
+            
+                # uninstall the current (incorrect) version
+                self.uninstall_package()
 
+        # if the package is not installed
         if not self.verify_install():
-            # try to create the environment and install the package
-            run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
+            # install the package and verify
+            _log.debug("Attempting install...")
+            self.install_package()
+            self.verify_install()
 
-            python_version = os.environ.get("TRAVIS_PYTHON_VERSION")
-            if python_version:
-                python_version = "python=" + python_version if python_version else ""
-                run_cmd.extend([python_version])
+    def get_installed_version(self):
+        # If we ever use conda to install pip packages as tools, "-c" needs to be removed
+        run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-            result = util.misc.run_and_print(run_cmd, silent=False, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        try:
+            command_output = result.stdout.decode("UTF-8")
+            # load the JSON, but
+            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+            data = json.loads(command_output[command_output.index("["):])
+        except:
+            raise
+            _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+            return # return rather than raise so we can fall back to the next install method
+
+        if not len(data):
+            return None
+        else:
+            installed_package_string = data[0]
+            package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
+            matches = package_info_re.match(installed_package_string)
+            if matches:
+                installed_version = matches.group("version")
+                installed_package = matches.group("package_name")
+                installed_build_type = matches.group("build_type")
+                return installed_version
+            return None
+
+    def uninstall_package(self):
+        run_cmd = ["conda", "remove", "-q", "-y", "--json", "-p", self.env_path, self.package]
+
+        result = util.misc.run_and_print(
+            run_cmd,
+            silent=True,
+            env=self.conda_env
+        )
+
+        if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
                 # load the JSON, but
                 # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-                data = json.loads(command_output[command_output.index("{"):])
+                data = json.loads(command_output[command_output.index("{"):]) 
             except:
-                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
-                self.installed = False
-                return 
-                
-            if "error" in data.keys() and "prefix already exists" in data["error"]:
-                # the environment already exists
-                # the package may not be installed...
-                _log.debug("Conda environment already exists...")
-                
-                result = util.misc.run_and_print(
-                    [
-                        "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
-                        self._package_str
-                    ],
-                    silent=True,
-                    env=self.conda_env
-                )
+                _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
+                return # return rather than raise so we can fall back to the next install method
 
-                if result.returncode == 0:
-                    try:
-                        command_output = result.stdout.decode("UTF-8")
-                        # load the JSON, but
-                        # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
-                        data = json.loads(command_output[command_output.index("{"):]) 
-                    except:
-                        _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
-                        self.installed = False
-                        return 
+            if data["success"] == True:
+                _log.debug("Package removed.")
+                #self.installed = False
+        
+        self.verify_install()
 
-                    if data["success"] == True:
-                        # set self.installed = True
-                        self.verify_install()
-            else:
-                if "success" in data.keys() and data["success"]:
-                    # we were able to create the environment and install the package
-                    _log.debug("Conda environment created.")
-                    self.verify_install()
+    def install_package(self):
+        # try to create the environment and install the package
+        run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
+
+        _log.debug("Creating conda environment and installing package {package}".format(package=self._package_str))
+
+        python_version = os.environ.get("TRAVIS_PYTHON_VERSION")
+        if python_version:
+            python_version = "python=" + python_version if python_version else ""
+            run_cmd.extend([python_version])
+
+        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        try:
+            command_output = result.stdout.decode("UTF-8")
+            # load the JSON, but
+            # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+            data = json.loads(command_output[command_output.index("{"):])
+        except:
+            _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+            return # return rather than raise so we can fall back to the next install method
+            
+        if "error" in data.keys() and "prefix already exists" in data["error"]:
+            # the environment already exists
+            # the package may not be installed...
+            _log.debug("Conda environment already exists. Installing package...")
+            
+            result = util.misc.run_and_print(
+                [
+                    "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                    self._package_str
+                ],
+                silent=True,
+                env=self.conda_env
+            )
+
+            if result.returncode == 0:
+                try:
+                    command_output = result.stdout.decode("UTF-8")
+                    # load the JSON, but
+                    # only use the part from the first "{" to the end since some conda versions print non-JSON text before the JSON
+                    data = json.loads(command_output[command_output.index("{"):]) 
+                except:
+                    _log.warning("failed to decode JSON output from conda install: %s", result.stdout.decode("UTF-8"))
+                    return # return rather than raise so we can fall back to the next install method
+
+                if data["success"] == True:
+                    _log.debug("Package installed.")
+        else:
+            if "success" in data.keys() and data["success"]:
+                # we were able to create the environment and install the package
+                _log.debug("Conda environment created and package installed.")
 
 
 class DownloadPackage(InstallMethod):
