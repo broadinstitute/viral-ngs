@@ -314,9 +314,7 @@ class CondaPackage(InstallMethod):
             _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
             return # return rather than raise so we can fall back to the next install method
 
-        if not len(data):
-            return None
-        else:
+        if data not None and len(data):
             installed_package_string = data[0]
             package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
             matches = package_info_re.match(installed_package_string)
@@ -325,7 +323,7 @@ class CondaPackage(InstallMethod):
                 installed_package = matches.group("package_name")
                 installed_build_type = matches.group("build_type")
                 return installed_version
-            return None
+        return None
 
     def uninstall_package(self):
         run_cmd = ["conda", "remove", "-q", "-y", "--json", "-p", self.env_path, self.package]
