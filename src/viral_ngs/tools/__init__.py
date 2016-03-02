@@ -314,7 +314,7 @@ class CondaPackage(InstallMethod):
             _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
             return # return rather than raise so we can fall back to the next install method
 
-        if data not None and len(data):
+        if data and len(data):
             installed_package_string = data[0]
             package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
             matches = package_info_re.match(installed_package_string)
