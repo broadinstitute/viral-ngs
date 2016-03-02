@@ -306,23 +306,26 @@ class CondaPackage(InstallMethod):
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
-        try:
-            command_output = result.stdout.decode("UTF-8")
-            data = json.loads(self._string_from_start_of_json(command_output))
-        except:
-            raise
-            _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
-            return # return rather than raise so we can fall back to the next install method
+        if result.returncode == 0:
+            try:
+                command_output = result.stdout.decode("UTF-8")
+                data = json.loads(self._string_from_start_of_json(command_output))
+            except:
+                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+                raise
+                #return # return rather than raise so we can fall back to the next install method
 
-        if data and len(data):
-            installed_package_string = data[0]
-            package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
-            matches = package_info_re.match(installed_package_string)
-            if matches:
-                installed_version = matches.group("version")
-                installed_package = matches.group("package_name")
-                installed_build_type = matches.group("build_type")
-                return installed_version
+            _log.debug("data: \"{data}\"".format(data=data))
+
+            if data and len(data):
+                installed_package_string = data[0]
+                package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
+                matches = package_info_re.match(installed_package_string)
+                if matches:
+                    installed_version = matches.group("version")
+                    installed_package = matches.group("package_name")
+                    installed_build_type = matches.group("build_type")
+                    return installed_version
         return None
 
     def uninstall_package(self):
