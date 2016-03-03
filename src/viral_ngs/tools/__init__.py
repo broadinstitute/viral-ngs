@@ -315,8 +315,6 @@ class CondaPackage(InstallMethod):
                 raise
                 #return # return rather than raise so we can fall back to the next install method
 
-            _log.debug("data: \"{data}\"".format(data=data))
-
             if data and len(data):
                 installed_package_string = data[0]
                 package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
