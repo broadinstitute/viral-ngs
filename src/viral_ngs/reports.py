@@ -292,7 +292,7 @@ def consolidate_fastqc(inDirs, outFile):
                     if out_n == 0:
                         header.append(k)
                     if not fn.endswith('.bam'):
-                        raise
+                        raise TypeError("%s not a bam file" % fn)
                     out['Sample'] = fn[:-len('.bam')]
             if out_n == 0:
                 outf.write('\t'.join(header) + '\n')
