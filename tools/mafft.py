@@ -133,7 +133,7 @@ class MafftTool(tools.Tool):
         tool_cmd = [self.install_and_get_path()]
 
         if not (retree or localpair or globalpair):
-            toolCmd.append("--auto")
+            tool_cmd.append("--auto")
         if threads >= 1 or threads == -1:
             tool_cmd.extend(["--thread", "{}".format(threads)])
         else:
