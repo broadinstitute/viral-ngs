@@ -17,8 +17,8 @@ try:
     from urllib.parse import urlparse    # pylint: disable=E0611
 except ImportError:
     # Python 2.x
-    from urllib import urlretrieve
-    from urlparse import urlparse
+    from urllib import urlretrieve # pylint: disable=E0611
+    from urlparse import urlparse # pylint: disable=import-error
 
 # Put all tool files in __all__
 # allows "from tools import *" to import all tooles for testtools
