@@ -18,7 +18,7 @@ from collections import OrderedDict, Sequence
 try:
     from itertools import zip_longest # pylint: disable=E0611
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import izip_longest as zip_longest # pylint: disable=E0611
 try:
     from UserDict import DictMixin # pylint: disable=E0611
 except ImportError:  # for Py3
