@@ -187,7 +187,7 @@ class SnpEff(tools.Tool):
                 pysam.tabix_index(outVcf, force=True, preset='vcf')
                 os.unlink(tmpVcf)
         else:
-            raise subprocess.CalledProcessError(command_ps.stdout)
+            raise subprocess.CalledProcessError(cmd=command_ps.args, returncode=command_ps.returncode, output=command_ps.stdout)
 
 
 def get_data_dir(config_file):
