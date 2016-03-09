@@ -135,7 +135,7 @@ __commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 # =======================
 
 
-def lastal_get_hits(inFastq, db, outList):
+def lastal_get_hits(inFastq, db, outList, max_gapless_alignments_per_position=1, min_length_for_initial_matches=5, max_length_for_initial_matches=50, max_initial_matches_per_position=100):
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
     mafConvertPath = tools.last.MafConvert().install_and_get_path()
@@ -144,6 +144,7 @@ def lastal_get_hits(inFastq, db, outList):
     lastalOut = mkstempfname('.lastal')
     with open(lastalOut, 'wt') as outf:
         cmd = [lastalPath, '-Q1', db, inFastq]
+        cmd.extend(['-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L', max_length_for_initial_matches, '-m', max_initial_matches_per_position])
         log.debug(' '.join(cmd) + ' > ' + lastalOut)
         subprocess.check_call(cmd, stdout=outf)
     # everything below this point in this method should be replaced with
@@ -183,7 +184,31 @@ def lastal_get_hits(inFastq, db, outList):
                 line_num += 1
 
 
-def filter_lastal_bam(inBam, db, outBam, JVMmemory=None):
+def parser_lastal_generic(parser=argparse.ArgumentParser()):
+    # max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position
+    parser.add_argument('-n',
+                        dest="max_gapless_alignments_per_position",
+                        help='maximum gapless alignments per query position (default: %(default)s)',
+                        type=int,
+                        default=1)
+    parser.add_argument('-l',
+                        dest="min_length_for_initial_matches",
+                        help='minimum length for initial matches (default: %(default)s)',
+                        type=int,
+                        default=5)
+    parser.add_argument('-L',
+                        dest="max_length_for_initial_matches",
+                        help='maximum length for initial matches (default: %(default)s)',
+                        type=int,
+                        default=50)
+    parser.add_argument('-m',
+                        dest="max_initial_matches_per_position",
+                        help='maximum initial matches per query position (default: %(default)s)',
+                        type=int,
+                        default=100)
+    return parser
+
+def filter_lastal_bam(inBam, db, outBam, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position, JVMmemory=None):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
     '''
@@ -195,9 +220,9 @@ def filter_lastal_bam(inBam, db, outBam, JVMmemory=None):
     # look for hits in inReads1 and inReads2
     hitList1 = mkstempfname('.1.hits')
     hitList2 = mkstempfname('.2.hits')
-    lastal_get_hits(inReads1, db, hitList1)
+    lastal_get_hits(inReads1, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position)
     os.unlink(inReads1)
-    lastal_get_hits(inReads2, db, hitList2)
+    lastal_get_hits(inReads2, db, hitList2, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position)
     os.unlink(inReads2)
 
     # merge hits
@@ -213,6 +238,7 @@ def filter_lastal_bam(inBam, db, outBam, JVMmemory=None):
 
 
 def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
+    parser = parser_lastal_generic(parser)
     parser.add_argument("inBam", help="Input reads")
     parser.add_argument("db", help="Database of taxa we keep")
     parser.add_argument("outBam", help="Output reads, filtered to refDb")
@@ -227,7 +253,7 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
 
-def filter_lastal(inFastq, refDb, outFastq):
+def filter_lastal(inFastq, refDb, outFastq, max_gapless_alignments_per_position=1, min_length_for_initial_matches=5, max_length_for_initial_matches=50, max_initial_matches_per_position=100):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.  Also, remove duplicates with prinseq.
     '''
@@ -240,7 +266,7 @@ def filter_lastal(inFastq, refDb, outFastq):
     noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 
     lastalCmd = ' '.join([
-        '{lastalPath} -Q1 {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq),
+        '{lastalPath} -Q1 -n {max_gapless_alignments_per_position} -l {min_length_for_initial_matches} -L {max_length_for_initial_matches} -m {max_initial_matches_per_position} {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq, max_gapless_alignments_per_position=max_gapless_alignments_per_position, min_length_for_initial_matches=min_length_for_initial_matches, max_length_for_initial_matches=max_length_for_initial_matches, max_initial_matches_per_position=max_initial_matches_per_position),
         '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
         '| python {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
     ])
@@ -271,6 +297,7 @@ def filter_lastal(inFastq, refDb, outFastq):
 
 
 def parser_filter_lastal(parser=argparse.ArgumentParser()):
+    parser = parser_lastal_generic(parser)
     parser.add_argument("inFastq", help="Input fastq file")
     parser.add_argument("refDb", help="Reference database to retain from input")
     parser.add_argument("outFastq", help="Output fastq file")
