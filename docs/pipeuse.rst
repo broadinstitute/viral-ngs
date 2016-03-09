@@ -6,7 +6,7 @@ commands called in isolation, it is possible to execute them as a
 complete automated pipeline, from processing raw sequencer output to
 creating files suitable for GenBank submission. This utilizes Snakemake,
 which is documented at:
-https://bitbucket.org/johanneskoester/snakemake/wiki/Home
+https://bitbucket.org/snakemake/snakemake/wiki/Home
 
 Here is an overview of the Snakemake rule graph:
 
