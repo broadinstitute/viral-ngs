@@ -39,27 +39,39 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('revertBam', help='Output BAM: read markup reverted with Picard.')
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of human reads with BMTagger.')
     parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
-    parser.add_argument('blastnBam',
-                        help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.')
-    parser.add_argument('--taxfiltBam',
-                        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
-                        default=None)
-    parser.add_argument('--bmtaggerDbs',
-                        nargs='+',
-                        required=True,
-                        help='''Reference databases (one or more) to deplete from input.
+    parser.add_argument(
+        'blastnBam',
+        help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
+    )
+    parser.add_argument(
+        '--taxfiltBam',
+        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
+        default=None
+    )
+    parser.add_argument(
+        '--bmtaggerDbs',
+        nargs='+',
+        required=True,
+        help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
-                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
-    parser.add_argument('--blastDbs',
-                        nargs='+',
-                        required=True,
-                        help='One or more reference databases for blast to deplete from input.')
-    parser.add_argument('--lastDb',
-                        help='One reference database for last (required if --taxfiltBam is specified).',
-                        default=None)
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-                        help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)')
+                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
+    )
+    parser.add_argument(
+        '--blastDbs',
+        nargs='+',
+        required=True,
+        help='One or more reference databases for blast to deplete from input.'
+    )
+    parser.add_argument(
+        '--lastDb',
+        help='One reference database for last (required if --taxfiltBam is specified).',
+        default=None
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
@@ -68,15 +80,18 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
 def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
         Optionally, use lastal to select a specific taxon of interest.'''
-    tools.picard.RevertSamTool().execute(args.inBam,
-                                         args.revertBam,
-                                         picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true'])
+    tools.picard.RevertSamTool().execute(
+        args.inBam,
+        args.revertBam,
+        picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
+    )
     multi_db_deplete_bam(
         args.revertBam,
         args.bmtaggerDbs,
         deplete_bmtagger_bam,
         args.bmtaggerBam,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory
+    )
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
     multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, JVMmemory=args.JVMmemory)
     if args.taxfiltBam and args.lastDb:
@@ -102,14 +117,21 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     # the conda version wraps the jar file with a shell script
     if trimmomaticPath.endswith(".jar"):
         #  This java program has a lot of argments...
-        javaCmd.extend(['java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
-                   'org.usadellab.trimmomatic.TrimmomaticPE'])
+        javaCmd.extend(
+            [
+                'java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
+                'org.usadellab.trimmomatic.TrimmomaticPE'
+            ]
+        )
     else:
         javaCmd.extend([trimmomaticPath, "PE"])
 
-    javaCmd.extend([inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1,
-                   pairedOutFastq2, tmpUnpaired2, 'LEADING:20', 'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30',
-                   'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)])
+    javaCmd.extend(
+        [
+            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2, 'LEADING:20',
+            'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30', 'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
+        ]
+    )
 
     log.debug(' '.join(javaCmd))
     subprocess.check_call(javaCmd)
@@ -135,7 +157,15 @@ __commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 # =======================
 
 
-def lastal_get_hits(inFastq, db, outList, max_gapless_alignments_per_position=1, min_length_for_initial_matches=5, max_length_for_initial_matches=50, max_initial_matches_per_position=100):
+def lastal_get_hits(
+    inFastq,
+    db,
+    outList,
+    max_gapless_alignments_per_position=1,
+    min_length_for_initial_matches=5,
+    max_length_for_initial_matches=50,
+    max_initial_matches_per_position=100
+):
     lastalPath = tools.last.Lastal().install_and_get_path()
     mafSortPath = tools.last.MafSort().install_and_get_path()
     mafConvertPath = tools.last.MafConvert().install_and_get_path()
@@ -144,7 +174,12 @@ def lastal_get_hits(inFastq, db, outList, max_gapless_alignments_per_position=1,
     lastalOut = mkstempfname('.lastal')
     with open(lastalOut, 'wt') as outf:
         cmd = [lastalPath, '-Q1', db, inFastq]
-        cmd.extend(['-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L', max_length_for_initial_matches, '-m', max_initial_matches_per_position])
+        cmd.extend(
+            [
+                '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
+                max_length_for_initial_matches, '-m', max_initial_matches_per_position
+            ]
+        )
         log.debug(' '.join(cmd) + ' > ' + lastalOut)
         subprocess.check_call(cmd, stdout=outf)
     # everything below this point in this method should be replaced with
@@ -186,29 +221,47 @@ def lastal_get_hits(inFastq, db, outList, max_gapless_alignments_per_position=1,
 
 def parser_lastal_generic(parser=argparse.ArgumentParser()):
     # max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position
-    parser.add_argument('-n',
-                        dest="max_gapless_alignments_per_position",
-                        help='maximum gapless alignments per query position (default: %(default)s)',
-                        type=int,
-                        default=1)
-    parser.add_argument('-l',
-                        dest="min_length_for_initial_matches",
-                        help='minimum length for initial matches (default: %(default)s)',
-                        type=int,
-                        default=5)
-    parser.add_argument('-L',
-                        dest="max_length_for_initial_matches",
-                        help='maximum length for initial matches (default: %(default)s)',
-                        type=int,
-                        default=50)
-    parser.add_argument('-m',
-                        dest="max_initial_matches_per_position",
-                        help='maximum initial matches per query position (default: %(default)s)',
-                        type=int,
-                        default=100)
+    parser.add_argument(
+        '-n',
+        dest="max_gapless_alignments_per_position",
+        help='maximum gapless alignments per query position (default: %(default)s)',
+        type=int,
+        default=1
+    )
+    parser.add_argument(
+        '-l',
+        dest="min_length_for_initial_matches",
+        help='minimum length for initial matches (default: %(default)s)',
+        type=int,
+        default=5
+    )
+    parser.add_argument(
+        '-L',
+        dest="max_length_for_initial_matches",
+        help='maximum length for initial matches (default: %(default)s)',
+        type=int,
+        default=50
+    )
+    parser.add_argument(
+        '-m',
+        dest="max_initial_matches_per_position",
+        help='maximum initial matches per query position (default: %(default)s)',
+        type=int,
+        default=100
+    )
     return parser
 
-def filter_lastal_bam(inBam, db, outBam, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position, JVMmemory=None):
+
+def filter_lastal_bam(
+    inBam,
+    db,
+    outBam,
+    max_gapless_alignments_per_position,
+    min_length_for_initial_matches,
+    max_length_for_initial_matches,
+    max_initial_matches_per_position,
+    JVMmemory=None
+):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
     '''
@@ -220,9 +273,15 @@ def filter_lastal_bam(inBam, db, outBam, max_gapless_alignments_per_position, mi
     # look for hits in inReads1 and inReads2
     hitList1 = mkstempfname('.1.hits')
     hitList2 = mkstempfname('.2.hits')
-    lastal_get_hits(inReads1, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position)
+    lastal_get_hits(
+        inReads1, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches,
+        max_length_for_initial_matches, max_initial_matches_per_position
+    )
     os.unlink(inReads1)
-    lastal_get_hits(inReads2, db, hitList2, max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position)
+    lastal_get_hits(
+        inReads2, db, hitList2, max_gapless_alignments_per_position, min_length_for_initial_matches,
+        max_length_for_initial_matches, max_initial_matches_per_position
+    )
     os.unlink(inReads2)
 
     # merge hits
@@ -242,9 +301,11 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
     parser.add_argument("inBam", help="Input reads")
     parser.add_argument("db", help="Database of taxa we keep")
     parser.add_argument("outBam", help="Output reads, filtered to refDb")
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
@@ -253,7 +314,15 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
 
-def filter_lastal(inFastq, refDb, outFastq, max_gapless_alignments_per_position=1, min_length_for_initial_matches=5, max_length_for_initial_matches=50, max_initial_matches_per_position=100):
+def filter_lastal(
+    inFastq,
+    refDb,
+    outFastq,
+    max_gapless_alignments_per_position=1,
+    min_length_for_initial_matches=5,
+    max_length_for_initial_matches=50,
+    max_initial_matches_per_position=100
+):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.  Also, remove duplicates with prinseq.
     '''
@@ -265,11 +334,22 @@ def filter_lastal(inFastq, refDb, outFastq, max_gapless_alignments_per_position=
     prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
     noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 
-    lastalCmd = ' '.join([
-        '{lastalPath} -Q1 -n {max_gapless_alignments_per_position} -l {min_length_for_initial_matches} -L {max_length_for_initial_matches} -m {max_initial_matches_per_position} {refDb} {inFastq}'.format(lastalPath=lastalPath, refDb=refDb, inFastq=inFastq, max_gapless_alignments_per_position=max_gapless_alignments_per_position, min_length_for_initial_matches=min_length_for_initial_matches, max_length_for_initial_matches=max_length_for_initial_matches, max_initial_matches_per_position=max_initial_matches_per_position),
-        '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
-        '| python {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath, tempFilePath=tempFilePath),
-    ])
+    lastalCmd = ' '.join(
+        [
+            '{lastalPath} -Q1 -n {max_gapless_alignments_per_position} -l {min_length_for_initial_matches} -L {max_length_for_initial_matches} -m {max_initial_matches_per_position} {refDb} {inFastq}'.format(
+                lastalPath=lastalPath,
+                refDb=refDb,
+                inFastq=inFastq,
+                max_gapless_alignments_per_position=max_gapless_alignments_per_position,
+                min_length_for_initial_matches=min_length_for_initial_matches,
+                max_length_for_initial_matches=max_length_for_initial_matches,
+                max_initial_matches_per_position=max_initial_matches_per_position
+            ),
+            '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
+            '| python {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath,
+                                                                               tempFilePath=tempFilePath),
+        ]
+    )
     log.debug(lastalCmd)
     assert not os.system(lastalCmd)
 
@@ -342,8 +422,10 @@ def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None):
 
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
-    cmdline = [bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', inReads1, '-2',
-               inReads2, '-o', matchesFile]
+    cmdline = [
+        bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', inReads1, '-2',
+        inReads2, '-o', matchesFile
+    ]
     log.debug(' '.join(cmdline))
     subprocess.check_call(cmdline)
 
@@ -401,14 +483,16 @@ def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=
     curReads1, curReads2 = inFastq1, inFastq2
     for count, (db, matchesFile) in \
             enumerate(zip(databases, matchesFiles)):
-        
+
         # Loop invariants:
         #     At the end of the kth loop, curReadsN has the original reads
         #     depleted by all matches to the first k databases, and
         #     matchesFiles[:k] contain the list of matching read names.
-        
-        cmdline = [bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1,
-                   '-2', curReads2, '-o', matchesFile]
+
+        cmdline = [
+            bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1, '-2',
+            curReads2, '-o', matchesFile
+        ]
         log.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         prevReads1, prevReads2 = curReads1, curReads2
@@ -472,8 +556,10 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
     tempfiles = []
     for db in databases:
         outprefix = mkstempfname()
-        cmdline = [bmtaggerPath, '-X', '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1',
-                   curReads1, '-2', curReads2, '-o', outprefix]
+        cmdline = [
+            bmtaggerPath, '-X', '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1,
+            '-2', curReads2, '-o', outprefix
+        ]
         log.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         curReads1, curReads2 = [outprefix + suffix for suffix in ('_1.fastq', '_2.fastq')]
@@ -487,15 +573,19 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
 
 def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2',
-                        help='Input fastq file; 2nd end of paired-end reads.  '
-                        'Must have same names as inFastq1')
-    parser.add_argument('refDbs',
-                        nargs='+',
-                        help='''Reference databases (one or more) to deplete from input.
+    parser.add_argument(
+        'inFastq2',
+        help='Input fastq file; 2nd end of paired-end reads.  '
+        'Must have same names as inFastq1'
+    )
+    parser.add_argument(
+        'refDbs',
+        nargs='+',
+        help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.
-             ''')
+             '''
+    )
     parser.add_argument('--outMatch', nargs=2, help='Filenames for fastq output of matching reads.')
     parser.add_argument('--outNoMatch', nargs=2, help='Filenames for fastq output of unmatched reads.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -528,15 +618,19 @@ __commands__.append(('partition_bmtagger', parser_partition_bmtagger))
 
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('refDbs',
-                        nargs='+',
-                        help='''Reference databases (one or more) to deplete from input.
+    parser.add_argument(
+        'refDbs',
+        nargs='+',
+        help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
-                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.''')
+                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
+    )
     parser.add_argument('outBam', help='Output BAM file.')
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
     return parser
@@ -584,8 +678,10 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
             batch = None
 
             chunk_hits = mkstempfname('.hits.txt')
-            blastnCmd = [blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs',
-                         '2', '-query', chunk_fasta, '-out', chunk_hits]
+            blastnCmd = [
+                blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
+                '-query', chunk_fasta, '-out', chunk_hits
+            ]
             log.debug(' '.join(blastnCmd))
             subprocess.check_call(blastnCmd)
 
@@ -759,9 +855,11 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
@@ -799,8 +897,10 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', help='Location of the input FASTA file')
     parser.add_argument('outputDirectory', help='Location for the output files (default is cwd: %(default)s)')
-    parser.add_argument('--outputFilePrefix',
-                        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)')
+    parser.add_argument(
+        '--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, lastal_build_db, split_args=True)
     return parser
