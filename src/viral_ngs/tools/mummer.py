@@ -246,7 +246,12 @@ class MummerTool(tools.Tool):
         
         # for each chromosome, create the scaffolded sequence and write everything to fasta
         with open(outFasta, 'wt') as outf:
-            for c in fs.get_seqids():
+            for c in [seqObj.id for seqObj in Bio.SeqIO.parse(refFasta, 'fasta')]: 
+                if c not in fs.get_seqids():
+                    # segment c could not be assembled; skip it with the plan
+                    # for assembly to fail later since (# reference segments) != 
+                    # (# assembled segments)
+                    continue
             
                 # construct scaffolded sequence for this chromosome
                 seq = []
