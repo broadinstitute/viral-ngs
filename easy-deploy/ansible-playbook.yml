@@ -2,7 +2,7 @@
   hosts: all
   vars:
     # Replace with ansible_user in ansible 2.0
-    user: "{{ ansible_ssh_user }}"
+    user: "{{ ansible_user }}"
     home_dir: "/home/{{ user }}"
     deploy: "clone"
     synced_git_dir: "{{ home_dir }}/viral-ngs"
