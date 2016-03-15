@@ -252,7 +252,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -293,13 +293,16 @@ class CondaPackage(InstallMethod):
             
                 # uninstall the current (incorrect) version
                 self.uninstall_package()
+                # and continue to install...
+            else:
+                # if the package is installed and is the correct version
+                # return so we don't bother installing
+                return 
 
-        # if the package is not installed
-        if not self.verify_install():
-            # install the package and verify
-            _log.debug("Attempting install...")
-            self.install_package()
-            self.verify_install()
+        # install the package and verify
+        _log.debug("Attempting install...")
+        self.install_package()
+        self.verify_install()
 
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
