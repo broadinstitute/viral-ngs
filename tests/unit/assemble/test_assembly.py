@@ -89,6 +89,17 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
+    def test_influenza_multisegment(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.influenza.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.influenza.fasta'),
+            os.path.join(inDir, 'ref.influenza.fasta'),
+            outFasta)
+        self.assertEqualContents(outFasta, expected)
+        os.unlink(outFasta)
+
     def test_ebov_palindrome(self):
         # this tests a scenario where show-aligns has more alignments than show-tiling
         inDir = util.file.get_test_input_path(self)
