@@ -128,8 +128,17 @@ The following environment variables are needed:
  * ``EC2_REGION`` (ex. "us-west-2")
  * ``EC2_KEYPAIR_NAME`` (ex. "my-ssh-keypair")
  * ``EC2_PRIVATE_KEY_PATH`` (ex. "my-ssh-keypair.pem")
+ * ``EC2_SECURITY_GROUP`` (ex. "ssh-only-group")
 
+For more information, see the following AWS pages:
+
+* `Getting set up with AWS <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/get-set-up-for-amazon-ec2.html>`_
+* `How to create an AWS EC2 key pair <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair>`_
+* `Defining security group rules <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-network-security.html#adding-security-group-rule>`_
+* `List of EC2 regions <https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region>`_
  
+Note that the EC2 instance created by the easy-deploy script is currently configured to be an m4.2xlarge, which costs ~$0.55/hour to run. It is suggested that the instance be terminated via the AWS web console once processing with viral-ngs is complete. See the `AWS page for current pricing <https://aws.amazon.com/ec2/pricing/>`_ .
+
 Limitations
 ~~~~~~~~~~~
 
