@@ -284,7 +284,7 @@ if all_commands_exist $relevant_commands; then
                 fi
             fi
 
-            if [ -z "$EC2_ACCESS_KEY_ID" ] || [ -z "$EC2_SECRET_ACCESS_KEY" ] || [ -z "$EC2_KEYPAIR_NAME" ] || [ -z "$EC2_PRIVATE_KEY_PATH" ] || [ -z "$EC2_REGION" ]; then 
+            if [ -z "$EC2_ACCESS_KEY_ID" ] || [ -z "$EC2_SECRET_ACCESS_KEY" ] || [ -z "$EC2_KEYPAIR_NAME" ] || [ -z "$EC2_PRIVATE_KEY_PATH" ] || [ -z "$EC2_REGION" ] || [ -z "$EC2_SECURITY_GROUP" ]; then 
                 echo "==========================================================================================="
                 echo "Prior to deploying to EC2 you must obtain AWS IAM credentials permitting instance creation." 
                 echo "You must also create a private/public keypair for use with EC2." 
@@ -296,14 +296,17 @@ if all_commands_exist $relevant_commands; then
                 if [ -z "$EC2_SECRET_ACCESS_KEY" ]; then
                     echo "    EC2_SECRET_ACCESS_KEY"
                 fi
+                if [ -z "$EC2_REGION" ]; then
+                    echo "    EC2_REGION"
+                fi
                 if [ -z "$EC2_KEYPAIR_NAME" ]; then
                     echo "    EC2_KEYPAIR_NAME"
                 fi
                 if [ -z "$EC2_PRIVATE_KEY_PATH" ]; then
                     echo "    EC2_PRIVATE_KEY_PATH"
                 fi
-                if [ -z "$EC2_REGION" ]; then
-                    echo "    EC2_REGION"
+                if [ -z "$EC2_SECURITY_GROUP" ]; then
+                    echo "    EC2_SECURITY_GROUP"
                 fi
                 echo ""
                 echo "If you wish, you may specify these values now for use in only this session."
@@ -325,8 +328,15 @@ if all_commands_exist $relevant_commands; then
                         fi
                     done
 
+                    while [ -z "$EC2_REGION" ]; do
+                        read -p "What is the EC2 region (ex. 'us-east-1')? " EC2_REGION
+                        if [ $(echo ${#EC2_REGION}) -gt 0 ]; then
+                            export EC2_REGION="$EC2_REGION"
+                        fi
+                    done
+
                     while [ -z "$EC2_KEYPAIR_NAME" ]; do
-                        read -p "What is AWS keypair name? " EC2_KEYPAIR_NAME
+                        read -p "What is AWS keypair name (region-specific)? " EC2_KEYPAIR_NAME
                         if [ $(echo ${#EC2_KEYPAIR_NAME}) -gt 0 ]; then
                             export EC2_KEYPAIR_NAME="$EC2_KEYPAIR_NAME"
                         fi
@@ -339,10 +349,10 @@ if all_commands_exist $relevant_commands; then
                         fi
                     done
 
-                    while [ -z "$EC2_REGION" ]; do
-                        read -p "What is the EC2 region? " EC2_REGION
-                        if [ $(echo ${#EC2_REGION}) -gt 0 ]; then
-                            export EC2_REGION="$EC2_REGION"
+                    while [ -z "$EC2_SECURITY_GROUP" ]; do
+                        read -p "Specify the *name* of the EC2 security group to use; the group must permit access on TCP port 22 (region-specific): " EC2_SECURITY_GROUP
+                        if [ $(echo ${#EC2_SECURITY_GROUP}) -gt 0 ]; then
+                            export EC2_SECURITY_GROUP="$EC2_SECURITY_GROUP"
                         fi
                     done
                 else
@@ -355,6 +365,7 @@ if all_commands_exist $relevant_commands; then
                echo "EC2_KEYPAIR_NAME is set."
                echo "EC2_PRIVATE_KEY_PATH is set."
                echo "EC2_REGION is set."
+               echo "EC2_SECURITY_GROUP is set."
                echo "Continuing..."
             fi
 
@@ -367,6 +378,7 @@ if all_commands_exist $relevant_commands; then
 
                 if ! [ $? -eq 0 ]; then
                     echo "The VM was not set up correctly. Check above for error messages."
+                    vagrant destroy
                     exit 1
                 fi
 
