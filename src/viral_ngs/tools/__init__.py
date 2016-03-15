@@ -209,19 +209,22 @@ class CondaPackage(InstallMethod):
 
         # conda must be installed
         try:
-            util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
-            #log.debug("conda is installed")
+            # check for presence of conda command
+            util.misc.run_and_print(["hash", "conda"], silent=True, env=self.conda_env)
+            # to check whether conda is actually working:
+            #util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
         except:
             _log.error("conda must be installed")
             raise
 
-        try:
-            util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
-        except:
-            _log.warning("conda-build must be installed; installing...")
-            util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
+        # conda-build is not needed for pre-built binaries from conda channels
+        # though we may will need it in the future for custom local builds
+        # try:
+        #     util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
+        # except:
+        #     _log.warning("conda-build must be installed; installing...")
+        #     util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
-        #InstallMethod.__init__(self)
         super(CondaPackage, self).__init__()
 
     @staticmethod
