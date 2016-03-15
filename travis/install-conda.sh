@@ -19,11 +19,6 @@ conda info -a # for debugging
 
 BASH_RC=$HOME/.bashrc
 
-# create backup of bashrc if present
-if [ -f $BASH_RC ]; then
-    cp $BASH_RC ${BASH_RC}-miniconda3.bak
-fi
-
 echo "
-# added by Miniconda3 3.19.0 installer
+# added Miniconda to path
 export PATH=\"$HOME/miniconda/bin:\$PATH\"" >>$BASH_RC
