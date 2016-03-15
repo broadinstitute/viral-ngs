@@ -209,14 +209,14 @@ class CondaPackage(InstallMethod):
 
         # conda must be installed
         try:
-            util.misc.run_and_print(["conda", "-h"], silent=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
             #log.debug("conda is installed")
         except:
             _log.error("conda must be installed")
             raise
 
         try:
-            util.misc.run_and_print(["conda", "build", "-h"], silent=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
         except:
             _log.warning("conda-build must be installed; installing...")
             util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
