@@ -16,3 +16,14 @@ conda config --add channels bioconda
 conda config --add channels r
 conda update -q conda
 conda info -a # for debugging
+
+BASH_RC=$HOME/.bashrc
+
+# create backup of bashrc if present
+if [ -f $BASH_RC ]; then
+    cp $BASH_RC ${BASH_RC}-miniconda3.bak
+fi
+
+echo "
+# added by Miniconda3 3.19.0 installer
+export PATH=\"$HOME/miniconda/bin:\$PATH\"" >>$BASH_RC
