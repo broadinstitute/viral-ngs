@@ -16,9 +16,3 @@ conda config --add channels bioconda
 conda config --add channels r
 conda update -q conda
 conda info -a # for debugging
-
-BASH_RC=$HOME/.bashrc
-
-echo "
-# added Miniconda to path
-export PATH=\"$HOME/miniconda/bin:\$PATH\"" >>$BASH_RC

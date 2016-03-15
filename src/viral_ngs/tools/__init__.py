@@ -215,7 +215,7 @@ class CondaPackage(InstallMethod):
             #util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
         except:
             _log.error("conda must be installed")
-            raise
+            #raise
 
         # conda-build is not needed for pre-built binaries from conda channels
         # though we may will need it in the future for custom local builds
