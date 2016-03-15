@@ -51,7 +51,7 @@ reads were changed to N.
 This align-call-refine cycle is iterated twice, to minimize reference bias in the assembly.
  
 .. _Trinity: http://trinityrnaseq.github.io/
-.. _MUMMER http://mummer.sourceforge.net/
+.. _MUMMER: http://mummer.sourceforge.net/
 .. _MAFFT: http://mafft.cbrc.jp/alignment/software/
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
 .. _Picard: http://broadinstitute.github.io/picard
