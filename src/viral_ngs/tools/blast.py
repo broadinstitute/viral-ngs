@@ -54,6 +54,9 @@ class BlastTools(tools.Tool):
         #tools.Tool.__init__(self, install_methods=install_methods)
         super(BlastTools, self).__init__(install_methods=install_methods)
 
+    def execute(self, *args):
+        util.misc.run_and_print(self.exec_path, args)
+
 
 class BlastnTool(BlastTools):
     """ Tool wrapper for blastn """

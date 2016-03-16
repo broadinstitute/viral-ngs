@@ -15,6 +15,7 @@
 import logging
 import tools
 import util.file
+import util.misc
 import os
 import os.path
 import subprocess
@@ -22,10 +23,9 @@ from collections import OrderedDict
 #import pysam
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '0.1.19'
+TOOL_VERSION = '1.2'
+TOOL_URL = 'https://github.com/samtools/samtools/releases/download/{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
 CONDA_TOOL_VERSION = '1.2'
-TOOL_URL = 'http://sourceforge.net/projects/samtools/files/samtools/' \
-    + '{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
 
 log = logging.getLogger(__name__)
 

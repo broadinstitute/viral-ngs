@@ -10,8 +10,10 @@ import shutil
 import filecmp
 import subprocess
 import argparse
+
 import taxon_filter
 import util.file
+import util.misc
 import tools.last
 import tools.bmtagger
 import tools.blast
@@ -144,7 +146,7 @@ class TestDepleteBlastn(TestCaseWithTmp):
             refDb = os.path.join(tempDir, dbname)
             os.symlink(os.path.join(myInputDir, dbname), refDb)
             refDbs.append(refDb)
-            subprocess.check_call([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
+            util.misc.run_and_print([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
 
         # Run deplete_blastn
         outFile = os.path.join(tempDir, 'out.fastq')
@@ -170,7 +172,7 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
             refDb = os.path.join(tempDir, dbname)
             os.symlink(os.path.join(myInputDir, dbname), refDb)
             refDbs.append(refDb)
-            subprocess.check_call([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
+            util.misc.run_and_print([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb])
 
         # convert the input fastq's to a bam
         inFastq1 = os.path.join(myInputDir, "in1.fastq")

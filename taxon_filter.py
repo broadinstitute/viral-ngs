@@ -16,6 +16,7 @@ import shutil
 from Bio import SeqIO
 import util.cmd
 import util.file
+import util.misc
 import tools
 import tools.blast
 import tools.last
@@ -24,7 +25,6 @@ import tools.trimmomatic
 import tools.bmtagger
 import tools.picard
 from util.file import mkstempfname
-from util.misc import batch_iterator
 import read_utils
 
 log = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     )
 
     log.debug(' '.join(javaCmd))
-    subprocess.check_call(javaCmd)
+    util.misc.run_and_print(javaCmd)
     os.unlink(tmpUnpaired1)
     os.unlink(tmpUnpaired2)
 
@@ -372,7 +372,7 @@ def filter_lastal(
             '-line_width', '0', '-out_good', outFastq[:-6]
         ]
         log.debug(' '.join(prinseqCmd))
-        subprocess.check_call(prinseqCmd)
+        util.misc.run_and_print(prinseqCmd)
     os.unlink(filteredFastq)
 
 
@@ -427,7 +427,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None):
         inReads2, '-o', matchesFile
     ]
     log.debug(' '.join(cmdline))
-    subprocess.check_call(cmdline)
+    util.misc.run_and_print(cmdline)
 
     tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
     os.unlink(matchesFile)
@@ -494,7 +494,7 @@ def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=
             curReads2, '-o', matchesFile
         ]
         log.debug(' '.join(cmdline))
-        subprocess.check_call(cmdline)
+        util.misc.run_and_print(cmdline)
         prevReads1, prevReads2 = curReads1, curReads2
         if count < len(databases) - 1:
             curReads1, curReads2 = mkstempfname(), mkstempfname()
@@ -561,7 +561,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
             '-2', curReads2, '-o', outprefix
         ]
         log.debug(' '.join(cmdline))
-        subprocess.check_call(cmdline)
+        util.misc.run_and_print(cmdline)
         curReads1, curReads2 = [outprefix + suffix for suffix in ('_1.fastq', '_2.fastq')]
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
@@ -671,7 +671,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
     hits_files = []
     with open(fasta, "rt") as fastaFile:
         record_iter = SeqIO.parse(fastaFile, "fasta")
-        for batch in batch_iterator(record_iter, chunkSize):
+        for batch in util.misc.batch_iterator(record_iter, chunkSize):
             chunk_fasta = mkstempfname('.fasta')
             with open(chunk_fasta, "wt") as handle:
                 SeqIO.write(batch, handle, "fasta")
@@ -683,7 +683,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
                 '-query', chunk_fasta, '-out', chunk_hits
             ]
             log.debug(' '.join(blastnCmd))
-            subprocess.check_call(blastnCmd)
+            util.misc.run_and_print(blastnCmd)
 
             os.unlink(chunk_fasta)
             hits_files.append(chunk_hits)

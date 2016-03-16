@@ -10,6 +10,8 @@ import tools
 import tools.picard
 import tools.samtools
 import util.file
+import util.misc
+
 import logging
 import os
 import os.path
@@ -32,7 +34,7 @@ class GATKTool(tools.Tool):
                 install_methods.append(
                     tools.PrexistingUnixCommand(
                         jarpath,
-                        verifycmd='java -jar %s --version' % jarpath,
+                        verifycmd='java -jar %s --version &> /dev/null' % jarpath,
                         verifycode=0,
                         require_executability=False
                     )
@@ -49,7 +51,7 @@ class GATKTool(tools.Tool):
             '-T', command
         ] + list(map(str, gatkOptions))
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+        util.misc.run_and_print(tool_cmd)
 
     @staticmethod
     def dict_to_gatk_opts(options):

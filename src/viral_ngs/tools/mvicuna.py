@@ -4,8 +4,10 @@ import logging
 import os
 import subprocess
 import shutil
+
 import tools
 import util.file
+import util.misc
 
 # BroadUnixPath = '/gsap/garage-viral/viral/analysis/xyang/programs'\
 #                 '/M-Vicuna/bin/mvicuna'
@@ -58,7 +60,7 @@ class MvicunaTool(tools.Tool):
             outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm'
         ]
         _log.debug(' '.join(cmdline))
-        subprocess.check_call(cmdline)
+        util.misc.run_and_print(cmdline)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
 
