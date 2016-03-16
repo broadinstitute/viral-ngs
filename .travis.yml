@@ -9,7 +9,7 @@ cache:
 env:
   global:
   - CACHE_DIR="$HOME/virtualenv"
-  - CACHE_CONDA_DIR="$HOME/miniconda"
+  - MINICONDA_DIR="$HOME/miniconda"
   - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
   - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
