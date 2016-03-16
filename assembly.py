@@ -25,6 +25,7 @@ except ImportError:
 # intra-module
 import util.cmd
 import util.file
+import util.misc
 import util.vcf
 import read_utils
 import taxon_filter
@@ -92,7 +93,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
            '-out',
            subsampfq[0],
            subsampfq[1],]
-    subprocess.check_call(cmd)
+    util.misc.run_and_print(cmd)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
 

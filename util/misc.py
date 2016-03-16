@@ -3,6 +3,7 @@ from __future__ import division  # Division of integers with / should never roun
 import collections
 import itertools
 import subprocess
+import sys
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -139,6 +140,29 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
     if not silent:
         print(result.stdout.decode('utf-8'))
     return result
+
+def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None, close_fds=False, shell=False, cwd=None, env=None):
+    assert outf is not None
+
+    sp = subprocess.Popen(args,
+                          stdin=stdin,
+                          stdout=outf,
+                          stderr=subprocess.PIPE,
+                          preexec_fn=preexec_fn, 
+                          close_fds=close_fds,
+                          shell=shell,
+                          cwd=cwd,
+                          env=env)
+    out, err = sp.communicate()
+
+    # redirect stderror to stdout so it can be captured by nose
+    if err:
+        sys.stdout.write(err.decode("UTF-8"))
+
+    if sp.returncode != 0:
+           raise subprocess.CalledProcessError(sp.returncode, " ".join(args[0]))
+
+    return sp
 
 class FeatureSorter(object):
     ''' This class helps sort genomic features. It's not terribly optimized

@@ -18,6 +18,7 @@ import subprocess
 from Bio import SeqIO
 import util.cmd
 import util.file
+import util.misc
 from util.file import mkstempfname
 import tools.picard
 import tools.samtools
@@ -43,7 +44,7 @@ def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex=r'^@(\S+)/[1|2
     mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(), 'mergeShuffledFastqSeqs.pl')
     cmdline = [mergeShuffledFastqSeqsPath, '-t', '-r', regex, '-f1', inFastq1, '-f2', inFastq2, '-o', tempOutput]
     log.debug(' '.join(cmdline))
-    subprocess.check_call(cmdline)
+    util.misc.run_and_print(cmdline)
     shutil.move(tempOutput + '.1.fastq', outFastq1)
     shutil.move(tempOutput + '.2.fastq', outFastq2)
     return 0
@@ -822,7 +823,7 @@ def rmdup_prinseq_fastq(inFastq, outFastq):
             inFastq, '-out_bad', 'null', '-line_width', '0', '-out_good', outFastq[:-6]
         ]
         log.debug(' '.join(cmd))
-        subprocess.check_call(cmd)
+        util.misc.run_and_print(cmd)
 
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):

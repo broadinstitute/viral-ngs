@@ -3,12 +3,15 @@
     http://www.drive5.com/muscle
 '''
 
-import logging
+
 import tools
 import util.file
+import util.misc
+
 import os
 import os.path
 import subprocess
+import logging
 
 TOOL_NAME = "muscle"
 TOOL_VERSION = '3.8.1551'
@@ -65,7 +68,7 @@ class MuscleTool(tools.Tool):
             tool_cmd.extend(('-log', logFile))
 
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+        util.misc.run_and_print(tool_cmd)
     # pylint: enable=W0221
 
 

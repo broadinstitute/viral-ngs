@@ -1,6 +1,7 @@
 "tools.Tool for trimmomatic."
 
 import tools
+import util.misc
 
 TOOL_NAME = "trimmomatic"
 TOOL_VERSION = "0.35"
@@ -23,3 +24,6 @@ class TrimmomaticTool(tools.Tool):
                 )
             )
         tools.Tool.__init__(self, install_methods=install_methods)
+
+    def execute(self, *args):
+        util.misc.run_and_print(self.exec_path, args)

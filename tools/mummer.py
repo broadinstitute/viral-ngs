@@ -48,7 +48,7 @@ class MummerTool(tools.Tool):
         toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
             refFasta] + qryFastas
         log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        util.misc.run_and_print(toolCmd)
 
     def nucmer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None):
         if not outDelta.endswith('.delta'):
@@ -65,7 +65,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--breaklen', str(breaklen)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        util.misc.run_and_print(toolCmd)
 
     def promer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None):
         if not outDelta.endswith('.delta'):
@@ -82,7 +82,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--breaklen', str(breaklen)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        subprocess.check_call(toolCmd)
+        util.misc.run_and_print(toolCmd)
     
     def delta_filter(self, inDelta, outDelta):
         toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),

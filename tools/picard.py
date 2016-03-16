@@ -5,12 +5,12 @@
 import logging
 import os
 import os.path
-import subprocess
 import tempfile
 import shutil
 import pysam
 import tools
 import util.file
+import util.misc
 
 TOOL_NAME = "picard"
 TOOL_VERSION = '1.126'
@@ -57,7 +57,7 @@ class PicardTools(tools.Tool):
                 self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
             ] + picardOptions
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+        util.misc.run_and_print(tool_cmd)
 
     @staticmethod
     def dict_to_picard_opts(options):
