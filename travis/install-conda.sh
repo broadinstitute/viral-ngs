@@ -5,6 +5,8 @@ set -e
 if [ -d "$MINICONDA_DIR" ] && [ -x "$MINICONDA_DIR/bin/conda" ]; then
     echo "Miniconda install already present from cache: $MINICONDA_DIR"
 else # if it does not exist, we need to install miniconda
+    rm -rf "$MINICONDA_DIR" # remove the directory in case we have an empty cached directory
+    
     if [[ "$TRAVIS_PYTHON_VERSION" == 2* ]]; then
         wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
