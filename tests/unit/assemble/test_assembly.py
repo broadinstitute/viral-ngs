@@ -44,7 +44,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'G3952.1.subsamp.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, outFasta, clipDb)
+        assembly.assemble_trinity(inBam, outFasta, clipDb, threads=4)
         self.assertGreater(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
 
