@@ -207,24 +207,6 @@ class CondaPackage(InstallMethod):
 
         self.installed = False
 
-        # conda must be installed
-        try:
-            # check for presence of conda command
-            util.misc.run_and_print(["hash", "conda"], silent=True, env=self.conda_env)
-            # to check whether conda is actually working:
-            #util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
-        except:
-            _log.error("conda must be installed")
-            #raise
-
-        # conda-build is not needed for pre-built binaries from conda channels
-        # though we may will need it in the future for custom local builds
-        # try:
-        #     util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
-        # except:
-        #     _log.warning("conda-build must be installed; installing...")
-        #     util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
-
         super(CondaPackage, self).__init__()
 
     @staticmethod
@@ -286,6 +268,26 @@ class CondaPackage(InstallMethod):
         return self.installed
 
     def _attempt_install(self):
+        try:
+            # check for presence of conda command
+            util.misc.run_and_print(["command", "-v", "conda"], silent=True, env=self.conda_env)
+            # to check whether conda is actually working:
+            #util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
+        except:
+            _log.warn("conda should be installed")
+            self.is_attempted = True
+            self.installed = False
+            return
+            #raise
+
+        # conda-build is not needed for pre-built binaries from conda channels
+        # though we may will need it in the future for custom local builds
+        # try:
+        #     util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
+        # except:
+        #     _log.warning("conda-build must be installed; installing...")
+        #     util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
+
         # if the package is already installed, we need to check if the version is correct
         if self.verify_install():
             # if the installed version is not the one specified
@@ -311,6 +313,7 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
+
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         if result.returncode == 0:
             try:
@@ -318,8 +321,8 @@ class CondaPackage(InstallMethod):
                 data = json.loads(self._string_from_start_of_json(command_output))
             except:
                 _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
-                raise
-                #return # return rather than raise so we can fall back to the next install method
+                #raise
+                return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
                 installed_package_string = data[0]
