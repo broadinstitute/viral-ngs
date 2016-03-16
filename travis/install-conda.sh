@@ -2,7 +2,7 @@
 set -e
 
 # the miniconda directory may exist if it has been restored from cache
-if [ -d "$MINICONDA_DIR" ] && [ -x "$MINICONDA_DIR/bin/conda" ]; then
+if [ -d "$MINICONDA_DIR" ] && [ -e "$MINICONDA_DIR/bin/conda" ]; then
     echo "Miniconda install already present from cache: $MINICONDA_DIR"
 else # if it does not exist, we need to install miniconda
     rm -rf "$MINICONDA_DIR" # remove the directory in case we have an empty cached directory
