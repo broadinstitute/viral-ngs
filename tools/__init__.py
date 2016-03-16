@@ -207,21 +207,6 @@ class CondaPackage(InstallMethod):
 
         self.installed = False
 
-        # conda must be installed
-        try:
-            util.misc.run_and_print(["conda", "-h"], silent=True, env=self.conda_env)
-            #log.debug("conda is installed")
-        except:
-            _log.error("conda must be installed")
-            raise
-
-        try:
-            util.misc.run_and_print(["conda", "build", "-h"], silent=True, env=self.conda_env)
-        except:
-            _log.warning("conda-build must be installed; installing...")
-            util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
-
-        #InstallMethod.__init__(self)
         super(CondaPackage, self).__init__()
 
     @staticmethod
@@ -252,7 +237,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -283,6 +268,24 @@ class CondaPackage(InstallMethod):
         return self.installed
 
     def _attempt_install(self):
+        try:
+            # check for presence of conda command
+            util.misc.run_and_print(["conda", "-V"], silent=True, env=self.conda_env)
+        except:
+            _log.warn("conda should be installed")
+            self.is_attempted = True
+            self.installed = False
+            return
+            #raise
+
+        # conda-build is not needed for pre-built binaries from conda channels
+        # though we may will need it in the future for custom local builds
+        # try:
+        #     util.misc.run_and_print(["conda", "build", "-V"], silent=True, env=self.conda_env)
+        # except:
+        #     _log.warning("conda-build must be installed; installing...")
+        #     util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
+
         # if the package is already installed, we need to check if the version is correct
         if self.verify_install():
             # if the installed version is not the one specified
@@ -293,17 +296,21 @@ class CondaPackage(InstallMethod):
             
                 # uninstall the current (incorrect) version
                 self.uninstall_package()
+                # and continue to install...
+            else:
+                # if the package is installed and is the correct version
+                # return so we don't bother installing
+                return 
 
-        # if the package is not installed
-        if not self.verify_install():
-            # install the package and verify
-            _log.debug("Attempting install...")
-            self.install_package()
-            self.verify_install()
+        # install the package and verify
+        _log.debug("Attempting install...")
+        self.install_package()
+        self.verify_install()
 
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
+
 
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         if result.returncode == 0:
@@ -312,8 +319,8 @@ class CondaPackage(InstallMethod):
                 data = json.loads(self._string_from_start_of_json(command_output))
             except:
                 _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
-                raise
-                #return # return rather than raise so we can fall back to the next install method
+                #raise
+                return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
                 installed_package_string = data[0]
