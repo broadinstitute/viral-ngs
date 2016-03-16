@@ -98,6 +98,12 @@ assembly_min_length_fraction_of_reference: 0.90
 # sequence must have to be considered acceptible quality.
 assembly_min_unambig: 0.80
 
+# Alignment parameters for nucmer (MUMmer) during the scaffolding step.
+# Shown below are defaults.
+#assembly_nucmer_max_gap:     90
+#assembly_nucmer_min_match:   20
+#assembly_nucmer_min_cluster: 65
+
 # The number of threads to use for tools supporting multiple threads.
 # Should equal the number of CPU cores present on the machine(s)
 # running the pipeline.
