@@ -50,7 +50,8 @@ class MummerTool(tools.Tool):
         log.debug(' '.join(toolCmd))
         util.misc.run_and_print(toolCmd)
 
-    def nucmer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None):
+    def nucmer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
+            maxgap=None, minmatch=None, mincluster=None):
         if not outDelta.endswith('.delta'):
             raise Exception()
         outDelta = outDelta[:-6]
@@ -63,11 +64,18 @@ class MummerTool(tools.Tool):
                 toolCmd.append('--noextend')
         if breaklen is not None:
             toolCmd.extend(['--breaklen', str(breaklen)])
+        if maxgap is not None:
+            toolCmd.extend(['--maxgap', str(maxgap)])
+        if minmatch is not None:
+            toolCmd.extend(['--minmatch', str(minmatch)])
+        if mincluster is not None:
+            toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
         util.misc.run_and_print(toolCmd)
 
-    def promer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None):
+    def promer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
+            maxgap=None, minmatch=None, mincluster=None):
         if not outDelta.endswith('.delta'):
             raise Exception()
         outDelta = outDelta[:-6]
@@ -80,6 +88,12 @@ class MummerTool(tools.Tool):
                 toolCmd.append('--noextend')
         if breaklen is not None:
             toolCmd.extend(['--breaklen', str(breaklen)])
+        if maxgap is not None:
+            toolCmd.extend(['--maxgap', str(maxgap)])
+        if minmatch is not None:
+            toolCmd.extend(['--minmatch', str(minmatch)])
+        if mincluster is not None:
+            toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
         util.misc.run_and_print(toolCmd)
@@ -164,6 +178,7 @@ class MummerTool(tools.Tool):
 
     def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=None, breaklen=None,
+            maxgap=None, minmatch=None, mincluster=None,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Use MUMmer's pseudomolecule feature to scaffold contigs
             onto a reference genome.
@@ -177,7 +192,8 @@ class MummerTool(tools.Tool):
         delta_1 = util.file.mkstempfname('.delta')
         delta_2 = util.file.mkstempfname('.delta')
         tiling = util.file.mkstempfname('.tiling')
-        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
+        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen,
+            maxgap=maxgap, minmatch=minmatch, mincluster=mincluster)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
@@ -188,6 +204,7 @@ class MummerTool(tools.Tool):
     
     def scaffold_contigs_custom(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', extend=None, breaklen=None,
+            maxgap=None, minmatch=None, mincluster=None,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Re-implement a less buggy version of MUMmer's pseudomolecule
             feature to scaffold contigs onto a reference genome.
@@ -204,7 +221,8 @@ class MummerTool(tools.Tool):
         delta_1 = util.file.mkstempfname('.delta')
         delta_2 = util.file.mkstempfname('.delta')
         tiling = util.file.mkstempfname('.tiling')
-        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
+        aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen,
+            maxgap=maxgap, minmatch=minmatch, mincluster=mincluster)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, tab_delim=True,
             min_pct_id=min_pct_id,
