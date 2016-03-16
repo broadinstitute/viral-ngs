@@ -180,6 +180,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 def order_and_orient(inFasta, inReference, outFasta,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
+        maxgap=None, minmatch=None, mincluster=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
@@ -202,6 +203,7 @@ def order_and_orient(inFasta, inReference, outFasta,
     mummer.scaffold_contigs_custom(inReference, inFasta, outFasta,
             extend=True, breaklen=breaklen,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            maxgap=maxgap, minmatch=minmatch, mincluster=mincluster,
             min_pct_contig_aligned=min_pct_contig_aligned)
     #if not trimmed_contigs:
     #    os.unlink(trimmed)
@@ -223,24 +225,42 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     #                    default=False,
     #                    action="store_true",
     #                    dest="circular")
-    parser.add_argument("--breaklen",
+    parser.add_argument("--breaklen", "-b",
                         help="""Amount to extend alignment clusters by (if --extend).
                         nucmer default 200, promer default 60.""",
                         type=int,
                         default=None,
                         dest="breaklen")
-    parser.add_argument("--min_pct_id",
+    parser.add_argument("--maxgap", "-g",
+                        help="""Maximum gap between two adjacent matches in a cluster.
+                        nucmer default 90, promer default 30. Manual suggests going to 1000.""",
+                        type=int,
+                        default=None,
+                        dest="maxgap")
+    parser.add_argument("--minmatch", "-l",
+                        help="""Minimum length of an maximal exact match.
+                        nucmer default 20, promer default 6.""",
+                        type=int,
+                        default=None,
+                        dest="minmatch")
+    parser.add_argument("--mincluster", "-c",
+                        help="""Minimum cluster length.
+                        nucmer default 65, promer default 20.""",
+                        type=int,
+                        default=None,
+                        dest="mincluster")
+    parser.add_argument("--min_pct_id", "-i",
                         type=float,
                         default=0.6,
-                        help="minimum percent identity for contig alignment (0.0 - 1.0, default: %(default)s)")
+                        help="show-tiling: minimum percent identity for contig alignment (0.0 - 1.0, default: %(default)s)")
     parser.add_argument("--min_contig_len",
                         type=int,
                         default=200,
-                        help="reject contigs smaller than this (default: %(default)s)")
-    parser.add_argument("--min_pct_contig_aligned",
+                        help="show-tiling: reject contigs smaller than this (default: %(default)s)")
+    parser.add_argument("--min_pct_contig_aligned", "-v",
                         type=float,
                         default=0.6,
-                        help="minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
+                        help="show-tiling: minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)")
     #parser.add_argument("--trimmed_contigs",
     #                    default=None,
     #                    help="optional output file for trimmed contigs")
