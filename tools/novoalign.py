@@ -11,11 +11,14 @@ import tools
 import tools.picard
 import tools.samtools
 import util.file
+import util.misc
+
 import logging
 import os
 import os.path
 import subprocess
 import stat
+import sys
 
 _log = logging.getLogger(__name__)
 
@@ -47,7 +50,7 @@ class NovoalignTool(tools.Tool):
     def _get_tool_version(self):
         tmpf = util.file.mkstempfname('.novohelp.txt')
         with open(tmpf, 'wt') as outf:
-            subprocess.call([self.install_and_get_path()], stdout=outf)
+            util.misc.run_and_save([self.install_and_get_path()], outf=outf)
         with open(tmpf, 'rt') as inf:
             self.tool_version = inf.readline().strip().split()[1]
         os.unlink(tmpf)
@@ -156,11 +159,12 @@ class NovoalignTool(tools.Tool):
 
         # Novoalign
         tmp_sam = util.file.mkstempfname('.novoalign.sam')
+        tmp_sam_err = util.file.mkstempfname('.novoalign.sam.err')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         _log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
-            subprocess.check_call(cmd, stdout=outf)
+            util.misc.run_and_save(cmd, outf=outf)
 
         # Samtools filter (optional)
         if min_qual:
@@ -168,7 +172,7 @@ class NovoalignTool(tools.Tool):
             cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
             _log.debug('%s > %s', ' '.join(cmd), tmp_bam2)
             with open(tmp_bam2, 'wb') as outf:
-                subprocess.check_call(cmd, stdout=outf)
+                util.misc.run_and_save(cmd, outf=outf)
             os.unlink(tmp_sam)
             tmp_sam = tmp_bam2
 
@@ -194,7 +198,7 @@ class NovoalignTool(tools.Tool):
             os.unlink(outfname)
         cmd = [novoindex, outfname, refFasta]
         _log.debug(' '.join(cmd))
-        subprocess.check_call(cmd)
+        util.misc.run_and_print(cmd)
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)

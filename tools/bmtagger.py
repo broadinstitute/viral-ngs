@@ -34,6 +34,9 @@ class BmtaggerTools(tools.Tool):
             install_methods.append(DownloadBmtagger(self.subtool_name))
         tools.Tool.__init__(self, install_methods=install_methods)
 
+    def execute(self, *args):
+        util.misc.run_and_print(self.exec_path, args)
+
 
 class BmtaggerShTool(BmtaggerTools):
     """ tool wrapper for bmtagger """

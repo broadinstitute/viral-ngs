@@ -12,7 +12,9 @@ import os.path
 import subprocess
 import tempfile
 import shutil
+
 import tools
+import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
@@ -54,7 +56,7 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
-        subprocess.check_call(cmd)
+        util.misc.run_and_print(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
 

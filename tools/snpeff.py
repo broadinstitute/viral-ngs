@@ -59,7 +59,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run(tool_cmd, stdin=stdin)
+        return util.misc.run_and_print(tool_cmd, stdin=stdin, buffered=True, silent=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:

@@ -36,7 +36,7 @@ class LastTools(tools.Tool):
 
 class DownloadAndBuildLast(tools.DownloadPackage):
     """ class for platform-specific last download and install """
-    last_with_version = 'last-490'
+    last_with_version = 'last-719'
 
     def __init__(self, subtool_name):
         url = 'http://last.cbrc.jp/{}.zip'.format(self.last_with_version)
