@@ -1,8 +1,9 @@
 '''A few miscellaneous tools. '''
-from __future__ import division  # Division of integers with / should never round!
+from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
 import subprocess
+import sys
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -128,17 +129,63 @@ except ImportError:
 
 
 def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False):
+                  timeout=None, silent=False, buffered=False):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-    result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                 stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
-    if not silent:
-        print(result.stdout.decode('utf-8'))
+
+    if buffered:
+        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                     stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
+        if not silent:
+            print(result.stdout.decode('utf-8'))
+    else:
+        CompletedProcess = collections.namedtuple(
+        'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
+
+        process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE, 
+                                    stderr=subprocess.STDOUT, env=env, 
+                                    cwd=cwd)
+
+        while process.poll() is None:
+            if not silent:
+                for c in iter(process.stdout.read, b""):
+                    print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__ 
+
+        # in case there are still chars in the pipe buffer
+        if not silent:
+            for c in iter(lambda: process.stdout.read(1), b""):
+                print(c, end="")
+
+        result = CompletedProcess(args, process.returncode, "", '')
+
     return result
+
+
+def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None, close_fds=False, shell=False, cwd=None, env=None):
+    assert outf is not None
+
+    sp = subprocess.Popen(args,
+                          stdin=stdin,
+                          stdout=outf,
+                          stderr=subprocess.PIPE,
+                          preexec_fn=preexec_fn, 
+                          close_fds=close_fds,
+                          shell=shell,
+                          cwd=cwd,
+                          env=env)
+    out, err = sp.communicate()
+
+    # redirect stderror to stdout so it can be captured by nose
+    if err:
+        sys.stdout.write(err.decode("UTF-8"))
+
+    if sp.returncode != 0:
+           raise subprocess.CalledProcessError(sp.returncode, " ".join(args[0]))
+
+    return sp
 
 class FeatureSorter(object):
     ''' This class helps sort genomic features. It's not terribly optimized

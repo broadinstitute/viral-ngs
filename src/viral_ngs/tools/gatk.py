@@ -10,6 +10,8 @@ import tools
 import tools.picard
 import tools.samtools
 import util.file
+import util.misc
+
 import logging
 import os
 import os.path
@@ -32,7 +34,7 @@ class GATKTool(tools.Tool):
                 install_methods.append(
                     tools.PrexistingUnixCommand(
                         jarpath,
-                        verifycmd='java -jar %s --version' % jarpath,
+                        verifycmd='java -jar %s --version &> /dev/null' % jarpath,
                         verifycode=0,
                         require_executability=False
                     )
@@ -49,7 +51,7 @@ class GATKTool(tools.Tool):
             '-T', command
         ] + list(map(str, gatkOptions))
         _log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+        util.misc.run_and_print(tool_cmd)
 
     @staticmethod
     def dict_to_gatk_opts(options):
@@ -62,7 +64,7 @@ class GATKTool(tools.Tool):
 
     def _get_tool_version(self):
         cmd = ['java', '-jar', self.install_and_get_path(), '--version']
-        self.tool_version = util.misc.run_and_print(cmd).stdout.strip()
+        self.tool_version = util.misc.run_and_print(cmd, buffered=True, silent=True).stdout.strip()
 
     def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=1):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]

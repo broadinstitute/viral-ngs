@@ -9,6 +9,8 @@ from Bio import SeqIO
 import logging
 import tools
 import util.file
+import util.misc 
+
 import os
 import os.path
 import subprocess
@@ -173,7 +175,7 @@ class MafftTool(tools.Tool):
 
         # run the MAFFT alignment
         with open(outFile, 'w') as outf:
-            subprocess.check_call(tool_cmd, stdout=outf)
+            util.misc.run_and_save(tool_cmd, outf=outf)
 
         if len(tempCombinedInputFile):
             # remove temp FASTA file
