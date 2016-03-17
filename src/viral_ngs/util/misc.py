@@ -154,8 +154,10 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
                 for c in iter(process.stdout.read, b""):
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__ 
 
-        for c in iter(lambda: process.stdout.read(1), b""):
-            print(c, end="")
+        # in case there are still chars in the pipe buffer
+        if not silent:
+            for c in iter(lambda: process.stdout.read(1), b""):
+                print(c, end="")
 
         result = CompletedProcess(args, process.returncode, "", '')
 
