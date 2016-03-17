@@ -246,7 +246,7 @@ Inside the analysis directory, run the job submission command. Ex.:
 ::
 
     use UGER
-    qsub -cwd -q long -l m_mem_free=4G ./bin/pipes/Broad_UGER/run-pipe.sh
+    qsub -cwd -b y -q long -l m_mem_free=4G ./bin/pipes/Broad_UGER/run-pipe.sh
 
 To kill all jobs that exited (qstat status "Eqw") with an error:
 
