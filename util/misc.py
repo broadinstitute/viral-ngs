@@ -151,8 +151,11 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
 
         while process.poll() is None:
             if not silent:
-                for c in iter(lambda: process.stdout.read(1), ''):
-                    print(c, end="") # print for py3 / p2 from __future__ 
+                for c in iter(process.stdout.read, b""):
+                    print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__ 
+
+        for c in iter(lambda: process.stdout.read(1), b""):
+            print(c, end="")
 
         result = CompletedProcess(args, process.returncode, "", '')
 
