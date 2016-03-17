@@ -2,11 +2,14 @@
 # properties = {properties}
 # this is identical to the default jobscript with the exception of the exit code
 
+source /broad/software/scripts/useuse
+use Python-3.4
 BINDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["bin_dir"]));f.close()'`
 DATADIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["data_dir"]));f.close()'`
 VENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["venv_dir"]));f.close()'`
+unuse Python-3.4
 
-source "$BINDIR/pipes/Broad_UGER/setup_dotkits.sh"
+source "$BINDIR/pipes/Broad_common/setup_dotkits.sh"
 
 # load Python virtual environment
 source "$VENVDIR/bin/activate"
