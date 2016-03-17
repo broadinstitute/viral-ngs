@@ -1,5 +1,5 @@
 '''A few miscellaneous tools. '''
-from __future__ import division  # Division of integers with / should never round!
+from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
 import subprocess
@@ -129,17 +129,35 @@ except ImportError:
 
 
 def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False):
+                  timeout=None, silent=False, buffered=False):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-    result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                 stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
-    if not silent:
-        print(result.stdout.decode('utf-8'))
+
+    if buffered:
+        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                     stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
+        if not silent:
+            print(result.stdout.decode('utf-8'))
+    else:
+        CompletedProcess = collections.namedtuple(
+        'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
+
+        process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE, 
+                                    stderr=subprocess.STDOUT, env=env, 
+                                    cwd=cwd)
+
+        while process.poll() is None:
+            if not silent:
+                for c in iter(lambda: process.stdout.read(1), ''):
+                    print(c, end="") # print for py3 / p2 from __future__ 
+
+        result = CompletedProcess(args, process.returncode, "", '')
+
     return result
+
 
 def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None, close_fds=False, shell=False, cwd=None, env=None):
     assert outf is not None
