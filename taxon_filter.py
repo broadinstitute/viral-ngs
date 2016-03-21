@@ -180,8 +180,8 @@ def lastal_get_hits(
                 max_length_for_initial_matches, '-m', max_initial_matches_per_position
             ]
         )
-        log.debug(' '.join(cmd) + ' > ' + lastalOut)
-        subprocess.check_call(cmd, stdout=outf)
+        log.debug(' '.join(map(str,cmd)) + ' > ' + lastalOut)
+        util.misc.run_and_save(map(str, cmd), outf=outf)
     # everything below this point in this method should be replaced with
     # our own code that just reads lastal output and makes a list of read names
 
