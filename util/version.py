@@ -1,3 +1,4 @@
+#!/usr/bin/python
 ''' This gets the git version into python-land
 '''
 
@@ -6,6 +7,8 @@ __version__ = None
 
 import subprocess
 import os
+import re
+import time, datetime
 import os.path
 
 
@@ -54,6 +57,51 @@ def write_release_version(version):
         outf.write(version + '\n')
 
 
+def approx_version_number():
+    """
+        In the event that git is unavailable and the VERSION file is not present
+        this returns a "version number" in the following precedence:
+            - version number from path
+                downloads of viral-ngs from GitHub tagged releases
+                are likely to be extracted into directories containing
+                the version number. If they contain a version number
+                in the form d.d.d, we can use it
+            - modification time of this file (unix timestamp)
+                file modification time for github releases corresponds to 
+                when the release archives were created, a rough way to ballpark
+                the release date. If we can't get the version number from the path
+                we can at least use the modification time of this file as a proxy
+                for the true version number
+            - the current time (unix timestamp)
+                the current time is better than not having any version number 
+    """
+    version = ""
+
+    version_re = re.compile(r"(?:(\d+)\.)?(?:(\d+)\.)?(?:(\d+))")
+    # path relative to version.py
+    viral_ngs_path = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    # for tagged releases, it is likely the version number is part of
+    # the viral-ngs root directory name
+    matches = version_re.search(viral_ngs_path)
+
+    if matches and len([n for n in matches.groups() if n]) == 3: 
+        version = ".".join( map(str,matches.groups()) )
+    else:
+        try:
+            mtime = os.path.getmtime(__file__)
+        except OSError:
+            mtime = 0
+            
+        if mtime > 0:
+            # if we could get the modification time of the current file, use it
+            version = str(int(mtime))
+        else:
+            # just use the current time
+            version = str(int(time.time()))
+
+    return version
+
 def get_version():
     global __version__
     if __version__ is None:
@@ -68,7 +116,8 @@ def get_version():
             __version__ = from_file
 
         if __version__ is None:
-            raise ValueError("Cannot find the version number!")
+            __version__ = approx_version_number()
+            #raise ValueError("Cannot find the version number!")
 
     return __version__
 
