@@ -414,19 +414,36 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
     for fn in fasta_files:
         if not fn.endswith('.fasta'):
             raise Exception("fasta files must end in .fasta")
-        sample = os.path.basename(fn)[:-6]
-        # make .fsa files
-        fasta2fsa(fn, annotDir, biosample=biosample.get(sample))
-        # make .src files
-        if master_source_table:
-            shutil.copy(master_source_table, os.path.join(annotDir, sample + '.src'))
-        # make .cmt files
-        make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
-                                     name=sample,
-                                     coverage=coverage.get(sample),
-                                     seq_tech=sequencing_tech)
+        sample_base = os.path.basename(fn)[:-6]
 
-    # run tbl2asn
+        # for each segment/chromosome in the fasta file,
+        # create a separate new *.fsa file
+        with open(fn, "r") as inf:
+            asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
+            for idx, seq_obj in enumerate(asm_fasta):
+                sample = sample_base + "-" + str(idx+1)
+
+                # write the segment to a temp .fasta file
+                # in the same dir so fasta2fsa functions as expected
+                out_file_name = os.path.join(os.path.dirname(fn),sample+".fasta")
+                with open(out_file_name, "w") as out_chr_fasta:
+                    Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
+
+                # make .fsa files
+                fasta2fsa(out_file_name, annotDir, biosample=biosample.get(sample))
+                # remove the .fasta file
+                os.unlink(out_file_name)
+
+                # make .src files
+                if master_source_table:
+                    shutil.copy(master_source_table, os.path.join(annotDir, sample + '.src'))
+                # make .cmt files
+                make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
+                                             name=sample,
+                                             coverage=coverage.get(sample),
+                                             seq_tech=sequencing_tech)
+
+    # run tbl2asn (relies on filesnames matching by prefix)
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
     tbl2asn.execute(templateFile, annotDir, comment=comment, per_genome_comment=True)
 
