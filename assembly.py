@@ -181,7 +181,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 def order_and_orient(inFasta, inReference, outFasta,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
-        maxgap=None, minmatch=None, mincluster=None,
+        maxgap=200, minmatch=10, mincluster=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
@@ -234,15 +234,17 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         dest="breaklen")
     parser.add_argument("--maxgap", "-g",
                         help="""Maximum gap between two adjacent matches in a cluster.
+                        Our default is %(default)s.
                         nucmer default 90, promer default 30. Manual suggests going to 1000.""",
                         type=int,
-                        default=None,
+                        default=200,
                         dest="maxgap")
     parser.add_argument("--minmatch", "-l",
                         help="""Minimum length of an maximal exact match.
+                        Our default is %(default)s.
                         nucmer default 20, promer default 6.""",
                         type=int,
-                        default=None,
+                        default=10,
                         dest="minmatch")
     parser.add_argument("--mincluster", "-c",
                         help="""Minimum cluster length.
