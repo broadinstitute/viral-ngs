@@ -170,7 +170,7 @@ rule map_reads_to_self:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="{sample}",
-            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k -c 3",
+            novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k",
             numThreads=str(config.get("number_of_threads", 1))
     run:
             makedirs([os.path.join(config["data_dir"], config["subdirs"]["align_self"]),
