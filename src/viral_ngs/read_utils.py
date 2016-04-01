@@ -1036,7 +1036,7 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 # =========================
 
 def align_and_count_hits(inBam, refFasta, outCounts, includeZeros=False,
-                  JVMmemory=None, threads=1):
+                  JVMmemory=None):
     ''' Take reads, align to reference with Novoalign and return aligned
         read counts for each reference sequence.
     '''
@@ -1072,7 +1072,6 @@ def parser_align_and_count_hits(parser=argparse.ArgumentParser()):
                         action="store_true",
                         dest="includeZeros")
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--threads', default=8, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_and_count_hits, split_args=True)
     return parser
