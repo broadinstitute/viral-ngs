@@ -3,6 +3,7 @@
 import tools
 import util.file
 import os
+import sys
 import logging
 from tools import urlretrieve
 _log = logging.getLogger(__name__)
@@ -80,7 +81,23 @@ class DownloadBmtagger(tools.InstallMethod):
             os.access(
                 os.path.join(self.target_dir, executable), (os.X_OK | os.R_OK)) for executable in self.executables
         )
+        if not self.check_gnu_getopt():
+            print('bmtagger requirement gnu-getopt not detected. Try '
+                  'installing via brew install gnu-getopt && brew link '
+                  '--force gnu-getopt', file=sys.stderr)
+            return False
         return self.installed
+
+    def check_gnu_getopt(self):
+        """
+        Bmtagger requires gnu getopt, which is not installed by default
+        on OS X.
+        """
+        if uname[0] == 'Darwin':
+            res = util.misc.run_and_print('getopt -V')
+            if 'enhanced' not in res.stdout:
+                return False
+        return True
 
     def _attempt_install(self):
         if self.verify_install():
