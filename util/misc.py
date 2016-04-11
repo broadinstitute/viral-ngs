@@ -38,7 +38,7 @@ def freqs(items, zero_checks=None):
         See histogram(items)
     '''
     zero_checks = zero_checks or set()
-    
+
     tot = 0
     out = {}
     for i in items:
@@ -108,7 +108,7 @@ except ImportError:
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
     def run(args, stdin=None, stdout=None, stderr=None, shell=False,
-            env=None, cwd=None, timeout=None):
+            env=None, cwd=None, timeout=None, check=False):
         '''A poor man's substitute of python 3.5's subprocess.run().
 
         Definitely a poor man's substitute because stdout and stderr are
@@ -122,6 +122,8 @@ except ImportError:
                 env=env, cwd=cwd)
             returncode = 0
         except subprocess.CalledProcessError as e:
+            if check:
+                raise
             output = e.output
             returncode = e.returncode
 
@@ -129,7 +131,7 @@ except ImportError:
 
 
 def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False, buffered=False):
+                  timeout=None, silent=False, buffered=False, check=False):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
@@ -138,40 +140,44 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
 
     if buffered:
         result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, env=env, cwd=cwd, timeout=timeout)
+                     stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                     timeout=timeout, check=check)
         if not silent:
             print(result.stdout.decode('utf-8'))
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
-        process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE, 
-                                    stderr=subprocess.STDOUT, env=env, 
+        process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, env=env,
                                     cwd=cwd)
 
         while process.poll() is None:
             if not silent:
                 for c in iter(process.stdout.read, b""):
-                    print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__ 
+                    print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
 
+        if check and process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, args)
         result = CompletedProcess(args, process.returncode, "", '')
 
     return result
 
 
-def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None, close_fds=False, shell=False, cwd=None, env=None):
+def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None,
+                 close_fds=False, shell=False, cwd=None, env=None):
     assert outf is not None
 
     sp = subprocess.Popen(args,
                           stdin=stdin,
                           stdout=outf,
                           stderr=subprocess.PIPE,
-                          preexec_fn=preexec_fn, 
+                          preexec_fn=preexec_fn,
                           close_fds=close_fds,
                           shell=shell,
                           cwd=cwd,
@@ -183,7 +189,7 @@ def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None, clos
         sys.stdout.write(err.decode("UTF-8"))
 
     if sp.returncode != 0:
-           raise subprocess.CalledProcessError(sp.returncode, " ".join(args[0]))
+        raise subprocess.CalledProcessError(sp.returncode, str(args[0]))
 
     return sp
 
@@ -199,7 +205,7 @@ class FeatureSorter(object):
         if collection is not None:
             for args in collection:
                 self.add(*args)
-    
+
     def add(self, c, start, stop, strand='+', other=None):
         ''' Add a "feature", which is a chrom,start,stop,strand tuple (with
             optional other info attached)
@@ -213,16 +219,16 @@ class FeatureSorter(object):
         self.seq_to_breakpoints[c].add(start)
         self.seq_to_breakpoints[c].add(stop+1)
         self.dirty = True
-    
+
     def _cleanup(self):
         if self.dirty:
             self.dirty = False
             for c in self.seqids:
                 self.seq_to_features[c].sort()
-    
+
     def get_seqids(self):
         return tuple(self.seqids)
-    
+
     def get_features(self, c=None, left=0, right=float('inf')):
         ''' Get all features on all chromosomes in sorted order. Chromosomes
             are emitted in order of first appearance (via add). Features on
@@ -239,7 +245,7 @@ class FeatureSorter(object):
             for start, stop, strand, other in self.seq_to_features[c]:
                 if stop>=left and start<=right:
                     yield (c, start, stop, strand, other)
-    
+
     def get_intervals(self, c=None):
         ''' Get all intervals on the reference where the overlapping feature
             set remains the same. Output will be sorted, adjacent intervals
@@ -255,4 +261,3 @@ class FeatureSorter(object):
                 right = right - 1
                 features = list(self.get_features(c, left, right))
                 yield (c, left, right, len(features), features)
-
