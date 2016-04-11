@@ -3,6 +3,7 @@
 on membership or non-membership in a species / genus / taxonomic grouping.
 '''
 
+from __future__ import print_function
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
     + "hlevitin@broadinstitute.org"
 __commands__ = []
@@ -173,15 +174,17 @@ def lastal_get_hits(
 
     lastalOut = mkstempfname('.lastal')
     with open(lastalOut, 'wt') as outf:
-        cmd = [lastalPath, '-Q1', db, inFastq]
+        cmd = [lastalPath, '-Q1']
         cmd.extend(
             [
                 '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
                 max_length_for_initial_matches, '-m', max_initial_matches_per_position
             ]
         )
-        log.debug(' '.join(map(str,cmd)) + ' > ' + lastalOut)
-        util.misc.run_and_save(map(str, cmd), outf=outf)
+        cmd = [str(x) for x in cmd]
+        cmd.extend([db, inFastq])
+        log.debug(' '.join(cmd) + ' > ' + lastalOut)
+        util.misc.run_and_save(cmd, outf=outf)
     # everything below this point in this method should be replaced with
     # our own code that just reads lastal output and makes a list of read names
 
@@ -420,14 +423,21 @@ def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None):
     inReads2 = mkstempfname('.2.fastq')
     tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
 
+    bmtaggerConf = mkstempfname('.bmtagger.conf')
+    with open(bmtaggerConf, 'w') as f:
+        # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
+        print(
+            'srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M 7168 --paired false"',
+            file=f)
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
-        bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', inReads1, '-2',
-        inReads2, '-o', matchesFile
+        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf,
+        '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', inReads1,
+        '-2', inReads2, '-o', matchesFile
     ]
     log.debug(' '.join(cmdline))
-    util.misc.run_and_print(cmdline)
+    util.misc.run_and_print(cmdline, check=True)
 
     tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
     os.unlink(matchesFile)
@@ -561,7 +571,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
             '-2', curReads2, '-o', outprefix
         ]
         log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline)
+        util.misc.run_and_print(cmdline, check=True)
         curReads1, curReads2 = [outprefix + suffix for suffix in ('_1.fastq', '_2.fastq')]
         tempfiles += [curReads1, curReads2]
     shutil.copyfile(curReads1, outFastq1)
@@ -683,7 +693,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
                 '-query', chunk_fasta, '-out', chunk_hits
             ]
             log.debug(' '.join(blastnCmd))
-            util.misc.run_and_print(blastnCmd)
+            util.misc.run_and_print(blastnCmd, check=True)
 
             os.unlink(chunk_fasta)
             hits_files.append(chunk_hits)

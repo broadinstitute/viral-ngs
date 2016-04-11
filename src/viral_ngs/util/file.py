@@ -342,8 +342,8 @@ def temp_catted_files(input_files, prefix=None, suffix=None):
 
 def string_to_file_name(string_value):
     replacements_dict = {
-        "\\": "-", # win directory separator 
-        "/": "-", # posix directory separator 
+        "\\": "-", # win directory separator
+        "/": "-", # posix directory separator
         "^": "_", # caret
         "&": "_and_", # background
         "\"": "", # double quotes
@@ -366,7 +366,7 @@ def string_to_file_name(string_value):
         #"": "", # other illegal strings to replace
     }
 
-    # group of ascii control and non-printable characters    
+    # group of ascii control and non-printable characters
     control_chars = ''.join( map(chr, list(range(0,32)) + list(range(127,160)) ) )
     control_char_re = re.compile('[%s]' % re.escape(control_chars))
     string_value = control_char_re.sub("_", string_value)
