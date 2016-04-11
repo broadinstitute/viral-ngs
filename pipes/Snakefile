@@ -2,7 +2,7 @@
     This is a basic framework for processing of of viral genomes, currently
     tailored for EBOV. Some generalization work needed to expand this
     to generic viral genomes with an arbitrary number of segments/chromosomes.
-    
+
     Make copies of this Snakefile and config.yaml to your analysis directory and
     customize as needed.
 """
@@ -25,21 +25,26 @@ include: os.path.join(pipesDir, 'ncbi.rules')
 include: os.path.join(pipesDir, 'intrahost.rules')
 include: os.path.join(pipesDir, 'reports.rules')
 
+all_inputs = [
+    # create final assemblies for all samples
+    expand("{data_dir}/{subdir}/{sample}.fasta",
+           data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
+           sample=read_samples_file(config["samples_assembly"])),
+    # create BAMs of aligned reads to own consensus and to common ref
+    expand("{data_dir}/{subdir}/{sample}.bam",
+           data_dir=config["data_dir"], subdir=config["subdirs"]["align_self"],
+           sample=read_samples_file(config["samples_assembly"])),
+    # intrahost variant calling
+    config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
+    # create summary reports
+    config["reports_dir"]+'/summary.fastqc.txt',
+]
+
+if config.get('spikeins_db'):
+    all_inputs.append(config["reports_dir"]+'/summary.spike_count.txt')
+
 rule all:
-    input:
-        # create final assemblies for all samples
-        expand("{data_dir}/{subdir}/{sample}.fasta",
-            data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
-            sample=read_samples_file(config["samples_assembly"])),
-        # create BAMs of aligned reads to own consensus and to common ref
-        expand("{data_dir}/{subdir}/{sample}.bam",
-            data_dir=config["data_dir"], subdir=config["subdirs"]["align_self"],
-            sample=read_samples_file(config["samples_assembly"])),
-        # intrahost variant calling
-        config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
-        # create summary reports
-        config["reports_dir"]+'/summary.fastqc.txt',
-        config["reports_dir"]+'/summary.spike_count.txt'
+    input: all_inputs
     params: LSF="-N"
     run:
             if "job_profiler" in config:
