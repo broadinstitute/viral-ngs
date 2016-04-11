@@ -49,7 +49,7 @@ import the following dotkits prior to activating the virtualenv:
 
     use .python-3.4.3
     use .oracle-java-jdk-1.7.0-51-x86-64
-    use .bzip2-1.0.6 
+    use .bzip2-1.0.6
     use .zlib-1.2.6
     use .gcc-4.5.3
 
@@ -157,7 +157,7 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
 ::
 
     bmtagger_db_dir: "/path/to/depletion_databases"
-    bmtagger_dbs_remove: 
+    bmtagger_dbs_remove:
       - "hg19"
       - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
       - "metagenomics_contaminants_v3"
@@ -185,17 +185,17 @@ to represent the full reference genome file used downstream.
 
 ::
 
-    accessions_for_ref_genome_build: 
+    accessions_for_ref_genome_build:
       - "KJ660346.2"
 
-An optional file containing a list of accessions may be specified for 
-filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is 
-intended to narrow to a genus. If this file is not provided, viral-ngs 
+An optional file containing a list of accessions may be specified for
+filtering reads via `LAST <http://last.cbrc.jp/doc/lastal.txt>`__. This is
+intended to narrow to a genus. If this file is not provided, viral-ngs
 defaults to using the accessions specified for the reference genome.
 
 ::
 
-    accessions_file_for_lastal_db_build: "/path/to/lastal_accessions.txt"  
+    accessions_file_for_lastal_db_build: "/path/to/lastal_accessions.txt"
 
 A FASTA file to be used by Trimmomatic during assembly to remove
 contaminents from reads:
@@ -284,8 +284,8 @@ The pipeline may fail with errors during execution, usually while
 generating assemblies with Trinity. If this occurs, examine the output,
 add the failing sample names to ``samples-assembly-failures.txt``,
 keeping the good ones in ``samples-assembly.txt``, and re-run the
-pipeline. Due to sample degredation prior to sequencing in the wet lab,
-not all samples have the integirty to complete the pipeline, and it may
+pipeline. Due to sample degradation prior to sequencing in the wet lab,
+not all samples have the integrity to complete the pipeline, and it may
 necessary to skip over these samples by adding them to the
 ``samples-assembly-failures.txt``.
 
