@@ -168,7 +168,7 @@ class PrexistingUnixCommand(InstallMethod):
 
 
 class CondaPackage(InstallMethod):
-    ''' This is an install method for tools that can be installed via 
+    ''' This is an install method for tools that can be installed via
         conda.
     '''
 
@@ -293,14 +293,14 @@ class CondaPackage(InstallMethod):
                 _log.debug("Expected version of {package}:            {version}".format(package=self.package, version=self.version))
                 _log.debug("Currently installed version of {package}: {version}".format(package=self.package, version=self.get_installed_version()))
                 _log.debug("Incorrect version of {package} installed. Removing it...".format(package=self.package) )
-            
+
                 # uninstall the current (incorrect) version
                 self.uninstall_package()
                 # and continue to install...
             else:
                 # if the package is installed and is the correct version
                 # return so we don't bother installing
-                return 
+                return
 
         # install the package and verify
         _log.debug("Attempting install...")
@@ -354,7 +354,7 @@ class CondaPackage(InstallMethod):
             if data["success"] == True:
                 _log.debug("Package removed.")
                 #self.installed = False
-        
+
         self.verify_install()
 
     def install_package(self):
@@ -375,12 +375,12 @@ class CondaPackage(InstallMethod):
         except:
             _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
             return # return rather than raise so we can fall back to the next install method
-            
+
         if "error" in data.keys() and "prefix already exists" in data["error"]:
             # the environment already exists
             # the package may not be installed...
             _log.debug("Conda environment already exists. Installing package...")
-            
+
             result = util.misc.run_and_print(
                 [
                     "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,

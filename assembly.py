@@ -123,7 +123,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
     parser.add_argument('clipDb', help='Trimmomatic clip DB.')
     parser.add_argument(
         'outBam',
-        help="""Output reads, unaligned BAM format (currently, read groups and other 
+        help="""Output reads, unaligned BAM format (currently, read groups and other
                 header information are destroyed in this process).""")
     parser.add_argument('--n_reads',
                         default=100000,
@@ -215,7 +215,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inReference',
                         help='Reference genome for ordering, orienting, and merging contigs, FASTA format.')
     parser.add_argument('outFasta',
-        help="""Output assembly, FASTA format, with the same number of 
+        help="""Output assembly, FASTA format, with the same number of
                 chromosomes as inReference, and in the same order.""")
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
