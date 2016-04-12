@@ -106,5 +106,5 @@ class DownloadAndBuildTrinity(tools.DownloadPackage):
             if not os.access(path, (os.X_OK | os.R_OK)):
                 log.debug('%s was not built.', path)
                 self.installed = False
-        
+
         return self.installed

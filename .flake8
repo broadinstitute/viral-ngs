@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 100
+exclude = .git,docs/_build,tools/build/*,tools/binaries
+select = W291,W293

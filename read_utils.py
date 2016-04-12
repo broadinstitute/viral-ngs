@@ -760,7 +760,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
                                 outf.write(line)
                         os.unlink(fn)
                     else:
-                        log.warn("""no reads found in %s, 
+                        log.warn("""no reads found in %s,
                                     assuming that's because there's no reads in that read group""", fn)
 
         # M-Vicuna DupRm to see what we should keep (append IDs to running file)
