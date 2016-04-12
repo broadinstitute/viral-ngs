@@ -210,7 +210,7 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         # the header field ordering may be different with Java 1.8
         self.assertTrue(filecmp.cmp(outSam,
                                     os.path.join(myInputDir, 'expected.sam'),
-                                    shallow=False) or 
+                                    shallow=False) or
                         filecmp.cmp(outSam,
                                     os.path.join(myInputDir, 'expected_1_8.sam'),
                                     shallow=False) or

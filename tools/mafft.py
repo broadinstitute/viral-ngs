@@ -9,7 +9,7 @@ from Bio import SeqIO
 import logging
 import tools
 import util.file
-import util.misc 
+import util.misc
 
 import os
 import os.path
