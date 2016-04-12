@@ -31,7 +31,7 @@ class TrinityTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION, env='trinity'))
             install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 

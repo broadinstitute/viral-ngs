@@ -181,8 +181,10 @@ class CondaPackage(InstallMethod):
         verifycmd=None,
         verifycode=0,
         require_executability=True,
-        env_path=None,
+        env=None,
+        env_root_path=None,
         conda_cache_path=None
+
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -194,8 +196,10 @@ class CondaPackage(InstallMethod):
         self.verifycode = verifycode
         self.require_executability = require_executability
 
-        env_path = env_path or os.path.join(util.file.get_build_path(), 'conda-tools')
-        self.env_path = os.path.realpath(os.path.expanduser(env_path))
+        env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
+        env = env or 'default'
+        self.env_path = os.path.realpath(os.path.expanduser(
+            os.path.join(env_root_path, env)))
 
         conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
         self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
