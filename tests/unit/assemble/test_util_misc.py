@@ -22,7 +22,7 @@ class TestFeatureSorter(unittest.TestCase):
                 ('abca', 25, 35, '+', None),
             ]
         )
-    
+
     def testBasicIntervalsWithOverlap(self):
         fs = util.misc.FeatureSorter((
             ('abca', 10, 20),
@@ -39,7 +39,7 @@ class TestFeatureSorter(unittest.TestCase):
                 ('abca', 31, 35, 1, [('abca', 25, 35, '+', None),]),
             ]
         )
-    
+
     def testDisjointAndOverlappingIntervals(self):
         fs = util.misc.FeatureSorter((
             ('abca', 10, 20),
@@ -59,7 +59,7 @@ class TestFeatureSorter(unittest.TestCase):
                 ('abca', 80, 90, 1, [('abca', 80, 90, '+', None),]),
             ]
         )
-    
+
     def testMultiChrWindowedFeatures(self):
         fs = util.misc.FeatureSorter((
             ('abca', 10, 20),
@@ -108,7 +108,7 @@ class TestFeatureSorter(unittest.TestCase):
                 ('abca', 15, 30, '+', None),
             ]
         )
-    
+
     def testMultiChrWithPayloadIntervals(self):
         fs = util.misc.FeatureSorter((
             ('abca', 10, 20),
