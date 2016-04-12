@@ -44,6 +44,9 @@ install:
   - travis/install-pip.sh
   - travis/install-tools.sh
 
+before_script:
+  - flake8 --exit-zero .
+
 script:
   - travis/tests-unit.sh
   - travis/tests-long.sh

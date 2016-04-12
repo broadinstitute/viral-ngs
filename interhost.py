@@ -65,9 +65,9 @@ class CoordMapper(DictMixin):
         """
 
         # {
-        #    chrA : {chrB: mapperAB, chrC: mapperAC}, 
-        #    chrB : {chrA: mapperBA, chrC: mapperBC}, 
-        #    chrC : {chrA: mapperCA, chrB: mapperCB} 
+        #    chrA : {chrB: mapperAB, chrC: mapperAC},
+        #    chrB : {chrA: mapperBA, chrC: mapperBC},
+        #    chrC : {chrA: mapperCA, chrB: mapperCB}
         # }
         self.chrMaps = OrderedDict()
         self.chrMapsUngapped = OrderedDict()
@@ -153,11 +153,11 @@ class CoordMapper(DictMixin):
         """ Loads aligned sequences into a CoordMapper instance.
             Any number of sequences >1 may be read in.
             Mappers may be accessed via CoordMapper.chrMaps where chrMaps may look like:
-            ``` 
-            { 
-                chrA : {chrB: mapperAB, chrC: mapperAC}, 
-                chrB : {chrA: mapperBA, chrC: mapperBC}, 
-                chrC : {chrA: mapperCA, chrB: mapperCB} 
+            ```
+            {
+                chrA : {chrB: mapperAB, chrC: mapperAC},
+                chrB : {chrA: mapperBA, chrC: mapperBC},
+                chrC : {chrA: mapperCA, chrB: mapperCB}
             }
             ```
         """
@@ -249,7 +249,7 @@ class CoordMapper2Seqs(object):
             - A gap in one sequence is never adjacent to a gap in the other;
                 there must always be an intervening real base between two gaps.
     """
-    # 
+    #
     # Implementation:
     #     mapArrays is a pair of arrays of equal length such that
     #     (mapArrays[0][n], mapArrays[1][n]) are the coordinates of a pair of
@@ -259,7 +259,7 @@ class CoordMapper2Seqs(object):
     #     requires binary search in one of the arrays.
     #     Total space required, in bytes, is const + 8 * (number of indels).
     #     Time for a map in either direction is O(log(number of indels)).
-    # 
+    #
 
     def __init__(self, seq0, seq1):
         self.mapArrays = [array.array('I'), array.array('I')]
@@ -374,7 +374,7 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
         '--maxiters',
         default=0,
         type=int,
-        help="""Maximum number of refinement iterations (default: %(default)s). 
+        help="""Maximum number of refinement iterations (default: %(default)s).
                 Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.""")
     parser.add_argument(
         '--threads',

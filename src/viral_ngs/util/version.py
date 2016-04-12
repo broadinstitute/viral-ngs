@@ -67,13 +67,13 @@ def approx_version_number():
                 the version number. If they contain a version number
                 in the form d.d.d, we can use it
             - modification time of this file (unix timestamp)
-                file modification time for github releases corresponds to 
+                file modification time for github releases corresponds to
                 when the release archives were created, a rough way to ballpark
                 the release date. If we can't get the version number from the path
                 we can at least use the modification time of this file as a proxy
                 for the true version number
             - the current time (unix timestamp)
-                the current time is better than not having any version number 
+                the current time is better than not having any version number
     """
     version = ""
 
@@ -85,14 +85,14 @@ def approx_version_number():
     # the viral-ngs root directory name
     matches = version_re.search(viral_ngs_path)
 
-    if matches and len([n for n in matches.groups() if n]) == 3: 
+    if matches and len([n for n in matches.groups() if n]) == 3:
         version = ".".join( map(str,matches.groups()) )
     else:
         try:
             mtime = os.path.getmtime(__file__)
         except OSError:
             mtime = 0
-            
+
         if mtime > 0:
             # if we could get the modification time of the current file, use it
             version = str(int(mtime))

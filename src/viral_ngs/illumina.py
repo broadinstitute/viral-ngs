@@ -429,7 +429,7 @@ class SampleSheet(object):
             else:
                 raise Exception('non-unique library IDs in this lane')
 
-        # escape sample, run, and library IDs to be filename-compatible 
+        # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
             row['sample'] = util.file.string_to_file_name(row['sample'])
             row['library'] = util.file.string_to_file_name(row['library'])

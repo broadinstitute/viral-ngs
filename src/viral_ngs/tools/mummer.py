@@ -97,7 +97,7 @@ class MummerTool(tools.Tool):
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
         util.misc.run_and_print(toolCmd)
-    
+
     def delta_filter(self, inDelta, outDelta):
         toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),
             '-q', inDelta]
@@ -129,7 +129,7 @@ class MummerTool(tools.Tool):
         log.debug(' '.join(toolCmd))
         with open(outTiling, 'w') as outf:
             subprocess.check_call(toolCmd, stdout=outf)
-    
+
     def trim_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=False, breaklen=None,
             min_pct_id=0.6, min_pct_contig_aligned=0.5, min_contig_len=200):
@@ -201,7 +201,7 @@ class MummerTool(tools.Tool):
         os.unlink(delta_1)
         os.unlink(delta_2)
         os.unlink(tiling)
-    
+
     def scaffold_contigs_custom(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
@@ -209,7 +209,7 @@ class MummerTool(tools.Tool):
         ''' Re-implement a less buggy version of MUMmer's pseudomolecule
             feature to scaffold contigs onto a reference genome.
         '''
-        
+
         # create tiling path with nucmer/promer and show-tiling
         if aligner=='nucmer':
             aligner = self.nucmer
@@ -229,7 +229,7 @@ class MummerTool(tools.Tool):
             min_contig_len=min_contig_len,
             min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
-        
+
         # load intervals into a FeatureSorter
         fs = util.misc.FeatureSorter()
         with open(tiling, 'rU') as inf:
@@ -246,7 +246,7 @@ class MummerTool(tools.Tool):
                     s = '+'
                 fs.add(c, start, stop, strand=s, other=alt_seq)
         os.unlink(tiling)
-        
+
         # load all contig-to-ref alignments into AlignsReaders
         alnReaders = {}
         aln_file = util.file.mkstempfname('.aligns')
@@ -261,16 +261,16 @@ class MummerTool(tools.Tool):
                 alnReaders[chr_pair] = AlignsReader(aln_file, refFasta)
         os.unlink(aln_file)
         os.unlink(delta_2)
-        
+
         # for each chromosome, create the scaffolded sequence and write everything to fasta
         with open(outFasta, 'wt') as outf:
-            for c in [seqObj.id for seqObj in Bio.SeqIO.parse(refFasta, 'fasta')]: 
+            for c in [seqObj.id for seqObj in Bio.SeqIO.parse(refFasta, 'fasta')]:
                 if c not in fs.get_seqids():
                     # segment c could not be assembled; skip it with the plan
-                    # for assembly to fail later since (# reference segments) != 
+                    # for assembly to fail later since (# reference segments) !=
                     # (# assembled segments)
                     continue
-            
+
                 # construct scaffolded sequence for this chromosome
                 seq = []
                 for _, left, right, n_features, features in fs.get_intervals(c):
@@ -281,12 +281,12 @@ class MummerTool(tools.Tool):
                         )
                     # pick the "right" one and glue together into a chromosome
                     seq.append(contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right)))
-                
+
                 # write this chromosome to fasta file
                 for line in util.file.fastaMaker([(c, ''.join(seq))]):
                     outf.write(line)
-        
-        
+
+
     def align_one_to_one(self, refFasta, otherFasta, outFasta):
         ''' Take two sequences, align with nucmer, and produce
             an aligned-fasta file of the two based on show-aligns
@@ -391,7 +391,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                         log.warn("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
     return new_seq
-    
+
 
 class AmbiguousAlignmentException(Exception):
     pass
@@ -467,11 +467,11 @@ class AlignsReader(object):
     def _load_fastas(self):
         assert self.ref_fasta and self.seq_ids
         self.reference_seq = Bio.SeqIO.index(self.ref_fasta, 'fasta')[self.seq_ids[0]]
-        
+
     def get_alignments(self):
         for a in self.alignments:
             yield a
-    
+
     def get_intervals(self):
         prev = None
         for a in self.alignments:
@@ -492,12 +492,12 @@ class AlignsReader(object):
         if prev and prev[1] < len(self.reference_seq):
             # emit trailing reference sequence after last alignment
             yield self._dummy_row(prev[1]+1, len(self.reference_seq), '-')
-            
+
     def _dummy_row(self, start, stop, filler='N'):
         return ['+1', start, stop, '+1', start, stop,
             self.get_ref_seq(start, stop),
             filler * (stop-start+1)]
-        
+
     def get_ref_seq(self, start, stop):
         ''' Retrieve a sub-sequence from the reference (1st) sequence in the
             alignment using coordinates relative to the reference sequence.
@@ -512,7 +512,7 @@ class AlignsReader(object):
             Required: start-stop interval must be wholly contained within
             an alignment.
         '''
-        
+
         # grab the one alignment that contains this window
         aln = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
         if aln_start is not None and aln_stop is not None:
@@ -536,12 +536,12 @@ class AlignsReader(object):
             raise AmbiguousAlignmentException()
         aln = aln[0]
         ref_l, ref_r, ref_seq, alt_seq = (aln[1], aln[2], aln[-2], aln[-1])
-        
+
         # convert desired start/stop relative to this reference window
         #  such that 0 <= start <= stop <= ref_r-ref_l+1
         start = start - ref_l
         stop = stop - ref_l
-        
+
         # travel down alignment until we've reached the left edge
         #  (because of gaps, you must check each position one by one)
         #  end loop when ref_seq[:i_left] contains {start} bases
@@ -551,7 +551,7 @@ class AlignsReader(object):
             if ref_seq[i_left] != '-':
                 n_ref_bases += 1
             i_left += 1
-        
+
         # travel down alignment until we've reached the right edge
         #  (because of gaps, you must check each position one by one)
         #  end loop when ref_seq[:i_right] contains {stop} bases

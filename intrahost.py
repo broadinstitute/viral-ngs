@@ -119,11 +119,11 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
         sorted_bam_file = util.file.mkstempfname('.mapped-sorted.bam')
         sorted_bam_file_tmp = util.file.mkstempfname('.mapped-sorted.bam')
         samtoolsTool.sort(args=['-T', sorted_bam_file_tmp], inFile=inBam, outFile=sorted_bam_file)
-    
+
     bam_to_process = sorted_bam_file
     if removeDoublyMappedReads:
         bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
-        
+
         samtoolsTool.removeDoublyMappedReads(sorted_bam_file, bam_to_process)
         samtoolsTool.index(bam_to_process)
 
@@ -531,8 +531,8 @@ def merge_to_vcf(
                 # to the assemblies
                 if not (number_of_aligned_sequences - 1) == len(isnvs) == len(samples):
                     raise LookupError(
-                        """samples, isnvs, and alignments must have the same number of elements 
-                        (plus an extra reference record in the alignment). 
+                        """samples, isnvs, and alignments must have the same number of elements
+                        (plus an extra reference record in the alignment).
                         %s does not have the right number of sequences""" % fileName)
 
         samp_to_isnv = dict(zip(samples, isnvs))
@@ -609,7 +609,7 @@ def merge_to_vcf(
                                 # drop this position:sample if no variation left
                                 if len(row['allele_counts']) < 2:
                                     log.info(
-                                        """dropping iSNV at %s:%s (%s) 
+                                        """dropping iSNV at %s:%s (%s)
                                             because no variation remains after simple filtering""", row['s_chrom'],
                                         row['s_pos'], row['sample'])
                                     continue
@@ -749,7 +749,7 @@ def merge_to_vcf(
                             if all(len(a) == 1 for a in iSNVs[s].keys()):
                                 if consAllele not in iSNVs[s]:
                                     raise Exception(
-                                        """at %s:%s (%s), consensus allele %s 
+                                        """at %s:%s (%s), consensus allele %s
                                             not among iSNV alleles %s -- other cons alleles: %s""" % (
                                             ref_sequence.id, pos, s, consAllele, ', '.join(
                                                 iSNVs[s].keys()), ', '.join(

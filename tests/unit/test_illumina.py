@@ -33,7 +33,7 @@ class TestSampleSheet(TestCaseWithTmp):
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-miseq-1.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 20)
-    
+
     def test_broad_platform(self):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-hiseq-1.csv'), only_lane=2)
@@ -59,7 +59,7 @@ class TestSampleSheet(TestCaseWithTmp):
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-submit-3.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
-    
+
     def test_tabfile(self):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
@@ -78,7 +78,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_machine(), 'M04004')
         self.assertEqual(runinfo.get_read_structure(), '101T8B8B101T')
         self.assertEqual(runinfo.num_reads(), 2)
-    
+
     def test_hiseq(self):
         inDir = util.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-hiseq.xml'))
@@ -97,14 +97,14 @@ class TestIlluminaDir(TestCaseWithTmp):
         test_in = os.path.join(inDir, 'empty_dir')
         with illumina.IlluminaDirectory(test_in) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
-    
+
     def test_tarball_normal(self):
         inDir = util.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tgz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tar.bz2')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
-    
+
     def test_tarball_indented(self):
         inDir = util.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-indented.tgz')) as idir:
@@ -152,7 +152,7 @@ class TestIlluminaDir(TestCaseWithTmp):
 
 
 class TestDifficultSampleNames(TestCaseWithTmp):
-    
+
     def test_paired_1(self):
         inDir = util.file.get_test_input_path(self)
         outBam = util.file.mkstempfname('.bam')
@@ -174,7 +174,7 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
 class TestMiseqToBam(TestCaseWithTmp):
-    
+
     def test_paired_1(self):
         inDir = util.file.get_test_input_path(self)
         outBam = util.file.mkstempfname('.bam')
@@ -194,7 +194,7 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertEqual(rgs.get('SM'), 'mebv.0.1')
         self.assertEqual(rgs.get('CN'), 'M04004')
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
-        
+
     def test_paired_2(self):
         inDir = util.file.get_test_input_path(self)
         outBam = util.file.mkstempfname('.bam')
