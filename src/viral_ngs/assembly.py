@@ -402,11 +402,11 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument("--newName", default=None, help="rename output chromosome (default: do not rename)")
     parser.add_argument("--minLengthFraction",
                         type=float,
-                        default=0.9,
+                        default=0.5,
                         help="minimum length for contig, as fraction of reference (default: %(default)s)")
     parser.add_argument("--minUnambig",
                         type=float,
-                        default=0.8,
+                        default=0.5,
                         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
     parser.add_argument("--replaceLength",
                         type=int,
