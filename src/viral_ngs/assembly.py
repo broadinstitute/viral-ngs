@@ -320,6 +320,11 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
+                log.info("Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
+                    idx=idx+1, segname=refSeqObj.id,
+                    len_actual=seq_len, len_desired=len(refseqObj), min_frac=minLengthFraction,
+                    unamb_actual=non_n_count, unamb_desired=seq_len*minUnambig, min_unamb=minUnambig
+                ))
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
                     raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
 
