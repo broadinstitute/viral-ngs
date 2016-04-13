@@ -51,15 +51,15 @@ class TestToolKraken(TestCaseWithTmp):
         inputs = [os.path.join(self.data_dir, f)
                   for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
         output = os.path.join(tempfile.tempdir, 'zaire_ebola.kraken')
-        self.assertEqual(0, self.kraken.classify(db, args=inputs, options={
-            '--output': output
-        }).returncode)
+        output_filtered = os.path.join(tempfile.tempdir, 'zaire_ebola.filtered-kraken')
+        output_report = os.path.join(tempfile.tempdir, 'zaire_ebola.kraken-report')
+        self.assertEqual(0, self.kraken.classify(db, inputs, output).returncode)
         result = self.kraken.execute(
-            'kraken-filter', db, args=[output],
+            'kraken-filter', db, output_filtered, [output],
             options={'--threshold': 0.05})
         self.assertEqual(0, result.returncode)
         result = self.kraken.execute(
-            'kraken-report', db, args=[output])
+            'kraken-report', db, output_report, [output_filtered])
         self.assertEqual(0, result.returncode)
 
 
