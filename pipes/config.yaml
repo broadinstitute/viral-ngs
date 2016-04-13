@@ -92,11 +92,11 @@ accessions_file_for_lastal_db_build: ""
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
 # This is specific to a particular segment/chromosome.
-assembly_min_length_fraction_of_reference: 0.90
+assembly_min_length_fraction_of_reference: 0.50
 
 # The minimum fraction of unambiguous (non-N) bases an assembled
-# sequence must have to be considered acceptible quality.
-assembly_min_unambig: 0.80
+# sequence must have to be considered acceptable quality.
+assembly_min_unambig: 0.50
 
 # Alignment parameters for nucmer (MUMmer) during the scaffolding step.
 # Shown below are defaults.
