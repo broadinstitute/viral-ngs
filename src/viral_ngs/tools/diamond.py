@@ -8,6 +8,7 @@ import os
 import os.path
 import shlex
 import shutil
+import subprocess
 import tools
 import util.file
 import util.misc
@@ -95,7 +96,7 @@ class Diamond(tools.Tool):
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
-        return util.misc.run(cmd)
+        return util.misc.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
 class DownloadAndBuildDiamond(tools.DownloadPackage):
