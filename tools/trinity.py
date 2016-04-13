@@ -89,7 +89,7 @@ class DownloadAndBuildTrinity(tools.DownloadPackage):
             shutil.copymode(badFilePath + '.orig', badFilePath)
 
         # Now we can make:
-        os.system('cd "{}" && make -s'.format(trinity_dir))
+        util.misc.run_and_print(['make', '-s'], cwd=trinity_dir)
         shutil.rmtree(os.path.join(trinity_dir, 'sample_data'), ignore_errors=True)
 
     def verify_install(self):
