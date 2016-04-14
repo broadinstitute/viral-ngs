@@ -245,6 +245,11 @@ class MummerTool(tools.Tool):
                 else:
                     s = '+'
                 fs.add(c, start, stop, strand=s, other=alt_seq)
+                log.info("mummer alignment %s:%d-%d - %s:%d-%d (%s)" % (
+                    c, start, stop,
+                    alt_seq[0], alt_seq[1], alt_seq[2],
+                    s
+                ))
         os.unlink(tiling)
 
         # load all contig-to-ref alignments into AlignsReaders
