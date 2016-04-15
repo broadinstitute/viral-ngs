@@ -18,7 +18,7 @@ import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
-CONDA_TOOL_VERSION = "2011_11_26" # conda versions cannot have hyphens...
+CONDA_TOOL_VERSION = "date.2011_11_26" # conda versions cannot have hyphens...
 TRINITY_VERSION = "trinityrnaseq_r{}".format(TOOL_VERSION)
 url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(TRINITY_VERSION)
 
