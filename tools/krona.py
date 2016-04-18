@@ -9,8 +9,6 @@ CONDA_TOOL_VERSION = '2.6'
 
 class Krona(tools.Tool):
 
-    BINS = ['kraken', 'kraken-build', 'kraken-filter', 'kraken-mpa-report', 'kraken-report', 'kraken-translate']
-
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []

@@ -6,49 +6,45 @@ rule all_metagenomics:
     input:
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
                "{sample}.kraken.report"), sample=samples),
+        # expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        #             "{sample}.diamond.m8.gz"), sample=samples),
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
                "{sample}.kraken.krona.html"), sample=samples)
     params: LSF='-N'
 
 rule diamond:
-    input: join(config["tmp_dir"], config["subdirs"]["source"], "{sample}.both.fastq")
-    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond_m8.gz")
-    shadow: True
+    input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.m8.gz")
     shell:
         """
-        export LC_ALL=C
-        echo {input}
-        {DIAMOND} blastx -d {DIAMOND_DB} -q {input} -t . -a results/{wildcards.sample}
-        {DIAMOND} view -v -a results/{wildcards.sample}.daa -o results/{wildcards.sample}.tmp.m8
-        sort -k1,1 -s -t / results/{wildcards.sample}.tmp.m8 | pigz > {output}
-        rm results/{wildcards.sample}.tmp.m8
+        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {output}
         """
 
 rule kraken:
-    input: expand(join(config["tmp_dir"], config["subdirs"]["source"], "{{sample}}.{pair}.fastq"), pair=(1,2))
+    input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.report"),
             reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
     run:
         shell("{config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report}")
 
-rule bam_to_fastq_paired:
-    input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
-    output: temp(expand(join(config["tmp_dir"], config["subdirs"]["source"], "{{sample}}.{pair}.fastq"), pair=(1,2)))
-    resources:
-        mem=2
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-    shell:
-        """
-        {config[bin_dir]}/illumina.py sam_to_fastq {input} {output} --clippingAction X --clippingAttribute XT
-        """
+# rule bam_to_fastq_paired:
+#     input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
+#     output: temp(expand(join(config["tmp_dir"], config["subdirs"]["source"], "{{sample}}.{pair}.fastq"), pair=(1,2)))
+#     resources:
+#         mem=2
+#     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+#             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+#     shell:
+#         """
+#         {config[bin_dir]}/illumina.py sam_to_fastq {input} {output} --clippingAction X --clippingAttribute XT
+#         """
 
 rule krona_import_taxonomy:
     input: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.krona.html")
     shell:
         """
-        zcat {input} | {config[bin_dir]}/metagenomics.py krona - {output} --queryColumn 2 --taxidColumn 3 --noRank
+        {config[bin_dir]}/metagenomics.py krona {input} {output} --queryColumn 2 --taxidColumn 3 --noRank
         """
 
 
