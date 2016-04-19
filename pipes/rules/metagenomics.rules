@@ -15,29 +15,21 @@ rule all_metagenomics:
 rule diamond:
     input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.m8.gz")
+    resources: cores=int(config.get("number_of_threads", 1))
+    params: numThreads=str(config.get("number_of_threads", 1))
     shell:
         """
-        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {output}
+        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {output} --numThreads {params.numThreads}
         """
 
 rule kraken:
     input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.report"),
             reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
+    resources: cores=int(config.get("number_of_threads", 1))
+    params: numThreads=str(config.get("number_of_threads", 1))
     run:
-        shell("{config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report}")
-
-# rule bam_to_fastq_paired:
-#     input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
-#     output: temp(expand(join(config["tmp_dir"], config["subdirs"]["source"], "{{sample}}.{pair}.fastq"), pair=(1,2)))
-#     resources:
-#         mem=2
-#     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-#             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-#     shell:
-#         """
-#         {config[bin_dir]}/illumina.py sam_to_fastq {input} {output} --clippingAction X --clippingAttribute XT
-#         """
+        shell("{config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}")
 
 rule krona_import_taxonomy:
     input: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
