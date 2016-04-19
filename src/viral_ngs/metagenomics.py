@@ -11,7 +11,7 @@ __commands__ = []
 
 
 def kraken(inBam, db, outReport=None, outReads=None,
-           filterThreshold=None, threads=1):
+           filterThreshold=None, numThreads=1):
     assert outReads or outReport, (
         'Either --outReads or --outReport must be specified.')
 
@@ -31,7 +31,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
     tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
     opts = {
         '--paired': None,
-        '--threads': threads,
+        '--threads': numThreads,
     }
     # Could be optimized in 3.5 piping directly to kraken-filter.
     kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
@@ -102,7 +102,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
 
-def diamond(inBam, db, outM8, threads=1):
+def diamond(inBam, db, outM8, numThreads=1):
     tmp_fastq = util.file.mkstempfname('.fastq')
     tmp_fastq2 = util.file.mkstempfname('.fastq')
     picard = tools.picard.SamToFastqTool()
@@ -120,9 +120,9 @@ def diamond(inBam, db, outM8, threads=1):
     tmp_alignment = util.file.mkstempfname('.daa')
     tmp_m8 = util.file.mkstempfname('.diamond.m8')
     diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment,
-                        options={'threads': threads})
+                        options={'threads': numThreads})
     diamond_tool.view(diamond_alignment, tmp_m8,
-                      options={'threads': threads})
+                      options={'threads': numThreads})
     with open(tmp_m8, 'rb') as f_in:
         with gzip.open(outM8, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
