@@ -33,4 +33,4 @@ class Krona(tools.Tool):
         if no_rank is not None:
             cmd.append('-k')
         cmd.extend(input_tsvs)
-        util.misc.run_and_print(cmd)
+        util.misc.run_and_print(cmd, check=True)
