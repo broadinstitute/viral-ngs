@@ -77,6 +77,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
                         default=0.05,
                         type=float,
                         help='Kraken filter threshold')
+    parser.add_argument('--numThreads', help='Number of threads to run.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None),
                                   ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
@@ -129,7 +130,7 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('db', help='Diamond database directory.')
     parser.add_argument('outM8', help='Blast m8 formatted output file.')
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser

@@ -507,19 +507,6 @@ class SampleSheet(object):
 # ***  miseq_fastq_to_bam   ***
 # =============================
 
-def sam_to_fastq(outFastq1, outFastq2, inBam, clippingAction=None, clippingAttribute=None,
-                 JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault):
-    # run Picard
-    picard = tools.picard.SamToFastqTool()
-    picardOpts = {
-        'CLIPPING_ACTION': clippingAction,
-        'CLIPPING_ATTRIBUTE': clippingAttribute,
-    }
-    picard.execute(inBam, outFastq1, outFastq2,
-                   picardOptions=picard.dict_to_picard_opts(picardOpts),
-                   JVMmemory=JVMmemory)
-
-
 
 def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=None,
                        sequencing_center=None,
@@ -609,22 +596,6 @@ def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('miseq_fastq_to_bam', parser_miseq_fastq_to_bam))
 
-
-def parser_sam_to_fastq(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('outFastq1', help='Output FASTQ file (first end).')
-    parser.add_argument('outFastq2', help='Output FASTQ file (second end).')
-    parser.add_argument('--clippingAction', help='Clipping action that Picard will take.', default=None)
-    parser.add_argument('--clippingAttribute', help='Attribute that stores clipping position', default='XT')
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.SamToFastqTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, sam_to_fastq, split_args=True)
-    return parser
-
-
-__commands__.append(('sam_to_fastq', parser_sam_to_fastq))
 
 
 # ==============================
