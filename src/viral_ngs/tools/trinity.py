@@ -18,7 +18,7 @@ import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
-CONDA_TOOL_VERSION = "2011_11_26" # conda versions cannot have hyphens...
+CONDA_TOOL_VERSION = "date.2011_11_26" # conda versions cannot have hyphens...
 TRINITY_VERSION = "trinityrnaseq_r{}".format(TOOL_VERSION)
 url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(TRINITY_VERSION)
 
@@ -31,7 +31,7 @@ class TrinityTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION, env='trinity'))
             install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
