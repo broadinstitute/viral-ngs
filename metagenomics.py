@@ -22,7 +22,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
         'CLIPPING_ATTRIBUTE': picard.illumina_clipping_attribute,
         'CLIPPING_ACTION': 'X'
     }
-    picard.execute(inBam, [tmp_fastq1, tmp_fastq2],
+    picard.execute(inBam, tmp_fastq1, tmp_fastq2,
                    picardOptions=picard.dict_to_picard_opts(picard_opts),
                    JVMmemory=picard.jvmMemDefault)
 
@@ -107,15 +107,16 @@ def diamond(inBam, db, outM8, threads=1):
         'CLIPPING_ATTRIBUTE': picard.illumina_clipping_attribute,
         'CLIPPING_ACTION': 'X'
     }
-    picard.execute(inBam, [tmp_fastq, tmp_fastq2] , unpaired=True,
+    picard.execute(inBam, tmp_fastq, tmp_fastq2,
                    picardOptions=picard.dict_to_picard_opts(picard_opts),
                    JVMmemory=picard.jvmMemDefault)
+
 
     diamond_tool = tools.diamond.Diamond()
     diamond_tool.install()
     tmp_alignment = util.file.mkstempfname('.daa')
     tmp_m8 = util.file.mkstempfname('.diamond.m8')
-    diamond_tool.blastx(db, [tmp_fastq], tmp_alignment,
+    diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment,
                         options={'threads': threads})
     diamond_tool.view(diamond_alignment, tmp_m8,
                       options={'threads': threads})

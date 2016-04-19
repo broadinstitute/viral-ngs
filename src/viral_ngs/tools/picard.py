@@ -89,24 +89,13 @@ class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq, unpaired=False,
-                picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
-        if unpaired:
-            opts = ['FASTQ=' + outFastq[0], 'UNPAIRED_FASTQ=%s' % outFastq[1]]
-        else:
-            opts = ['FASTQ=' + outFastq[0], 'SECOND_END_FASTQ=' + outFastq[1]]
-
-        opts.extend(['INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'])
+        opts = ['FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2,
+                'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT']
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
-        picardOptions = picardOptions or []
-
-        opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true']
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-
-    def unpaired(self, inBam, outFastq, picardOptions=None, JVMmemory=None):
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true']
