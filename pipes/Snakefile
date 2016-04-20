@@ -20,20 +20,24 @@ set_env_vars()
 include: os.path.join(pipesDir, 'demux.rules')
 include: os.path.join(pipesDir, 'hs_deplete.rules')
 include: os.path.join(pipesDir, 'assembly.rules')
+include: os.path.join(pipesDir, 'metagenomics.rules')
 include: os.path.join(pipesDir, 'interhost.rules')
 include: os.path.join(pipesDir, 'ncbi.rules')
 include: os.path.join(pipesDir, 'intrahost.rules')
 include: os.path.join(pipesDir, 'reports.rules')
 
+samples_assembly = list(read_samples_file(config["samples_assembly"]))
+samples_metagenomics = list(read_samples_file(config["samples_metagenomics"]))
+
 all_inputs = [
     # create final assemblies for all samples
     expand("{data_dir}/{subdir}/{sample}.fasta",
            data_dir=config["data_dir"], subdir=config["subdirs"]["assembly"],
-           sample=read_samples_file(config["samples_assembly"])),
+           sample=samples_assembly),
     # create BAMs of aligned reads to own consensus and to common ref
     expand("{data_dir}/{subdir}/{sample}.bam",
            data_dir=config["data_dir"], subdir=config["subdirs"]["align_self"],
-           sample=read_samples_file(config["samples_assembly"])),
+           sample=samples_assembly),
     # intrahost variant calling
     config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
     # create summary reports
@@ -42,6 +46,10 @@ all_inputs = [
 
 if config.get('spikeins_db'):
     all_inputs.append(config["reports_dir"]+'/summary.spike_count.txt')
+if config.get('kraken_db'):
+    all_inputs.extend(
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.kraken.report"), sample=samples_metagenomics))
 
 rule all:
     input: all_inputs

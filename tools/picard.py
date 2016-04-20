@@ -87,11 +87,12 @@ class MarkDuplicatesTool(PicardTools):
 
 class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
+    illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
         picardOptions = picardOptions or []
-
-        opts = ['INPUT=' + inBam, 'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'VALIDATION_STRINGENCY=SILENT']
+        opts = ['FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2,
+                'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT']
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
