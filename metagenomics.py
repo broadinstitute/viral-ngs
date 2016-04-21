@@ -77,8 +77,8 @@ def parser_kraken(parser=argparse.ArgumentParser()):
     parser.add_argument('--filterThreshold',
                         default=0.05,
                         type=float,
-                        help='Kraken filter threshold')
-    parser.add_argument('--numThreads', help='Number of threads to run.')
+                        help='Kraken filter threshold (default %(default)s)')
+    parser.add_argument('--numThreads', default=1, help='Number of threads to run. (default %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None),
                                   ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
@@ -88,11 +88,11 @@ def parser_kraken(parser=argparse.ArgumentParser()):
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inTsv', help='Input tab delimited file.')
     parser.add_argument('outHtml', help='Output html report.')
-    parser.add_argument('--queryColumn', help='Column of query id.',
+    parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)',
                         type=int, default=2)
-    parser.add_argument('--taxidColumn', help='Column of taxonomy id.',
+    parser.add_argument('--taxidColumn', help='Column of taxonomy id. (default %(default)s)',
                         type=int, default=3)
-    parser.add_argument('--scoreColumn', help='Column of score.',
+    parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)',
                         type=int)
     parser.add_argument('--noHits', help='Include wedge for no hits.',
                         action='store_true')
