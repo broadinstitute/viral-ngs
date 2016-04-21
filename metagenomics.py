@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+''' This script contains a number of utilities for metagenomic analyses.
+'''
+
+__author__ = "yesimon@broadinstitute.org"
+
 import argparse
 import gzip
 import shutil
@@ -140,6 +145,9 @@ def parser_diamond(parser=argparse.ArgumentParser()):
 __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
+
+def full_parser():
+    return util.cmd.make_parser(__commands__, __doc__)
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
