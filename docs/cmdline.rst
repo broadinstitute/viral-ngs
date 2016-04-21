@@ -3,6 +3,7 @@ Command line tools
 
 .. toctree::
 
+   metagenomics
    taxon_filter
    assembly
    interhost
