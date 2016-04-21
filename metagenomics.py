@@ -24,28 +24,32 @@ def kraken(inBam, db, outReport=None, outReads=None,
     tmp_fastq2 = util.file.mkstempfname('.2.fastq')
     picard = tools.picard.SamToFastqTool()
     picard_opts = {
-        'CLIPPING_ATTRIBUTE': picard.illumina_clipping_attribute,
+        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
         'CLIPPING_ACTION': 'X'
     }
     picard.execute(inBam, tmp_fastq1, tmp_fastq2,
-                   picardOptions=picard.dict_to_picard_opts(picard_opts),
+                   picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
                    JVMmemory=picard.jvmMemDefault)
 
     kraken_tool = tools.kraken.Kraken()
     tmp_reads = util.file.mkstempfname('.kraken')
-    tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
     opts = {
         '--paired': None,
         '--threads': numThreads,
     }
     # Could be optimized in 3.5 piping directly to kraken-filter.
     kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
-    opts = {
-        '--threshold': filterThreshold,
-    }
 
-    kraken_tool.execute('kraken-filter', db, tmp_filtered_reads, args=[tmp_reads],
-                        options=opts)
+    if filterThreshold:
+        opts = {
+            '--threshold': filterThreshold,
+        }
+
+        tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
+        kraken_tool.execute('kraken-filter', db, tmp_filtered_reads, args=[tmp_reads],
+                            options=opts)
+    else:
+        tmp_filtered_reads = tmp_reads
 
     if outReads:
         with open(tmp_filtered_reads, 'rb') as f_in:
@@ -53,8 +57,8 @@ def kraken(inBam, db, outReport=None, outReads=None,
                 shutil.copyfileobj(f_in, f_out)
 
     if outReport:
-        kraken_tool.execute('kraken-report', db, outReport, args=[outReads],
-                            options=opts)
+        kraken_tool.execute('kraken-report', db, outReport,
+                            args=[tmp_filtered_reads])
 
 def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
           scoreColumn=None, noHits=None, noRank=None):
@@ -112,11 +116,11 @@ def diamond(inBam, db, outM8, numThreads=1):
     tmp_fastq2 = util.file.mkstempfname('.fastq')
     picard = tools.picard.SamToFastqTool()
     picard_opts = {
-        'CLIPPING_ATTRIBUTE': picard.illumina_clipping_attribute,
+        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
         'CLIPPING_ACTION': 'X'
     }
     picard.execute(inBam, tmp_fastq, tmp_fastq2,
-                   picardOptions=picard.dict_to_picard_opts(picard_opts),
+                   picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
                    JVMmemory=picard.jvmMemDefault)
 
 
@@ -126,7 +130,7 @@ def diamond(inBam, db, outM8, numThreads=1):
     tmp_m8 = util.file.mkstempfname('.diamond.m8')
     diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment,
                         options={'threads': numThreads})
-    diamond_tool.view(diamond_alignment, tmp_m8,
+    diamond_tool.view(tmp_alignment, tmp_m8,
                       options={'threads': numThreads})
     with open(tmp_m8, 'rb') as f_in:
         with gzip.open(outM8, 'wb') as f_out:
