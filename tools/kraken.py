@@ -167,7 +167,7 @@ class Kraken(tools.Tool):
         if command in ('kraken', 'kraken-build'):
             return util.misc.run_and_print(cmd, env=env, check=True)
         else:
-            with open(output, 'w') as of:
+            with util.file.open_or_gzopen(output, 'w') as of:
                 res = util.misc.run(cmd,  stdout=of, stderr=subprocess.PIPE,
                                     env=env, check=True)
             print(res.stderr.decode('utf-8'), file=sys.stderr)
