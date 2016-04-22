@@ -1,4 +1,5 @@
 """Snakemake integration test runner."""
+from __future__ import print_function
 import copy
 import os
 from os.path import join
