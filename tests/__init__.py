@@ -16,8 +16,16 @@ def assert_equal_contents(testCase, filename1, filename2):
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'
 
+    @classmethod
+    def setUpClass(cls):
+        cls._class_tempdir = util.file.set_tmp_dir(cls.__name__)
+
     def setUp(self):
         util.file.set_tmp_dir(type(self).__name__)
+
+    @classmethod
+    def tearDownClass(cls):
+        util.file.destroy_tmp_dir(cls._class_tempdir)
 
     def tearDown(self):
         util.file.destroy_tmp_dir()
