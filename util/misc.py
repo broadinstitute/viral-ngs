@@ -208,7 +208,8 @@ def run_and_print(args, stdout=None, stderr=None,
                 print(c, end="")
 
         if check and process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, args)
+            raise subprocess.CalledProcessError(process.returncode, args,
+                                                b''.join(output))
         result = CompletedProcess(
             args, process.returncode, b''.join(output), b'')
 
