@@ -59,7 +59,7 @@ class Diamond(tools.Tool):
         '''
         assert diamond_alignment.endswith('.daa'), 'Output must end in .daa'
         options = options or {}
-        temp_file = util.file.temp_catted_files(query_files, prefix='diamond_', suffix='.fasta')
+        temp_file = util.file.temp_catted_files(query_files, prefix='diamond_', suffix='.fastq')
         with temp_file as query:
             options['--db'] = db
             options['--query'] = query
@@ -96,7 +96,10 @@ class Diamond(tools.Tool):
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
-        return util.misc.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        res = util.misc.run_and_print(cmd)
+        if res.returncode != 0:
+            print(res.stdout.decode('utf-8'))
+        return res
 
 
 class DownloadAndBuildDiamond(tools.DownloadPackage):

@@ -129,9 +129,9 @@ def diamond(inBam, db, outM8, numThreads=1):
     tmp_alignment = util.file.mkstempfname('.daa')
     tmp_m8 = util.file.mkstempfname('.diamond.m8')
     diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment,
-                        options={'threads': numThreads})
+                        options={'--threads': numThreads})
     diamond_tool.view(tmp_alignment, tmp_m8,
-                      options={'threads': numThreads})
+                      options={'--threads': numThreads})
     with open(tmp_m8, 'rb') as f_in:
         with gzip.open(outM8, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
