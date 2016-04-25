@@ -102,6 +102,16 @@ def batch_iterator(iterator, batch_size):
         yield item
         item = list(itertools.islice(it, batch_size))
 
+
+def list_contains(sublist, list_):
+    """Tests whether sublist is contained in full list_."""
+
+    for i in range(len(list_)-len(sublist)+1):
+        if sublist == list_[i:i+len(sublist)]:
+            return True
+    return False
+
+
 try:
     from subprocess import run
 except ImportError:

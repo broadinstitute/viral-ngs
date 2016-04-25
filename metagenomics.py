@@ -61,7 +61,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
                             args=[tmp_filtered_reads])
 
 def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
-          scoreColumn=None, noHits=None, noRank=None):
+          scoreColumn=None, noHits=None, noRank=None, db=None):
 
     krona_tool = tools.krona.Krona()
     if inTsv.endswith('.gz'):
@@ -75,7 +75,7 @@ def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
 
     krona_tool.import_taxonomy(
         to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
-        score_column=scoreColumn, no_hits=noHits, no_rank=noRank)
+        score_column=scoreColumn, no_hits=noHits, no_rank=noRank, db=db)
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
@@ -107,6 +107,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
                         action='store_true')
     parser.add_argument('--noRank', help='Include no rank assignments.',
                         action='store_true')
+    parser.add_argument('--db', help='Directory of taxonomy db.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
