@@ -20,7 +20,10 @@ class TestToolKraken(TestCaseWithTmp):
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
 
-        patcher = patch('util.misc.run', new=self.mock_run)
+        patcher = patch('tools.kraken.Jellyfish', autospec=True)
+        self.addCleanup(patcher.stop)
+        self.mock_jelly = patcher.start()
+        self.mock_jelly().install_and_get_path.return_value = tempfile.tempdir
 
         self.inBam = util.file.mkstempfname('.bam')
         self.db = tempfile.mkdtemp('db')
