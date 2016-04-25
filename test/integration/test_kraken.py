@@ -105,12 +105,12 @@ class TestKrakenTiny(TestKrakenBase, CommonTests):
         self.assertEqual(0, result.returncode)
 
 
-class TestKrakenVirusMix(TestKrakenBase, CommonTests):
+class TestKrakenViralMix(TestKrakenBase, CommonTests):
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViral10')
+        cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
         cls.db = cls.build_kraken_db()
         cls.bam = join(cls.data_dir, 'test-reads.bam')
