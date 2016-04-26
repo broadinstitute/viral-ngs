@@ -18,7 +18,6 @@ class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
         for cmd_name, parser_fun in metagenomics.__commands__:
-            print(cmd_name)
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -138,15 +137,15 @@ class TestDiamondCalls(TestCaseWithTmp):
              % tools.picard.SamToFastqTool.illumina_clipping_attribute])
         self.mock_diamond().install.assert_called_once_with()
         self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'threads': 1})
+            self.db, mock.ANY, mock.ANY, options={'--threads': 1})
         self.assertTrue(self.mock_diamond().view.called)
 
     def test_num_threads(self):
         out_m8 = util.file.mkstempfname('.')
         metagenomics.diamond(self.inBam, self.db, out_m8, numThreads=11)
         self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'threads': 11})
-        self.assertEqual(self.mock_diamond().view.call_args[1]['options']['threads'], 11)
+            self.db, mock.ANY, mock.ANY, options={'--threads': 11})
+        self.assertEqual(self.mock_diamond().view.call_args[1]['options']['--threads'], 11)
 
 class TestKronaCalls(TestCaseWithTmp):
 
