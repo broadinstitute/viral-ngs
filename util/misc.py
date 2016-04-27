@@ -171,8 +171,12 @@ except ImportError:
             else:
                 error = ''
             if check and returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode, b' '.join(args), output, error)
+                try:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output, error)
+                except TypeError:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output)
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:

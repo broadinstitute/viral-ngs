@@ -123,19 +123,6 @@ class TestKrakenTiny(TestKrakenBase, CommonTests):
         super().setUpClass()
         cls.data_dir = join(util.file.get_test_input_path(), 'TestToolKraken')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
-        cls.db = cls.build_db()
-        cls.fastqs = [os.path.join(cls.data_dir, f)
-                      for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-        cls.bam = cls.input_bam('zaire_ebola')
-
-
-class TestKrakenTiny(TestKrakenBase, CommonTests):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.data_dir = join(util.file.get_test_input_path(), 'TestToolKraken')
-        cls.db_dir = os.path.join(cls.data_dir, 'db')
         cls.db = cls.build_kraken_db()
         cls.fastqs = [os.path.join(cls.data_dir, f)
                       for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
@@ -195,18 +182,6 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         except subprocess.CalledProcessError as e:
             print(e)
             raise
-
-
-class TestKrakenViralMix(TestKrakenBase, CommonTests):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
-        cls.db_dir = os.path.join(cls.data_dir, 'db')
-        cls.db = cls.build_kraken_db()
-        cls.bam = join(cls.data_dir, 'test-reads.bam')
-        cls.fastqs = cls.input_fastqs()
 
 
 if __name__ == '__main__':
