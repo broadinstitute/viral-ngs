@@ -163,7 +163,7 @@ class TestKrakenVirusMix(TestKrakenBase, CommonTests):
         super().setUpClass()
         cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
-        cls.db = cls.build_db()
+        cls.db = cls.build_kraken_db()
         cls.bam = join(cls.data_dir, 'test-reads.bam')
         cls.fastqs = cls.input_fastqs()
 
@@ -176,7 +176,7 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         TestKronaBase.setUpClass()
         cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
-        cls.db = cls.build_db()
+        cls.db = cls.build_kraken_db()
         cls.krona_db = cls.build_krona_db()
         cls.bam = join(cls.data_dir, 'test-reads.bam')
         cls.fastqs = cls.input_fastqs()

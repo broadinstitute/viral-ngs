@@ -183,8 +183,8 @@ class CondaPackage(InstallMethod):
         require_executability=True,
         env=None,
         env_root_path=None,
-        conda_cache_path=None
-
+        conda_cache_path=None,
+        patches=None,
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -195,6 +195,7 @@ class CondaPackage(InstallMethod):
         self.verifycmd = verifycmd
         self.verifycode = verifycode
         self.require_executability = require_executability
+        self.patches = patches or []
 
         env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
         env = env or 'default'
@@ -245,6 +246,25 @@ class CondaPackage(InstallMethod):
 
     def executable_path(self):
         return os.path.join(self.bin_path, self.executable)
+
+    def apply_patches(self):
+        result = None
+        for path, patch in self.patches:
+            result = self._patch(path, patch)
+            if result.returncode != 0:
+                return result
+        return result
+
+
+    def _patch(self, path, patch):
+        """Patch a path relative to conda root.
+
+        The patch is relative to the tools/patches directory.
+        """
+        file_path = os.path.join(self.env_path, path)
+        patch_path = os.path.join(
+            util.file.get_project_path(), 'tools', 'patches', patch)
+        return util.misc.run_and_print(['patch', file_path, patch_path])
 
     @property
     def _package_installed(self):
@@ -406,6 +426,11 @@ class CondaPackage(InstallMethod):
 
                 if data["success"] == True:
                     _log.debug("Package installed.")
+            result = self.apply_patches()
+            if result and result.returncode != 0:
+                _log.error("Failed to apply patches.")
+                return
+
         else:
             if "success" in data.keys() and data["success"]:
                 # we were able to create the environment and install the package
