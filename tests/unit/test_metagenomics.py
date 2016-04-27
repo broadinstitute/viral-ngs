@@ -162,7 +162,7 @@ class TestKronaCalls(TestCaseWithTmp):
     def test_krona_import_taxonomy(self):
         out_html = util.file.mkstempfname('.html')
         metagenomics.krona(self.inTsv, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
-                           noHits=True, noRank=True)
+                           noHits=True, noRank=True, db=self.db)
         self.mock_krona().import_taxonomy.assert_called_once_with(
             [self.inTsv], out_html, query_column=3, taxid_column=5, score_column=7,
-            no_hits=True, no_rank=True)
+            no_hits=True, no_rank=True, db=self.db)
