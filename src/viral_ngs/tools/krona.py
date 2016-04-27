@@ -8,13 +8,18 @@ from builtins import super
 TOOL_NAME = 'krona'
 CONDA_TOOL_VERSION = '2.6'
 
+
 class Krona(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION,
-                                                      executable='ktImportTaxonomy'))
+            install_methods.append(
+                tools.CondaPackage(
+                    TOOL_NAME, version=CONDA_TOOL_VERSION,
+                    executable='ktImportTaxonomy',
+                    patches=[('opt/krona/updateTaxonomy.sh',
+                              'krona_updateTaxonomy.sh.patch')]))
         super().__init__(install_methods=install_methods)
 
     @property
