@@ -40,8 +40,7 @@ class TestKrakenBase(TestCaseWithTmp):
 
     @classmethod
     def build_kraken_db(cls):
-        db = os.path.join(tempfile.tempdir, 'db')
-        os.mkdir(db)
+        db = tempfile.mkdtemp('kraken_db')
         for d in ['library', 'taxonomy']:
             realpath = os.path.join(cls.db_dir, d)
             name = os.path.join(db, d)
