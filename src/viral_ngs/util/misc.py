@@ -137,7 +137,7 @@ except ImportError:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
                     env=env, cwd=cwd)
-                returncode = 0
+                return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
                 if check:
