@@ -68,6 +68,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         help='One reference database for last (required if --taxfiltBam is specified).',
         default=None
     )
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -91,10 +92,11 @@ def main_deplete_human(args):
         args.bmtaggerDbs,
         deplete_bmtagger_bam,
         args.bmtaggerBam,
+        threads=args.threads,
         JVMmemory=args.JVMmemory
     )
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
-    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, threads=args.threads, JVMmemory=args.JVMmemory)
     if args.taxfiltBam and args.lastDb:
         filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
@@ -636,6 +638,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument('outBam', help='Output BAM file.')
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -648,17 +651,17 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
 
 
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None):
     tmpBamIn = inBam
     for db in refDbs:
         tmpBamOut = mkstempfname('.bam')
-        deplete_method(tmpBamIn, db, tmpBamOut, JVMmemory=JVMmemory)
+        deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
         if tmpBamIn != inBam:
             os.unlink(tmpBamIn)
         tmpBamIn = tmpBamOut
@@ -881,10 +884,10 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
 def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
 
-    def wrapper(inBam, db, outBam, JVMmemory=None):
-        return deplete_blastn_bam(inBam, db, outBam, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
+    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_blastn_bam(inBam, db, outBam, threads=args.threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
 
-    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
     return 0
 
 
