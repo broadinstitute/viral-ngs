@@ -885,7 +885,7 @@ def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
 
     def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_blastn_bam(inBam, db, outBam, threads=args.threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
+        return deplete_blastn_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
     return 0
