@@ -1,12 +1,14 @@
 # Integration tests for kraken
 
 from builtins import super
+import argparse
 import os.path
 from os.path import join
 import sys
 import subprocess
 import tempfile
 import unittest
+import metagenomics
 import util.file
 import tools.kraken
 import tools.krona
@@ -85,7 +87,6 @@ class CommonTests(object):
 
     @unittest.skipIf(sys.version_info < (3,2), "Python version is too old for snakemake.")
     def test_pipes(self):
-        """Build kraken db and execute Snakemake pipeline."""
         runner = SnakemakeRunner()
         runner.set_override_config({
             'kraken_db': self.db,
@@ -101,16 +102,20 @@ class CommonTests(object):
         krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
                              '.'.join([os.path.splitext(os.path.basename(self.bam))[0], 'kraken.krona.html']))
 
-        runner.run(['all_metagenomics'])
+        # runner.run(['all_metagenomics'])
+        runner.run([kraken_out])
         self.assertGreater(os.path.getsize(kraken_out), 0)
-        self.assertGreater(os.path.getsize(krona_out), 0)
+        # self.assertGreater(os.path.getsize(krona_out), 0)
 
     def test_kraken(self):
         bin = join(util.file.get_project_path(), 'metagenomics.py')
         out_report = util.file.mkstempfname('.report')
         out_reads = util.file.mkstempfname('.reads.gz')
-        cmd = [bin, 'kraken', self.bam, self.db, '--outReport', out_report, '--outReads', out_reads]
-        util.misc.run_and_print(cmd, check=True)
+        cmd = [self.bam, self.db, '--outReport', out_report, '--outReads', out_reads]
+        parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+        args = parser.parse_args(cmd)
+        args.func_main(args)
+
         self.assertGreater(os.path.getsize(out_report), 0)
         self.assertGreater(os.path.getsize(out_reads), 0)
 
@@ -128,9 +133,10 @@ class TestKrakenTiny(TestKrakenBase, CommonTests):
         cls.bam = cls.input_bam('zaire_ebola')
 
     def test_kraken_tool(self):
-        out = join(tempfile.tempdir, 'zaire_ebola.kraken')
-        out_filtered = join(tempfile.tempdir, 'zaire_ebola.filtered-kraken')
-        out_report = join(tempfile.tempdir, 'zaire_ebola.kraken-report')
+        outdir = tempfile.mkdtemp('-kraken')
+        out = join(outdir, 'zaire_ebola.kraken')
+        out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
+        out_report = join(outdir, 'zaire_ebola.kraken-report')
         self.assertEqual(0, self.kraken.classify(self.db, self.fastqs, out).returncode)
         result = self.kraken.execute(
             'kraken-filter', self.db, out_filtered, [out],
@@ -171,16 +177,16 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         bin = join(util.file.get_project_path(), 'metagenomics.py')
         out_report = util.file.mkstempfname('.report')
         out_reads = util.file.mkstempfname('.reads.gz')
-        cmd = [bin, 'kraken', self.bam, self.db, '--outReport', out_report, '--outReads', out_reads]
-        util.misc.run_and_print(cmd, check=True)
+
+        cmd = [self.bam, self.db, '--outReport', out_report, '--outReads', out_reads]
+        parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+        args = parser.parse_args(cmd)
+        args.func_main(args)
+
         out_html = util.file.mkstempfname('.krona.html')
-        cmd = [bin, 'krona', out_reads, out_html, '--db', self.krona_db]
-        print(cmd)
-        try:
-            util.misc.run_and_print(cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(e)
-            raise
+        parser = metagenomics.parser_krona(argparse.ArgumentParser())
+        args = parser.parse_args([out_reads, out_html, '--db', self.krona_db])
+        args.func_main(args)
 
 
 if __name__ == '__main__':

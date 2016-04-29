@@ -197,11 +197,22 @@ def run_and_print(args, stdout=None, stderr=None,
     '''
 
     if not buffered:
-        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                     timeout=timeout, check=check)
-        if not silent:
-            print(result.stdout.decode('utf-8'))
+        if check and not silent:
+            try:
+                result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                           timeout=timeout, check=check)
+            except subprocess.CalledProcessError as e:
+                print(result.stdout.decode('utf-8'))
+                sys.stdout.flush()
+                raise(e)
+        else:
+            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         timeout=timeout, check=check)
+            if not silent:
+                print(result.stdout.decode('utf-8'))
+                sys.stdout.flush()
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
@@ -215,11 +226,13 @@ def run_and_print(args, stdout=None, stderr=None,
                 for c in iter(process.stdout.read, b""):
                     output.append(c)
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                    sys.stdout.flush()
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
+                sys.stdout.flush()
 
         if check and process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, args,
