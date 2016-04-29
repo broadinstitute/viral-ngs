@@ -7,6 +7,7 @@ __author__ = "yesimon@broadinstitute.org"
 import argparse
 import gzip
 import shutil
+import util.cmd
 import util.file
 import tools.kraken
 import tools.krona
@@ -59,6 +60,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
     if outReport:
         kraken_tool.execute('kraken-report', db, outReport,
                             args=[tmp_filtered_reads])
+
 
 def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
           scoreColumn=None, noHits=None, noRank=None, db=None):
@@ -151,8 +153,10 @@ __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
 
+
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

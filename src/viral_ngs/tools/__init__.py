@@ -228,7 +228,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_str(self):
-        if len(self.version):
+        if self.version:
             ver_str = "{pkg}={ver}".format(pkg=self.package, ver=self.version)
         else:
             ver_str = self.package
@@ -264,7 +264,8 @@ class CondaPackage(InstallMethod):
         file_path = os.path.join(self.env_path, path)
         patch_path = os.path.join(
             util.file.get_project_path(), 'tools', 'patches', patch)
-        return util.misc.run_and_print(['patch', file_path, patch_path])
+        return util.misc.run_and_print(['patch', file_path, patch_path],
+                                       check=True)
 
     @property
     def _package_installed(self):
@@ -273,12 +274,14 @@ class CondaPackage(InstallMethod):
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
             if len(data) > 0:
+                _log.debug('Conda package found: {}'.format(data))
                 return True
         return False
 
     def verify_install(self):
         # if conda does not the package as installed, no need to check further
-        if not self.get_installed_version():
+        installed_version = self.get_installed_version()
+        if not installed_version:
             # report the package as not installed
             return False
 
@@ -286,14 +289,16 @@ class CondaPackage(InstallMethod):
         if os.access(self.executable_path(), (os.X_OK | os.R_OK) if self.require_executability else os.R_OK):
             # optionally use the verify command, if specified
             if self.verifycmd:
-                _log.debug("validating")
-                self.installed = (os.system(self.verifycmd) == self.verifycode)
+                if os.system(self.verifycmd) == self.verifycode:
+                    _log.debug("Validating with cmd: {}".format(self.verifycmd))
+                    self.installed = installed_version
             else:
-                self.installed = True
+                self.installed = installed_version
         else:
             self.installed = False
-
-        return self.installed
+        if self.installed:
+            return installed_version
+        return False
 
     def _attempt_install(self):
         try:
@@ -315,11 +320,13 @@ class CondaPackage(InstallMethod):
         #     util.misc.run_and_print(["conda", "install", "-y", "conda-build"])
 
         # if the package is already installed, we need to check if the version is correct
-        if self.verify_install():
+        pkg_version = self.verify_install()
+        if pkg_version:
+            _log.debug("Currently installed version of {package}: {version}".format(
+                package=self.package, version=pkg_version))
             # if the installed version is not the one specified
-            if self.version != self.get_installed_version():
+            if self.version != pkg_version[0]:
                 _log.debug("Expected version of {package}:            {version}".format(package=self.package, version=self.version))
-                _log.debug("Currently installed version of {package}: {version}".format(package=self.package, version=self.get_installed_version()))
                 _log.debug("Incorrect version of {package} installed. Removing it...".format(package=self.package) )
 
                 # uninstall the current (incorrect) version
@@ -347,7 +354,6 @@ class CondaPackage(InstallMethod):
                 data = json.loads(self._string_from_start_of_json(command_output))
             except:
                 _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
-                #raise
                 return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
@@ -358,7 +364,7 @@ class CondaPackage(InstallMethod):
                     installed_version = matches.group("version")
                     installed_package = matches.group("package_name")
                     installed_build_type = matches.group("build_type")
-                    return installed_version
+                    return (installed_version, installed_build_type)
         return None
 
     def uninstall_package(self):

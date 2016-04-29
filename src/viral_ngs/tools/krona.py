@@ -6,7 +6,7 @@ import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = '2.6'
+CONDA_TOOL_VERSION = '2.6=3'
 
 
 class Krona(tools.Tool):
@@ -28,7 +28,8 @@ class Krona(tools.Tool):
             self.install_and_get_path()
         bin_path = os.path.dirname(self.executable_path())
         # Get at the opt directory from the conda env root
-        return os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
+        opt = os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
+        return opt
 
     def import_taxonomy(self, input_tsvs, output, query_column=None, taxid_column=None,
                         score_column=None, no_hits=None, no_rank=None, db=None):
@@ -54,8 +55,4 @@ class Krona(tools.Tool):
         """Caution - this deletes the original .dmp files."""
         sh = join(self.opt, 'updateTaxonomy.sh')
         cmd = [sh, '--local', os.path.abspath(db_dir)]
-        try:
-            util.misc.run_and_print(cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(e)
-            raise
+        util.misc.run_and_print(cmd, check=True)
