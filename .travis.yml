@@ -13,6 +13,7 @@ env:
   - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
   - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
+  - COVERAGE_PROCESS_START="$TRAVIS_BUILD_DIR/.coveragerc"
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
 
 python:
@@ -46,10 +47,12 @@ install:
 
 before_script:
   - flake8 --exit-zero .
+  - travis/setup-coverage.sh
 
 script:
   - travis/tests-unit.sh
   - travis/tests-long.sh
+  - coverage combine
 
 after_success:
   - coveralls
