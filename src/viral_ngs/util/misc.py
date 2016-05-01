@@ -203,7 +203,7 @@ def run_and_print(args, stdout=None, stderr=None,
                            stderr=subprocess.STDOUT, env=env, cwd=cwd,
                            timeout=timeout, check=check)
             except subprocess.CalledProcessError as e:
-                print(result.stdout.decode('utf-8'))
+                print(e.output.decode('utf-8'))
                 sys.stdout.flush()
                 raise(e)
         else:
