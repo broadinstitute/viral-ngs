@@ -33,12 +33,13 @@ rule depletion:
             bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmtagger_db_dir"], db=config["bmtagger_dbs_remove"]),
             blastDbs = expand("{dbdir}/{db}", dbdir=config["blast_db_dir"], db=config["blast_db_remove"]),
             revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
-            logid="{sample}"
+            logid="{sample}",
+            threads=int(config.get("number_of_threads", 1))
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["depletion"]))
-            shell("{config[bin_dir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --JVMmemory 15g")
+            shell("{config[bin_dir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --threads {params.threads} --JVMmemory 15g")
             os.unlink(params.revert_bam)
 
 rule filter_to_taxon:
