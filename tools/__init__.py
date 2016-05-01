@@ -167,6 +167,35 @@ class PrexistingUnixCommand(InstallMethod):
         return self.installed and self.path or None
 
 
+class CondaPackageVersion(object):
+
+    def __init__(self, version, build_type=None):
+        self.version = version
+        self.build_type = build_type
+
+    def __cmp__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __repr__(self):
+        if self.build_type:
+            return '{}-{}'.format(self.version, self.build_type)
+        else:
+            return self.version
+
+    def satisfies(self, spec):
+        if spec.build_type:
+            if self.build_type != spec.build_type:
+                return False
+        return self.version == spec.version
+
+    @property
+    def version_spec(self):
+        if self.build_type:
+            return '{}={}'.format(self.version, self.build_type)
+        else:
+            return self.version
+
+
 class CondaPackage(InstallMethod):
     ''' This is an install method for tools that can be installed via
         conda.
@@ -190,7 +219,10 @@ class CondaPackage(InstallMethod):
         self.executable = executable or package
         self.package = package
         self.channel = channel
-        self.version = version
+        if type(version) == CondaPackageVersion:
+            self.version = version
+        else:
+            self.version = CondaPackageVersion(version)
 
         self.verifycmd = verifycmd
         self.verifycode = verifycode
@@ -229,7 +261,8 @@ class CondaPackage(InstallMethod):
     @property
     def _package_str(self):
         if self.version:
-            ver_str = "{pkg}={ver}".format(pkg=self.package, ver=self.version)
+            ver_str = "{pkg}={ver}".format(
+                pkg=self.package, ver=self.version.version_spec)
         else:
             ver_str = self.package
         return ver_str
@@ -325,7 +358,7 @@ class CondaPackage(InstallMethod):
             _log.debug("Currently installed version of {package}: {version}".format(
                 package=self.package, version=pkg_version))
             # if the installed version is not the one specified
-            if self.version != pkg_version[0]:
+            if not pkg_version.satisfies(self.version):
                 _log.debug("Expected version of {package}:            {version}".format(package=self.package, version=self.version))
                 _log.debug("Incorrect version of {package} installed. Removing it...".format(package=self.package) )
 
@@ -364,7 +397,7 @@ class CondaPackage(InstallMethod):
                     installed_version = matches.group("version")
                     installed_package = matches.group("package_name")
                     installed_build_type = matches.group("build_type")
-                    return (installed_version, installed_build_type)
+                    return CondaPackageVersion(installed_version, installed_build_type)
         return None
 
     def uninstall_package(self):

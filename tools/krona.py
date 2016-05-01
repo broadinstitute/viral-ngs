@@ -6,7 +6,7 @@ import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = '2.6=3'
+CONDA_TOOL_VERSION = tools.CondaPackageVersion('2.6', '3')
 
 
 class Krona(tools.Tool):
@@ -35,6 +35,8 @@ class Krona(tools.Tool):
                         score_column=None, no_hits=None, no_rank=None, db=None):
         self.install()
         bin_path = os.path.dirname(self.executable_path())
+        env = os.environ.copy()
+        env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
         cmd = [join(bin_path, 'ktImportTaxonomy'), '-o', output]
         if query_column is not None:
             cmd.extend(['-q', str(query_column)])
@@ -49,10 +51,15 @@ class Krona(tools.Tool):
         if db is not None:
             cmd.extend(['-tax', db])
         cmd.extend(input_tsvs)
-        util.misc.run_and_print(cmd, check=True)
+
+        util.misc.run_and_print(cmd, env=env, check=True)
 
     def create_db(self, db_dir):
         """Caution - this deletes the original .dmp files."""
+        bin_path = os.path.dirname(self.executable_path())
+        env = os.environ.copy()
+        env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
+
         sh = join(self.opt, 'updateTaxonomy.sh')
         cmd = [sh, '--local', os.path.abspath(db_dir)]
-        util.misc.run_and_print(cmd, check=True)
+        util.misc.run_and_print(cmd, env=env, check=True)
