@@ -5,7 +5,6 @@ import argparse
 import os.path
 from os.path import join
 import sys
-import subprocess
 import tempfile
 import unittest
 import metagenomics
