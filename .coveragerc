@@ -1,4 +1,21 @@
 # .coveragerc to control test coverage report
+[run]
+parallel = True
+branch = True
+source =
+  broad_utils
+  illumina
+  assembly
+  interhost
+  intrahost
+  metagenomics
+  ncbi
+  read_utils
+  reports
+  taxon_filter
+  tools
+  util
+
 [report]
 
 exclude_lines =
