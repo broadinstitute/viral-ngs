@@ -127,7 +127,7 @@ except ImportError:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
                     env=env, cwd=cwd)
-                returncode = 0
+                return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
                 if check:
@@ -161,8 +161,13 @@ except ImportError:
             else:
                 error = ''
             if check and returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode, b' '.join(args), str(output)+str(error))
+                print(output.decode("utf-8"))
+                try:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output, error)
+                except TypeError: # py2 CalledProcessError does not accept error
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output.decode("utf-8"))
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
