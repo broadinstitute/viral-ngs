@@ -2,6 +2,7 @@
 
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
+import collections
 import os
 import re
 import logging
@@ -433,7 +434,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))

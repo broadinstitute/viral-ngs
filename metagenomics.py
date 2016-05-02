@@ -62,8 +62,8 @@ def kraken(inBam, db, outReport=None, outReads=None,
                             args=[tmp_filtered_reads])
 
 
-def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
-          scoreColumn=None, noHits=None, noRank=None, db=None):
+def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
+          scoreColumn=None, noHits=None, noRank=None):
 
     krona_tool = tools.krona.Krona()
     if inTsv.endswith('.gz'):
@@ -76,8 +76,8 @@ def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
         to_import = [inTsv]
 
     krona_tool.import_taxonomy(
-        to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
-        score_column=scoreColumn, no_hits=noHits, no_rank=noRank, db=db)
+        db, to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
+        score_column=scoreColumn, no_hits=noHits, no_rank=noRank)
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
@@ -98,6 +98,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
 
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inTsv', help='Input tab delimited file.')
+    parser.add_argument('db', help='Krona taxonomy database directory.')
     parser.add_argument('outHtml', help='Output html report.')
     parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)',
                         type=int, default=2)

@@ -185,7 +185,7 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
 
         out_html = util.file.mkstempfname('.krona.html')
         parser = metagenomics.parser_krona(argparse.ArgumentParser())
-        args = parser.parse_args([out_reads, out_html, '--db', self.krona_db])
+        args = parser.parse_args([out_reads, self.krona_db, out_html, '--db', self.krona_db])
         args.func_main(args)
 
 
