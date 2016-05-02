@@ -93,7 +93,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
            '-out',
            subsampfq[0],
            subsampfq[1],]
-    util.misc.run_and_print(cmd)
+    util.misc.run_and_print(cmd, check=True)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
 
