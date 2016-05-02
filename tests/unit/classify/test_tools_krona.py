@@ -27,8 +27,8 @@ class TestToolKrona(TestCaseWithTmp):
         in_tsv = util.file.mkstempfname('.tsv')
         output = util.file.mkstempfname('.output')
         self.krona.import_taxonomy(
-            [in_tsv], output, query_column=3,
-            taxid_column=5, score_column=7, no_hits=True, no_rank=True, db=self.db)
+            self.db, [in_tsv], output, query_column=3,
+            taxid_column=5, score_column=7, no_hits=True, no_rank=True)
         args = self.mock_run.call_args[0][0]
         self.assertEqual('ktImportTaxonomy', os.path.basename(args[0]))
         self.assertTrue(util.misc.list_contains(['-tax', self.db], args))
@@ -38,10 +38,10 @@ class TestToolKrona(TestCaseWithTmp):
         self.assertIn('-i', args)
         self.assertIn('-k', args)
 
-        self.krona.import_taxonomy([in_tsv], output)
+        self.krona.import_taxonomy(self.db, [in_tsv], output)
         args = self.mock_run.call_args[0][0]
         self.assertEqual('ktImportTaxonomy', os.path.basename(args[0]))
-        self.assertFalse(util.misc.list_contains(['-tax', self.db], args))
+        self.assertTrue(util.misc.list_contains(['-tax', self.db], args))
         self.assertFalse(util.misc.list_contains(['-q', '3'], args))
         self.assertFalse(util.misc.list_contains(['-t', '5'], args))
         self.assertFalse(util.misc.list_contains(['-s', '7'], args))
