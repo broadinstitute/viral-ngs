@@ -127,7 +127,7 @@ except ImportError:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
                     env=env, cwd=cwd)
-                returncode = 0
+                return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
                 if check:
@@ -161,8 +161,13 @@ except ImportError:
             else:
                 error = ''
             if check and returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode, b' '.join(args), output, error)
+                print(output.decode("utf-8"))
+                try:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output, error)
+                except TypeError: # py2 CalledProcessError does not accept error
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output.decode("utf-8"))
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
@@ -201,11 +206,13 @@ def run_and_print(args, stdout=None, stderr=None,
                 for c in iter(process.stdout.read, b""):
                     output.append(c)
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                    sys.stdout.flush() # flush buffer to stdout
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
+                sys.stdout.flush() # flush buffer to stdout
 
         if check and process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, args,
