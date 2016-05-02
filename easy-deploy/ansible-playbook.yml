@@ -37,8 +37,8 @@
       apt: pkg=git state=installed
 
     - name: download conda installer script
-      get_url: 
-        url: https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh 
+      get_url:
+        url: https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         dest: "{{ home_dir }}/Miniconda3-latest-Linux-x86_64.sh"
         mode: "0755"
       register: conda_script_downloaded
@@ -66,8 +66,6 @@
       apt: pkg=python3 state=installed
     - name: Install python3-pip
       apt: pkg=python3-pip state=installed
-    - name: Install python3-nose
-      apt: pkg=python3-nose state=installed
     - name: Install python-software-properties
       apt: pkg=python-software-properties state=installed
     - name: Install openjdk-7-jdk
@@ -235,13 +233,6 @@
         src: "venv_exec.j2"
         dest: "{{ venv_dir }}/exec"
         mode: 0755
-
-    - name: Install viral-ngs tools
-      command: "{{ venv_dir }}/exec nosetests -v test.unit.test_tools.TestToolsInstallation"
-      args:
-        chdir: "{{ project_dir }}"
-      environment:
-        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
 
     - name: Modify .bashrc so venv is loaded on connect
       lineinfile:
