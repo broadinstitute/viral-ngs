@@ -117,4 +117,4 @@ class DownloadAndBuildDiamond(tools.DownloadPackage):
             env['CC'] = 'gcc-4.9'
             env['CXX'] = 'g++-4.9'
         #util.misc.run_and_print(['cmake', '..'], env=env, cwd=build_dir)
-        util.misc.run_and_print(['make'], env=env, cwd=build_dir)
+        util.misc.run_and_print(['make'], env=env, cwd=build_dir, check=True)
