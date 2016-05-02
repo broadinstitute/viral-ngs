@@ -26,7 +26,7 @@ class TestToolPicard(TestCaseWithTmp):
             shutil.copyfile(orig_ref, inRef)
             outDict = inRef[:-len(ext)] + '.dict'
 
-            picard_index.execute(inRef)
+            picard_index.execute(inRef, overwrite=True)
 
             # the dict files will not be exactly the same, just the first 3 cols
             with open(outDict, 'rt') as inf:
