@@ -162,7 +162,7 @@ except ImportError:
                 error = ''
             if check and returncode != 0:
                 raise subprocess.CalledProcessError(
-                    returncode, b' '.join(args), output, error)
+                    returncode, b' '.join(args), str(output)+str(error))
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
