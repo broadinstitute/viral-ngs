@@ -2,6 +2,7 @@
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
+import logging
 import os
 import subprocess
 import sys
@@ -127,7 +128,7 @@ except ImportError:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
                     env=env, cwd=cwd)
-                returncode = 0
+                return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
                 if check:
@@ -161,8 +162,12 @@ except ImportError:
             else:
                 error = ''
             if check and returncode != 0:
-                raise subprocess.CalledProcessError(
-                    returncode, b' '.join(args), output, error)
+                try:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output, error)
+                except TypeError:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output)
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
@@ -175,19 +180,38 @@ except ImportError:
 
 def run_and_print(args, stdout=None, stderr=None,
                   stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False, buffered=False, check=False):
+                  timeout=None, silent=False, buffered=False, check=False,
+                  loglevel=None):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-
+    if loglevel:
+        silent = False
     if not buffered:
-        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                     timeout=timeout, check=check)
-        if not silent:
-            print(result.stdout.decode('utf-8'))
+        if check and not silent:
+            try:
+                result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                           timeout=timeout, check=check)
+            except subprocess.CalledProcessError as e:
+                if loglevel:
+                    logging.log(loglevel, result.stdout.decode('utf-8'))
+                else:
+                    print(e.output.decode('utf-8'))
+                    sys.stdout.flush()
+                raise(e)
+        else:
+            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         timeout=timeout, check=check)
+            if not silent and not loglevel:
+                print(result.stdout.decode('utf-8'))
+                sys.stdout.flush()
+            elif loglevel:
+                logging.log(loglevel, result.stdout.decode('utf-8'))
+
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
@@ -201,11 +225,13 @@ def run_and_print(args, stdout=None, stderr=None,
                 for c in iter(process.stdout.read, b""):
                     output.append(c)
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                    sys.stdout.flush()
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
+                sys.stdout.flush()
 
         if check and process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, args,
