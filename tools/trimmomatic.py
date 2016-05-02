@@ -26,4 +26,4 @@ class TrimmomaticTool(tools.Tool):
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, *args):
-        util.misc.run_and_print(self.exec_path, args)
+        util.misc.run_and_print(self.exec_path, args, check=True)

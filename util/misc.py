@@ -172,10 +172,11 @@ except ImportError:
             else:
                 error = ''
             if check and returncode != 0:
+                print(output.decode("utf-8"))
                 try:
                     raise subprocess.CalledProcessError(
                         returncode, args, output, error)
-                except TypeError:
+                except TypeError: # py2 CalledProcessError does not accept error
                     raise subprocess.CalledProcessError(
                         returncode, args, output)
             return CompletedProcess(args, returncode, output, error)
@@ -235,13 +236,13 @@ def run_and_print(args, stdout=None, stderr=None,
                 for c in iter(process.stdout.read, b""):
                     output.append(c)
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
-                    sys.stdout.flush()
+                    sys.stdout.flush() # flush buffer to stdout
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
-                sys.stdout.flush()
+                sys.stdout.flush() # flush buffer to stdout
 
         if check and process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, args,

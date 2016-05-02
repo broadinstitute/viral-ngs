@@ -60,7 +60,7 @@ class MvicunaTool(tools.Tool):
             outUnpaired, '-drm_op', ','.join(tmp1OutPair), '-tasks', 'DupRm'
         ]
         _log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline)
+        util.misc.run_and_print(cmdline, check=True)
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
 

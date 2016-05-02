@@ -84,9 +84,9 @@ class DownloadAndInstallJellyfish(tools.DownloadPackage):
             os.path.join(jellyfish_dir, 'Makefile.am'), 'AM_CXXFLAGS = -g -O3',
             'AM_CXXFLAGS = -g -O3 -Wno-maybe-uninitialized'
         )
-        util.misc.run_and_print(['autoreconf', '-i'], cwd=jellyfish_dir, env=env)
-        util.misc.run_and_print(['./configure', '--prefix={}'.format(install_dir)], cwd=jellyfish_dir, env=env)
-        util.misc.run_and_print(['make', 'install'], cwd=jellyfish_dir, env=env)
+        util.misc.run_and_print(['autoreconf', '-i'], cwd=jellyfish_dir, env=env, check=True)
+        util.misc.run_and_print(['./configure', '--prefix={}'.format(install_dir)], cwd=jellyfish_dir, env=env, check=True)
+        util.misc.run_and_print(['make', 'install'], cwd=jellyfish_dir, env=env, check=True)
 
 
 class Kraken(tools.Tool):
@@ -187,7 +187,7 @@ class DownloadAndInstallKraken(tools.DownloadPackage):
             shutil.move(os.path.join(self.destination_dir, KRAKEN_COMMIT_DIR), kraken_dir)
         libexec_dir = os.path.join(kraken_dir, 'libexec')
         bin_dir = os.path.join(kraken_dir, 'bin')
-        util.misc.run_and_print(['./install_kraken.sh', 'libexec'], cwd=kraken_dir, env=env)
+        util.misc.run_and_print(['./install_kraken.sh', 'libexec'], cwd=kraken_dir, env=env, check=True)
         util.file.mkdir_p(bin_dir)
         for bin_name in Kraken.BINS:
             libexec_bin = os.path.join(libexec_dir, bin_name)
