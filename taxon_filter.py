@@ -398,7 +398,7 @@ __commands__.append(('filter_lastal', parser_filter_lastal))
 # ============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
