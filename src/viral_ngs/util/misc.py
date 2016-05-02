@@ -2,6 +2,7 @@
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
+import logging
 import os
 import subprocess
 import sys
@@ -189,13 +190,15 @@ except ImportError:
 
 def run_and_print(args, stdout=None, stderr=None,
                   stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False, buffered=False, check=False):
+                  timeout=None, silent=False, buffered=False, check=False,
+                  loglevel=None):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-
+    if loglevel:
+        silent = False
     if not buffered:
         if check and not silent:
             try:
@@ -203,16 +206,22 @@ def run_and_print(args, stdout=None, stderr=None,
                            stderr=subprocess.STDOUT, env=env, cwd=cwd,
                            timeout=timeout, check=check)
             except subprocess.CalledProcessError as e:
-                print(e.output.decode('utf-8'))
-                sys.stdout.flush()
+                if loglevel:
+                    logging.log(loglevel, result.stdout.decode('utf-8'))
+                else:
+                    print(e.output.decode('utf-8'))
+                    sys.stdout.flush()
                 raise(e)
         else:
             result = run(args, stdin=stdin, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, env=env, cwd=cwd,
                          timeout=timeout, check=check)
-            if not silent:
+            if not silent and not loglevel:
                 print(result.stdout.decode('utf-8'))
                 sys.stdout.flush()
+            elif loglevel:
+                logging.log(loglevel, result.stdout.decode('utf-8'))
+
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])

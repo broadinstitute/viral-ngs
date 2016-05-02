@@ -31,13 +31,13 @@ class Krona(tools.Tool):
         opt = os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
         return opt
 
-    def import_taxonomy(self, input_tsvs, output, query_column=None, taxid_column=None,
-                        score_column=None, no_hits=None, no_rank=None, db=None):
+    def import_taxonomy(self, db, input_tsvs, output, query_column=None, taxid_column=None,
+                        score_column=None, no_hits=None, no_rank=None):
         self.install()
         bin_path = os.path.dirname(self.executable_path())
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
-        cmd = [join(bin_path, 'ktImportTaxonomy'), '-o', output]
+        cmd = ['ktImportTaxonomy', '-tax', db, '-o', output]
         if query_column is not None:
             cmd.extend(['-q', str(query_column)])
         if taxid_column is not None:
@@ -48,8 +48,6 @@ class Krona(tools.Tool):
             cmd.append('-i')
         if no_rank is not None:
             cmd.append('-k')
-        if db is not None:
-            cmd.extend(['-tax', db])
         cmd.extend(input_tsvs)
 
         util.misc.run_and_print(cmd, env=env, check=True)
