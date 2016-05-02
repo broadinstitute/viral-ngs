@@ -1,7 +1,6 @@
 # .coveragerc to control test coverage report
 # source is not used here because it is specified in pytest.ini
 [run]
-parallel = True
 branch = True
 
 [report]
