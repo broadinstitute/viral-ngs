@@ -137,7 +137,7 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     )
 
     log.debug(' '.join(javaCmd))
-    util.misc.run_and_print(javaCmd)
+    util.misc.run_and_print(javaCmd, check=True)
     os.unlink(tmpUnpaired1)
     os.unlink(tmpUnpaired2)
 
@@ -377,7 +377,7 @@ def filter_lastal(
             '-line_width', '0', '-out_good', outFastq[:-6]
         ]
         log.debug(' '.join(prinseqCmd))
-        util.misc.run_and_print(prinseqCmd)
+        util.misc.run_and_print(prinseqCmd, check=True)
     os.unlink(filteredFastq)
 
 
@@ -506,7 +506,7 @@ def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=
             curReads2, '-o', matchesFile
         ]
         log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline)
+        util.misc.run_and_print(cmdline, check=True)
         prevReads1, prevReads2 = curReads1, curReads2
         if count < len(databases) - 1:
             curReads1, curReads2 = mkstempfname(), mkstempfname()

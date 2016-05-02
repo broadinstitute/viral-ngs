@@ -57,7 +57,7 @@ class PicardTools(tools.Tool):
                 self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
             ] + picardOptions
         _log.debug(' '.join(tool_cmd))
-        util.misc.run_and_print(tool_cmd)
+        util.misc.run_and_print(tool_cmd, check=True)
 
     @staticmethod
     def dict_to_picard_opts(options):
