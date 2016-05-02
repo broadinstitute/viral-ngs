@@ -8,6 +8,8 @@ import subprocess
 import sys
 import util.file
 
+log = logging.getLogger(__name__)
+
 __author__ = "dpark@broadinstitute.org"
 
 
@@ -208,7 +210,7 @@ def run_and_print(args, stdout=None, stderr=None,
                            timeout=timeout, check=check)
             except subprocess.CalledProcessError as e:
                 if loglevel:
-                    logging.log(loglevel, result.stdout.decode('utf-8'))
+                    log.log(loglevel, result.stdout.decode('utf-8'))
                 else:
                     print(e.output.decode('utf-8'))
                     sys.stdout.flush()
@@ -221,7 +223,7 @@ def run_and_print(args, stdout=None, stderr=None,
                 print(result.stdout.decode('utf-8'))
                 sys.stdout.flush()
             elif loglevel:
-                logging.log(loglevel, result.stdout.decode('utf-8'))
+                log.log(loglevel, result.stdout.decode('utf-8'))
 
     else:
         CompletedProcess = collections.namedtuple(
