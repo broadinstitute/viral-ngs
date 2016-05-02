@@ -110,7 +110,6 @@ def parser_krona(parser=argparse.ArgumentParser()):
                         action='store_true')
     parser.add_argument('--noRank', help='Include no rank assignments.',
                         action='store_true')
-    parser.add_argument('--db', help='Directory of taxonomy db.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
