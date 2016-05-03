@@ -36,9 +36,9 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     pysam.view('-o', sam_two, bam_filename2, catch_stdout=False)
 
     try:
-        testCase.assertTrue(filecmp.cmp(sorted_sam_one, sorted_sam_two, shallow=False))
+        testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
     finally:
-        for fname in [sam_one, sam_two, sorted_sam_one, sorted_sam_two]:
+        for fname in [sam_one, sam_two]:
             if os.path.exists(fname):
                 os.unlink(fname)
 
