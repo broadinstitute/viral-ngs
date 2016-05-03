@@ -18,7 +18,7 @@ import tools.last
 import tools.bmtagger
 import tools.blast
 import read_utils
-from test import assert_equal_contents, assert_equal_bam_reads, TestCaseWithTmp
+from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -87,12 +87,12 @@ class TestBmtagger(TestCaseWithTmp):
         TestCaseWithTmp.setUp(self)
         self.tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
-        srprismPath = tools.bmtagger.SrprismTool().install_and_get_path()
+
         for db in ['humanChr1Subset', 'humanChr9Subset']:
             # .map file is > 100M, so recreate instead of copying
             dbfa = os.path.join(myInputDir, db + '.fa')
             dbsrprism = os.path.join(self.tempDir, db + '.srprism')
-            subprocess.check_call([srprismPath, 'mkindex', '-i', dbfa, '-o', dbsrprism])
+            srprismdb_path = tools.bmtagger.SrprismTool().build_database(dbfa, dbsrprism)
             # .bitmask and .srprism.* files must be in same dir, so copy
             shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
 
@@ -101,38 +101,150 @@ class TestBmtagger(TestCaseWithTmp):
         outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n)) for n in '12']
         myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
-                self.tempDir, 'humanChr1Subset'), os.path.join(self.tempDir, 'humanChr9Subset'), '--outMatch',
-             outMatch[0], outMatch[1], '--outNoMatch', outNoMatch[0], outNoMatch[1]])
+            [
+                os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
+                    self.tempDir, 'humanChr1Subset'
+                ), os.path.join(self.tempDir, 'humanChr9Subset'), '--outMatch', outMatch[0], outMatch[
+                    1], '--outNoMatch', outNoMatch[0], outNoMatch[1]
+            ]
+        )
         args.func_main(args)
 
         # Compare to expected
         for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2']:
-            assert_equal_contents(self, os.path.join(self.tempDir, 'out' + case + '.fastq'),
-                                  os.path.join(myInputDir, 'expected.' + case + '.fastq'))
+            assert_equal_contents(
+                self, os.path.join(self.tempDir, 'out' + case + '.fastq'),
+                os.path.join(myInputDir, 'expected.' + case + '.fastq')
+            )
 
     def test_deplete_bmtagger(self):
         myInputDir = util.file.get_test_input_path(self)
         args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
-                self.tempDir, 'humanChr1Subset'), os.path.join(self.tempDir, 'humanChr9Subset'), '--outNoMatch',
-             os.path.join(self.tempDir, 'deplete.1.fastq'), os.path.join(self.tempDir, 'deplete.2.fastq')])
+            [
+                os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
+                    self.tempDir, 'humanChr1Subset'
+                ), os.path.join(self.tempDir, 'humanChr9Subset'), '--outNoMatch', os.path.join(
+                    self.tempDir, 'deplete.1.fastq'), os.path.join(self.tempDir, 'deplete.2.fastq')
+            ]
+        )
         args.func_main(args)
 
         # Compare to expected
         for case in ['1', '2']:
-            assert_equal_contents(self, os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
-                                  os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
+            assert_equal_contents(
+                self, os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
+                os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq')
+            )
+
+
+class TestBlastnDbBuild(TestCaseWithTmp):
+
+    def test_blastn_db_build(self):
+        commonInputDir = util.file.get_test_input_path()
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta')
+
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+
+        output_prefix = self.__class__.__name__
+
+        args = taxon_filter.parser_blastn_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix
+            ]
+        )
+        args.func_main(args)
+
+        for ext in [".nhr", ".nin", ".nsq"]:
+            assert_equal_contents(
+                self, os.path.join(tempDir, output_prefix + ext),
+                os.path.join(myInputDir, "expected", output_prefix + ext)
+            )
+
+
+class TestBmtaggerDbBuild(TestCaseWithTmp):
+
+    def test_bmtagger_db_build(self):
+        commonInputDir = util.file.get_test_input_path()
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta')
+
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+
+        output_prefix = self.__class__.__name__
+
+        args = taxon_filter.parser_bmtagger_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix
+            ]
+        )
+        args.func_main(args)
+
+        for ext in [
+            ".bitmask", ".srprism.amp", ".srprism.idx", ".srprism.imp", ".srprism.pmp", ".srprism.rmp",
+            ".srprism.ss", ".srprism.ssa", ".srprism.ssd"
+        ]:
+            assert_equal_contents(
+                self, os.path.join(tempDir, output_prefix + ext),
+                os.path.join(myInputDir, "expected", output_prefix + ext)
+            )
+
+        for ext in [".srprism.map"]:
+            assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
+
+
+class TestLastalDbBuild(TestCaseWithTmp):
+
+    def test_lastal_db_build(self):
+        commonInputDir = util.file.get_test_input_path()
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta')
+
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+
+        output_prefix = self.__class__.__name__
+
+        args = taxon_filter.parser_lastal_build_db(argparse.ArgumentParser()).parse_args(
+            [
+    # input fasta
+                refFasta,
+    # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix
+            ]
+        )
+        args.func_main(args)
+
+        for ext in [".bck", ".des", ".prj", ".sds", ".ssp", ".suf", ".tis"]:
+            assert_equal_contents(
+                self, os.path.join(tempDir, output_prefix + ext),
+                os.path.join(myInputDir, "expected", output_prefix + ext)
+            )
+
 
 class TestDepleteHuman(TestCaseWithTmp):
     '''
-        How test data was created
+        How test data was created:
+          exported 5kb region of chr6
+          created pan-viral fasta file from all NCBI viral accessions
+          used wgsim to create simulated reads
     '''
 
     def test_deplete_human(self):
         myInputDir = util.file.get_test_input_path(self)
         tempDir = tempfile.mkdtemp()
-        
+
         ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
         database_prefix_path = os.path.join(tempDir, "5kb_human_from_chr6")
 
@@ -140,36 +252,43 @@ class TestDepleteHuman(TestCaseWithTmp):
         blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, database_prefix_path)
 
         # create bmtagger db
-        bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, database_prefix_path+".bitmask")
-        srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, database_prefix_path+".srprism")
+        bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, database_prefix_path + ".bitmask")
+        srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, database_prefix_path + ".srprism")
 
-        # create last db        
+        # create last db
         lastdb_path = tools.last.Lastdb().build_database(ref_fasta, database_prefix_path)
 
-        # Run deplete_blastn
+        # Run deplete_human
         args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
-            [ os.path.join(myInputDir, 'test-reads.bam'), 
-            # output files
-            os.path.join(tempDir, 'test-reads.revert.bam'),
-            os.path.join(tempDir, 'test-reads.bmtagger.bam'),
-            os.path.join(tempDir, 'test-reads.rmdup.bam'),
-            os.path.join(tempDir, 'test-reads.blastn.bam'),
-            "--taxfiltBam", os.path.join(tempDir, 'test-reads.taxfilt.bam'),
-            # DBs
-            "--blastDbs", blastdb_path,
-            "--bmtaggerDbs", database_prefix_path,
-            "--lastDb", lastdb_path,
-            "--threads", "4"]
+            [
+                os.path.join(myInputDir, 'test-reads.bam'),
+                # output files
+                os.path.join(tempDir, 'test-reads.revert.bam'),
+                os.path.join(tempDir, 'test-reads.bmtagger.bam'),
+                os.path.join(tempDir, 'test-reads.rmdup.bam'),
+                os.path.join(tempDir, 'test-reads.blastn.bam'),
+                "--taxfiltBam",
+                os.path.join(tempDir, 'test-reads.taxfilt.bam'),
+                # DBs
+                "--blastDbs",
+                blastdb_path,
+                "--bmtaggerDbs",
+                database_prefix_path,
+                "--lastDb",
+                lastdb_path,
+                "--threads",
+                "4"
+            ]
         )
         args.func_main(args)
 
         # Compare to expected
-        for fname in ['test-reads.revert.bam', 
-                        'test-reads.bmtagger.bam', 
-                        'test-reads.rmdup.bam', 
-                        'test-reads.blastn.bam', 
-                        'test-reads.taxfilt.bam']:
+        for fname in [
+            'test-reads.revert.bam', 'test-reads.bmtagger.bam', 'test-reads.rmdup.bam', 'test-reads.blastn.bam',
+            'test-reads.taxfilt.bam'
+        ]:
             assert_equal_bam_reads(self, os.path.join(tempDir, fname), os.path.join(myInputDir, 'expected', fname))
+
 
 class TestDepleteBlastn(TestCaseWithTmp):
     '''
@@ -197,7 +316,8 @@ class TestDepleteBlastn(TestCaseWithTmp):
         # Run deplete_blastn
         outFile = os.path.join(tempDir, 'out.fastq')
         args = taxon_filter.parser_deplete_blastn(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in.fastq'), outFile, refDbs[0], refDbs[1]])
+            [os.path.join(myInputDir, 'in.fastq'), outFile, refDbs[0], refDbs[1]]
+        )
         args.func_main(args)
 
         # Compare to expected
@@ -225,23 +345,28 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         inFastq2 = os.path.join(myInputDir, "in2.fastq")
         inBam = os.path.join(tempDir, 'in.bam')
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1,
-                                  inFastq2,
-                                  inBam,
-                                  '--sampleName',
-                                  'FreeSample',
-                                  '--JVMmemory',
-                                  '1g',
-                                  '--picardOptions',
-                                  'LIBRARY_NAME=Alexandria',
-                                  'PLATFORM=9.75',
-                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
+        args = parser.parse_args(
+            [
+                inFastq1,
+                inFastq2,
+                inBam,
+                '--sampleName',
+                'FreeSample',
+                '--JVMmemory',
+                '1g',
+                '--picardOptions',
+                'LIBRARY_NAME=Alexandria',
+                'PLATFORM=9.75',
+                'SEQUENCING_CENTER=KareemAbdul-Jabbar',
+            ]
+        )
         args.func_main(args)
 
         # Run deplete_blastn_bam
         outBam = os.path.join(tempDir, 'out.bam')
         args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
-            [inBam, refDbs[0], refDbs[1], outBam, "--chunkSize", "1"])
+            [inBam, refDbs[0], refDbs[1], outBam, "--chunkSize", "1"]
+        )
         args.func_main(args)
 
         # samtools view for out.sam and compare to expected
@@ -254,18 +379,25 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                 print(line)
 
         # the header field ordering may be different with Java 1.8
-        self.assertTrue(filecmp.cmp(outSam,
-                                    os.path.join(myInputDir, 'expected.sam'),
-                                    shallow=False) or
-                        filecmp.cmp(outSam,
-                                    os.path.join(myInputDir, 'expected_1_8.sam'),
-                                    shallow=False) or
-                        filecmp.cmp(outSam,
-                                    os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
-                                    shallow=False) or
-                        filecmp.cmp(outSam,
-                                    os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
-                                    shallow=False))
+        self.assertTrue(
+            filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
+                shallow=False
+            )
+        )
 
 
 if __name__ == '__main__':
