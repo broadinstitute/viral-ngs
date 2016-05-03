@@ -56,7 +56,7 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
-        util.misc.run_and_print(cmd)
+        util.misc.run_and_print(cmd, check=True)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
 
