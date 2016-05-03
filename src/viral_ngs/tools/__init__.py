@@ -303,7 +303,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, check=True, env=self.conda_env)
+        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -381,7 +381,7 @@ class CondaPackage(InstallMethod):
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
 
-        result = util.misc.run_and_print(run_cmd, silent=True, check=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
@@ -407,7 +407,6 @@ class CondaPackage(InstallMethod):
         result = util.misc.run_and_print(
             run_cmd,
             silent=True,
-            check=True,
             env=self.conda_env)
 
         if result.returncode == 0:
@@ -435,7 +434,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, silent=True, check=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -454,7 +453,6 @@ class CondaPackage(InstallMethod):
                     self._package_str
                 ],
                 silent=True,
-                check=True,
                 env=self.conda_env,
             )
 
