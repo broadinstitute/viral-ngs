@@ -2,16 +2,48 @@
 
 __author__ = "irwin@broadinstitute.org"
 
+# built-ins
 import filecmp
 import os
 import unittest
-import util.file
 
+# third-party
+import pysam
+
+# intra-project
+import util.file
 
 def assert_equal_contents(testCase, filename1, filename2):
     'Assert contents of two files are equal for a unittest.TestCase'
     testCase.assertTrue(filecmp.cmp(filename1, filename2, shallow=False))
 
+def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
+    ''' Assert that two bam files are equivalent
+
+        This function converts each file to sam (plaintext) format,
+        without header, since the header can be variable.
+
+        Test data should be stored in bam format rather than sam
+        to save space, and to ensure the bam->sam conversion
+        is the same for both files.
+    '''
+
+    sam_one = util.file.mkstempfname(".sam")
+    sam_two = util.file.mkstempfname(".sam")
+
+    sorted_sam_one = util.file.mkstempfname("sorted.sam")
+    sorted_sam_two = util.file.mkstempfname("sorted.sam")
+
+    # write the bam files to sam format, without header (no -h)
+    pysam.view('-o', sam_one, bam_filename1, catch_stdout=False)
+    pysam.view('-o', sam_two, bam_filename2, catch_stdout=False)
+
+    try:
+        testCase.assertTrue(filecmp.cmp(sorted_sam_one, sorted_sam_two, shallow=False))
+    finally:
+        for fname in [sam_one, sam_two, sorted_sam_one, sorted_sam_two]:
+            if os.path.exists(fname):
+                os.unlink(fname)
 
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'

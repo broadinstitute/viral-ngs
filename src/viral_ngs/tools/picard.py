@@ -168,6 +168,7 @@ class FilterSamReadsTool(PicardTools):
             else:
                 tmpf = util.file.mkstempfname('.sam')
                 if inBam.endswith('.sam'):
+                    # output format (sam/bam) is inferred by samtools based on file extension
                     header = pysam.view('-o', tmpf, '-H', '-S', inBam, catch_stdout=False)
                 else:
                     header = pysam.view('-o', tmpf, '-H', inBam, catch_stdout=False)
