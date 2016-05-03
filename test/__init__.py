@@ -7,11 +7,9 @@ import filecmp
 import os
 import unittest
 
-# third-party
-import pysam
-
 # intra-project
 import util.file
+from tools.samtools import SamtoolsTool
 
 def assert_equal_contents(testCase, filename1, filename2):
     'Assert contents of two files are equal for a unittest.TestCase'
@@ -28,12 +26,14 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
         is the same for both files.
     '''
 
+    samtools = SamtoolsTool()
+
     sam_one = util.file.mkstempfname(".sam")
     sam_two = util.file.mkstempfname(".sam")
 
     # write the bam files to sam format, without header (no -h)
-    pysam.view('-o', sam_one, bam_filename1, catch_stdout=False, raw=True)
-    pysam.view('-o', sam_two, bam_filename2, catch_stdout=False, raw=True)
+    samtools.view(args=[], inFile=bam_filename1, outFile=sam_one)
+    samtools.view(args=[], inFile=bam_filename2, outFile=sam_two)
 
     try:
         testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
