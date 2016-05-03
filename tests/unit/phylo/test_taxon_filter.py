@@ -18,7 +18,7 @@ import tools.last
 import tools.bmtagger
 import tools.blast
 import read_utils
-from test import assert_equal_contents, TestCaseWithTmp
+from test import assert_equal_contents, assert_equal_bam_reads, TestCaseWithTmp
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -169,7 +169,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                         'test-reads.rmdup.bam', 
                         'test-reads.blastn.bam', 
                         'test-reads.taxfilt.bam']:
-            assert_equal_contents(self, os.path.join(tempDir, fname), os.path.join(myInputDir, 'expected', fname))
+            assert_equal_bam_reads(self, os.path.join(tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
 class TestDepleteBlastn(TestCaseWithTmp):
     '''
