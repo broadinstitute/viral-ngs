@@ -32,8 +32,8 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     sam_two = util.file.mkstempfname(".sam")
 
     # write the bam files to sam format, without header (no -h)
-    pysam.view('-o', sam_one, bam_filename1, catch_stdout=False)
-    pysam.view('-o', sam_two, bam_filename2, catch_stdout=False)
+    pysam.view('-o', sam_one, bam_filename1, catch_stdout=False, raw=True)
+    pysam.view('-o', sam_two, bam_filename2, catch_stdout=False, raw=True)
 
     try:
         testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
