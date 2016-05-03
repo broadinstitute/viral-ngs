@@ -907,7 +907,7 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    tools.last.Lastdb().execute(inputFasta=inputFasta, outputDirectory=outputDirectory, outputFilePrefix=outPrefix)
+    tools.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
@@ -923,6 +923,70 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
+
+
+# ========================
+# ***  blastn_build_db  ***
+# ========================
+
+def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
+
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
+    blastdb_path = tools.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+
+
+def parser_blastn_build_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('outputDirectory', help='Location for the output files')
+    parser.add_argument(
+        '--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, blastn_build_db, split_args=True)
+    return parser
+
+
+__commands__.append(('blastn_build_db', parser_blastn_build_db))
+
+
+# ========================
+# ***  bmtagger_build_db  ***
+# ========================
+
+def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
+
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
+    bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".bitmask"))
+    srprismdb_path = tools.bmtagger.SrprismTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".srprism"))
+
+def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('outputDirectory', help='Location for the output files (Where *.bitmask and *.srprism files will be stored)')
+    parser.add_argument(
+        '--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, bmtagger_build_db, split_args=True)
+    return parser
+
+
+__commands__.append(('bmtagger_build_db', parser_bmtagger_build_db))
+
+
 
 # ========================
 
