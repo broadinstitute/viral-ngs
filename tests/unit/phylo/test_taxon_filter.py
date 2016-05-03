@@ -124,6 +124,53 @@ class TestBmtagger(TestCaseWithTmp):
             assert_equal_contents(self, os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
                                   os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq'))
 
+class TestDepleteHuman(TestCaseWithTmp):
+    '''
+        How test data was created
+    '''
+
+    def test_deplete_human(self):
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+        
+        ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
+        database_prefix_path = os.path.join(tempDir, "5kb_human_from_chr6")
+
+        # create blast db
+        blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, database_prefix_path)
+
+        # create bmtagger db
+        bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, database_prefix_path+".bitmask")
+        srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, database_prefix_path+".srprism")
+
+        # create last db        
+        lastdb_path = tools.last.Lastdb().build_database(ref_fasta, database_prefix_path)
+
+        # Run deplete_blastn
+        outFile = os.path.join(tempDir, 'out.fastq')
+        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+            [ os.path.join(myInputDir, 'test-reads.bam'), 
+            # output files
+            os.path.join(tempDir, 'test-reads.revert.bam'),
+            os.path.join(tempDir, 'test-reads.bmtagger.bam'),
+            os.path.join(tempDir, 'test-reads.rmdup.bam'),
+            os.path.join(tempDir, 'test-reads.blastn.bam'),
+            "--taxfiltBam", os.path.join(tempDir, 'test-reads.taxfilt.bam'),
+            # DBs
+            "--blastDbs", blastdb_path,
+            "--bmtaggerDbs", database_prefix_path,
+            "--lastDb", lastdb_path,
+            "--threads", "4"]
+        )
+        args.func_main(args)
+
+        # Compare to expected
+        for fname in ['test-reads.revert.bam', 
+                        'test-reads.bmtagger.bam', 
+                        'test-reads.rmdup.bam', 
+                        'test-reads.blastn.bam', 
+                        'test-reads.taxfilt.bam']:
+            assert_equal_contents(self, os.path.join(tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
 class TestDepleteBlastn(TestCaseWithTmp):
     '''
