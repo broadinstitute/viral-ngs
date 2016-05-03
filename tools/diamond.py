@@ -29,8 +29,8 @@ class Diamond(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [
-                DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond')),
-                tools.CondaPackage("diamond", version=CONDA_VERSION)]
+                tools.CondaPackage("diamond", version=CONDA_VERSION),
+                DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond'))]
         super().__init__(install_methods=install_methods)
 
     def version(self):
