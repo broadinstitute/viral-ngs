@@ -175,6 +175,7 @@ except ImportError:
                 error = ''
             if check and returncode != 0:
                 print(output.decode("utf-8"))
+                print(error.decode("utf-8"))
                 try:
                     raise subprocess.CalledProcessError(
                         returncode, args, output, error)
@@ -213,6 +214,10 @@ def run_and_print(args, stdout=None, stderr=None,
                     log.log(loglevel, result.stdout.decode('utf-8'))
                 else:
                     print(e.output.decode('utf-8'))
+                    try:
+                        print(e.stderr.decode('utf-8'))
+                    except TypeError:
+                        pass
                     sys.stdout.flush()
                 raise(e)
         else:
