@@ -170,7 +170,8 @@ class Kraken(tools.Tool):
             with util.file.open_or_gzopen(output, 'w') as of:
                 res = util.misc.run(cmd,  stdout=of, stderr=subprocess.PIPE,
                                     env=env, check=True)
-            print(res.stderr.decode('utf-8'), file=sys.stderr)
+                if res.returncode != 0:
+                    print(res.stderr.decode('utf-8'), file=sys.stderr)
             return res
 
 

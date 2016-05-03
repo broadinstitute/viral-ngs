@@ -1,27 +1,43 @@
 import tools
 import os.path
+import subprocess
 from os.path import join
 import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = '2.6'
+CONDA_TOOL_VERSION = tools.CondaPackageVersion('2.6', '3')
+
 
 class Krona(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION,
-                                                      executable='ktImportTaxonomy'))
+            install_methods.append(
+                tools.CondaPackage(
+                    TOOL_NAME, version=CONDA_TOOL_VERSION,
+                    executable='ktImportTaxonomy',
+                    patches=[('opt/krona/updateTaxonomy.sh',
+                              'krona_updateTaxonomy.sh.patch')]))
         super().__init__(install_methods=install_methods)
 
+    @property
+    def opt(self):
+        if not self.executable_path():
+            self.install_and_get_path()
+        bin_path = os.path.dirname(self.executable_path())
+        # Get at the opt directory from the conda env root
+        opt = os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
+        return opt
 
-    def import_taxonomy(self, input_tsvs, output, query_column=None, taxid_column=None,
+    def import_taxonomy(self, db, input_tsvs, output, query_column=None, taxid_column=None,
                         score_column=None, no_hits=None, no_rank=None):
         self.install()
         bin_path = os.path.dirname(self.executable_path())
-        cmd = [join(bin_path, 'ktImportTaxonomy'), '-o', output]
+        env = os.environ.copy()
+        env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
+        cmd = ['ktImportTaxonomy', '-tax', db, '-o', output]
         if query_column is not None:
             cmd.extend(['-q', str(query_column)])
         if taxid_column is not None:
@@ -33,4 +49,15 @@ class Krona(tools.Tool):
         if no_rank is not None:
             cmd.append('-k')
         cmd.extend(input_tsvs)
-        util.misc.run_and_print(cmd, check=True)
+
+        util.misc.run_and_print(cmd, env=env, check=True)
+
+    def create_db(self, db_dir):
+        """Caution - this deletes the original .dmp files."""
+        bin_path = os.path.dirname(self.executable_path())
+        env = os.environ.copy()
+        env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
+
+        sh = join(self.opt, 'updateTaxonomy.sh')
+        cmd = [sh, '--local', os.path.abspath(db_dir)]
+        util.misc.run_and_print(cmd, env=env, check=True)

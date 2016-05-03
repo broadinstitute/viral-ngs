@@ -7,6 +7,7 @@ __author__ = "yesimon@broadinstitute.org"
 import argparse
 import gzip
 import shutil
+import util.cmd
 import util.file
 import tools.kraken
 import tools.krona
@@ -60,7 +61,8 @@ def kraken(inBam, db, outReport=None, outReads=None,
         kraken_tool.execute('kraken-report', db, outReport,
                             args=[tmp_filtered_reads])
 
-def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
+
+def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
           scoreColumn=None, noHits=None, noRank=None):
 
     krona_tool = tools.krona.Krona()
@@ -74,7 +76,7 @@ def krona(inTsv, outHtml, queryColumn=None, taxidColumn=None,
         to_import = [inTsv]
 
     krona_tool.import_taxonomy(
-        to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
+        db, to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
         score_column=scoreColumn, no_hits=noHits, no_rank=noRank)
 
 
@@ -96,6 +98,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
 
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inTsv', help='Input tab delimited file.')
+    parser.add_argument('db', help='Krona taxonomy database directory.')
     parser.add_argument('outHtml', help='Output html report.')
     parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)',
                         type=int, default=2)
@@ -150,8 +153,10 @@ __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
 
+
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)
