@@ -147,7 +147,6 @@ class TestDepleteHuman(TestCaseWithTmp):
         lastdb_path = tools.last.Lastdb().build_database(ref_fasta, database_prefix_path)
 
         # Run deplete_blastn
-        outFile = os.path.join(tempDir, 'out.fastq')
         args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
             [ os.path.join(myInputDir, 'test-reads.bam'), 
             # output files
