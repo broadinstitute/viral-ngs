@@ -117,8 +117,4 @@ class SnakemakeRunner(object):
         cmd = ['snakemake', '--verbose', '--reason', '--printshellcmds']
         if rules:
             cmd.extend(rules)
-        try:
-            util.misc.run_and_print(cmd, check=True, cwd=self.workdir)
-        except subprocess.CalledProcessError as e:
-            print(e.output.decode('utf-8'))
-            raise
+        res = util.misc.run_and_print(cmd, check=True, cwd=self.workdir)

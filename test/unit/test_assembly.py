@@ -236,7 +236,7 @@ class TestRefineAssembly(TestCaseWithTmp):
         imputeFasta = util.file.mkstempfname('.imputed.fasta')
         refine1Fasta = util.file.mkstempfname('.refine1.fasta')
         shutil.copy(inFasta, imputeFasta)
-        tools.picard.CreateSequenceDictionaryTool().execute(imputeFasta)
+        tools.picard.CreateSequenceDictionaryTool().execute(imputeFasta, overwrite=True)
         tools.novoalign.NovoalignTool().index_fasta(imputeFasta)
         assembly.refine_assembly(
             imputeFasta,
@@ -256,7 +256,7 @@ class TestRefineAssembly(TestCaseWithTmp):
         refine1Fasta = util.file.mkstempfname('.refine1.fasta')
         refine2Fasta = util.file.mkstempfname('.refine2.fasta')
         shutil.copy(inFasta, refine1Fasta)
-        tools.picard.CreateSequenceDictionaryTool().execute(refine1Fasta)
+        tools.picard.CreateSequenceDictionaryTool().execute(refine1Fasta, overwrite=True)
         tools.novoalign.NovoalignTool().index_fasta(refine1Fasta)
         assembly.refine_assembly(
             refine1Fasta,
