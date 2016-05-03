@@ -31,9 +31,6 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     sam_one = util.file.mkstempfname(".sam")
     sam_two = util.file.mkstempfname(".sam")
 
-    sorted_sam_one = util.file.mkstempfname("sorted.sam")
-    sorted_sam_two = util.file.mkstempfname("sorted.sam")
-
     # write the bam files to sam format, without header (no -h)
     pysam.view('-o', sam_one, bam_filename1, catch_stdout=False)
     pysam.view('-o', sam_two, bam_filename2, catch_stdout=False)
