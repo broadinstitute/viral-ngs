@@ -6,6 +6,7 @@ __author__ = "irwin@broadinstitute.org"
 import filecmp
 import os
 import unittest
+import hashlib
 
 # intra-project
 import util.file
@@ -41,6 +42,27 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
         for fname in [sam_one, sam_two]:
             if os.path.exists(fname):
                 os.unlink(fname)
+
+def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file):
+    ''' Compare the checksum of a test file with the expected checksum 
+        stored in a second file
+          compare md5(test_output.bam) with expected_output.bam.md5:1
+    '''
+
+    hash_md5 = hashlib.md5()
+    with open(filename, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+
+    expected_checksum = ""
+    with open(checksum_file, "rb") as f:
+        expected_checksum = str(f.readline().decode("utf-8"))
+
+    expected_checksum = expected_checksum.replace("\r","").replace("\n","")
+
+    assert len(expected_checksum) > 0
+
+    testCase.assertEqual(hash_md5.hexdigest(), expected_checksum)
 
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'
