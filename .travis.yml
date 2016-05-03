@@ -2,7 +2,8 @@ language: python
 sudo: false
 
 cache:
- directories:
+  pip: true
+  directories:
   - $HOME/virtualenv
   - $HOME/miniconda
 
