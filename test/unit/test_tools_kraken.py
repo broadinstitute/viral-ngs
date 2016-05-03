@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from mock import patch
 import util.file
+import util.misc
 import tools.kraken
 from test import TestCaseWithTmp
 
@@ -35,15 +36,13 @@ class TestToolKraken(TestCaseWithTmp):
         self.kraken.classify(self.db, [in_fastq1, in_fastq2], out_reads, options={
             '--paired': None
         })
-        called_cmd = self.mock_run.call_args[0][0]
-        self.assertIn('--db', called_cmd[1:])
-        self.assertIn(self.db, called_cmd[1:])
-        self.assertIn('--output', called_cmd[1:])
-        self.assertIn(out_reads, called_cmd[1:])
-        self.assertIn(in_fastq1, called_cmd[1:])
-        self.assertIn(in_fastq2, called_cmd[1:])
-        self.assertIn('--paired', called_cmd[1:])
-        self.assertEqual('kraken', os.path.basename(called_cmd[0]))
+        args = self.mock_run.call_args[0][0]
+        self.assertEqual('kraken', os.path.basename(args[0]))
+        self.assertTrue(util.misc.list_contains(['--db', self.db], args))
+        self.assertTrue(util.misc.list_contains(['--output', out_reads], args))
+        self.assertIn('--paired', args)
+        self.assertIn(in_fastq1, args)
+        self.assertIn(in_fastq2, args)
 
 
 if __name__ == '__main__':

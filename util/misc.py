@@ -2,10 +2,13 @@
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
+import logging
 import os
 import subprocess
 import sys
 import util.file
+
+log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -102,6 +105,16 @@ def batch_iterator(iterator, batch_size):
         yield item
         item = list(itertools.islice(it, batch_size))
 
+
+def list_contains(sublist, list_):
+    """Tests whether sublist is contained in full list_."""
+
+    for i in range(len(list_)-len(sublist)+1):
+        if sublist == list_[i:i+len(sublist)]:
+            return True
+    return False
+
+
 try:
     from subprocess import run
 except ImportError:
@@ -167,7 +180,7 @@ except ImportError:
                         returncode, args, output, error)
                 except TypeError: # py2 CalledProcessError does not accept error
                     raise subprocess.CalledProcessError(
-                        returncode, args, output.decode("utf-8"))
+                        returncode, args, output)
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
@@ -180,19 +193,38 @@ except ImportError:
 
 def run_and_print(args, stdout=None, stderr=None,
                   stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False, buffered=False, check=False):
+                  timeout=None, silent=False, buffered=False, check=False,
+                  loglevel=None):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-
+    if loglevel:
+        silent = False
     if not buffered:
-        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                     timeout=timeout, check=check)
-        if not silent:
-            print(result.stdout.decode('utf-8'))
+        if check and not silent:
+            try:
+                result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                           timeout=timeout, check=check)
+            except subprocess.CalledProcessError as e:
+                if loglevel:
+                    log.log(loglevel, result.stdout.decode('utf-8'))
+                else:
+                    print(e.output.decode('utf-8'))
+                    sys.stdout.flush()
+                raise(e)
+        else:
+            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         timeout=timeout, check=check)
+            if not silent and not loglevel:
+                print(result.stdout.decode('utf-8'))
+                sys.stdout.flush()
+            elif loglevel:
+                log.log(loglevel, result.stdout.decode('utf-8'))
+
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
