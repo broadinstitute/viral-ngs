@@ -261,10 +261,10 @@ def filter_lastal_bam(
     inBam,
     db,
     outBam,
-    max_gapless_alignments_per_position,
-    min_length_for_initial_matches,
-    max_length_for_initial_matches,
-    max_initial_matches_per_position,
+    max_gapless_alignments_per_position=1,
+    min_length_for_initial_matches=5,
+    max_length_for_initial_matches=50,
+    max_initial_matches_per_position=100,
     JVMmemory=None
 ):
     ''' Restrict input reads to those that align to the given
