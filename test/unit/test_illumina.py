@@ -284,8 +284,3 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-48-5_17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_17_L001_R2_001.fastq.gz'))
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
-
-
-
-if __name__ == '__main__':
-    unittest.main()
