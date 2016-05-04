@@ -329,7 +329,7 @@ def filter_lastal(
     max_initial_matches_per_position=100
 ):
     ''' Restrict input reads to those that align to the given
-        reference database using LASTAL.  Also, remove duplicates with prinseq.
+        reference database using LASTAL. Also, remove duplicates with prinseq.
     '''
     assert outFastq.endswith('.fastq')
     tempFilePath = mkstempfname('.hits')
@@ -736,7 +736,7 @@ def no_blast_hits(blastOutCombined, inFastq, outFastq):
                     outf.write(line1 + line2 + line3 + line4)
 
 
-def deplete_blastn(inFastq, outFastq, refDbs, threads):
+def deplete_blastn(inFastq, outFastq, refDbs, threads=1, chunkSize=1000000):
     'Use blastn to remove reads that match at least one of the databases.'
 
     # Convert to fasta
@@ -747,7 +747,7 @@ def deplete_blastn(inFastq, outFastq, refDbs, threads):
     blastOutFiles = []
     for db in refDbs:
         log.info("running blastn on %s against %s", inFastq, db)
-        blastOutFiles += blastn_chunked_fasta(inFasta, db, threads)
+        blastOutFiles += blastn_chunked_fasta(inFasta, db, chunkSize, threads)
 
     # Combine results from different databases
     blastOutCombined = mkstempfname('.txt')
@@ -846,7 +846,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on %s pair 2 against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
@@ -899,7 +899,7 @@ __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
 
 
 def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
-
+    ''' build a database for use with last based on an input fasta file '''
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -930,6 +930,8 @@ __commands__.append(('lastal_build_db', parser_lastal_build_db))
 # ========================
 
 def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
+    """ Create a database for use with blastn from an input reference FASTA file 
+    """
 
     if outputFilePrefix:
         outPrefix = outputFilePrefix
@@ -961,7 +963,8 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 # ========================
 
 def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
-
+    """ Create a database for use with Bmtagger from an input FASTA file.
+    """
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
