@@ -1,6 +1,7 @@
 "Tools in the blast+ suite."
 import tools
 import os
+import util.misc
 
 URL_PREFIX = 'ftp://ftp.ncbi.nlm.nih.gov/blast/executables' \
             '/blast+/2.2.29/ncbi-blast-2.2.29+-'
@@ -55,7 +56,9 @@ class BlastTools(tools.Tool):
         super(BlastTools, self).__init__(install_methods=install_methods)
 
     def execute(self, *args):
-        util.misc.run_and_print(self.exec_path, args, check=True)
+        cmd = [self.install_and_get_path()]
+        cmd.extend(args)
+        util.misc.run_and_print(cmd, buffered=True, check=True)
 
 
 class BlastnTool(BlastTools):
@@ -66,3 +69,34 @@ class BlastnTool(BlastTools):
 class MakeblastdbTool(BlastTools):
     """ Tool wrapper for makeblastdb """
     subtool_name = 'makeblastdb'
+
+    def build_database(self, fasta_files, database_prefix_path):
+        """ builds a srprism database """
+
+        input_fasta = ""
+
+        # we can pass in a string containing a fasta file path
+        # or a list of strings
+        if 'basestring' not in globals():
+           basestring = str
+        if isinstance(fasta_files, basestring):
+            fasta_files = [fasta_files]
+        elif isinstance(fasta_files, list):
+            pass
+        else:
+            raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
+        
+        # if more than one fasta file is specified, join them
+        # otherwise if only one is specified, just use it
+        if len(fasta_files) > 1:
+            input_fasta = util.file.mkstempfname("fasta")
+            util.file.cat(input_fasta, fasta_files)
+        elif len(fasta_files) == 1:
+            input_fasta = fasta_files[0]
+        else:
+            raise IOError("No fasta file provided")
+
+        args = ['-dbtype', 'nucl', '-in', input_fasta, '-out', database_prefix_path]
+        self.execute(*args)
+
+        return database_prefix_path
