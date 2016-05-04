@@ -216,7 +216,7 @@ def run_and_print(args, stdout=None, stderr=None,
                     print(e.output.decode('utf-8'))
                     try:
                         print(e.stderr.decode('utf-8'))
-                    except TypeError:
+                    except AttributeError:
                         pass
                     sys.stdout.flush()
                 raise(e)
