@@ -37,6 +37,9 @@ kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_full_20150910"
 # Path of DIAMOND database file for metagenomics identification
 diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 
+# Directory of the krona database for generating html reports.
+krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
+
 # These are variables that must be set
 env_vars:
   # The directory path to the location of the GATK jar file.
