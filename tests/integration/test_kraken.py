@@ -87,10 +87,14 @@ class CommonTests(object):
     @unittest.skipIf(sys.version_info < (3,2), "Python version is too old for snakemake.")
     def test_pipes(self):
         runner = SnakemakeRunner()
-        runner.set_override_config({
+        override_config = {
             'kraken_db': self.db,
             'diamond_db': None,
-        })
+        }
+        krona_db =  getattr(self, 'krona_db', None)
+        if krona_db:
+            override_config['krona_db'] = self.krona_db
+        runner.set_override_config(override_config)
         runner.setup()
         runner.link_samples([self.bam], destination='source')
         runner.create_sample_files(sample_files=['samples_metagenomics'])
@@ -101,10 +105,10 @@ class CommonTests(object):
         krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
                              '.'.join([os.path.splitext(os.path.basename(self.bam))[0], 'kraken.krona.html']))
 
-        # runner.run(['all_metagenomics'])
-        runner.run([kraken_out])
+        runner.run(['all_metagenomics'])
+        # runner.run([kraken_out])
         self.assertGreater(os.path.getsize(kraken_out), 0)
-        # self.assertGreater(os.path.getsize(krona_out), 0)
+        self.assertGreater(os.path.getsize(krona_out), 0)
 
     def test_kraken(self):
         bin = join(util.file.get_project_path(), 'metagenomics.py')
@@ -119,10 +123,12 @@ class CommonTests(object):
         self.assertGreater(os.path.getsize(out_reads), 0)
 
 
-class TestKrakenTiny(TestKrakenBase, CommonTests):
+class TestKrakenTiny(TestKrakenBase, TestKronaBase, CommonTests):
 
     @classmethod
     def setUpClass(cls):
+        TestKronaBase.setUpClass()
+        cls.krona_db = cls.build_krona_db()
         super().setUpClass()
         cls.data_dir = join(util.file.get_test_input_path(), 'TestToolKraken')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
@@ -147,10 +153,12 @@ class TestKrakenTiny(TestKrakenBase, CommonTests):
         self.assertGreater(os.path.getsize(out_report), 0)
         self.assertGreater(os.path.getsize(out_filtered), 0)
 
-class TestKrakenVirusMix(TestKrakenBase, CommonTests):
+class TestKrakenVirusMix(TestKrakenBase, TestKronaBase, CommonTests):
 
     @classmethod
     def setUpClass(cls):
+        TestKronaBase.setUpClass()
+        cls.krona_db = cls.build_krona_db()
         super().setUpClass()
         cls.data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
         cls.db_dir = os.path.join(cls.data_dir, 'db')
