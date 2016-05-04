@@ -2,8 +2,13 @@
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import itertools
+import logging
+import os
 import subprocess
 import sys
+import util.file
+
+log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -101,6 +106,15 @@ def batch_iterator(iterator, batch_size):
         item = list(itertools.islice(it, batch_size))
 
 
+def list_contains(sublist, list_):
+    """Tests whether sublist is contained in full list_."""
+
+    for i in range(len(list_)-len(sublist)+1):
+        if sublist == list_[i:i+len(sublist)]:
+            return True
+    return False
+
+
 try:
     from subprocess import run
 except ImportError:
@@ -111,39 +125,111 @@ except ImportError:
             env=None, cwd=None, timeout=None, check=False):
         '''A poor man's substitute of python 3.5's subprocess.run().
 
-        Definitely a poor man's substitute because stdout and stderr are
-        forcibly merged into stdout and capturing always takes place even when
-        they should require subprocess.PIPE assignments, but the interface is
-        fairly similar.
+        Should only be used for capturing stdout. If stdout is unneeded, a
+        simple subprocess.call should suffice.
         '''
+        assert stdout is not None, (
+            'Why are you using this util function if not capturing stdout?')
+
+        stdout_pipe = stdout == subprocess.PIPE
+        stderr_pipe = stderr == subprocess.PIPE
+        # A little optimization when we don't need temporary files.
+        if stdout_pipe and (
+                stderr == subprocess.STDOUT or stderr is None):
+            try:
+                output = subprocess.check_output(
+                    args, stdin=stdin, stderr=stderr, shell=shell,
+                    env=env, cwd=cwd)
+                return CompletedProcess(args, 0, output, b'')
+            # Py3.4 doesn't have stderr attribute
+            except subprocess.CalledProcessError as e:
+                if check:
+                    raise
+                returncode = e.returncode
+                stderr_text = getattr(e, 'stderr', b'')
+                return CompletedProcess(args, e.returncode, e.output, stderr_text)
+
+        # Otherwise use temporary files as buffers, since subprocess.call
+        # cannot use PIPE.
+        if stdout_pipe:
+            stdout_fn = util.file.mkstempfname('.stdout')
+            stdout = open(stdout_fn, 'wb')
+        if stderr_pipe:
+            stderr_fn = util.file.mkstempfname('.stderr')
+            stderr = open(stderr_fn, 'wb')
         try:
-            output = subprocess.check_output(
-                args, stdin=stdin, stderr=subprocess.STDOUT, shell=shell,
-                env=env, cwd=cwd)
-            returncode = 0
-        except subprocess.CalledProcessError as e:
-            if check:
-                raise
-            output = e.output
-            returncode = e.returncode
+            returncode = subprocess.call(
+                args, stdin=stdin, stdout=stdout,
+                stderr=stderr, shell=shell, env=env, cwd=cwd)
+            if stdout_pipe:
+                stdout.close()
+                with open(stdout_fn, 'rb') as f:
+                    output = f.read()
+            else:
+                output = ''
+            if stderr_pipe:
+                stderr.close()
+                with open(stderr_fn, 'rb') as f:
+                    error = f.read()
+            else:
+                error = ''
+            if check and returncode != 0:
+                print(output.decode("utf-8"))
+                print(error.decode("utf-8"))
+                try:
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output, error)
+                except TypeError: # py2 CalledProcessError does not accept error
+                    raise subprocess.CalledProcessError(
+                        returncode, args, output)
+            return CompletedProcess(args, returncode, output, error)
+        finally:
+            if stdout_pipe:
+                stdout.close()
+                os.remove(stdout_fn)
+            if stderr_pipe:
+                stderr.close()
+                os.remove(stderr_fn)
 
-        return CompletedProcess(args, returncode, output, '')
 
-
-def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
-                  timeout=None, silent=False, buffered=False, check=False):
+def run_and_print(args, stdout=None, stderr=None,
+                  stdin=None, shell=False, env=None, cwd=None,
+                  timeout=None, silent=False, buffered=False, check=False,
+                  loglevel=None):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
+    if loglevel:
+        silent = False
+    if not buffered:
+        if check and not silent:
+            try:
+                result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                           timeout=timeout, check=check)
+            except subprocess.CalledProcessError as e:
+                if loglevel:
+                    log.log(loglevel, result.stdout.decode('utf-8'))
+                else:
+                    print(e.output.decode('utf-8'))
+                    try:
+                        print(e.stderr.decode('utf-8'))
+                    except AttributeError:
+                        pass
+                    sys.stdout.flush()
+                raise(e)
+        else:
+            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         timeout=timeout, check=check)
+            if not silent and not loglevel:
+                print(result.stdout.decode('utf-8'))
+                sys.stdout.flush()
+            elif loglevel:
+                log.log(loglevel, result.stdout.decode('utf-8'))
 
-    if buffered:
-        result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                     timeout=timeout, check=check)
-        if not silent:
-            print(result.stdout.decode('utf-8'))
     else:
         CompletedProcess = collections.namedtuple(
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
@@ -151,25 +237,31 @@ def run_and_print(args, stdin=None, shell=False, env=None, cwd=None,
         process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, env=env,
                                     cwd=cwd)
-
+        output = []
         while process.poll() is None:
             if not silent:
                 for c in iter(process.stdout.read, b""):
+                    output.append(c)
                     print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                    sys.stdout.flush() # flush buffer to stdout
 
         # in case there are still chars in the pipe buffer
         if not silent:
             for c in iter(lambda: process.stdout.read(1), b""):
                 print(c, end="")
+                sys.stdout.flush() # flush buffer to stdout
 
         if check and process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, args)
-        result = CompletedProcess(args, process.returncode, "", '')
+            raise subprocess.CalledProcessError(process.returncode, args,
+                                                b''.join(output))
+        result = CompletedProcess(
+            args, process.returncode, b''.join(output), b'')
 
     return result
 
 
-def run_and_save(args, stdin=None, outf=None, stderr=None, preexec_fn=None,
+def run_and_save(args, stdout=None, stdin=None,
+                 outf=None, stderr=None, preexec_fn=None,
                  close_fds=False, shell=False, cwd=None, env=None):
     assert outf is not None
 

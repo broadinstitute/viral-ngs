@@ -68,6 +68,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         help='One reference database for last (required if --taxfiltBam is specified).',
         default=None
     )
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -91,10 +92,11 @@ def main_deplete_human(args):
         args.bmtaggerDbs,
         deplete_bmtagger_bam,
         args.bmtaggerBam,
+        threads=args.threads,
         JVMmemory=args.JVMmemory
     )
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
-    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, threads=args.threads, JVMmemory=args.JVMmemory)
     if args.taxfiltBam and args.lastDb:
         filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
@@ -135,7 +137,7 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
     )
 
     log.debug(' '.join(javaCmd))
-    util.misc.run_and_print(javaCmd)
+    util.misc.run_and_print(javaCmd, check=True)
     os.unlink(tmpUnpaired1)
     os.unlink(tmpUnpaired2)
 
@@ -375,7 +377,7 @@ def filter_lastal(
             '-line_width', '0', '-out_good', outFastq[:-6]
         ]
         log.debug(' '.join(prinseqCmd))
-        util.misc.run_and_print(prinseqCmd)
+        util.misc.run_and_print(prinseqCmd, check=True)
     os.unlink(filteredFastq)
 
 
@@ -396,7 +398,7 @@ __commands__.append(('filter_lastal', parser_filter_lastal))
 # ============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -504,7 +506,7 @@ def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=
             curReads2, '-o', matchesFile
         ]
         log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline)
+        util.misc.run_and_print(cmdline, check=True)
         prevReads1, prevReads2 = curReads1, curReads2
         if count < len(databases) - 1:
             curReads1, curReads2 = mkstempfname(), mkstempfname()
@@ -636,6 +638,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument('outBam', help='Output BAM file.')
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -648,17 +651,17 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
 
 
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None):
     tmpBamIn = inBam
     for db in refDbs:
         tmpBamOut = mkstempfname('.bam')
-        deplete_method(tmpBamIn, db, tmpBamOut, JVMmemory=JVMmemory)
+        deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
         if tmpBamIn != inBam:
             os.unlink(tmpBamIn)
         tmpBamIn = tmpBamOut
@@ -669,7 +672,7 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, JVMmemory=None):
 # ========================
 
 
-def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
+def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     """
     Helper function: blastn a fasta file, overcoming apparent memory leaks on
     an input with many query sequences, by splitting it into multiple chunks
@@ -689,7 +692,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000):
 
             chunk_hits = mkstempfname('.hits.txt')
             blastnCmd = [
-                blastnPath, '-db', db, '-word_size', '16', '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
+                blastnPath, '-db', db, '-word_size', '16', '-num_threads', str(threads), '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
                 '-query', chunk_fasta, '-out', chunk_hits
             ]
             log.debug(' '.join(blastnCmd))
@@ -733,7 +736,7 @@ def no_blast_hits(blastOutCombined, inFastq, outFastq):
                     outf.write(line1 + line2 + line3 + line4)
 
 
-def deplete_blastn(inFastq, outFastq, refDbs):
+def deplete_blastn(inFastq, outFastq, refDbs, threads):
     'Use blastn to remove reads that match at least one of the databases.'
 
     # Convert to fasta
@@ -744,7 +747,7 @@ def deplete_blastn(inFastq, outFastq, refDbs):
     blastOutFiles = []
     for db in refDbs:
         log.info("running blastn on %s against %s", inFastq, db)
-        blastOutFiles += blastn_chunked_fasta(inFasta, db)
+        blastOutFiles += blastn_chunked_fasta(inFasta, db, threads)
 
     # Combine results from different databases
     blastOutCombined = mkstempfname('.txt')
@@ -761,6 +764,7 @@ def parser_deplete_blastn(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq', help='Input fastq file.')
     parser.add_argument('outFastq', help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, deplete_blastn, split_args=True)
     return parser
@@ -769,7 +773,7 @@ def parser_deplete_blastn(parser=argparse.ArgumentParser()):
 __commands__.append(('deplete_blastn', parser_deplete_blastn))
 
 
-def deplete_blastn_paired(infq1, infq2, outfq1, outfq2, refDbs):
+def deplete_blastn_paired(infq1, infq2, outfq1, outfq2, refDbs, threads):
     'Use blastn to remove reads that match at least one of the databases.'
     tmpfq1_a = mkstempfname('.fastq')
     tmpfq1_b = mkstempfname('.fastq')
@@ -781,7 +785,7 @@ def deplete_blastn_paired(infq1, infq2, outfq1, outfq2, refDbs):
     # (this should significantly speed up the second run of deplete_blastn)
     read_utils.purge_unmated(tmpfq1_a, infq2, tmpfq1_b, tmpfq2_b)
     # deplete fq2
-    deplete_blastn(tmpfq2_b, tmpfq2_c, refDbs)
+    deplete_blastn(tmpfq2_b, tmpfq2_c, refDbs, threads)
     # purge fq1 of read pairs lost in fq2
     read_utils.purge_unmated(tmpfq1_b, tmpfq2_c, outfq1, outfq2)
 
@@ -792,6 +796,7 @@ def parser_deplete_blastn_paired(parser=argparse.ArgumentParser()):
     parser.add_argument('outfq1', help='Output fastq file with matching reads removed.')
     parser.add_argument('outfq2', help='Output fastq file with matching reads removed.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, deplete_blastn_paired, split_args=True)
     return parser
@@ -800,7 +805,7 @@ def parser_deplete_blastn_paired(parser=argparse.ArgumentParser()):
 __commands__.append(('deplete_blastn_paired', parser_deplete_blastn_paired))
 
 
-def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
     #blastnPath = tools.blast.BlastnTool().install_and_get_path()
@@ -819,7 +824,7 @@ def deplete_blastn_bam(inBam, db, outBam, chunkSize=1000000, JVMmemory=None):
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on %s pair 1 against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
@@ -864,6 +869,7 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
+    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
@@ -878,10 +884,10 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
 def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
 
-    def wrapper(inBam, db, outBam, JVMmemory=None):
-        return deplete_blastn_bam(inBam, db, outBam, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
+    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_blastn_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
 
-    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
     return 0
 
 

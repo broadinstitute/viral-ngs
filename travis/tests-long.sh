@@ -11,9 +11,8 @@ if [ $TRAVIS_PULL_REQUEST != "false" -o $TRAVIS_BRANCH = "master" -o -n "$TRAVIS
         --with-timer \
         --with-xunit --with-coverage \
         --cover-inclusive --cover-branches --cover-tests \
-        --cover-package broad_utils,illumina,assembly,interhost,intrahost,ncbi,read_utils,reports,taxon_filter,tools,util \
-        -w test/integration/
-
+        --cover-package broad_utils,illumina,assembly,interhost,intrahost,metagenomics,ncbi,read_utils,reports,taxon_filter,tools,util \
+        -w test/integration
 else
     echo "This is not a pull request: skipping long running tests."
 fi

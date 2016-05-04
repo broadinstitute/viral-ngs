@@ -101,10 +101,13 @@ def set_tmp_dir(name):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
     tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
+    return tempfile.tempdir
 
 
-def destroy_tmp_dir():
-    if tempfile.tempdir:
+def destroy_tmp_dir(tempdir=None):
+    if tempdir:
+        shutil.rmtree(tempdir)
+    elif tempfile.tempdir:
         shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
 
