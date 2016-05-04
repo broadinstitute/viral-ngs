@@ -1,10 +1,18 @@
 from collections import Counter
+import copy
 import io
 import os.path
 import textwrap
 import pytest
+import six
 import util.file
 import taxonomy
+
+
+if six.PY2:
+    from StringIO import StringIO
+else:
+    from io import StringIO
 
 
 @pytest.fixture
@@ -144,7 +152,7 @@ def test_blast_lca(taxa_db_simple, simple_m8):
     M04004:13:000000000-AGV3H:1:1111:10629:2610\t2
     M04004:13:000000000-AGV3H:1:1111:10629:26101\t2
     """)
-    out = io.StringIO()
+    out = StringIO()
     with simple_m8 as f:
         taxonomy.blast_lca(taxa_db_simple, f, out, paired=True)
         out.seek(0)
@@ -158,17 +166,17 @@ def test_paired_query_id():
     blast1 = taxonomy.BlastRecord(*tup)
     assert taxonomy.paired_query_id(blast1) == blast1
 
-    new_tup = tup.copy()
+    new_tup = copy.copy(tup)
     new_tup[0] = 'query/1'
     new_blast1 = taxonomy.BlastRecord(*new_tup)
     assert taxonomy.paired_query_id(new_blast1) == blast1
 
-    new_tup = tup.copy()
+    new_tup = copy.copy(tup)
     new_tup[0] = 'query/2'
     new_blast1 = taxonomy.BlastRecord(*new_tup)
     assert taxonomy.paired_query_id(new_blast1) == blast1
 
-    new_tup = tup.copy()
+    new_tup = copy.copy(tup)
     new_tup[0] = 'query/3'
     new_blast1 = taxonomy.BlastRecord(*new_tup)
     assert taxonomy.paired_query_id(new_blast1) == new_blast1
