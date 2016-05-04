@@ -234,6 +234,13 @@
         dest: "{{ venv_dir }}/exec"
         mode: 0755
 
+    - name: Install viral-ngs tools
+      command: "{{ venv_dir }}/exec py.test -v test/unit/test_tools.py"
+      args:
+        chdir: "{{ project_dir }}"
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
+
     - name: Modify .bashrc so venv is loaded on connect
       lineinfile:
         dest: "{{ home_dir }}/.bashrc"
