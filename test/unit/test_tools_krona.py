@@ -54,7 +54,3 @@ class TestToolKrona(TestCaseWithTmp):
         self.assertEqual('updateTaxonomy.sh', os.path.basename(args[0]))
         self.assertIn('--local', args)
         self.assertIn(self.db, args)
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -191,7 +191,3 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         parser = metagenomics.parser_krona(argparse.ArgumentParser())
         args = parser.parse_args([out_reads, self.krona_db, out_html])
         args.func_main(args)
-
-
-if __name__ == '__main__':
-    unittest.main()
