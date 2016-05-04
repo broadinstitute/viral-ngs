@@ -43,7 +43,3 @@ class TestToolDiamond(TestCaseWithTmp):
             0, self.diamond.blastx(db, inputs, output,
                                    options={'--tmpdir': tmpdir}).returncode)
         self.assertEqual(0, self.diamond.view(output, output_tab).returncode)
-
-
-if __name__ == '__main__':
-    unittest.main()
