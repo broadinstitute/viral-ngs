@@ -55,7 +55,7 @@ class BlastTools(tools.Tool):
         super(BlastTools, self).__init__(install_methods=install_methods)
 
     def execute(self, *args):
-        util.misc.run_and_print(self.exec_path, args)
+        util.misc.run_and_print(self.exec_path, args, check=True)
 
 
 class BlastnTool(BlastTools):

@@ -48,7 +48,7 @@ class MummerTool(tools.Tool):
         toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
             refFasta] + qryFastas
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd)
+        util.misc.run_and_print(toolCmd, check=True)
 
     def nucmer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None):
@@ -72,7 +72,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd)
+        util.misc.run_and_print(toolCmd, check=True)
 
     def promer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None):
@@ -96,7 +96,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd)
+        util.misc.run_and_print(toolCmd, check=True)
 
     def delta_filter(self, inDelta, outDelta):
         toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),
@@ -245,6 +245,11 @@ class MummerTool(tools.Tool):
                 else:
                     s = '+'
                 fs.add(c, start, stop, strand=s, other=alt_seq)
+                log.info("mummer alignment %s:%d-%d - %s:%d-%d (%s)" % (
+                    c, start, stop,
+                    alt_seq[0], alt_seq[1], alt_seq[2],
+                    s
+                ))
         os.unlink(tiling)
 
         # load all contig-to-ref alignments into AlignsReaders

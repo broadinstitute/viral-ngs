@@ -93,7 +93,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
            '-out',
            subsampfq[0],
            subsampfq[1],]
-    util.misc.run_and_print(cmd)
+    util.misc.run_and_print(cmd, check=True)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
 
@@ -320,6 +320,11 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 minLength = len(refSeqObj) * minLengthFraction
                 non_n_count = unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
+                log.info("Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
+                    idx=idx+1, segname=refSeqObj.id,
+                    len_actual=seq_len, len_desired=len(refSeqObj), min_frac=minLengthFraction,
+                    unamb_actual=non_n_count, unamb_desired=seq_len, min_unamb=minUnambig
+                ))
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
                     raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
 
@@ -397,11 +402,11 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument("--newName", default=None, help="rename output chromosome (default: do not rename)")
     parser.add_argument("--minLengthFraction",
                         type=float,
-                        default=0.9,
+                        default=0.5,
                         help="minimum length for contig, as fraction of reference (default: %(default)s)")
     parser.add_argument("--minUnambig",
                         type=float,
-                        default=0.8,
+                        default=0.5,
                         help="minimum percentage unambiguous bases for contig (default: %(default)s)")
     parser.add_argument("--replaceLength",
                         type=int,

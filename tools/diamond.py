@@ -8,12 +8,14 @@ import os
 import os.path
 import shlex
 import shutil
+import subprocess
 import tools
 import util.file
 import util.misc
 
 URL = 'https://github.com/bbuchfink/diamond/archive/b576a5c03177603554f4627ae367f7bcbc6b8dcb.zip'
 TOOL_VERSION = '0.7.9'
+CONDA_VERSION = tools.CondaPackageVersion('0.7.10', 'boost1.60_1')
 DIAMOND_COMMIT_DIR = 'diamond-b576a5c03177603554f4627ae367f7bcbc6b8dcb'
 DIAMOND_DIR = 'diamond-{}'.format(TOOL_VERSION)
 
@@ -26,7 +28,9 @@ class Diamond(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond'))]
+            install_methods = [
+                tools.CondaPackage("diamond", version=CONDA_VERSION),
+                DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond'))]
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -95,7 +99,7 @@ class Diamond(tools.Tool):
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
-        return util.misc.run(cmd)
+        return util.misc.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
 class DownloadAndBuildDiamond(tools.DownloadPackage):
@@ -116,4 +120,4 @@ class DownloadAndBuildDiamond(tools.DownloadPackage):
             env['CC'] = 'gcc-4.9'
             env['CXX'] = 'g++-4.9'
         #util.misc.run_and_print(['cmake', '..'], env=env, cwd=build_dir)
-        util.misc.run_and_print(['make'], env=env, cwd=build_dir)
+        util.misc.run_and_print(['make'], env=env, cwd=build_dir, check=True)
