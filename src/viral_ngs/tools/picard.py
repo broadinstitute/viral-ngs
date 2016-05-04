@@ -167,13 +167,11 @@ class FilterSamReadsTool(PicardTools):
                 shutil.copyfile(inBam, outBam)
             else:
                 tmpf = util.file.mkstempfname('.sam')
-                with open(tmpf, 'wt') as outf:
-                    if inBam.endswith('.sam'):
-                        header = pysam.view('-H', '-S', inBam)
-                    else:
-                        header = pysam.view('-H', inBam)
-                    for line in header:
-                        outf.write(line)
+                if inBam.endswith('.sam'):
+                    # output format (sam/bam) is inferred by samtools based on file extension
+                    header = pysam.view('-o', tmpf, '-H', '-S', inBam, catch_stdout=False)
+                else:
+                    header = pysam.view('-o', tmpf, '-H', inBam, catch_stdout=False)
                 # pysam.AlignmentFile cannot write an empty file
                 # samtools cannot convert SAM -> BAM on an empty file
                 # but Picard SamFormatConverter can deal with empty files

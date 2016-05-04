@@ -35,7 +35,9 @@ class BmtaggerTools(tools.Tool):
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, *args):
-        util.misc.run_and_print(self.exec_path, args, check=True)
+        cmd = [self.install_and_get_path()]
+        cmd.extend(args)
+        util.misc.run_and_print(cmd, check=True)
 
 
 class BmtaggerShTool(BmtaggerTools):
@@ -48,6 +50,41 @@ class BmfilterTool(BmtaggerTools):
     subtool_name = 'bmfilter'
 
 
+class BmtoolTool(BmtaggerTools):
+    """ tool wrapper for bmtool """
+    subtool_name = 'bmtool'
+
+    def build_database(self, fasta_files, bitmask_file_path, max_amig=0, word_size=8):
+        """ builds a bmtool database (*.bitmask file) """
+
+        input_fasta = ""
+
+        # we can pass in a string containing a fasta file path
+        # or a list of strings
+        if 'basestring' not in globals():
+           basestring = str
+        if isinstance(fasta_files, basestring):
+            fasta_files = [fasta_files]
+        elif isinstance(fasta_files, list):
+            pass
+        else:
+            raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
+
+        # if more than one fasta file is specified, join them
+        # otherwise if only one is specified, just use it
+        if len(fasta_files) > 1:
+            input_fasta = util.file.mkstempfname("fasta")
+            util.file.cat(input_fasta, fasta_files)
+        elif len(fasta_files) == 1:
+            input_fasta = fasta_files[0]
+        else:
+            raise IOError("No fasta file provided")
+
+        args = ['-d', input_fasta, '-o', bitmask_file_path, '-A', str(max_amig), '-w', str(word_size)]
+        self.execute(*args)
+
+        return bitmask_file_path
+
 class ExtractFullseqTool(BmtaggerTools):
     """ tool wrapper for extract_fullseq """
     subtool_name = 'extract_fullseq'
@@ -56,6 +93,37 @@ class ExtractFullseqTool(BmtaggerTools):
 class SrprismTool(BmtaggerTools):
     """ tool wrapper for srprism """
     subtool_name = 'srprism'
+
+    def build_database(self, fasta_files, database_prefix_path):
+        """ builds a srprism database """
+
+        input_fasta = ""
+
+        # we can pass in a string containing a fasta file path
+        # or a list of strings
+        if 'basestring' not in globals():
+           basestring = str
+        if isinstance(fasta_files, basestring):
+            fasta_files = [fasta_files]
+        elif isinstance(fasta_files, list):
+            pass
+        else:
+            raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
+
+        # if more than one fasta file is specified, join them
+        # otherwise if only one is specified, just use it
+        if len(fasta_files) > 1:
+            input_fasta = util.file.mkstempfname("fasta")
+            util.file.cat(input_fasta, fasta_files)
+        elif len(fasta_files) == 1:
+            input_fasta = fasta_files[0]
+        else:
+            raise IOError("No fasta file provided")
+
+        args = ['mkindex', '-i', input_fasta, '-o', database_prefix_path]
+        self.execute(*args)
+
+        return database_prefix_path
 
 
 class DownloadBmtagger(tools.InstallMethod):

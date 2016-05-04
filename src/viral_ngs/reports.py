@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-''' Reports
+''' Functions to create reports from genomics pipeline data.
 '''
 
 __author__ = "dpark@broadinstitute.org"
@@ -166,6 +166,9 @@ __commands__.append(('assembly_stats', parser_assembly_stats))
 
 
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
+    """ Write or print pairwise alignment summary information for sequences in two FASTA
+        files, including SNPs, ambiguous bases, and indels.
+    """
     gap = '-'
     ambiguous = 'N'
     aligner = tools.muscle.MuscleTool()

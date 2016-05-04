@@ -89,6 +89,39 @@ class Lastdb(LastTools):
     subtool_name = 'lastdb'
     subtool_name_on_broad = 'lastdb'
 
+    def build_database(self, fasta_files, database_prefix_path): # pylint: disable=W0221
+        output_file_prefix = os.path.basename(database_prefix_path)
+        output_directory = os.path.dirname(database_prefix_path)
+
+
+        input_fasta = ""
+
+        # we can pass in a string containing a fasta file path
+        # or a list of strings
+        if 'basestring' not in globals():
+           basestring = str
+        if isinstance(fasta_files, basestring):
+            fasta_files = [fasta_files]
+        elif isinstance(fasta_files, list):
+            pass
+        else:
+            raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
+
+        # if more than one fasta file is specified, join them
+        # otherwise if only one is specified, just use it
+        if len(fasta_files) > 1:
+            input_fasta = util.file.mkstempfname("fasta")
+            util.file.cat(input_fasta, fasta_files)
+        elif len(fasta_files) == 1:
+            input_fasta = fasta_files[0]
+        else:
+            raise IOError("No fasta file provided")
+
+        self.execute(input_fasta, output_directory, output_file_prefix)    
+
+        return database_prefix_path
+
+
     def execute(self, inputFasta, outputDirectory, outputFilePrefix):    # pylint: disable=W0221
         # get the path to the binary
         tool_cmd = [self.install_and_get_path()]
