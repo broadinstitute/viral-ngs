@@ -736,7 +736,7 @@ def no_blast_hits(blastOutCombined, inFastq, outFastq):
                     outf.write(line1 + line2 + line3 + line4)
 
 
-def deplete_blastn(inFastq, outFastq, refDbs, threads):
+def deplete_blastn(inFastq, outFastq, refDbs, threads=1, chunkSize=1000000):
     'Use blastn to remove reads that match at least one of the databases.'
 
     # Convert to fasta
@@ -747,7 +747,7 @@ def deplete_blastn(inFastq, outFastq, refDbs, threads):
     blastOutFiles = []
     for db in refDbs:
         log.info("running blastn on %s against %s", inFastq, db)
-        blastOutFiles += blastn_chunked_fasta(inFasta, db, threads)
+        blastOutFiles += blastn_chunked_fasta(inFasta, db, chunkSize, threads)
 
     # Combine results from different databases
     blastOutCombined = mkstempfname('.txt')
@@ -846,7 +846,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on %s pair 2 against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
