@@ -329,7 +329,7 @@ def filter_lastal(
     max_initial_matches_per_position=100
 ):
     ''' Restrict input reads to those that align to the given
-        reference database using LASTAL.  Also, remove duplicates with prinseq.
+        reference database using LASTAL. Also, remove duplicates with prinseq.
     '''
     assert outFastq.endswith('.fastq')
     tempFilePath = mkstempfname('.hits')
@@ -899,7 +899,7 @@ __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
 
 
 def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
-
+    ''' build a database for use with last based on an input fasta file '''
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -930,6 +930,8 @@ __commands__.append(('lastal_build_db', parser_lastal_build_db))
 # ========================
 
 def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
+    """ Create a database for use with blastn from an input reference FASTA file 
+    """
 
     if outputFilePrefix:
         outPrefix = outputFilePrefix
@@ -961,7 +963,8 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 # ========================
 
 def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
-
+    """ Create a database for use with Bmtagger from an input FASTA file.
+    """
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
