@@ -123,7 +123,7 @@ class _HelpAction(argparse._HelpAction):
                 # if the subparser has a description string, format and print it
                 if subparser.description:
                     # clean up line breaks and spaces in the triple-quoted string
-                    help_description = subparser.description.replace("\n","").replace(".  ",". ").replace("  ","")
+                    help_description = subparser.description.replace("\n","").replace(".  ",". ").replace("  ","").replace("\t","")
                     help_description = help_description.strip()
                     # wrap text to a set width
                     help_description = textwrap.fill(help_description, 60)
