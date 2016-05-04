@@ -6,6 +6,7 @@ command-line functions from a single python script.
 import os
 import os.path
 import tempfile
+import textwrap
 import sys
 import shutil
 import logging
@@ -18,6 +19,19 @@ __version__ = util.version.get_version()
 log = logging.getLogger()
 tmp_dir = None
 
+class color(object):
+   """ *nix terminal control characters for altering text display 
+   """
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
 
 def setup_logger(log_level):
     loglevel = getattr(logging, log_level.upper(), None)
@@ -89,6 +103,39 @@ def attach_main(parser, cmd_main, split_args=False):
     parser.set_defaults(func_main=cmd_main)
     return parser
 
+class _HelpAction(argparse._HelpAction):
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        
+        print("\nEnter a subcommand to view additional information:")
+
+        # retrieve subparser actions from parser
+        subparsers_actions = [
+            action for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)]
+
+        indent_space = " " * 5
+        for subparsers_action in subparsers_actions:
+            # get all subparsers and print descriptions for each
+            for choice, subparser in subparsers_action.choices.items():
+                print("\n{indent}{filename} {cmd} [...]".format(indent=indent_space, filename=os.path.basename(sys.argv[0]), cmd=color.BOLD+choice+color.END))
+                
+                # if the subparser has a description string, format and print it
+                if subparser.description:
+                    # clean up line breaks and spaces in the triple-quoted string
+                    help_description = subparser.description.replace("\n","").replace(".  ",". ").replace("  ","").replace("\t","")
+                    help_description = help_description.strip()
+                    # wrap text to a set width
+                    help_description = textwrap.fill(help_description, 60)
+                    # indent each line
+                    help_description = help_description.replace("\n","\n{}".format(indent_space*2))
+                    print("{}{}".format(indent_space*2, help_description))
+
+        print()
+        parser.print_help()
+
+        parser.exit()
+
 
 def make_parser(commands, description):
     ''' commands: a list of pairs containing the following:
@@ -107,7 +154,7 @@ def make_parser(commands, description):
     else:
         # multiple commands available
         parser = argparse.ArgumentParser(description=description, usage='%(prog)s subcommand', add_help=False)
-        parser.add_argument('--help', '-h', action='help', help=argparse.SUPPRESS)
+        parser.add_argument('--help', '-h', action=_HelpAction, help=argparse.SUPPRESS)
         parser.add_argument('--version', '-V', action='version', version=__version__, help=argparse.SUPPRESS)
         subparsers = parser.add_subparsers(title='subcommands', dest='command')
         for cmd_name, cmd_parser in commands:
