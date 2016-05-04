@@ -399,7 +399,3 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                 shallow=False
             )
         )
-
-
-if __name__ == '__main__':
-    unittest.main()
