@@ -220,7 +220,3 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                         filecmp.cmp(outSam,
                                     os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
                                     shallow=False))
-
-
-if __name__ == '__main__':
-    unittest.main()
