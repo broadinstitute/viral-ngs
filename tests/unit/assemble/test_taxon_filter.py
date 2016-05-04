@@ -160,7 +160,8 @@ class TestBlastnDbBuild(TestCaseWithTmp):
         )
         args.func_main(args)
 
-        for ext in [".nhr", ".nin", ".nsq"]:
+        # nhr=header. nin=index, nsq=sequence
+        for ext in [".nhr", ".nsq"]: # ".nin" can change
             assert_equal_contents(
                 self, os.path.join(tempDir, output_prefix + ext),
                 os.path.join(myInputDir, "expected", output_prefix + ext)
@@ -216,9 +217,9 @@ class TestLastalDbBuild(TestCaseWithTmp):
 
         args = taxon_filter.parser_lastal_build_db(argparse.ArgumentParser()).parse_args(
             [
-    # input fasta
+                # input fasta
                 refFasta,
-    # output directory
+                # output directory
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix
