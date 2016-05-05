@@ -17,7 +17,3 @@ class TestToolMegan(TestCaseWithTmp):
     @unittest.skip('Requires installed MEGAN')
     def test_megan_runs(self):
         self.assertEqual(0, self.megan.execute('quit;\n')[0])
-
-
-if __name__ == '__main__':
-    unittest.main()
