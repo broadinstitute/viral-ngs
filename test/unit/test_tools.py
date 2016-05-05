@@ -13,44 +13,38 @@ import util.cmd
 import util.file
 from test import TestCaseWithTmp
 import operator
-import nose
+import pytest
 
 log = logging.getLogger(__name__)
 util.cmd.setup_logger('INFO')
 
-# nose cannot use test generators with subclasses of unittest.TestCase
-# so we must have setUp() and tearDown() defined here
-# and setup/destroy the tmp directory as appropriate
-class TestToolsInstallation(object):
 
-    def setUp(self):
-        #super(TestToolsInstallation, self).setUp()
-        util.file.set_tmp_dir(type(self).__name__)
+def iter_leaf_subclasses(aClass):
+    "Iterate over subclasses at all levels that don't themselves have a subclass"
+    isLeaf = True
+    for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
+        isLeaf = False
+        for leafClass in iter_leaf_subclasses(subclass):
+            if not getattr(leafClass, '_skiptest', False):
+                yield leafClass
+    if isLeaf:
+        yield aClass
 
-    def tearDown(self):
-        util.file.destroy_tmp_dir()
 
-    @nose.with_setup(setUp, tearDown)
-    def check_tool(self, tool_class):
-        t = tool_class()
-        t.install()
-        assert t.is_installed(), "installation of tool %s failed" % tool_class.__name__
-        log.info(".. installation of %s succeeded with installer %s" %
-                 (tool_class.__name__, t.installed_method.__class__.__name__))
+def all_tool_tests():
+    for tool_class in iter_leaf_subclasses(tools.Tool):
+        yield tool_class
 
-    def testAllToolInstallers(self):
 
-        def iter_leaf_subclasses(aClass):
-            "Iterate over subclasses at all levels that don't themselves have a subclass"
-            isLeaf = True
-            for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
-                isLeaf = False
-                for leafClass in iter_leaf_subclasses(subclass):
-                    if not getattr(leafClass, '_skiptest', False):
-                        yield leafClass
-            if isLeaf:
-                yield aClass
+@pytest.fixture(params=all_tool_tests())
+def tool_class(request):
+    print(request.param)
+    return request.param
 
-        '''Load every tool's default chain of install methods and try them.'''
-        for tool_class in iter_leaf_subclasses(tools.Tool):
-            yield self.check_tool, tool_class
+
+def test_tool_install(tool_class):
+    t = tool_class()
+    t.install()
+    assert t.is_installed(), "installation of tool %s failed" % tool_class.__name__
+    log.info(".. installation of %s succeeded with installer %s" %
+             (tool_class.__name__, t.installed_method.__class__.__name__))
