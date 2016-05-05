@@ -22,7 +22,6 @@ import tools.kraken
 import tools.krona
 import tools.diamond
 import tools.picard
-import taxonomy
 
 __commands__ = []
 
