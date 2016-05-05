@@ -33,20 +33,20 @@ def sam_to_fastq():
 
 
 def input_fastq_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestToolKraken')
+    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
     return [os.path.join(data_dir, f)
             for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
 
 def input_bam_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestKrakenViralMix')
+    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
     return join(data_dir, 'test-reads.bam')
 
 
 @pytest.fixture(scope='session')
 def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
-    if db_type == 'TestToolKraken':
+    if db_type == 'TestMetagenomicsSimple':
         fastqs = [os.path.join(data_dir, f)
                   for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
@@ -61,7 +61,7 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
 @pytest.fixture(scope='session')
 def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
-    if db_type == 'TestToolKraken':
+    if db_type == 'TestMetagenomicsSimple':
         fastqs = [join(data_dir, f)
                   for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
         return fastqs
@@ -91,7 +91,7 @@ def krona():
 
 
 @pytest.fixture(scope='session',
-                params=['TestToolKraken', 'TestKrakenViralMix'])
+                params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
 def db_type(request):
     return request.param
 
@@ -174,7 +174,7 @@ def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     runner = SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
         'kraken_db': kraken_db,
-        'diamond_db': krona_db,
+        'krona_db': krona_db,
     }
     runner.set_override_config(override_config)
     runner.setup()
