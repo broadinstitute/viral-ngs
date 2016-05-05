@@ -43,7 +43,3 @@ class TestToolKraken(TestCaseWithTmp):
         self.assertIn('--paired', args)
         self.assertIn(in_fastq1, args)
         self.assertIn(in_fastq2, args)
-
-
-if __name__ == '__main__':
-    unittest.main()
