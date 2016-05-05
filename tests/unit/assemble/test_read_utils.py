@@ -235,7 +235,3 @@ class TestMvicuna(TestCaseWithTmp):
         # Compare to expected
         for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
             self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
-
-
-if __name__ == '__main__':
-    unittest.main()
