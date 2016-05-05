@@ -29,6 +29,8 @@ rule kraken:
     resources: cores=int(config.get("number_of_threads", 1))
     params: numThreads=str(config.get("number_of_threads", 1))
     run:
+        shell("pyenv which python")
+        shell("echo \n\n\n\n\n\n\n")
         shell("{config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}")
 
 rule krona_import_taxonomy:
