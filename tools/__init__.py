@@ -380,7 +380,6 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         if result.returncode == 0:
             try:

@@ -261,10 +261,10 @@ def filter_lastal_bam(
     inBam,
     db,
     outBam,
-    max_gapless_alignments_per_position,
-    min_length_for_initial_matches,
-    max_length_for_initial_matches,
-    max_initial_matches_per_position,
+    max_gapless_alignments_per_position=1,
+    min_length_for_initial_matches=5,
+    max_length_for_initial_matches=50,
+    max_initial_matches_per_position=100,
     JVMmemory=None
 ):
     ''' Restrict input reads to those that align to the given
@@ -329,7 +329,7 @@ def filter_lastal(
     max_initial_matches_per_position=100
 ):
     ''' Restrict input reads to those that align to the given
-        reference database using LASTAL.  Also, remove duplicates with prinseq.
+        reference database using LASTAL. Also, remove duplicates with prinseq.
     '''
     assert outFastq.endswith('.fastq')
     tempFilePath = mkstempfname('.hits')
@@ -736,7 +736,7 @@ def no_blast_hits(blastOutCombined, inFastq, outFastq):
                     outf.write(line1 + line2 + line3 + line4)
 
 
-def deplete_blastn(inFastq, outFastq, refDbs, threads):
+def deplete_blastn(inFastq, outFastq, refDbs, threads=1, chunkSize=1000000):
     'Use blastn to remove reads that match at least one of the databases.'
 
     # Convert to fasta
@@ -747,7 +747,7 @@ def deplete_blastn(inFastq, outFastq, refDbs, threads):
     blastOutFiles = []
     for db in refDbs:
         log.info("running blastn on %s against %s", inFastq, db)
-        blastOutFiles += blastn_chunked_fasta(inFasta, db, threads)
+        blastOutFiles += blastn_chunked_fasta(inFasta, db, chunkSize, threads)
 
     # Combine results from different databases
     blastOutCombined = mkstempfname('.txt')
@@ -846,7 +846,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     os.unlink(fastq1)
     os.unlink(fastq2)
     log.info("running blastn on %s pair 2 against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize)
+    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
             with open(blastOutFile, 'rt') as inf:
@@ -899,7 +899,7 @@ __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
 
 
 def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
-
+    ''' build a database for use with last based on an input fasta file '''
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -907,7 +907,7 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    tools.last.Lastdb().execute(inputFasta=inputFasta, outputDirectory=outputDirectory, outputFilePrefix=outPrefix)
+    tools.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
@@ -923,6 +923,73 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
+
+
+# ========================
+# ***  blastn_build_db  ***
+# ========================
+
+def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
+    """ Create a database for use with blastn from an input reference FASTA file 
+    """
+
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
+    blastdb_path = tools.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+
+
+def parser_blastn_build_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('outputDirectory', help='Location for the output files')
+    parser.add_argument(
+        '--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, blastn_build_db, split_args=True)
+    return parser
+
+
+__commands__.append(('blastn_build_db', parser_blastn_build_db))
+
+
+# ========================
+# ***  bmtagger_build_db  ***
+# ========================
+
+def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
+    """ Create a database for use with Bmtagger from an input FASTA file.
+    """
+    if outputFilePrefix:
+        outPrefix = outputFilePrefix
+    else:
+        baseName = os.path.basename(inputFasta)
+        fileNameSansExtension = os.path.splitext(baseName)[0]
+        outPrefix = fileNameSansExtension
+
+    bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".bitmask"))
+    srprismdb_path = tools.bmtagger.SrprismTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".srprism"))
+
+def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('outputDirectory', help='Location for the output files (Where *.bitmask and *.srprism files will be stored)')
+    parser.add_argument(
+        '--outputFilePrefix',
+        help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, bmtagger_build_db, split_args=True)
+    return parser
+
+
+__commands__.append(('bmtagger_build_db', parser_bmtagger_build_db))
+
+
 
 # ========================
 

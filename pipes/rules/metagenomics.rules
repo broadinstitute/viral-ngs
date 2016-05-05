@@ -36,7 +36,7 @@ rule krona_import_taxonomy:
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.krona.html")
     shell:
         """
-        {config[bin_dir]}/metagenomics.py krona {input} {output} --noRank
+        {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank
         """
 
 
