@@ -130,9 +130,3 @@ class TestFeatureSorter(unittest.TestCase):
                 ('aaaa', 17, 33, 1, [('aaaa', 17, 33, '-', [100, 'name', []]),]),
             ]
         )
-
-
-
-if __name__ == '__main__':
-    unittest.main()
-

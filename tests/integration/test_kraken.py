@@ -87,10 +87,14 @@ class CommonTests(object):
     @unittest.skipIf(sys.version_info < (3,2), "Python version is too old for snakemake.")
     def test_pipes(self):
         runner = SnakemakeRunner()
-        runner.set_override_config({
+        override_config = {
             'kraken_db': self.db,
             'diamond_db': None,
-        })
+        }
+        krona_db =  getattr(self, 'krona_db', None)
+        if krona_db:
+            override_config['krona_db'] = self.krona_db
+        runner.set_override_config(override_config)
         runner.setup()
         runner.link_samples([self.bam], destination='source')
         runner.create_sample_files(sample_files=['samples_metagenomics'])
@@ -172,6 +176,7 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         cls.bam = join(cls.data_dir, 'test-reads.bam')
         cls.fastqs = cls.input_fastqs()
 
+    @unittest.skipIf(True, "krona create db takes too much disk io")
     def test_kraken_krona(self):
         bin = join(util.file.get_project_path(), 'metagenomics.py')
         out_report = util.file.mkstempfname('.report')
@@ -186,7 +191,3 @@ class TestKrakenKrona(TestKrakenBase, TestKronaBase):
         parser = metagenomics.parser_krona(argparse.ArgumentParser())
         args = parser.parse_args([out_reads, self.krona_db, out_html])
         args.func_main(args)
-
-
-if __name__ == '__main__':
-    unittest.main()
