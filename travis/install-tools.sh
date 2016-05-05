@@ -17,5 +17,4 @@ if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
 fi
 
 echo "Installing and validating bioinformatic tools"
-#nosetests -v test.unit.test_tools.TestToolsInstallation
-nosetests -v test.unit.test_tools
+py.test test/unit/test_tools.py

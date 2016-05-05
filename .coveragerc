@@ -1,4 +1,8 @@
 # .coveragerc to control test coverage report
+# source is not used here because it is specified in pytest.ini
+[run]
+branch = True
+
 [report]
 
 exclude_lines =
