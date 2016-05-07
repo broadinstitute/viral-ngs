@@ -49,12 +49,12 @@ class PicardTools(tools.Tool):
         # the conda version wraps the jar file with a shell script
         if self.install_and_get_path().endswith(".jar"):
             tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
                 command
             ] + picardOptions
         else:
             tool_cmd = [
-                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, command
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command
             ] + picardOptions
         _log.debug(' '.join(tool_cmd))
         util.misc.run_and_print(tool_cmd, check=True)
