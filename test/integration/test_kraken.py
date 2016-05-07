@@ -16,6 +16,10 @@ from test import TestCaseWithTmp
 from test.integration.snake import SnakemakeRunner
 
 
+# Initialize tempfile.gettempdir
+tempfile.gettempdir()
+
+
 @pytest.fixture(scope='session')
 def fastq_to_sam():
     return tools.picard.FastqToSamTool()
