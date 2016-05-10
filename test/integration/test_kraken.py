@@ -16,8 +16,10 @@ from test import TestCaseWithTmp
 from test.integration.snake import SnakemakeRunner
 
 
-# Initialize tempfile.gettempdir
-tempfile.gettempdir()
+@pytest.fixture(autouse=True)
+def set_tempdir(request):
+    util.file.set_tmp_dir(None)
+    request.addfinalizer(util.file.destroy_tmp_dir)
 
 
 @pytest.fixture(scope='session')
