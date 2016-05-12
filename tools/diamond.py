@@ -50,7 +50,7 @@ class Diamond(tools.Tool):
             options['--in'] = input_fasta
             options['--db'] = db
 
-            return self.execute('makedb', options=options, option_string=option_string)
+            self.execute('makedb', options=options, option_string=option_string)
 
     def blastx(self, db, query_files, diamond_alignment, options=None, option_string=None):
         '''Perform a blastx-like search from query file to database.
@@ -67,7 +67,7 @@ class Diamond(tools.Tool):
             options['--db'] = db
             options['--query'] = query
             options['--daa'] = diamond_alignment
-            return self.execute('blastx', options=options, option_string=option_string)
+            self.execute('blastx', options=options, option_string=option_string)
 
     def view(self, diamond_alignment, output_file, output_format='tab', options=None, option_string=None):
         '''Perform translation between diamond output and blast tab/sam output.
@@ -78,7 +78,7 @@ class Diamond(tools.Tool):
         options['--out'] = output_file
         options['--daa'] = diamond_alignment
         options['--outfmt'] = output_format
-        return self.execute('view', options=options, option_string=option_string)
+        self.execute('view', options=options, option_string=option_string)
 
     def execute(self, command, options=None, option_string=None, return_stdout=False):
         '''Run a diamond command
@@ -99,10 +99,7 @@ class Diamond(tools.Tool):
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
-        res = util.misc.run_and_print(cmd)
-        if res.returncode != 0:
-            print(res.stdout.decode('utf-8'))
-        return res
+        util.misc.run_and_print(cmd, check=True, loglevel=logging.ERROR)
 
 
 class DownloadAndBuildDiamond(tools.DownloadPackage):
