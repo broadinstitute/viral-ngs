@@ -125,7 +125,7 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
                 for seq_record in SeqIO.parse(f, 'fasta'):
                     seq_record.seq = seq_record.seq.translate()
                     SeqIO.write(seq_record, f_out, 'fasta')
-    assert diamond.build(db, [translated]).returncode == 0
+    diamond.build(db, [translated])
     return db
 
 

@@ -5,12 +5,21 @@ samples = list(read_samples_file(config.get("samples_metagenomics")))
 rule all_metagenomics:
     input:
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-               "{sample}.kraken.report"), sample=samples),
-        # expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-        #             "{sample}.diamond.m8.gz"), sample=samples),
+                    "{sample}.{method}.report"), sample=samples, method=['kraken', 'diamond']),
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.{method}.krona.html"), sample=samples, method=['kraken', 'diamond'])
     params: LSF='-N'
+
+method_props = {
+    'diamond': {
+        'reads_ext': 'diamond.lca.gz',
+        'krona_columns': (1, 2),
+    },
+    'kraken': {
+        'reads_ext': 'kraken.reads.gz',
+        'krona_columns': (2, 3),
+    },
+}
 
 rule diamond:
     input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
@@ -34,21 +43,11 @@ rule kraken:
         {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
         """
 
-method_reads_ext = {
-    'diamond': 'diamond.lca.gz',
-    'kraken': 'kraken.reads.gz'
-}
-
-method_krona_columns = {
-    'diamond':  (1, 2),
-    'kraken':  (2, 3)
-}
-
 rule krona_import_taxonomy:
-    input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.%s" % method_reads_ext[wildcards.method])
+    input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.%s" % method_props[wildcards.method]['reads_ext'])
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample,\w+}.{method,\w+}.krona.html")
     run:
-        query_col, taxid_col = method_krona_columns[method]
+        query_col, taxid_col = method_props[wildcards.method]['krona_columns']
         shell("""
         {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank \
           --queryColumn {query_col}  --taxidColumn {taxid_col}
