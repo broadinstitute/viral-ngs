@@ -29,10 +29,10 @@ rule kraken:
             reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
     resources: cores=int(config.get("number_of_threads", 1))
     params: numThreads=str(config.get("number_of_threads", 1))
-    run:
-        shell("pyenv which python")
-        shell("echo \n\n\n\n\n\n\n")
-        shell("{config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}")
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
+        """
 
 method_reads_ext = {
     'diamond': 'diamond.lca.gz',
@@ -53,16 +53,3 @@ rule krona_import_taxonomy:
         {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank \
           --queryColumn {query_col}  --taxidColumn {taxid_col}
         """)
-
-rule pair_fastq:
-    input: expand(join(config["tmp_dir"], config["subdirs"]["source"], "{{sample}}.{pair}.fastq"), pair=(1,2))
-    output: temp(join(config["tmp_dir"], config["subdirs"]["source"], "{sample}.both.fastq"))
-    shell:
-        """
-        echo {input[0]}
-        echo {input[1]}
-        paste <(paste - - - - < {input[0]}) \
-              <(paste - - - - < {input[1]}) \
-              | tr '\t' '\n' \
-              > {output}
-        """
