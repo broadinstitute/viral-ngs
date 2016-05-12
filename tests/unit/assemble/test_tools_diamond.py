@@ -40,7 +40,7 @@ class TestToolDiamond(TestCaseWithTmp):
         # To be replaced with recursive glob in Python 3.5.
         protein_fastas = glob.glob('{}/library/*/*/*.ffn'.format(self.db_dir))
 
-        self.assertEqual(0, self.diamond.build(db, protein_fastas).returncode)
+        self.diamond.build(db, protein_fastas)
         args = self.mock_run.call_args[0][0]
         self.assertIn('makedb', args)
         self.assertIn('--db', args)
@@ -53,16 +53,14 @@ class TestToolDiamond(TestCaseWithTmp):
         output_tab = join(tempfile.tempdir, 'zaire_ebola.m8')
 
         tmpdir = tempfile.gettempdir()
-        self.assertEqual(
-            0, self.diamond.blastx(db, inputs, output,
-                                   options={'--tmpdir': tmpdir}).returncode)
+        self.diamond.blastx(db, inputs, output, options={'--tmpdir': tmpdir})
         args = self.mock_run.call_args[0][0]
         self.assertIn('blastx', args)
         self.assertTrue(util.misc.list_contains(['--daa', output], args))
         self.assertTrue(util.misc.list_contains(['--db', db], args))
         self.assertTrue(util.misc.list_contains(['--tmpdir', tmpdir], args))
 
-        self.assertEqual(0, self.diamond.view(output, output_tab).returncode)
+        self.diamond.view(output, output_tab)
 
         args = self.mock_run.call_args[0][0]
         self.assertIn('view', args)
