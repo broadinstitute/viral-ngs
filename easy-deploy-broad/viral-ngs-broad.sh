@@ -144,6 +144,7 @@ else
                     activate_pyenv
 
                     pip install -r $VIRAL_NGS_PATH/requirements.txt
+                    pip install -r $VIRAL_NGS_PATH/requirements-tests.txt
                     pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
 
                     # install tools
