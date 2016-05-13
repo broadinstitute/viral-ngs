@@ -40,6 +40,9 @@ diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 # Directory of the krona database for generating html reports.
 krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
 
+# Directory of the NCBI taxonomy dmp files
+taxonomy_db: "/idi/sabeti-scratch/yesimon/db/taxonomy"
+
 # These are variables that must be set
 env_vars:
   # The directory path to the location of the GATK jar file.
