@@ -334,8 +334,6 @@ def cat(output_file, input_files):
 @contextlib.contextmanager
 def temp_catted_files(input_files, prefix=None, suffix=None):
     '''Create a temporary file holding catted contents of input_files.'''
-    if len(input_files) == 1:
-        yield input_files[0]
     try:
         fn = util.file.mkstempfname(prefix=prefix, suffix=suffix)
         cat(fn, input_files)
