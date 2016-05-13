@@ -8,10 +8,12 @@ __author__ = "yesimon@broadinstitute.org"
 
 import argparse
 import collections
+import csv
 import gzip
 import itertools
 import logging
 import os.path
+from os.path import join
 import operator
 import queue
 import shutil
@@ -30,8 +32,14 @@ log = logging.getLogger(__name__)
 
 
 class TaxonomyDb(object):
-    def __init__(self, gis=None, nodes=None, names=None,
+
+    def __init__(self, tax_dir=None, gis=None, nodes=None, names=None,
                  gis_paths=None, nodes_path=None, names_path=None):
+        if tax_dir:
+            gis_paths = [join(tax_dir, 'gi_taxid_nucl.dmp'),
+                         join(tax_dir, 'gi_taxid_prot.dmp')]
+            nodes_path = join(tax_dir, 'nodes.dmp')
+            names_path = join(tax_dir, 'names.dmp')
         self.gis_paths = gis_paths
         self.nodes_path = nodes_path
         self.names_path = names_path
@@ -50,6 +58,7 @@ class TaxonomyDb(object):
         elif names_path:
             self.names = load_names(names_path)
 
+
 def load_gi_single_dmp(dmp_path):
     '''Load a gi->taxid dmp file from NCBI taxonomy.'''
     gi_array = {}
@@ -57,7 +66,7 @@ def load_gi_single_dmp(dmp_path):
         for i, line in enumerate(f):
             gi, taxid = line.strip().split('\t')
             gi = int(gi)
-            taxid = int(gi)
+            taxid = int(taxid)
             gi_array[gi]  = taxid
             if (i + 1) % 1000000 == 0:
                 print('Loaded {} gis'.format(i), file=sys.stderr)
@@ -77,7 +86,7 @@ def load_names(names_db, scientific_only=True):
         unique_name = parts[2].strip()
         class_ = parts[3].strip()
         if scientific_only:
-            if class_ == 'scientific_name':
+            if class_ == 'scientific name':
                 names[taxid] = name
         else:
             names[taxid].append(name)
@@ -145,7 +154,7 @@ def blast_lca(db, m8_file, output, paired=False, min_bit_score=50,
               max_expected_value=0.01, top_percent=10, min_support_percent=0, min_support=1):
     '''Calculate the LCA taxonomy id for groups of blast hits.
 
-    Writes tsv output query_id \t tax_id
+    Writes tsv output: query_id \t tax_id
 
     Args:
       db: (TaxonomyDb) Taxonomy db.
@@ -202,7 +211,7 @@ def process_blast_hits(db, blast_hits, top_percent):
 
 
 def coverage_lca(query_ids, parents, lca_percent=100):
-    '''Calculate the lca that will cover at least thispercent of queries.
+    '''Calculate the lca that will cover at least this percent of queries.
 
     Args:
       query_ids: []int list of nodes.
@@ -350,12 +359,13 @@ def rank_code(rank):
         return "-"
 
 
-def tax_hits_from_tsv(f, query_column=0, tax_id_column=1):
+def taxa_hits_from_tsv(f, tax_id_column=2):
     '''Return a counter of hits from tsv.'''
+    c = collections.Counter()
     for row in csv.reader(f, delimiter='\t'):
-        query_id = row[query_column]
-        tax_id = int(row[tax_id_column])
-
+        tax_id = int(row[tax_id_column - 1])
+        c[tax_id] += 1
+    return c
 
 
 def kraken_dfs_report(db, taxa_hits):
@@ -496,7 +506,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, outM8, numThreads=1):
+def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     tmp_fastq = util.file.mkstempfname('.fastq')
     tmp_fastq2 = util.file.mkstempfname('.fastq')
     picard = tools.picard.SamToFastqTool()
@@ -514,18 +524,40 @@ def diamond(inBam, db, outM8, numThreads=1):
     tmp_alignment = util.file.mkstempfname('.daa')
     tmp_m8 = util.file.mkstempfname('.diamond.m8')
     diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment,
-                        options={'threads': numThreads})
+                        options={'--threads': numThreads})
     diamond_tool.view(tmp_alignment, tmp_m8,
-                      options={'threads': numThreads})
-    with open(tmp_m8, 'rb') as f_in:
-        with gzip.open(outM8, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
+                      options={'--threads': numThreads})
+
+    if outM8:
+        with open(tmp_m8, 'rb') as f_in:
+            with gzip.open(outM8, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+    tax_db = TaxonomyDb(tax_dir=taxDb)
+    tmp_lca_tsv = util.file.mkstempfname('.tsv')
+    with open(tmp_m8) as m8, open(tmp_lca_tsv, 'w') as lca:
+        blast_lca(tax_db, m8, lca, paired=True, min_bit_score=50)
+
+    if outLca:
+        with open(tmp_lca_tsv, 'rb') as f_in:
+            with gzip.open(outLca, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+    with open(tmp_lca_tsv) as f:
+        hits = taxa_hits_from_tsv(f)
+    with open(outReport, 'w') as f:
+        for line in kraken_dfs_report(tax_db, hits):
+            print(line, file=f)
+
 
 
 def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('db', help='Diamond database directory.')
-    parser.add_argument('outM8', help='Blast m8 formatted output file.')
+    parser.add_argument('taxDb', help='Taxonomy database directory.')
+    parser.add_argument('outReport', help='Output taxonomy report.')
+    parser.add_argument('--outM8', help='Blast m8 formatted output file.')
+    parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
