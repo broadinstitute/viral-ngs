@@ -6,6 +6,7 @@ from collections import Counter
 import copy
 import io
 import os.path
+from os.path import join
 import tempfile
 import textwrap
 import unittest
@@ -30,7 +31,6 @@ class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
         for cmd_name, parser_fun in metagenomics.__commands__:
-            print(cmd_name)
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -123,6 +123,8 @@ class TestKrakenCalls(TestCaseWithTmp):
         })
 
 
+@patch('metagenomics.blast_lca')
+@patch('metagenomics.kraken_dfs_report')
 class TestDiamondCalls(TestCaseWithTmp):
     def setUp(self):
         super().setUp()
@@ -136,10 +138,11 @@ class TestDiamondCalls(TestCaseWithTmp):
 
         self.inBam = util.file.mkstempfname('.bam')
         self.db = tempfile.mkdtemp('db')
+        self.tax_db = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple', 'db', 'taxonomy')
 
-    def test_output_m8(self):
-        out_m8 = util.file.mkstempfname('.')
-        metagenomics.diamond(self.inBam, self.db, out_m8)
+    def test_output_lca(self, mock_blast_lca, mock_dfs):
+        out_report = util.file.mkstempfname('report.txt')
+        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report)
         self.mock_samtofastq().execute.assert_called_once_with(
             self.inBam, mock.ANY, mock.ANY, picardOptions=mock.ANY,
             JVMmemory=mock.ANY)
@@ -150,15 +153,18 @@ class TestDiamondCalls(TestCaseWithTmp):
              % tools.picard.SamToFastqTool.illumina_clipping_attribute])
         self.mock_diamond().install.assert_called_once_with()
         self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'threads': 1})
-        self.assertTrue(self.mock_diamond().view.called)
+            self.db, mock.ANY, mock.ANY, options={'--threads': 1})
+        assert self.mock_diamond().view.called
+        assert isinstance(metagenomics.blast_lca.call_args[0][0], metagenomics.TaxonomyDb)
+        assert isinstance(metagenomics.kraken_dfs_report.call_args[0][0], metagenomics.TaxonomyDb)
 
-    def test_num_threads(self):
-        out_m8 = util.file.mkstempfname('.')
-        metagenomics.diamond(self.inBam, self.db, out_m8, numThreads=11)
+    def test_num_threads(self, mock_blast_lca, mock_dfs):
+        out_report = util.file.mkstempfname('report.txt')
+        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, numThreads=11)
         self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'threads': 11})
-        self.assertEqual(self.mock_diamond().view.call_args[1]['options']['threads'], 11)
+            self.db, mock.ANY, mock.ANY, options={'--threads': 11})
+        self.assertEqual(self.mock_diamond().view.call_args[1]['options']['--threads'], 11)
+
 
 class TestKronaCalls(TestCaseWithTmp):
 
@@ -249,9 +255,9 @@ def ranks():
 
 @pytest.fixture
 def simple_m8():
-    test_path = os.path.join(util.file.get_test_input_path(),
+    test_path = join(util.file.get_test_input_path(),
                              'TestTaxonomy')
-    return open(os.path.join(test_path, 'simple.m8'))
+    return open(join(test_path, 'simple.m8'))
 
 
 def test_tree_level_lookup(parents):
@@ -296,7 +302,7 @@ def test_rank_code():
 
 
 def test_blast_records(simple_m8):
-    test_path = os.path.join(util.file.get_test_input_path(),
+    test_path = join(util.file.get_test_input_path(),
                              'TestTaxonomy')
     with simple_m8 as f:
         records = list(metagenomics.blast_records(f))
@@ -306,7 +312,7 @@ def test_blast_records(simple_m8):
 
 
 def test_blast_lca(taxa_db_simple, simple_m8):
-    test_path = os.path.join(util.file.get_test_input_path(),
+    test_path = join(util.file.get_test_input_path(),
                              'TestTaxonomy')
     expected = textwrap.dedent("""\
     M04004:13:000000000-AGV3H:1:1101:12068:2105\t2
