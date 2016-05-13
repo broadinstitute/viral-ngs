@@ -53,3 +53,7 @@ script:
 
 after_success:
   - coveralls
+
+notifications:
+  slack:
+    secure: dVmGF86ZaVkL7LhqmcjqTgmmc8ONZfLH2H2GO5AUHce3q61dA4tuZrfW0T+6puQWtIvvMC+5ioD0vRce+3iZELs83KR4Xm1vqNu6RZdAHx/ec3QQU4/7ulcEs50wWQl+WmyRqciGaBThUv+Un1K6AA2HYTcb8gQaFkpPmI3huZo=
