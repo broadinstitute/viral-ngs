@@ -44,8 +44,9 @@ rule kraken:
         """
 
 rule krona_import_taxonomy:
-    input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.%s" % method_props[wildcards.method]['reads_ext'])
-    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample,\w+}.{method,\w+}.krona.html")
+    input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
+           ".".join([wildcards.sample, method_props[wildcards.method]['reads_ext']]))
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{method,\w+}.krona.html")
     run:
         query_col, taxid_col = method_props[wildcards.method]['krona_columns']
         shell("""
