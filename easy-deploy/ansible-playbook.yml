@@ -204,6 +204,11 @@
     - name: Setup viral-ngs virtualenv (Snakemake)
       pip:
         virtualenv: "{{ venv_dir }}"
+        requirements: "{{ project_dir }}/requirements-tests.txt"
+
+    - name: Setup viral-ngs virtualenv (Snakemake)
+      pip:
+        virtualenv: "{{ venv_dir }}"
         requirements: "{{ project_dir }}/requirements-pipes.txt"
 
     - name: Set owner of various files
