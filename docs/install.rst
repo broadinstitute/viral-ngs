@@ -39,6 +39,7 @@ The **command line tools** require Python >= 2.7 or >= 3.4. Required packages
 installed the usual pip way::
 
   pip install -r requirements.txt
+  pip install -r requirements-tests.txt
 
 Additionally, in order to use the **pipeline infrastructure**, Python 3.4
 is required (Python 2 is not supported) and you must install snakemake
