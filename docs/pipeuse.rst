@@ -204,7 +204,7 @@ using `Kraken <https://ccb.jhu.edu/software/kraken/>`__,
 
     krona_db: "/path/to/krona"
 
-Pre-build databases for Kraken, Diamond, and Krona are available:
+Pre-built databases for Kraken, Diamond, and Krona are available:
 
 -  `kraken_db.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.lz4>`__)
 -  `krona_taxonomy_20160502.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.lz4>`__)
@@ -239,6 +239,10 @@ contaminents from reads:
 ::
 
     trim_clip_db: "/path/to/depletion_databases/contaminants.fasta"
+
+Pre-built databases for Trimmomatic:
+
+-  `contaminants.fasta.tar.gz <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz>`__ (`*.lz4 <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.lz4>`__)
 
 A FASTA file containing spike-ins to be reported:
 
