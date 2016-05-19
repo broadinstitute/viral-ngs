@@ -34,6 +34,9 @@ addons:
     - g++-4.9
     - libboost1.55-all-dev
 
+git:
+  depth: 3
+
 before_install:
   - travis/before_install.sh
 
