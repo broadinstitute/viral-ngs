@@ -162,6 +162,15 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
       - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
       - "metagenomics_contaminants_v3"
 
+Pre-built depletion databases are available in both *.tar.gz and *.lz4 
+format, for removing human reads and common metagenomic contaminants:
+
+-  `https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.lz4>`__)
+-  `https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.lz4>`__)
+-  `https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.lz4>`__)
+
+Note that these databases must be extracted prior to use.
+
 In addition to the databases used by BMTagger, you will need to specify
 the location and file prefix of the BLAST database to be used for
 depletion. The process for creating the BLAST database is described in
@@ -175,6 +184,33 @@ from the University of Oxford.
 
     blast_db_dir: "/path/to/depletion_databases"
     blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
+
+A pre-built depletion database is also available for BLAST:
+
+-  `https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.lz4>`__)
+
+Note that this database must be extracted prior to use.
+
+Additional databases are needed to perform metagenomic classification 
+using `Kraken <https://ccb.jhu.edu/software/kraken/>`__, 
+`Diamond <https://github.com/bbuchfink/diamond>`__, or 
+`Krona <https://github.com/marbl/Krona/wiki>`__.
+
+::
+
+    kraken_db: "/path/to/kraken_full_20150910"
+
+    diamond_db: "/path/to/diamond_db/nr"
+
+    krona_db: "/path/to/krona"
+
+Pre-build databases for Kraken, Diamond, and Krona are available:
+
+-  `https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.lz4>`__)
+-  `https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.lz4>`__)
+-  `https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.lz4>`__)
+
+Note that these databases must be extracted prior to use.
 
 An array of the `NCBI GenBank
 CoreNucleotide <http://www.ncbi.nlm.nih.gov/nuccore/>`__ accessions for
