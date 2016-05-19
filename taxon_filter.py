@@ -159,6 +159,78 @@ __commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 # ***  filter_lastal  ***
 # =======================
 
+def lastal_chunked_fastq(
+    inFastq, 
+    db, 
+    outFastq, 
+    max_gapless_alignments_per_position=1,
+    min_length_for_initial_matches=5,
+    max_length_for_initial_matches=50,
+    max_initial_matches_per_position=100,
+    chunk_size=100000
+    ):
+
+    lastal_path = tools.last.Lastal().install_and_get_path()
+    mafsort_path = tools.last.MafSort().install_and_get_path()
+    mafconvert_path = tools.last.MafConvert().install_and_get_path()
+    no_blast_like_hits_path = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
+
+    filtered_fastq_files = []
+    with open(inFastq, "rt") as fastqFile:
+        record_iter = SeqIO.parse(fastqFile, "fastq")
+        for batch in util.misc.batch_iterator(record_iter, chunk_size):
+
+            chunk_fastq = mkstempfname('.fastq')
+            with open(chunk_fastq, "wt") as handle:
+                SeqIO.write(batch, handle, "fastq")
+            batch = None
+
+            lastal_out = mkstempfname('.lastal')
+            with open(lastal_out, 'wt') as outf:
+                cmd = [lastal_path, '-Q1']
+                cmd.extend(
+                    [
+                        '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
+                        max_length_for_initial_matches, '-m', max_initial_matches_per_position
+                    ]
+                )
+                cmd = [str(x) for x in cmd]
+                cmd.extend([db, chunk_fastq])
+                log.debug(' '.join(cmd) + ' > ' + lastal_out)
+                util.misc.run_and_save(cmd, outf=outf)
+            # everything below this point in this method should be replaced with
+            # our own code that just reads lastal output and makes a list of read names
+
+            mafsort_out = mkstempfname('.mafsort')
+            with open(mafsort_out, 'wt') as outf:
+                with open(lastal_out, 'rt') as inf:
+                    cmd = [mafsort_path, '-n2']
+                    log.debug('cat ' + lastal_out + ' | ' + ' '.join(cmd) + ' > ' + mafsort_out)
+                    subprocess.check_call(cmd, stdin=inf, stdout=outf)
+            os.unlink(lastal_out)
+
+            mafconvert_out = mkstempfname('.mafconvert')
+            with open(mafconvert_out, 'wt') as outf:
+                cmd = [mafconvert_path, 'tab', mafsort_out]
+                log.debug(' '.join(cmd) + ' > ' + mafconvert_out)
+                subprocess.check_call(cmd, stdout=outf)
+            os.unlink(mafsort_out)
+
+            filtered_fastq_chunk = mkstempfname('.filtered.fastq')
+            with open(filtered_fastq_chunk, 'wt') as outf:
+                cmd = [no_blast_like_hits_path, '-b', mafconvert_out, '-r', chunk_fastq, '-m', 'hit']
+                log.debug(' '.join(cmd) + ' > ' + filtered_fastq_chunk)
+                subprocess.check_call(cmd, stdout=outf)
+                filtered_fastq_files.append(filtered_fastq_chunk)
+            os.unlink(mafconvert_out)
+
+    # concatenate filtered fastq files to outFastq
+    util.file.concat(filtered_fastq_files, outFastq)
+
+    # remove temp fastq files
+    for tempfastq in filtered_fastq_files:
+        os.unlink(tempfastq)
+
 
 def lastal_get_hits(
     inFastq,
@@ -169,48 +241,16 @@ def lastal_get_hits(
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100
 ):
-    lastalPath = tools.last.Lastal().install_and_get_path()
-    mafSortPath = tools.last.MafSort().install_and_get_path()
-    mafConvertPath = tools.last.MafConvert().install_and_get_path()
-    noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
-
-    lastalOut = mkstempfname('.lastal')
-    with open(lastalOut, 'wt') as outf:
-        cmd = [lastalPath, '-Q1']
-        cmd.extend(
-            [
-                '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
-                max_length_for_initial_matches, '-m', max_initial_matches_per_position
-            ]
-        )
-        cmd = [str(x) for x in cmd]
-        cmd.extend([db, inFastq])
-        log.debug(' '.join(cmd) + ' > ' + lastalOut)
-        util.misc.run_and_save(cmd, outf=outf)
-    # everything below this point in this method should be replaced with
-    # our own code that just reads lastal output and makes a list of read names
-
-    mafSortOut = mkstempfname('.mafsort')
-    with open(mafSortOut, 'wt') as outf:
-        with open(lastalOut, 'rt') as inf:
-            cmd = [mafSortPath, '-n2']
-            log.debug('cat ' + lastalOut + ' | ' + ' '.join(cmd) + ' > ' + mafSortOut)
-            subprocess.check_call(cmd, stdin=inf, stdout=outf)
-    os.unlink(lastalOut)
-
-    mafConvertOut = mkstempfname('.mafconvert')
-    with open(mafConvertOut, 'wt') as outf:
-        cmd = [mafConvertPath, 'tab', mafSortOut]
-        log.debug(' '.join(cmd) + ' > ' + mafConvertOut)
-        subprocess.check_call(cmd, stdout=outf)
-    os.unlink(mafSortOut)
-
     filteredFastq = mkstempfname('.filtered.fastq')
-    with open(filteredFastq, 'wt') as outf:
-        cmd = [noBlastLikeHitsPath, '-b', mafConvertOut, '-r', inFastq, '-m', 'hit']
-        log.debug(' '.join(cmd) + ' > ' + filteredFastq)
-        subprocess.check_call(cmd, stdout=outf)
-    os.unlink(mafConvertOut)
+    lastal_chunked_fastq(
+        inFastq, 
+        db, 
+        filteredFastq,
+        max_gapless_alignments_per_position=max_gapless_alignments_per_position, 
+        min_length_for_initial_matches=min_length_for_initial_matches, 
+        max_length_for_initial_matches=max_length_for_initial_matches, 
+        max_initial_matches_per_position=max_initial_matches_per_position
+    )
 
     with open(outList, 'wt') as outf:
         with open(filteredFastq, 'rt') as inf:
@@ -222,6 +262,8 @@ def lastal_get_hits(
                         seq_id = seq_id[:-2]
                     outf.write(seq_id + '\n')
                 line_num += 1
+
+    os.unlink(filteredFastq)
 
 
 def parser_lastal_generic(parser=argparse.ArgumentParser()):
@@ -332,53 +374,33 @@ def filter_lastal(
         reference database using LASTAL. Also, remove duplicates with prinseq.
     '''
     assert outFastq.endswith('.fastq')
-    tempFilePath = mkstempfname('.hits')
-    lastalPath = tools.last.Lastal().install_and_get_path()
-    mafSortPath = tools.last.MafSort().install_and_get_path()
-    mafConvertPath = tools.last.MafConvert().install_and_get_path()
-    prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
-    noBlastLikeHitsPath = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
 
-    lastalCmd = ' '.join(
-        [
-            '{lastalPath} -Q1 -n {max_gapless_alignments_per_position} -l {min_length_for_initial_matches} -L {max_length_for_initial_matches} -m {max_initial_matches_per_position} {refDb} {inFastq}'.format(
-                lastalPath=lastalPath,
-                refDb=refDb,
-                inFastq=inFastq,
-                max_gapless_alignments_per_position=max_gapless_alignments_per_position,
-                min_length_for_initial_matches=min_length_for_initial_matches,
-                max_length_for_initial_matches=max_length_for_initial_matches,
-                max_initial_matches_per_position=max_initial_matches_per_position
-            ),
-            '| {mafSortPath} -n2'.format(mafSortPath=mafSortPath),
-            '| python {mafConvertPath} tab /dev/stdin > {tempFilePath}'.format(mafConvertPath=mafConvertPath,
-                                                                               tempFilePath=tempFilePath),
-        ]
+    filtered_fastq = mkstempfname('.filtered.fastq')
+    lastal_chunked_fastq(
+        inFastq, 
+        refDb, 
+        filtered_fastq,
+        max_gapless_alignments_per_position=max_gapless_alignments_per_position, 
+        min_length_for_initial_matches=min_length_for_initial_matches, 
+        max_length_for_initial_matches=max_length_for_initial_matches, 
+        max_initial_matches_per_position=max_initial_matches_per_position
     )
-    log.debug(lastalCmd)
-    assert not os.system(lastalCmd)
-
-    # filter inFastq against lastal hits
-    filteredFastq = mkstempfname('.filtered.fastq')
-    with open(filteredFastq, 'wt') as outf:
-        noBlastLikeHitsCmd = [noBlastLikeHitsPath, '-b', tempFilePath, '-r', inFastq, '-m', 'hit']
-        log.debug(' '.join(noBlastLikeHitsCmd) + ' > ' + filteredFastq)
-        subprocess.check_call(noBlastLikeHitsCmd, stdout=outf)
 
     # remove duplicate reads and reads with multiple Ns
-    if os.path.getsize(filteredFastq) == 0:
+    if os.path.getsize(filtered_fastq) == 0:
         # prinseq-lite fails on empty file input (which can happen in real life
         # if no reads match the refDb) so handle this scenario specially
         log.info("output is empty: no reads in input match refDb")
-        shutil.copyfile(filteredFastq, outFastq)
+        shutil.copyfile(filtered_fastq, outFastq)
     else:
+        prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
         prinseqCmd = [
-            'perl', prinseqPath, '-ns_max_n', '1', '-derep', '1', '-fastq', filteredFastq, '-out_bad', 'null',
+            'perl', prinseqPath, '-ns_max_n', '1', '-derep', '1', '-fastq', filtered_fastq, '-out_bad', 'null',
             '-line_width', '0', '-out_good', outFastq[:-6]
         ]
         log.debug(' '.join(prinseqCmd))
         util.misc.run_and_print(prinseqCmd, check=True)
-    os.unlink(filteredFastq)
+    os.unlink(filtered_fastq)
 
 
 def parser_filter_lastal(parser=argparse.ArgumentParser()):
@@ -670,7 +692,6 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMme
 # ========================
 # ***  deplete_blastn  ***
 # ========================
-
 
 def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     """
