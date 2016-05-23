@@ -53,6 +53,7 @@ htmlcov/
 nosetests.xml
 pytest.xml
 coverage.xml
+.coverage*
 
 test/input/TestVPhaser2/in.bam.bti
 
