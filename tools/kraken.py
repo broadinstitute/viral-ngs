@@ -26,10 +26,10 @@ class Kraken(tools.Tool):
     BINS = ['kraken', 'kraken-build', 'kraken-filter', 'kraken-mpa-report', 'kraken-report', 'kraken-translate']
 
     def __init__(self, install_methods=None):
-        
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "kraken"
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -106,3 +106,7 @@ class Kraken(tools.Tool):
                     print(res.stderr.decode('utf-8'), file=sys.stderr)
             return res
 
+@tools.skip_install_test(condition=tools.is_osx())
+class Jellyfish(Kraken):
+    """ Tool wrapper for Jellyfish (installed by kraken-all metapackage) """
+    subtool_name = 'jellyfish'
