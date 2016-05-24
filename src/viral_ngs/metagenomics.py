@@ -20,6 +20,7 @@ import shutil
 import sys
 import util.cmd
 import util.file
+import util.misc
 import tools.kraken
 import tools.krona
 import tools.diamond
@@ -427,7 +428,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
     tmp_reads = util.file.mkstempfname('.kraken')
     opts = {
         '--paired': None,
-        '--threads': numThreads,
+        '--threads': min(numThreads, util.misc.available_cpu_count()),
     }
     # Could be optimized in 3.5 piping directly to kraken-filter.
     kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
