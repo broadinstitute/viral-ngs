@@ -303,7 +303,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], loglevel=logging.DEBUG, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -337,7 +337,7 @@ class CondaPackage(InstallMethod):
     def _attempt_install(self):
         try:
             # check for presence of conda command
-            util.misc.run_and_print(["conda", "-V"], silent=True, check=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], loglevel=logging.DEBUG, check=True, env=self.conda_env)
         except:
             _log.debug("conda NOT installed")
             self._is_attempted = True
@@ -380,7 +380,7 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
@@ -404,13 +404,13 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "search", "--json", "-c", self.channel, self.package]
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
                 data = json.loads(self._string_from_start_of_json(command_output))
             except:
-                _log.warning("failed to decode JSON output from conda create: %s", result.stdout.decode("UTF-8"))
+                _log.warning("failed to decode JSON output from conda search: %s", result.stdout.decode("UTF-8"))
                 return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
@@ -425,7 +425,7 @@ class CondaPackage(InstallMethod):
 
         result = util.misc.run_and_print(
             run_cmd,
-            silent=True,
+            loglevel=logging.DEBUG,
             env=self.conda_env)
 
         if result.returncode == 0:
@@ -457,7 +457,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -475,7 +475,7 @@ class CondaPackage(InstallMethod):
                     "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
                     self._package_str
                 ],
-                silent=True,
+                loglevel=logging.DEBUG,
                 env=self.conda_env,
             )
 
