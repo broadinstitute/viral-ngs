@@ -445,9 +445,9 @@ class CondaPackage(InstallMethod):
         self.verify_install()
 
     def install_package(self):
-        if not self.package_available():
-            _log.error("Conda package for %s cannot be installed; it is not available on this platform. Related functionality may not be available.", self.package)
-            return
+        #if not self.package_available():
+        #    _log.error("Conda package for %s cannot be installed; it is not available on this platform. Related functionality may not be available.", self.package)
+        #    return
 
         # try to create the environment and install the package
         run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
