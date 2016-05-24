@@ -428,7 +428,7 @@ def kraken(inBam, db, outReport=None, outReads=None,
     tmp_reads = util.file.mkstempfname('.kraken')
     opts = {
         '--paired': None,
-        '--threads': min(numThreads, util.misc.available_cpu_count()),
+        '--threads': min(int(numThreads), util.misc.available_cpu_count()),
     }
     # Could be optimized in 3.5 piping directly to kraken-filter.
     kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
@@ -481,7 +481,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
                         default=0.05,
                         type=float,
                         help='Kraken filter threshold (default %(default)s)')
-    parser.add_argument('--numThreads', default=1, help='Number of threads to run. (default %(default)s)')
+    parser.add_argument('--numThreads', type=int, default=1, help='Number of threads to run. (default %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None),
                                   ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
