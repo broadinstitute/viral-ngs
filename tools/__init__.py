@@ -337,7 +337,7 @@ class CondaPackage(InstallMethod):
     def _attempt_install(self):
         try:
             # check for presence of conda command
-            util.misc.run_and_print(["conda", "-V"], loglevel=logging.DEBUG, check=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], loglevel=logging.WARNING, check=True, env=self.conda_env)
         except:
             _log.debug("conda NOT installed")
             self._is_attempted = True
@@ -380,7 +380,7 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.WARNING, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
@@ -404,7 +404,7 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "search", "--json", "-c", self.channel, self.package]
 
-        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.WARNING, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
@@ -427,7 +427,7 @@ class CondaPackage(InstallMethod):
 
         result = util.misc.run_and_print(
             run_cmd,
-            loglevel=logging.DEBUG,
+            loglevel=logging.WARNING,
             env=self.conda_env)
 
         if result.returncode == 0:
@@ -459,7 +459,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, loglevel=logging.DEBUG, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.WARNING, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
