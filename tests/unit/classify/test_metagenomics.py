@@ -18,6 +18,7 @@ from mock import patch
 import tools.picard
 import metagenomics
 import util.file
+import util.misc
 from test import TestCaseWithTmp
 
 
@@ -119,7 +120,7 @@ class TestKrakenCalls(TestCaseWithTmp):
         self.mock_kraken().classify.assert_called_once_with(
             self.db, mock.ANY, mock.ANY, options={
                 '--paired': None,
-                '--threads': 11,
+                '--threads': min(util.misc.available_cpu_count(), 11),
         })
 
 
