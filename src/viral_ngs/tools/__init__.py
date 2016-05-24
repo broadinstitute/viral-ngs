@@ -402,7 +402,7 @@ class CondaPackage(InstallMethod):
 
     def package_available(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
-        run_cmd = ["conda", "search", "--json", "--spec", "-c", self.channel, "-p", self.env_path, self._package_str]
+        run_cmd = ["conda", "search", "--json", "-c", self.channel, self.package]
 
         result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
         if result.returncode == 0:
@@ -415,7 +415,9 @@ class CondaPackage(InstallMethod):
 
             if data and len(data):
                 if self.package in data and "error" not in data:
-                    return True
+                    for sub_pkg in data[self.package]:
+                        if sub_pkg.get("version", "") == self.version.version_spec:
+                            return True
         return False
 
     def uninstall_package(self):
@@ -441,9 +443,9 @@ class CondaPackage(InstallMethod):
         self.verify_install()
 
     def install_package(self):
-        #if not self.package_available():
-        #    _log.error("Conda package for %s is not available on this platform. Related functionality may not be available.", self.package)
-        #    return
+        if not self.package_available():
+            _log.error("Conda package for %s is not available on this platform. Related functionality may not be available.", self.package)
+            return
 
         # try to create the environment and install the package
         run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
