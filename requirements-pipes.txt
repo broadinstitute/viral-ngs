@@ -1,5 +1,3 @@
 boto==2.38.0
-filechunkio==1.6
 snakemake==3.7.1
-yappi==0.94
 PyYAML==3.11
