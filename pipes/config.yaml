@@ -12,6 +12,10 @@ email_point_of_contact_for_ncbi: "someone@example.com"
 # Directory path containing the bmTagger databases used for depletion
 # of human reads and metagenomic contaminants
 # See: ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz
 bmtagger_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 bmtagger_dbs_remove:
   - "hg19"
@@ -21,23 +25,33 @@ bmtagger_dbs_remove:
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
 #      http://www.compbio.ox.ac.uk/analysis_tools/BLAST/formatdb.shtml
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz
 blast_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 # Within blast_db_dir, the prefix of the database containing sequences to remove during depletion
 blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
+# For pre-built hosted databases, you may download:
+#  - https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz
 trim_clip_db: "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
 spikeins_db: "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz
 kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_full_20150910"
 
 # Path of DIAMOND database file for metagenomics identification
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz
 diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 
 # Directory of the krona database for generating html reports.
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
 krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
 
 # Directory of the NCBI taxonomy dmp files
