@@ -230,10 +230,21 @@ class CondaPackage(InstallMethod):
         self.require_executability = require_executability
         self.patches = patches or []
 
-        env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
-        env = env or 'default'
-        self.env_path = os.path.realpath(os.path.expanduser(
-            os.path.join(env_root_path, env)))
+        # if we have specified a conda env/root, use it
+        # alternatively, use viral-ngs tools dir as default env root if os.environ["CONDA_ENV_PATH"] is not defined
+        #
+        # in newer versions of conda, CONDA_DEFAULT_ENV can be used
+        # as it is always the full path (in earlier versions it could be name or path)
+        # CONDA_ENV_PATH should be reliable, but may (?) be deprecated in the future 
+        if env_root_path or env or not os.environ["CONDA_ENV_PATH"]:
+            env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
+            env = env or 'default'
+            self.env_path = os.path.realpath(os.path.expanduser(
+                os.path.join(env_root_path, env)))
+        # otherwise, get path of active conda env
+        elif os.environ["CONDA_ENV_PATH"]:
+            last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_ENV_PATH"]))
+            self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.dirname(os.environ["CONDA_ENV_PATH"])
 
         conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
         self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
