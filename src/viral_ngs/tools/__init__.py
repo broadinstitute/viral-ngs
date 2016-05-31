@@ -235,8 +235,8 @@ class CondaPackage(InstallMethod):
         #
         # in newer versions of conda, CONDA_DEFAULT_ENV can be used
         # as it is always the full path (in earlier versions it could be name or path)
-        # CONDA_ENV_PATH should be reliable, but may (?) be deprecated in the future 
-        if env_root_path or env or "CONDA_ENV_PATH" not in os.environ or ("CONDA_ENV_PATH" in os.environ and not len(os.environ["CONDA_ENV_PATH"])):
+        # CONDA_ENV_PATH is always a path, but not always present
+        if env_root_path or env or "CONDA_ENV_PATH" not in os.environ or ("CONDA_ENV_PATH" in os.environ and not len(os.environ["CONDA_ENV_PATH"])) or ("CONDA_DEFAULT_ENV" in os.environ and not len(os.environ["CONDA_DEFAULT_ENV"])):
             env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
             env = env or 'default'
             self.env_path = os.path.realpath(os.path.expanduser(
@@ -244,16 +244,38 @@ class CondaPackage(InstallMethod):
         # otherwise, get path of active conda env
         elif "CONDA_ENV_PATH" in os.environ and len(os.environ["CONDA_ENV_PATH"]):
             last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_ENV_PATH"]))
-            self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.dirname(os.environ["CONDA_ENV_PATH"])
-
-        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
-        self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
+            self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.environ["CONDA_ENV_PATH"]
+        elif "CONDA_DEFAULT_ENV" in os.environ and len(os.environ["CONDA_DEFAULT_ENV"]):
+            _log.debug('CONDA_ENV_PATH not found, using CONDA_DEFAULT_ENV')
+            conda_env_path = os.environ.get('CONDA_DEFAULT_ENV')  # path to current conda environment
+            if conda_env_path:
+                if os.path.isdir(conda_env_path):
+                    _log.debug('Conda env found is specified as dir: %s' % conda_env_path)
+                    conda_env_path = os.path.abspath(conda_env_path)
+                    last_path_component = os.path.basename(os.path.normpath(conda_env_path))
+                    self.env_path = os.path.dirname(last_path_component) if last_path_component == "bin" else last_path_component
+                else: # if conda env is an environment name, infer the path
+                    _log.debug('Conda env found is specified by name: %s' % conda_env_path)
+                    result = util.misc.run_and_print(["conda", "env", "list", "--json"], loglevel=logging.DEBUG, env=os.environ)
+                    if result.returncode == 0:
+                        command_output = result.stdout.decode("UTF-8")
+                        data = json.loads(self._string_from_start_of_json(command_output))
+                        if len(data) > 0:
+                            if "envs" in data and len(data["envs"]):
+                                for item in data["envs"]:
+                                    if os.path.basename(os.path.realpath(item)) == conda_env_path:
+                                        self.env_path = os.path.realpath(item)
+                                        break
 
         # set an env variable to the conda cache path. this env gets passed to the
         # the subprocess, and the variable instructs conda where to place its cache files
+        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
+        self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
         self.conda_env = os.environ
-        self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path
+        old_envs_path = os.environ.get('CONDA_DEFAULT_ENV')
+        self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path+":"+os.path.dirname(self.env_path)
 
+        _log.debug("self.env_path: %s" % self.env_path)
         self.installed = False
         self._is_attempted = False
 
