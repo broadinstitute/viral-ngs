@@ -27,7 +27,7 @@ class BmtaggerTools(tools.Tool):
     # subtool_name must be defined in subclass
 
     def __init__(self, install_methods=None):
-        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "bmtagger.sh"
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
