@@ -238,6 +238,7 @@ class CondaPackage(InstallMethod):
         # CONDA_ENV_PATH is always a path, but not always present        
         self.env_path = None
         if "CONDA_ENV_PATH" in os.environ and len(os.environ["CONDA_ENV_PATH"]):
+            _log.debug('CONDA_ENV_PATH found')
             last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_ENV_PATH"]))
             self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.environ["CONDA_ENV_PATH"]
         elif "CONDA_DEFAULT_ENV" in os.environ and len(os.environ["CONDA_DEFAULT_ENV"]):
@@ -248,7 +249,7 @@ class CondaPackage(InstallMethod):
                     _log.debug('Conda env found is specified as dir: %s' % conda_env_path)
                     conda_env_path = os.path.abspath(conda_env_path)
                     last_path_component = os.path.basename(os.path.normpath(conda_env_path))
-                    self.env_path = os.path.dirname(last_path_component) if last_path_component == "bin" else last_path_component
+                    self.env_path = os.path.dirname(last_path_component) if last_path_component == "bin" else conda_env_path
                 else: # if conda env is an environment name, infer the path
                     _log.debug('Conda env found is specified by name: %s' % conda_env_path)
                     result = util.misc.run_and_print(["conda", "env", "list", "--json"], loglevel=logging.DEBUG, env=os.environ)
