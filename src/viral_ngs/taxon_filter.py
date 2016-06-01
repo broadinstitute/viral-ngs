@@ -12,9 +12,14 @@ import argparse
 import logging
 import subprocess
 import os
+import math
 import tempfile
 import shutil
+import functools
+
 from Bio import SeqIO
+import concurrent.futures
+
 import util.cmd
 import util.file
 import util.misc
@@ -693,6 +698,19 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMme
 # ***  deplete_blastn  ***
 # ========================
 
+def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
+        """ run blastn on the input fasta file. this is intended to be run in parallel """
+        chunk_hits = mkstempfname('.hits.txt')
+        blastnCmd = [
+            blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
+            '-query', input_fasta, '-out', chunk_hits
+        ]
+        log.debug(' '.join(blastnCmd))
+        util.misc.run_and_print(blastnCmd, check=True)
+
+        os.unlink(input_fasta)
+        return chunk_hits
+
 def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     """
     Helper function: blastn a fasta file, overcoming apparent memory leaks on
@@ -700,27 +718,73 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     and running a new blastn process on each chunk. Return a list of output
     filenames containing hits
     """
+    # the lower bound of how small a fasta chunk can be.
+    # too small and the overhead of spawning a new blast process
+    # will be detrimental relative to actual computation time
+    MIN_CHUNK_SIZE = 20000
+
+    # get the blastn path here so we don't run conda install checks multiple times
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
-    hits_files = []
+    # clamp threadcount to number of CPUs minus one
+    threads = min(util.misc.available_cpu_count()-1, threads)
+
+    # determine size of input data; records in fasta file
+    number_of_reads = util.file.fasta_length(fasta)
+    log.debug("number of reads in fasta file %s" % number_of_reads)
+
+    # divide (max, single-thread) chunksize by thread count
+    # to find the  absolute max chunk size per thread
+    chunk_max_size_per_thread = chunkSize // threads
+    
+    # find the chunk size if evenly divided among blast threads
+    reads_per_thread = number_of_reads // threads
+
+    # use the smaller of the two chunk sizes so we can run more copies of blast in parallel
+    chunkSize = min(reads_per_thread, chunk_max_size_per_thread)
+
+    # if the chunk size is too small, impose a sensible size
+    chunkSize = max(chunkSize, MIN_CHUNK_SIZE)
+
+    log.debug("chunk_max_size_per_thread %s" % chunk_max_size_per_thread)
+
+    # adjust chunk size so we don't have a small fraction 
+    # of a chunk running in its own blast process
+    # if the size of the last chunk is <80% the size of the others, 
+    # decrease the chunk size until the last chunk is 80%
+    # this is bounded by the MIN_CHUNK_SIZE
+    while (number_of_reads / chunkSize) % 1 < 0.8 and chunkSize > MIN_CHUNK_SIZE:
+        chunkSize = chunkSize-1
+
+    log.debug("blastn chunk size %s" % chunkSize)
+    log.debug("number of chunks to create %s" % (number_of_reads / chunkSize))
+    log.debug("blastn parallel instances %s" % threads)
+
+    # chunk the input file. This is a sequential operation
+    input_fastas = []
     with open(fasta, "rt") as fastaFile:
         record_iter = SeqIO.parse(fastaFile, "fasta")
         for batch in util.misc.batch_iterator(record_iter, chunkSize):
             chunk_fasta = mkstempfname('.fasta')
+            
             with open(chunk_fasta, "wt") as handle:
                 SeqIO.write(batch, handle, "fasta")
             batch = None
+            input_fastas.append(chunk_fasta)
 
-            chunk_hits = mkstempfname('.hits.txt')
-            blastnCmd = [
-                blastnPath, '-db', db, '-word_size', '16', '-num_threads', str(threads), '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
-                '-query', chunk_fasta, '-out', chunk_hits
-            ]
-            log.debug(' '.join(blastnCmd))
-            util.misc.run_and_print(blastnCmd, check=True)
+    log.debug("number of chunk files to be processed by blastn %s" % len(input_fastas))
 
-            os.unlink(chunk_fasta)
-            hits_files.append(chunk_hits)
+    hits_files = []
+    # run blastn on each of the fasta input chunks
+    with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
+        # if we have so few chunks that there are cpus left over, 
+        # divide extra cpus evenly among chunks where possible
+        # rounding to 1 if there are more chunks than extra threads
+        cpus_leftover = (threads - len(input_fastas))
+        blast_threads = max(1, int(cpus_leftover/len(input_fastas)) )
+
+        futs = [executor.submit(functools.partial(run_blastn, blastnPath, db, input_fasta, blast_threads)) for input_fasta in input_fastas]
+        hits_files = [fut.result() for fut in concurrent.futures.as_completed(futs)]
 
     return hits_files
 
