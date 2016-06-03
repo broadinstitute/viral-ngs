@@ -15,6 +15,7 @@ import errno
 import logging
 import json
 import util.cmd
+import util.misc
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -388,3 +389,11 @@ def string_to_file_name(string_value):
     string_value = string_value.strip(".")
 
     return string_value
+
+def fasta_length(fasta_path):
+    env = os.environ.copy()
+    env['LC_ALL'] = 'C' #use C locale rather than UTF8 for faster grep
+    
+    # grep for record start characters, in fixed-string mode (no regex)
+    number_of_seqs = util.misc.run_and_print(["grep", "-cF", ">", fasta_path], silent=False, check=True, env=env)
+    return int(number_of_seqs.stdout.decode("utf-8").rstrip(os.linesep))
