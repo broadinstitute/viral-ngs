@@ -76,49 +76,36 @@ class TestKrakenCalls(TestCaseWithTmp):
     def test_filter_threshold(self):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
         metagenomics.kraken(self.inBam, self.db, outReads=out_reads, filterThreshold=0.05)
-        self.mock_kraken().execute.assert_called_with(
-            'kraken-filter', self.db, mock.ANY, args=[mock.ANY], options={
-                '--threshold': 0.05
-        })
+        self.mock_kraken().filter.assert_called_with(
+            mock.ANY, self.db, mock.ANY, 0.05)
         self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
-                '--paired': None,
-                '--threads': 1,
-        })
+            mock.ANY, self.db, mock.ANY, mock.ANY)
 
     def test_out_report(self):
         out_report = util.file.mkstempfname('.kraken_report.txt')
         metagenomics.kraken(self.inBam, self.db, outReport=out_report)
 
         self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
-                '--paired': None,
-                '--threads': 1,
-        })
+            mock.ANY, self.db, mock.ANY, mock.ANY)
 
-        self.mock_kraken().execute.assert_called_with(
-            'kraken-report', self.db, out_report, args=[mock.ANY])
+        self.mock_kraken().report.assert_called_with(
+            mock.ANY, self.db, out_report)
 
     def test_out_reads_and_report(self):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
         out_report = util.file.mkstempfname('.kraken_report.txt')
         metagenomics.kraken(self.inBam, self.db, outReads=out_reads, outReport=out_report)
         self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
-                '--paired': None,
-                '--threads': 1,
-        })
-        self.mock_kraken().execute.assert_called_with(
-            'kraken-report', self.db, out_report, args=[mock.ANY])
+            self.inBam, self.db, mock.ANY, mock.ANY)
+        self.mock_kraken().report.assert_called_with(
+            mock.ANY, self.db, out_report)
 
     def test_num_threads(self):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
         metagenomics.kraken(self.inBam, self.db, outReads=out_reads, numThreads=11)
         self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
-                '--paired': None,
-                '--threads': min(util.misc.available_cpu_count(), 11),
-        })
+            mock.ANY, self.db, mock.ANY, numThreads=min(util.misc.available_cpu_count(), 11)
+        )
 
 
 @patch('metagenomics.blast_lca')
