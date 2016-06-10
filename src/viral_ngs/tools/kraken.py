@@ -115,11 +115,6 @@ class Kraken(tools.Tool):
         option_string = option_string or ''
         args = args or []
 
-        # Jellyfish code should be unnecessary with conda-only installs
-        #jellyfish_path = Jellyfish().install_and_get_path()
-        #env = os.environ.copy()
-        #env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path),
-        #                             env['PATH'])
         cmd = [os.path.join(self.libexec, command), '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
@@ -130,11 +125,11 @@ class Kraken(tools.Tool):
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
         if command in ('kraken', 'kraken-build'):
-            return util.misc.run_and_print(cmd, env=env, check=True)
+            return util.misc.run_and_print(cmd, check=True)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
-                res = util.misc.run(cmd,  stdout=of, stderr=subprocess.PIPE,
-                                    env=env, check=True)
+                res = util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
+                                    check=True)
                 if res.returncode != 0:
                     print(res.stderr.decode('utf-8'), file=sys.stderr)
             return res
