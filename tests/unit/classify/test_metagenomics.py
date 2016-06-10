@@ -67,8 +67,11 @@ class TestKrakenCalls(TestCaseWithTmp):
             ['CLIPPING_ACTION=X', 'CLIPPING_ATTRIBUTE=%s'
              % tools.picard.SamToFastqTool.illumina_clipping_attribute])
 
-        self.mock_kraken().classify.assert_called_once_with(
-            mock.ANY, self.db, mock.ANY, mock.ANY)
+        self.mock_kraken().execute.assert_called_once_with(
+            'kraken', self.db, mock.ANY, args=[mock.ANY], options={
+                '--paired': None,
+                '--threads': util.misc.available_cpu_count(),
+        })
 
         # Exists due to test. Need a better tmpfile patcher.
         self.assertTrue(os.path.isfile(out_reads))
@@ -80,20 +83,20 @@ class TestKrakenCalls(TestCaseWithTmp):
             'kraken-filter', self.db, mock.ANY, args=[mock.ANY], options={
                 '--threshold': 0.05
         })
-        self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
+        self.mock_kraken().execute.assert_called_once_with(
+            'kraken', self.db, mock.ANY, mock.ANY, options={
                 '--paired': None,
-                '--threads': 1,
+                '--threads': util.misc.available_cpu_count(),
         })
 
     def test_out_report(self):
         out_report = util.file.mkstempfname('.kraken_report.txt')
         metagenomics.kraken(self.inBam, self.db, outReport=out_report)
 
-        self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
+        self.mock_kraken().execute.assert_called_once_with(
+            'kraken', self.db, mock.ANY, mock.ANY, options={
                 '--paired': None,
-                '--threads': 1,
+                '--threads': util.misc.available_cpu_count(),
         })
 
         self.mock_kraken().execute.assert_called_with(
@@ -103,10 +106,10 @@ class TestKrakenCalls(TestCaseWithTmp):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
         out_report = util.file.mkstempfname('.kraken_report.txt')
         metagenomics.kraken(self.inBam, self.db, outReads=out_reads, outReport=out_report)
-        self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
+        self.mock_kraken().execute.assert_called_once_with(
+            'kraken', self.db, mock.ANY, mock.ANY, options={
                 '--paired': None,
-                '--threads': 1,
+                '--threads': util.misc.available_cpu_count(),
         })
         self.mock_kraken().execute.assert_called_with(
             'kraken-report', self.db, out_report, args=[mock.ANY])
@@ -114,8 +117,8 @@ class TestKrakenCalls(TestCaseWithTmp):
     def test_num_threads(self):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
         metagenomics.kraken(self.inBam, self.db, outReads=out_reads, numThreads=11)
-        self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
+        self.mock_kraken().execute.assert_called_once_with(
+            'kraken', self.db, mock.ANY, mock.ANY, options={
                 '--paired': None,
                 '--threads': min(util.misc.available_cpu_count(), 11),
         })
