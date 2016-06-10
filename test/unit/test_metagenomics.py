@@ -68,10 +68,7 @@ class TestKrakenCalls(TestCaseWithTmp):
              % tools.picard.SamToFastqTool.illumina_clipping_attribute])
 
         self.mock_kraken().classify.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={
-                '--paired': None,
-                '--threads': 1,
-        })
+            mock.ANY, self.db, mock.ANY, mock.ANY)
 
         # Exists due to test. Need a better tmpfile patcher.
         self.assertTrue(os.path.isfile(out_reads))
