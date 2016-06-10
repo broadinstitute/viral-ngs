@@ -30,16 +30,12 @@ class TestToolKraken(TestCaseWithTmp):
         self.db = tempfile.mkdtemp('db')
 
     def test_kraken_classify(self):
-        in_fastq1 = util.file.mkstempfname('.1.fastq')
-        in_fastq2 = util.file.mkstempfname('.2.fastq')
+        in_bam = util.file.mkstempfname('.bam')
         out_reads = util.file.mkstempfname('.reads')
-        self.kraken.classify(self.db, [in_fastq1, in_fastq2], out_reads, options={
-            '--paired': None
-        })
+        self.kraken.classify(in_bam, self.db, out_reads)
         args = self.mock_run.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
         self.assertTrue(util.misc.list_contains(['--db', self.db], args))
         self.assertTrue(util.misc.list_contains(['--output', out_reads], args))
         self.assertIn('--paired', args)
-        self.assertIn(in_fastq1, args)
-        self.assertIn(in_fastq2, args)
+        self.assertIn(in_bam, args)
