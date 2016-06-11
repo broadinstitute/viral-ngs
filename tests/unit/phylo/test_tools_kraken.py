@@ -3,7 +3,7 @@ from builtins import super
 import os.path
 import tempfile
 import unittest
-from mock import patch
+import mock
 import util.file
 import util.misc
 import tools.kraken
@@ -14,18 +14,20 @@ class TestToolKraken(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.kraken = tools.kraken.Kraken()
-        self.kraken.install()
-
-        patcher = patch('util.misc.run_and_print', autospec=True)
+        patcher = mock.patch('util.misc.run_and_print', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
 
-        #patcher = patch('tools.kraken.Jellyfish', autospec=True)
-        #self.addCleanup(patcher.stop)
-        #self.mock_jelly = patcher.start()
-        #self.mock_jelly().install_and_get_path.return_value = tempfile.tempdir
+        patcher = mock.patch('tools.CondaPackage', autospec=True)
+        self.addCleanup(patcher.stop)
+        self.mock_conda = patcher.start()
+        self.mock_conda.return_value.verify_install.return_value = "mock"
+        self.mock_conda.return_value.is_attempted.return_value = True
+        self.mock_conda.return_value.is_installed.return_value = True
+        self.mock_conda.return_value.require_executability = False
+        self.mock_conda.return_value.executable_path.return_value = "/dev/null"
 
+        self.kraken = tools.kraken.Kraken()
         self.inBam = util.file.mkstempfname('.bam')
         self.db = tempfile.mkdtemp('db')
 
@@ -35,7 +37,8 @@ class TestToolKraken(TestCaseWithTmp):
         self.kraken.classify(in_bam, self.db, out_reads)
         args = self.mock_run.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
-        self.assertTrue(util.misc.list_contains(['--db', self.db], args))
-        self.assertTrue(util.misc.list_contains(['--output', out_reads], args))
+        self.assertTrue(util.misc.list_contains(['--db', self.db], args), args)
+        self.assertTrue(util.misc.list_contains(['--output', out_reads], args), args)
+        self.assertTrue(util.misc.list_contains(['--threads', str(util.misc.available_cpu_count())], args), args)
         self.assertIn('--paired', args)
-        self.assertIn(in_bam, args)
+
