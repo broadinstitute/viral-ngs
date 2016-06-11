@@ -15,7 +15,6 @@ import pytest
 import mock
 from mock import patch
 
-import tools.kraken
 import tools.picard
 import metagenomics
 import util.file
@@ -76,16 +75,6 @@ class TestKrakenCalls(TestCaseWithTmp):
 
         # Exists due to test. Need a better tmpfile patcher.
         self.assertTrue(os.path.isfile(out_reads))
-
-    def test_filter_threshold_2(self):
-        k = tools.kraken.Kraken()
-        out_reads = util.file.mkstempfname('.kraken_reads.gz')
-        k.filter(self.inBam, self.db, out_reads, 0.05)
-        #metagenomics.kraken(self.inBam, self.db, outReads=out_reads, filterThreshold=0.05)
-        self.mock_kraken().execute.assert_called_with(
-            'kraken-filter', self.db, out_reads, args=[self.inBam], options={
-                '--threshold': 0.05
-        })
 
     def test_filter_threshold(self):
         out_reads = util.file.mkstempfname('.kraken_reads.gz')
