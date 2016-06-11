@@ -83,7 +83,7 @@ class Kraken(tools.Tool):
         os.unlink(tmp_fastq2)
         return res
         
-    def filter(self, inReads, db, outReads, threshold):
+    def filter(self, inReads, db, outReads, filterThreshold):
         """Filter Kraken hits
         """
         # add hardening code here to defend against div-by-zero bugs
