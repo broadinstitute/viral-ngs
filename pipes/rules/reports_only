@@ -39,7 +39,7 @@ rule all_assembly_reports:
     input:
             expand("{reports_dir}/assembly/{sample}.txt",
                 reports_dir=config["reports_dir"],
-                sample=read_file(config["samples_depletion"]))
+                sample=list(read_file(config["samples_assembly"]))+list(read_file(config["samples_assembly_failures"])) )
     output:
             config["reports_dir"]+"/summary.assembly.txt"
     params: LSF="-N"
