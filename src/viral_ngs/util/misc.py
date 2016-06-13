@@ -265,7 +265,7 @@ def run_and_print(args, stdout=None, stderr=None,
 
 def run_and_save(args, stdout=None, stdin=None,
                  outf=None, stderr=None, preexec_fn=None,
-                 close_fds=False, shell=False, cwd=None, env=None):
+                 close_fds=False, shell=False, cwd=None, env=None, check=True):
     assert outf is not None
 
     sp = subprocess.Popen(args,
@@ -283,7 +283,7 @@ def run_and_save(args, stdout=None, stdin=None,
     if err:
         sys.stdout.write(err.decode("UTF-8"))
 
-    if sp.returncode != 0:
+    if sp.returncode != 0 and check:
         raise subprocess.CalledProcessError(sp.returncode, str(args[0]))
 
     return sp
@@ -379,3 +379,17 @@ def available_cpu_count():
         pass
 
     return multiprocessing.cpu_count()
+
+def which(application_binary_name):
+    """
+        Similar to the *nix "which" command, 
+        this function finds the first executable binary present
+        in the system PATH for the binary specified. 
+        It differs in that it resolves symlinks.
+    """
+    path=os.getenv('PATH')
+    for path in path.split(os.path.pathsep):
+        full_path=os.path.join(path, application_binary_name)
+        if os.path.exists(full_path) and os.access(full_path, os.X_OK):
+            link_resolved_path = os.path.realpath(full_path)
+            return link_resolved_path
