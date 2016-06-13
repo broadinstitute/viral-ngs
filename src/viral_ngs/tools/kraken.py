@@ -87,14 +87,14 @@ class Kraken(tools.Tool):
         """Filter Kraken hits
         """
         # add hardening code here to defend against div-by-zero bugs
-        self.execute('kraken-filter', db, outReads, args=[inReads],
+        return self.execute('kraken-filter', db, outReads, args=[inReads],
                             options={'--threshold': filterThreshold})
     
     def report(self, inReads, db, outReport):
         """Convert Kraken read-based output to summary reports
         """
         # add hardening code here to defend against div-by-zero bugs
-        self.execute('kraken-report', db, outReport, args=[inReads])
+        return self.execute('kraken-report', db, outReport, args=[inReads])
 
     def execute(self, command, db, output, args=None, options=None,
                 option_string=None):
