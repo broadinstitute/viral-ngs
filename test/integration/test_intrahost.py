@@ -33,27 +33,6 @@ class TestPerSample(test.TestCaseWithTmp):
         strand-bias filtering and adds library-bias statistics.
     '''
 
-    def test_vphaser_one_sample(self):
-        # Files here were created as follows:
-        # - in.bam was copied from input directory for TestVPhaser2; see notes
-        #   there on how it was created.
-        # - ref.fasta was created by making two identical chromosomes, chr1
-        #   and chr2, with the sequence from West Nile virus isolate
-        #   WNV-1/US/BID-V7821/2011. That genome is a guess for the reference
-        #   of the V-Phaser 2 test file because BLAST matches the reads to
-        #   West Nile virus and that isolate has the size reported in the bam file.
-        #   Note that ref.fasta is not exactly the consensus of the reads in in.bam;
-        #   for example, pos 660 is C in ref.fasta, but more reads have T there
-        #   than C in in.bam. So we are actually testing the case that
-        #   V-Phaser 2 consensus != our consensus.
-        myInputDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(myInputDir, 'in.bam')
-        refFasta = os.path.join(myInputDir, 'ref.fasta')
-        outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
-        expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
-        self.assertEqualContents(outTab, expected)
-
     def test_vphaser_one_sample_indels(self):
         # Files here were created as follows:
         # ref.indels.fasta is Seed-stock-137_S2_L001_001.fasta
