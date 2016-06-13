@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tools
+import tools.picard
 import util.file
 import util.misc
 from builtins import super
@@ -51,18 +52,49 @@ class Kraken(tools.Tool):
         '''
         return self.execute('kraken-build', db, db, options=options,
                             option_string=option_string)
-
-    def classify(self, db, args, output, options=None, option_string=None):
-        """Classify input fasta/fastq
+    
+    def classify(self, inBam, db, outReads, numThreads=None):
+        """Classify input reads (bam)
 
         Args:
+          inBam: unaligned reads
           db: Kraken built database directory.
-          args: List of input filenames to process.
-          output: Output file of command.
+          outReads: Output file of command.
         """
-        assert len(args), 'Kraken requires input filenames.'
-        return self.execute('kraken', db, output, args=args, options=options,
-                            option_string=option_string)
+        # add hardening code here to defend against div-by-zero bugs
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
+        picard = tools.picard.SamToFastqTool()
+        picard_opts = {
+            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+            'CLIPPING_ACTION': 'X'
+        }
+        picard.execute(inBam, tmp_fastq1, tmp_fastq2,
+                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                       JVMmemory=picard.jvmMemDefault)
+        if numThreads is None:
+            numThreads = 10000000
+        opts = {
+            '--paired': None,
+            '--threads': min(int(numThreads), util.misc.available_cpu_count()),
+        }
+        res = self.execute('kraken', db, outReads, args=[tmp_fastq1, tmp_fastq2], options=opts)
+        os.unlink(tmp_fastq1)
+        os.unlink(tmp_fastq2)
+        return res
+        
+    def filter(self, inReads, db, outReads, filterThreshold):
+        """Filter Kraken hits
+        """
+        # add hardening code here to defend against div-by-zero bugs
+        return self.execute('kraken-filter', db, outReads, args=[inReads],
+                            options={'--threshold': filterThreshold})
+    
+    def report(self, inReads, db, outReport):
+        """Convert Kraken read-based output to summary reports
+        """
+        # add hardening code here to defend against div-by-zero bugs
+        return self.execute('kraken-report', db, outReport, args=[inReads])
 
     def execute(self, command, db, output, args=None, options=None,
                 option_string=None):
@@ -100,8 +132,8 @@ class Kraken(tools.Tool):
             return util.misc.run_and_print(cmd, env=env, check=True)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
-                res = util.misc.run(cmd,  stdout=of, stderr=subprocess.PIPE,
-                                    env=env, check=True)
+                res = util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
+                                    check=True)
                 if res.returncode != 0:
                     print(res.stderr.decode('utf-8'), file=sys.stderr)
             return res

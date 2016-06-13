@@ -28,22 +28,6 @@ def fastq_to_sam():
 
 
 @pytest.fixture(scope='session')
-def sam_to_fastq():
-    return tools.picard.SamToFastqTool()
-
-
-def input_fastq_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
-    return [os.path.join(data_dir, f)
-            for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-
-
-def input_bam_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
-    return join(data_dir, 'test-reads.bam')
-
-
-@pytest.fixture(scope='session')
 def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
@@ -55,25 +39,8 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
         fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
         return bam
 
-    return input_bam_paths()
-
-
-@pytest.fixture(scope='session')
-def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
-    data_dir = join(util.file.get_test_input_path(), db_type)
-    if db_type == 'TestMetagenomicsSimple':
-        fastqs = [join(data_dir, f)
-                  for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-        return fastqs
-
-    bam = join(data_dir, 'test-reads.bam')
-    basename = os.path.basename(bam)
-    fastq1 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.1.fastq'.format(basename))
-    fastq2 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.2.fastq'.format(basename))
-    sam_to_fastq.execute(bam, fastq1, fastq2)
-    return fastq1, fastq2
+    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
+    return join(data_dir, 'test-reads.bam')
 
 
 @pytest.fixture(scope='session')
@@ -138,18 +105,16 @@ def krona_db(request, tmpdir_factory, krona, db_type):
     return db
 
 
-def test_kraken_tool(tmpdir, kraken, kraken_db, input_fastqs):
+def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
     outdir = tempfile.mkdtemp('-kraken')
     out = join(outdir, 'zaire_ebola.kraken')
     out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
     out_report = join(outdir, 'zaire_ebola.kraken-report')
-    assert kraken.classify(kraken_db, input_fastqs, out).returncode == 0
-    result = kraken.execute(
-        'kraken-filter', kraken_db, out_filtered, [out],
-        options={'--threshold': 0.05})
+    result = kraken.classify(input_bam, kraken_db, out)
     assert result.returncode == 0
-    result = kraken.execute(
-        'kraken-report', kraken_db, out_report, [out_filtered])
+    result = kraken.filter(out, kraken_db, out_filtered, 0.05)
+    assert result.returncode == 0
+    result = kraken.report(out_filtered, kraken_db, out_report)
     assert result.returncode == 0
 
     assert os.path.getsize(out_report) > 0
