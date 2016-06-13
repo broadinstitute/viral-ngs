@@ -115,6 +115,10 @@ class Kraken(tools.Tool):
         option_string = option_string or ''
         args = args or []
 
+        jellyfish_path = Jellyfish().install_and_get_path()
+        env = os.environ.copy()
+        env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path),
+                                     env['PATH'])
         cmd = [os.path.join(self.libexec, command), '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
@@ -125,7 +129,7 @@ class Kraken(tools.Tool):
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
         if command in ('kraken', 'kraken-build'):
-            return util.misc.run_and_print(cmd, check=True)
+            return util.misc.run_and_print(cmd, env=env, check=True)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
                 res = util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
@@ -134,3 +138,7 @@ class Kraken(tools.Tool):
                     print(res.stderr.decode('utf-8'), file=sys.stderr)
             return res
 
+@tools.skip_install_test(condition=tools.is_osx())
+class Jellyfish(Kraken):
+    """ Tool wrapper for Jellyfish (installed by kraken-all metapackage) """
+    subtool_name = 'jellyfish'
