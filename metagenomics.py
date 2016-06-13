@@ -412,46 +412,29 @@ def kraken(inBam, db, outReport=None, outReads=None,
            filterThreshold=None, numThreads=1):
     assert outReads or outReport, (
         'Either --outReads or --outReport must be specified.')
-
-    tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-    tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-    picard = tools.picard.SamToFastqTool()
-    picard_opts = {
-        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-        'CLIPPING_ACTION': 'X'
-    }
-    picard.execute(inBam, tmp_fastq1, tmp_fastq2,
-                   picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                   JVMmemory=picard.jvmMemDefault)
-
     kraken_tool = tools.kraken.Kraken()
+
+    # kraken classify
     tmp_reads = util.file.mkstempfname('.kraken')
-    opts = {
-        '--paired': None,
-        '--threads': min(int(numThreads), util.misc.available_cpu_count()),
-    }
-    # Could be optimized in 3.5 piping directly to kraken-filter.
-    kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
+    kraken_tool.classify(inBam, db, tmp_reads, numThreads=numThreads)
 
+    # kraken filter
     if filterThreshold:
-        opts = {
-            '--threshold': filterThreshold,
-        }
-
         tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
-        kraken_tool.execute('kraken-filter', db, tmp_filtered_reads, args=[tmp_reads],
-                            options=opts)
+        kraken_tool.filter(tmp_reads, db, tmp_filtered_reads, filterThreshold)
+        os.unlink(tmp_reads)
     else:
         tmp_filtered_reads = tmp_reads
 
+    # copy outReads
     if outReads:
         with open(tmp_filtered_reads, 'rb') as f_in:
             with gzip.open(outReads, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
+    # kraken report
     if outReport:
-        kraken_tool.execute('kraken-report', db, outReport,
-                            args=[tmp_filtered_reads])
+        kraken_tool.report(tmp_filtered_reads, db, outReport)
 
 
 def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
