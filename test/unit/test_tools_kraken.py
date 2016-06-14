@@ -120,6 +120,7 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         self.assertTrue(os.path.isfile(out_filtered))
 
     def test_kraken_on_almost_empty(self):
+        ''' TO DO: this is not recapitulating failures seen previously in kraken.report--fix this! '''
         input_bam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')
         outdir = tempfile.mkdtemp('-kraken_almost_empty')
         out = os.path.join(outdir, 'almost_empty.kraken')
