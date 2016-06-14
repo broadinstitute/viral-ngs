@@ -321,6 +321,7 @@ class TestDepleteHuman(TestCaseWithTmp):
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)
 
     def test_deplete_almost_empty(self):
+        ''''TO DO: this test does not recapitulate the error seen in the DNAnexus run mentioned in Issue #308.'''
         myInputDir = util.file.get_test_input_path(self)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')
 
