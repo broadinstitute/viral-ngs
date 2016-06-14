@@ -215,6 +215,8 @@ class CondaPackage(InstallMethod):
         env_root_path=None,
         conda_cache_path=None,
         patches=None,
+        post_install_command=None,
+        post_install_ret=0
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -224,6 +226,9 @@ class CondaPackage(InstallMethod):
             self.version = version
         else:
             self.version = CondaPackageVersion(version)
+
+        self.post_install_command = post_install_command
+        self.post_install_ret = post_install_ret
 
         self.verifycmd = verifycmd
         self.verifycode = verifycode
@@ -411,6 +416,7 @@ class CondaPackage(InstallMethod):
         _log.debug("Attempting install...")
         self.install_package()
         self.verify_install()
+        self.post_install()
 
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
@@ -536,6 +542,17 @@ class CondaPackage(InstallMethod):
             if "success" in data.keys() and data["success"]:
                 # we were able to create the environment and install the package
                 _log.debug("Conda environment created and package installed.")
+
+    def post_install(self):
+        """
+            Runs a shell command after package installation, 
+            relative to the directory containing the executable
+        """
+        if self.post_install_command:
+            destination_dir = os.path.dirname(os.path.realpath(self.executable_path()))
+            return_code = os.system('cd "{}" && {}'.format(destination_dir, self.post_install_command))
+            if self.post_install_ret is not None:
+                assert return_code == self.post_install_ret
 
 
 class DownloadPackage(InstallMethod):
