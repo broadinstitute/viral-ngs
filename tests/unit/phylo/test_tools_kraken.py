@@ -91,7 +91,7 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         super().setUp()
         input_dir = os.path.join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
         self.kraken_db_viral_mix = tempfile.mkdtemp('-kraken_db_viral_mix')
-        cmd = ['tar', '-C', self.kraken_db_viral_mix, '-xzf', os.path.join(input_dir, 'kraken_db.tar.gz')
+        cmd = ['tar', '-C', self.kraken_db_viral_mix, '-xzf', os.path.join(input_dir, 'kraken_db.tar.gz')]
         subprocess.check_call(cmd)
 
     def test_kraken_execution(self):
