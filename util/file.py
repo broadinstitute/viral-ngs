@@ -326,9 +326,9 @@ def replace_in_file(filename, original, new):
 
 def cat(output_file, input_files):
     '''Cat list of input filenames to output filename.'''
-    with open(output_file, 'wb') as wfd:
+    with open_or_gzopen(output_file, 'wb') as wfd:
         for f in input_files:
-            with open(f, 'rb') as fd:
+            with open_or_gzopen(f, 'rb') as fd:
                 shutil.copyfileobj(fd, wfd, 1024*1024*10)
 
 
