@@ -93,6 +93,7 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         self.kraken_db_viral_mix = tempfile.mkdtemp('-kraken_db_viral_mix')
         cmd = ['tar', '-C', self.kraken_db_viral_mix, '-xzf', os.path.join(input_dir, 'kraken_db.tar.gz')]
         subprocess.check_call(cmd)
+        self.kraken = tools.kraken.Kraken()
 
     def test_kraken_execution(self):
         input_bam = os.path.join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix', 'test-reads.bam')
@@ -100,9 +101,9 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out = os.path.join(outdir, 'viral_mix.kraken')
         out_filtered = os.path.join(outdir, 'viral_mix.filtered-kraken')
         out_report = os.path.join(outdir, 'viral_mix.kraken-report')
-        self.assertEqual(0, kraken.classify(input_bam, self.kraken_db_viral_mix, out))
-        self.assertEqual(0, kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
-        self.assertEqual(0, kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
+        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out))
+        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
+        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
         self.assertGreater(os.path.getsize(out_report), 0)
         self.assertGreater(os.path.getsize(out_filtered), 0)
 
@@ -112,9 +113,9 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out = os.path.join(outdir, 'empty.kraken')
         out_filtered = os.path.join(outdir, 'empty.filtered-kraken')
         out_report = os.path.join(outdir, 'empty.kraken-report')
-        self.assertEqual(0, kraken.classify(input_bam, self.kraken_db_viral_mix, out))
-        self.assertEqual(0, kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
-        self.assertEqual(0, kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
+        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out))
+        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
+        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
         self.assertTrue(os.path.isfile(out_report))
         self.assertTrue(os.path.isfile(out_filtered))
 
@@ -124,8 +125,8 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out = os.path.join(outdir, 'almost_empty.kraken')
         out_filtered = os.path.join(outdir, 'almost_empty.filtered-kraken')
         out_report = os.path.join(outdir, 'almost_empty.kraken-report')
-        self.assertEqual(0, kraken.classify(input_bam, self.kraken_db_viral_mix, out))
-        self.assertEqual(0, kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
-        self.assertEqual(0, kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
+        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out))
+        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05))
+        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report))
         self.assertTrue(os.path.isfile(out_report))
         self.assertTrue(os.path.isfile(out_filtered))
