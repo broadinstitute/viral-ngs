@@ -68,7 +68,7 @@ def input_fastq_paths():
 
 def input_bam_paths():
     data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
-    return join(data_dir, 'test-reads.bam')
+    return join(data_dir, 'test-reads.raw.bam')
 
 
 @pytest.fixture(scope='session')
