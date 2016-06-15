@@ -101,11 +101,13 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out = os.path.join(outdir, 'viral_mix.kraken')
         out_filtered = os.path.join(outdir, 'viral_mix.filtered-kraken')
         out_report = os.path.join(outdir, 'viral_mix.kraken-report')
+        expected_filtered = os.path.join(util.file.get_test_input_path(self), 'expected-kraken-mix.reads.txt')
+        expected_report = os.path.join(util.file.get_test_input_path(self), 'expected-kraken-mix.report.txt')
         self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out).returncode)
         self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05).returncode)
         self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report).returncode)
-        self.assertGreater(os.path.getsize(out_report), 0)
-        self.assertGreater(os.path.getsize(out_filtered), 0)
+        self.assertEqualContents(out_filtered, expected_filtered)
+        self.assertEqualContents(out_report, expected_report)
 
     def test_kraken_on_empty(self):
         input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
