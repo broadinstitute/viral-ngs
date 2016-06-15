@@ -500,7 +500,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1, padToKraken=True):
+def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
@@ -543,7 +543,7 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1, 
     with open(tmp_lca_tsv) as f:
         hits = taxa_hits_from_tsv(f)
     with open(outReport, 'w') as f:
-        for line in kraken_dfs_report(tax_db, hits, prepend_column=padToKraken):
+        for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
             print(line, file=f)
 
 
@@ -556,7 +556,6 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('--outM8', help='Blast m8 formatted output file.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
-    parser.add_argument('--padToKraken', action='store_true', help='Add an empty column to the output so the query and taxon IDs are in the same columns as a Kraken output file (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
