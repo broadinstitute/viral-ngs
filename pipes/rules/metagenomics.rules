@@ -22,22 +22,26 @@ method_props = {
 }
 
 rule diamond:
-    input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
+    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.report"),
             lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.lca.gz")
-    resources: cores=int(config.get("number_of_threads", 1))
-    params: numThreads=str(config.get("number_of_threads", 1))
+    resources: cores=int(config.get("number_of_threads", 1)),
+               mem=15
+    params: numThreads=str(config.get("number_of_threads", 1)),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
         {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads}
         """
 
 rule kraken:
-    input: join(config["data_dir"], config["subdirs"]["source"], "{sample}.bam")
+    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.report"),
             reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
-    resources: cores=int(config.get("number_of_threads", 1))
-    params: numThreads=str(config.get("number_of_threads", 1))
+    resources: cores=int(config.get("number_of_threads", 1)),
+               mem=15
+    params: numThreads=str(config.get("number_of_threads", 1)),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
         {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
