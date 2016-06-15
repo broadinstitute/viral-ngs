@@ -307,7 +307,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.rmdup.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'deplete-empty.taxfilt.bam'),
+                "--taxfiltBam", os.path.join(self.tempDir, 'deplete-empty.taxfilt.imperfect.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
@@ -321,9 +321,9 @@ class TestDepleteHuman(TestCaseWithTmp):
         for fname in [
             'deplete-empty.revert.bam', 'deplete-empty.bmtagger.bam',
             'deplete-empty.rmdup.bam', 'deplete-empty.blastn.bam',
-            'deplete-empty.taxfilt.bam'
+            'deplete-empty.taxfilt.imperfect.bam'
         ]:
-            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam, "mismatch on %s" % fname)
+            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)
 
     def test_revert_empty_input(self):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
