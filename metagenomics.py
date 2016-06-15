@@ -370,7 +370,7 @@ def taxa_hits_from_tsv(f, tax_id_column=2):
     return c
 
 
-def kraken_dfs_report(db, taxa_hits):
+def kraken_dfs_report(db, taxa_hits, prepend_column=True):
     '''Return a kraken compatible DFS report of taxa hits.
 
     Args:
@@ -380,6 +380,8 @@ def kraken_dfs_report(db, taxa_hits):
     Return:
       []str lines of the report
     '''
+    line_prefix = '\t' if prepend_column else ''
+
     db.children = parents_to_children(db.parents)
     total_hits = sum(taxa_hits.values())
     lines = []
@@ -388,7 +390,7 @@ def kraken_dfs_report(db, taxa_hits):
     unclassified_hits += taxa_hits.get(-1, 0)
     if unclassified_hits > 0:
         percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
-        lines.append('\t'.join([
+        lines.append(line_prefix+'\t'.join([
             str(percent_covered), str(unclassified_hits),
             str(unclassified_hits), 'U', '0', 'unclassified'
         ]))
@@ -498,7 +500,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
+def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1, padToKraken=True):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
@@ -541,7 +543,7 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     with open(tmp_lca_tsv) as f:
         hits = taxa_hits_from_tsv(f)
     with open(outReport, 'w') as f:
-        for line in kraken_dfs_report(tax_db, hits):
+        for line in kraken_dfs_report(tax_db, hits, prepend_column=padToKraken):
             print(line, file=f)
 
 
@@ -554,21 +556,18 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('--outM8', help='Blast m8 formatted output file.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--padToKraken', action='store_true', help='Add an empty column to the output so the query and taxon IDs are in the same columns as a Kraken output file (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
 
-def metagenomic_report_merge(kraken_reports, diamond_reports, out_kraken_summary, kraken_db, out_krona_input):
+def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db, out_krona_input):
     '''
         Merge multiple metegenomic reports into a single metagenomic report. 
         Any Krona input files created by this 
     '''
     assert out_kraken_summary or out_krona_input, (
         "Either --outKrakenSummary or --outKronaInput must be specified")
-    assert kraken_reports or diamond_reports, (
-        'Either --krakenReports or --diamondReports must be given as input')
-    assert kraken_reports if out_kraken_summary else True, (
-        'The input files --krakenReports must be provided if --outKrakenSummary is specified')
     assert kraken_db if out_kraken_summary else True, (
         'A Kraken db must be provided via --krakenDB if outKrakenSummary is specified')
 
@@ -576,7 +575,6 @@ def metagenomic_report_merge(kraken_reports, diamond_reports, out_kraken_summary
     # these are one-indexed
     # See: http://ccb.jhu.edu/software/kraken/MANUAL.html#output-format
     tool_data_columns = {
-        "diamond": (1, 2),
         "kraken": (2, 3)
     }
 
@@ -585,42 +583,32 @@ def metagenomic_report_merge(kraken_reports, diamond_reports, out_kraken_summary
         # open the output file (as gz if necessary)
         with util.file.open_or_gzopen(out_krona_input ,"wt") as outf:
             # create a TSV writer for the output file
-            output_writer = csv.writer(outf, delimiter='\t')
+            output_writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
 
-            if kraken_reports:
-                # for each Kraken file specified, pull out the appropriate columns
+            if metagenomic_reports:
+                # for each Kraken-format metag file specified, pull out the appropriate columns
                 # and write them to the TSV output
-                for kraken_file in kraken_reports:
-                    with util.file.open_or_gzopen(kraken_file.name ,"rt") as inf:
+                for metag_file in metagenomic_reports:
+                    with util.file.open_or_gzopen(metag_file.name ,"rt") as inf:
                         file_reader = csv.reader(inf, delimiter='\t')
                         for row in file_reader:
                             output_writer.writerow([row[c-1] for c in tool_data_columns["kraken"]])
-
-            if diamond_reports:
-                # for each Diamond file specified, pull out the appropriate columns
-                # and write them to the TSV output
-                for diamond_file in diamond_reports:
-                    with util.file.open_or_gzopen(diamond_file.name, "rt") as inf:
-                        file_reader = csv.reader(inf, delimiter='\t')
-                        for row in file_reader:
-                            output_writer.writerow([row[c-1] for c in tool_data_columns["diamond"]])
 
 
     # create a human-readable summary of the Kraken reports
     # kraken-report can only be used on kraken reports since it depends on queries being in its database
     if out_kraken_summary:
         # create temporary file to hold combined kraken report
-        tmp_kraken_combined_txt = util.file.mkstempfname('.txt')
+        tmp_metag_combined_txt = util.file.mkstempfname('.txt')
         
-        util.file.cat(tmp_kraken_combined_txt, [kraken_file.name for kraken_file in kraken_reports])
+        util.file.cat(tmp_metag_combined_txt, [metag_file.name for metag_file in metagenomic_reports])
 
         kraken_tool = tools.kraken.Kraken()
-        kraken_tool.report(tmp_kraken_combined_txt, kraken_db.name, out_kraken_summary)
+        kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
   
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
-    parser.add_argument("--krakenReports", dest="kraken_reports", help="Input metagenomic reports created by Kraken", nargs='+', type=argparse.FileType('r'))
-    parser.add_argument("--diamondReports", dest="diamond_reports", help="Input metagenomic reports created by Diamond", nargs='+', type=argparse.FileType('r'))
+    parser.add_argument("metagenomic_reports", help="Input metagenomic reports created by Kraken", nargs='+', type=argparse.FileType('r'))
     parser.add_argument("--outKrakenSummary", dest="out_kraken_summary", help="Input metagenomic reports created by Diamond") #, type=argparse.FileType('w'))
     parser.add_argument("--krakenDB", dest="kraken_db", help="Kraken database (needed for outKrakenSummary)", nargs='+', type=argparse.FileType('r'))
     parser.add_argument("--outKronaInput", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. Note that this writes only the two columns needed by Krona, so Krona must be invoked accordingly.") #, type=argparse.FileType('w'))
@@ -631,7 +619,7 @@ def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
 __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
-__commands__.append(('metagenomic_report_merge', parser_metagenomic_report_merge))
+__commands__.append(('report_merge', parser_metagenomic_report_merge))
 
 
 def full_parser():
