@@ -30,6 +30,7 @@ import tools.prinseq
 import tools.trimmomatic
 import tools.bmtagger
 import tools.picard
+import tools.samtools
 from util.file import mkstempfname
 import read_utils
 
@@ -685,13 +686,15 @@ __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None):
+    samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
-        tmpBamOut = mkstempfname('.bam')
-        deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
-        if tmpBamIn != inBam:
-            os.unlink(tmpBamIn)
-        tmpBamIn = tmpBamOut
+        if not samtools.isEmpty(tmpBamIn):
+            tmpBamOut = mkstempfname('.bam')
+            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
+            if tmpBamIn != inBam:
+                os.unlink(tmpBamIn)
+            tmpBamIn = tmpBamOut
     shutil.copyfile(tmpBamIn, outBam)
 
 # ========================
