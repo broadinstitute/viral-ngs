@@ -7,7 +7,6 @@ import os.path
 from os.path import join
 import tempfile
 import unittest
-import six
 from mock import patch
 from util import file
 import util.misc
