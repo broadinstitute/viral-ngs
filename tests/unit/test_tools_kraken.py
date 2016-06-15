@@ -135,4 +135,6 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         output_report = util.file.mkstempfname('.report.txt')
         expected_report = os.path.join(util.file.get_test_input_path(self), 'empty-report.txt')
         self.assertEqual(0, self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report).returncode)
-        self.assertEqualContents(output_report, expected_report)
+        with open(output_report, 'rt') as inf:
+            out_report_contents = inf.readlines()
+        self.assertEqualContents(output_report, expected_report, "mismatch: %s" out_report_contents)
