@@ -48,7 +48,7 @@ if config.get('spikeins_db'):
     all_inputs.append(config["reports_dir"]+'/summary.spike_count.txt')
 if config.get('kraken_db'):
     all_inputs.extend(
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.kraken.report"), sample=samples_metagenomics))
 
 rule all:
