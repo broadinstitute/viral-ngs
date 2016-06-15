@@ -8,6 +8,8 @@ import os.path
 import tempfile
 import shutil
 import pysam
+import samtools
+import shutil
 import tools
 import util.file
 import util.misc
@@ -68,9 +70,12 @@ class RevertSamTool(PicardTools):
     subtoolName = 'RevertSam'
 
     def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
-        picardOptions = picardOptions or []
-        opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            shutil.copyfile(inBam, outBam)
+        else:
+            picardOptions = picardOptions or []
+            opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam]
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
 class MarkDuplicatesTool(PicardTools):
@@ -90,16 +95,27 @@ class SamToFastqTool(PicardTools):
     illumina_clipping_attribute = 'XT'
 
     def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):  # pylint: disable=W0221
-        picardOptions = picardOptions or []
-        opts = ['FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2,
-                'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT']
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            # Picard SamToFastq cannot deal with an empty input BAM file
+            with open(outFastq1, 'wt') as outf:
+                pass
+            with open(outFastq2, 'wt') as outf:
+                pass
+        else:
+            picardOptions = picardOptions or []
+            opts = ['FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2,
+                    'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT']
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
-        picardOptions = picardOptions or []
-
-        opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true']
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            # Picard SamToFastq cannot deal with an empty input BAM file
+            if not os.path.isdir(outDir):
+                os.mkdir(outDir)
+        else:
+            picardOptions = picardOptions or []
+            opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true']
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
 class FastqToSamTool(PicardTools):
@@ -161,7 +177,10 @@ class FilterSamReadsTool(PicardTools):
     def execute(self, inBam, exclude, readList, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
-        if os.path.getsize(readList) == 0:
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            # Picard FilterSamReads cannot deal with an empty input BAM file
+            shutil.copyfile(inBam, outBam)
+        elif os.path.getsize(readList) == 0:
             # Picard FilterSamReads cannot deal with an empty READ_LIST_FILE
             if exclude:
                 shutil.copyfile(inBam, outBam)
