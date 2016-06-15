@@ -40,7 +40,7 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
         return bam
 
     data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
-    return join(data_dir, 'test-reads.raw.bam')
+    return join(data_dir, 'test-reads.bam')
 
 
 @pytest.fixture(scope='session')
