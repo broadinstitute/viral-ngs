@@ -29,7 +29,7 @@ rule diamond:
     params: numThreads=str(config.get("number_of_threads", 1))
     shell:
         """
-        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads} --padToKraken
         """
 
 rule kraken:
@@ -48,7 +48,10 @@ rule krona_import_taxonomy:
            ".".join([wildcards.sample, method_props[wildcards.method]['reads_ext']]))
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{method,\w+}.krona.html")
     run:
-        query_col, taxid_col = method_props[wildcards.method]['krona_columns']
+        # method_props key can be changed to allow for different tools, 
+        # but with new changes Diamond output should look like Kraken output
+        # in terms of the location of the two needed columns
+        query_col, taxid_col = method_props["kraken"]['krona_columns']
         shell("""
         {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank \
           --queryColumn {query_col}  --taxidColumn {taxid_col}
