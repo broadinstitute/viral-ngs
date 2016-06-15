@@ -8,9 +8,9 @@ import os.path
 import tempfile
 import shutil
 import pysam
-import samtools
 import shutil
 import tools
+import tools.samtools
 import util.file
 import util.misc
 
