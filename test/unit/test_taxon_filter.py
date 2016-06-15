@@ -323,7 +323,7 @@ class TestDepleteHuman(TestCaseWithTmp):
             'deplete-empty.rmdup.bam', 'deplete-empty.blastn.bam',
             'deplete-empty.taxfilt.bam'
         ]:
-            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)
+            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam, "mismatch on %s" % fname)
 
     def test_revert_empty_input(self):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
