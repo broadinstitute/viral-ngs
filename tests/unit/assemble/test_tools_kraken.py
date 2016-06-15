@@ -109,25 +109,28 @@ class TestToolKrakenExecute(TestCaseWithTmp):
 
     def test_kraken_on_empty(self):
         input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        outdir = tempfile.mkdtemp('-kraken_empty')
-        out = os.path.join(outdir, 'empty.kraken')
-        out_filtered = os.path.join(outdir, 'empty.filtered-kraken')
-        out_report = os.path.join(outdir, 'empty.kraken-report')
+        out = util.file.mkstempfname('.empty.kraken.raw.txt')
+        out_filtered = util.file.mkstempfname('.empty.filtered-kraken.txt')
+        out_report = util.file.mkstempfname('.empty.kraken-report.txt')
+        expected_report = os.path.join(util.file.get_test_input_path(self), 'empty-report.txt')
         self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out).returncode)
         self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05).returncode)
         self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report).returncode)
-        self.assertTrue(os.path.isfile(out_report))
-        self.assertTrue(os.path.isfile(out_filtered))
+        self.assertEqual(os.path.getsize(out), 0)
+        self.assertEqual(os.path.getsize(out_filtered), 0)
+        self.assertEqualContents(out_report, expected_report)
 
-    def test_kraken_on_almost_empty(self):
-        ''' TO DO: this is not recapitulating failures seen previously in kraken.report--fix this! '''
-        input_bam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')
-        outdir = tempfile.mkdtemp('-kraken_almost_empty')
-        out = os.path.join(outdir, 'almost_empty.kraken')
-        out_filtered = os.path.join(outdir, 'almost_empty.filtered-kraken')
-        out_report = os.path.join(outdir, 'almost_empty.kraken-report')
-        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out).returncode)
-        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05).returncode)
-        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report).returncode)
-        self.assertTrue(os.path.isfile(out_report))
-        self.assertTrue(os.path.isfile(out_filtered))
+    def test_kraken_filter_empty_input(self):
+        input_reads = util.file.mkstempfname('.reads.txt')
+        output_reads = util.file.mkstempfname('.filtered.reads.txt')
+        with open(input_reads, 'wt') as outf:
+            pass
+        self.assertEqual(0, self.kraken.filter(input_reads, self.kraken_db_viral_mix, output_reads, 0.05).returncode)
+        self.assertEqual(os.path.getsize(output_reads), 0)
+
+    def test_kraken_report_empty_input(self):
+        input_reads = util.file.mkstempfname('.reads.txt')
+        output_report = util.file.mkstempfname('.report.txt')
+        expected_report = os.path.join(util.file.get_test_input_path(self), 'empty-report.txt')
+        self.assertEqual(0, self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report).returncode)
+        self.assertEqualContents(output_report, expected_report)
