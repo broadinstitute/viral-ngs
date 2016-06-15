@@ -137,4 +137,4 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         self.assertEqual(0, self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report).returncode)
         with open(output_report, 'rt') as inf:
             out_report_contents = inf.readlines()
-        self.assertEqualContents(output_report, expected_report, "mismatch: %s" out_report_contents)
+        self.assertEqualContents(output_report, expected_report, "mismatch: " + out_report_contents)
