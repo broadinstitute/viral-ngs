@@ -566,9 +566,9 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
         Any Krona input files created by this 
     '''
     assert out_kraken_summary or out_krona_input, (
-        "Either --outKrakenSummary or --outKronaInput must be specified")
+        "Either --outSummaryReport or --outByQueryToTaxonID must be specified")
     assert kraken_db if out_kraken_summary else True, (
-        'A Kraken db must be provided via --krakenDB if outKrakenSummary is specified')
+        'A Kraken db must be provided via --krakenDB if outSummaryReport is specified')
 
     # column numbers containing the query (sequence) ID and taxonomic ID
     # these are one-indexed
@@ -591,7 +591,9 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
                     with util.file.open_or_gzopen(metag_file.name ,"rt") as inf:
                         file_reader = csv.reader(inf, delimiter='\t')
                         for row in file_reader:
-                            output_writer.writerow([row[c-1] for c in tool_data_columns["kraken"]])
+                            # for only the two relevant columns
+                            output_writer.writerow([f for f in row])
+                            #output_writer.writerow([row[c-1] for c in tool_data_columns["kraken"]])
 
 
     # create a human-readable summary of the Kraken reports
@@ -607,10 +609,10 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
   
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
-    parser.add_argument("metagenomic_reports", help="Input metagenomic reports created by Kraken", nargs='+', type=argparse.FileType('r'))
-    parser.add_argument("--outKrakenSummary", dest="out_kraken_summary", help="Input metagenomic reports created by Diamond") #, type=argparse.FileType('w'))
-    parser.add_argument("--krakenDB", dest="kraken_db", help="Kraken database (needed for outKrakenSummary)", nargs='+', type=argparse.FileType('r'))
-    parser.add_argument("--outKronaInput", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. Note that this writes only the two columns needed by Krona, so Krona must be invoked accordingly.") #, type=argparse.FileType('w'))
+    parser.add_argument("metagenomic_reports", help="Input metagenomic reports with the query ID and taxon ID in the 2nd and 3rd columns (Kraken format)", nargs='+', type=argparse.FileType('r'))
+    parser.add_argument("--outSummaryReport", dest="out_kraken_summary", help="Path of human-readable metagenomic summary report, created by kraken-report")
+    parser.add_argument("--krakenDB", dest="kraken_db", help="Kraken database (needed for outSummaryReport)", type=argparse.FileType('r'))
+    parser.add_argument("--outByQueryToTaxonID", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. ") 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
     return parser
