@@ -143,7 +143,7 @@ def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     }
     runner.set_override_config(override_config)
     runner.setup()
-    runner.link_samples([input_bam], destination='source')
+    runner.link_samples([input_bam], destination='per_sample')
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     kraken_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
