@@ -29,7 +29,7 @@ rule diamond:
     params: numThreads=str(config.get("number_of_threads", 1))
     shell:
         """
-        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads} --padToKraken
+        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads}
         """
 
 rule kraken:
