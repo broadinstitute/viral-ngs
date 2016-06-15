@@ -429,12 +429,14 @@ def kraken(inBam, db, outReport=None, outReads=None,
     # copy outReads
     if outReads:
         with open(tmp_filtered_reads, 'rb') as f_in:
-            with gzip.open(outReads, 'wb') as f_out:
+            with util.file.open_or_gzopen(outReads, 'w') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
     # kraken report
     if outReport:
         kraken_tool.report(tmp_filtered_reads, db, outReport)
+
+    os.unlink(tmp_filtered_reads)
 
 
 def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
