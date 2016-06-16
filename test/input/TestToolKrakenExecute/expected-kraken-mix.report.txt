@@ -1,0 +1,20 @@
+ 59.00	59	59	U	0	unclassified
+ 41.00	41	0	-	1	root
+ 41.00	41	0	D	10239	  Viruses
+ 41.00	41	0	-	439488	    ssRNA viruses
+ 41.00	41	0	-	35278	      ssRNA positive-strand viruses, no DNA stage
+ 20.00	20	0	O	464095	        Picornavirales
+ 20.00	20	0	F	12058	          Picornaviridae
+ 20.00	20	0	G	12059	            Enterovirus
+ 10.00	10	0	S	138948	              Enterovirus A
+ 10.00	10	10	-	42788	                Coxsackievirus A8
+ 10.00	10	0	S	138950	              Enterovirus C
+ 10.00	10	10	-	12083	                Human poliovirus 2
+ 11.00	11	0	F	11050	        Flaviviridae
+ 11.00	11	0	G	11102	          Hepacivirus
+ 11.00	11	0	S	11103	            Hepatitis C virus
+ 11.00	11	0	-	41856	              Hepatitis C virus genotype 1
+ 11.00	11	11	-	31646	                Hepatitis C virus subtype 1a
+ 10.00	10	0	F	675071	        Virgaviridae
+ 10.00	10	0	G	12234	          Tobamovirus
+ 10.00	10	10	S	12253	            Tomato mosaic virus

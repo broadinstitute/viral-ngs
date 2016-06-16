@@ -10,6 +10,9 @@
     Current bug with pysam 0.8.1: nosetests does not work unless you use --nocapture.
     python -m unittest works. Something about redirecting stdout.
     Actually, Travis CI still has issues with pysam and stdout even with --nocapture.
+
+    pysam 0.9.1 stops redirecting stdout which makes things much easier,
+    but it's a pain to pip install.
 '''
 
 import logging
@@ -20,7 +23,7 @@ import os
 import os.path
 import subprocess
 from collections import OrderedDict
-#import pysam
+import pysam
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.2'
@@ -36,6 +39,7 @@ class SamtoolsTool(tools.Tool):
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
+            '''
             install_methods.append(
                 tools.DownloadPackage(
                     TOOL_URL,
@@ -45,6 +49,7 @@ class SamtoolsTool(tools.Tool):
                     )
                 )
             )
+            '''
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -71,6 +76,8 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
+        #opts = args + ['-o', outFile, inFile] + regions
+        #pysam.view(*opts)
 
     def sort(self, inFile, outFile, args=None):
         args = args or []
@@ -97,8 +104,8 @@ class SamtoolsTool(tools.Tool):
                 os.unlink(outfname)
             else:
                 return
-        # pysam.faidx(inFasta)
-        self.execute('faidx', [inFasta])
+        pysam.faidx(inFasta)
+        #self.execute('faidx', [inFasta])
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
@@ -142,10 +149,29 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
 
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
-        # return int(pysam.view(*cmd)[0].strip())
         return int(subprocess.check_output(cmd).strip())
+        #if inBam.endswith('.sam') and '-S' not in opts:
+        #    opts = ['-S'] + opts
+        #cmd = ['-c'] + opts + [inBam] + regions
+        #return int(pysam.view(*cmd)[0].strip())
 
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
 
         self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')    # Suppress info messages
+
+    def isEmpty(self, inBam):
+        if not os.path.isfile(inBam):
+            return True
+        else:
+            tmpf = util.file.mkstempfname('.txt')
+            self.dumpHeader(inBam, tmpf)
+            header_size = os.path.getsize(tmpf)
+            if(os.path.getsize(inBam) > (100 + 5*header_size)):
+                # large BAM file: assume it is not empty
+                # a BAM file definitely has reads in it if its filesize is larger
+                # than just the header itself
+                return False
+            else:
+                # small BAM file: just count and see if it's non-zero
+                return (0==self.count(inBam))
