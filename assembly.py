@@ -72,22 +72,33 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
 
     # Trimmomatic
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
-    taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
+    if n_input == 0:
+        for i in range(2):
+            shutil.copyfile(infq[i], trimfq[i])
+    else:
+        taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     os.unlink(infq[0])
     os.unlink(infq[1])
     n_trim = count_fastq_reads(trimfq[0])
 
     # Prinseq
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
-    read_utils.rmdup_prinseq_fastq(trimfq[0], rmdupfq[0])
-    read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
+    for i in range(2):
+        if os.path.getsize(trimfq[i]) == 0:
+            shutil.copyfile(trimfq[i], rmdupfq[i])
+        else:
+            read_utils.rmdup_prinseq_fastq(trimfq[i], rmdupfq[i])
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
     n_rmdup = count_fastq_reads(rmdupfq[0])
 
     # Purge unmated
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
-    read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
+    if n_rmdup == 0:
+        for i in range(2):
+            shutil.copyfile(rmdupfq[i], purgefq[i])
+    else:
+        read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
     n_purge = count_fastq_reads(purgefq[0])
@@ -97,18 +108,22 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
 
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
-           '-n',
-           str(n_reads),
-           '-mode',
-           'p',
-           '-in',
-           purgefq[0],
-           purgefq[1],
-           '-out',
-           subsampfq[0],
-           subsampfq[1],]
-    util.misc.run_and_print(cmd, check=True)
+    if n_purge <= n_reads:
+        for i in range(2):
+            shutil.copyfile(purgefq[i], subsampfq[i])
+    else:
+        cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
+               '-n',
+               str(n_reads),
+               '-mode',
+               'p',
+               '-in',
+               purgefq[0],
+               purgefq[1],
+               '-out',
+               subsampfq[0],
+               subsampfq[1],]
+        util.misc.run_and_print(cmd, check=True)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
     n_subsamp = count_fastq_reads(subsampfq[0])
@@ -120,7 +135,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
     tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
-    if n == 0:
+    if n_subsamp == 0:
         # FastqToSam cannot deal with empty input
         # but Picard SamFormatConverter can deal with empty files
         opts = ['INPUT=' + tmp_header, 'OUTPUT=' + outBam, 'VERBOSITY=ERROR']
