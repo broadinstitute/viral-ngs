@@ -73,6 +73,8 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
+        #opts = args + ['-o', outFile, inFile] + regions
+        #pysam.view(*opts)
 
     def sort(self, inFile, outFile, args=None):
         args = args or []
@@ -99,8 +101,8 @@ class SamtoolsTool(tools.Tool):
                 os.unlink(outfname)
             else:
                 return
-        # pysam.faidx(inFasta)
-        self.execute('faidx', [inFasta])
+        pysam.faidx(inFasta)
+        #self.execute('faidx', [inFasta])
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
@@ -145,6 +147,8 @@ class SamtoolsTool(tools.Tool):
 
         #cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
         #return int(subprocess.check_output(cmd).strip())
+        if inBam.endswith('.sam') and '-S' not in opts:
+            opts = ['-S'] + opts
         cmd = ['-c'] + opts + [inBam] + regions
         return int(pysam.view(*cmd)[0].strip())
 
