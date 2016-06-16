@@ -21,12 +21,10 @@ import util.file
 import util.misc
 from test import TestCaseWithTmp
 
-try:
-    # Py3
-    from io import StringIO
-except ImportError:
-    # Py2
+if six.PY2:
     from StringIO import StringIO
+else:
+    from io import StringIO
 
 
 class TestCommandHelp(unittest.TestCase):
