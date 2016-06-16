@@ -103,9 +103,9 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out_report = os.path.join(outdir, 'viral_mix.kraken-report')
         expected_filtered = os.path.join(util.file.get_test_input_path(self), 'expected-kraken-mix.reads.txt')
         expected_report = os.path.join(util.file.get_test_input_path(self), 'expected-kraken-mix.report.txt')
-        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out).returncode)
-        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05).returncode)
-        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report).returncode)
+        self.kraken.classify(input_bam, self.kraken_db_viral_mix, out)
+        self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05)
+        self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report)
         self.assertEqualContents(out_filtered, expected_filtered)
         self.assertEqualContents(out_report, expected_report)
 
@@ -115,9 +115,9 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         out_filtered = util.file.mkstempfname('.empty.filtered-kraken.txt')
         out_report = util.file.mkstempfname('.empty.kraken-report.txt')
         expected_report = os.path.join(util.file.get_test_input_path(self), 'empty-report.txt')
-        self.assertEqual(0, self.kraken.classify(input_bam, self.kraken_db_viral_mix, out).returncode)
-        self.assertEqual(0, self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05).returncode)
-        self.assertEqual(0, self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report).returncode)
+        self.kraken.classify(input_bam, self.kraken_db_viral_mix, out)
+        self.kraken.filter(out, self.kraken_db_viral_mix, out_filtered, 0.05)
+        self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report)
         self.assertEqual(os.path.getsize(out), 0)
         self.assertEqual(os.path.getsize(out_filtered), 0)
         self.assertEqualContents(out_report, expected_report)
@@ -127,14 +127,14 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         output_reads = util.file.mkstempfname('.filtered.reads.txt')
         with open(input_reads, 'wt') as outf:
             pass
-        self.assertEqual(0, self.kraken.filter(input_reads, self.kraken_db_viral_mix, output_reads, 0.05).returncode)
+        self.kraken.filter(input_reads, self.kraken_db_viral_mix, output_reads, 0.05)
         self.assertEqual(os.path.getsize(output_reads), 0)
 
     def test_kraken_report_empty_input(self):
         input_reads = util.file.mkstempfname('.reads.txt')
         output_report = util.file.mkstempfname('.report.txt')
         expected_report = os.path.join(util.file.get_test_input_path(self), 'empty-report.txt')
-        self.assertEqual(0, self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report).returncode)
+        self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report)
         with open(output_report, 'rt') as inf:
             out_report_contents = inf.readlines()
         self.assertEqualContents(output_report, expected_report, "mismatch: " + out_report_contents)
