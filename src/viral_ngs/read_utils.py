@@ -764,7 +764,8 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
                                     assuming that's because there's no reads in that read group""", fn)
 
         # M-Vicuna DupRm to see what we should keep (append IDs to running file)
-        mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
+        if os.path.getsize(infastqs[0])>0 or os.path.getsize(infastqs[1])>0:
+            mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
         for fn in infastqs:
             os.unlink(fn)
 

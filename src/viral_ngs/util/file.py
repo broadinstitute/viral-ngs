@@ -391,6 +391,9 @@ def string_to_file_name(string_value):
     return string_value
 
 def fasta_length(fasta_path):
+    if not os.path.isfile(fasta_path) or os.path.getsize(fasta_path)==0:
+        return 0
+
     env = os.environ.copy()
     env['LC_ALL'] = 'C' #use C locale rather than UTF8 for faster grep
     
