@@ -1,30 +1,18 @@
-# Unit tests for intrahost.py
+# Integration tests for intrahost.py
 
 __author__ = "dpark@broadinstitute.org"
 
 # built-ins
-from collections import OrderedDict
 import os
 import os.path
 import shutil
 import tempfile
-import itertools
 import argparse
-import unittest
-
-# third-party
-import Bio
-import Bio.SeqRecord
-import Bio.Seq
 
 # module-specific
 import intrahost
 import util.file
-import util.vcf
 import test
-from intrahost import AlleleFieldParser
-import interhost
-import tools.mafft
 
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process

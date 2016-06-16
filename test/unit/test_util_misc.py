@@ -4,6 +4,52 @@ __author__ = "dpark@broadinstitute.org"
 
 import util.misc
 import unittest
+import subprocess
+
+
+class TestRunAndPrint(unittest.TestCase):
+    
+    def testBasicRunSuccess(self):
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=False, buffered=False, check=False)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=False, buffered=False, check=True)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=True, buffered=False, check=False)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=True, buffered=False, check=True)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=False, buffered=True, check=False)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=False, buffered=True, check=True)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=True, buffered=True, check=False)
+        util.misc.run_and_print(['cat', '/dev/null'],
+            silent=True, buffered=True, check=True)
+            
+    def testBasicRunFailDontCare(self):
+        util.misc.run_and_print(['cat', '/notdev/notnull'],
+            silent=False, buffered=False, check=False)
+        util.misc.run_and_print(['cat', '/notdev/notnull'],
+            silent=True, buffered=False, check=False)
+        util.misc.run_and_print(['cat', '/notdev/notnull'],
+            silent=False, buffered=True, check=False)
+        util.misc.run_and_print(['cat', '/notdev/notnull'],
+            silent=True, buffered=True, check=False)
+
+    def testBasicRunFailAndCatch(self):
+        self.assertRaises(subprocess.CalledProcessError,
+            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            silent=False, buffered=False, check=True)
+        self.assertRaises(subprocess.CalledProcessError,
+            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            silent=False, buffered=True, check=True)
+        self.assertRaises(subprocess.CalledProcessError,
+            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            silent=True, buffered=False, check=True)
+        self.assertRaises(subprocess.CalledProcessError,
+            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            silent=True, buffered=True, check=True)
 
 
 class TestFeatureSorter(unittest.TestCase):

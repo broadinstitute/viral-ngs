@@ -326,9 +326,9 @@ def replace_in_file(filename, original, new):
 
 def cat(output_file, input_files):
     '''Cat list of input filenames to output filename.'''
-    with open(output_file, 'wb') as wfd:
+    with open_or_gzopen(output_file, 'wb') as wfd:
         for f in input_files:
-            with open(f, 'rb') as fd:
+            with open_or_gzopen(f, 'rb') as fd:
                 shutil.copyfileobj(fd, wfd, 1024*1024*10)
 
 
@@ -390,10 +390,60 @@ def string_to_file_name(string_value):
 
     return string_value
 
-def fasta_length(fasta_path):
+def grep_count(file_path, to_match, additional_flags=None, fixed_mode=True, starts_with=False):
+    '''
+        This uses grep for fast counting of strings in a file
+    '''
+    if not os.path.isfile(file_path) or os.path.getsize(file_path)==0:
+        return 0
+
     env = os.environ.copy()
     env['LC_ALL'] = 'C' #use C locale rather than UTF8 for faster grep
-    
-    # grep for record start characters, in fixed-string mode (no regex)
-    number_of_seqs = util.misc.run_and_print(["grep", "-cF", ">", fasta_path], silent=False, check=True, env=env)
+
+    cmd = ["grep"]
+    # '-c' returns the match count
+    cmd.append("-c")
+    if additional_flags:
+        cmd.extend(additional_flags)
+
+    # fixed mode cannot be used with starts_with, since it does not match regular expressions
+    # only add the fixed_mode flag if we're not using starts_with
+    if not starts_with:
+        if fixed_mode:
+            cmd.append("-F")
+        cmd.append(to_match)
+    else:
+        cmd.append("^"+to_match)
+
+    cmd.append(file_path)
+
+    number_of_seqs = util.misc.run_and_print(cmd, silent=False, check=True, env=env)
     return int(number_of_seqs.stdout.decode("utf-8").rstrip(os.linesep))
+
+def count_str_in_file(in_file, query_str, starts_with=False):
+    if not os.path.isfile(in_file) or os.path.getsize(in_file)==0:
+        return 0
+
+    if in_file.endswith('.gz'):
+        n = 0
+        with gzip.open(in_file, 'rt') as inf:
+            if starts_with:
+                n = sum(1 for line in inf if line[0]==query_str)
+            else:
+                n = sum(1 for line in inf if query_str in line)
+        return n
+    # use grep count for non-gzip files since it seems to be faster than native on Pythons <3.5
+    else:
+        return grep_count(in_file, query_str, starts_with=starts_with)
+
+def fasta_length(fasta_path):
+    '''
+        Count number of records in fasta file
+    '''
+    return count_str_in_file(fasta_path, '>', starts_with=True)
+
+def count_fastq_reads(inFastq):
+    '''
+        Count number of reads in fastq file
+    '''
+    return count_str_in_file(inFastq, '@', starts_with=True)
