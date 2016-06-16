@@ -30,3 +30,14 @@ class TestToolSamtools(TestCaseWithTmp):
             outFai = inRef + '.fai'
             samtools.faidx(inRef)
             self.assertEqualContents(outFai, expected_fai)
+
+    def test_isEmpty(self):
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(samtools.isEmpty(
+            os.path.join(util.file.get_test_input_path(), 'empty.bam')))
+        self.assertFalse(samtools.isEmpty(
+            os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')))
+        self.assertFalse(samtools.isEmpty(
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')))
+        self.assertFalse(samtools.isEmpty(
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')))
