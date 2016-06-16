@@ -326,9 +326,9 @@ def replace_in_file(filename, original, new):
 
 def cat(output_file, input_files):
     '''Cat list of input filenames to output filename.'''
-    with open(output_file, 'wb') as wfd:
+    with open_or_gzopen(output_file, 'wb') as wfd:
         for f in input_files:
-            with open(f, 'rb') as fd:
+            with open_or_gzopen(f, 'rb') as fd:
                 shutil.copyfileobj(fd, wfd, 1024*1024*10)
 
 
@@ -391,6 +391,9 @@ def string_to_file_name(string_value):
     return string_value
 
 def fasta_length(fasta_path):
+    if not os.path.isfile(fasta_path) or os.path.getsize(fasta_path)==0:
+        return 0
+
     env = os.environ.copy()
     env['LC_ALL'] = 'C' #use C locale rather than UTF8 for faster grep
     

@@ -21,7 +21,6 @@ import util.file
 import util.misc
 from test import TestCaseWithTmp
 
-
 if six.PY2:
     from StringIO import StringIO
 else:
