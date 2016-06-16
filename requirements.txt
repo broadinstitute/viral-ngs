@@ -5,5 +5,5 @@ biopython==1.64
 future>=0.15.2
 futures==3.0.3; python_version == '2.6' or python_version=='2.7'
 pytest==2.9.1
-pysam==0.9.1
+pysam==0.8.3
 PyYAML==3.11
