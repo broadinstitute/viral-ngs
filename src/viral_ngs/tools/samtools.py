@@ -153,13 +153,16 @@ class SamtoolsTool(tools.Tool):
         self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')    # Suppress info messages
 
     def isEmpty(self, inBam):
-        tmpf = util.file.mkstempfname('.txt')
-        self.dumpHeader(inBam, tmpf)
-        if(os.path.getsize(inBam) > (100 + 5*os.path.getsize(tmpf))):
-            # large BAM file: assume it is not empty
-            # a BAM file definitely has reads in it if its filesize is larger
-            # than just the header itself
-            return False
+        if not os.path.isfile(inBam):
+            return True
         else:
-            # small BAM file: just count and see if it's non-zero
-            return (0==self.count(inBam))
+            tmpf = util.file.mkstempfname('.txt')
+            self.dumpHeader(inBam, tmpf)
+            if(os.path.getsize(inBam) > (100 + 5*os.path.getsize(tmpf))):
+                # large BAM file: assume it is not empty
+                # a BAM file definitely has reads in it if its filesize is larger
+                # than just the header itself
+                return False
+            else:
+                # small BAM file: just count and see if it's non-zero
+                return (0==self.count(inBam))
