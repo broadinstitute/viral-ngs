@@ -24,7 +24,6 @@ import os.path
 import subprocess
 from collections import OrderedDict
 import pysam
-import gzip
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.2'
