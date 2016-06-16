@@ -117,10 +117,6 @@ class Kraken(tools.Tool):
         option_string = option_string or ''
         args = args or []
 
-        jellyfish_path = Jellyfish().install_and_get_path()
-        env = os.environ.copy()
-        env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path),
-                                     env['PATH'])
         cmd = [os.path.join(self.libexec, command), '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
@@ -130,7 +126,13 @@ class Kraken(tools.Tool):
         cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
-        if command in ('kraken', 'kraken-build'):
+        if command == 'kraken':
+            util.misc.run_and_print(cmd, check=True, silent=False)
+        elif command == 'kraken-build':
+            jellyfish_path = Jellyfish().install_and_get_path()
+            env = os.environ.copy()
+            env['PATH'] = ':'.join(os.path.dirname(jellyfish_path),
+                                   env['PATH'])
             util.misc.run_and_print(cmd, env=env, check=True, silent=False)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
