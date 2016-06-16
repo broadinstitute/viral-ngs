@@ -48,6 +48,24 @@ class TestAssembleTrinity(TestCaseWithTmp):
         self.assertGreater(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
 
+    def test_empty_input_succeed(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.assemble_trinity(inBam, outFasta, clipDb, threads=4, always_succeed=True)
+        self.assertEqual(os.path.getsize(outFasta), 0)
+        os.unlink(outFasta)
+
+    def test_empty_input_succeed(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        self.assertRaises(assembly.DenovoAssemblyError,
+            assembly.assemble_trinity,
+            inBam, outFasta, clipDb, threads=4, always_succeed=False)
+
 
 class TestAmbiguityBases(unittest.TestCase):
 

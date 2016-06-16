@@ -47,6 +47,19 @@ import Bio.Data.IUPACData
 log = logging.getLogger(__name__)
 
 
+class DenovoAssemblyError(Exception):
+    def __init__(self, n_start, n_trimmed, n_rmdup, n_purge, n_subsamp):
+        super(DenovoAssemblyError, self).__init__(
+            'denovo assembly (Trinity) failed. {} reads at start. {} reads after Trimmomatic. {} reads after Prinseq rmdup. {} reads after removing unpaired mates. {} reads after subsampling.'.format(
+                n_start, n_trimmed, n_rmdup, n_purge, n_subsamp))
+
+
+def count_fastq_reads(inFastq):
+    with util.file.open_or_gzopen(inFastq, 'rt') as inf:
+        n = sum(1 for line in inf if line.startswith('>'))
+    return n
+
+
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
         This should probably move over to read_utils or taxon_filter.
@@ -55,12 +68,14 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
+    n_input = count_fastq_reads(infq[0])
 
     # Trimmomatic
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
     taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     os.unlink(infq[0])
     os.unlink(infq[1])
+    n_trim = count_fastq_reads(trimfq[0])
 
     # Prinseq
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
@@ -68,17 +83,17 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
+    n_rmdup = count_fastq_reads(rmdupfq[0])
 
     # Purge unmated
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
     read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
+    n_purge = count_fastq_reads(purgefq[0])
 
     # Log count
-    with open(purgefq[0], 'rt') as inf:
-        n = int(sum(1 for line in inf) / 4)
-        log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n)
+    log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
 
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
@@ -96,6 +111,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     util.misc.run_and_print(cmd, check=True)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
+    n_subsamp = count_fastq_reads(subsampfq[0])
 
     # Fastq -> BAM
     # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
@@ -116,6 +132,10 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     os.unlink(tmp_header)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
+    
+    log.info("Pre-Trinity read filters: %s reads at start. %s reads after Trimmomatic. %s reads after Prinseq rmdup. %s reads after removing unpaired mates. %s reads after subsampling.",
+             n_input, n_trim, n_rmdup, n_purge, n_subsamp)
+    return (n_input, n_trim, n_rmdup, n_purge, n_subsamp)
 
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
@@ -137,7 +157,9 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None, threads=1):
+def assemble_trinity(inBam, outFasta, clipDb,
+    n_reads=100000, outReads=None, always_succeed=False,
+    JVMmemory=None, threads=1):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
@@ -147,10 +169,18 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVM
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
 
-    trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
+    read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
-    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+    try:
+        tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+    except subprocess.CalledProcessError as e:
+        if always_succeed:
+            log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
+            with open(outFasta, 'wt') as outf:
+                pass
+        else:
+            raise DenovoAssemblyError(*read_stats)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -167,6 +197,12 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
                         type=int,
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument("--always_succeed",
+                        help="""If Trinity fails (usually because insufficient reads to assemble),
+                        emit an empty fasta file as output. Default is to throw a DenovoAssemblyError.""",
+                        default=False,
+                        action="store_true",
+                        dest="always_succeed")
     parser.add_argument('--JVMmemory',
                         default=tools.trinity.TrinityTool.jvm_mem_default,
                         help='JVM virtual memory size (default: %(default)s)')
