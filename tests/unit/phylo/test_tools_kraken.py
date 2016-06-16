@@ -8,6 +8,7 @@ import subprocess
 import util.file
 import util.misc
 import tools.kraken
+import tools.samtools
 from test import TestCaseWithTmp
 
 
@@ -15,6 +16,8 @@ class TestToolKrakenMocked(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
+        tools.samtools.SamtoolsTool().install()
+
         patcher = mock.patch('util.misc.run_and_print', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_run_and_print = patcher.start()
@@ -22,6 +25,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
 
+        '''
         patcher = mock.patch('tools.CondaPackage', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_conda = patcher.start()
@@ -30,6 +34,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.mock_conda.return_value.is_installed.return_value = True
         self.mock_conda.return_value.require_executability = False
         self.mock_conda.return_value.executable_path.return_value = "/dev/null"
+        '''
 
         self.kraken = tools.kraken.Kraken()
         self.inBam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')
@@ -120,7 +125,11 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         self.kraken.report(out_filtered, self.kraken_db_viral_mix, out_report)
         self.assertEqual(os.path.getsize(out), 0)
         self.assertEqual(os.path.getsize(out_filtered), 0)
-        self.assertEqualContents(out_report, expected_report)
+        with open(out_report, 'rt') as inf:
+            out_report_contents = inf.readlines()
+        self.assertEqual(len(out_report_contents), 1)
+        out_report_contents = out_report_contents[0].rstrip('\n').split('\t')
+        self.assertEqual(out_report_contents, ['100.00', '0', '0', 'U', '0', 'unclassified'])
 
     def test_kraken_filter_empty_input(self):
         input_reads = util.file.mkstempfname('.reads.txt')
