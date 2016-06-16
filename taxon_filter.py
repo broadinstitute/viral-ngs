@@ -193,7 +193,7 @@ def lastal_chunked_fastq(
 
             lastal_out = mkstempfname('.lastal')
             with open(lastal_out, 'wt') as outf:
-                cmd = [lastal_path, '-Q1']
+                cmd = [lastal_path, '-Q1', '-P0']
                 cmd.extend(
                     [
                         '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
