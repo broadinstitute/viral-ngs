@@ -30,6 +30,7 @@ import tools.prinseq
 import tools.trimmomatic
 import tools.bmtagger
 import tools.picard
+import tools.samtools
 from util.file import mkstempfname
 import read_utils
 
@@ -192,7 +193,7 @@ def lastal_chunked_fastq(
 
             lastal_out = mkstempfname('.lastal')
             with open(lastal_out, 'wt') as outf:
-                cmd = [lastal_path, '-Q1']
+                cmd = [lastal_path, '-Q1', '-P0']
                 cmd.extend(
                     [
                         '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
@@ -685,13 +686,15 @@ __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None):
+    samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
-        tmpBamOut = mkstempfname('.bam')
-        deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
-        if tmpBamIn != inBam:
-            os.unlink(tmpBamIn)
-        tmpBamIn = tmpBamOut
+        if not samtools.isEmpty(tmpBamIn):
+            tmpBamOut = mkstempfname('.bam')
+            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
+            if tmpBamIn != inBam:
+                os.unlink(tmpBamIn)
+            tmpBamIn = tmpBamOut
     shutil.copyfile(tmpBamIn, outBam)
 
 # ========================
@@ -732,6 +735,8 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)
     log.debug("number of reads in fasta file %s" % number_of_reads)
+    if number_of_reads==0:
+        return [mkstempfname('.hits.txt')]
 
     # divide (max, single-thread) chunksize by thread count
     # to find the  absolute max chunk size per thread
