@@ -128,8 +128,6 @@ def blast_records(f):
             parts[field] = int(parts[field])
         for field in (2, 10, 11):
             parts[field] = float(parts[field])
-        #for field in (0, 1):
-        #    parts[field] = str(parts[field])
         yield BlastRecord(*parts)
 
 
@@ -183,7 +181,7 @@ def blast_lca(db, m8_file, output, paired=False, min_bit_score=50,
         if not tax_id:
             log.debug('Query: {} has no valid taxonomy paths.'.format(query_id))
         else:
-            output.write('{}\t{}\n'.format(str(query_id), str(tax_id)))
+            output.write('{}\t{}\n'.format(query_id, tax_id))
 
 
 def process_blast_hits(db, blast_hits, top_percent):
