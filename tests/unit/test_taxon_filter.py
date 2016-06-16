@@ -276,7 +276,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
                 os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'test-reads.taxfilt.bam'),
+                "--taxfiltBam", os.path.join(self.tempDir, 'test-reads.taxfilt.imperfect.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
@@ -290,7 +290,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         for fname in [
             'test-reads.revert.bam', 'test-reads.bmtagger.bam',
             'test-reads.rmdup.bam', 'test-reads.blastn.bam',
-            'test-reads.taxfilt.bam'
+            'test-reads.taxfilt.imperfect.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
@@ -307,7 +307,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.rmdup.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'deplete-empty.taxfilt.imperfect.bam'),
+                "--taxfiltBam", os.path.join(self.tempDir, 'deplete-empty.taxfilt.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
@@ -321,7 +321,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         for fname in [
             'deplete-empty.revert.bam', 'deplete-empty.bmtagger.bam',
             'deplete-empty.rmdup.bam', 'deplete-empty.blastn.bam',
-            'deplete-empty.taxfilt.imperfect.bam'
+            'deplete-empty.taxfilt.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)
 
