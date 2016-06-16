@@ -23,6 +23,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
 
+        '''
         patcher = mock.patch('tools.CondaPackage', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_conda = patcher.start()
@@ -31,6 +32,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.mock_conda.return_value.is_installed.return_value = True
         self.mock_conda.return_value.require_executability = False
         self.mock_conda.return_value.executable_path.return_value = "/dev/null"
+        '''
 
         self.kraken = tools.kraken.Kraken()
         self.inBam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')

@@ -10,6 +10,9 @@
     Current bug with pysam 0.8.1: nosetests does not work unless you use --nocapture.
     python -m unittest works. Something about redirecting stdout.
     Actually, Travis CI still has issues with pysam and stdout even with --nocapture.
+
+    pysam 0.9.1 stops redirecting stdout which makes things much easier,
+    but it's a pain to pip install.
 '''
 
 import logging
@@ -21,6 +24,7 @@ import os.path
 import subprocess
 from collections import OrderedDict
 import pysam
+import gzip
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.2'
@@ -145,12 +149,12 @@ class SamtoolsTool(tools.Tool):
         opts = opts or []
         regions = regions or []
 
-        #cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
-        #return int(subprocess.check_output(cmd).strip())
-        if inBam.endswith('.sam') and '-S' not in opts:
-            opts = ['-S'] + opts
-        cmd = ['-c'] + opts + [inBam] + regions
-        return int(pysam.view(*cmd)[0].strip())
+        cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
+        return int(subprocess.check_output(cmd).strip())
+        #if inBam.endswith('.sam') and '-S' not in opts:
+        #    opts = ['-S'] + opts
+        #cmd = ['-c'] + opts + [inBam] + regions
+        #return int(pysam.view(*cmd)[0].strip())
 
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
@@ -162,10 +166,8 @@ class SamtoolsTool(tools.Tool):
             return True
         else:
             tmpf = util.file.mkstempfname('.txt')
-            header = pysam.view('-H', inBam)
-            header_size = sum(len(row) for row in header)
-            #self.dumpHeader(inBam, tmpf)
-            #header_size = os.path.getsize(tmpf)
+            self.dumpHeader(inBam, tmpf)
+            header_size = os.path.getsize(tmpf)
             if(os.path.getsize(inBam) > (100 + 5*header_size)):
                 # large BAM file: assume it is not empty
                 # a BAM file definitely has reads in it if its filesize is larger
