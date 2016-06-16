@@ -20,7 +20,7 @@ import os
 import os.path
 import subprocess
 from collections import OrderedDict
-#import pysam
+import pysam
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.2'
@@ -143,9 +143,10 @@ class SamtoolsTool(tools.Tool):
         opts = opts or []
         regions = regions or []
 
-        cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
-        # return int(pysam.view(*cmd)[0].strip())
-        return int(subprocess.check_output(cmd).strip())
+        #cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
+        #return int(subprocess.check_output(cmd).strip())
+        cmd = ['-c'] + opts + [inBam] + regions
+        return int(pysam.view(*cmd)[0].strip())
 
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
@@ -157,8 +158,11 @@ class SamtoolsTool(tools.Tool):
             return True
         else:
             tmpf = util.file.mkstempfname('.txt')
-            self.dumpHeader(inBam, tmpf)
-            if(os.path.getsize(inBam) > (100 + 5*os.path.getsize(tmpf))):
+            header = pysam.view('-H', inBam)
+            header_size = sum(len(row) for row in header)
+            #self.dumpHeader(inBam, tmpf)
+            #header_size = os.path.getsize(tmpf)
+            if(os.path.getsize(inBam) > (100 + 5*header_size)):
                 # large BAM file: assume it is not empty
                 # a BAM file definitely has reads in it if its filesize is larger
                 # than just the header itself
