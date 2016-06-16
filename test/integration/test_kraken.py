@@ -76,10 +76,10 @@ def kraken_db(request, tmpdir_factory, kraken, db_type):
         os.symlink(realpath, name)
 
     # Minimizer len corresponds to memory/disk usage of index.
-    assert kraken.build(db, options={
+    kraken.build(db, options={
         '--minimizer-len': 10,
         '--build': None,
-    }).returncode == 0
+    })
     return db
 
 
@@ -110,13 +110,9 @@ def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
     out = join(outdir, 'zaire_ebola.kraken')
     out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
     out_report = join(outdir, 'zaire_ebola.kraken-report')
-    result = kraken.classify(input_bam, kraken_db, out)
-    assert result.returncode == 0
-    result = kraken.filter(out, kraken_db, out_filtered, 0.05)
-    assert result.returncode == 0
-    result = kraken.report(out_filtered, kraken_db, out_report)
-    assert result.returncode == 0
-
+    kraken.classify(input_bam, kraken_db, out)
+    kraken.filter(out, kraken_db, out_filtered, 0.05)
+    kraken.report(out_filtered, kraken_db, out_report)
     assert os.path.getsize(out_report) > 0
     assert os.path.getsize(out_filtered) > 0
 
