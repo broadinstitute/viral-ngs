@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tools
 import tools.picard
+import tools.samtools
 import util.file
 import util.misc
 from builtins import super
@@ -50,7 +51,7 @@ class Kraken(tools.Tool):
             taxonomy/ subdirectories to build from.
           *args: List of input filenames to process.
         '''
-        return self.execute('kraken-build', db, db, options=options,
+        self.execute('kraken-build', db, db, options=options,
                             option_string=option_string)
     
     def classify(self, inBam, db, outReads, numThreads=None):
@@ -61,7 +62,11 @@ class Kraken(tools.Tool):
           db: Kraken built database directory.
           outReads: Output file of command.
         """
-        # add hardening code here to defend against div-by-zero bugs
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            # kraken cannot deal with empty input
+            with open(outReads, 'rt') as outf:
+                pass
+            return
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
         picard = tools.picard.SamToFastqTool()
@@ -81,20 +86,17 @@ class Kraken(tools.Tool):
         res = self.execute('kraken', db, outReads, args=[tmp_fastq1, tmp_fastq2], options=opts)
         os.unlink(tmp_fastq1)
         os.unlink(tmp_fastq2)
-        return res
         
     def filter(self, inReads, db, outReads, filterThreshold):
         """Filter Kraken hits
         """
-        # add hardening code here to defend against div-by-zero bugs
-        return self.execute('kraken-filter', db, outReads, args=[inReads],
+        self.execute('kraken-filter', db, outReads, args=[inReads],
                             options={'--threshold': filterThreshold})
     
     def report(self, inReads, db, outReport):
         """Convert Kraken read-based output to summary reports
         """
-        # add hardening code here to defend against div-by-zero bugs
-        return self.execute('kraken-report', db, outReport, args=[inReads])
+        self.execute('kraken-report', db, outReport, args=[inReads])
 
     def execute(self, command, db, output, args=None, options=None,
                 option_string=None):
@@ -115,10 +117,6 @@ class Kraken(tools.Tool):
         option_string = option_string or ''
         args = args or []
 
-        jellyfish_path = Jellyfish().install_and_get_path()
-        env = os.environ.copy()
-        env['PATH'] = '{}:{}'.format(os.path.dirname(jellyfish_path),
-                                     env['PATH'])
         cmd = [os.path.join(self.libexec, command), '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
@@ -128,15 +126,18 @@ class Kraken(tools.Tool):
         cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
-        if command in ('kraken', 'kraken-build'):
-            return util.misc.run_and_print(cmd, env=env, check=True)
+        if command == 'kraken':
+            util.misc.run_and_print(cmd, check=True, silent=False)
+        elif command == 'kraken-build':
+            jellyfish_path = Jellyfish().install_and_get_path()
+            env = os.environ.copy()
+            env['PATH'] = ':'.join([os.path.dirname(jellyfish_path),
+                                   env['PATH']])
+            util.misc.run_and_print(cmd, env=env, check=True, silent=False)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
-                res = util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
-                                    check=True)
-                if res.returncode != 0:
-                    print(res.stderr.decode('utf-8'), file=sys.stderr)
-            return res
+                util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
+                              check=True)
 
 @tools.skip_install_test(condition=tools.is_osx())
 class Jellyfish(Kraken):
