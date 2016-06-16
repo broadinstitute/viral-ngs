@@ -135,7 +135,7 @@ class Kraken(tools.Tool):
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
                 util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
-                              check=True, silent=False)
+                              check=True)
 
 @tools.skip_install_test(condition=tools.is_osx())
 class Jellyfish(Kraken):
