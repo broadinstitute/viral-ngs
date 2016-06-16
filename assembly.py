@@ -54,13 +54,6 @@ class DenovoAssemblyError(Exception):
                 n_start, n_trimmed, n_rmdup, n_purge, n_subsamp))
 
 
-def count_fastq_reads(inFastq):
-    ''' Maybe move this to util.file one day '''
-    with util.file.open_or_gzopen(inFastq, 'rt') as inf:
-        n = sum(1 for line in inf if line.startswith('@'))
-    return n
-
-
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
         This should probably move over to read_utils or taxon_filter.
@@ -69,7 +62,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
-    n_input = count_fastq_reads(infq[0])
+    n_input = util.file.count_fastq_reads(infq[0])
 
     # Trimmomatic
     trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
@@ -80,7 +73,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     os.unlink(infq[0])
     os.unlink(infq[1])
-    n_trim = count_fastq_reads(trimfq[0])
+    n_trim = util.file.count_fastq_reads(trimfq[0])
 
     # Prinseq
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
@@ -91,7 +84,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
             read_utils.rmdup_prinseq_fastq(trimfq[i], rmdupfq[i])
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
-    n_rmdup = count_fastq_reads(rmdupfq[0])
+    n_rmdup = util.file.count_fastq_reads(rmdupfq[0])
 
     # Purge unmated
     purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
@@ -102,7 +95,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
-    n_purge = count_fastq_reads(purgefq[0])
+    n_purge = util.file.count_fastq_reads(purgefq[0])
 
     # Log count
     log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
@@ -127,7 +120,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         util.misc.run_and_print(cmd, check=True)
     os.unlink(purgefq[0])
     os.unlink(purgefq[1])
-    n_subsamp = count_fastq_reads(subsampfq[0])
+    n_subsamp = util.file.count_fastq_reads(subsampfq[0])
 
     # Fastq -> BAM
     # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
