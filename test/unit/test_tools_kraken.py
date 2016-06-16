@@ -125,8 +125,7 @@ class TestToolKrakenExecute(TestCaseWithTmp):
     def test_kraken_filter_empty_input(self):
         input_reads = util.file.mkstempfname('.reads.txt')
         output_reads = util.file.mkstempfname('.filtered.reads.txt')
-        with open(input_reads, 'wt') as outf:
-            pass
+        os.unlink(output_reads)
         self.kraken.filter(input_reads, self.kraken_db_viral_mix, output_reads, 0.05)
         self.assertEqual(os.path.getsize(output_reads), 0)
 
@@ -137,4 +136,6 @@ class TestToolKrakenExecute(TestCaseWithTmp):
         self.kraken.report(input_reads, self.kraken_db_viral_mix, output_report)
         with open(output_report, 'rt') as inf:
             out_report_contents = inf.readlines()
-        self.assertEqualContents(output_report, expected_report, "mismatch: " + out_report_contents)
+        self.assertEqual(len(out_report_contents), 1)
+        out_report_contents = out_report_contents[0].rstrip('\n').split('\t')
+        self.assertEqual(out_report_contents, ['100.00', '0', '0', 'U', '0', 'unclassified'])
