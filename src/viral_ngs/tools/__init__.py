@@ -283,7 +283,7 @@ class CondaPackage(InstallMethod):
         old_envs_path = os.environ.get('CONDA_DEFAULT_ENV')
         self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path+":"+os.path.dirname(self.env_path)
 
-        _log.info("Tool install conda env path: %s" % self.env_path)
+        #_log.info("Tool install conda env path: %s", self.env_path)
         self.installed = False
         self._is_attempted = False
 
@@ -422,7 +422,7 @@ class CondaPackage(InstallMethod):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-        result = util.misc.run_and_print(run_cmd, loglevel=logging.INFO, env=self.conda_env)
+        result = util.misc.run(run_cmd, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
