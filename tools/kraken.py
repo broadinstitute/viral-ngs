@@ -131,8 +131,8 @@ class Kraken(tools.Tool):
         elif command == 'kraken-build':
             jellyfish_path = Jellyfish().install_and_get_path()
             env = os.environ.copy()
-            env['PATH'] = ':'.join(os.path.dirname(jellyfish_path),
-                                   env['PATH'])
+            env['PATH'] = ':'.join([os.path.dirname(jellyfish_path),
+                                   env['PATH']])
             util.misc.run_and_print(cmd, env=env, check=True, silent=False)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
