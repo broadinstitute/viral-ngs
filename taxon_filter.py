@@ -736,7 +736,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     number_of_reads = util.file.fasta_length(fasta)
     log.debug("number of reads in fasta file %s" % number_of_reads)
     if number_of_reads==0:
-        return mkstempfname('.hits.txt')
+        return [mkstempfname('.hits.txt')]
 
     # divide (max, single-thread) chunksize by thread count
     # to find the  absolute max chunk size per thread
