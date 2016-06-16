@@ -32,11 +32,11 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.mock_conda.return_value.executable_path.return_value = "/dev/null"
 
         self.kraken = tools.kraken.Kraken()
-        self.inBam = util.file.mkstempfname('.bam')
+        self.inBam = os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')
         self.db = tempfile.mkdtemp('db')
 
     def test_kraken_classify(self):
-        out_reads = util.file.mkstempfname('.reads')
+        out_reads = util.file.mkstempfname('.reads.txt')
         self.kraken.classify(self.inBam, self.db, out_reads)
         args = self.mock_run_and_print.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
@@ -66,7 +66,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         self.assertTrue(util.misc.list_contains(['--db', self.db], args), args)
 
     def test_classify_num_threads(self):
-        out_reads = util.file.mkstempfname('.reads')
+        out_reads = util.file.mkstempfname('.reads.txt')
         
         self.kraken.classify(self.inBam, self.db, out_reads)
         args = self.mock_run_and_print.call_args[0][0]
