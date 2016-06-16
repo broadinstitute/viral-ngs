@@ -57,7 +57,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         self.assertEqual(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
 
-    def test_empty_input_succeed(self):
+    def test_empty_input_fail(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')

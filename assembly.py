@@ -55,8 +55,9 @@ class DenovoAssemblyError(Exception):
 
 
 def count_fastq_reads(inFastq):
+    ''' Maybe move this to util.file one day '''
     with util.file.open_or_gzopen(inFastq, 'rt') as inf:
-        n = sum(1 for line in inf if line.startswith('>'))
+        n = sum(1 for line in inf if line.startswith('@'))
     return n
 
 
