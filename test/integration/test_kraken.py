@@ -13,7 +13,7 @@ import tools.kraken
 import tools.krona
 import tools.picard
 from test import TestCaseWithTmp
-from test.integration.snake import SnakemakeRunner
+from test.integration import snake
 
 
 @pytest.fixture(autouse=True)
@@ -132,14 +132,15 @@ def test_kraken(kraken_db, input_bam):
 @pytest.mark.skipif(sys.version_info < (3,2),
                     reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
-    runner = SnakemakeRunner(workdir=str(tmpdir))
+    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
         'kraken_db': kraken_db,
         'krona_db': krona_db,
     }
     runner.set_override_config(override_config)
     runner.setup()
-    runner.link_samples([input_bam], destination='source')
+    runner.link_samples([input_bam], destination='per_sample',
+                        link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     kraken_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
