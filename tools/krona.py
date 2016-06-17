@@ -6,7 +6,7 @@ import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = tools.CondaPackageVersion('2.6', '3')
+CONDA_TOOL_VERSION = '2.6.1'
 
 
 class Krona(tools.Tool):
@@ -18,8 +18,7 @@ class Krona(tools.Tool):
                 tools.CondaPackage(
                     TOOL_NAME, version=CONDA_TOOL_VERSION,
                     executable='ktImportTaxonomy',
-                    patches=[('opt/krona/updateTaxonomy.sh',
-                              'krona_updateTaxonomy.sh.patch')]))
+                    ))
         super().__init__(install_methods=install_methods)
 
     @property
