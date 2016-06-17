@@ -21,6 +21,9 @@ import tempfile
 _log = logging.getLogger(__name__)
 
 
+TOOL_NAME = 'gatk'
+TOOL_VERSION = '3.6'
+
 class GATKTool(tools.Tool):
     jvmMemDefault = '2g'
 
@@ -39,17 +42,26 @@ class GATKTool(tools.Tool):
                         require_executability=False
                     )
                 )
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, command, gatkOptions=None, JVMmemory=None):    # pylint: disable=W0221
         gatkOptions = gatkOptions or []
 
-        if JVMmemory is None:
+        if not JVMmemory:
             JVMmemory = self.jvmMemDefault
-        tool_cmd = [
-            'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.tempdir, '-jar', self.install_and_get_path(),
-            '-T', command
-        ] + list(map(str, gatkOptions))
+
+        # the conda version wraps the jar file with a shell script
+        if self.install_and_get_path().endswith(".jar"):
+            tool_cmd = [
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
+                '-T', command
+            ] + list(map(str, gatkOptions))
+        else:
+            tool_cmd = [
+                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-T', command
+            ] + list(map(str, gatkOptions))
+
         _log.debug(' '.join(tool_cmd))
         util.misc.run_and_print(tool_cmd, check=True)
 
@@ -63,8 +75,17 @@ class GATKTool(tools.Tool):
         return self.tool_version
 
     def _get_tool_version(self):
-        cmd = ['java', '-jar', self.install_and_get_path(), '--version']
-        self.tool_version = util.misc.run_and_print(cmd, buffered=True, silent=True).stdout.strip()
+        if self.install_and_get_path().endswith(".jar"):
+            cmd = [
+                'java', '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
+                '--version'
+            ]
+        else:
+            cmd = [
+                self.install_and_get_path(), '--version'
+            ]
+
+        self.tool_version = util.misc.run_and_print(cmd, buffered=False, silent=True).stdout.decode("utf-8").strip()
 
     def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=1):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
