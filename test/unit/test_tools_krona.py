@@ -51,6 +51,6 @@ class TestToolKrona(TestCaseWithTmp):
     def test_create_db(self):
         self.krona.create_db(self.db)
         args = self.mock_run.call_args[0][0]
-        self.assertEqual('updateTaxonomy.sh', os.path.basename(args[0]))
+        self.assertEqual('ktUpdateTaxonomy.sh', os.path.basename(args[0]))
         self.assertIn('--local', args)
         self.assertIn(self.db, args)
