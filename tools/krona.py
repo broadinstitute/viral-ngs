@@ -20,15 +20,6 @@ class Krona(tools.Tool):
                     ))
         super().__init__(install_methods=install_methods)
 
-    @property
-    def opt(self):
-        if not self.executable_path():
-            self.install_and_get_path()
-        bin_path = os.path.dirname(self.executable_path())
-        # Get at the opt directory from the conda env root
-        opt = os.path.abspath(os.path.join(bin_path, '..', 'opt', 'krona'))
-        return opt
-
     def import_taxonomy(self, db, input_tsvs, output, query_column=None, taxid_column=None,
                         score_column=None, no_hits=None, no_rank=None):
         self.install()
