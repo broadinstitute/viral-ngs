@@ -11,13 +11,9 @@ import shutil
 import subprocess
 import tools
 import util.file
-import util.misc
 
-URL = 'https://github.com/bbuchfink/diamond/archive/b576a5c03177603554f4627ae367f7bcbc6b8dcb.zip'
-TOOL_VERSION = '0.7.9'
+TOOL_VERSION = '0.7.10'
 CONDA_VERSION = tools.CondaPackageVersion('0.7.10', 'boost1.60_1')
-DIAMOND_COMMIT_DIR = 'diamond-b576a5c03177603554f4627ae367f7bcbc6b8dcb'
-DIAMOND_DIR = 'diamond-{}'.format(TOOL_VERSION)
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +25,8 @@ class Diamond(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [
-                tools.CondaPackage("diamond", version=CONDA_VERSION),
-                DownloadAndBuildDiamond(URL, os.path.join(DIAMOND_DIR, 'bin', 'diamond'))]
+                tools.CondaPackage("diamond", version=CONDA_VERSION)
+            ]
         super().__init__(install_methods=install_methods)
 
     def version(self):
@@ -99,25 +95,4 @@ class Diamond(tools.Tool):
         if option_string:
             cmd.extend(shlex.split(option_string))
         log.debug("Calling {}: {}".format(command, " ".join(cmd)))
-        util.misc.run_and_print(cmd, check=True, loglevel=logging.ERROR)
-
-
-class DownloadAndBuildDiamond(tools.DownloadPackage):
-
-    # We need to refactor to have a generic cmake installer.
-    def post_download(self):
-        diamond_dir = os.path.join(self.destination_dir, DIAMOND_DIR)
-        # We should rather have a way to rename self.download_file in
-        # DownloadPackage generically.
-        if not os.path.exists(diamond_dir):
-            shutil.move(os.path.join(self.destination_dir, DIAMOND_COMMIT_DIR), diamond_dir)
-        build_dir = os.path.join(diamond_dir, 'src')
-        #util.file.mkdir_p(build_dir)
-        env = os.environ.copy()
-        # The default travis gcc version is 4.6, which is too old to build
-        # diamond properly.
-        if os.environ.get('TRAVIS') == 'true':
-            env['CC'] = 'gcc-4.9'
-            env['CXX'] = 'g++-4.9'
-        #util.misc.run_and_print(['cmake', '..'], env=env, cwd=build_dir)
-        util.misc.run_and_print(['make'], env=env, cwd=build_dir, check=True)
+        subprocess.check_call(cmd)
