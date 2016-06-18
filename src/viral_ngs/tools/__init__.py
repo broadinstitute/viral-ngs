@@ -8,6 +8,7 @@ import re
 import logging
 import tempfile
 import shutil
+import subprocess
 import util.file
 import util.misc
 import json
@@ -339,8 +340,7 @@ class CondaPackage(InstallMethod):
         file_path = os.path.join(self.env_path, path)
         patch_path = os.path.join(
             util.file.get_project_path(), 'tools', 'patches', patch)
-        return util.misc.run_and_print(['patch', file_path, patch_path],
-                                       check=True)
+        return subprocess.check_call(['patch', file_path, patch_path])
 
     @property
     def _package_installed(self):
