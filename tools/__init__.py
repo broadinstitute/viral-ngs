@@ -324,12 +324,8 @@ class CondaPackage(InstallMethod):
         return os.path.join(self.bin_path, self.executable)
 
     def apply_patches(self):
-        result = None
         for path, patch in self.patches:
-            result = self._patch(path, patch)
-            if result.returncode != 0:
-                return result
-        return result
+            self._patch(path, patch)
 
 
     def _patch(self, path, patch):
@@ -340,7 +336,7 @@ class CondaPackage(InstallMethod):
         file_path = os.path.join(self.env_path, path)
         patch_path = os.path.join(
             util.file.get_project_path(), 'tools', 'patches', patch)
-        return subprocess.check_call(['patch', file_path, patch_path])
+        subprocess.check_call(['patch', file_path, patch_path])
 
     @property
     def _package_installed(self):
@@ -533,10 +529,7 @@ class CondaPackage(InstallMethod):
 
                 if data["success"] == True:
                     _log.debug("Package installed.")
-            result = self.apply_patches()
-            if result and result.returncode != 0:
-                _log.error("Failed to apply patches.")
-                return
+            self.apply_patches()
 
         else:
             if "success" in data.keys() and data["success"]:
