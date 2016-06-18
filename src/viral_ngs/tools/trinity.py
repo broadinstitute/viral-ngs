@@ -12,15 +12,11 @@ import os.path
 import subprocess
 import tempfile
 import shutil
-
 import tools
-import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
 CONDA_TOOL_VERSION = "date.2011_11_26" # conda versions cannot have hyphens...
-TRINITY_VERSION = "trinityrnaseq_r{}".format(TOOL_VERSION)
-url = "http://sourceforge.net/projects/trinityrnaseq/files/{}.tgz".format(TRINITY_VERSION)
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +28,6 @@ class TrinityTool(tools.Tool):
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
-            install_methods.append(DownloadAndBuildTrinity(url, TRINITY_VERSION + '/Trinity.pl'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -56,55 +51,7 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
-        util.misc.run_and_print(cmd, check=True)
+        subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
 
-
-class DownloadAndBuildTrinity(tools.DownloadPackage):
-
-    def post_download(self):
-        trinity_dir = os.path.join(self.destination_dir, TRINITY_VERSION)
-        if TOOL_VERSION == "2011-11-26":
-            # Chrysalis doesn't compile. Need to add an include file.
-            badFilePath = os.path.join(trinity_dir, 'Chrysalis', 'analysis', 'RunButterfly.cc')
-            os.rename(badFilePath, badFilePath + '.orig')
-            with open(badFilePath, 'wt') as outf:
-                outf.write('#include <unistd.h>\n')
-                with open(badFilePath + '.orig', 'rt') as inf:
-                    for line in inf:
-                        outf.write(line)
-
-            # Trinity.pl insists on Java 1.6, but Java >= 1.6 is fine
-            badFilePath = os.path.join(trinity_dir, 'Trinity.pl')
-            os.rename(badFilePath, badFilePath + '.orig')
-            with open(badFilePath, 'wt') as outf:
-                with open(badFilePath + '.orig', 'rt') as inf:
-                    for line in inf:
-                        if line.startswith('unless ($java_version =~ /java version'):
-                            outf.write(r'$java_version =~ /java version "1\.(\d+)\./;')
-                            outf.write('\nunless ($1 >= 6) {\n')
-                        else:
-                            outf.write(line)
-            shutil.copymode(badFilePath + '.orig', badFilePath)
-
-        # Now we can make:
-        util.misc.run_and_print(['make', '-s'], cwd=trinity_dir)
-        shutil.rmtree(os.path.join(trinity_dir, 'sample_data'), ignore_errors=True)
-
-    def verify_install(self):
-        if not tools.DownloadPackage.verify_install(self):
-            return False
-        self.installed = True
-
-        # Verify that chrysalis and inchworm were built
-        trinity_dir = os.path.join(self.destination_dir, TRINITY_VERSION)
-        chrysalisPath = os.path.join(trinity_dir, 'Chrysalis', 'Chrysalis')
-        inchwormPath = os.path.join(trinity_dir, 'Inchworm', 'src', 'inchworm')
-        merylPath = os.path.join(trinity_dir, 'trinity-plugins', 'kmer', 'meryl', 'meryl')
-        for path in [chrysalisPath, inchwormPath, merylPath]:
-            if not os.access(path, (os.X_OK | os.R_OK)):
-                log.debug('%s was not built.', path)
-                self.installed = False
-
-        return self.installed
