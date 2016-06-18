@@ -214,7 +214,13 @@ def run_and_print(args, stdout=None, stderr=None,
                            timeout=timeout, check=check)
             except subprocess.CalledProcessError as e:
                 if loglevel:
-                    log.log(loglevel, result.stdout.decode('utf-8'))
+                    try:
+                        log.log(loglevel, result.stdout.decode('utf-8'))
+                    except NameError:
+                        # in some situations, result does not get assigned anything
+                        pass
+                    except AttributeError:
+                        log.log(loglevel, result.output.decode('utf-8'))
                 else:
                     print(e.output.decode('utf-8'))
                     try:
