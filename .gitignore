@@ -65,3 +65,7 @@ easy-deploy/data/config.yaml
 easy-deploy/data/viral-ngs/
 
 easy-deploy/.vagrant/
+
+tools/build/
+tools/conda-cache/
+tools/conda-tools/
