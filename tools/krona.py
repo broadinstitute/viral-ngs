@@ -1,12 +1,11 @@
 import tools
 import os.path
 import subprocess
-from os.path import join
 import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = tools.CondaPackageVersion('2.6', '3')
+CONDA_TOOL_VERSION = '2.6.1'
 
 
 class Krona(tools.Tool):
@@ -18,18 +17,8 @@ class Krona(tools.Tool):
                 tools.CondaPackage(
                     TOOL_NAME, version=CONDA_TOOL_VERSION,
                     executable='ktImportTaxonomy',
-                    patches=[('opt/krona/updateTaxonomy.sh',
-                              'krona_updateTaxonomy.sh.patch')]))
+                    ))
         super().__init__(install_methods=install_methods)
-
-    @property
-    def opt(self):
-        if not self.executable_path():
-            self.install_and_get_path()
-        bin_path = os.path.dirname(self.executable_path())
-        # Get at the opt directory from the conda env root
-        opt = os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
-        return opt
 
     def import_taxonomy(self, db, input_tsvs, output, query_column=None, taxid_column=None,
                         score_column=None, no_hits=None, no_rank=None):
@@ -58,6 +47,7 @@ class Krona(tools.Tool):
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
 
-        sh = join(self.opt, 'updateTaxonomy.sh')
-        cmd = [sh, '--local', os.path.abspath(db_dir)]
+        # ktUpdateTaxonomy.sh is specific to the bioconda build of krona
+        # The script distributed with krona is normally called updateTaxonomy.sh
+        cmd = ['ktUpdateTaxonomy.sh', '--local', os.path.abspath(db_dir)]
         util.misc.run_and_print(cmd, env=env, check=True)
