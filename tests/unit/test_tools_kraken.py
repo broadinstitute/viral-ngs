@@ -42,7 +42,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
     def test_kraken_classify(self):
         out_reads = util.file.mkstempfname('.reads.txt')
         self.kraken.classify(self.inBam, self.db, out_reads)
-        args = self.mock_run_and_print.call_args[0][0]
+        args = self.mock_check_call.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
         self.assertTrue(util.misc.list_contains(['--db', self.db], args), args)
         self.assertTrue(util.misc.list_contains(['--output', out_reads], args), args)
@@ -73,7 +73,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         out_reads = util.file.mkstempfname('.reads.txt')
         
         self.kraken.classify(self.inBam, self.db, out_reads)
-        args = self.mock_run_and_print.call_args[0][0]
+        args = self.mock_check_call.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
         self.assertIn('--threads', args)
         actual = args[args.index('--threads')+1]
@@ -82,7 +82,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
         for requested in (1,2,3,8,11,20):
             expected = min(util.misc.available_cpu_count(), requested)
             self.kraken.classify(self.inBam, self.db, out_reads, numThreads=requested)
-            args = self.mock_run_and_print.call_args[0][0]
+            args = self.mock_check_call.call_args[0][0]
             self.assertEqual('kraken', os.path.basename(args[0]))
             self.assertIn('--threads', args)
             actual = args[args.index('--threads')+1]
