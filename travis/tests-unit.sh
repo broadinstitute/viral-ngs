@@ -1,4 +1,4 @@
 #!/bin/bash
 #set -e
 
-py.test test/unit
+py.test -n auto test/unit
