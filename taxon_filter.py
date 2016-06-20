@@ -47,8 +47,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of human reads with BMTagger.')
     parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument(
-        'blastnBam',
-        help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
+        'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
     )
     parser.add_argument(
         '--taxfiltBam',
@@ -89,9 +88,7 @@ def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
         Optionally, use lastal to select a specific taxon of interest.'''
     tools.picard.RevertSamTool().execute(
-        args.inBam,
-        args.revertBam,
-        picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
+        args.inBam, args.revertBam, picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
     )
     multi_db_deplete_bam(
         args.revertBam,
@@ -102,7 +99,14 @@ def main_deplete_human(args):
         JVMmemory=args.JVMmemory
     )
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
-    multi_db_deplete_bam(args.rmdupBam, args.blastDbs, deplete_blastn_bam, args.blastnBam, threads=args.threads, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(
+        args.rmdupBam,
+        args.blastDbs,
+        deplete_blastn_bam,
+        args.blastnBam,
+        threads=args.threads,
+        JVMmemory=args.JVMmemory
+    )
     if args.taxfiltBam and args.lastDb:
         filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
@@ -115,13 +119,18 @@ __commands__.append(('deplete_human', parser_deplete_human))
 # ==========================
 
 
-def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, 
-                clipFasta, 
-                leading_q_cutoff=15, 
-                trailing_q_cutoff=15, 
-                minlength_to_keep=30,
-                sliding_window_size=4,
-                sliding_window_q_cutoff=25):
+def trimmomatic(
+    inFastq1,
+    inFastq2,
+    pairedOutFastq1,
+    pairedOutFastq2,
+    clipFasta,
+    leading_q_cutoff=15,
+    trailing_q_cutoff=15,
+    minlength_to_keep=30,
+    sliding_window_size=4,
+    sliding_window_q_cutoff=25
+):
     '''Trim read sequences with Trimmomatic.'''
     trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
     tmpUnpaired1 = mkstempfname()
@@ -143,8 +152,17 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2,
 
     javaCmd.extend(
         [
-            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2, 'LEADING:{leading_q_cutoff}',
-            'TRAILING:{trailing_q_cutoff}', 'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}', 'MINLEN:{minlength_to_keep}', 'ILLUMINACLIP:{clipFasta}:2:30:12'.format(leading_q_cutoff=leading_q_cutoff, trailing_q_cutoff=trailing_q_cutoff, minlength_to_keep=minlength_to_keep, sliding_window_size=sliding_window_size, sliding_window_q_cutoff=sliding_window_q_cutoff, clipFasta=clipFasta)
+            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2,
+            'LEADING:{leading_q_cutoff}', 'TRAILING:{trailing_q_cutoff}',
+            'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}', 'MINLEN:{minlength_to_keep}',
+            'ILLUMINACLIP:{clipFasta}:2:30:12'.format(
+                leading_q_cutoff=leading_q_cutoff,
+                trailing_q_cutoff=trailing_q_cutoff,
+                minlength_to_keep=minlength_to_keep,
+                sliding_window_size=sliding_window_size,
+                sliding_window_q_cutoff=sliding_window_q_cutoff,
+                clipFasta=clipFasta
+            )
         ]
     )
 
@@ -206,16 +224,17 @@ __commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 # ***  filter_lastal  ***
 # =======================
 
+
 def lastal_chunked_fastq(
-    inFastq, 
-    db, 
-    outFastq, 
+    inFastq,
+    db,
+    outFastq,
     max_gapless_alignments_per_position=1,
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
     chunk_size=100000
-    ):
+):
 
     lastal_path = tools.last.Lastal().install_and_get_path()
     mafsort_path = tools.last.MafSort().install_and_get_path()
@@ -290,12 +309,12 @@ def lastal_get_hits(
 ):
     filteredFastq = mkstempfname('.filtered.fastq')
     lastal_chunked_fastq(
-        inFastq, 
-        db, 
+        inFastq,
+        db,
         filteredFastq,
-        max_gapless_alignments_per_position=max_gapless_alignments_per_position, 
-        min_length_for_initial_matches=min_length_for_initial_matches, 
-        max_length_for_initial_matches=max_length_for_initial_matches, 
+        max_gapless_alignments_per_position=max_gapless_alignments_per_position,
+        min_length_for_initial_matches=min_length_for_initial_matches,
+        max_length_for_initial_matches=max_length_for_initial_matches,
         max_initial_matches_per_position=max_initial_matches_per_position
     )
 
@@ -424,12 +443,12 @@ def filter_lastal(
 
     filtered_fastq = mkstempfname('.filtered.fastq')
     lastal_chunked_fastq(
-        inFastq, 
-        refDb, 
+        inFastq,
+        refDb,
         filtered_fastq,
-        max_gapless_alignments_per_position=max_gapless_alignments_per_position, 
-        min_length_for_initial_matches=min_length_for_initial_matches, 
-        max_length_for_initial_matches=max_length_for_initial_matches, 
+        max_gapless_alignments_per_position=max_gapless_alignments_per_position,
+        min_length_for_initial_matches=min_length_for_initial_matches,
+        max_length_for_initial_matches=max_length_for_initial_matches,
         max_initial_matches_per_position=max_initial_matches_per_position
     )
 
@@ -497,15 +516,12 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
-        print(
-            'srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M 7168 --paired false"',
-            file=f)
+        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M 7168 --paired false"', file=f)
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
-        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf,
-        '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', inReads1,
-        '-2', inReads2, '-o', matchesFile
+        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf, '-x', db + '.srprism', '-T', tempDir, '-q1', '-1',
+        inReads1, '-2', inReads2, '-o', matchesFile
     ]
     log.debug(' '.join(cmdline))
     util.misc.run_and_print(cmdline, check=True)
@@ -720,7 +736,14 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
-    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
+    multi_db_deplete_bam(
+        args.inBam,
+        args.refDbs,
+        deplete_bmtagger_bam,
+        args.outBam,
+        threads=args.threads,
+        JVMmemory=args.JVMmemory
+    )
 
 
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
@@ -742,18 +765,20 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMme
 # ***  deplete_blastn  ***
 # ========================
 
-def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
-        """ run blastn on the input fasta file. this is intended to be run in parallel """
-        chunk_hits = mkstempfname('.hits.txt')
-        blastnCmd = [
-            blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt', '6', '-max_target_seqs', '2',
-            '-query', input_fasta, '-out', chunk_hits
-        ]
-        log.debug(' '.join(blastnCmd))
-        util.misc.run_and_print(blastnCmd, check=True)
 
-        os.unlink(input_fasta)
-        return chunk_hits
+def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
+    """ run blastn on the input fasta file. this is intended to be run in parallel """
+    chunk_hits = mkstempfname('.hits.txt')
+    blastnCmd = [
+        blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt',
+        '6', '-max_target_seqs', '2', '-query', input_fasta, '-out', chunk_hits
+    ]
+    log.debug(' '.join(blastnCmd))
+    util.misc.run_and_print(blastnCmd, check=True)
+
+    os.unlink(input_fasta)
+    return chunk_hits
+
 
 def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     """
@@ -771,18 +796,18 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
     # clamp threadcount to number of CPUs minus one
-    threads = min(util.misc.available_cpu_count()-1, threads)
+    threads = min(util.misc.available_cpu_count() - 1, threads)
 
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)
     log.debug("number of reads in fasta file %s" % number_of_reads)
-    if number_of_reads==0:
+    if number_of_reads == 0:
         return [mkstempfname('.hits.txt')]
 
     # divide (max, single-thread) chunksize by thread count
     # to find the  absolute max chunk size per thread
     chunk_max_size_per_thread = chunkSize // threads
-    
+
     # find the chunk size if evenly divided among blast threads
     reads_per_thread = number_of_reads // threads
 
@@ -800,7 +825,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     # decrease the chunk size until the last chunk is 80%
     # this is bounded by the MIN_CHUNK_SIZE
     while (number_of_reads / chunkSize) % 1 < 0.8 and chunkSize > MIN_CHUNK_SIZE:
-        chunkSize = chunkSize-1
+        chunkSize = chunkSize - 1
 
     log.debug("blastn chunk size %s" % chunkSize)
     log.debug("number of chunks to create %s" % (number_of_reads / chunkSize))
@@ -812,7 +837,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
         record_iter = SeqIO.parse(fastaFile, "fasta")
         for batch in util.misc.batch_iterator(record_iter, chunkSize):
             chunk_fasta = mkstempfname('.fasta')
-            
+
             with open(chunk_fasta, "wt") as handle:
                 SeqIO.write(batch, handle, "fasta")
             batch = None
@@ -827,9 +852,12 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
         # divide extra cpus evenly among chunks where possible
         # rounding to 1 if there are more chunks than extra threads
         cpus_leftover = (threads - len(input_fastas))
-        blast_threads = max(1, int(cpus_leftover/len(input_fastas)) )
+        blast_threads = max(1, int(cpus_leftover / len(input_fastas)))
 
-        futs = [executor.submit(functools.partial(run_blastn, blastnPath, db, input_fasta, blast_threads)) for input_fasta in input_fastas]
+        futs = [
+            executor.submit(functools.partial(run_blastn, blastnPath, db, input_fasta, blast_threads))
+            for input_fasta in input_fastas
+        ]
         hits_files = [fut.result() for fut in concurrent.futures.as_completed(futs)]
 
     return hits_files
@@ -1055,10 +1083,10 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
 
-
 # ========================
 # ***  blastn_build_db  ***
 # ========================
+
 
 def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with blastn from an input reference FASTA file 
@@ -1088,10 +1116,10 @@ def parser_blastn_build_db(parser=argparse.ArgumentParser()):
 
 __commands__.append(('blastn_build_db', parser_blastn_build_db))
 
-
 # ========================
 # ***  bmtagger_build_db  ***
 # ========================
+
 
 def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with Bmtagger from an input FASTA file.
@@ -1103,12 +1131,20 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".bitmask"))
-    srprismdb_path = tools.bmtagger.SrprismTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix+".srprism"))
+    bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(
+        inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask")
+    )
+    srprismdb_path = tools.bmtagger.SrprismTool().build_database(
+        inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
+    )
+
 
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', help='Location of the input FASTA file')
-    parser.add_argument('outputDirectory', help='Location for the output files (Where *.bitmask and *.srprism files will be stored)')
+    parser.add_argument(
+        'outputDirectory',
+        help='Location for the output files (Where *.bitmask and *.srprism files will be stored)'
+    )
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
@@ -1119,8 +1155,6 @@ def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('bmtagger_build_db', parser_bmtagger_build_db))
-
-
 
 # ========================
 
