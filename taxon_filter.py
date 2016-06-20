@@ -153,16 +153,14 @@ def trimmomatic(
     javaCmd.extend(
         [
             inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2,
-            'LEADING:{leading_q_cutoff}', 'TRAILING:{trailing_q_cutoff}',
-            'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}', 'MINLEN:{minlength_to_keep}',
-            'ILLUMINACLIP:{clipFasta}:2:30:12'.format(
-                leading_q_cutoff=leading_q_cutoff,
-                trailing_q_cutoff=trailing_q_cutoff,
-                minlength_to_keep=minlength_to_keep,
+            'LEADING:{leading_q_cutoff}'.format(leading_q_cutoff=leading_q_cutoff),
+            'TRAILING:{trailing_q_cutoff}'.format(trailing_q_cutoff=trailing_q_cutoff),
+            'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
                 sliding_window_size=sliding_window_size,
                 sliding_window_q_cutoff=sliding_window_q_cutoff,
-                clipFasta=clipFasta
-            )
+            ), 
+            'MINLEN:{minlength_to_keep}'.format(minlength_to_keep=minlength_to_keep),
+            'ILLUMINACLIP:{clipFasta}:2:30:12'.format(clipFasta=clipFasta)
         ]
     )
 
