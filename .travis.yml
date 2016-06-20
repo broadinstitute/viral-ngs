@@ -14,6 +14,7 @@ env:
   - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
+  - PYTEST_ADDOPTS="-rsxX --durations=50 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
 
 python:
   - 2.7
