@@ -63,7 +63,7 @@ class GATKTool(tools.Tool):
             ] + list(map(str, gatkOptions))
 
         _log.debug(' '.join(tool_cmd))
-        util.misc.run_and_print(tool_cmd, check=True)
+        subprocess.check_call(tool_cmd)
 
     @staticmethod
     def dict_to_gatk_opts(options):

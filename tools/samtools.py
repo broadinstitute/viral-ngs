@@ -18,12 +18,11 @@
 import logging
 import tools
 import util.file
-import util.misc
 import os
 import os.path
 import subprocess
 from collections import OrderedDict
-import pysam
+#import pysam
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.2'
@@ -39,17 +38,6 @@ class SamtoolsTool(tools.Tool):
         if install_methods is None:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
-            '''
-            install_methods.append(
-                tools.DownloadPackage(
-                    TOOL_URL,
-                    'samtools-{}/samtools'.format(TOOL_VERSION),
-                    post_download_command='cd samtools-{}; make -s'.format(
-                        TOOL_VERSION
-                    )
-                )
-            )
-            '''
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -104,8 +92,8 @@ class SamtoolsTool(tools.Tool):
                 os.unlink(outfname)
             else:
                 return
-        pysam.faidx(inFasta)
-        #self.execute('faidx', [inFasta])
+        #pysam.faidx(inFasta)
+        self.execute('faidx', [inFasta])
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)

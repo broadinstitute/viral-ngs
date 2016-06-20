@@ -4,6 +4,7 @@ import tools
 import util.file
 import os
 import logging
+import subprocess
 from tools import urlretrieve
 _log = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class BmtaggerTools(tools.Tool):
     def execute(self, *args):
         cmd = [self.install_and_get_path()]
         cmd.extend(args)
-        util.misc.run_and_print(cmd, check=True)
+        subprocess.check_call(cmd)
 
 
 class BmtaggerShTool(BmtaggerTools):
