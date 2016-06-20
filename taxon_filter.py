@@ -115,7 +115,13 @@ __commands__.append(('deplete_human', parser_deplete_human))
 # ==========================
 
 
-def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta):
+def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, 
+                clipFasta, 
+                leading_q_cutoff=15, 
+                trailing_q_cutoff=15, 
+                minlength_to_keep=30,
+                sliding_window_size=4,
+                sliding_window_q_cutoff=25):
     '''Trim read sequences with Trimmomatic.'''
     trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
     tmpUnpaired1 = mkstempfname()
@@ -137,8 +143,8 @@ def trimmomatic(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta)
 
     javaCmd.extend(
         [
-            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2, 'LEADING:20',
-            'TRAILING:20', 'SLIDINGWINDOW:4:25', 'MINLEN:30', 'ILLUMINACLIP:{}:2:30:12'.format(clipFasta)
+            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2, 'LEADING:{leading_q_cutoff}',
+            'TRAILING:{trailing_q_cutoff}', 'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}', 'MINLEN:{minlength_to_keep}', 'ILLUMINACLIP:{clipFasta}:2:30:12'.format(leading_q_cutoff=leading_q_cutoff, trailing_q_cutoff=trailing_q_cutoff, minlength_to_keep=minlength_to_keep, sliding_window_size=sliding_window_size, sliding_window_q_cutoff=sliding_window_q_cutoff, clipFasta=clipFasta)
         ]
     )
 
@@ -153,6 +159,41 @@ def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
     parser.add_argument("inFastq2", help="Input reads 2")
     parser.add_argument("pairedOutFastq1", help="Paired output 1")
     parser.add_argument("pairedOutFastq2", help="Paired output 2")
+    parser.add_argument(
+        '--leadingQCutoff',
+        dest="leading_q_cutoff",
+        help='minimum quality required to keep a base on the leading end (default: %(default)s)',
+        type=int,
+        default=15
+    )
+    parser.add_argument(
+        '--trailingQCutoff',
+        dest="trailing_q_cutoff",
+        help='minimum quality required to keep a base on the trailing end (default: %(default)s)',
+        type=int,
+        default=15
+    )
+    parser.add_argument(
+        '--minlengthToKeep',
+        dest="minlength_to_keep",
+        help='minimum length of reads to be kept (default: %(default)s)',
+        type=int,
+        default=30
+    )
+    parser.add_argument(
+        '--slidingWindowSize',
+        dest="sliding_window_size",
+        help='the number of bases to average across (default: %(default)s)',
+        type=int,
+        default=4
+    )
+    parser.add_argument(
+        '--slidingWindowQCutoff',
+        dest="sliding_window_q_cutoff",
+        help='specifies the average quality required in the sliding window (default: %(default)s)',
+        type=int,
+        default=25
+    )
     parser.add_argument("clipFasta", help="Fasta file with adapters, PCR sequences, etc. to clip off")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, trimmomatic, split_args=True)
