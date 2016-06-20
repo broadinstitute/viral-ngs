@@ -271,14 +271,14 @@ class CondaPackage(InstallMethod):
 
         # if the env is being overridden, or if we could not find an active conda env
         if env_root_path or env or not self.env_path:
-            env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
+            env_root_path = env_root_path or os.path.join(util.file.get_build_path(), '..', 'conda-tools')
             env = env or 'default'
             self.env_path = os.path.realpath(os.path.expanduser(
                 os.path.join(env_root_path, env)))
 
         # set an env variable to the conda cache path. this env gets passed to the
         # the subprocess, and the variable instructs conda where to place its cache files
-        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
+        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), '..', 'conda-cache')
         self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
         self.conda_env = os.environ
         old_envs_path = os.environ.get('CONDA_DEFAULT_ENV')
