@@ -1,0 +1,17 @@
+blast=2.2.31
+bmtagger=3.101
+diamond=0.7.10-boost1.60_1
+kraken-all=0.10.6_eaf8fb68
+last=719
+mafft=7.221
+mummer=3.23
+muscle=3.8.1551
+mvicuna=1.0
+novoalign=3.03.02
+picard=1.126
+prinseq=0.20.4
+samtools=1.2
+snpeff=4.1l
+trimmomatic=0.35
+trinity=date.2011_11_26
+vphaser2=2.0
