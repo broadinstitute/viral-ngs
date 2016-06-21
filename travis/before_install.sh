@@ -7,8 +7,10 @@ set -e
 if [ -z "$TRAVIS_TAG" ]; then
     echo "Travis docker caches allowed for branch $TRAVIS_BRANCH"
     rm -rf tools/build
-    mkdir -p $CACHE_DIR/tools_build
+    mkdir -p $CACHE_DIR/tools_build $CACHE_DIR/conda-tools $CACHE_DIR/conda-cache
     ln -s $CACHE_DIR/tools_build tools/build
+    #ln -s $CACHE_DIR/conda-cache tools
+    #ln -s $CACHE_DIR/conda-tools tools
 
 else
     echo "Travis docker cache disabled for tools/build on tag: $TRAVIS_TAG"
