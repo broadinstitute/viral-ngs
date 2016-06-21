@@ -17,4 +17,7 @@ if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
 fi
 
 echo "Installing and validating bioinformatic tools"
-py.test test/unit/test_tools.py
+export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
+conda create -y -m -c bioconda -p tools/conda-tools/default --file requirements-conda.txt
+#py.test -n 1 -v --durations=50 test/unit/test_tools.py
+./install_tools.py
