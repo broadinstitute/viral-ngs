@@ -3,10 +3,12 @@
 '''
 
 from __future__ import print_function
+import os.path
 import sys
 import timeit
 import tools
 from tools import *
+import util.file
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -33,4 +35,8 @@ def install_all_tools():
         
 
 if __name__ == '__main__':
+    print("this install script is %s" % (
+        os.path.abspath(os.path.expanduser(__file__))))
+    print("installing tools into: %s (build, conda-tools, conda-cache)" % (
+        os.path.join(util.file.get_project_path(), 'tools')))
     sys.exit(0 if install_all_tools() else 1)
