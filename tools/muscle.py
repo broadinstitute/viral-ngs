@@ -68,7 +68,7 @@ class MuscleTool(tools.Tool):
             tool_cmd.extend(('-log', logFile))
 
         _log.debug(' '.join(tool_cmd))
-        util.misc.run_and_print(tool_cmd, check=True)
+        subprocess.check_call(tool_cmd)
     # pylint: enable=W0221
 
 

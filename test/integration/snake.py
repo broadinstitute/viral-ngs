@@ -28,6 +28,11 @@ def touch(f):
     open(f, 'a').close()
 
 
+def rename_raw_bam(bam):
+    '''*.bam -> *.raw.bam'''
+    return '.'.join([os.path.splitext(bam)[0], 'raw', 'bam'])
+
+
 class SnakemakeRunner(object):
     """Generates a working directory for snakemake integration tests.
     """
@@ -80,15 +85,16 @@ class SnakemakeRunner(object):
         for _, subdir in self.config['subdirs'].items():
             os.makedirs(join(self.data_dir, subdir))
 
-
-    def link_samples(self, samples, destination='source'):
+    def link_samples(self, samples, destination='source', link_transform=None):
         """Links samples files in data destination dir."""
         for sample in samples:
             link = join(self.data_dir, self.config['subdirs'][destination],
                         os.path.basename(sample))
+
+            if link_transform:
+                link = link_transform(link)
             os.symlink(sample, link)
             self.samples.add(sample)
-
 
     def create_sample_files(self, samples=None, sample_files=None):
         """Creates files for sample lists.

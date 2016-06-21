@@ -206,7 +206,7 @@ class NovoalignTool(tools.Tool):
             cmd.extend(['-s', str(s)])
         cmd.extend([outfname, refFasta])
         _log.debug(' '.join(cmd))
-        util.misc.run_and_print(cmd, check=True)
+        subprocess.check_call(cmd)
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)
