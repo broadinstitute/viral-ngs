@@ -28,7 +28,7 @@ class Diamond(tools.Tool):
             install_methods = [
                 tools.CondaPackage("diamond", version=CONDA_VERSION)
             ]
-        super().__init__(install_methods=install_methods)
+        super(Diamond, self).__init__(install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
