@@ -19,4 +19,4 @@ fi
 
 # Report how big things are
 echo "Docker cache space usage:"
-du -hs $CACHE_DIR/*
+du -hs $MINICONDA_DIR $PIP_DIR $CACHE_DIR/*
