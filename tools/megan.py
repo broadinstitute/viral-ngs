@@ -61,7 +61,7 @@ class Megan(tools.Tool):
         self.license_file = os.environ.get('MEGAN_LICENSE_PATH')
         self.data_dir = os.environ.get('MEGAN_DATA_PATH')
 
-        super().__init__(install_methods=install_methods)
+        super(Megan, self).__init__(install_methods=install_methods)
 
     @property
     def gi_taxid(self):

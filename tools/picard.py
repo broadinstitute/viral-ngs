@@ -7,9 +7,10 @@ import os
 import os.path
 import tempfile
 import shutil
-import pysam
-import shutil
 import subprocess
+
+import pysam
+
 import tools
 import tools.samtools
 import util.file
