@@ -3,6 +3,8 @@
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
 import collections
+import json
+import operator
 import os
 import re
 import logging
@@ -11,7 +13,6 @@ import shutil
 import subprocess
 import util.file
 import util.misc
-import json
 
 try:
     # Python 3.x
@@ -37,6 +38,21 @@ __all__ = sorted(
 installed_tools = {}
 
 _log = logging.getLogger(__name__)
+
+
+def iter_leaf_subclasses(aClass):
+    "Iterate over subclasses at all levels that don't themselves have a subclass"
+    isLeaf = True
+    for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
+        isLeaf = False
+        for leafClass in iter_leaf_subclasses(subclass):
+            if not getattr(leafClass, '_skiptest', False):
+                yield leafClass
+    if isLeaf:
+        yield aClass
+
+def all_tool_classes():
+    return iter_leaf_subclasses(Tool)
 
 
 def get_tool_by_name(name):

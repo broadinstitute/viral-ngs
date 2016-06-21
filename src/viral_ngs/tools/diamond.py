@@ -18,6 +18,7 @@ CONDA_VERSION = tools.CondaPackageVersion('0.7.10', 'boost1.60_1')
 log = logging.getLogger(__name__)
 
 
+@tools.skip_install_test(condition=tools.is_osx())
 class Diamond(tools.Tool):
 
     SUBCOMMANDS = ['makedb', 'blastx', 'blastp', 'view']
