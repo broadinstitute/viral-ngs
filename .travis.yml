@@ -34,7 +34,7 @@ install:
   - travis/install-tools.sh
 
 before_script:
-  - flake8 --exit-zero .
+  - travis/flake8.sh
 
 script:
   - travis/tests-unit.sh
