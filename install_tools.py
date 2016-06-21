@@ -3,6 +3,7 @@
 '''
 
 from __future__ import print_function
+import sys
 import timeit
 import tools
 from tools import *
@@ -15,12 +16,12 @@ def install_all_tools():
     n_success = 0
     for tool_class in tools.all_tool_classes():
         t = tool_class()
-        print("installing %s .. " % tool_class.__name__, end="")
+        print("installing %s .. " % tool_class.__name__, end="", flush=True)
         runtime = timeit.timeit(t.install)
         sumtime += runtime
         success = t.is_installed()
         print("SUCCESS" if success else "FAILED", end="")
-        print(" (%0.1f seconds)" % runtime)
+        print(" (%0.1f seconds)" % runtime, flush=True)
         if success:
             n_success += 1
         n_tools += 1
@@ -30,4 +31,4 @@ def install_all_tools():
         
 
 if __name__ == '__main__':
-    return install_all_tools()
+    sys.exit(1 if install_all_tools() else 0)
