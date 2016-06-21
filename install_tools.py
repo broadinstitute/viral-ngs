@@ -16,12 +16,14 @@ def install_all_tools():
     n_success = 0
     for tool_class in tools.all_tool_classes():
         t = tool_class()
-        print("installing %s .. " % tool_class.__name__, end="", flush=True)
+        print("installing %s .. " % tool_class.__name__, end="")
+        sys.stdout.flush()
         runtime = timeit.timeit(t.install)
         sumtime += runtime
         success = t.is_installed()
         print("SUCCESS" if success else "FAILED", end="")
-        print(" (%0.1f seconds)" % runtime, flush=True)
+        print(" (%0.1f seconds)" % runtime)
+        sys.stdout.flush()
         if success:
             n_success += 1
         n_tools += 1
