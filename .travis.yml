@@ -3,13 +3,15 @@ sudo: false
 
 cache:
  directories:
+  - $HOME/misc_cache
   - $HOME/virtualenv
   - $HOME/miniconda
 
 env:
   global:
-  - CACHE_DIR="$HOME/virtualenv"
+  - CACHE_DIR="$HOME/cache"
   - MINICONDA_DIR="$HOME/miniconda"
+  - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
   - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
