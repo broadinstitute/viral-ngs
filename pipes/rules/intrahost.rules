@@ -53,7 +53,7 @@ rule isnvs_vcf:
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
-            samples=read_samples_file(config["samples_assembly"]),
+            samples=list(read_samples_file(config["samples_assembly"])),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
             shell("{config[bin_dir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
@@ -87,7 +87,7 @@ rule isnvs_vcf_filtered:
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
-            samples=read_samples_file(config["samples_assembly"]),
+            samples=list(read_samples_file(config["samples_assembly"])),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
             shell("{config[bin_dir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
