@@ -9,7 +9,7 @@ cache:
 
 env:
   global:
-  - CACHE_DIR="$HOME/cache"
+  - CACHE_DIR="$HOME/misc_cache"
   - MINICONDA_DIR="$HOME/miniconda"
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
