@@ -31,4 +31,4 @@ def install_all_tools():
         
 
 if __name__ == '__main__':
-    sys.exit(1 if install_all_tools() else 0)
+    sys.exit(0 if install_all_tools() else 1)
