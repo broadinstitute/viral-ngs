@@ -9,6 +9,7 @@ import tempfile
 import shutil
 import filecmp
 import subprocess
+
 import argparse
 
 import read_utils
@@ -18,7 +19,6 @@ import util.misc
 import tools.last
 import tools.bmtagger
 import tools.blast
-import read_utils
 from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 
