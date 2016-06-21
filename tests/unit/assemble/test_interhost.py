@@ -84,7 +84,7 @@ class TestCoordMapper(test.TestCaseWithTmp):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(Exception):
-            cm = interhost.CoordMapper(genomeA, genomeB)
+            cm = interhost.CoordMapper2Seqs(genomeA, genomeB)
 
     def test_map_chr_only(self):
         self.assertEqual(self.cm.mapAtoB('chr1'), 'first_chrom')

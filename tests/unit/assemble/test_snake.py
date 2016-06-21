@@ -2,10 +2,6 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import util.cmd
-import util.file
-import unittest
-import argparse
 import sys
 import os
 import subprocess
@@ -13,6 +9,10 @@ import shutil
 import tempfile
 import argparse
 import itertools
+import unittest
+
+import util.cmd
+import util.file
 from test import TestCaseWithTmp
 
 if sys.version_info >= (3, 2):
