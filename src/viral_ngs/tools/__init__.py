@@ -3,14 +3,16 @@
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
 import collections
+import json
+import operator
 import os
 import re
 import logging
 import tempfile
 import shutil
+import subprocess
 import util.file
 import util.misc
-import json
 
 try:
     # Python 3.x
@@ -36,6 +38,21 @@ __all__ = sorted(
 installed_tools = {}
 
 _log = logging.getLogger(__name__)
+
+
+def iter_leaf_subclasses(aClass):
+    "Iterate over subclasses at all levels that don't themselves have a subclass"
+    isLeaf = True
+    for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
+        isLeaf = False
+        for leafClass in iter_leaf_subclasses(subclass):
+            if not getattr(leafClass, '_skiptest', False):
+                yield leafClass
+    if isLeaf:
+        yield aClass
+
+def all_tool_classes():
+    return iter_leaf_subclasses(Tool)
 
 
 def get_tool_by_name(name):
@@ -270,14 +287,14 @@ class CondaPackage(InstallMethod):
 
         # if the env is being overridden, or if we could not find an active conda env
         if env_root_path or env or not self.env_path:
-            env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
+            env_root_path = env_root_path or os.path.join(util.file.get_project_path(), 'tools', 'conda-tools')
             env = env or 'default'
             self.env_path = os.path.realpath(os.path.expanduser(
                 os.path.join(env_root_path, env)))
 
         # set an env variable to the conda cache path. this env gets passed to the
         # the subprocess, and the variable instructs conda where to place its cache files
-        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
+        conda_cache_path = conda_cache_path or os.path.join(util.file.get_project_path(), 'tools', 'conda-cache')
         self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
         self.conda_env = os.environ
         old_envs_path = os.environ.get('CONDA_DEFAULT_ENV')
@@ -323,12 +340,8 @@ class CondaPackage(InstallMethod):
         return os.path.join(self.bin_path, self.executable)
 
     def apply_patches(self):
-        result = None
         for path, patch in self.patches:
-            result = self._patch(path, patch)
-            if result.returncode != 0:
-                return result
-        return result
+            self._patch(path, patch)
 
 
     def _patch(self, path, patch):
@@ -339,8 +352,7 @@ class CondaPackage(InstallMethod):
         file_path = os.path.join(self.env_path, path)
         patch_path = os.path.join(
             util.file.get_project_path(), 'tools', 'patches', patch)
-        return util.misc.run_and_print(['patch', file_path, patch_path],
-                                       check=True)
+        subprocess.check_call(['patch', file_path, patch_path])
 
     @property
     def _package_installed(self):
@@ -533,10 +545,7 @@ class CondaPackage(InstallMethod):
 
                 if data["success"] == True:
                     _log.debug("Package installed.")
-            result = self.apply_patches()
-            if result and result.returncode != 0:
-                _log.error("Failed to apply patches.")
-                return
+            self.apply_patches()
 
         else:
             if "success" in data.keys() and data["success"]:

@@ -3,13 +3,15 @@ sudo: false
 
 cache:
  directories:
+  - $HOME/misc_cache
   - $HOME/virtualenv
   - $HOME/miniconda
 
 env:
   global:
-  - CACHE_DIR="$HOME/virtualenv"
+  - CACHE_DIR="$HOME/misc_cache"
   - MINICONDA_DIR="$HOME/miniconda"
+  - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/bin_bundles/GenomeAnalysisTK-3.3-0-g37228af"
   - NOVOALIGN_PATH="$CACHE_DIR/bin_bundles/novocraft_v3"
   - PYTHONIOENCODING=UTF8
@@ -19,20 +21,6 @@ python:
   - 2.7
   - 3.4
   - 3.5
-
-# Container pkgs for building diamond.
-# These versioned and sources hacks should be removed once travis upgrades to
-# Ubuntu 14.04.
-addons:
-  apt:
-    sources:
-    - boost-latest # For newer boost
-    - ubuntu-toolchain-r-test # For newer gcc
-    packages:
-    - cmake
-    - gcc-4.9
-    - g++-4.9
-    - libboost1.55-all-dev
 
 git:
   depth: 3
@@ -48,7 +36,7 @@ install:
   - travis/install-tools.sh
 
 before_script:
-  - flake8 --exit-zero .
+  - travis/flake8.sh
 
 script:
   - travis/tests-unit.sh
@@ -56,7 +44,3 @@ script:
 
 after_success:
   - coveralls
-
-notifications:
-  slack:
-    secure: dVmGF86ZaVkL7LhqmcjqTgmmc8ONZfLH2H2GO5AUHce3q61dA4tuZrfW0T+6puQWtIvvMC+5ioD0vRce+3iZELs83KR4Xm1vqNu6RZdAHx/ec3QQU4/7ulcEs50wWQl+WmyRqciGaBThUv+Un1K6AA2HYTcb8gQaFkpPmI3huZo=

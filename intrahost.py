@@ -474,6 +474,7 @@ def merge_to_vcf(
         outf.write('##fileformat=VCFv4.1\n')
         outf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outf.write('##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n')
+        outf.write('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">\n')
         outf.write('##FORMAT=<ID=NL,Number=R,Type=Integer,Description="Number of libraries observed per allele">\n')
         outf.write(
             '##FORMAT=<ID=LB,Number=R,Type=Float,Description="Library bias observed per allele (Fishers Exact P-value)">\n')
@@ -686,6 +687,7 @@ def merge_to_vcf(
 
                     # define genotypes and fractions
                     iSNVs = {}  # {sample : {allele : fraction, ...}, ...}
+                    iSNVs_read_depth = {}  # {sample: read depth}
                     iSNVs_n_libs = {}  # {sample : {allele : n libraries > 0, ...}, ...}
                     iSNVs_lib_bias = {}  # {sample : {allele : pval, ...}, ...}
                     for s in samplesToUse:
@@ -711,6 +713,7 @@ def merge_to_vcf(
                             consAllele = consAlleles[s]
                             tot_n = sum(acounts.values())
                             iSNVs[s] = {}  # {allele : fraction, ...}
+                            iSNVs_read_depth[s] = tot_n
                             iSNVs_n_libs[s] = {}
                             iSNVs_lib_bias[s] = {}
                             for orig_a, n in acounts.items():
@@ -794,6 +797,8 @@ def merge_to_vcf(
                     # AF col emitted below, everything excluding the ref allele (one float per non-ref allele)
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a, 0.0) for a in alleles[1:]])) or '.'
                              for s in samplesToUse]
+                    # DP col emitted below
+                    depths = [str(iSNVs_read_depth.get(s, '.')) for s in samplesToUse]
                     # NL col, everything including the ref allele (one int per allele)
                     nlibs = [(s in iSNVs_n_libs) and ','.join([str(iSNVs_n_libs[s].get(a, 0)) for a in alleles]) or '.'
                              for s in samplesToUse]
@@ -807,8 +812,8 @@ def merge_to_vcf(
                         c = parse_accession_str(c)
                     if strip_chr_version:
                         c = strip_accession_version(c)
-                    out = [c, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF:NL:LB']
-                    out = out + list(map(':'.join, zip(genos, freqs, nlibs, pvals)))
+                    out = [c, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF:DP:NL:LB']
+                    out = out + list(map(':'.join, zip(genos, freqs, depths, nlibs, pvals)))
                     outf.write('\t'.join(map(str, out)) + '\n')
 
     # compress output if requested

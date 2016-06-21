@@ -20,7 +20,14 @@ source "$VENVDIR/bin/activate"
 # For this to work, re-run must be set to y via "qsub -r y"
 ls "$DATADIR" || exit 99
 
+echo $JOB_ID
+echo "=============================="
+
 {exec_job}
+
+# Report resource consumption because it's not reported by default
+echo "------------------------------"
+qstat -j $JOB_ID | grep '^usage'
 
 # if the job succeeds, snakemake 
 # touches jobfinished, thus if it exists cat succeeds. if cat fails, the error code indicates job failure

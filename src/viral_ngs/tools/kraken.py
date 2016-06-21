@@ -127,7 +127,7 @@ class Kraken(tools.Tool):
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
         if command == 'kraken':
-            util.misc.run_and_print(cmd, check=True, silent=False)
+            subprocess.check_call(cmd)
         elif command == 'kraken-build':
             jellyfish_path = Jellyfish().install_and_get_path()
             env = os.environ.copy()
