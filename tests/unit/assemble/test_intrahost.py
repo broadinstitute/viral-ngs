@@ -356,6 +356,34 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(':'.join(rows[1][1].split(':')[:2]), '0:0.0')
         self.assertEqual(':'.join(rows[1][2].split(':')[:2]), '0:0.3')
 
+    def test_snps_with_varying_read_depth(self):
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1_1', 'ATCGGAC')])
+        # ATCGGAC-
+        merger.add_genome('s2', [('s2_1', 'TCGGACT')])
+        # -TCGGACT
+        merger.add_genome('s3', [('s3_1', 'TCGGACT')])
+        # -TCGGACT
+        merger.add_snp('s1', 's1_1', 3, [('C', 60, 100), ('A', 25, 15)])
+        merger.add_snp('s2', 's2_1', 2, [('C', 12, 6), ('A', 2, 0)])
+        merger.add_snp('s3', 's3_1', 5, [('A', 7, 4), ('T', 2, 3)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos + 1, 3)
+        self.assertEqual(rows[0].ref, 'C')
+        self.assertEqual(rows[0].alt, 'A')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:3]), '0:0.2:200')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:3]), '0:0.1:20')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(rows[1].contig, 'ref1')
+        self.assertEqual(rows[1].pos + 1, 6)
+        self.assertEqual(rows[1].ref, 'A')
+        self.assertEqual(rows[1].alt, 'T')
+        self.assertEqual(':'.join(rows[1][0].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(':'.join(rows[1][1].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(':'.join(rows[1][2].split(':')[:3]), '0:0.3125:16')
+
     def test_snps_downstream_of_indels(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
         merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
@@ -408,7 +436,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].alt, 'A')
         self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.1')
         self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:1.0')
-        self.assertEqual(rows[0][2], '.:.:.:.')
+        self.assertEqual(rows[0][2], '.:.:.:.:.')
 
     def test_simple_insertions(self):
         # IA, ITCG, etc
@@ -478,7 +506,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 4)
         self.assertEqual(rows[0].ref, 'GTTC')
         self.assertEqual(rows[0].alt, 'GC,G')
-        self.assertEqual(rows[0][0], '1:0.9,0.1:0,1,1:.,1.0,1.0')
+        self.assertEqual(rows[0][0], '1:0.9,0.1:200:0,1,1:.,1.0,1.0')
 
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
@@ -565,14 +593,14 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].ref, 'GAA')
         # multiple options because the allele frequencies can be the same
         self.assertIn(rows[0].alt, ['C,G,A', 'G,C,A'])
-        self.assertIn(rows[0][0], ['2:0.0,0.7,0.3:0,0,1,1:.,.,1.0,1.0', '1:0.7,0.0,0.3:0,1,0,1:.,1.0,.,1.0'])
-        self.assertIn(rows[0][1], ['1:1.0,0.0,0.0:.:.', '2:0.0,1.0,0.0:.:.'])
+        self.assertIn(rows[0][0], ['2:0.0,0.7,0.3:200:0,0,1,1:.,.,1.0,1.0', '1:0.7,0.0,0.3:200:0,1,0,1:.,1.0,.,1.0'])
+        self.assertIn(rows[0][1], ['1:1.0,0.0,0.0:.:.:.', '2:0.0,1.0,0.0:.:.:.'])
         self.assertEqual(rows[1].contig, 'ref1')
         self.assertEqual(rows[1].pos + 1, 7)
         self.assertEqual(rows[1].ref, 'C')
         self.assertEqual(rows[1].alt, 'T')
-        self.assertEqual(rows[1][0], '0:0.0:.:.')
-        self.assertEqual(rows[1][1], '1:0.8:1,1:1.0,1.0')
+        self.assertEqual(rows[1][0], '0:0.0:.:.:.')
+        self.assertEqual(rows[1][1], '1:0.8:200:1,1:1.0,1.0')
 
     def test_snp_past_end_of_some_consensus(self):
         # Some sample contains SNP beyond the end of the consensus
@@ -592,8 +620,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 2)
         self.assertEqual(rows[0].ref, 'T')
         self.assertEqual(rows[0].alt, 'G')
-        self.assertEqual(rows[0][0], '0:0.3:1,1:1.0,1.0')
-        self.assertEqual(rows[0][1], '.:.:.:.')
+        self.assertEqual(rows[0][0], '0:0.3:200:1,1:1.0,1.0')
+        self.assertEqual(rows[0][1], '.:.:.:.:.')
 
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it
