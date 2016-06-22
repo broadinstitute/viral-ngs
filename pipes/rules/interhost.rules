@@ -71,10 +71,10 @@ rule ref_guided_diversity:
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             inFastas = expand("{data_dir}/{subdir}/{sample}.fasta",
                 data_dir=config["data_dir"], subdir=config["subdirs"]["align_ref"],
-                sample=read_samples_file(config["samples_per_run"])),
+                sample=list(read_samples_file(config["samples_per_run"]))),
             inVcfs = expand("{data_dir}/{subdir}/{sample}.vcf.gz",
                 data_dir=config["data_dir"], subdir=config["subdirs"]["align_ref"],
-                sample=read_samples_file(config["samples_per_run"]))
+                sample=list(read_samples_file(config["samples_per_run"])))
     run:
             update_timestamps(input)
             shell("cat {params.inFastas} > {output[0]}")
@@ -101,7 +101,7 @@ rule multi_align_mafft:
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=config["accessions_for_ref_genome_build"],
-            samples=read_samples_file(config["samples_assembly"]),
+            samples=list(read_samples_file(config["samples_assembly"])),
             ep=str(config["mafft_ep"]),
             maxiters=str(config["mafft_maxiters"]),
             numThreads=str(config.get("number_of_threads", 1))
