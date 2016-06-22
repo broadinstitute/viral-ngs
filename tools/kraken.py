@@ -32,7 +32,7 @@ class Kraken(tools.Tool):
         if not install_methods:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
-        super().__init__(install_methods=install_methods)
+        super(Kraken, self).__init__(install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION

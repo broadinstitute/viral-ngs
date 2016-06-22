@@ -35,8 +35,8 @@ install:
   - travis/install-pip.sh
   - travis/install-tools.sh
 
-before_script:
-  - travis/flake8.sh
+#before_script:
+#  - travis/flake8.sh # alternative to landscape.io
 
 script:
   - travis/tests-unit.sh

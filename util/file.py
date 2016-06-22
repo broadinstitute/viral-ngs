@@ -447,3 +447,7 @@ def count_fastq_reads(inFastq):
         Count number of reads in fastq file
     '''
     return count_str_in_file(inFastq, '@', starts_with=True)
+
+def touch(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)
