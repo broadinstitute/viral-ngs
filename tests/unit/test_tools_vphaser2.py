@@ -2,11 +2,11 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import unittest
 import os
 import pickle
 import unittest
 import util.file
+import tools
 from intrahost import vphaser_main
 from test import TestCaseWithTmp
 
