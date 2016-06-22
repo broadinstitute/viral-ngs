@@ -20,7 +20,7 @@ class Krona(tools.Tool):
                     executable='ktImportTaxonomy',
                     patches=[('opt/krona/updateTaxonomy.sh',
                               'krona_updateTaxonomy.sh.patch')]))
-        super().__init__(install_methods=install_methods)
+        super(Krona, self).__init__(install_methods=install_methods)
 
     @property
     def opt(self):

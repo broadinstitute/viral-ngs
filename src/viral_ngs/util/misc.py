@@ -181,7 +181,7 @@ except ImportError:
                 print(error.decode("utf-8"))
                 try:
                     raise subprocess.CalledProcessError(
-                        returncode, args, output, error)
+                        returncode, args, output, error) #pylint: disable-msg=E1121
                 except TypeError: # py2 CalledProcessError does not accept error
                     raise subprocess.CalledProcessError(
                         returncode, args, output)
