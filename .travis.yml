@@ -17,6 +17,10 @@ env:
   - PYTHONIOENCODING=UTF8
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
 
+os:
+  - linux
+  - osx
+
 python:
   - 2.7
   - 3.4
