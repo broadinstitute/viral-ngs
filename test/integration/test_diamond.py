@@ -11,6 +11,7 @@ import pytest
 from Bio import SeqIO
 import metagenomics
 from test.integration import snake
+import tools
 import tools.diamond
 import tools.picard
 import util.file
@@ -129,6 +130,8 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
     return db
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="Diamond osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(sys.version_info < (3,2),
                     reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
@@ -153,6 +156,8 @@ def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
     # assert os.path.getsize(krona_out) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="Diamond osx binary does not yet exist on bioconda")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_lca = util.file.mkstempfname('.lca.tsv')
