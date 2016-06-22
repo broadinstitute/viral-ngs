@@ -139,7 +139,8 @@ class TestOrderAndOrient(TestCaseWithTmp):
         assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.fasta'),
             os.path.join(inDir, 'ref.lasv.fasta'),
-            outFasta)
+            outFasta,
+            aligner='promer')
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
