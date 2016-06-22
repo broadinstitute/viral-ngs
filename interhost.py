@@ -44,6 +44,11 @@ log = logging.getLogger(__name__)
 # we get higher level dictionary intervace methods for free
 
 
+class CoordMapperError(Exception):
+    def __init___(self, *args, **kwargs):
+        super(CoordMapperError, self).__init__(self, *args, **kwargs)
+
+
 class CoordMapper(DictMixin):
     """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
@@ -548,6 +553,9 @@ def make_vcf(a, ref_idx, chrom):
                             genos.append(m + 1)
             yield row + genos
 
+class TranspositionError(Exception):
+    def __init___(self, *args, **kwargs):
+        super(TranspositionError, self).__init__(self, *args, **kwargs)
 
 def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sampleNameListFile=None):
     ''' Input:  a list of FASTA files representing a genome for each sample.
@@ -586,7 +594,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
     # for each interleaved record
     for chrRecordList in zip_longest(*fastaFiles):
         if any(rec is None for rec in chrRecordList):
-            raise Exception("input files must all have the same number of sequences")
+            raise TranspositionError("input fasta files must all have the same number of sequences")
 
         outputFilename = util.file.mkstempfname('.fasta')
         outputFilenames.append(outputFilename)
