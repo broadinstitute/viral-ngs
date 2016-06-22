@@ -26,6 +26,13 @@ python:
   - 3.4
   - 3.5
 
+matrix:
+  exclude:
+    - python: 2.7
+      os: osx
+    - python: 3.4
+      os: osx
+
 git:
   depth: 3
 
