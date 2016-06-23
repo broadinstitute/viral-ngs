@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
+if [ ! -d $GATK_PATH ]; then
   if [ -z "$BUNDLE_SECRET" ]; then
-    echo "ERROR: GATK and/or Novoalign is missing, but secret key is not set for auto-download."
+    echo "ERROR: GATK is missing, but secret key is not set for auto-download."
     exit 1
 
   else
@@ -16,8 +16,11 @@ if [ ! -d $GATK_PATH -o ! -d $NOVOALIGN_PATH ]; then
   fi
 fi
 
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    unset NOVOALIGN_PATH
+fi
+
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
 conda create -y -m -c bioconda -p tools/conda-tools/default --file requirements-conda.txt
-#py.test -n 1 -v --durations=50 test/unit/test_tools.py
 ./install_tools.py
