@@ -11,11 +11,11 @@ matrix:
         - os: linux
           sudo: false
           python: 3.5
-        - os: osx
-          language: generic
-          env:
-              - TRAVIS_OSX_PYTHON_VERSION=py35
-              - TRAVIS_PYTHON_VERSION=3.5.1
+#        - os: osx
+#          language: generic
+#          env:
+#              - TRAVIS_OSX_PYTHON_VERSION=py35
+#              - TRAVIS_PYTHON_VERSION=3.5.1
 
 cache:
  directories:
