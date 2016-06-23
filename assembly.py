@@ -15,7 +15,6 @@ import os
 import os.path
 import shutil
 import subprocess
-import glob
 
 try:
     from itertools import zip_longest # pylint: disable=E0611
@@ -186,8 +185,7 @@ def assemble_trinity(inBam, outFasta, clipDb,
     except subprocess.CalledProcessError as e:
         if always_succeed:
             log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
-            with open(outFasta, 'wt') as outf:
-                pass
+            util.file.touch(outFasta)
         else:
             raise DenovoAssemblyError(*read_stats)
     os.unlink(subsampfq[0])
