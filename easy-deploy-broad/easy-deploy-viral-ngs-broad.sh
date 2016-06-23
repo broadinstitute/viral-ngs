@@ -9,10 +9,12 @@ SCRIPTPATH="$(dirname "$SCRIPT")"
 
 CONTAINING_DIR="viral-ngs-analysis-software"
 VIRAL_NGS_DIR="viral-ngs"
-PYTHON_VENV_DIR="venv"
+CONDA_ENV_BASENAME="conda-env"
+CONDA_ENV_CACHE="conda-cache"
 PROJECTS_DIR="projects"
 
-PYTHON_VENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PYTHON_VENV_DIR"
+VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
+VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
 PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 
@@ -25,18 +27,13 @@ VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 
 function load_dotkits(){
     source /broad/software/scripts/useuse
-    #reuse .anaconda3-2.5.0
-    reuse .anaconda-2.1.0
-    reuse .oracle-java-jdk-1.7.0-51-x86-64
-    reuse .bzip2-1.0.6
-    reuse .zlib-1.2.6
-    reuse .gcc-4.5.3
-    reuse .python-3.4.3
-
+    reuse .anaconda3-4.0.0
+    
     if [ -z "$GATK_PATH" ]; then
         reuse .gatk3-2.2
         # the Broad sets an alias for GATK, so we need to parse out the path
         export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
+        export GATK_JAR="$(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g')"
     else
         echo "GATK_PATH is set to '$GATK_PATH'"
         echo "Continuing..."
@@ -69,18 +66,18 @@ function create_project(){
     touch samples-assembly-failures.txt
     cp $VIRAL_NGS_PATH/pipes/config.yaml ../../$VIRAL_NGS_DIR/pipes/Snakefile ./
     ln -s $VIRAL_NGS_PATH/ $(pwd)/bin
-    ln -s $PYTHON_VENV_PATH/ $(pwd)/venv
+    ln -s $VIRAL_CONDA_ENV_PATH/ $(pwd)/venv
     ln -s $VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh $(pwd)/run-pipe_UGER.sh
     ln -s $VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh $(pwd)/run-pipe_LSF.sh
 
     cd $starting_dir
 }
 
-function activate_pyenv(){
-    if [ -d "$PYTHON_VENV_PATH" ]; then
-        source $PYTHON_VENV_PATH/bin/activate
+function activate_env(){
+    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
+        source activate $VIRAL_CONDA_ENV_PATH
     else
-        echo "$PYTHON_VENV_PATH/ does not exist. Exiting."
+        echo "$VIRAL_CONDA_ENV_PATH/ does not exist. Exiting."
         cd $STARTING_DIR
         return 1
     fi
@@ -88,6 +85,13 @@ function activate_pyenv(){
 
 function activate_environment(){
     load_dotkits
+
+
+    # create the conda cache path if it does not exist
+    if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
+        mkdir -p $VIRAL_CONDA_CACHE_PATH
+    fi
+    export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
 
     echo "$SCRIPTPATH/$CONTAINING_DIR"
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
@@ -100,11 +104,11 @@ function activate_environment(){
         return 1
     fi
 
-    activate_pyenv
+    activate_env
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {setup,load,create-project}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup}"
 }
 
 if [ $# -eq 0 ]; then
@@ -127,28 +131,43 @@ else
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
                     # clone viral-ngs if it does not already exist
+                    # TODO: avoid duplication; symlink to conda version in opt/
+                    #  ...follow symlink to illumina.py after install
+                    #  of conda package and link dirname to $VIRAL_NGS_DIR
+                    # if symlink does not already exist
                     if [ ! -d "$VIRAL_NGS_PATH" ]; then
-                        git clone https://github.com/broadinstitute/viral-ngs.git
+                        git clone --depth 5 https://github.com/broadinstitute/viral-ngs.git
                     else
                         echo "$VIRAL_NGS_DIR/ already exists. Skipping clone."
                     fi
 
                     load_dotkits
 
-                    if [ ! -d "$PYTHON_VENV_PATH" ]; then
-                        pyvenv $PYTHON_VENV_PATH
+                    export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
+                    conda config --add channels bioconda
+
+                    if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
+                        conda create -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                        PYVER=`python -V 2>&1 | cut -c 8`
+                        if [ "$PYVER" = "3" ]; then
+                            conda remove futures # uninstall futures if on Python3 since sometimes it sneaks in
+                        fi
                     else
-                        echo "$PYTHON_VENV_PATH/ already exists. Skipping python venv setup."
+                        echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping python venv setup."
                     fi
 
-                    activate_pyenv
+                    activate_env
 
-                    pip install -r $VIRAL_NGS_PATH/requirements.txt
-                    pip install -r $VIRAL_NGS_PATH/requirements-tests.txt
-                    pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
+                    #pip install -r $VIRAL_NGS_PATH/requirements.txt
+                    #pip install -r $VIRAL_NGS_PATH/requirements-tests.txt
+                    #pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
 
                     # install tools
-                    py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
+                    #py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
+                    $VIRAL_NGS_PATH/install_tools.py
+                    # TODO: add older versions of GATK to bioconda
+                    # or find newer GATK on the Broad cluster
+                    gatk-register $GATK_JAR
 
                     echo "Setup complete. Do you want to start a project? Run:"
                     echo "$0 create-project <project_name>"
@@ -200,7 +219,7 @@ else
 
                 echo ""
 
-                if [[ "$VIRTUAL_ENV" != "$PYTHON_VENV_PATH" ]]; then
+                if [[ "$VIRTUAL_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
                     echo "It looks like the vial-ngs environment is not active."
                     echo "To use viral-ngs with your project, source this file."
                     echo "Example: source $(basename $SCRIPT) load"
