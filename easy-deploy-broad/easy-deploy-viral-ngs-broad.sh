@@ -29,15 +29,15 @@ function load_dotkits(){
     source /broad/software/scripts/useuse
     reuse .anaconda3-4.0.0
     
-    if [ -z "$GATK_PATH" ]; then
-        reuse .gatk3-2.2
-        # the Broad sets an alias for GATK, so we need to parse out the path
-        export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
-        export GATK_JAR="$(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g')"
-    else
-        echo "GATK_PATH is set to '$GATK_PATH'"
-        echo "Continuing..."
-    fi
+    # if [ -z "$GATK_JAR" ]; then
+    #     reuse .gatk3-2.2
+    #     # the Broad sets an alias for GATK, so we need to parse out the path
+    #     #export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
+    #     #export GATK_JAR="$(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g')"
+    # else
+    #     echo "GATK_PATH is set to '$GATK_PATH'"
+    #     echo "Continuing..."
+    # fi
 
     if [ -z "$NOVOALIGN_PATH" ]; then
         reuse .novocraft-3.02.08
@@ -130,17 +130,6 @@ else
                     mkdir -p $SCRIPTPATH/$CONTAINING_DIR
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
-                    # clone viral-ngs if it does not already exist
-                    # TODO: avoid duplication; symlink to conda version in opt/
-                    #  ...follow symlink to illumina.py after install
-                    #  of conda package and link dirname to $VIRAL_NGS_DIR
-                    # if symlink does not already exist
-                    if [ ! -d "$VIRAL_NGS_PATH" ]; then
-                        git clone --depth 5 https://github.com/broadinstitute/viral-ngs.git
-                    else
-                        echo "$VIRAL_NGS_DIR/ already exists. Skipping clone."
-                    fi
-
                     load_dotkits
 
                     export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
@@ -148,12 +137,31 @@ else
 
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
                         conda create -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
-                        PYVER=`python -V 2>&1 | cut -c 8`
-                        if [ "$PYVER" = "3" ]; then
-                            conda remove futures # uninstall futures if on Python3 since sometimes it sneaks in
-                        fi
                     else
                         echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping python venv setup."
+                    fi
+
+
+                    # the conda-installed viral-ngs folder resides within the
+                    # opt/ directory of the conda environment, but it contains
+                    # a version number, so we'll ls and grep for the name
+                    # and assume it's the first one to show up
+                    # TODO: parse out the version number from 
+                    # conda list
+                    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+                        EXPECTED_VIRAL_NGS_VERSION=$(conda list | grep viral-ngs | awk -F" " '{print $2}')
+                        VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep -m 1 "viral-ngs")
+
+                        if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
+                            ln -s "$VIRAL_NGS_CONDA_PATH" "$VIRAL_NGS_PATH"
+                        else
+                            echo "Could not find viral-ngs install in conda env:"
+                            echo "$VIRAL_NGS_CONDA_PATH"
+                            exit 1
+                        fi
+                        
+                    else
+                        echo "$VIRAL_NGS_DIR/ symlink already exists. Skipping link."
                     fi
 
                     activate_env
@@ -164,9 +172,22 @@ else
 
                     # install tools
                     #py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
-                    $VIRAL_NGS_PATH/install_tools.py
+                    #$VIRAL_NGS_PATH/install_tools.py
                     # TODO: add older versions of GATK to bioconda
                     # or find newer GATK on the Broad cluster
+
+                    # get the version of gatk expected based on the installed conda package
+                    EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
+                    GATK_JAR_PATH=$(find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+
+                    # if the gatk jar file exists, export its path to an environment variable
+                    if [ -e "$GATK_JAR_PATH" ]; then
+                        export GATK_JAR=$GATK_JAR_PATH
+                    else
+                        echo "GATK jar could not be found on this system for GATK version $EXPECTED_GATK_VERSION"
+                        exit 1
+                    fi
+                    
                     gatk-register $GATK_JAR
 
                     echo "Setup complete. Do you want to start a project? Run:"
