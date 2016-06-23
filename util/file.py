@@ -360,8 +360,10 @@ def string_to_file_name(string_value):
         r"`": "_", # no subshells
         r" -": "_-", # could be mistaken for an argument
         r" --": "_--", # could be mistaken for an argument
-        r">": "]", # no redirect chars
-        r"<": "[", # no redirect chars
+        r">": "_", # no redirect chars
+        r"<": "_", # no redirect chars
+        r"(": "__", # special character
+        r")": "__", # special character
         r"\\x": "_", # hex char
         r"\\o": "_", # octal char
         #r"\\u": "", # unicode char
