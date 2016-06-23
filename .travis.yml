@@ -30,7 +30,7 @@ matrix:
   exclude:
     - python: 2.7
       os: osx
-    - python: 3.4
+    - python: 3.5
       os: osx
 
 git:
