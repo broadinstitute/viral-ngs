@@ -23,17 +23,19 @@ else # if it does not exist, we need to install miniconda
 
     bash miniconda.sh -b -p "$MINICONDA_DIR"
     chown -R "$USER" "$MINICONDA_DIR"
-    if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-        # on OSX we need to rely on the conda Python rather than the Travis-supplied system Python
-        # so conda has a higher precedence
-        export PATH="$MINICONDA_DIR/bin:$PATH"
-    else
-        export PATH="$PATH:$MINICONDA_DIR/bin"
-    fi
-    hash -r
     conda config --set always_yes yes --set changeps1 no
     conda config --add channels bioconda
     conda config --add channels r
     conda update -q conda
-    conda info -a # for debugging
 fi
+
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    # on OSX we need to rely on the conda Python rather than the Travis-supplied system Python
+    # so conda has a higher precedence
+    export PATH="$MINICONDA_DIR/bin:$PATH"
+else
+    export PATH="$PATH:$MINICONDA_DIR/bin"
+fi
+hash -r
+
+conda info -a # for debugging
