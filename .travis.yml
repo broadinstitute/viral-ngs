@@ -1,5 +1,21 @@
 language: python
-sudo: false
+
+matrix:
+    include:
+        - os: linux
+          sudo: false
+          python: 2.7
+        - os: linux
+          sudo: false
+          python: 3.4
+        - os: linux
+          sudo: false
+          python: 3.5
+#        - os: osx
+#          language: generic
+#          env:
+#              - TRAVIS_OSX_PYTHON_VERSION=py35
+#              - TRAVIS_PYTHON_VERSION=3.5.1
 
 cache:
  directories:
@@ -17,11 +33,6 @@ env:
   - PYTHONIOENCODING=UTF8
   - secure: l9tLtFKGNhaRdRN2N7Fiks63VatVCOtDUG7FI/pi7JNJu/EriTwDRlncoVCRCJZKOdxG8OrwC1BLX6CNqpVjJISEPGV/djsf2wCV9vi6oa+OsvMymsJAjOYkLezwRLVZp/0l/sGumPGz+q+XIM8VnkOZezIvZjGaaAtBpRTHdmA=
 
-python:
-  - 2.7
-  - 3.4
-  - 3.5
-
 git:
   depth: 3
 
@@ -29,14 +40,9 @@ before_install:
   - travis/before_install.sh
 
 install:
-  - travis/install-conda.sh
-  - export PATH="$PATH:$HOME/miniconda/bin"
-  - hash -r
+  - source travis/install-conda.sh
   - travis/install-pip.sh
-  - travis/install-tools.sh
-
-#before_script:
-#  - travis/flake8.sh # alternative to landscape.io
+  - source travis/install-tools.sh
 
 script:
   - travis/tests-unit.sh

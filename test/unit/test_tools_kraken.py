@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import mock
 import subprocess
+import unittest
 import util.file
 import util.misc
 import tools.kraken
@@ -89,6 +90,7 @@ class TestToolKrakenMocked(TestCaseWithTmp):
             self.assertEqual(actual, str(expected), "failure for requested %s, expected %s, actual %s" % (requested, expected, actual))
 
 
+@unittest.skipIf(tools.is_osx(), "kraken osx binary does not yet exist on bioconda")
 class TestToolKrakenExecute(TestCaseWithTmp):
 
     def setUp(self):
