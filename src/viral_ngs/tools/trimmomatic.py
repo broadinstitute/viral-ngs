@@ -16,5 +16,5 @@ class TrimmomaticTool(tools.Tool):
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, *args):
-        cmd = [self.exec_path] + args
+        cmd = [self.install_and_get_path()] + args
         subprocess.check_call(cmd)
