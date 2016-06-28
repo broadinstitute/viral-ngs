@@ -528,7 +528,8 @@ class CondaPackage(InstallMethod):
 
             result = util.misc.run_and_print(
                 [
-                    "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                    # --no-update-dependencies ensures subsequent installs do not bump versions of prior pinned installs
+                    "conda", "install", "--json", "-c", self.channel, "-y", "-q", "--no-update-dependencies", "-p", self.env_path,
                     self._package_str
                 ],
                 loglevel=logging.DEBUG,
