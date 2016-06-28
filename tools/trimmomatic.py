@@ -4,7 +4,7 @@ import subprocess
 import tools
 
 TOOL_NAME = "trimmomatic"
-TOOL_VERSION = "0.35"
+TOOL_VERSION = "0.36"
 
 
 class TrimmomaticTool(tools.Tool):
