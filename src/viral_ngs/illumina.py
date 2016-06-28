@@ -11,6 +11,7 @@ import logging
 import os
 import os.path
 import re
+import csv
 import shutil
 import subprocess
 import tempfile
@@ -325,7 +326,8 @@ class SampleSheet(object):
                 miseq_skip = False
                 row_num = 0
                 for line in inf:
-                    row = line.rstrip('\n').split(',')
+                    csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
+                    row = next(csv.reader([line.rstrip('\n')], dialect="samplesheet"))
                     if miseq_skip:
                         if line.startswith('[Data]'):
                             # start paying attention *after* this line

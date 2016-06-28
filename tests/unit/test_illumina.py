@@ -173,6 +173,20 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         self.assertEqual(rgs.get('CN'), 'M04004')
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
+    def test_inline_commas_strings(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-inline-commas-strings.csv'))
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(len(samples.get_rows()), 18)
+
+        sample_names = [r["sample"] for r in samples.get_rows()]
+        names_to_validate = [
+            'Zika "seedstock_1 (in K562, 5ng)',
+            "Zika 'seedstock_3 (in K562, 5ng)"
+        ]
+        for sample_name in names_to_validate:
+            assert util.file.string_to_file_name(sample_name) in sample_names
+
 class TestMiseqToBam(TestCaseWithTmp):
 
     def test_paired_1(self):
