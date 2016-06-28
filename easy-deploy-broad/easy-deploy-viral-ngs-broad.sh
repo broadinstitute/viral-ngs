@@ -12,11 +12,13 @@ VIRAL_NGS_DIR="viral-ngs"
 CONDA_ENV_BASENAME="conda-env"
 CONDA_ENV_CACHE="conda-cache"
 PROJECTS_DIR="projects"
+MINICONDA_DIR="miniconda3"
 
 VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
 VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
 PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
+MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -27,7 +29,7 @@ VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 
 function load_dotkits(){
     source /broad/software/scripts/useuse
-    reuse .anaconda3-4.0.0
+    #reuse .anaconda3-4.0.0
     
     # if [ -z "$GATK_JAR" ]; then
     #     reuse .gatk3-2.2
@@ -46,6 +48,21 @@ function load_dotkits(){
         echo "NOVOALIGN_PATH is set to '$NOVOALIGN_PATH'"
         echo "Continuing..."
     fi
+}
+
+function install_miniconda(){
+    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
+        echo "Miniconda directory exists."
+        
+    else
+        cd $(dirname $MINICONDA_PATH)
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        chmod +x Miniconda3-latest-Linux-x86_64.sh
+        ./Miniconda3-latest-Linux-x86_64.sh -b -p "$MINICONDA_PATH"
+        rm Miniconda3-latest-Linux-x86_64.sh
+    fi
+    echo "Prepending miniconda to PATH..."
+    export PATH="$MINICONDA_PATH/bin:$PATH"
 }
 
 function create_project(){
@@ -85,6 +102,7 @@ function activate_env(){
 
 function activate_environment(){
     load_dotkits
+    install_miniconda
 
 
     # create the conda cache path if it does not exist
@@ -131,6 +149,7 @@ else
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
                     load_dotkits
+                    install_miniconda
 
                     export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
                     conda config --add channels bioconda
