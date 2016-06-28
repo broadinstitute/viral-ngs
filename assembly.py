@@ -1062,12 +1062,13 @@ def main_vcf_to_fasta(args):
 
     with open(args.outFasta, 'wt') as outf:
         chr_idx = 0
-        for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
-                                       chrlens,
-                                       samples,
-                                       min_dp=args.min_dp,
-                                       major_cutoff=args.major_cutoff,
-                                       min_dp_ratio=args.min_dp_ratio):
+        for chr_idx, (header, seq) in enumerate(vcf_to_seqs(
+                                           util.file.read_tabfile(args.inVcf),
+                                           chrlens,
+                                           samples,
+                                           min_dp=args.min_dp,
+                                           major_cutoff=args.major_cutoff,
+                                           min_dp_ratio=args.min_dp_ratio)):
             if args.trim_ends:
                 seq = seq.strip('Nn')
             if args.name:
