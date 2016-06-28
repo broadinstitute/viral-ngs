@@ -11,6 +11,7 @@ import logging
 import os
 import os.path
 import re
+import csv
 import shutil
 import subprocess
 import tempfile
@@ -301,6 +302,11 @@ class RunInfo(object):
 # ***  SampleSheet   ***
 # ======================
 
+class SampleSheetError(Exception):
+    def __init__(self, message, fname):
+        super(SampleSheetError, self).__init__(
+            'Failed to read SampleSheet {}. {}'.format(
+                fname, message))
 
 class SampleSheet(object):
     ''' A class that reads an Illumina SampleSheet.csv or alternative/simplified
@@ -325,7 +331,9 @@ class SampleSheet(object):
                 miseq_skip = False
                 row_num = 0
                 for line in inf:
-                    row = line.rstrip('\n').split(',')
+                    csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
+                    row = next(csv.reader([line.rstrip('\n')], dialect="samplesheet"))
+                    row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
                     if miseq_skip:
                         if line.startswith('[Data]'):
                             # start paying attention *after* this line
@@ -369,7 +377,7 @@ class SampleSheet(object):
                                     'row_num': str(row_num)
                                 })
                         else:
-                            raise Exception('unrecognized filetype: %s' % infile)
+                            raise SampleSheetError('unrecognized filetype', infile)
                         for h in ('sample', 'barcode_1'):
                             assert h in header
                     else:
@@ -407,10 +415,10 @@ class SampleSheet(object):
                 row['row_num'] = str(row_num)
                 self.rows.append(row)
         else:
-            raise Exception('unrecognized filetype: %s' % infile)
+            raise SampleSheetError('unrecognized filetype', infile)
 
         if not self.rows:
-            raise Exception('empty file')
+            raise SampleSheetError('empty file', infile)
 
         # populate library IDs, run IDs (ie BAM filenames)
         for row in self.rows:
@@ -427,7 +435,7 @@ class SampleSheet(object):
                     unique_count[row['library']] += 1
                     row['run'] += '.r' + str(unique_count[row['library']])
             else:
-                raise Exception('non-unique library IDs in this lane')
+                raise SampleSheetError('non-unique library IDs in this lane', infile)
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
@@ -439,7 +447,7 @@ class SampleSheet(object):
         if all(row.get('barcode_2') for row in self.rows):
             self.indexes = 2
         elif any(row.get('barcode_2') for row in self.rows):
-            raise Exception('inconsistent single/double barcoding in sample sheet')
+            raise SampleSheetError('inconsistent single/double barcoding in sample sheet', infile)
         else:
             self.indexes = 1
 
