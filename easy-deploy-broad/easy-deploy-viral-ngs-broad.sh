@@ -7,12 +7,14 @@ STARTING_DIR=$(pwd)
 SCRIPT="$(readlink --canonicalize-existing "${BASH_SOURCE[0]}")"
 SCRIPTPATH="$(dirname "$SCRIPT")"
 
-CONTAINING_DIR="viral-ngs-analysis-software"
+CONDA_PREFIX_LENGTH_LIMIT=80
+
+CONTAINING_DIR="viral-ngs-etc"
 VIRAL_NGS_DIR="viral-ngs"
 CONDA_ENV_BASENAME="conda-env"
 CONDA_ENV_CACHE="conda-cache"
 PROJECTS_DIR="projects"
-MINICONDA_DIR="miniconda3"
+MINICONDA_DIR="mc3"
 
 VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
 VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
@@ -26,6 +28,39 @@ MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
  [[ -n $KSH_VERSION && $(cd "$(dirname -- "$0")" &&
     printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] ||
  [[ -n $BASH_VERSION && $0 != "$BASH_SOURCE" ]]) && sourced=1 || sourced=0
+
+function strLen() {
+    local bytlen sreal oLang=$LANG
+    LANG=C
+    bytlen=${#1}
+    printf -v sreal %q "$1"
+    LANG=$oLang
+    return $bytlen # int can be returned
+}
+
+strLen $MINICONDA_PATH &> /dev/null
+current_prefix_length=$?
+if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
+    echo "WARNING: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
+    echo "$MINICONDA_PATH"
+    echo "This is a known bug in conda ($CONDA_PREFIX_LENGTH_LIMIT character limit): "
+    echo "https://github.com/conda/conda-build/pull/877"
+    echo "To prevent this warning, move this script higher in the filesystem hierarchy."
+
+    # semi-working symlink hack below
+    #echo "To get around this we are creaing a symlink in /broad/hptmp and installing there (though the files will reside in the correct location)."
+    #ALT_CONDA_LOCATION="/broad/hptmp/$(whoami)/vgs-miniconda-pathhack"
+    #mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
+    #mkdir -p "$MINICONDA_PATH"
+    #if [ ! -L "$ALT_CONDA_LOCATION" ]; then
+    #    ln -s "$MINICONDA_PATH" "$ALT_CONDA_LOCATION"
+    #    echo "ln -s \"$MINICONDA_PATH\" \"$ALT_CONDA_LOCATION\""
+    #else
+    #    touch -h "$ALT_CONDA_LOCATION"
+    #fi
+    #MINICONDA_PATH="$ALT_CONDA_LOCATION"
+    exit 1
+fi
 
 function load_dotkits(){
     source /broad/software/scripts/useuse
