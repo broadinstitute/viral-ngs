@@ -328,6 +328,7 @@ class SampleSheet(object):
                 for line in inf:
                     csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
                     row = next(csv.reader([line.rstrip('\n')], dialect="samplesheet"))
+                    row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
                     if miseq_skip:
                         if line.startswith('[Data]'):
                             # start paying attention *after* this line

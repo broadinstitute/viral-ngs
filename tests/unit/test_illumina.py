@@ -182,7 +182,8 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         sample_names = [r["sample"] for r in samples.get_rows()]
         names_to_validate = [
             'Zika "seedstock_1 (in K562, 5ng)',
-            "Zika 'seedstock_3 (in K562, 5ng)"
+            "Zika 'seedstock_3 (in K562, 5ng)",
+            "Zika seedstock_7 (in K562, 10pg)"
         ]
         for sample_name in names_to_validate:
             assert util.file.string_to_file_name(sample_name) in sample_names

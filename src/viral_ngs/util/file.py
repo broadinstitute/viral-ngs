@@ -136,7 +136,7 @@ def read_tabfile_dict(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         header = None
         for line in inf:
-            row = line.rstrip('\n').split('\t')
+            row = [item.strip() for item in line.rstrip('\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = row
@@ -154,7 +154,7 @@ def read_tabfile(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         for line in inf:
             if not line.startswith('#'):
-                yield line.rstrip('\n').split('\t')
+                yield list(item.strip() for item in line.rstrip('\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
