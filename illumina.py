@@ -439,9 +439,9 @@ class SampleSheet(object):
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
-            row['sample'] = util.file.string_to_file_name(row['sample'].strip())
-            row['library'] = util.file.string_to_file_name(row['library'].strip())
-            row['run'] = util.file.string_to_file_name(row['run'].strip())
+            row['sample'] = util.file.string_to_file_name(row['sample'])
+            row['library'] = util.file.string_to_file_name(row['library'])
+            row['run'] = util.file.string_to_file_name(row['run'])
 
         # are we single or double indexed?
         if all(row.get('barcode_2') for row in self.rows):
