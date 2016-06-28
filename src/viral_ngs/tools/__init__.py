@@ -10,6 +10,7 @@ import re
 import logging
 import tempfile
 import shutil
+import shlex
 import subprocess
 import util.file
 import util.misc
@@ -233,7 +234,9 @@ class CondaPackage(InstallMethod):
         conda_cache_path=None,
         patches=None,
         post_install_command=None,
-        post_install_ret=0
+        post_install_ret=0,
+        post_verify_command=None,
+        post_verify_ret=0
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -246,6 +249,14 @@ class CondaPackage(InstallMethod):
 
         self.post_install_command = post_install_command
         self.post_install_ret = post_install_ret
+
+        # call the post-verification command.
+        # Useful for copying in license files, building databases, etc.
+        # The post-verify command is executed relative to the conda environment bin/
+        # And has the active conda environment on the PATH
+        self.post_verify_command = post_verify_command
+        self.post_verify_ret = post_verify_ret
+        self.post_verify_cmd_executed = False
 
         self.verifycmd = verifycmd
         self.verifycode = verifycode
@@ -384,6 +395,21 @@ class CondaPackage(InstallMethod):
         else:
             self.installed = False
         if self.installed:
+            # call the post-verification command.
+            # Useful for copying in license files, building databases, etc.
+            # This is executed relative to the conda environment bin/
+            # And has the active conda environment on the PATH
+            if (not self.post_verify_cmd_executed) and self.post_verify_command:
+                post_verify_command = shlex.split(self.post_verify_command)
+                _log.debug("Running post-verification cmd: {}".format(self.post_verify_command))
+
+                result = util.misc.run_and_print(post_verify_command, silent=False, check=False, env=self.conda_env, cwd=self.bin_path)
+                post_verify_cmd_return_code = result.returncode
+                if post_verify_cmd_return_code == self.post_verify_ret:
+                    self.post_verify_cmd_executed = True
+                else:
+                    raise subprocess.CalledProcessError(post_verify_cmd_return_code, "Post verification command failed with exit %s: %s" % (post_verify_cmd_return_code, self.post_verify_command))
+
             return installed_version
         return False
 
