@@ -37,6 +37,9 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--outMetrics',
                         help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
                         default=None)
+    parser.add_argument('--commonBarcodes',
+                        help='Write a TSV report of all barcode counts, in descending order.',
+                        default=None)
     parser.add_argument('--sampleSheet',
                         default=None,
                         help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
@@ -118,6 +121,9 @@ def main_illumina_demux(args):
         picardOptions=picardOpts,
         JVMmemory=args.JVMmemory)
 
+    if args.commonBarcodes:
+        count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+
     # Picard IlluminaBasecallsToSam
     basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
     samples.make_params_file(args.outDir, basecalls_input)
@@ -159,7 +165,7 @@ def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('--truncateToLength',
                         help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
                         type=int,
-                        default=-1)
+                        default=None)
     parser.add_argument('--omitHeader', 
                         help='If specified, a header will not be added to the outSummary tsv file.',
                         action='store_true')
@@ -216,7 +222,7 @@ def main_common_barcodes(args):
 
     # Picard ExtractIlluminaBarcodes
     barcode_file = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
-    barcodes_dir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+    barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
     samples.make_barcodes_file(barcode_file)
     out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
     picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
@@ -226,11 +232,22 @@ def main_common_barcodes(args):
         illumina.get_BCLdir(),
         args.lane,
         barcode_file,
-        barcodes_dir,
+        barcodes_tmpdir,
         out_metrics,
         picardOptions=picardOpts,
         JVMmemory=args.JVMmemory)
 
+    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, args.truncateToLength, args.includeNoise, args.omitHeader)
+
+    # clean up
+    os.unlink(barcode_file)
+    shutil.rmtree(barcodes_tmpdir)
+    illumina.close()
+    return 0
+
+__commands__.append(('common_barcodes', parser_common_barcodes))
+
+def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, includeNoise=False, omitHeader=False):
     # collect the barcode file paths for all tiles
     tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
 
@@ -242,29 +259,21 @@ def main_common_barcodes(args):
                 # split the barcode file by tabs using the Python csv module
                 row = next(csv.reader([line.rstrip('\n')], delimiter='\t'))
                 # add the barcode for the current line to the count
-                if "." not in row[0] or args.includeNoise:
+                if "." not in row[0] or includeNoise:
                     barcode_counts[row[0]] += 1
 
     # sort the counts, descending. Truncate the result if desired
-    count_to_write = args.truncateToLength if args.truncateToLength > 0 else len(barcode_counts)
+    count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
     sorted_counts = list((k, barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
 
     # write the barcodes and their corresponding counts
-    with open(args.outSummary, 'w') as tsvfile:
+    with open(outSummary, 'w') as tsvfile:
         writer = csv.writer(tsvfile, delimiter='\t')
         # write the header unless the user has specified not to do so
-        if not args.omitHeader:
+        if not omitHeader:
             writer.writerow(("Barcode", "Count"))
         for barcode_count_tuple in sorted_counts:
             writer.writerow(barcode_count_tuple)
-
-    # clean up
-    os.unlink(barcode_file)
-    shutil.rmtree(barcodes_dir)
-    illumina.close()
-    return 0
-
-__commands__.append(('common_barcodes', parser_common_barcodes))
 
 # ============================
 # ***  IlluminaDirectory   ***
