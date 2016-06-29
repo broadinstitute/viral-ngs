@@ -36,7 +36,7 @@ rule download_lastal_sources:
     output:
         expand( '{lastalDb}/'+'lastal.fasta', lastalDb=config["lastal_ref_db_dir"] )
     params:
-        accessionsList=read_accessions_file(config["accessions_file_for_lastal_db_build"]) if "accessions_file_for_lastal_db_build" in config and len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"],
+        accessionsList=" ".join(read_accessions_file(config["accessions_file_for_lastal_db_build"]) if "accessions_file_for_lastal_db_build" in config and len(config["accessions_file_for_lastal_db_build"])>0 else config["accessions_for_ref_genome_build"]),
         emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
         makedirs( expand( "{dir}", dir=[config["lastal_ref_db_dir"]] ) )
