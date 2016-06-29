@@ -51,7 +51,7 @@ rule isnvs_vcf:
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
-            snpEff_ref=config["accessions_for_ref_genome_build"],
+            snpEff_ref=" ".join(config["accessions_for_ref_genome_build"]),
             samples=list(read_samples_file(config["samples_assembly"])),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
@@ -85,7 +85,7 @@ rule isnvs_vcf_filtered:
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
-            snpEff_ref=config["accessions_for_ref_genome_build"],
+            snpEff_ref=" ".join(config["accessions_for_ref_genome_build"]),
             samples=list(read_samples_file(config["samples_assembly"])),
             emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
