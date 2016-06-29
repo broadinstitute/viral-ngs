@@ -158,11 +158,12 @@ def make_parser(commands, description):
         parser.add_argument('--version', '-V', action='version', version=__version__, help=argparse.SUPPRESS)
         subparsers = parser.add_subparsers(title='subcommands', dest='command', metavar='\033[F') # \033[F moves cursor up
         for cmd_name, cmd_parser in commands:
-            if os.environ.get('READTHEDOCS'):
-                p = subparsers.add_parser(cmd_name, help="  ")
-            else:
-                help_str = cmd_parser.__doc__ if cmd_parser.__doc__ and len(cmd_parser.__doc__) else None
-                p = subparsers.add_parser(cmd_name, help=help_str)
+            help_str = cmd_parser.__doc__ if cmd_parser.__doc__ and len(cmd_parser.__doc__) else None
+            # give a blank string for help if the parser docstring is null
+            # so sphinx-argparse doesnt't render "Undocumented"
+            if (not help_str) and os.environ.get('READTHEDOCS') or 'sphinx' in sys.modules:
+                help_str = "   "
+            p = subparsers.add_parser(cmd_name, help=help_str)
             cmd_parser(p)
     return parser
 
