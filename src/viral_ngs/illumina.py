@@ -163,6 +163,9 @@ def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('--omitHeader', 
                         help='If specified, a header will not be added to the outSummary tsv file.',
                         action='store_true')
+    parser.add_argument('--includeNoise', 
+                        help='If specified, barcodes with periods (".") will be included.',
+                        action='store_true')
     parser.add_argument('--outMetrics',
                         help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
                         default=None)
@@ -239,7 +242,8 @@ def main_common_barcodes(args):
                 # split the barcode file by tabs using the Python csv module
                 row = next(csv.reader([line.rstrip('\n')], delimiter='\t'))
                 # add the barcode for the current line to the count
-                barcode_counts[row[0]] += 1
+                if "." not in row[0] or args.includeNoise:
+                    barcode_counts[row[0]] += 1
 
     # sort the counts, descending. Truncate the result if desired
     count_to_write = args.truncateToLength if args.truncateToLength > 0 else len(barcode_counts)
