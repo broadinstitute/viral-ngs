@@ -154,7 +154,7 @@ __commands__.append(('illumina_demux', parser_illumina_demux))
 def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
     parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outSummary', help='Path to the summary file (.tsv format)')
+    parser.add_argument('outSummary', help='Path to the summary file (.tsv format). It includes two columns: (barcode, count)')
 
     parser.add_argument('--truncateToLength',
                         help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
