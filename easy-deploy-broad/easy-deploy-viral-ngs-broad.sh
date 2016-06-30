@@ -161,7 +161,8 @@ function activate_environment(){
 
     echo "$SCRIPTPATH/$CONTAINING_DIR"
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
-        cd $SCRIPTPATH/$CONTAINING_DIR
+        cd $SCRIPTPATH
+        echo "Activating environment"
     else
         echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
         echo "Have you run the setup?"
