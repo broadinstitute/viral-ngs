@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#set -e -o pipefail
+
 STARTING_DIR=$(pwd)
 
 # way to get the absolute path to this script that should
@@ -22,12 +24,17 @@ PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
+# part of the prefix length hack
+#ALT_CONDA_LOCATION="/home/unix/$(whoami)/.vgs-miniconda-pathhack"
+
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
 ([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] ||
  [[ -n $KSH_VERSION && $(cd "$(dirname -- "$0")" &&
     printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] ||
  [[ -n $BASH_VERSION && $0 != "$BASH_SOURCE" ]]) && sourced=1 || sourced=0
+
+# TODO: check that we are on a machine with sufficient RAM
 
 function strLen() {
     local bytlen sreal oLang=$LANG
@@ -41,43 +48,51 @@ function strLen() {
 strLen $MINICONDA_PATH &> /dev/null
 current_prefix_length=$?
 if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
-    echo "WARNING: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
+    echo "ERROR: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
     echo "$MINICONDA_PATH"
     echo "This is a known bug in conda ($CONDA_PREFIX_LENGTH_LIMIT character limit): "
     echo "https://github.com/conda/conda-build/pull/877"
-    echo "To prevent this warning, move this script higher in the filesystem hierarchy."
+    echo "To prevent this error, move this script higher in the filesystem hierarchy."
+    exit 1
 
     # semi-working symlink hack below
-    #echo "To get around this we are creaing a symlink in /broad/hptmp and installing there (though the files will reside in the correct location)."
-    #ALT_CONDA_LOCATION="/broad/hptmp/$(whoami)/vgs-miniconda-pathhack"
-    #mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
-    #mkdir -p "$MINICONDA_PATH"
-    #if [ ! -L "$ALT_CONDA_LOCATION" ]; then
+    # echo ""
+    # echo "To get around this we are creaing a symlink $ALT_CONDA_LOCATION and installing there (though the files will reside in the correct location)."
+    # mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
+    # mkdir -p "$MINICONDA_PATH"
+    # if [ ! -L "$ALT_CONDA_LOCATION" ]; then
     #    ln -s "$MINICONDA_PATH" "$ALT_CONDA_LOCATION"
     #    echo "ln -s \"$MINICONDA_PATH\" \"$ALT_CONDA_LOCATION\""
-    #else
+    # else
     #    touch -h "$ALT_CONDA_LOCATION"
-    #fi
-    #MINICONDA_PATH="$ALT_CONDA_LOCATION"
-    exit 1
+    # fi
+    # export MINICONDA_PATH="$ALT_CONDA_LOCATION"
 fi
+
+function set_locale(){
+    export LANG="$1"
+    export LC_CTYPE="$1"
+    export LC_NUMERIC="$1"
+    export LC_TIME="$1"
+    export LC_COLLATE="$1"
+    export LC_MONETARY="$1"
+    export LC_MESSAGES="$1"
+    export LC_PAPER="$1"
+    export LC_NAME="$1"
+    export LC_ADDRESS="$1"
+    export LC_TELEPHONE="$1"
+    export LC_MEASUREMENT="$1"
+    export LC_IDENTIFICATION="$1"
+    export LC_ALL="$1"
+}
+
+set_locale "en_US.utf8"
 
 function load_dotkits(){
     source /broad/software/scripts/useuse
-    #reuse .anaconda3-4.0.0
-    
-    # if [ -z "$GATK_JAR" ]; then
-    #     reuse .gatk3-2.2
-    #     # the Broad sets an alias for GATK, so we need to parse out the path
-    #     #export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
-    #     #export GATK_JAR="$(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g')"
-    # else
-    #     echo "GATK_PATH is set to '$GATK_PATH'"
-    #     echo "Continuing..."
-    # fi
 
     if [ -z "$NOVOALIGN_PATH" ]; then
-        reuse .novocraft-3.02.08
+        reuse .novocraft-3.02.08 || true
         export NOVOALIGN_PATH="$(dirname $(which novoalign))"
     else
         echo "NOVOALIGN_PATH is set to '$NOVOALIGN_PATH'"
@@ -86,18 +101,23 @@ function load_dotkits(){
 }
 
 function install_miniconda(){
-    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
+    if [ -d "$MINICONDA_PATH/bin" ]; then
         echo "Miniconda directory exists."
         
     else
-        cd $(dirname $MINICONDA_PATH)
-        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-        chmod +x Miniconda3-latest-Linux-x86_64.sh
-        ./Miniconda3-latest-Linux-x86_64.sh -b -p "$MINICONDA_PATH"
-        rm Miniconda3-latest-Linux-x86_64.sh
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P $(dirname $MINICONDA_PATH)/
+        chmod +x $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
+        $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh -b -f -p "$MINICONDA_PATH"
+
+        rm $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
     fi
     echo "Prepending miniconda to PATH..."
     export PATH="$MINICONDA_PATH/bin:$PATH"
+    hash -r
+
+    # update to the latest conda this way, since the shell script 
+    # is often months out of date
+    conda update -y conda
 }
 
 function create_project(){
@@ -139,13 +159,6 @@ function activate_environment(){
     load_dotkits
     install_miniconda
 
-
-    # create the conda cache path if it does not exist
-    if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
-        mkdir -p $VIRAL_CONDA_CACHE_PATH
-    fi
-    export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
-
     echo "$SCRIPTPATH/$CONTAINING_DIR"
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         cd $SCRIPTPATH/$CONTAINING_DIR
@@ -186,15 +199,11 @@ else
                     load_dotkits
                     install_miniconda
 
-                    export CONDA_ENVS_PATH="$VIRAL_CONDA_CACHE_PATH"
-                    conda config --add channels bioconda
-
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
-                        conda create -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                        conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
                     else
                         echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping python venv setup."
                     fi
-
 
                     # the conda-installed viral-ngs folder resides within the
                     # opt/ directory of the conda environment, but it contains
@@ -220,22 +229,16 @@ else
 
                     activate_env
 
-                    #pip install -r $VIRAL_NGS_PATH/requirements.txt
-                    #pip install -r $VIRAL_NGS_PATH/requirements-tests.txt
-                    #pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
-
                     # install tools
-                    #py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
-                    #$VIRAL_NGS_PATH/install_tools.py
-                    # TODO: add older versions of GATK to bioconda
-                    # or find newer GATK on the Broad cluster
+                    py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
 
                     # get the version of gatk expected based on the installed conda package
                     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
-                    GATK_JAR_PATH=$(find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+                    GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
 
                     # if the gatk jar file exists, export its path to an environment variable
                     if [ -e "$GATK_JAR_PATH" ]; then
+                        echo "GATK found: $GATK_JAR_PATH"
                         export GATK_JAR=$GATK_JAR_PATH
                     else
                         echo "GATK jar could not be found on this system for GATK version $EXPECTED_GATK_VERSION"
