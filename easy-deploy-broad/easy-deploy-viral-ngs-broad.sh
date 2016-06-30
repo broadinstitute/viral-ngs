@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#set -e -o pipefail
+
 STARTING_DIR=$(pwd)
 
 # way to get the absolute path to this script that should
@@ -7,14 +9,23 @@ STARTING_DIR=$(pwd)
 SCRIPT="$(readlink --canonicalize-existing "${BASH_SOURCE[0]}")"
 SCRIPTPATH="$(dirname "$SCRIPT")"
 
-CONTAINING_DIR="viral-ngs-analysis-software"
-VIRAL_NGS_DIR="viral-ngs"
-PYTHON_VENV_DIR="venv"
-PROJECTS_DIR="projects"
+CONDA_PREFIX_LENGTH_LIMIT=80
 
-PYTHON_VENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PYTHON_VENV_DIR"
+CONTAINING_DIR="viral-ngs-etc"
+VIRAL_NGS_DIR="viral-ngs"
+CONDA_ENV_BASENAME="conda-env"
+CONDA_ENV_CACHE="conda-cache"
+PROJECTS_DIR="projects"
+MINICONDA_DIR="mc3"
+
+VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
+VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
 PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
+MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
+
+# part of the prefix length hack
+#ALT_CONDA_LOCATION="/home/unix/$(whoami)/.vgs-miniconda-pathhack"
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -23,32 +34,90 @@ VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
     printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] ||
  [[ -n $BASH_VERSION && $0 != "$BASH_SOURCE" ]]) && sourced=1 || sourced=0
 
+# TODO: check that we are on a machine with sufficient RAM
+
+function strLen() {
+    local bytlen sreal oLang=$LANG
+    LANG=C
+    bytlen=${#1}
+    printf -v sreal %q "$1"
+    LANG=$oLang
+    return $bytlen # int can be returned
+}
+
+strLen $MINICONDA_PATH &> /dev/null
+current_prefix_length=$?
+if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
+    echo "ERROR: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
+    echo "$MINICONDA_PATH"
+    echo "This is a known bug in conda ($CONDA_PREFIX_LENGTH_LIMIT character limit): "
+    echo "https://github.com/conda/conda-build/pull/877"
+    echo "To prevent this error, move this script higher in the filesystem hierarchy."
+    exit 1
+
+    # semi-working symlink hack below
+    # echo ""
+    # echo "To get around this we are creaing a symlink $ALT_CONDA_LOCATION and installing there (though the files will reside in the correct location)."
+    # mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
+    # mkdir -p "$MINICONDA_PATH"
+    # if [ ! -L "$ALT_CONDA_LOCATION" ]; then
+    #    ln -s "$MINICONDA_PATH" "$ALT_CONDA_LOCATION"
+    #    echo "ln -s \"$MINICONDA_PATH\" \"$ALT_CONDA_LOCATION\""
+    # else
+    #    touch -h "$ALT_CONDA_LOCATION"
+    # fi
+    # export MINICONDA_PATH="$ALT_CONDA_LOCATION"
+fi
+
+function set_locale(){
+    export LANG="$1"
+    export LC_CTYPE="$1"
+    export LC_NUMERIC="$1"
+    export LC_TIME="$1"
+    export LC_COLLATE="$1"
+    export LC_MONETARY="$1"
+    export LC_MESSAGES="$1"
+    export LC_PAPER="$1"
+    export LC_NAME="$1"
+    export LC_ADDRESS="$1"
+    export LC_TELEPHONE="$1"
+    export LC_MEASUREMENT="$1"
+    export LC_IDENTIFICATION="$1"
+    export LC_ALL="$1"
+}
+
+set_locale "en_US.utf8"
+
 function load_dotkits(){
     source /broad/software/scripts/useuse
-    #reuse .anaconda3-2.5.0
-    reuse .anaconda-2.1.0
-    reuse .oracle-java-jdk-1.7.0-51-x86-64
-    reuse .bzip2-1.0.6
-    reuse .zlib-1.2.6
-    reuse .gcc-4.5.3
-    reuse .python-3.4.3
-
-    if [ -z "$GATK_PATH" ]; then
-        reuse .gatk3-2.2
-        # the Broad sets an alias for GATK, so we need to parse out the path
-        export GATK_PATH="$(dirname $(alias | grep GenomeAnalysisTK | perl -lape 's/(.*)\ (\/.*.jar).*/$2/g'))"
-    else
-        echo "GATK_PATH is set to '$GATK_PATH'"
-        echo "Continuing..."
-    fi
 
     if [ -z "$NOVOALIGN_PATH" ]; then
-        reuse .novocraft-3.02.08
+        reuse .novocraft-3.02.08 || true
         export NOVOALIGN_PATH="$(dirname $(which novoalign))"
     else
         echo "NOVOALIGN_PATH is set to '$NOVOALIGN_PATH'"
         echo "Continuing..."
     fi
+}
+
+function install_miniconda(){
+    if [ -d "$MINICONDA_PATH/bin" ]; then
+        echo "Miniconda directory exists."
+        
+    else
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P $(dirname $MINICONDA_PATH)/
+        chmod +x $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
+        $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh -b -f -p "$MINICONDA_PATH"
+
+        rm $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
+    fi
+    echo "Prepending miniconda to PATH..."
+    export PATH="$MINICONDA_PATH/bin:$PATH"
+    hash -r
+
+    # update to the latest conda this way, since the shell script 
+    # is often months out of date
+    conda update -y conda
 }
 
 function create_project(){
@@ -69,18 +138,18 @@ function create_project(){
     touch samples-assembly-failures.txt
     cp $VIRAL_NGS_PATH/pipes/config.yaml ../../$VIRAL_NGS_DIR/pipes/Snakefile ./
     ln -s $VIRAL_NGS_PATH/ $(pwd)/bin
-    ln -s $PYTHON_VENV_PATH/ $(pwd)/venv
+    ln -s $VIRAL_CONDA_ENV_PATH/ $(pwd)/venv
     ln -s $VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh $(pwd)/run-pipe_UGER.sh
     ln -s $VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh $(pwd)/run-pipe_LSF.sh
 
     cd $starting_dir
 }
 
-function activate_pyenv(){
-    if [ -d "$PYTHON_VENV_PATH" ]; then
-        source $PYTHON_VENV_PATH/bin/activate
+function activate_env(){
+    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
+        source activate $VIRAL_CONDA_ENV_PATH
     else
-        echo "$PYTHON_VENV_PATH/ does not exist. Exiting."
+        echo "$VIRAL_CONDA_ENV_PATH/ does not exist. Exiting."
         cd $STARTING_DIR
         return 1
     fi
@@ -88,10 +157,12 @@ function activate_pyenv(){
 
 function activate_environment(){
     load_dotkits
+    install_miniconda
 
     echo "$SCRIPTPATH/$CONTAINING_DIR"
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
-        cd $SCRIPTPATH/$CONTAINING_DIR
+        cd $SCRIPTPATH
+        echo "Activating environment"
     else
         echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
         echo "Have you run the setup?"
@@ -100,11 +171,11 @@ function activate_environment(){
         return 1
     fi
 
-    activate_pyenv
+    activate_env
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {setup,load,create-project}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup}"
 }
 
 if [ $# -eq 0 ]; then
@@ -126,29 +197,56 @@ else
                     mkdir -p $SCRIPTPATH/$CONTAINING_DIR
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
-                    # clone viral-ngs if it does not already exist
-                    if [ ! -d "$VIRAL_NGS_PATH" ]; then
-                        git clone https://github.com/broadinstitute/viral-ngs.git
-                    else
-                        echo "$VIRAL_NGS_DIR/ already exists. Skipping clone."
-                    fi
-
                     load_dotkits
+                    install_miniconda
 
-                    if [ ! -d "$PYTHON_VENV_PATH" ]; then
-                        pyvenv $PYTHON_VENV_PATH
+                    if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
+                        conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
                     else
-                        echo "$PYTHON_VENV_PATH/ already exists. Skipping python venv setup."
+                        echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping python venv setup."
                     fi
 
-                    activate_pyenv
+                    # the conda-installed viral-ngs folder resides within the
+                    # opt/ directory of the conda environment, but it contains
+                    # a version number, so we'll ls and grep for the name
+                    # and assume it's the first one to show up
+                    # TODO: parse out the version number from 
+                    # conda list
+                    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+                        EXPECTED_VIRAL_NGS_VERSION=$(conda list | grep viral-ngs | awk -F" " '{print $2}')
+                        VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep -m 1 "viral-ngs")
 
-                    pip install -r $VIRAL_NGS_PATH/requirements.txt
-                    pip install -r $VIRAL_NGS_PATH/requirements-tests.txt
-                    pip install -r $VIRAL_NGS_PATH/requirements-pipes.txt
+                        if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
+                            ln -s "$VIRAL_NGS_CONDA_PATH" "$VIRAL_NGS_PATH"
+                        else
+                            echo "Could not find viral-ngs install in conda env:"
+                            echo "$VIRAL_NGS_CONDA_PATH"
+                            exit 1
+                        fi
+                        
+                    else
+                        echo "$VIRAL_NGS_DIR/ symlink already exists. Skipping link."
+                    fi
+
+                    activate_env
 
                     # install tools
                     py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
+
+                    # get the version of gatk expected based on the installed conda package
+                    EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
+                    GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+
+                    # if the gatk jar file exists, export its path to an environment variable
+                    if [ -e "$GATK_JAR_PATH" ]; then
+                        echo "GATK found: $GATK_JAR_PATH"
+                        export GATK_JAR=$GATK_JAR_PATH
+                    else
+                        echo "GATK jar could not be found on this system for GATK version $EXPECTED_GATK_VERSION"
+                        exit 1
+                    fi
+                    
+                    gatk-register $GATK_JAR
 
                     echo "Setup complete. Do you want to start a project? Run:"
                     echo "$0 create-project <project_name>"
@@ -200,7 +298,7 @@ else
 
                 echo ""
 
-                if [[ "$VIRTUAL_ENV" != "$PYTHON_VENV_PATH" ]]; then
+                if [[ "$VIRTUAL_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
                     echo "It looks like the vial-ngs environment is not active."
                     echo "To use viral-ngs with your project, source this file."
                     echo "Example: source $(basename $SCRIPT) load"
