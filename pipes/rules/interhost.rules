@@ -100,7 +100,6 @@ rule multi_align_mafft:
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
-            snpEff_ref=config["accessions_for_ref_genome_build"],
             samples=list(read_samples_file(config["samples_assembly"])),
             ep=str(config["mafft_ep"]),
             maxiters=str(config["mafft_maxiters"]),
