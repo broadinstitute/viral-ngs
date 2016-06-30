@@ -162,7 +162,7 @@ docs <ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt>`__.
       - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
       - "metagenomics_contaminants_v3"
 
-Pre-built depletion databases are available in both *.tar.gz and *.lz4 
+Pre-built depletion databases are available in both \*.tar.gz and \*.lz4 
 format, for removing human reads and common metagenomic contaminants:
 
 -  `GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.lz4>`__)

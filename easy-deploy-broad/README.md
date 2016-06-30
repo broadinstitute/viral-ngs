@@ -16,12 +16,12 @@ This one-line command will download the `easy-deploy-viral-ngs-broad.sh` script 
 
 ### Usage
 
-* `easy-deploy-viral-ngs-broad.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-analysis-software`, in the current working directory. 
+* `easy-deploy-viral-ngs-broad.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-etc`, in the current working directory. 
 
 **Resulting directories**:
 
 ```
-viral-ngs-analysis-software/
+viral-ngs-etc/
     venv/
     viral-ngs/
 ```
@@ -33,7 +33,7 @@ viral-ngs-analysis-software/
 **Resulting directories**:
 
 ```
-viral-ngs-analysis-software/
+viral-ngs-etc/
     projects/
         <project_name>/
             Snakefile
