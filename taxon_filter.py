@@ -275,7 +275,7 @@ def lastal_chunked_fastq(
 
             mafconvert_out = mkstempfname('.mafconvert')
             with open(mafconvert_out, 'wt') as outf:
-                cmd = [mafconvert_path, 'tab', mafsort_out]
+                cmd = ["python", mafconvert_path, 'tab', mafsort_out]
                 log.debug(' '.join(cmd) + ' > ' + mafconvert_out)
                 subprocess.check_call(cmd, stdout=outf)
             os.unlink(mafsort_out)
