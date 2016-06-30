@@ -14,8 +14,9 @@ import math
 import os
 import tempfile
 import shutil
-import subprocess
+
 from Bio import SeqIO
+
 import util.cmd
 import util.file
 import util.misc

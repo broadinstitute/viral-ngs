@@ -9,6 +9,7 @@ import tempfile
 import pytest
 import metagenomics
 import util.file
+import tools
 import tools.kraken
 import tools.krona
 import tools.picard
@@ -105,6 +106,8 @@ def krona_db(request, tmpdir_factory, krona, db_type):
     return db
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
     outdir = tempfile.mkdtemp('-kraken')
     out = join(outdir, 'zaire_ebola.kraken')
@@ -117,6 +120,8 @@ def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
     assert os.path.getsize(out_filtered) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
@@ -129,6 +134,8 @@ def test_kraken(kraken_db, input_bam):
     assert os.path.getsize(out_reads) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(sys.version_info < (3,2),
                     reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
@@ -155,6 +162,8 @@ def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     # assert os.path.getsize(krona_out) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(True, reason="krona create db takes too much disk io")
 def test_kraken_krona(tmpdir, kraken_db, krona_db, input_bam):
     out_report = util.file.mkstempfname('.report')

@@ -2,14 +2,16 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import unittest
 import os
 import pickle
+import unittest
 import util.file
+import tools
 from intrahost import vphaser_main
 from test import TestCaseWithTmp
 
 
+@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
 class TestVPhaser2(TestCaseWithTmp):
 
     def test_vphaser2(self):
