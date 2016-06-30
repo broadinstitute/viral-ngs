@@ -136,7 +136,7 @@ def read_tabfile_dict(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         header = None
         for line in inf:
-            row = line.rstrip('\n').split('\t')
+            row = [item.strip() for item in line.rstrip('\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = row
@@ -154,7 +154,7 @@ def read_tabfile(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         for line in inf:
             if not line.startswith('#'):
-                yield line.rstrip('\n').split('\t')
+                yield list(item.strip() for item in line.rstrip('\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
@@ -360,8 +360,10 @@ def string_to_file_name(string_value):
         r"`": "_", # no subshells
         r" -": "_-", # could be mistaken for an argument
         r" --": "_--", # could be mistaken for an argument
-        r">": "]", # no redirect chars
-        r"<": "[", # no redirect chars
+        r">": "_", # no redirect chars
+        r"<": "_", # no redirect chars
+        r"(": "__", # special character
+        r")": "__", # special character
         r"\\x": "_", # hex char
         r"\\o": "_", # octal char
         #r"\\u": "", # unicode char
@@ -447,3 +449,7 @@ def count_fastq_reads(inFastq):
         Count number of reads in fastq file
     '''
     return count_str_in_file(inFastq, '@', starts_with=True)
+
+def touch(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)

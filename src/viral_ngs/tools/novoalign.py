@@ -40,7 +40,9 @@ class NovoalignTool(tools.Tool):
                     )
                 )
         if os.environ.get("NOVOALIGN_LICENSE_PATH"):
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_install_command="cp $NOVOALIGN_LICENSE_PATH ./"))
+            # called relative to the conda bin/ directory
+            post_verify_command = "cp {lic_path} ./".format(lic_path=os.environ.get("NOVOALIGN_LICENSE_PATH"))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
         else:
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)

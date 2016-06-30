@@ -6,6 +6,7 @@ import logging
 import subprocess
 
 # within this module
+import util.file
 import tools
 
 _log = logging.getLogger(__name__)
