@@ -151,6 +151,8 @@ class TestIntrahostFilters(unittest.TestCase):
         self.assertAlmostEqual(float(output[0][6]), expected[6], places=4)
         self.assertEqual(output[0][7:], expected[7:])
 
+
+@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
