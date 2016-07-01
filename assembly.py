@@ -72,7 +72,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
     os.unlink(infq[0])
     os.unlink(infq[1])
-    n_trim = util.file.count_fastq_reads(trimfq[0])
+    n_trim = max(map(util.file.count_fastq_reads, trimfq))
 
     # Prinseq
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
@@ -83,18 +83,24 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
             read_utils.rmdup_prinseq_fastq(trimfq[i], rmdupfq[i])
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
-    n_rmdup = util.file.count_fastq_reads(rmdupfq[0])
+    n_rmdup = max(map(util.file.count_fastq_reads, rmdupfq))
 
     # Purge unmated
-    purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
-    if n_rmdup == 0:
+    purgefq = list(map(util.file.mkstempfname, ['.mated.1.fastq', '.mated.2.fastq']))
+    if n_rmdup <= n_reads:
+        log.info("skipping purge of unmated reads: read count (%s) <= subsample threshold (%s)" %(
+            n_rmdup, n_reads))
         for i in range(2):
             shutil.copyfile(rmdupfq[i], purgefq[i])
+        n_purge = n_rmdup
     else:
         read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
+        n_purge = util.file.count_fastq_reads(purgefq[0])
+        if n_purge < n_reads:
+            log.warn("We purged %s reads down to %s mated reads, which is below subsample threshold (%s). TO DO: add smarter subsampling in this scenario. Proceeding with %s mated reads for now." %(
+                n_rmdup, n_purge, n_reads, n_purge))
     os.unlink(rmdupfq[0])
     os.unlink(rmdupfq[1])
-    n_purge = util.file.count_fastq_reads(purgefq[0])
 
     # Log count
     log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
@@ -102,6 +108,8 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # Subsample
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     if n_purge <= n_reads:
+        log.info("skipping subsampling of reads: read count (%s) <= subsample threshold (%s)" %(
+            n_purge, n_reads))
         for i in range(2):
             shutil.copyfile(purgefq[i], subsampfq[i])
     else:
