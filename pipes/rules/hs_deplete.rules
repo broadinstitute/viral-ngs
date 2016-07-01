@@ -65,7 +65,10 @@ rule filter_to_taxon:
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
-        return config["data_dir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
+        if wildcards.adjective == 'raw':
+            return config["data_dir"] + '/' + config["subdirs"]["source"] + '/' + wildcards.sample + '.bam'
+        else:
+            return config["data_dir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     runs = set()
     for lane in read_tab_file(config['seqruns_demux']):
         for well in read_tab_file(lane['barcode_file']):
