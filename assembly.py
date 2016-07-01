@@ -58,6 +58,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         This should probably move over to read_utils or taxon_filter.
     '''
 
+    if n_reads < 1:
+        raise Exception()
+
     # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
@@ -70,38 +73,44 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
             shutil.copyfile(infq[i], trimfq[i])
     else:
         taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
-    os.unlink(infq[0])
-    os.unlink(infq[1])
-    n_trim = util.file.count_fastq_reads(trimfq[0])
+    n_trim = max(map(util.file.count_fastq_reads, trimfq))
 
-    # Prinseq
+    # Prinseq duplicate removal
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
-    for i in range(2):
-        if os.path.getsize(trimfq[i]) == 0:
+    if n_trim <= n_reads:
+        log.info("skipping prinseq duplicate removal: read count (%s) <= subsample threshold (%s)" %(
+            n_trim, n_reads))
+        for i in range(2):
             shutil.copyfile(trimfq[i], rmdupfq[i])
-        else:
-            read_utils.rmdup_prinseq_fastq(trimfq[i], rmdupfq[i])
-    os.unlink(trimfq[0])
-    os.unlink(trimfq[1])
-    n_rmdup = util.file.count_fastq_reads(rmdupfq[0])
+        n_rmdup = n_trim
+    else:
+        prinseq = tools.prinseq.PrinseqTool()
+        prinseq.rmdup_fastq_paired(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1], purgeUnmated=False)
+        n_rmdup = max(map(util.file.count_fastq_reads, rmdupfq))
 
     # Purge unmated
-    purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
-    if n_rmdup == 0:
+    purgefq = list(map(util.file.mkstempfname, ['.mated.1.fastq', '.mated.2.fastq']))
+    if n_rmdup <= n_reads:
+        log.info("skipping purge of unmated reads: read count (%s) <= subsample threshold (%s)" %(
+            n_rmdup, n_reads))
         for i in range(2):
             shutil.copyfile(rmdupfq[i], purgefq[i])
+        n_purge = n_rmdup
     else:
         read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
-    os.unlink(rmdupfq[0])
-    os.unlink(rmdupfq[1])
-    n_purge = util.file.count_fastq_reads(purgefq[0])
+        n_purge = util.file.count_fastq_reads(purgefq[0])
+        if n_purge < n_reads:
+            log.warn("We purged %s reads down to %s mated reads, which is below subsample threshold (%s). TO DO: add smarter subsampling in this scenario. Proceeding with %s mated reads for now." %(
+                n_rmdup, n_purge, n_reads, n_purge))
 
     # Log count
     log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
 
-    # Subsample
+    # Subsample to a reasonable input size for Trinity
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     if n_purge <= n_reads:
+        log.info("skipping subsampling of reads: read count (%s) <= subsample threshold (%s)" %(
+            n_purge, n_reads))
         for i in range(2):
             shutil.copyfile(purgefq[i], subsampfq[i])
     else:
@@ -117,8 +126,6 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
                subsampfq[0],
                subsampfq[1],]
         util.misc.run_and_print(cmd, check=True)
-    os.unlink(purgefq[0])
-    os.unlink(purgefq[1])
     n_subsamp = util.file.count_fastq_reads(subsampfq[0])
 
     # Fastq -> BAM
@@ -138,11 +145,13 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
     os.unlink(tmp_bam)
     os.unlink(tmp_header)
-    os.unlink(subsampfq[0])
-    os.unlink(subsampfq[1])
     
     log.info("Pre-Trinity read filters: %s reads at start. %s reads after Trimmomatic. %s reads after Prinseq rmdup. %s reads after removing unpaired mates. %s reads after subsampling.",
              n_input, n_trim, n_rmdup, n_purge, n_subsamp)
+    # clean up temp files
+    for i in range(2):
+        for f in infq, trimfq, rmdupfq, purgefq, subsampfq:
+            os.unlink(f[i])
     return (n_input, n_trim, n_rmdup, n_purge, n_subsamp)
 
 
@@ -165,7 +174,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb,
+def assemble_trinity(inBam, clipDb, outFasta,
     n_reads=100000, outReads=None, always_succeed=False,
     JVMmemory=None, threads=1):
     ''' This step runs the Trinity assembler.
