@@ -430,7 +430,7 @@ def count_str_in_file(in_file, query_str, starts_with=False):
         n = 0
         with gzip.open(in_file, 'rt') as inf:
             if starts_with:
-                n = sum(1 for line in inf if line[0]==query_str)
+                n = sum(1 for line in inf if line.startswith(query_str))
             else:
                 n = sum(1 for line in inf if query_str in line)
         return n
