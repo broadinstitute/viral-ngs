@@ -61,7 +61,7 @@ To deactivate the conda environment::
 Easy deployment script for viral-ngs
 ------------------------------------
 
-**viral-ngs** can be deployed with help from the script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects. The script can also be used
+**viral-ngs** can be deployed with help from the script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects. 
 
 One-line install command 
 ~~~~~~~~~~~~~~~~~~~~~~~~~
