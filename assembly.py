@@ -58,6 +58,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         This should probably move over to read_utils or taxon_filter.
     '''
 
+    if n_reads < 1:
+        raise Exception()
+
     # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
@@ -74,16 +77,20 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     os.unlink(infq[1])
     n_trim = max(map(util.file.count_fastq_reads, trimfq))
 
-    # Prinseq
+    # Prinseq duplicate removal
     rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
-    for i in range(2):
-        if os.path.getsize(trimfq[i]) == 0:
+    if n_trim <= n_reads:
+        log.info("skipping prinseq duplicate removal: read count (%s) <= subsample threshold (%s)" %(
+            n_trim, n_reads))
+        for i in range(2):
             shutil.copyfile(trimfq[i], rmdupfq[i])
-        else:
-            read_utils.rmdup_prinseq_fastq(trimfq[i], rmdupfq[i])
+        n_rmdup = n_trim
+    else:
+        prinseq = tools.prinseq.PrinseqTool()
+        prinseq.rmdup_fastq_paired(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1], purgeUnmated=False)
+        n_rmdup = max(map(util.file.count_fastq_reads, rmdupfq))
     os.unlink(trimfq[0])
     os.unlink(trimfq[1])
-    n_rmdup = max(map(util.file.count_fastq_reads, rmdupfq))
 
     # Purge unmated
     purgefq = list(map(util.file.mkstempfname, ['.mated.1.fastq', '.mated.2.fastq']))
@@ -105,7 +112,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # Log count
     log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
 
-    # Subsample
+    # Subsample to a reasonable input size for Trinity
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     if n_purge <= n_reads:
         log.info("skipping subsampling of reads: read count (%s) <= subsample threshold (%s)" %(
