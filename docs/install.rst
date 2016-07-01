@@ -58,23 +58,24 @@ To deactivate the conda environment::
 
   source deactivate
 
-Easy deployment of viral-ngs for Broad Institute users
-------------------------------------------------------
+Easy deployment script for viral-ngs
+------------------------------------
 
-**viral-ngs** can be deployed on the Broad Institute cluster with help from the script, ``easy-deploy-broad/easy-deploy-viral-ngs-broad.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects.
+**viral-ngs** can be deployed with help from the script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects. The script can also be used
 
+One-line install command 
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This one-line command will install viral-ngs on a 64-bit macOS or Linux system::
 
-The script, easy-deploy-viral-ngs-broad.sh, is intended to run on the Broad Institute cluster. It depends on the resources present on the Broad cluster (notably GATK) and will not function properly in a different environment.
+  ./easy-deploy-script/easy-deploy-viral-ngs.sh setup
 
-One-line install command
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+One-line install command for Broad Institute users
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This one-line command will download the ``easy-deploy-viral-ngs-broad.sh`` script and setup viral-ngs in the current working directory. Simply ssh to one of the login nodes and paste this command::
+This one-line command will download the ``easy-deploy-viral-ngs.sh`` script and setup viral-ngs in the current working directory. Simply ssh to one of the Broad login nodes and paste this command::
 
-  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-broad/easy-deploy-viral-ngs-broad.sh && chmod a+x ./easy-deploy-viral-ngs-broad.sh && reuse UGER && qrsh -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs-broad.sh setup
+  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
 
 **Note:** The script will run the install on a UGER interactive node, so you must have the ability to create to start a new interactive session. A project can be specified via ``qrsh -P "<project_name>"``
 
@@ -83,7 +84,7 @@ Usage
 
 **Installation**
 
-* ``easy-deploy-viral-ngs-broad.sh setup`` Installs a fresh copy of viral-ngs, installs all dependencies, and creates a directory, ``viral-ngs-etc/``, in the current working directory.
+* ``easy-deploy-viral-ngs.sh setup`` Installs a fresh copy of viral-ngs, installs all dependencies, and creates a directory, ``viral-ngs-etc/``, in the current working directory.
 
 Resulting directories::
 
@@ -93,11 +94,11 @@ Resulting directories::
 
 **Activating the environment**
 
-* ``source easy-deploy-viral-ngs-broad.sh load`` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
+* ``source easy-deploy-viral-ngs.sh load`` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
 
 **Creating a project directory**
 
-* ``easy-deploy-viral-ngs-broad.sh create-project <project_name>`` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files ``Snakefile`` and ``config.yaml``
+* ``easy-deploy-viral-ngs.sh create-project <project_name>`` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files ``Snakefile`` and ``config.yaml``
 
 
 Resulting directories::
@@ -180,7 +181,7 @@ after the fact via ``rsync``.
 Running Easy Deploy
 ~~~~~~~~~~~~~~~~~~~
 
-Running Easy Deploy to create a virtualized viral-ngs environment is as simple as running ``easy-deploy/run.sh``. Before running this script, copy any data you wish to have in the vm to the ``easy-deploy/data`` directory on your local machine. During setup, the
+Running Easy Deploy to create a virtualized viral-ngs environment is as simple as running ``easy-deploy-virtualized/run.sh``. Before running this script, copy any data you wish to have in the vm to the ``easy-deploy-virtualized/data`` directory on your local machine. During setup, the
 files will be copied into the ``~/data/`` directory of virtual machine.
 
 To start, the script ``run.sh`` installs the necessary dependencies on the user's machine (ansible, vagrant, virtualbox, and virtualbox-aws). The provisioning is handled by Ansible, with Vagrant handling creation of the VMs and EC2 instances. On OSX it depends on Homebrew, and will install it if it is not present. It depends on having apt on linux. Ruby >=2.0 is required for vagrant-aws, so versions of Ubuntu older than 15.04 (notably 14.04 LTS) will need to have ruby >=2.0 installed and made default.
@@ -190,4 +191,4 @@ Details on Easy Deploy
 
 Per the Vagrantfile, local VM RAM usage is set to 8GB. On EC2 it currently uses an m4.2xlarge instance with 32GB of RAM and 8 vCPUs.
 
-Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: `/home/ubuntu/`), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
+Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: `/home/ubuntu/`), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy-virtualized/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
