@@ -810,24 +810,6 @@ def main_dup_remove_mvicuna(args):
 __commands__.append(('dup_remove_mvicuna', parser_dup_remove_mvicuna))
 
 
-def rmdup_prinseq_fastq(inFastq, outFastq):
-    # remove duplicate reads and reads with multiple Ns
-    if not outFastq.endswith('.fastq'):
-        raise Exception()
-    if os.path.getsize(inFastq) == 0:
-        # prinseq-lite fails on empty file input (which can happen in real life
-        # if no reads match the refDbs) so handle this scenario specially
-        log.info("output is empty: no reads in input match refDb")
-        shutil.copyfile(inFastq, outFastq)
-    else:
-        cmd = [
-            'perl', tools.prinseq.PrinseqTool().install_and_get_path(), '-ns_max_n', '1', '-derep', '1', '-fastq',
-            inFastq, '-out_bad', 'null', '-line_width', '0', '-out_good', outFastq[:-6]
-        ]
-        log.debug(' '.join(cmd))
-        util.misc.run_and_print(cmd, check=True)
-
-
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
@@ -842,8 +824,8 @@ def main_rmdup_prinseq_fastq(args):
     ''' Run prinseq-lite's duplicate removal operation on paired-end
         reads.  Also removes reads with more than one N.
     '''
-    rmdup_prinseq_fastq(args.inFastq1, args.outFastq1)
-    rmdup_prinseq_fastq(args.inFastq2, args.outFastq2)
+    prinseq = tools.prinseq.PrinseqTool()
+    prinseq.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2)
     return 0
 
 
