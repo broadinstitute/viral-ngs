@@ -6,8 +6,22 @@ STARTING_DIR=$(pwd)
 
 # way to get the absolute path to this script that should
 # work regardless of whether or not this script has been sourced
-SCRIPT="$(readlink --canonicalize-existing "${BASH_SOURCE[0]}")"
-SCRIPTPATH="$(dirname "$SCRIPT")"
+# Find original directory of bash script, resovling symlinks
+# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in/246128#246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SOURCE="$(readlink "$SOURCE")"
+    else
+        SOURCE="$(readlink -f "$SOURCE")"
+    fi
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SCRIPT=$SOURCE
+SCRIPT_DIRNAME="$(dirname "$SOURCE")"
+SCRIPTPATH="$(cd -P "$(echo $SCRIPT_DIRNAME)" &> /dev/null && pwd)"
+SCRIPT="$SCRIPTPATH/$(basename "$SCRIPT")"
 
 CONDA_PREFIX_LENGTH_LIMIT=80
 
@@ -86,41 +100,58 @@ function set_locale(){
     export LC_ALL="$1"
 }
 
-set_locale "en_US.utf8"
-
-function load_dotkits(){
-    source /broad/software/scripts/useuse
-
-    if [ -z "$NOVOALIGN_PATH" ]; then
-        reuse .novocraft-3.02.08 || true
-        export NOVOALIGN_PATH="$(dirname $(which novoalign))"
-    else
-        echo "NOVOALIGN_PATH is set to '$NOVOALIGN_PATH'"
-        echo "Continuing..."
-    fi
-}
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    set_locale "en_US.UTF-8"
+else
+    set_locale "en_US.utf8"
+fi
 
 function install_miniconda(){
     if [ -d "$MINICONDA_PATH/bin" ]; then
         echo "Miniconda directory exists."
-        
     else
-        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -P $(dirname $MINICONDA_PATH)/
-        chmod +x $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
-        $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh -b -f -p "$MINICONDA_PATH"
+        echo "Downloading and installing Miniconda..."
 
-        rm $(dirname $MINICONDA_PATH)/Miniconda3-latest-Linux-x86_64.sh
+        if [[ "$(python -c 'import sys; print(sys.version_info[0])')" == 2* ]]; then
+            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
+                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh
+            else
+                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh
+            fi
+         else
+            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
+                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+            else
+                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+            fi
+        fi
+
+        wget $miniconda_url -O Miniconda3-latest-x86_64.sh -P $(dirname $MINICONDA_PATH)/
+
+        chmod +x $(dirname $MINICONDA_PATH)/Miniconda3-latest-x86_64.sh
+        $(dirname $MINICONDA_PATH)/Miniconda3-latest-x86_64.sh -b -f -p "$MINICONDA_PATH"
+
+        rm $(dirname $MINICONDA_PATH)/Miniconda3-latest-x86_64.sh
     fi
-    echo "Prepending miniconda to PATH..."
-    export PATH="$MINICONDA_PATH/bin:$PATH"
-    hash -r
 
-    # update to the latest conda this way, since the shell script 
-    # is often months out of date
-    conda update -y conda
+    if [ -d "$MINICONDA_PATH/bin" ]; then
+        echo "Miniconda installed."
+
+        echo "Prepending miniconda to PATH..."
+        export PATH="$MINICONDA_PATH/bin:$PATH"
+        hash -r
+
+        # update to the latest conda this way, since the shell script 
+        # is often months out of date
+        conda update -y conda
+    else
+        echo "It looks like the Miniconda installation failed"
+        exit 1
+    fi
 }
 
 function create_project(){
+    echo "Populating project directory..."
     # first arg is project folder name
     starting_dir=$(pwd)
 
@@ -146,23 +177,8 @@ function create_project(){
 }
 
 function activate_env(){
-    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
-        source activate $VIRAL_CONDA_ENV_PATH
-    else
-        echo "$VIRAL_CONDA_ENV_PATH/ does not exist. Exiting."
-        cd $STARTING_DIR
-        return 1
-    fi
-}
-
-function activate_environment(){
-    load_dotkits
-    install_miniconda
-
-    echo "$SCRIPTPATH/$CONTAINING_DIR"
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         cd $SCRIPTPATH
-        echo "Activating environment"
     else
         echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
         echo "Have you run the setup?"
@@ -171,7 +187,14 @@ function activate_environment(){
         return 1
     fi
 
-    activate_env
+    if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
+        echo "Activating viral-ngs environment..."
+        source activate $VIRAL_CONDA_ENV_PATH
+    else
+        echo "$VIRAL_CONDA_ENV_PATH/ does not exist. Exiting."
+        cd $STARTING_DIR
+        return 1
+    fi
 }
 
 function print_usage(){
@@ -197,7 +220,6 @@ else
                     mkdir -p $SCRIPTPATH/$CONTAINING_DIR
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
-                    load_dotkits
                     install_miniconda
 
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
@@ -235,18 +257,35 @@ else
 
                     # get the version of gatk expected based on the installed conda package
                     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
-                    GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+                    if [ -z "$GATK_JAR_PATH" ]; then
+                        # if the env var is not set, try to get the jar location using the default Broad path
+                        
+                        if [ "$DOMAINNAME" == "broadinstitute.org" ]; then
+                            echo "This script is being run on a Broad Institute system."
+                            echo "Trying to find GATK..."
+                            export GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+                        fi
+                    fi
 
-                    # if the gatk jar file exists, export its path to an environment variable
+                    # if the gatk jar file exists, call gatk-register
                     if [ -e "$GATK_JAR_PATH" ]; then
                         echo "GATK found: $GATK_JAR_PATH"
-                        export GATK_JAR=$GATK_JAR_PATH
+                        gatk-register $GATK_JAR_PATH
                     else
                         echo "GATK jar could not be found on this system for GATK version $EXPECTED_GATK_VERSION"
-                        exit 1
+                        echo "Please activate the viral-ngs conda environment and 'gatk-register /path/to/GenomeAnalysisTK.jar'"
+                        exit 0
                     fi
-                    
-                    gatk-register $GATK_JAR
+
+                    echo ""
+                    if [ ! -z "$NOVOALIGN_PATH" ]; then
+                        novoalign-license-register "$NOVOALIGN_PATH/novoalign.lic"
+                    elif [ ! -z "$NOVOALIGN_LICENSE_PATH" ]; then
+                        novoalign-license-register "$NOVOALIGN_LICENSE_PATH"
+                    else
+                        echo "No Novoalign license found via NOVOALIGN_PATH or NOVOALIGN_LICENSE_PATH"
+                        echo "Please activate the viral-ngs conda environment and run 'novoalign-license-register /path/to/novoalign.lic'"
+                    fi
 
                     echo "Setup complete. Do you want to start a project? Run:"
                     echo "$0 create-project <project_name>"
@@ -267,7 +306,7 @@ else
                     echo "ABORTING. $(basename $SCRIPT) must be sourced."
                     echo "Usage: source $(basename $SCRIPT) load"
                 else
-                    activate_environment
+                    activate_env
                     ls -lah
                     return 0
                 fi
