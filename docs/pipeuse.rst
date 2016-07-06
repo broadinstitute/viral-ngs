@@ -206,6 +206,7 @@ using `Kraken <https://ccb.jhu.edu/software/kraken/>`__,
 
 Pre-built databases for Kraken, Diamond, and Krona are available:
 
+-  `kraken_ercc_db_20160705.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_ercc_db_20160705.tar.gz>`__ including `ERCC spike-in RNA seqs <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3166838/>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_ercc_db_20160705.tar.lz4>`__)
 -  `kraken_db.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.lz4>`__)
 -  `krona_taxonomy_20160502.tar.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.lz4>`__)
 -  `nr.dmnd.gz <https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.lz4>`__)
