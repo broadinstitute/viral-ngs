@@ -27,7 +27,7 @@ import util.misc
 #import pysam
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.2'
+TOOL_VERSION = '1.3.1'
 
 log = logging.getLogger(__name__)
 
