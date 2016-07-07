@@ -11,6 +11,7 @@ import util
 import util.file
 import read_utils
 import tools
+import tools.bwa
 import tools.samtools
 from test import TestCaseWithTmp
 
@@ -58,6 +59,27 @@ class TestPurgeUnmated(TestCaseWithTmp):
         self.assertEqualContents(outFastq1, expected1Fastq)
         self.assertEqualContents(outFastq2, expected2Fastq)
 
+
+class TestBwamemIdxstats(TestCaseWithTmp):
+
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
+        self.ebolaRef = util.file.mkstempfname('.fasta', directory=self.tempDir)
+        shutil.copyfile(os.path.join(util.file.get_test_input_path(), 'G5012.3.fasta'), self.ebolaRef)
+        self.bwa = tools.bwa.Bwa()
+        self.samtools = tools.samtools.SamtoolsTool()
+        self.bwa.index(self.ebolaRef)
+
+    def test_bwamem_idxstats(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outBam = util.file.mkstempfname('.bam', directory=self.tempDir)
+        outStats = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
+        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats)
+        with open(outStats, 'rt') as inf:
+            actual_count = int(inf.readline().strip().split('\t')[2])
+        self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
+        self.assertEqual(actual_count, 18873)
 
 class TestFastqToFasta(TestCaseWithTmp):
 
