@@ -36,8 +36,7 @@ class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
