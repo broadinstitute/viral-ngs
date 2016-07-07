@@ -359,8 +359,8 @@ def consolidate_spike_count(inDir, outFile):
             s = s[:-len('.spike_count.txt')]
             with open(fn, 'rt') as inf:
                 for line in inf:
-                    if not line.startswith('Input bam'):
-                        spike, count = line.strip().split('\t')
+                    if not line.startswith('Input bam') and not line.startswith('*'):
+                        spike, count = line.strip().split('\t')[0,2]
                         outf.write('\t'.join([s, spike, count]) + '\n')
 
 

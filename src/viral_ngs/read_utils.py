@@ -21,6 +21,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+import tools.bwa
 import tools.picard
 import tools.samtools
 import tools.mvicuna
@@ -1019,48 +1020,35 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 
 # =========================
 
-def align_and_count_hits(inBam, refFasta, outCounts, includeZeros=False,
-                  JVMmemory=None):
-    ''' Take reads, align to reference with Novoalign and return aligned
-        read counts for each reference sequence.
+def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
+    ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
     '''
-
-    bam_aligned = mkstempfname('.aligned.bam')
-    tools.novoalign.NovoalignTool().execute(
-        inBam,
-        refFasta,
-        bam_aligned,
-        options=['-r', 'Random'],
-        JVMmemory=JVMmemory)
+    if outBam is None:
+        bam_aligned = mkstempfname('.aligned.bam')
+    else:
+        bam_aligned = outBam
 
     samtools = tools.samtools.SamtoolsTool()
-    seqs = list(dict(x.split(':', 1) for x in row[1:])['SN']
-        for row in samtools.getHeader(bam_aligned)
-        if row[0]=='@SQ')
+    bwa = tools.bwa.Bwa()
 
-    with util.file.open_or_gzopen(outCounts, 'w') as outf:
-        for seq in seqs:
-            n = samtools.count(bam_aligned, regions=[seq])
-            if n>0 or includeZeros:
-                outf.write("{}\t{}\n".format(seq, n))
+    bwa.mem(inBam, refFasta, bam_aligned)
 
-    os.unlink(bam_aligned)
+    if outStats is not None:
+        samtools.idxstats(bam_aligned, outStats)
 
-def parser_align_and_count_hits(parser=argparse.ArgumentParser()):
+    if outBam is None:
+        os.unlink(bam_aligned)
+
+def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
-    parser.add_argument('outCounts', help='Output counts file')
-    parser.add_argument("--includeZeros",
-                        help="Output lines with no hits (default: %(default)s)",
-                        default=False,
-                        action="store_true",
-                        dest="includeZeros")
-    parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
+    parser.add_argument('outBam', help='Output aligned, indexed BAM file', default=None)
+    parser.add_argument('outStats', help='Output idxstats file', default=None)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, align_and_count_hits, split_args=True)
+    util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser
 
-__commands__.append(('align_and_count_hits', parser_align_and_count_hits))
+__commands__.append(('bwamem_idxstats', parser_bwamem_idxstats))
 
 # =========================
 
