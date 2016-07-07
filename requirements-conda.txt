@@ -1,5 +1,6 @@
 blast=2.2.31
 bmtagger=3.101
+bwa=0.7.15
 diamond=0.7.10=boost1.60_1
 kraken-all=0.10.6_eaf8fb68
 last=719
