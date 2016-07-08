@@ -507,6 +507,8 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     '''
     tmp_fastq = util.file.mkstempfname('.fastq')
     tmp_fastq2 = util.file.mkstempfname('.fastq')
+    # do not convert this to samtools bam2fq unless we can figure out how to replicate
+    # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
     picard_opts = {
         'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
