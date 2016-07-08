@@ -139,10 +139,15 @@ def read_tabfile_dict(inFile):
             row = [item.strip() for item in line.rstrip('\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
-                header = row
+                header = [item for item in row if len(item)]
             elif header is None:
-                header = row
+                header = [item for item in row if len(item)]
             else:
+                # if a row is longer than the header
+                if len(row) > len(header):
+                    # truncate the row to the header length, and only include extra items if they are not spaces 
+                    # (takes care of the case where the user may enter an extra space at the end of a row)
+                    row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row)
                 yield dict((k, v) for k, v in zip(header, row) if v)
 
