@@ -193,7 +193,7 @@ def parser_common_barcodes(parser=argparse.ArgumentParser()):
 
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
+                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_common_barcodes)
     return parser
@@ -462,7 +462,7 @@ class SampleSheet(object):
                 row_num = 0
                 for line in inf:
                     csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
-                    row = next(csv.reader([line.rstrip('\n')], dialect="samplesheet"))
+                    row = next(csv.reader([line.strip().rstrip('\n')], dialect="samplesheet"))
                     row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
                     if miseq_skip:
                         if line.startswith('[Data]'):
