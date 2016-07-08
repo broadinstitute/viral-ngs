@@ -15,9 +15,15 @@ def set_env_vars():
 
 def read_tab_file(fname):
     with open(fname, 'rt') as inf:
-        header = [item.strip() for item in inf.readline().rstrip('\n').split('\t')]
+        header = [item.strip() for item in inf.readline().strip().rstrip('\n').split('\t')]
         for line in inf:
-            yield dict(zip(header, [item.strip() for item in line.rstrip('\n').split('\t')] ))
+            row = [item.strip() for item in line.rstrip('\n').split('\t')]
+            if len(row) > len(header):
+                # truncate the row to the header length, and only include extra items if they are not spaces 
+                # (takes care of the case where the user may enter an extra space at the end of a row)
+                row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
+            assert len(header) == len(row)
+            yield dict(zip(header, row))
 
 def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
     if fname==None:
