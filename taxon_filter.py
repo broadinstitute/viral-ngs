@@ -379,7 +379,7 @@ def filter_lastal_bam(
     # convert BAM to paired FASTQ
     inReads1 = mkstempfname('.1.fastq')
     inReads2 = mkstempfname('.2.fastq')
-    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
 
     # look for hits in inReads1 and inReads2
     hitList1 = mkstempfname('.1.hits')
@@ -509,7 +509,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
 
     inReads1 = mkstempfname('.1.fastq')
     inReads2 = mkstempfname('.2.fastq')
-    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
 
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
@@ -974,7 +974,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     blastOutFile = mkstempfname('.hits.txt')
 
     # Initial BAM -> FASTQ pair
-    tools.picard.SamToFastqTool().execute(inBam, fastq1, fastq2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1, fastq2)
 
     # Find BLAST hits against FASTQ1
     read_utils.fastq_to_fasta(fastq1, fasta)
@@ -996,7 +996,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam, JVMmemory=JVMmemory)
 
     # Depleted BAM -> FASTQ pair
-    tools.picard.SamToFastqTool().execute(halfBam, fastq1, fastq2)
+    tools.samtools.SamtoolsTool().bam2fq(halfBam, fastq1, fastq2)
 
     # Find BLAST hits against FASTQ2 (which is already smaller than before)
     read_utils.fastq_to_fasta(fastq2, fasta)
