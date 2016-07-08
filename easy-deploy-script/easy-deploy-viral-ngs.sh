@@ -106,6 +106,23 @@ else
     set_locale "en_US.utf8"
 fi
 
+function prepend_miniconda(){
+    if [ -d "$MINICONDA_PATH/bin" ]; then
+        echo "Miniconda installed."
+
+        echo "Prepending miniconda to PATH..."
+        export PATH="$MINICONDA_PATH/bin:$PATH"
+        hash -r
+
+        # update to the latest conda this way, since the shell script 
+        # is often months out of date
+        conda update -y conda
+    else
+        echo "Miniconda directory not found."
+        exit 1
+    fi
+}
+
 function install_miniconda(){
     if [ -d "$MINICONDA_PATH/bin" ]; then
         echo "Miniconda directory exists."
@@ -135,15 +152,7 @@ function install_miniconda(){
     fi
 
     if [ -d "$MINICONDA_PATH/bin" ]; then
-        echo "Miniconda installed."
-
-        echo "Prepending miniconda to PATH..."
-        export PATH="$MINICONDA_PATH/bin:$PATH"
-        hash -r
-
-        # update to the latest conda this way, since the shell script 
-        # is often months out of date
-        conda update -y conda
+        prepend_miniconda
     else
         echo "It looks like the Miniconda installation failed"
         exit 1
@@ -177,6 +186,8 @@ function create_project(){
 }
 
 function activate_env(){
+    prepend_miniconda
+    
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         cd $SCRIPTPATH
     else
