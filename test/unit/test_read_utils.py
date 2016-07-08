@@ -3,15 +3,17 @@
 __author__ = "irwin@broadinstitute.org"
 
 import unittest
-import os
-import tempfile
 import argparse
 import filecmp
+import os
+import read_utils
+import shutil
+import tempfile
+import tools
+import tools.bwa
+import tools.samtools
 import util
 import util.file
-import read_utils
-import tools
-import tools.samtools
 from test import TestCaseWithTmp
 
 
@@ -59,6 +61,27 @@ class TestPurgeUnmated(TestCaseWithTmp):
         self.assertEqualContents(outFastq2, expected2Fastq)
 
 
+class TestBwamemIdxstats(TestCaseWithTmp):
+
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
+        self.ebolaRef = util.file.mkstempfname('.fasta', directory=self.tempDir)
+        shutil.copyfile(os.path.join(util.file.get_test_input_path(), 'G5012.3.fasta'), self.ebolaRef)
+        self.bwa = tools.bwa.Bwa()
+        self.samtools = tools.samtools.SamtoolsTool()
+        self.bwa.index(self.ebolaRef)
+
+    def test_bwamem_idxstats(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outBam = util.file.mkstempfname('.bam', directory=self.tempDir)
+        outStats = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
+        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats)
+        with open(outStats, 'rt') as inf:
+            actual_count = int(inf.readline().strip().split('\t')[2])
+        self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
+        self.assertGreater(actual_count, 18000)
+
 class TestFastqToFasta(TestCaseWithTmp):
 
     def test_fastq_to_fasta(self):
@@ -94,6 +117,7 @@ class TestFastqBam(TestCaseWithTmp):
         outFastq1 = util.file.mkstempfname('.fastq')
         outFastq2 = util.file.mkstempfname('.fastq')
         outHeader = util.file.mkstempfname('.txt')
+        outHeaderFix = util.file.mkstempfname('.fix.txt')
 
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
@@ -109,6 +133,12 @@ class TestFastqBam(TestCaseWithTmp):
                                   'PLATFORM=9.75',
                                   'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
         args.func_main(args)
+
+        # Note for developers: if you're fixing the tests to handle non-bugs
+        # (ie our testing here is too brittle), let's just replace a lot of this
+        # in the future with code that just reads the header, sorts it, and
+        # tests for equality of sorted values in the RG line (and stricter
+        # equality in the non-header lines). This is kind of hacky.
 
         # samtools view for out.sam and compare to expected
         samtools = tools.samtools.SamtoolsTool()
@@ -142,10 +172,18 @@ class TestFastqBam(TestCaseWithTmp):
                                   'READ1_TRIM=1',])
         args.func_main(args)
 
+        # filter out any "PG" lines from header for testing purposes
+        # I don't like this... let's replace later.
+        with open(outHeader, 'rt') as inf:
+            with open(outHeaderFix, 'wt') as outf:
+                for line in inf:
+                    if not line.startswith('@PG'):
+                        outf.write(line)
+
         # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
         self.assertEqualContents(outFastq1, expectedFastq1)  # 1 base trimmed
         self.assertEqualContents(outFastq2, inFastq2)
-        self.assertEqualContents(outHeader, inHeader)
+        self.assertEqualContents(outHeaderFix, inHeader)
 
 
 class TestSplitReads(TestCaseWithTmp):
