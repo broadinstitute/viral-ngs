@@ -37,7 +37,7 @@ blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
 trim_clip_db: "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
-spikeins_db: "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta"
+spikeins_db: "/idi/sabeti-scratch/genomes/other/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
 # For pre-built hosted databases, you may download:
