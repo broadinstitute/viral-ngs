@@ -186,8 +186,6 @@ function create_project(){
 }
 
 function activate_env(){
-    prepend_miniconda
-    
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         cd $SCRIPTPATH
     else
@@ -199,8 +197,22 @@ function activate_env(){
     fi
 
     if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
-        echo "Activating viral-ngs environment..."
-        source activate $VIRAL_CONDA_ENV_PATH
+        if [ -z "$CONDA_DEFAULT_ENV" ]; then
+            echo "Activating viral-ngs environment..."
+            prepend_miniconda
+            source activate $VIRAL_CONDA_ENV_PATH
+        else
+            if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
+                echo "It looks like a conda environment is already active,"
+                echo "however it is not the viral-ngs environment."
+                echo "To use viral-ngs with your project, deactivate the"
+                echo "current environment and then source this file."
+                echo "Example: source deactivate && source $(basename $SCRIPT) load"
+            else
+                echo "The viral-ngs environment is already active."
+            fi
+            return 0
+        fi
     else
         echo "$VIRAL_CONDA_ENV_PATH/ does not exist. Exiting."
         cd $STARTING_DIR
@@ -228,6 +240,12 @@ else
                     echo "Usage: $(basename $SCRIPT) setup"
                     return 1
                 else
+                    if [ ! -z "$CONDA_DEFAULT_ENV" ]; then
+                        echo "The viral-ngs setup cannot be run while a conda environment is active."
+                        echo "The current environment must first be disabled via 'source deactivate'"
+                        exit 1
+                    fi
+
                     mkdir -p $SCRIPTPATH/$CONTAINING_DIR
                     cd $SCRIPTPATH/$CONTAINING_DIR
 
@@ -256,7 +274,6 @@ else
                             echo "$VIRAL_NGS_CONDA_PATH"
                             exit 1
                         fi
-                        
                     else
                         echo "$VIRAL_NGS_DIR/ symlink already exists. Skipping link."
                     fi
@@ -270,11 +287,10 @@ else
                     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
                     if [ -z "$GATK_JAR_PATH" ]; then
                         # if the env var is not set, try to get the jar location using the default Broad path
-                        
-                        if [ "$DOMAINNAME" == "broadinstitute.org" ]; then
+                        if [[ "$(dnsdomainname)" == *"broadinstitute.org" || "$HOSTNAME" == *".broadinstitute.org" || "$DOMAINNAME" == "broadinstitute.org" ]]; then
                             echo "This script is being run on a Broad Institute system."
                             echo "Trying to find GATK..."
-                            export GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
+                            export GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && sleep 5 && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
                         fi
                     fi
 
@@ -348,7 +364,7 @@ else
 
                 echo ""
 
-                if [[ "$VIRTUAL_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
+                if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
                     echo "It looks like the vial-ngs environment is not active."
                     echo "To use viral-ngs with your project, source this file."
                     echo "Example: source $(basename $SCRIPT) load"

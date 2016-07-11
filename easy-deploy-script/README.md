@@ -14,25 +14,26 @@ This one-line command will install viral-ngs on a 64-bit macOS or Linux system:
 
 This one-line command will download the `easy-deploy-viral-ngs.sh` script and setup viral-ngs in the current working directory. Simply ssh to one of the login nodes and paste this command:
 
-    wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
+    wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -l m_mem_free=10G -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
 
 **Note:** The script will run the install on a UGER interactive node, so you must have the ability to create to start a new interactive session. A project can be specified via `qrsh -P "<project_name>"` 
 
 ### Usage
 
-* `easy-deploy-viral-ngs.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-etc`, in the current working directory. 
+* `./easy-deploy-viral-ngs.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-etc`, in the current working directory. 
 
 **Resulting directories**:
 
 ```
 viral-ngs-etc/
-    venv/
+    conda-env/
     viral-ngs/
+    mc3/
 ```
 
-* `source easy-deploy-viral-ngs.sh load` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
+* `source ./easy-deploy-viral-ngs.sh load` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
 
-* `easy-deploy-viral-ngs.sh create-project <project_name>` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files `Snakefile` and `config.yaml`
+* `./easy-deploy-viral-ngs.sh create-project <project_name>` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files `Snakefile` and `config.yaml`
 
 **Resulting directories**:
 
