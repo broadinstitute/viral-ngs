@@ -20,19 +20,20 @@ This one-line command will download the `easy-deploy-viral-ngs.sh` script and se
 
 ### Usage
 
-* `easy-deploy-viral-ngs.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-etc`, in the current working directory. 
+* `./easy-deploy-viral-ngs.sh setup` Installs a fresh copy of viral-ngs,  installs all dependencies, and creates a directory, `viral-ngs-etc`, in the current working directory. 
 
 **Resulting directories**:
 
 ```
 viral-ngs-etc/
-    venv/
+    conda-env/
     viral-ngs/
+    mc3/
 ```
 
-* `source easy-deploy-viral-ngs.sh load` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
+* `source ./easy-deploy-viral-ngs.sh load` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
 
-* `easy-deploy-viral-ngs.sh create-project <project_name>` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files `Snakefile` and `config.yaml`
+* `./easy-deploy-viral-ngs.sh create-project <project_name>` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files `Snakefile` and `config.yaml`
 
 **Resulting directories**:
 
