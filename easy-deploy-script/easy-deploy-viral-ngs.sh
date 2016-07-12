@@ -179,6 +179,7 @@ function create_project(){
     cp $VIRAL_NGS_PATH/pipes/config.yaml ../../$VIRAL_NGS_DIR/pipes/Snakefile ./
     ln -s $VIRAL_NGS_PATH/ $(pwd)/bin
     ln -s $VIRAL_CONDA_ENV_PATH/ $(pwd)/venv
+    ln -s $MINICONDA_PATH/ $(pwd)/mc3
     ln -s $VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh $(pwd)/run-pipe_UGER.sh
     ln -s $VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh $(pwd)/run-pipe_LSF.sh
 
