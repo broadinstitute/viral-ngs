@@ -192,9 +192,12 @@ reports_dir: "reports"
 # The directory containing the viral-ngs files (intrahost.py, taxon_filter.py, etc.)
 bin_dir: "bin"
 
-# The directory of the Python virtual environment to be
+# The directory of the virtual environment to be
 # activated before execution of the pipeline
-venv_dir: "venv"
+conda_env_dir: "conda-env"
+
+# The directory of a (mini)conda install
+miniconda_dir: "mc3"
 
 # The directory of where the reference genome fasta files should be stored.
 ref_genome_dir: "ref_genome"
