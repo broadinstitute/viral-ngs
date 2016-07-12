@@ -19,7 +19,7 @@ unuse  Python-3.4
 export PATH="$MINICONDADIR/bin:$PATH"
 
 # load conda environment
-source activate "$CONDAENVDIR/bin"
+source activate "$CONDAENVDIR"
 
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
