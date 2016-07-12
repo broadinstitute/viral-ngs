@@ -129,18 +129,10 @@ function install_miniconda(){
     else
         echo "Downloading and installing Miniconda..."
 
-        if [[ "$(python -c 'import sys; print(sys.version_info[0])')" == 2* ]]; then
-            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh
-            else
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh
-            fi
-         else
-            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
-            else
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-            fi
+        if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
+            miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+        else
+            miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         fi
 
         wget $miniconda_url -O Miniconda3-latest-x86_64.sh -P $(dirname $MINICONDA_PATH)/
