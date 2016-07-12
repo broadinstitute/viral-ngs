@@ -164,6 +164,7 @@ function create_project(){
     cd data
     mkdir 00_raw 01_cleaned 01_per_sample 02_align_to_self 02_assembly 03_align_to_ref 03_interhost 04_intrahost
     cd ../
+    touch samples-metagenomics.txt
     touch samples-depletion.txt
     touch samples-assembly.txt
     touch samples-runs.txt
