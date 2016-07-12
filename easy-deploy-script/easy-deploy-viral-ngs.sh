@@ -129,18 +129,10 @@ function install_miniconda(){
     else
         echo "Downloading and installing Miniconda..."
 
-        if [[ "$(python -c 'import sys; print(sys.version_info[0])')" == 2* ]]; then
-            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh
-            else
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh
-            fi
-         else
-            if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
-            else
-                miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-            fi
+        if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
+            miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+        else
+            miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         fi
 
         wget $miniconda_url -O Miniconda3-latest-x86_64.sh -P $(dirname $MINICONDA_PATH)/
@@ -172,15 +164,17 @@ function create_project(){
     cd data
     mkdir 00_raw 01_cleaned 01_per_sample 02_align_to_self 02_assembly 03_align_to_ref 03_interhost 04_intrahost
     cd ../
+    touch samples-metagenomics.txt
     touch samples-depletion.txt
     touch samples-assembly.txt
     touch samples-runs.txt
     touch samples-assembly-failures.txt
     cp $VIRAL_NGS_PATH/pipes/config.yaml ../../$VIRAL_NGS_DIR/pipes/Snakefile ./
-    ln -s $VIRAL_NGS_PATH/ $(pwd)/bin
-    ln -s $VIRAL_CONDA_ENV_PATH/ $(pwd)/venv
-    ln -s $VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh $(pwd)/run-pipe_UGER.sh
-    ln -s $VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh $(pwd)/run-pipe_LSF.sh
+    ln -s "$VIRAL_NGS_PATH/" "$(pwd)/bin"
+    ln -s "$VIRAL_CONDA_ENV_PATH/" "$(pwd)/conda-env"
+    ln -s "$MINICONDA_PATH/" "$(pwd)/mc3"
+    ln -s "$VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh" "$(pwd)/run-pipe_UGER.sh"
+    ln -s "$VIRAL_NGS_PATH/pipes/Broad_LSF/run-pipe.sh" "$(pwd)/run-pipe_LSF.sh"
 
     cd $starting_dir
 }
