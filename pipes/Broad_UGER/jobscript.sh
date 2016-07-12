@@ -13,7 +13,7 @@ unuse Python-3.4
 export PATH="$MINICONDADIR/bin:$PATH"
 
 # load Python virtual environment
-source activate "$CONDAENVDIR/bin"
+source activate "$CONDAENVDIR"
 
 # if listing the data directory fails, exit 99 to reschedule the job
 # since the node with the job doesn't have the NFS share mounted.
