@@ -7,7 +7,6 @@ import logging
 import os
 import os.path
 import subprocess
-import shutil
 
 import tools
 import tools.samtools
@@ -56,20 +55,18 @@ class Bwa(tools.Tool):
         fq1 = util.file.mkstempfname('.1.fastq')
         fq2 = util.file.mkstempfname('.2.fastq')
         aln_sam = util.file.mkstempfname('.sam')
-        aln_sam_sorted = util.file.mkstempfname('sorted.sam')
         samtools.bam2fq(inReads, fq1, fq2)
-        self.execute('mem', opts + ['-t', str(threads), refDb, fq1, fq2], stdout=aln_sam)
+
+        if '-t' not in opts:
+            threads = threads or utils.misc.available_cpu_count()
+            opts.extend( ('-t', str(threads)) )
+
+        self.execute('mem', opts + [refDb, fq1, fq2], stdout=aln_sam)
+
         os.unlink(fq1)
         os.unlink(fq2)
-        samtools.sort(aln_sam, aln_sam_sorted)
+        samtools.sort(aln_sam, outAlign)
         os.unlink(aln_sam)
-        # cannot index sam files; only do so if a bam is desired
+        # cannot index sam files; only do so if a bam/cram is desired
         if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
-            # convert sam -> bam
-            samtools.view(["-b"], aln_sam_sorted, outAlign)
             samtools.index(outAlign)
-        elif outAlign.endswith(".sam"):
-            shutil.copyfile(aln_sam_sorted, outAlign)
-        os.unlink(aln_sam_sorted)
-
-
