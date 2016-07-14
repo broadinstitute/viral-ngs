@@ -64,7 +64,7 @@ class Bwa(tools.Tool):
         samtools.sort(aln_sam, aln_sam_sorted)
         os.unlink(aln_sam)
         # cannot index sam files; only do so if a bam is desired
-        if outAlign.endswith(".bam"):
+        if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
             # convert sam -> bam
             samtools.view(["-b"], aln_sam_sorted, outAlign)
             samtools.index(outAlign)
