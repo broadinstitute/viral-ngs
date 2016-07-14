@@ -13,6 +13,7 @@ import time
 from collections import OrderedDict
 import csv
 import math
+import shutil
 
 import pysam
 import Bio.SeqIO
