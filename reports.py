@@ -430,6 +430,13 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         help="Width of the plot in pixels (default: %(default)s)"
     )
     parser.add_argument(
+        '--plotDPI',
+        dest="plot_dpi",
+        default=plt.gcf().get_dpi(),
+        type=int,
+        help="dots per inch for rendered output, more useful for vector modes (default: %(default)s)"
+    )
+    parser.add_argument(
         '--plotTitle',
         dest="plot_title",
         default="Coverage Plot",
@@ -472,6 +479,7 @@ def plot_coverage(
     plot_style,
     plot_width,
     plot_height,
+    plot_dpi,
     plot_title,
     base_q_threshold,
     mapping_q_threshold,
@@ -534,12 +542,11 @@ def plot_coverage(
 
     domain_max = 0
     with plt.style.context(plot_style):
-
         fig = plt.gcf()
-        DPI = fig.get_dpi()
+        DPI = plot_dpi or fig.get_dpi()
         fig.set_size_inches(float(plot_width) / float(DPI), float(plot_height) / float(DPI))
 
-        font_size = math.sqrt((plot_width**2) + (plot_height**2)) / float(DPI) * 1.25
+        font_size = (2.5 * plot_height) / float(DPI)
 
         ax = plt.subplot()    # Defines ax variable by creating an empty plot
 
@@ -607,6 +614,7 @@ def align_and_plot_coverage(
     plot_style,
     plot_width,
     plot_height,
+    plot_dpi,
     plot_title,
     base_q_threshold,
     mapping_q_threshold,
@@ -662,7 +670,7 @@ def align_and_plot_coverage(
 
     # -- call plot function --
     plot_coverage(
-        bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_title,
+        bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
         base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary
     )
 
