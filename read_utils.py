@@ -18,6 +18,8 @@ import csv
 from collections import OrderedDict
 
 from Bio import SeqIO
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import util.cmd
