@@ -7,6 +7,8 @@ import logging
 import os
 import os.path
 import subprocess
+import shutil
+
 import tools
 import tools.samtools
 import util.file
@@ -46,18 +48,28 @@ class Bwa(tools.Tool):
         cmd.append(inFasta)
         self.execute('index', cmd)
 
-    def mem(self, inReads, refDb, outAlign, threads=None):
+    def mem(self, inReads, refDb, outAlign, opts=None, threads=None):
+        opts = [] if not opts else opts
+
         threads = threads or util.misc.available_cpu_count()
         samtools = tools.samtools.SamtoolsTool()
         fq1 = util.file.mkstempfname('.1.fastq')
         fq2 = util.file.mkstempfname('.2.fastq')
         aln_sam = util.file.mkstempfname('.sam')
+        aln_sam_sorted = util.file.mkstempfname('sorted.sam')
         samtools.bam2fq(inReads, fq1, fq2)
-        self.execute('mem', ['-t', str(threads), refDb, fq1, fq2], stdout=aln_sam)
+        self.execute('mem', opts + ['-t', str(threads), refDb, fq1, fq2], stdout=aln_sam)
         os.unlink(fq1)
         os.unlink(fq2)
-        samtools.sort(aln_sam, outAlign)
+        samtools.sort(aln_sam, aln_sam_sorted)
         os.unlink(aln_sam)
-        samtools.index(outAlign)
+        # cannot index sam files; only do so if a bam is desired
+        if outAlign.endswith(".bam"):
+            # convert sam -> bam
+            samtools.view(["-b"], aln_sam_sorted, outAlign)
+            samtools.index(outAlign)
+        elif outAlign.endswith(".sam"):
+            shutil.copyfile(aln_sam_sorted, outAlign)
+        os.unlink(aln_sam_sorted)
 
 

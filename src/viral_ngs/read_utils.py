@@ -14,8 +14,11 @@ import math
 import os
 import tempfile
 import shutil
+import csv
+from collections import OrderedDict
 
 from Bio import SeqIO
+import matplotlib.pyplot as plt
 
 import util.cmd
 import util.file
@@ -1052,6 +1055,259 @@ __commands__.append(('bwamem_idxstats', parser_bwamem_idxstats))
 
 # =========================
 
+def parser_plot_coverage_common(parser=argparse.ArgumentParser()): # parser needs add_help=False?
+    parser.add_argument('in_bam', 
+                        help='Input reads, BAM format.')
+    parser.add_argument('out_plot_file', 
+                        help='The generated chart file')
+    parser.add_argument('--plotFormat',
+                        dest="plot_format",
+                        default="pdf",
+                        type=str,
+                        choices=list(plt.gcf().canvas.get_supported_filetypes().keys()),
+                        help="File format of the coverage plot")
+    parser.add_argument('--plotStyle',
+                        dest="plot_style",
+                        default="ggplot",
+                        type=str,
+                        choices=plt.style.available,
+                        help="The plot visual style")
+    parser.add_argument('--plotWidth',
+                        dest="plot_width",
+                        default=800,
+                        type=int,
+                        help="Width of the plot in pixels")
+    parser.add_argument('--plotHeight',
+                        dest="plot_height",
+                        default=600,
+                        type=int,
+                        help="Width of the plot in pixels")
+    parser.add_argument('--plotTitle',
+                        dest="plot_title",
+                        default="Coverage Plot",
+                        type=str,
+                        help="The title displayed on the coverage plot")
+    parser.add_argument('-q',
+                        dest="base_q_threshold",
+                        default=None,
+                        type=int,
+                        help="The minimum base quality threshold")
+    parser.add_argument('-Q',
+                        dest="mapping_q_threshold",
+                        default=None,
+                        type=int,
+                        help="The minimum mapping quality threshold")
+    parser.add_argument('-m',
+                        dest="max_coverage_depth",
+                        default=1000000,
+                        type=int,
+                        help="The max coverage depth (default: %(default)s)")
+    parser.add_argument('-l',
+                        dest="read_length_threshold",
+                        default=None,
+                        type=int,
+                        help="Read length threshold")
+    parser.add_argument('--outSummary',
+                        dest="out_summary",
+                        default=None,
+                        type=str,
+                        help="Coverage summary TSV file. Default is to write to temp.")
+    return parser
+
+def plot_coverage(in_bam, out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary=None):
+    ''' 
+        Generate a coverage plot from an aligned bam file
+    '''
+    
+    # TODO: remove this:
+    #coverage_tsv_file = "/Users/tomkinsc/Downloads/plottest/test_multisegment.tsv"
+
+    samtools = tools.samtools.SamtoolsTool()
+
+    # check if in_bam is aligned, if not raise an error
+    num_mapped_reads = samtools.count(in_bam, opts=["-F", "4"])
+    if num_mapped_reads == 0:
+        raise Exception("""The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if you don't mind a simple bwa alignment. \n File: %s""" % in_bam)
+
+
+    if out_summary is None:
+        coverage_tsv_file = mkstempfname('.summary.tsv')
+    else:
+        coverage_tsv_file = out_summary
+
+    bam_aligned = mkstempfname('.aligned.bam')
+
+    if in_bam[-4:] == ".sam":
+        # convert sam -> bam
+        samtools.view(["-b"], in_bam, bam_aligned)
+    elif in_bam[-4:] == ".bam":
+        shutil.copyfile(in_bam, bam_aligned)
+
+    # call samtools sort
+    bam_sorted = mkstempfname('.aligned.bam')
+    samtools.sort(bam_aligned, bam_sorted)
+    
+    # call samtools index
+    samtools.index(bam_sorted)
+    
+    # call samtools depth
+    opts = []
+    opts += ['-aa'] # report coverate at "absolutely all" positions
+    if base_q_threshold:
+        opts += ["-q", str(base_q_threshold)]
+    if mapping_q_threshold:
+        opts += ["-Q", str(mapping_q_threshold)]
+    if max_coverage_depth:
+        opts += ["-m", str(max_coverage_depth)]
+    if read_length_threshold:
+        opts += ["-l", str(read_length_threshold)]
+
+    samtools.depth(bam_sorted, coverage_tsv_file, opts)
+
+    # ---- create plot based on coverage_tsv_file ----
+
+    segment_depths = OrderedDict()
+    domain_max = 0
+    with open(coverage_tsv_file, "r") as tabfile:
+        for row in csv.reader(tabfile, delimiter='\t'):
+            segment_depths.setdefault(row[0],[]).append(int(row[2]))
+            domain_max += 1
+
+    domain_max = 0
+    with plt.style.context(plot_style):
+
+        fig = plt.gcf()
+        DPI = fig.get_dpi()
+        fig.set_size_inches(float(plot_width)/float(DPI),float(plot_height)/float(DPI))
+
+        font_size = math.sqrt((plot_width**2)+(plot_height**2))/float(DPI)*1.25
+
+        ax = plt.subplot() # Defines ax variable by creating an empty plot
+
+        # Set the tick labels font
+        for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+            label.set_fontname('Arial')
+            label.set_fontsize(font_size)        
+
+        for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
+            prior_domain_max = domain_max
+            domain_max += len(position_depths)
+
+            segment_color = plt.rcParams['axes.color_cycle'][segment_num%len(plt.rcParams['axes.color_cycle'])]
+            plot = plt.fill_between(range(prior_domain_max, domain_max), position_depths, [0]*len(position_depths), linewidth=0, antialiased=True, color=segment_color)
+
+        plt.title(plot_title, fontsize=font_size*1.2)
+        plt.xlabel("bp", fontsize=font_size*1.1)
+        plt.ylabel("read depth", fontsize=font_size*1.1)
+        plt.tight_layout()
+        plt.savefig(out_plot_file, format=plot_format, dpi=DPI) #, bbox_inches='tight')
+        log.info("Coverage plot saved to: " + out_plot_file)
+
+    os.unlink(bam_aligned)
+    os.unlink(bam_sorted)
+    # TODO: uncomment when done testing
+    if not out_summary:
+        os.unlink(coverage_tsv_file)
+    
+
+def parser_plot_coverage(parser=argparse.ArgumentParser()):
+    parser = parser_plot_coverage_common(parser)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, plot_coverage, split_args=True)
+    return parser
+
+__commands__.append(('plot_coverage', parser_plot_coverage))
+
+def align_and_plot_coverage(out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary,
+                            in_bam, ref_fasta, out_bam=None, sensitive=False, min_score_to_output=None
+                            ):
+    ''' 
+        Take reads, align to reference with BWA-MEM, and generate a coverage plot
+    '''
+    if out_bam is None:
+        bam_aligned = mkstempfname('.aligned.bam')
+    else:
+        bam_aligned = out_bam
+
+    ref_indexed = mkstempfname('.reference.fasta')
+    shutil.copyfile(ref_fasta, ref_indexed)
+
+    bwa = tools.bwa.Bwa()
+    samtools = tools.samtools.SamtoolsTool()
+
+    bwa.index(ref_indexed)
+
+    bwa_opts = []
+    if sensitive:
+        bwa_opts + "-k 12 -A 1 -B 1 -O 1 -E 1".split()
+
+    map_threshold = min_score_to_output or 30
+
+    bwa_opts + ["-T", str(map_threshold)]
+
+    aln_sam = mkstempfname('.sam')
+    aln_sam_filtered = mkstempfname('.filtered.sam')
+
+    bwa.mem(in_bam, ref_indexed, aln_sam, opts=bwa_opts)
+
+    # @haydenm says:
+    # For some reason (particularly when the --sensitive option is on), bwa
+    # doesn't listen to its '-T' flag and outputs alignments with score less
+    # than the '-T 30' threshold. So filter these:
+    os.system("grep \"^@\" " + aln_sam + " > " + aln_sam_filtered)
+    os.system("grep \"AS:i:\" " + aln_sam + " | awk -v threshold=" + str(map_threshold) + " '{split($14, subfield, \":\"); if(subfield[3]>=threshold) print $0}' >> " + aln_sam_filtered)
+    os.unlink(aln_sam)
+
+    # convert sam -> bam
+    aln_bam_filtered = mkstempfname('.reference.fasta')
+    samtools.view(["-b"], aln_sam_filtered, aln_bam_filtered)
+    os.unlink(aln_sam_filtered)
+
+    samtools.sort(aln_bam_filtered, bam_aligned)
+    os.unlink(aln_bam_filtered)
+
+    samtools.index(bam_aligned)
+    
+
+    # call plot function
+    plot_coverage(bam_aligned, out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary)
+
+    # remove the output bam, unless it is needed
+    if out_bam is None:
+        os.unlink(bam_aligned)
+
+    # remove the files created by bwa index. 
+    # The empty extension causes the original fasta file to be removed
+    for ext in [".amb",".ann",".bwt",".bwa",".pac",".sa",""]:
+        file_to_remove = ref_indexed+ext
+        if os.path.isfile(file_to_remove):
+            os.unlink( file_to_remove )
+
+def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
+    parser = parser_plot_coverage_common(parser)
+    parser.add_argument('ref_fasta', 
+                        default=None,
+                        help='Reference genome, FASTA format.')
+    parser.add_argument('--outBam', 
+                        dest="out_bam",
+                        default=None,
+                        help='Output aligned, indexed BAM file. Default is to write to temp.')
+    parser.add_argument('--sensitive',
+                        action="store_true",
+                        help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1' ")
+    parser.add_argument('-T',
+                        dest="min_score_to_output",
+                        default=30,
+                        type=int,
+                        help="The min score to output during alignment (default: %(default)s)")
+
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, align_and_plot_coverage, split_args=True)
+    return parser
+
+__commands__.append(('align_and_plot_coverage', parser_align_and_plot_coverage))
+
+# =========================
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
