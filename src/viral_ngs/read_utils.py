@@ -1074,12 +1074,12 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()): # parser need
                         help="The plot visual style")
     parser.add_argument('--plotWidth',
                         dest="plot_width",
-                        default=800,
+                        default=1024,
                         type=int,
                         help="Width of the plot in pixels")
     parser.add_argument('--plotHeight',
                         dest="plot_height",
-                        default=600,
+                        default=768,
                         type=int,
                         help="Width of the plot in pixels")
     parser.add_argument('--plotTitle',
@@ -1186,26 +1186,32 @@ def plot_coverage(in_bam, out_plot_file, plot_format, plot_style, plot_width, pl
 
         # Set the tick labels font
         for label in (ax.get_xticklabels() + ax.get_yticklabels()):
-            label.set_fontname('Arial')
             label.set_fontsize(font_size)        
 
         for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
             prior_domain_max = domain_max
             domain_max += len(position_depths)
 
-            segment_color = plt.rcParams['axes.color_cycle'][segment_num%len(plt.rcParams['axes.color_cycle'])]
-            plot = plt.fill_between(range(prior_domain_max, domain_max), position_depths, [0]*len(position_depths), linewidth=0, antialiased=True, color=segment_color)
+            colors = list(plt.rcParams['axes.prop_cycle'].by_key()['color']) # get the colors for this style
+            segment_color = colors[segment_num%len(colors)] # pick a color, offset by the segment index
+            plt.fill_between(range(prior_domain_max, domain_max), position_depths, [0]*len(position_depths), linewidth=0, antialiased=True, color=segment_color)
 
         plt.title(plot_title, fontsize=font_size*1.2)
         plt.xlabel("bp", fontsize=font_size*1.1)
         plt.ylabel("read depth", fontsize=font_size*1.1)
-        plt.tight_layout()
+
+        # to squash a backend renderer error on OSX related to tight layout
+        if plt.get_backend().lower() in ['agg', 'macosx']:
+            fig.set_tight_layout(True)
+        else:
+            fig.tight_layout()
+
         plt.savefig(out_plot_file, format=plot_format, dpi=DPI) #, bbox_inches='tight')
         log.info("Coverage plot saved to: " + out_plot_file)
 
     os.unlink(bam_aligned)
     os.unlink(bam_sorted)
-    # TODO: uncomment when done testing
+
     if not out_summary:
         os.unlink(coverage_tsv_file)
     
