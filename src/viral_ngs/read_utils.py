@@ -1273,17 +1273,9 @@ def plot_coverage(
     else:
         coverage_tsv_file = out_summary
 
-    bam_aligned = mkstempfname('.aligned.bam')
-
-    if in_bam.endswith(".sam"):
-        # convert sam -> bam
-        samtools.view(["-b"], in_bam, bam_aligned)
-    elif in_bam.endswith(".bam") or in_bam.endswith(".cram"):
-        shutil.copyfile(in_bam, bam_aligned)
-
     # call samtools sort
-    bam_sorted = mkstempfname('.aligned.bam')
-    samtools.sort(bam_aligned, bam_sorted)
+    bam_sorted = mkstempfname('.sorted.bam')
+    samtools.sort(in_bam, bam_sorted, args=["-O", "bam"])
 
     # call samtools index
     samtools.index(bam_sorted)
@@ -1301,6 +1293,7 @@ def plot_coverage(
         opts += ["-l", str(read_length_threshold)]
 
     samtools.depth(bam_sorted, coverage_tsv_file, opts)
+    os.unlink(bam_sorted)
 
     # ---- create plot based on coverage_tsv_file ----
 
@@ -1364,9 +1357,6 @@ def plot_coverage(
 
         plt.savefig(out_plot_file, format=plot_format, dpi=DPI)    #, bbox_inches='tight')
         log.info("Coverage plot saved to: " + out_plot_file)
-
-    os.unlink(bam_aligned)
-    os.unlink(bam_sorted)
 
     if not out_summary:
         os.unlink(coverage_tsv_file)
