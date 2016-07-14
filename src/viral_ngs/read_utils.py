@@ -1069,6 +1069,13 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()): # parser need
                         choices=list(plt.gcf().canvas.get_supported_filetypes().keys()),
                         metavar='',
                         help="File format of the coverage plot. By default it is inferred from the file extension of out_plot_file, but it can be set explicitly via --plotFormat. Valid formats include: " + ", ".join( list(plt.gcf().canvas.get_supported_filetypes().keys())) )
+    parser.add_argument('--plotDataStyle',
+                        dest="plot_data_style",
+                        default="filled",
+                        type=str,
+                        choices=["filled","line","dots"],
+                        metavar='',
+                        help="The plot data display style. Valid options: " + ", ".join(["filled","line","dots"]) + " (default: %(default)s)")
     parser.add_argument('--plotStyle',
                         dest="plot_style",
                         default="ggplot",
@@ -1118,7 +1125,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()): # parser need
                         help="Coverage summary TSV file. Default is to write to temp.")
     return parser
 
-def plot_coverage(in_bam, out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary=None):
+def plot_coverage(in_bam, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary=None):
     ''' 
         Generate a coverage plot from an aligned bam file
     '''
@@ -1141,10 +1148,10 @@ def plot_coverage(in_bam, out_plot_file, plot_format, plot_style, plot_width, pl
 
     bam_aligned = mkstempfname('.aligned.bam')
 
-    if in_bam[-4:] == ".sam":
+    if in_bam.endswith(".sam"):
         # convert sam -> bam
         samtools.view(["-b"], in_bam, bam_aligned)
-    elif in_bam[-4:] == ".bam":
+    elif in_bam.endswith(".bam") or in_bam.endswith(".cram"):
         shutil.copyfile(in_bam, bam_aligned)
 
     # call samtools sort
@@ -1198,7 +1205,14 @@ def plot_coverage(in_bam, out_plot_file, plot_format, plot_style, plot_width, pl
 
             colors = list(plt.rcParams['axes.prop_cycle'].by_key()['color']) # get the colors for this style
             segment_color = colors[segment_num%len(colors)] # pick a color, offset by the segment index
-            plt.fill_between(range(prior_domain_max, domain_max), position_depths, [0]*len(position_depths), linewidth=0, antialiased=True, color=segment_color)
+            
+            if plot_data_style == "filled":
+                plt.fill_between(range(prior_domain_max, domain_max), position_depths, [0]*len(position_depths), linewidth=0, antialiased=True, color=segment_color)
+            elif plot_data_style == "line":
+                plt.plot(range(prior_domain_max, domain_max), position_depths, antialiased=True, color=segment_color)
+            elif plot_data_style == "dots":
+                plt.plot(range(prior_domain_max, domain_max), position_depths, 'ro', antialiased=True, color=segment_color)
+
 
         plt.title(plot_title, fontsize=font_size*1.2)
         plt.xlabel("bp", fontsize=font_size*1.1)
@@ -1228,7 +1242,7 @@ def parser_plot_coverage(parser=argparse.ArgumentParser()):
 
 __commands__.append(('plot_coverage', parser_plot_coverage))
 
-def align_and_plot_coverage(out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary,
+def align_and_plot_coverage(out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary,
                             in_bam, ref_fasta, out_bam=None, sensitive=False, min_score_to_output=None
                             ):
     ''' 
@@ -1280,7 +1294,7 @@ def align_and_plot_coverage(out_plot_file, plot_format, plot_style, plot_width, 
     
 
     # call plot function
-    plot_coverage(bam_aligned, out_plot_file, plot_format, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary)
+    plot_coverage(bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary)
 
     # remove the output bam, unless it is needed
     if out_bam is None:
