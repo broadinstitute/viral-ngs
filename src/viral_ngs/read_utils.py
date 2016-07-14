@@ -1269,31 +1269,24 @@ def align_and_plot_coverage(out_plot_file, plot_format, plot_data_style, plot_st
 
     bwa_opts + ["-T", str(map_threshold)]
 
-    aln_sam = mkstempfname('.sam')
-    aln_sam_filtered = mkstempfname('.filtered.sam')
+    aln_bam = mkstempfname('.bam')
 
-    bwa.mem(in_bam, ref_indexed, aln_sam, opts=bwa_opts)
+    bwa.mem(in_bam, ref_indexed, aln_bam, opts=bwa_opts)
 
     # @haydenm says:
     # For some reason (particularly when the --sensitive option is on), bwa
     # doesn't listen to its '-T' flag and outputs alignments with score less
     # than the '-T 30' threshold. So filter these:
-    os.system("grep \"^@\" " + aln_sam + " > " + aln_sam_filtered)
-    os.system("grep \"AS:i:\" " + aln_sam + " | awk -v threshold=" + str(map_threshold) + " '{split($14, subfield, \":\"); if(subfield[3]>=threshold) print $0}' >> " + aln_sam_filtered)
-    os.unlink(aln_sam)
-
-    # convert sam -> bam
-    aln_bam_filtered = mkstempfname('.reference.fasta')
-    samtools.view(["-b"], aln_sam_filtered, aln_bam_filtered)
-    os.unlink(aln_sam_filtered)
+    aln_bam_filtered = mkstempfname('.filtered.bam')
+    samtools.view(["-b", "-h", "-q", str(map_threshold)], aln_bam, aln_bam_filtered)
+    os.unlink(aln_bam)
 
     samtools.sort(aln_bam_filtered, bam_aligned)
     os.unlink(aln_bam_filtered)
 
     samtools.index(bam_aligned)
     
-
-    # call plot function
+    # -- call plot function --
     plot_coverage(bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary)
 
     # remove the output bam, unless it is needed
