@@ -1064,31 +1064,33 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()): # parser need
                         help='The generated chart file')
     parser.add_argument('--plotFormat',
                         dest="plot_format",
-                        default="pdf",
+                        default=None,
                         type=str,
                         choices=list(plt.gcf().canvas.get_supported_filetypes().keys()),
-                        help="File format of the coverage plot")
+                        metavar='',
+                        help="File format of the coverage plot. By default it is inferred from the file extension of out_plot_file, but it can be set explicitly via --plotFormat. Valid formats include: " + ", ".join( list(plt.gcf().canvas.get_supported_filetypes().keys())) )
     parser.add_argument('--plotStyle',
                         dest="plot_style",
                         default="ggplot",
                         type=str,
                         choices=plt.style.available,
-                        help="The plot visual style")
+                        metavar='',
+                        help="The plot visual style. Valid options: " + ", ".join(plt.style.available) + " (default: %(default)s)")
     parser.add_argument('--plotWidth',
                         dest="plot_width",
                         default=1024,
                         type=int,
-                        help="Width of the plot in pixels")
+                        help="Width of the plot in pixels (default: %(default)s)")
     parser.add_argument('--plotHeight',
                         dest="plot_height",
                         default=768,
                         type=int,
-                        help="Width of the plot in pixels")
+                        help="Width of the plot in pixels (default: %(default)s)")
     parser.add_argument('--plotTitle',
                         dest="plot_title",
                         default="Coverage Plot",
                         type=str,
-                        help="The title displayed on the coverage plot")
+                        help="The title displayed on the coverage plot (default: '%(default)s')")
     parser.add_argument('-q',
                         dest="base_q_threshold",
                         default=None,
