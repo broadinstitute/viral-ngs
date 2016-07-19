@@ -125,6 +125,8 @@ def trimmomatic(
     pairedOutFastq1,
     pairedOutFastq2,
     clipFasta,
+    unpairedOutFastq1=None,
+    unpairedOutFastq2=None,
     leading_q_cutoff=15,
     trailing_q_cutoff=15,
     minlength_to_keep=30,
@@ -133,8 +135,8 @@ def trimmomatic(
 ):
     '''Trim read sequences with Trimmomatic.'''
     trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
-    tmpUnpaired1 = mkstempfname()
-    tmpUnpaired2 = mkstempfname()
+    unpairedFastq1 = unpairedOutFastq1 or mkstempfname()
+    unpairedFastq2 = unpairedOutFastq2 or mkstempfname()
 
     javaCmd = []
 
@@ -152,7 +154,7 @@ def trimmomatic(
 
     javaCmd.extend(
         [
-            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2,
+            inFastq1, inFastq2, pairedOutFastq1, unpairedFastq1, pairedOutFastq2, unpairedFastq2,
             'LEADING:{leading_q_cutoff}'.format(leading_q_cutoff=leading_q_cutoff),
             'TRAILING:{trailing_q_cutoff}'.format(trailing_q_cutoff=trailing_q_cutoff),
             'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
@@ -166,8 +168,11 @@ def trimmomatic(
 
     log.debug(' '.join(javaCmd))
     util.misc.run_and_print(javaCmd, check=True)
-    os.unlink(tmpUnpaired1)
-    os.unlink(tmpUnpaired2)
+
+    if not unpairedOutFastq1:
+        os.unlink(unpairedFastq1)
+    if not unpairedOutFastq2:
+        os.unlink(unpairedFastq2)
 
 
 def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
@@ -175,6 +180,8 @@ def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
     parser.add_argument("inFastq2", help="Input reads 2")
     parser.add_argument("pairedOutFastq1", help="Paired output 1")
     parser.add_argument("pairedOutFastq2", help="Paired output 2")
+    parser.add_argument("--unpairedOutFastq1", help="Unpaired output 1 (default: write to temp and discard)")
+    parser.add_argument("--unpairedOutFastq2", help="Unpaired output 2 (default: write to temp and discard)")
     parser.add_argument(
         '--leadingQCutoff',
         dest="leading_q_cutoff",
