@@ -67,37 +67,51 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     n_input = util.file.count_fastq_reads(infq[0])
 
     # Trimmomatic
-    trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
+    trimfq = list(map(util.file.mkstempfname,
+                      ['.trim.1.fastq', '.trim.2.fastq']))
+    trimfq_unpaired = list(map(util.file.mkstempfname,
+                               ['.trim.unpaired.1.fastq', '.trim.unpaired.2.fastq']))
     if n_input == 0:
         for i in range(2):
             shutil.copyfile(infq[i], trimfq[i])
     else:
-        taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
-    n_trim = max(map(util.file.count_fastq_reads, trimfq))
+        taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb,
+                                 unpairedOutFastq1=trimfq_unpaired[0],
+                                 unpairedOutFastq2=trimfq_unpaired[1])
+    n_trim = (max(map(util.file.count_fastq_reads, trimfq)) +
+              sum(map(util.file.count_fastq_reads, trimfq_unpaired)))
 
     # Prinseq duplicate removal
-    rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
+    rmdupfq = list(map(util.file.mkstempfname,
+                       ['.rmdup.1.fastq', '.rmdup.2.fastq']))
+    rmdupfq_unpaired = list(map(util.file.mkstempfname,
+                               ['.rmdup.unpaired.1.fastq', '.rmdup.unpaired.2.fastq']))
     if n_trim <= n_reads:
         log.info("skipping prinseq duplicate removal: read count (%s) <= subsample threshold (%s)" %(
             n_trim, n_reads))
         for i in range(2):
             shutil.copyfile(trimfq[i], rmdupfq[i])
+            shutil.copyfile(trimfq_unpaired[i], rmdupfq_unpaired[i])
         n_rmdup = n_trim
     else:
         prinseq = tools.prinseq.PrinseqTool()
         prinseq.rmdup_fastq_paired(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1], purgeUnmated=False)
-        n_rmdup = max(map(util.file.count_fastq_reads, rmdupfq))
+        for i in range(2):
+            prinseq.rmdup_fastq_single(trimfq_unpaired[i], rmdupfq_unpaired[i])
+        n_rmdup = (max(map(util.file.count_fastq_reads, rmdupfq)) +
+                   sum(map(util.file.count_fastq_reads, rmdupfq_unpaired)))
 
     # Purge unmated
-    purgefq = list(map(util.file.mkstempfname, ['.mated.1.fastq', '.mated.2.fastq']))
+    purgefq = list(map(util.file.mkstempfname,
+                       ['.mated.1.fastq', '.mated.2.fastq']))
     if n_rmdup <= n_reads:
         log.info("skipping purge of unmated reads: read count (%s) <= subsample threshold (%s)" %(
             n_rmdup, n_reads))
-        for i in range(2):
-            shutil.copyfile(rmdupfq[i], purgefq[i])
+        did_purge_unmated = False
         n_purge = n_rmdup
     else:
         read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
+        did_purge_unmated = True
         n_purge = util.file.count_fastq_reads(purgefq[0])
         if n_purge < n_reads:
             log.warn("We purged %s reads down to %s mated reads, which is below subsample threshold (%s). TO DO: add smarter subsampling in this scenario. Proceeding with %s mated reads for now." %(
@@ -107,13 +121,27 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
 
     # Subsample to a reasonable input size for Trinity
-    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
+    subsampfq = list(map(util.file.mkstempfname,
+                         ['.subsamp.1.fastq', '.subsamp.2.fastq']))
+    subsampfq_unpaired = list(map(util.file.mkstempfname,
+                                  ['.subsamp.unpaired.1.fastq', '.subsamp.unpaired.2.fastq']))
     if n_purge <= n_reads:
         log.info("skipping subsampling of reads: read count (%s) <= subsample threshold (%s)" %(
             n_purge, n_reads))
-        for i in range(2):
-            shutil.copyfile(purgefq[i], subsampfq[i])
+        if did_purge_unmated:
+            for i in range(2):
+                shutil.copyfile(purgefq[i], subsampfq[i])
+        else:
+            for i in range(2):
+                shutil.copyfile(rmdupfq[i], subsampfq[i])
+                shutil.copyfile(rmdupfq_unpaired[i], subsampfq_unpaired[i])
+        n_subsamp = n_purge
     else:
+        # We should have purged unmated since n_purge > n_reads ==>
+        # n_rmdup > n_reads, so only work with purgefq reads
+        assert did_purge_unmated
+        # TODO: Move subsampling to after the fastq -> BAM conversion, and
+        # use 'samtools view -s' or Picard's DownsampleSam
         cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
                '-n',
                str(n_reads),
@@ -126,13 +154,12 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
                subsampfq[0],
                subsampfq[1],]
         util.misc.run_and_print(cmd, check=True)
-    n_subsamp = util.file.count_fastq_reads(subsampfq[0])
+        n_subsamp = util.file.count_fastq_reads(subsampfq[0])
 
     # Fastq -> BAM
     # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
     # breaks out the read groups and perform the above steps in a way that preserves
     # the RG IDs.
-    tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
     tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
     if n_subsamp == 0:
@@ -141,9 +168,32 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         opts = ['INPUT=' + tmp_header, 'OUTPUT=' + outBam, 'VERBOSITY=ERROR']
         tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
     else:
-        tools.picard.FastqToSamTool().execute(subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
-        tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
-    os.unlink(tmp_bam)
+        # Make separate BAMs for the paired and unpaired fastqs, then merge
+        # them (FastqToSam won't operate on both paired and unpaired reads
+        # at the same time)
+        tmp_bam_merged = util.file.mkstempfname('.subsamp.bam')
+        tmp_bam_paired = util.file.mkstempfname('.subsamp.paired.bam')
+        tools.picard.FastqToSamTool().execute(subsampfq[0], subsampfq[1],
+                                              'Dummy', tmp_bam_paired)
+
+        subsampfq_unpaired_concat = util.file.mkstempfname('.subsamp.unpaired.fastq')
+        util.file.concat(subsampfq_unpaired, subsampfq_unpaired_concat)
+        n_unpaired = util.file.count_fastq_reads(subsampfq_unpaired_concat)
+        if n_unpaired == 0:
+            shutil.copyfile(tmp_bam_paired, tmp_bam_merged)
+        else:
+            tmp_bam_unpaired = util.file.mkstempfname('.subsamp.unpaired.bam')
+            tools.picard.FastqToSamTool().execute(subsampfq_unpaired_concat,
+                                                  None, 'Dummy',
+                                                  tmp_bam_unpaired)
+            tools.picard.MergeSamFilesTool().execute(
+                [tmp_bam_paired, tmp_bam_unpaired], tmp_bam_merged)
+            os.unlink(tmp_bam_unpaired)
+
+        tools.samtools.SamtoolsTool().reheader(tmp_bam_merged, tmp_header, outBam)
+        os.unlink(tmp_bam_paired)
+        os.unlink(subsampfq_unpaired_concat)
+        os.unlink(tmp_bam_merged)
     os.unlink(tmp_header)
     
     log.info("Pre-Trinity read filters: %s reads at start. %s reads after Trimmomatic. %s reads after Prinseq rmdup. %s reads after removing unpaired mates. %s reads after subsampling.",
@@ -151,6 +201,8 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # clean up temp files
     for i in range(2):
         for f in infq, trimfq, rmdupfq, purgefq, subsampfq:
+            os.unlink(f[i])
+        for f in trimfq_unpaired, rmdupfq_unpaired, subsampfq_unpaired:
             os.unlink(f[i])
     return (n_input, n_trim, n_rmdup, n_purge, n_subsamp)
 
