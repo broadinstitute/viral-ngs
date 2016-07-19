@@ -285,7 +285,7 @@ class CondaPackage(InstallMethod):
                     self.env_path = os.path.dirname(last_path_component) if last_path_component == "bin" else conda_env_path
                 else: # if conda env is an environment name, infer the path
                     _log.debug('Conda env found is specified by name: %s' % conda_env_path)
-                    result = util.misc.run_and_print(["conda", "env", "list", "--json"], loglevel=logging.DEBUG, env=os.environ)
+                    result = util.misc.run_and_print(["conda", "env", "list", "--json"], silent=True, env=os.environ)
                     if result.returncode == 0:
                         command_output = result.stdout.decode("UTF-8")
                         data = json.loads(self._string_from_start_of_json(command_output))

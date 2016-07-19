@@ -105,6 +105,12 @@ class SamtoolsTool(tools.Tool):
         #pysam.faidx(inFasta)
         self.execute('faidx', [inFasta])
 
+    def depth(self, inBam, outFile, options=None):
+        """ Write a TSV file with coverage depth by position """
+        options = options or ["-aa", "-m", "1000000"]
+
+        self.execute('depth', options + [inBam], stdout=outFile)
+
     def idxstats(self, inBam, statsFile):
         self.execute('idxstats', [inBam], stdout=statsFile)
 
