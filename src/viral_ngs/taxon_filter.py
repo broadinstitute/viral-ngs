@@ -152,6 +152,9 @@ def trimmomatic(
     else:
         javaCmd.extend([trimmomaticPath, "PE"])
 
+    # Explicitly use Phred-33 quality scores
+    javaCmd.extend(['-phred33'])
+
     javaCmd.extend(
         [
             inFastq1, inFastq2, pairedOutFastq1, unpairedFastq1, pairedOutFastq2, unpairedFastq2,
