@@ -47,7 +47,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4)
         self.assertGreater(os.path.getsize(outFasta), 0)
         contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
-        self.assertEqual(contig_lens, [328, 328, 376])
+        self.assertEqual(contig_lens, [328, 348, 376, 381])
         os.unlink(outFasta)
 
     def test_empty_input_succeed(self):
@@ -88,7 +88,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,86,86,86,50))
+        self.assertEqual(read_stats, (100,99,99,86,50))
 
     def test_subsamp_small_90(self):
         inDir = util.file.get_test_input_path()
@@ -97,7 +97,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,86,86,86,86))
+        self.assertEqual(read_stats, (100,99,99,86,86))
 
     def test_subsamp_small_200(self):
         inDir = util.file.get_test_input_path()
@@ -106,7 +106,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,86,86,86,86))
+        self.assertEqual(read_stats, (100,99,99,99,99))
 
     def test_subsamp_big_500(self):
         inDir = util.file.get_test_input_path()
@@ -115,7 +115,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (9355,8155,8155,8155,500))
+        self.assertEqual(read_stats, (9355,9275,9251,8155,500))
 
 
 class TestAmbiguityBases(unittest.TestCase):
