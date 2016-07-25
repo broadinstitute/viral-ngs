@@ -32,7 +32,7 @@ class Kraken(tools.Tool):
         if not install_methods:
             install_methods = []
             install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
-        super().__init__(install_methods=install_methods)
+        super(Kraken, self).__init__(install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
@@ -69,6 +69,8 @@ class Kraken(tools.Tool):
             return
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
+        # do not convert this to samtools bam2fq unless we can figure out how to replicate
+        # the clipping functionality of Picard SamToFastq
         picard = tools.picard.SamToFastqTool()
         picard_opts = {
             'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,

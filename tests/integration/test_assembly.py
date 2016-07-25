@@ -2,17 +2,18 @@
 
 __author__ = "dpark@broadinstitute.org"
 
+import os
+import shutil
+import tempfile
+import itertools
+import unittest
+
+import Bio.SeqIO
+
 import assembly
 import util.cmd
 import util.file
 import tools.novoalign
-import Bio.SeqIO
-import unittest
-import os
-import shutil
-import tempfile
-import argparse
-import itertools
 from test import TestCaseWithTmp
 
 

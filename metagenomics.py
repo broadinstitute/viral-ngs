@@ -25,7 +25,6 @@ import tools.kraken
 import tools.krona
 import tools.diamond
 import tools.picard
-import csv
 
 __commands__ = []
 
@@ -85,7 +84,7 @@ def load_names(names_db, scientific_only=True):
         parts = line.strip().split('|')
         taxid = int(parts[0])
         name = parts[1].strip()
-        unique_name = parts[2].strip()
+        #unique_name = parts[2].strip()
         class_ = parts[3].strip()
         if scientific_only:
             if class_ == 'scientific name':
@@ -105,8 +104,8 @@ def load_nodes(nodes_db):
             taxid = int(parts[0])
             parent_taxid = int(parts[1])
             rank = parts[2].strip()
-            embl_code = parts[3].strip()
-            division_id = parts[4].strip()
+            #embl_code = parts[3].strip()
+            #division_id = parts[4].strip()
             parents[taxid] = parent_taxid
             ranks[taxid] = rank
     return ranks, parents
@@ -508,6 +507,8 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     '''
     tmp_fastq = util.file.mkstempfname('.fastq')
     tmp_fastq2 = util.file.mkstempfname('.fastq')
+    # do not convert this to samtools bam2fq unless we can figure out how to replicate
+    # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
     picard_opts = {
         'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
@@ -575,9 +576,9 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
     # column numbers containing the query (sequence) ID and taxonomic ID
     # these are one-indexed
     # See: http://ccb.jhu.edu/software/kraken/MANUAL.html#output-format
-    tool_data_columns = {
-        "kraken": (2, 3)
-    }
+    # tool_data_columns = {
+    #     "kraken": (2, 3)
+    # }
 
     # if we're creating a Krona input file
     if out_krona_input:
