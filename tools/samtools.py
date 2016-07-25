@@ -21,13 +21,13 @@ import util.file
 import os
 import os.path
 import subprocess
+import tempfile
 from collections import OrderedDict
+import util.misc
 #import pysam
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.2'
-TOOL_URL = 'https://github.com/samtools/samtools/releases/download/{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
-CONDA_TOOL_VERSION = '1.2'
+TOOL_VERSION = '1.3.1'
 
 log = logging.getLogger(__name__)
 
@@ -36,25 +36,20 @@ class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
+    def execute(self, command, args, stdout=None, stderr=None):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
-        if stdin:
-            stdin = open(stdin, 'r')
         if stdout:
             stdout = open(stdout, 'w')
         if stderr:
             stderr = open(stderr, 'w')
-        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout, stderr=stderr)
-        if stdin:
-            stdin.close()
+        subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr)
         if stdout:
             stdout.close()
         if stderr:
@@ -67,10 +62,24 @@ class SamtoolsTool(tools.Tool):
         #opts = args + ['-o', outFile, inFile] + regions
         #pysam.view(*opts)
 
-    def sort(self, inFile, outFile, args=None):
-        args = args or []
+    def bam2fq(self, inBam, outFq1, outFq2=None):
+        if outFq2 is None:
+            self.execute('bam2fq', ['-s', outFq1, inBam])
+        else:
+            self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
 
-        self.execute('sort', args + ['-o', outFile, inFile])
+    def sort(self, inFile, outFile, args=None, threads=None):
+        # inFile can be .sam, .bam, .cram
+        # outFile can be .sam, .bam, .cram
+        args = args or []
+        threads = threads or util.misc.available_cpu_count()
+        if '-@' not in args:
+            args.extend(('-@', str(threads)))
+        if '-T' not in args and os.path.isdir(tempfile.tempdir):
+            args.extend(('-T', tempfile.tempdir))
+
+        args.extend(('-o', outFile, inFile))
+        self.execute('sort', args)
 
     def merge(self, inFiles, outFile, options=None):
         "Merge a list of inFiles to create outFile."
@@ -82,6 +91,7 @@ class SamtoolsTool(tools.Tool):
         self.execute('merge', options + [outFile] + inFiles)
 
     def index(self, inBam):
+        # inBam can be .bam or .cram
         self.execute('index', [inBam])
 
     def faidx(self, inFasta, overwrite=False):
@@ -94,6 +104,15 @@ class SamtoolsTool(tools.Tool):
                 return
         #pysam.faidx(inFasta)
         self.execute('faidx', [inFasta])
+
+    def depth(self, inBam, outFile, options=None):
+        """ Write a TSV file with coverage depth by position """
+        options = options or ["-aa", "-m", "1000000"]
+
+        self.execute('depth', options + [inBam], stdout=outFile)
+
+    def idxstats(self, inBam, statsFile):
+        self.execute('idxstats', [inBam], stdout=statsFile)
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)

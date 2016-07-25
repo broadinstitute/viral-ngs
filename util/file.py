@@ -136,13 +136,18 @@ def read_tabfile_dict(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         header = None
         for line in inf:
-            row = line.rstrip('\n').split('\t')
+            row = [item.strip() for item in line.rstrip('\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
-                header = row
+                header = [item for item in row if len(item)]
             elif header is None:
-                header = row
+                header = [item for item in row if len(item)]
             else:
+                # if a row is longer than the header
+                if len(row) > len(header):
+                    # truncate the row to the header length, and only include extra items if they are not spaces 
+                    # (takes care of the case where the user may enter an extra space at the end of a row)
+                    row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row)
                 yield dict((k, v) for k, v in zip(header, row) if v)
 
@@ -154,7 +159,7 @@ def read_tabfile(inFile):
     with open_or_gzopen(inFile, 'rt') as inf:
         for line in inf:
             if not line.startswith('#'):
-                yield line.rstrip('\n').split('\t')
+                yield list(item.strip() for item in line.rstrip('\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
@@ -360,8 +365,10 @@ def string_to_file_name(string_value):
         r"`": "_", # no subshells
         r" -": "_-", # could be mistaken for an argument
         r" --": "_--", # could be mistaken for an argument
-        r">": "]", # no redirect chars
-        r"<": "[", # no redirect chars
+        r">": "_", # no redirect chars
+        r"<": "_", # no redirect chars
+        r"(": "__", # special character
+        r")": "__", # special character
         r"\\x": "_", # hex char
         r"\\o": "_", # octal char
         #r"\\u": "", # unicode char
@@ -428,7 +435,7 @@ def count_str_in_file(in_file, query_str, starts_with=False):
         n = 0
         with gzip.open(in_file, 'rt') as inf:
             if starts_with:
-                n = sum(1 for line in inf if line[0]==query_str)
+                n = sum(1 for line in inf if line.startswith(query_str))
             else:
                 n = sum(1 for line in inf if query_str in line)
         return n
@@ -446,4 +453,21 @@ def count_fastq_reads(inFastq):
     '''
         Count number of reads in fastq file
     '''
-    return count_str_in_file(inFastq, '@', starts_with=True)
+    n = line_count(inFastq)
+    if n % 4 != 0:
+        raise Exception("cannot count reads in a fastq with wrapped lines")
+    return n // 4
+    # unfortunately, both @ and + are potential quality characters and cannot be used in a
+    # fastq counting approach....
+    #return count_str_in_file(inFastq, '@', starts_with=True)
+
+def line_count(infname):
+    n = 0
+    with open_or_gzopen(infname, 'rt') as inf:
+        for line in inf:
+            n += 1
+    return n
+
+def touch(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)

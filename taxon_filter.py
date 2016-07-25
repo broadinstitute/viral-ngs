@@ -125,6 +125,8 @@ def trimmomatic(
     pairedOutFastq1,
     pairedOutFastq2,
     clipFasta,
+    unpairedOutFastq1=None,
+    unpairedOutFastq2=None,
     leading_q_cutoff=15,
     trailing_q_cutoff=15,
     minlength_to_keep=30,
@@ -133,8 +135,8 @@ def trimmomatic(
 ):
     '''Trim read sequences with Trimmomatic.'''
     trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
-    tmpUnpaired1 = mkstempfname()
-    tmpUnpaired2 = mkstempfname()
+    unpairedFastq1 = unpairedOutFastq1 or mkstempfname()
+    unpairedFastq2 = unpairedOutFastq2 or mkstempfname()
 
     javaCmd = []
 
@@ -150,9 +152,12 @@ def trimmomatic(
     else:
         javaCmd.extend([trimmomaticPath, "PE"])
 
+    # Explicitly use Phred-33 quality scores
+    javaCmd.extend(['-phred33'])
+
     javaCmd.extend(
         [
-            inFastq1, inFastq2, pairedOutFastq1, tmpUnpaired1, pairedOutFastq2, tmpUnpaired2,
+            inFastq1, inFastq2, pairedOutFastq1, unpairedFastq1, pairedOutFastq2, unpairedFastq2,
             'LEADING:{leading_q_cutoff}'.format(leading_q_cutoff=leading_q_cutoff),
             'TRAILING:{trailing_q_cutoff}'.format(trailing_q_cutoff=trailing_q_cutoff),
             'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
@@ -166,8 +171,11 @@ def trimmomatic(
 
     log.debug(' '.join(javaCmd))
     util.misc.run_and_print(javaCmd, check=True)
-    os.unlink(tmpUnpaired1)
-    os.unlink(tmpUnpaired2)
+
+    if not unpairedOutFastq1:
+        os.unlink(unpairedFastq1)
+    if not unpairedOutFastq2:
+        os.unlink(unpairedFastq2)
 
 
 def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
@@ -175,6 +183,8 @@ def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
     parser.add_argument("inFastq2", help="Input reads 2")
     parser.add_argument("pairedOutFastq1", help="Paired output 1")
     parser.add_argument("pairedOutFastq2", help="Paired output 2")
+    parser.add_argument("--unpairedOutFastq1", help="Unpaired output 1 (default: write to temp and discard)")
+    parser.add_argument("--unpairedOutFastq2", help="Unpaired output 2 (default: write to temp and discard)")
     parser.add_argument(
         '--leadingQCutoff',
         dest="leading_q_cutoff",
@@ -275,7 +285,7 @@ def lastal_chunked_fastq(
 
             mafconvert_out = mkstempfname('.mafconvert')
             with open(mafconvert_out, 'wt') as outf:
-                cmd = [mafconvert_path, 'tab', mafsort_out]
+                cmd = ["python", mafconvert_path, 'tab', mafsort_out]
                 log.debug(' '.join(cmd) + ' > ' + mafconvert_out)
                 subprocess.check_call(cmd, stdout=outf)
             os.unlink(mafsort_out)
@@ -379,7 +389,7 @@ def filter_lastal_bam(
     # convert BAM to paired FASTQ
     inReads1 = mkstempfname('.1.fastq')
     inReads2 = mkstempfname('.2.fastq')
-    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
 
     # look for hits in inReads1 and inReads2
     hitList1 = mkstempfname('.1.hits')
@@ -509,7 +519,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
 
     inReads1 = mkstempfname('.1.fastq')
     inReads2 = mkstempfname('.2.fastq')
-    tools.picard.SamToFastqTool().execute(inBam, inReads1, inReads2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
 
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
@@ -974,7 +984,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     blastOutFile = mkstempfname('.hits.txt')
 
     # Initial BAM -> FASTQ pair
-    tools.picard.SamToFastqTool().execute(inBam, fastq1, fastq2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1, fastq2)
 
     # Find BLAST hits against FASTQ1
     read_utils.fastq_to_fasta(fastq1, fasta)
@@ -996,7 +1006,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam, JVMmemory=JVMmemory)
 
     # Depleted BAM -> FASTQ pair
-    tools.picard.SamToFastqTool().execute(halfBam, fastq1, fastq2)
+    tools.samtools.SamtoolsTool().bam2fq(halfBam, fastq1, fastq2)
 
     # Find BLAST hits against FASTQ2 (which is already smaller than before)
     read_utils.fastq_to_fasta(fastq2, fasta)

@@ -39,13 +39,15 @@ class TestCommandHelp(unittest.TestCase):
 class TestAssembleTrinity(TestCaseWithTmp):
     ''' Test the assemble_trinity command (no validation of output) '''
 
-    def test_execution(self):
+    def test_assembly(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, outFasta, clipDb, threads=4)
+        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4)
         self.assertGreater(os.path.getsize(outFasta), 0)
+        contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
+        self.assertEqual(contig_lens, [328, 348, 376, 381])
         os.unlink(outFasta)
 
     def test_empty_input_succeed(self):
@@ -53,7 +55,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, outFasta, clipDb, threads=4, always_succeed=True)
+        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4, always_succeed=True)
         self.assertEqual(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
 
@@ -64,7 +66,56 @@ class TestAssembleTrinity(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         self.assertRaises(assembly.DenovoAssemblyError,
             assembly.assemble_trinity,
-            inBam, outFasta, clipDb, threads=4, always_succeed=False)
+            inBam, clipDb, outFasta, threads=4, always_succeed=False)
+
+
+class TestTrimRmdupSubsamp(TestCaseWithTmp):
+    ''' Test the trim_rmdup_subsamp command '''
+
+    def test_subsamp_empty(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (0,0,0,0,0))
+
+    def test_subsamp_small_50(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (100,99,99,86,50))
+
+    def test_subsamp_small_90(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (100,99,99,86,86))
+
+    def test_subsamp_small_200(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (100,99,99,99,99))
+
+    def test_subsamp_big_500(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (9355,9275,9251,8155,500))
 
 
 class TestAmbiguityBases(unittest.TestCase):
