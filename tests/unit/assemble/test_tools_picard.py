@@ -10,6 +10,7 @@ import util
 import util.file
 import tools
 import tools.picard
+import tools.samtools
 from test import TestCaseWithTmp
 
 
@@ -31,5 +32,21 @@ class TestToolPicard(TestCaseWithTmp):
             # the dict files will not be exactly the same, just the first 3 cols
             with open(outDict, 'rt') as inf:
                 # .replace("VN:1.5","VN:1.4") ==> because the header version may be 1.[4|5]
-                actual_first3 = [x.strip().replace("VN:1.5","VN:1.4").split('\t')[:3] for x in inf.readlines()]
+                actual_first3 = [x.strip().replace("VN:1.5", "VN:1.4").split('\t')[:3] for x in inf.readlines()]
             self.assertEqual(actual_first3, expected_first3)
+
+    def test_sam_downsample(self):
+        desired_count = 100
+        tolerance = 0.02
+
+        in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_bam = util.file.mkstempfname('.bam')
+
+        downsamplesam = tools.picard.DownsampleSamTool()
+        samtools = tools.samtools.SamtoolsTool()
+
+        downsamplesam.downsample_to_approx_count(in_sam, out_bam, desired_count)
+
+        assert samtools.count(out_bam) in range(
+            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))
+        ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
