@@ -42,22 +42,6 @@ rule depletion:
             shell("{config[bin_dir]}/taxon_filter.py deplete_human {input} {params.revert_bam} {output} --bmtaggerDbs {params.bmtaggerDbs} --blastDbs {params.blastDbs} --threads {params.threads} --JVMmemory 15g")
             os.unlink(params.revert_bam)
 
-# Count number of reads in bam file; 
-# assumes samtools has been installed for viral-ngs environment
-# and that samtools is on the PATH
-def samtools_count(in_bam, opts=None, regions=None):
-    opts = opts or []
-    regions = regions or []
-
-    cmd = ["samtools", 'view', '-c'] + opts + [in_bam] + regions
-    return int(subprocess.check_output(cmd).strip())
-
-def select_value_by_read_count(in_bam, default_value, count_threshold, alternate_value):
-    if samtools_count(in_bam) < count_threshold:
-        return default_value
-    else:
-        return alternate_value
-
 rule filter_to_taxon:
     ''' This step reduces the read set to a specific taxon (usually the genus
         level or greater for the virus of interest).
@@ -74,7 +58,7 @@ rule filter_to_taxon:
     output: config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=select_value_by_read_count(config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam', config.get('UGER_queues', {}).get('short', '-q short'), 1500000, config.get('UGER_queues', {}).get('long', '-q long') ),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             lastalDb=os.path.join(config["lastal_ref_db_dir"], "lastal"),
             logid="{sample}"
     shell:  "{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
