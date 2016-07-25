@@ -118,7 +118,7 @@ class SamToFastqTool(PicardTools):
                 os.mkdir(outDir)
         else:
             picardOptions = picardOptions or []
-            opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true']
+            opts = ['INPUT=' + inBam, 'OUTPUT_DIR=' + outDir, 'OUTPUT_PER_RG=true', 'RG_TAG=ID']
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
