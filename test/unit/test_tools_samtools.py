@@ -40,7 +40,7 @@ class TestToolSamtools(TestCaseWithTmp):
 
     def test_sam_downsample(self):
         desired_count = 100
-        tolerance = 0.02
+        tolerance = 0.05
 
         in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
         out_bam = util.file.mkstempfname('.bam')
@@ -50,5 +50,5 @@ class TestToolSamtools(TestCaseWithTmp):
         samtools.downsample_to_approx_count(in_sam, out_bam, desired_count)
 
         assert samtools.count(out_bam) in range(
-            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))
+            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))+1
         ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
