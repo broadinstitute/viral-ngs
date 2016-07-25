@@ -40,7 +40,7 @@ class TestToolSamtools(TestCaseWithTmp):
 
     def test_sam_downsample(self):
         desired_count = 100
-        tolerance = 0.05
+        tolerance = 0.1
 
         in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
         out_bam = util.file.mkstempfname('.bam')
