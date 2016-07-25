@@ -130,6 +130,22 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2']
         self.view(opts, inBam, outBam)
 
+    def downsample(self, inBam, outBam, probability):
+
+        if not probability:
+            raise Exception("Probability must be defined")
+        if float(probability) <= 0 or float(probability) > 1:
+            raise Exception("Probability must be in range (0,1]. This value was given: %s" % probability)
+
+        opts = ['-s', str(1) + '.' + str(probability).split('.')[1]]    # -s subsamples: seed.fraction
+        self.view(opts, inBam, outBam)
+
+    def downsample_to_approx_count(self, inBam, outBam, read_count):
+        total_read_count = self.count(inBam)
+        probability = int(read_count) / total_read_count
+
+        self.downsample(inBam, outBam, probability)
+
     def getHeader(self, inBam):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''
         tmpf = util.file.mkstempfname('.txt')
@@ -174,11 +190,11 @@ class SamtoolsTool(tools.Tool):
             tmpf = util.file.mkstempfname('.txt')
             self.dumpHeader(inBam, tmpf)
             header_size = os.path.getsize(tmpf)
-            if(os.path.getsize(inBam) > (100 + 5*header_size)):
+            if (os.path.getsize(inBam) > (100 + 5 * header_size)):
                 # large BAM file: assume it is not empty
                 # a BAM file definitely has reads in it if its filesize is larger
                 # than just the header itself
                 return False
             else:
                 # small BAM file: just count and see if it's non-zero
-                return (0==self.count(inBam))
+                return (0 == self.count(inBam))
