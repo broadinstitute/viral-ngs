@@ -33,11 +33,22 @@ class TestToolSamtools(TestCaseWithTmp):
 
     def test_isEmpty(self):
         samtools = tools.samtools.SamtoolsTool()
-        self.assertTrue(samtools.isEmpty(
-            os.path.join(util.file.get_test_input_path(), 'empty.bam')))
-        self.assertFalse(samtools.isEmpty(
-            os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')))
-        self.assertFalse(samtools.isEmpty(
-            os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')))
-        self.assertFalse(samtools.isEmpty(
-            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')))
+        self.assertTrue(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'empty.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')))
+
+    def test_sam_downsample(self):
+        desired_count = 100
+        tolerance = 0.02
+
+        in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        samtools.downsample_to_approx_count(in_sam, out_bam, desired_count)
+
+        assert samtools.count(out_bam) in range(
+            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))
+        ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
