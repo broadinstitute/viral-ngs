@@ -8,6 +8,7 @@ import os.path
 import tempfile
 import shutil
 import subprocess
+from decimal import *
 
 import pysam
 
@@ -209,7 +210,7 @@ class DownsampleSamTool(PicardTools):
         samtools = tools.samtools.SamtoolsTool()
         total_read_count = samtools.count(inBam)
 
-        probability = int(read_count) / total_read_count
+        probability = Decimal(int(read_count)) / Decimal(total_read_count)
 
         self.execute(inBam, outBam, probability, accuracy=0.00001, picardOptions=picardOptions, JVMmemory=JVMmemory)
 

@@ -25,6 +25,7 @@ import tempfile
 from collections import OrderedDict
 import util.misc
 #import pysam
+from decimal import *
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.3.1'
@@ -142,7 +143,7 @@ class SamtoolsTool(tools.Tool):
 
     def downsample_to_approx_count(self, inBam, outBam, read_count):
         total_read_count = self.count(inBam)
-        probability = int(read_count) / total_read_count
+        probability = Decimal(int(read_count)) / Decimal(total_read_count)
 
         self.downsample(inBam, outBam, probability)
 
