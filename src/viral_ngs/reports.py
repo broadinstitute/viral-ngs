@@ -485,6 +485,7 @@ def plot_coverage(
     mapping_q_threshold,
     max_coverage_depth,
     read_length_threshold,
+    plot_only_non_duplicates=False,
     out_summary=None
 ):
     ''' 
@@ -509,9 +510,19 @@ def plot_coverage(
     else:
         coverage_tsv_file = out_summary
 
+    bam_dupe_processed = util.file.mkstempfname('.dupe_processed.bam')
+    if plot_only_non_duplicates:
+        # write a new bam file; exclude reads with the 1024 flag set (PCR or optical duplicates)
+        samtools.view(["-F", "1024"], in_bam, bam_dupe_processed)
+    else:
+        bam_dupe_processed = in_bam
+
     # call samtools sort
     bam_sorted = util.file.mkstempfname('.sorted.bam')
-    samtools.sort(in_bam, bam_sorted, args=["-O", "bam"])
+    samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+
+    if plot_only_non_duplicates:
+        os.unlink(bam_dupe_processed)
 
     # call samtools index
     samtools.index(bam_sorted)
@@ -599,6 +610,12 @@ def plot_coverage(
 
 def parser_plot_coverage(parser=argparse.ArgumentParser()):
     parser = parser_plot_coverage_common(parser)
+    parser.add_argument(
+        '--plotOnlyNonDuplicates',
+        dest="plot_only_non_duplicates",
+        action="store_true",
+        help="Plot only non-duplicates (samtools -F 1024)"
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, plot_coverage, split_args=True)
     return parser
@@ -625,6 +642,9 @@ def align_and_plot_coverage(
     ref_fasta,
     out_bam=None,
     sensitive=False,
+    excludeDuplicates=False,
+    JVMmemory=None,
+    picardOptions=None,
     min_score_to_output=None
 ):
     ''' 
@@ -663,15 +683,30 @@ def align_and_plot_coverage(
     samtools.view(["-b", "-h", "-q", str(map_threshold)], aln_bam, aln_bam_filtered)
     os.unlink(aln_bam)
 
-    samtools.sort(aln_bam_filtered, bam_aligned)
+    aln_bam_dupe_processed = util.file.mkstempfname('.filtered_dupe_processed.bam')
+    if excludeDuplicates:
+        opts = list(picardOptions)
+        dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
+        tools.picard.MarkDuplicatesTool().execute(
+            [aln_bam_filtered], aln_bam_dupe_processed,
+            dupe_removal_out_metrics, picardOptions=opts,
+            JVMmemory=JVMmemory
+        )
+    else:
+        aln_bam_dupe_processed = aln_bam_filtered
+
+    samtools.sort(aln_bam_dupe_processed, bam_aligned)
     os.unlink(aln_bam_filtered)
+    
+    if excludeDuplicates:
+        os.unlink(aln_bam_dupe_processed)
 
     samtools.index(bam_aligned)
 
     # -- call plot function --
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
-        base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, out_summary
+        base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, excludeDuplicates, out_summary
     )
 
     # remove the output bam, unless it is needed
@@ -698,6 +733,21 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--sensitive', action="store_true",
         help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1' "
+    )
+    parser.add_argument(
+        '--excludeDuplicates', action="store_true",
+        help="MarkDuplicates with Picard and only plot non-duplicates"
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.MarkDuplicatesTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--picardOptions',
+        default=[],
+        nargs='*',
+        help='Optional arguments to Picard\'s MarkDuplicates, OPTIONNAME=value ...'
     )
     parser.add_argument(
         '-T',
