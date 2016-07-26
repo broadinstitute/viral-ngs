@@ -90,7 +90,7 @@ rule merge_one_per_sample:
     '''
     input:  merge_one_per_sample_inputs
     output: config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=7
+    resources: mem=10
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}-{adjective}",
