@@ -132,7 +132,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # convert paired reads to bam
     # stub out an empty file if the input fastqs are empty
     tmp_bam_paired = util.file.mkstempfname('.paired.bam')
-    if all(util.file.count_fastq_reads(x) > 0 for x in  purgefq) > 0:
+    if all(os.path.getsize(x) > 0 for x in  purgefq):
         tools.picard.FastqToSamTool().execute(purgefq[0], purgefq[1],
                                           'Dummy', tmp_bam_paired)
     else:
