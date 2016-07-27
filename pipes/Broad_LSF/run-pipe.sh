@@ -5,7 +5,7 @@
 SCRIPT_DIRECTORY=$(dirname $(readlink --canonicalize-existing $0))
 
 # load necessary Broad dotkits
-source /broad/software/scripts/useuse 
+source /broad/software/scripts/useuse
 reuse -q LSF
 
 reuse -q Python-3.4

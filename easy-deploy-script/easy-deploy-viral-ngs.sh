@@ -181,7 +181,7 @@ function create_project(){
 
 function activate_env(){
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
-        cd $SCRIPTPATH
+        echo "viral-ngs parent directory found"
     else
         echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
         echo "Have you run the setup?"

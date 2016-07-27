@@ -201,6 +201,7 @@ class DownsampleSamTool(PicardTools):
             opts.extend(['RANDOM_SEED=' + str(random_seed)])
 
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        
 
     def downsample_to_approx_count(
         self, inBam, outBam, read_count, picardOptions=None,
@@ -211,8 +212,17 @@ class DownsampleSamTool(PicardTools):
         total_read_count = samtools.count(inBam)
 
         probability = Decimal(int(read_count)) / Decimal(total_read_count)
+        probability = 1 if probability > 1 else probability
 
-        self.execute(inBam, outBam, probability, accuracy=0.00001, picardOptions=picardOptions, JVMmemory=JVMmemory)
+        if probability < 1:
+            # per the Picard docs, HighAccuracy is recommended for read counts <50k
+            strategy = "HighAccuracy" if total_read_count < 50000 else "Chained"
+            _log.info("Setting downsample accuracy to %s based on read count of %s" % (strategy, total_read_count))
+            
+            self.execute(inBam, outBam, probability, strategy=strategy, accuracy=0.00001, picardOptions=picardOptions, JVMmemory=JVMmemory)
+        else:
+            _log.info("Requested downsample count exceeds number of reads. Including all reads in output.")
+            shutil.copyfile(inBam, outBam)
 
 
 class MergeSamFilesTool(PicardTools):

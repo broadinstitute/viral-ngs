@@ -16,16 +16,19 @@
 '''
 
 import logging
-import tools
-import util.file
+import shutil
 import os
 import os.path
 import subprocess
 import tempfile
 from collections import OrderedDict
-import util.misc
-#import pysam
 from decimal import *
+
+#import pysam
+
+import tools
+import util.file
+import util.misc
 
 TOOL_NAME = 'samtools'
 TOOL_VERSION = '1.3.1'
@@ -144,8 +147,13 @@ class SamtoolsTool(tools.Tool):
     def downsample_to_approx_count(self, inBam, outBam, read_count):
         total_read_count = self.count(inBam)
         probability = Decimal(int(read_count)) / Decimal(total_read_count)
+        probability = 1 if probability > 1 else probability
 
-        self.downsample(inBam, outBam, probability)
+        if probability < 1:
+            self.downsample(inBam, outBam, probability)
+        else:
+            _log.info("Requested downsample count exceeds number of reads. Including all reads in output.")
+            shutil.copyfile(inBam, outBam)
 
     def getHeader(self, inBam):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''
