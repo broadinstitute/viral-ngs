@@ -1,15 +1,15 @@
 [DESIGN]
 # the default of five is a bit too restrictive
-max-args = 12
+max-args=12
 
 # some sci computations require many local variables
-max-locals = 20
+max-locals=20
 
 [MESSAGES CONTROL]
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time.
-#enable=
+# enable=
 
 # Disable the message, report, category or checker with the given id(s). You
 # can either give multiple identifier separated by comma (,) or put this option
@@ -25,5 +25,5 @@ max-line-length=120
 
 [TYPECHECK]
 # to prevent (incorrect) no-member errors from cython modules
-ignored-modules=cython, pysam
-#ignored-classes=cython, pysam
+ignored-modules=cython,pysam
+ignored-classes=cython,pysam

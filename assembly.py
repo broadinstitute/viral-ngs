@@ -15,7 +15,6 @@ import os
 import os.path
 import shutil
 import subprocess
-import glob
 
 try:
     from itertools import zip_longest # pylint: disable=E0611
@@ -47,76 +46,159 @@ import Bio.Data.IUPACData
 log = logging.getLogger(__name__)
 
 
+class DenovoAssemblyError(Exception):
+    def __init__(self, n_start, n_trimmed, n_rmdup, n_purge, n_subsamp):
+        super(DenovoAssemblyError, self).__init__(
+            'denovo assembly (Trinity) failed. {} reads at start. {} reads after Trimmomatic. {} reads after Prinseq rmdup. {} reads after removing unpaired mates. {} reads after subsampling.'.format(
+                n_start, n_trimmed, n_rmdup, n_purge, n_subsamp))
+
+
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
         This should probably move over to read_utils or taxon_filter.
     '''
 
+    downsamplesam = tools.picard.DownsampleSamTool()
+    samtools      = tools.samtools.SamtoolsTool()
+
+    if n_reads < 1:
+        raise Exception()
+
     # BAM -> fastq
     infq = list(map(util.file.mkstempfname, ['.in.1.fastq', '.in.2.fastq']))
     tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
+    n_input = util.file.count_fastq_reads(infq[0])
 
     # Trimmomatic
-    trimfq = list(map(util.file.mkstempfname, ['.trim.1.fastq', '.trim.2.fastq']))
-    taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb)
-    os.unlink(infq[0])
-    os.unlink(infq[1])
+    trimfq = list(map(util.file.mkstempfname,
+                      ['.trim.1.fastq', '.trim.2.fastq']))
+    trimfq_unpaired = list(map(util.file.mkstempfname,
+                               ['.trim.unpaired.1.fastq', '.trim.unpaired.2.fastq']))
+    if n_input == 0:
+        for i in range(2):
+            shutil.copyfile(infq[i], trimfq[i])
+    else:
+        taxon_filter.trimmomatic(infq[0], infq[1], trimfq[0], trimfq[1], clipDb,
+                                 unpairedOutFastq1=trimfq_unpaired[0],
+                                 unpairedOutFastq2=trimfq_unpaired[1])
+    n_trim = (max(map(util.file.count_fastq_reads, trimfq)) +
+              sum(map(util.file.count_fastq_reads, trimfq_unpaired)))
 
-    # Prinseq
-    rmdupfq = list(map(util.file.mkstempfname, ['.rmdup.1.fastq', '.rmdup.2.fastq']))
-    read_utils.rmdup_prinseq_fastq(trimfq[0], rmdupfq[0])
-    read_utils.rmdup_prinseq_fastq(trimfq[1], rmdupfq[1])
-    os.unlink(trimfq[0])
-    os.unlink(trimfq[1])
+    # Prinseq duplicate removal
+    rmdupfq = list(map(util.file.mkstempfname,
+                       ['.rmdup.1.fastq', '.rmdup.2.fastq']))
+    rmdupfq_unpaired = list(map(util.file.mkstempfname,
+                               ['.rmdup.unpaired.1.fastq', '.rmdup.unpaired.2.fastq']))
+    if n_trim <= n_reads:
+        log.info("skipping prinseq duplicate removal: read count (%s) <= subsample threshold (%s)" %(
+            n_trim, n_reads))
+        for i in range(2):
+            shutil.copyfile(trimfq[i], rmdupfq[i])
+            shutil.copyfile(trimfq_unpaired[i], rmdupfq_unpaired[i])
+        n_rmdup = n_trim
+        n_rmdup_unpaired = sum(map(util.file.count_fastq_reads, rmdupfq_unpaired))
+    else:
+        prinseq = tools.prinseq.PrinseqTool()
+        prinseq.rmdup_fastq_paired(trimfq[0], trimfq[1], rmdupfq[0], rmdupfq[1], purgeUnmated=False)
+        for i in range(2):
+            prinseq.rmdup_fastq_single(trimfq_unpaired[i], rmdupfq_unpaired[i])
+
+        n_rmdup_paired   = max(map(util.file.count_fastq_reads, rmdupfq))
+        n_rmdup_unpaired = sum(map(util.file.count_fastq_reads, rmdupfq_unpaired))
+        n_rmdup          = n_rmdup_paired
 
     # Purge unmated
-    purgefq = list(map(util.file.mkstempfname, ['.fix.1.fastq', '.fix.2.fastq']))
-    read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
-    os.unlink(rmdupfq[0])
-    os.unlink(rmdupfq[1])
+    purgefq = list(map(util.file.mkstempfname,
+                       ['.mated.1.fastq', '.mated.2.fastq']))
 
-    # Log count
-    with open(purgefq[0], 'rt') as inf:
-        n = int(sum(1 for line in inf) / 4)
-        log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n)
+    # if number of paired reads is less than the subsample threshold, 
+    # skip purge of unmated reads
+    if n_rmdup <= n_reads:
+        log.info("skipping purge of unmated reads: paired read count (%s) <= subsample threshold (%s)" %(
+            n_rmdup, n_reads))
+        n_purge = n_rmdup
+        for i in range(2):
+            purgefq[i] = rmdupfq[i]
+    else:
+        read_utils.purge_unmated(rmdupfq[0], rmdupfq[1], purgefq[0], purgefq[1])
+        n_purge = util.file.count_fastq_reads(purgefq[0])
+        if n_purge < n_reads:
+            log.warn("We purged %s reads down to %s mated reads, which is below subsample threshold (%s). TO DO: add smarter subsampling in this scenario. Proceeding with %s mated reads for now." %(
+                n_rmdup, n_purge, n_reads, n_purge))
 
-    # Subsample
-    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    cmd = [os.path.join(util.file.get_scripts_path(), 'subsampler.py'),
-           '-n',
-           str(n_reads),
-           '-mode',
-           'p',
-           '-in',
-           purgefq[0],
-           purgefq[1],
-           '-out',
-           subsampfq[0],
-           subsampfq[1],]
-    util.misc.run_and_print(cmd, check=True)
-    os.unlink(purgefq[0])
-    os.unlink(purgefq[1])
-
-    # Fastq -> BAM
-    # Note: this destroys RG IDs! We should instead frun the BAM->fastq step in a way
-    # breaks out the read groups and perform the above steps in a way that preserves
-    # the RG IDs.
-    tmp_bam = util.file.mkstempfname('.subsamp.bam')
     tmp_header = util.file.mkstempfname('.header.sam')
     tools.samtools.SamtoolsTool().dumpHeader(inBam, tmp_header)
-    if n == 0:
-        # FastqToSam cannot deal with empty input
-        # but Picard SamFormatConverter can deal with empty files
-        opts = ['INPUT=' + tmp_header, 'OUTPUT=' + outBam, 'VERBOSITY=ERROR']
-        tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
-    else:
-        tools.picard.FastqToSamTool().execute(subsampfq[0], subsampfq[1], 'Dummy', tmp_bam)
-        tools.samtools.SamtoolsTool().reheader(tmp_bam, tmp_header, outBam)
-    os.unlink(tmp_bam)
-    os.unlink(tmp_header)
-    os.unlink(subsampfq[0])
-    os.unlink(subsampfq[1])
 
+    # convert paired reads to bam
+    # stub out an empty file if the input fastqs are empty
+    tmp_bam_paired = util.file.mkstempfname('.paired.bam')
+    if all(os.path.getsize(x) > 0 for x in  purgefq):
+        tools.picard.FastqToSamTool().execute(purgefq[0], purgefq[1],
+                                          'Dummy', tmp_bam_paired)
+    else:
+        opts = ['INPUT=' + tmp_header, 'OUTPUT=' + tmp_bam_paired, 'VERBOSITY=ERROR']
+        tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
+
+
+    # if we purged unmated reads and now have fewer than we need
+    if n_purge < n_reads:
+        # if there are no unpaired reads, simply output the paired reads
+        if n_rmdup_unpaired == 0:
+            shutil.copyfile(tmp_bam_paired, outBam)
+            n_subsamp = samtools.count(outBam)
+        else:
+            # pool unpaired reads and convert to bam
+            subsampfq_unpaired_concat = util.file.mkstempfname('.subsamp.unpaired.fastq')
+            util.file.concat(rmdupfq_unpaired, subsampfq_unpaired_concat)
+
+            tmp_bam_unpaired = util.file.mkstempfname('.unpaired.bam')
+            tools.picard.FastqToSamTool().execute(subsampfq_unpaired_concat,
+                                                  None, 'Dummy',
+                                                  tmp_bam_unpaired)
+            os.unlink(subsampfq_unpaired_concat)
+
+            tmp_bam_unpaired_subsamp = util.file.mkstempfname('.unpaired.subsamp.bam')
+            reads_to_add = (n_reads - (n_purge))
+            downsamplesam.downsample_to_approx_count(tmp_bam_unpaired, tmp_bam_unpaired_subsamp, reads_to_add)
+            n_unpaired_subsamp = samtools.count(tmp_bam_unpaired_subsamp)
+            os.unlink(tmp_bam_unpaired)
+
+            # merge the subsampled unpaired reads into the bam to be used as 
+            tmp_bam_merged = util.file.mkstempfname('.merged.bam')
+            tools.picard.MergeSamFilesTool().execute([tmp_bam_paired, tmp_bam_unpaired_subsamp], tmp_bam_merged)
+            os.unlink(tmp_bam_unpaired_subsamp)
+
+            tools.samtools.SamtoolsTool().reheader(tmp_bam_merged, tmp_header, outBam)
+            os.unlink(tmp_bam_merged)
+
+            n_subsamp = n_purge + n_unpaired_subsamp
+        
+    else:
+        log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_purge)
+
+        tmp_bam_unpaired_subsamp = util.file.mkstempfname('.unpaired.subsamp.bam')
+        downsamplesam.downsample_to_approx_count(tmp_bam_paired, tmp_bam_unpaired_subsamp, n_reads)
+        n_subsamp = samtools.count(tmp_bam_unpaired_subsamp)
+        
+
+        tools.samtools.SamtoolsTool().reheader(tmp_bam_unpaired_subsamp, tmp_header, outBam)
+        os.unlink(tmp_bam_unpaired_subsamp)
+
+    os.unlink(tmp_bam_paired)
+    os.unlink(tmp_header)
+
+
+    log.info("Pre-Trinity read filters: %s reads at start. %s reads after Trimmomatic. %s reads after Prinseq rmdup. %s reads after removing unpaired mates. %s reads after subsampling.",
+             n_input, n_trim, n_rmdup, n_purge, n_subsamp)
+    # clean up temp files
+    for i in range(2):
+        for f in infq, trimfq, rmdupfq, purgefq:
+            if os.path.exists(f[i]):
+                os.unlink(f[i])
+        for f in trimfq_unpaired, rmdupfq_unpaired:
+            if os.path.exists(f[i]):
+                os.unlink(f[i])
+    return (n_input, n_trim, n_rmdup, n_purge, n_subsamp)
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
@@ -137,7 +219,9 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
-def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVMmemory=None, threads=1):
+def assemble_trinity(inBam, clipDb, outFasta,
+    n_reads=100000, outReads=None, always_succeed=False,
+    JVMmemory=None, threads=1):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
@@ -147,10 +231,17 @@ def assemble_trinity(inBam, outFasta, clipDb, n_reads=100000, outReads=None, JVM
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
 
-    trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
+    read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
-    tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+    try:
+        tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+    except subprocess.CalledProcessError as e:
+        if always_succeed:
+            log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
+            util.file.touch(outFasta)
+        else:
+            raise DenovoAssemblyError(*read_stats)
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -167,6 +258,12 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
                         type=int,
                         help='Subsample reads to no more than this many pairs. (default %(default)s)')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument("--always_succeed",
+                        help="""If Trinity fails (usually because insufficient reads to assemble),
+                        emit an empty fasta file as output. Default is to throw a DenovoAssemblyError.""",
+                        default=False,
+                        action="store_true",
+                        dest="always_succeed")
     parser.add_argument('--JVMmemory',
                         default=tools.trinity.TrinityTool.jvm_mem_default,
                         help='JVM virtual memory size (default: %(default)s)')
@@ -1019,12 +1116,13 @@ def main_vcf_to_fasta(args):
 
     with open(args.outFasta, 'wt') as outf:
         chr_idx = 0
-        for header, seq in vcf_to_seqs(util.file.read_tabfile(args.inVcf),
-                                       chrlens,
-                                       samples,
-                                       min_dp=args.min_dp,
-                                       major_cutoff=args.major_cutoff,
-                                       min_dp_ratio=args.min_dp_ratio):
+        for chr_idx, (header, seq) in enumerate(vcf_to_seqs(
+                                           util.file.read_tabfile(args.inVcf),
+                                           chrlens,
+                                           samples,
+                                           min_dp=args.min_dp,
+                                           major_cutoff=args.major_cutoff,
+                                           min_dp_ratio=args.min_dp_ratio)):
             if args.trim_ends:
                 seq = seq.strip('Nn')
             if args.name:

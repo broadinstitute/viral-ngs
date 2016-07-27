@@ -4,8 +4,11 @@ import collections
 import itertools
 import logging
 import os
+import re
 import subprocess
+import multiprocessing
 import sys
+
 import util.file
 
 log = logging.getLogger(__name__)
@@ -178,7 +181,7 @@ except ImportError:
                 print(error.decode("utf-8"))
                 try:
                     raise subprocess.CalledProcessError(
-                        returncode, args, output, error)
+                        returncode, args, output, error) #pylint: disable-msg=E1121
                 except TypeError: # py2 CalledProcessError does not accept error
                     raise subprocess.CalledProcessError(
                         returncode, args, output)
@@ -211,7 +214,13 @@ def run_and_print(args, stdout=None, stderr=None,
                            timeout=timeout, check=check)
             except subprocess.CalledProcessError as e:
                 if loglevel:
-                    log.log(loglevel, result.stdout.decode('utf-8'))
+                    try:
+                        log.log(loglevel, result.stdout.decode('utf-8'))
+                    except NameError:
+                        # in some situations, result does not get assigned anything
+                        pass
+                    except AttributeError:
+                        log.log(loglevel, result.output.decode('utf-8'))
                 else:
                     print(e.output.decode('utf-8'))
                     try:
@@ -262,7 +271,7 @@ def run_and_print(args, stdout=None, stderr=None,
 
 def run_and_save(args, stdout=None, stdin=None,
                  outf=None, stderr=None, preexec_fn=None,
-                 close_fds=False, shell=False, cwd=None, env=None):
+                 close_fds=False, shell=False, cwd=None, env=None, check=True):
     assert outf is not None
 
     sp = subprocess.Popen(args,
@@ -280,7 +289,7 @@ def run_and_save(args, stdout=None, stdin=None,
     if err:
         sys.stdout.write(err.decode("UTF-8"))
 
-    if sp.returncode != 0:
+    if sp.returncode != 0 and check:
         raise subprocess.CalledProcessError(sp.returncode, str(args[0]))
 
     return sp
@@ -353,3 +362,40 @@ class FeatureSorter(object):
                 right = right - 1
                 features = list(self.get_features(c, left, right))
                 yield (c, left, right, len(features), features)
+
+
+def available_cpu_count():
+    """
+    Return the number of available virtual or physical CPUs on this system.
+    The number of available CPUs can be smaller than the total number of CPUs
+    when the cpuset(7) mechanism is in use, as is the case on some cluster
+    systems.
+
+    Adapted from http://stackoverflow.com/a/1006301/715090
+    """
+    try:
+        with open('/proc/self/status') as f:
+            status = f.read()
+        m = re.search(r'(?m)^Cpus_allowed:\s*(.*)$', status)
+        if m:
+            res = bin(int(m.group(1).replace(',', ''), 16)).count('1')
+            if res > 0:
+                return min(res, multiprocessing.cpu_count())
+    except IOError:
+        pass
+
+    return multiprocessing.cpu_count()
+
+def which(application_binary_name):
+    """
+        Similar to the *nix "which" command, 
+        this function finds the first executable binary present
+        in the system PATH for the binary specified. 
+        It differs in that it resolves symlinks.
+    """
+    path=os.getenv('PATH')
+    for path in path.split(os.path.pathsep):
+        full_path=os.path.join(path, application_binary_name)
+        if os.path.exists(full_path) and os.access(full_path, os.X_OK):
+            link_resolved_path = os.path.realpath(full_path)
+            return link_resolved_path

@@ -91,7 +91,8 @@ def illumina_demux_inputs(wildcards):
 rule illumina_demux:
     input:  illumina_demux_inputs
     output: config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
-            config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt'
+            config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt',
+            config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt'
     resources: mem=60
     params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
@@ -106,7 +107,7 @@ rule illumina_demux:
             for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
                 if lane.get(opt):
                     opts += ' --%s=%s' % (opt, lane[opt])
-            shell("{config[bin_dir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --flowcell={wildcards.flowcell} {opts}")
+            shell("{config[bin_dir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --commonBarcodes={output[2]} --flowcell={wildcards.flowcell} {opts}")
 
 
 def demux_move_bams_inputs(wildcards):

@@ -10,14 +10,12 @@ import logging
 import tools
 import util.file
 import util.misc
-
 import os
 import os.path
 import subprocess
 
 TOOL_NAME = "mafft"
 TOOL_VERSION = '7.221'
-TOOL_URL = 'http://mafft.cbrc.jp/alignment/software/mafft-{ver}-{os}.{ext}'
 
 _log = logging.getLogger(__name__)
 
@@ -27,35 +25,7 @@ class MafftTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            mafft_os = get_mafft_os()
-            mafft_bitdepth = get_mafft_bitdepth()
-            mafft_archive_extension = get_mafft_archive_extension(mafft_os)
-            binaryPath = get_mafft_binary_path(mafft_os, mafft_bitdepth)
-            binaryDir = get_mafft_binary_path(mafft_os, mafft_bitdepth, full=False)
-
-            target_rel_path = '{binPath}'.format(binPath=binaryPath)
-            verify_command = 'cd {dir}/mafft-{ver}/{bin_dir} && {dir}/mafft-{ver}/{binPath} --version > /dev/null 2>&1'.format(
-                dir=util.file.get_build_path(),
-                ver=TOOL_VERSION,
-                binPath=binaryPath,
-                bin_dir=binaryDir
-            )
-            destination_dir = '{dir}/mafft-{ver}'.format(dir=util.file.get_build_path(), ver=TOOL_VERSION)
-
             install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
-            install_methods.append(
-                tools.DownloadPackage(
-                    TOOL_URL.format(
-                        ver=TOOL_VERSION,
-                        os=mafft_os,
-                        ext=mafft_archive_extension
-                    ),
-                    target_rel_path=target_rel_path,
-                    destination_dir=destination_dir,
-                    verifycmd=verify_command
-                )
-            )
-
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -186,40 +156,3 @@ class MafftTool(tools.Tool):
 
         return outFile
     # pylint: enable=W0221
-
-
-def get_mafft_os():
-    uname = os.uname()
-    if uname[0] == "Darwin":
-        return "mac"
-    if uname[0] == "Linux":
-        return "linux"
-
-
-def get_mafft_archive_extension(mafft_os):
-    if mafft_os == "mac":
-        return "zip"
-    elif mafft_os == "linux":
-        return "tgz"
-
-
-def get_mafft_bitdepth():
-    uname = os.uname()
-    if uname[4] == "x86_64":
-        return "64"
-    if uname[4] in ['i386', 'i686', "x86"]:
-        return "32"
-
-
-def get_mafft_binary_path(mafft_os, bitdepth, full=True):
-    mafftPath = ""
-
-    if mafft_os == "mac":
-        mafftPath += "mafft-mac/"
-    elif mafft_os == "linux":
-        mafftPath += "mafft-linux{bit}".format(bit=bitdepth) + "/"
-
-    if full:
-        mafftPath += "mafft.bat"
-
-    return mafftPath

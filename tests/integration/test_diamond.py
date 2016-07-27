@@ -10,7 +10,8 @@ import tempfile
 import pytest
 from Bio import SeqIO
 import metagenomics
-from test.integration.snake import SnakemakeRunner
+from test.integration import snake
+import tools
 import tools.diamond
 import tools.picard
 import util.file
@@ -129,17 +130,20 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
     return db
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="Diamond osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(sys.version_info < (3,2),
                     reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
-    runner = SnakemakeRunner(workdir=str(tmpdir))
+    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
         'diamond_db': diamond_db,
         'taxonomy_db': taxonomy_db,
     }
     runner.set_override_config(override_config)
     runner.setup()
-    runner.link_samples([input_bam], destination='source')
+    runner.link_samples([input_bam], destination='per_sample',
+                        link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     # krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
@@ -152,6 +156,8 @@ def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
     # assert os.path.getsize(krona_out) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="Diamond osx binary does not yet exist on bioconda")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_lca = util.file.mkstempfname('.lca.tsv')

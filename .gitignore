@@ -53,6 +53,7 @@ htmlcov/
 nosetests.xml
 pytest.xml
 coverage.xml
+.coverage*
 
 test/input/TestVPhaser2/in.bam.bti
 
@@ -64,3 +65,7 @@ easy-deploy/data/config.yaml
 easy-deploy/data/viral-ngs/
 
 easy-deploy/.vagrant/
+
+tools/build/
+tools/conda-cache/
+tools/conda-tools/

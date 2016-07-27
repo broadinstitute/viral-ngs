@@ -20,6 +20,7 @@ import shutil
 import sys
 import util.cmd
 import util.file
+import util.misc
 import tools.kraken
 import tools.krona
 import tools.diamond
@@ -83,7 +84,7 @@ def load_names(names_db, scientific_only=True):
         parts = line.strip().split('|')
         taxid = int(parts[0])
         name = parts[1].strip()
-        unique_name = parts[2].strip()
+        #unique_name = parts[2].strip()
         class_ = parts[3].strip()
         if scientific_only:
             if class_ == 'scientific name':
@@ -103,8 +104,8 @@ def load_nodes(nodes_db):
             taxid = int(parts[0])
             parent_taxid = int(parts[1])
             rank = parts[2].strip()
-            embl_code = parts[3].strip()
-            division_id = parts[4].strip()
+            #embl_code = parts[3].strip()
+            #division_id = parts[4].strip()
             parents[taxid] = parent_taxid
             ranks[taxid] = rank
     return ranks, parents
@@ -368,7 +369,7 @@ def taxa_hits_from_tsv(f, tax_id_column=2):
     return c
 
 
-def kraken_dfs_report(db, taxa_hits):
+def kraken_dfs_report(db, taxa_hits, prepend_column=True):
     '''Return a kraken compatible DFS report of taxa hits.
 
     Args:
@@ -378,6 +379,8 @@ def kraken_dfs_report(db, taxa_hits):
     Return:
       []str lines of the report
     '''
+    line_prefix = '\t' if prepend_column else ''
+
     db.children = parents_to_children(db.parents)
     total_hits = sum(taxa_hits.values())
     lines = []
@@ -386,7 +389,7 @@ def kraken_dfs_report(db, taxa_hits):
     unclassified_hits += taxa_hits.get(-1, 0)
     if unclassified_hits > 0:
         percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
-        lines.append('\t'.join([
+        lines.append(line_prefix+'\t'.join([
             str(percent_covered), str(unclassified_hits),
             str(unclassified_hits), 'U', '0', 'unclassified'
         ]))
@@ -409,52 +412,60 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
 
 def kraken(inBam, db, outReport=None, outReads=None,
            filterThreshold=None, numThreads=1):
+    '''
+        Classify reads by taxon using Kraken
+    '''
+
     assert outReads or outReport, (
         'Either --outReads or --outReport must be specified.')
-
-    tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-    tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-    picard = tools.picard.SamToFastqTool()
-    picard_opts = {
-        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-        'CLIPPING_ACTION': 'X'
-    }
-    picard.execute(inBam, tmp_fastq1, tmp_fastq2,
-                   picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                   JVMmemory=picard.jvmMemDefault)
-
     kraken_tool = tools.kraken.Kraken()
+
+    # kraken classify
     tmp_reads = util.file.mkstempfname('.kraken')
-    opts = {
-        '--paired': None,
-        '--threads': numThreads,
-    }
-    # Could be optimized in 3.5 piping directly to kraken-filter.
-    kraken_tool.classify(db, [tmp_fastq1, tmp_fastq2], tmp_reads, options=opts)
+    kraken_tool.classify(inBam, db, tmp_reads, numThreads=numThreads)
 
+    # kraken filter
     if filterThreshold:
-        opts = {
-            '--threshold': filterThreshold,
-        }
-
         tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
-        kraken_tool.execute('kraken-filter', db, tmp_filtered_reads, args=[tmp_reads],
-                            options=opts)
+        kraken_tool.filter(tmp_reads, db, tmp_filtered_reads, filterThreshold)
+        os.unlink(tmp_reads)
     else:
         tmp_filtered_reads = tmp_reads
 
+    # copy outReads
     if outReads:
         with open(tmp_filtered_reads, 'rb') as f_in:
-            with gzip.open(outReads, 'wb') as f_out:
+            with util.file.open_or_gzopen(outReads, 'w') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
+    # kraken report
     if outReport:
-        kraken_tool.execute('kraken-report', db, outReport,
-                            args=[tmp_filtered_reads])
+        kraken_tool.report(tmp_filtered_reads, db, outReport)
+
+    os.unlink(tmp_filtered_reads)
+
+
+def parser_kraken(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('db', help='Kraken database directory.')
+    parser.add_argument('--outReport', help='Kraken report output file.')
+    parser.add_argument('--outReads', help='Kraken per read output file.')
+    parser.add_argument('--filterThreshold',
+                        default=0.05,
+                        type=float,
+                        help='Kraken filter threshold (default %(default)s)')
+    parser.add_argument('--numThreads', type=int, default=1, help='Number of threads to run. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None),
+                                  ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken, split_args=True)
+    return parser
 
 
 def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
           scoreColumn=None, noHits=None, noRank=None):
+    '''
+        Create an interactive HTML report from a tabular metagenomic report
+    '''
 
     krona_tool = tools.krona.Krona()
     if inTsv.endswith('.gz'):
@@ -469,22 +480,6 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None,
     krona_tool.import_taxonomy(
         db, to_import, outHtml, query_column=queryColumn, taxid_column=taxidColumn,
         score_column=scoreColumn, no_hits=noHits, no_rank=noRank)
-
-
-def parser_kraken(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('db', help='Kraken database directory.')
-    parser.add_argument('--outReport', help='Kraken report output file.')
-    parser.add_argument('--outReads', help='Kraken per read output file.')
-    parser.add_argument('--filterThreshold',
-                        default=0.05,
-                        type=float,
-                        help='Kraken filter threshold (default %(default)s)')
-    parser.add_argument('--numThreads', default=1, help='Number of threads to run. (default %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None),
-                                  ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken, split_args=True)
-    return parser
 
 
 def parser_krona(parser=argparse.ArgumentParser()):
@@ -507,8 +502,13 @@ def parser_krona(parser=argparse.ArgumentParser()):
 
 
 def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
+    '''
+        Classify reads by the taxon of the Lowest Common Ancestor (LCA)
+    '''
     tmp_fastq = util.file.mkstempfname('.fastq')
     tmp_fastq2 = util.file.mkstempfname('.fastq')
+    # do not convert this to samtools bam2fq unless we can figure out how to replicate
+    # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
     picard_opts = {
         'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
@@ -546,7 +546,7 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     with open(tmp_lca_tsv) as f:
         hits = taxa_hits_from_tsv(f)
     with open(outReport, 'w') as f:
-        for line in kraken_dfs_report(tax_db, hits):
+        for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
             print(line, file=f)
 
 
@@ -563,10 +563,67 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
 
+def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db, out_krona_input):
+    '''
+        Merge multiple metegenomic reports into a single metagenomic report. 
+        Any Krona input files created by this 
+    '''
+    assert out_kraken_summary or out_krona_input, (
+        "Either --outSummaryReport or --outByQueryToTaxonID must be specified")
+    assert kraken_db if out_kraken_summary else True, (
+        'A Kraken db must be provided via --krakenDB if outSummaryReport is specified')
+
+    # column numbers containing the query (sequence) ID and taxonomic ID
+    # these are one-indexed
+    # See: http://ccb.jhu.edu/software/kraken/MANUAL.html#output-format
+    # tool_data_columns = {
+    #     "kraken": (2, 3)
+    # }
+
+    # if we're creating a Krona input file
+    if out_krona_input:
+        # open the output file (as gz if necessary)
+        with util.file.open_or_gzopen(out_krona_input ,"wt") as outf:
+            # create a TSV writer for the output file
+            output_writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
+
+            if metagenomic_reports:
+                # for each Kraken-format metag file specified, pull out the appropriate columns
+                # and write them to the TSV output
+                for metag_file in metagenomic_reports:
+                    with util.file.open_or_gzopen(metag_file.name ,"rt") as inf:
+                        file_reader = csv.reader(inf, delimiter='\t')
+                        for row in file_reader:
+                            # for only the two relevant columns
+                            output_writer.writerow([f for f in row])
+                            #output_writer.writerow([row[c-1] for c in tool_data_columns["kraken"]])
+
+
+    # create a human-readable summary of the Kraken reports
+    # kraken-report can only be used on kraken reports since it depends on queries being in its database
+    if out_kraken_summary:
+        # create temporary file to hold combined kraken report
+        tmp_metag_combined_txt = util.file.mkstempfname('.txt')
+        
+        util.file.cat(tmp_metag_combined_txt, [metag_file.name for metag_file in metagenomic_reports])
+
+        kraken_tool = tools.kraken.Kraken()
+        kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
+  
+
+def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
+    parser.add_argument("metagenomic_reports", help="Input metagenomic reports with the query ID and taxon ID in the 2nd and 3rd columns (Kraken format)", nargs='+', type=argparse.FileType('r'))
+    parser.add_argument("--outSummaryReport", dest="out_kraken_summary", help="Path of human-readable metagenomic summary report, created by kraken-report")
+    parser.add_argument("--krakenDB", dest="kraken_db", help="Kraken database (needed for outSummaryReport)", type=argparse.FileType('r'))
+    parser.add_argument("--outByQueryToTaxonID", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. ") 
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
+    return parser
 
 __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
+__commands__.append(('report_merge', parser_metagenomic_report_merge))
 
 
 def full_parser():

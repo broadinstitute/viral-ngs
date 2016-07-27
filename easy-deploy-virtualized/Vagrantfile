@@ -1,0 +1,67 @@
+Vagrant.configure("2") do |config|
+  config.vm.provider :virtualbox do |vb, override|
+    vb.customize ["modifyvm", :id, "--memory", 8192]
+    config.vm.hostname = "viral-ngs-vm"
+
+    override.vm.box = "viral-ngs-vm"
+    override.vm.box = "ubuntu/vivid64"
+
+    override.vm.synced_folder ".", "/vagrant", disabled: true
+    override.vm.synced_folder "./data/", "/home/vagrant/data/", create: true
+    override.vm.synced_folder "..", "/home/vagrant/viral-ngs", create: true
+
+    override.vm.provision "ansible" do |ansible|
+        ansible.playbook = "ansible-playbook.yml"
+        ansible.extra_vars = {
+          ansible_user: "vagrant",
+        }
+    end
+  end
+
+  config.vm.provider :aws do |aws, override|
+    aws.access_key_id = ENV["EC2_ACCESS_KEY_ID"]
+    aws.secret_access_key = ENV["EC2_SECRET_ACCESS_KEY"]
+    # ubuntu AMI, see: https://cloud-images.ubuntu.com/locator/ec2/
+    # Vivid 15.04, amd64 hvm:ebs-ssd @ us-west-2
+    aws.ami = "ami-73b4af43"
+
+    if    ENV["EC2_REGION"]=="ap-northeast-1"; aws.ami="ami-1c0c3672";
+    elsif ENV["EC2_REGION"]=="ap-southeast-1"; aws.ami="ami-327cb351";
+    elsif ENV["EC2_REGION"]=="eu-central-1"; aws.ami="ami-f39e869f";
+    elsif ENV["EC2_REGION"]=="eu-west-1"; aws.ami="ami-3a229449";
+    elsif ENV["EC2_REGION"]=="sa-east-1"; aws.ami="ami-7b24a417";
+    elsif ENV["EC2_REGION"]=="us-east-1"; aws.ami="ami-f50e209f";
+    elsif ENV["EC2_REGION"]=="us-west-1"; aws.ami="ami-ae1b6dce";
+    elsif ENV["EC2_REGION"]=="cn-north-1"; aws.ami="ami-4c7ab321";
+    elsif ENV["EC2_REGION"]=="ap-southeast-2"; aws.ami="ami-c3b490a0";
+    elsif ENV["EC2_REGION"]=="us-west-2"; aws.ami="ami-6206e002"; end
+
+    aws.instance_type = "m4.2xlarge"
+    aws.instance_ready_timeout = 250 # default: 120
+    aws.keypair_name = ENV["EC2_KEYPAIR_NAME"]
+    aws.region = ENV["EC2_REGION"]
+    aws.block_device_mapping = [{ 'DeviceName' => '/dev/sda1', 'Ebs.VolumeSize' => 300 }]
+
+    if ENV["EC2_SECURITY_GROUP"]
+        aws.security_groups = [ENV["EC2_SECURITY_GROUP"]]
+    end
+
+    override.vm.box = "viral-ngs-vm"
+    override.vm.box_url = "https://github.com/mitchellh/vagrant-aws/raw/master/dummy.box"
+    override.ssh.username = "ubuntu"
+    override.ssh.private_key_path = ENV["EC2_PRIVATE_KEY_PATH"]
+
+    override.vm.synced_folder ".", "/vagrant", disabled: true # this disables the default Vagrant synced folder mount point
+    override.vm.synced_folder "./data/", "/home/ubuntu/data/", create: true, type: "rsync"
+
+    override.vm.provision "ansible" do |ansible|
+        ansible.playbook = "ansible-playbook.yml"
+        ansible.host_key_checking = false
+        #ansible.verbose = "vvv"
+        ansible.extra_vars = {
+          ansible_user: "ubuntu",
+        }
+    end
+
+  end
+end

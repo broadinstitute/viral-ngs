@@ -1,7 +1,7 @@
 Description of the methods
 ==========================
 
-
+.. image:: viral-ngs-overview.png
 
 Taxonomic read filtration
 -------------------------

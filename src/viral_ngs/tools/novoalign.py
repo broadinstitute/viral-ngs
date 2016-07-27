@@ -39,7 +39,12 @@ class NovoalignTool(tools.Tool):
                         require_executability=True
                     )
                 )
-        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+        if os.environ.get("NOVOALIGN_LICENSE_PATH"):
+            # called relative to the conda bin/ directory
+            post_verify_command = "cp {lic_path} ./".format(lic_path=os.environ.get("NOVOALIGN_LICENSE_PATH"))
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
+        else:
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -50,7 +55,7 @@ class NovoalignTool(tools.Tool):
     def _get_tool_version(self):
         tmpf = util.file.mkstempfname('.novohelp.txt')
         with open(tmpf, 'wt') as outf:
-            util.misc.run_and_save([self.install_and_get_path()], outf=outf)
+            util.misc.run_and_save([self.install_and_get_path(), "-V"], outf=outf, check=False)
         with open(tmpf, 'rt') as inf:
             self.tool_version = inf.readline().strip().split()[1]
         os.unlink(tmpf)
@@ -203,7 +208,7 @@ class NovoalignTool(tools.Tool):
             cmd.extend(['-s', str(s)])
         cmd.extend([outfname, refFasta])
         _log.debug(' '.join(cmd))
-        util.misc.run_and_print(cmd, check=True)
+        subprocess.check_call(cmd)
         try:
             mode = os.stat(outfname).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH
             os.chmod(outfname, mode)

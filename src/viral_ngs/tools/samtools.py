@@ -10,22 +10,28 @@
     Current bug with pysam 0.8.1: nosetests does not work unless you use --nocapture.
     python -m unittest works. Something about redirecting stdout.
     Actually, Travis CI still has issues with pysam and stdout even with --nocapture.
+
+    pysam 0.9.1 stops redirecting stdout which makes things much easier,
+    but it's a pain to pip install.
 '''
 
 import logging
-import tools
-import util.file
-import util.misc
+import shutil
 import os
 import os.path
 import subprocess
+import tempfile
 from collections import OrderedDict
+from decimal import *
+
 #import pysam
 
+import tools
+import util.file
+import util.misc
+
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.2'
-TOOL_URL = 'https://github.com/samtools/samtools/releases/download/{ver}/samtools-{ver}.tar.bz2'.format(ver=TOOL_VERSION)
-CONDA_TOOL_VERSION = '1.2'
+TOOL_VERSION = '1.3.1'
 
 log = logging.getLogger(__name__)
 
@@ -34,34 +40,20 @@ class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
-            install_methods.append(
-                tools.DownloadPackage(
-                    TOOL_URL,
-                    'samtools-{}/samtools'.format(TOOL_VERSION),
-                    post_download_command='cd samtools-{}; make -s'.format(
-                        TOOL_VERSION
-                    )
-                )
-            )
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
+    def execute(self, command, args, stdout=None, stderr=None):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
-        if stdin:
-            stdin = open(stdin, 'r')
         if stdout:
             stdout = open(stdout, 'w')
         if stderr:
             stderr = open(stderr, 'w')
-        subprocess.check_call(tool_cmd, stdin=stdin, stdout=stdout, stderr=stderr)
-        if stdin:
-            stdin.close()
+        subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr)
         if stdout:
             stdout.close()
         if stderr:
@@ -71,11 +63,27 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
+        #opts = args + ['-o', outFile, inFile] + regions
+        #pysam.view(*opts)
 
-    def sort(self, inFile, outFile, args=None):
+    def bam2fq(self, inBam, outFq1, outFq2=None):
+        if outFq2 is None:
+            self.execute('bam2fq', ['-s', outFq1, inBam])
+        else:
+            self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
+
+    def sort(self, inFile, outFile, args=None, threads=None):
+        # inFile can be .sam, .bam, .cram
+        # outFile can be .sam, .bam, .cram
         args = args or []
+        threads = threads or util.misc.available_cpu_count()
+        if '-@' not in args:
+            args.extend(('-@', str(threads)))
+        if '-T' not in args and os.path.isdir(tempfile.tempdir):
+            args.extend(('-T', tempfile.tempdir))
 
-        self.execute('sort', args + ['-o', outFile, inFile])
+        args.extend(('-o', outFile, inFile))
+        self.execute('sort', args)
 
     def merge(self, inFiles, outFile, options=None):
         "Merge a list of inFiles to create outFile."
@@ -87,6 +95,7 @@ class SamtoolsTool(tools.Tool):
         self.execute('merge', options + [outFile] + inFiles)
 
     def index(self, inBam):
+        # inBam can be .bam or .cram
         self.execute('index', [inBam])
 
     def faidx(self, inFasta, overwrite=False):
@@ -97,8 +106,17 @@ class SamtoolsTool(tools.Tool):
                 os.unlink(outfname)
             else:
                 return
-        # pysam.faidx(inFasta)
+        #pysam.faidx(inFasta)
         self.execute('faidx', [inFasta])
+
+    def depth(self, inBam, outFile, options=None):
+        """ Write a TSV file with coverage depth by position """
+        options = options or ["-aa", "-m", "1000000"]
+
+        self.execute('depth', options + [inBam], stdout=outFile)
+
+    def idxstats(self, inBam, statsFile):
+        self.execute('idxstats', [inBam], stdout=statsFile)
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
@@ -115,6 +133,27 @@ class SamtoolsTool(tools.Tool):
         #opts = ['-b', '-f 2']
         opts = ['-b', '-F' '1028', '-f', '2']
         self.view(opts, inBam, outBam)
+
+    def downsample(self, inBam, outBam, probability):
+
+        if not probability:
+            raise Exception("Probability must be defined")
+        if float(probability) <= 0 or float(probability) > 1:
+            raise Exception("Probability must be in range (0,1]. This value was given: %s" % probability)
+
+        opts = ['-s', str(1) + '.' + str(probability).split('.')[1]]    # -s subsamples: seed.fraction
+        self.view(opts, inBam, outBam)
+
+    def downsample_to_approx_count(self, inBam, outBam, read_count):
+        total_read_count = self.count(inBam)
+        probability = Decimal(int(read_count)) / Decimal(total_read_count)
+        probability = 1 if probability > 1 else probability
+
+        if probability < 1:
+            self.downsample(inBam, outBam, probability)
+        else:
+            _log.info("Requested downsample count exceeds number of reads. Including all reads in output.")
+            shutil.copyfile(inBam, outBam)
 
     def getHeader(self, inBam):
         ''' fetch BAM header as a list of tuples (already split on tabs) '''
@@ -142,10 +181,29 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
 
         cmd = [self.install_and_get_path(), 'view', '-c'] + opts + [inBam] + regions
-        # return int(pysam.view(*cmd)[0].strip())
         return int(subprocess.check_output(cmd).strip())
+        #if inBam.endswith('.sam') and '-S' not in opts:
+        #    opts = ['-S'] + opts
+        #cmd = ['-c'] + opts + [inBam] + regions
+        #return int(pysam.view(*cmd)[0].strip())
 
     def mpileup(self, inBam, outPileup, opts=None):
         opts = opts or []
 
         self.execute('mpileup', opts + [inBam], stdout=outPileup, stderr='/dev/null')    # Suppress info messages
+
+    def isEmpty(self, inBam):
+        if not os.path.isfile(inBam):
+            return True
+        else:
+            tmpf = util.file.mkstempfname('.txt')
+            self.dumpHeader(inBam, tmpf)
+            header_size = os.path.getsize(tmpf)
+            if (os.path.getsize(inBam) > (100 + 5 * header_size)):
+                # large BAM file: assume it is not empty
+                # a BAM file definitely has reads in it if its filesize is larger
+                # than just the header itself
+                return False
+            else:
+                # small BAM file: just count and see if it's non-zero
+                return (0 == self.count(inBam))

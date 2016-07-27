@@ -9,11 +9,12 @@ import tempfile
 import pytest
 import metagenomics
 import util.file
+import tools
 import tools.kraken
 import tools.krona
 import tools.picard
 from test import TestCaseWithTmp
-from test.integration.snake import SnakemakeRunner
+from test.integration import snake
 
 
 @pytest.fixture(autouse=True)
@@ -28,22 +29,6 @@ def fastq_to_sam():
 
 
 @pytest.fixture(scope='session')
-def sam_to_fastq():
-    return tools.picard.SamToFastqTool()
-
-
-def input_fastq_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
-    return [os.path.join(data_dir, f)
-            for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-
-
-def input_bam_paths():
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
-    return join(data_dir, 'test-reads.bam')
-
-
-@pytest.fixture(scope='session')
 def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
@@ -55,25 +40,8 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
         fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
         return bam
 
-    return input_bam_paths()
-
-
-@pytest.fixture(scope='session')
-def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
-    data_dir = join(util.file.get_test_input_path(), db_type)
-    if db_type == 'TestMetagenomicsSimple':
-        fastqs = [join(data_dir, f)
-                  for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-        return fastqs
-
-    bam = join(data_dir, 'test-reads.bam')
-    basename = os.path.basename(bam)
-    fastq1 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.1.fastq'.format(basename))
-    fastq2 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.2.fastq'.format(basename))
-    sam_to_fastq.execute(bam, fastq1, fastq2)
-    return fastq1, fastq2
+    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
+    return join(data_dir, 'test-reads.bam')
 
 
 @pytest.fixture(scope='session')
@@ -109,10 +77,10 @@ def kraken_db(request, tmpdir_factory, kraken, db_type):
         os.symlink(realpath, name)
 
     # Minimizer len corresponds to memory/disk usage of index.
-    assert kraken.build(db, options={
+    kraken.build(db, options={
         '--minimizer-len': 10,
         '--build': None,
-    }).returncode == 0
+    })
     return db
 
 
@@ -138,24 +106,22 @@ def krona_db(request, tmpdir_factory, krona, db_type):
     return db
 
 
-def test_kraken_tool(tmpdir, kraken, kraken_db, input_fastqs):
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
+def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
     outdir = tempfile.mkdtemp('-kraken')
     out = join(outdir, 'zaire_ebola.kraken')
     out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
     out_report = join(outdir, 'zaire_ebola.kraken-report')
-    assert kraken.classify(kraken_db, input_fastqs, out).returncode == 0
-    result = kraken.execute(
-        'kraken-filter', kraken_db, out_filtered, [out],
-        options={'--threshold': 0.05})
-    assert result.returncode == 0
-    result = kraken.execute(
-        'kraken-report', kraken_db, out_report, [out_filtered])
-    assert result.returncode == 0
-
+    kraken.classify(input_bam, kraken_db, out)
+    kraken.filter(out, kraken_db, out_filtered, 0.05)
+    kraken.report(out_filtered, kraken_db, out_report)
     assert os.path.getsize(out_report) > 0
     assert os.path.getsize(out_filtered) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
@@ -168,17 +134,20 @@ def test_kraken(kraken_db, input_bam):
     assert os.path.getsize(out_reads) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(sys.version_info < (3,2),
                     reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
-    runner = SnakemakeRunner(workdir=str(tmpdir))
+    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
         'kraken_db': kraken_db,
         'krona_db': krona_db,
     }
     runner.set_override_config(override_config)
     runner.setup()
-    runner.link_samples([input_bam], destination='source')
+    runner.link_samples([input_bam], destination='per_sample',
+                        link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     kraken_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
@@ -193,6 +162,8 @@ def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     # assert os.path.getsize(krona_out) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(),
+                    reason="kraken osx binary does not yet exist on bioconda")
 @pytest.mark.skipif(True, reason="krona create db takes too much disk io")
 def test_kraken_krona(tmpdir, kraken_db, krona_db, input_bam):
     out_report = util.file.mkstempfname('.report')
