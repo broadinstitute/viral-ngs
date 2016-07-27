@@ -5,92 +5,124 @@ Installation
 Manual Installation
 -------------------
 
-System dependencies
-~~~~~~~~~~~~~~~~~~~
 
-This is known to install cleanly on most modern Linux systems with Python,
-Java, and some basic development libraries.  On Ubuntu 14.04 LTS, the
-following APT packages should be installed on top of the vanilla setup::
+Install Conda
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  python3 python3-pip
-  python-software-properties
+To use viral-ngs, you need to install the `Conda package manager <http://conda.pydata.org/miniconda.html>`_ which is most easily obtained via the Miniconda Python distribution. Miniconda can be installed on your system without admin priviledges.
 
-.. (comment out below)
-  zlib zlib1g zlib1g-dev
-  libblas3gf libblas-dev liblapack3gf liblapack-dev
-  libatlas-dev libatlas3-base libatlas3gf-base libatlas-base-dev
-  gfortran
-  oracle-java8-installer
-  libncurses5-dev
+After installing Miniconda for your platform, be sure to update it::
 
-.. (comment out below)
- The Fortran libraries (including blas and atlas) are required to install
- numpy via pip from source. numpy is not actually required if you have
- Python 3.4, if you want to avoid this system dependency.
+  conda update -y conda
 
-**Java >= 1.7** is required by GATK and Picard.
+Configure Conda
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The viral-ngs software and its dependencies are distributed through the bioconda channel for the conda package manager. It is necessary to add this channel to the conda config::
 
-Python dependencies
-~~~~~~~~~~~~~~~~~~~
+  conda config --add channels bioconda
 
-The **command line tools** require Python >= 2.7 or >= 3.4. Required packages
-(pysam and Biopython) are listed in requirements.txt and can be
-installed the usual pip way::
+Make a conda environment and install viral-ngs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  pip install -r requirements.txt
+It is recommended to install viral-ngs into its own conda environment. This ensures its dependencies do not interfere with other conda packages installed on your system. A new conda environment can be created with the following command, which will also install conda::
 
-Additionally, in order to use the **pipeline infrastructure**, Python 3.4
-is required (Python 2 is not supported) and you must install snakemake
-as well::
+  conda create -n viral-ngs-env viral-ngs
 
-  pip install -r requirements-pipes.txt
+Activate the viral-ngs environment and complete the install
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-However, most of the real functionality is encapsulated in the command line
-tools, which can be used without any of the pipeline infrastructure.
+In order to finish installing viral-ngs, you will need to activate its conda environment::
 
-You should either sudo pip install or use a virtualenv (recommended).
+  source activate viral-ngs-env
+
+Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://www.broadinstitute.org/gatk/download/>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
+
+  # (download licensed copy of GATK)
+  gath-register /path/to/GenomeAnalysisTK.jar
+
+The single-threaded version of `Novoalign <http://www.novocraft.com/products/novoalign/>`_ is installed by default. If you have a license for Novoalign to enable multi-threaded operation, viral-ngs will copy it to the viral-ngs conda environment if the ``NOVOALIGN_LICENSE_PATH`` environment variable is set. Alternatively, the conda version of Novoalign can be overridden if the ``NOVOALIGN_PATH`` environment variable is set. If you obtain a Novoalign license after viral-ngs has already been installed, it can be added to the conda environment by calling::
+
+  # obtain a Novoalign license file: novoalign.lic
+  novoalign-register-license /path/to/novoalign.lic
 
 
-Tool dependencies
-~~~~~~~~~~~~~~~~~
+Activating viral-ngs once installed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A lot of effort has gone into writing auto download/compile wrappers for
-most of the bioinformatic tools we rely on here.
+After viral-ngs has been installed, only one command is needed to load the environment and all of its dependencies. This is the command that must be run each time before using viral-ngs::
 
-Most tools will attemp a conda-based install first, before falling back to an install handled entirely by our wrappers. To make use of the conda-based install, you will need to have Anaconda or miniconda installed on your system:
+  source activate viral-ngs-env
 
-http://conda.pydata.org/docs/install/quick.html#miniconda-quick-install-requirements
+To deactivate the conda environment::
 
-The tools will auto-download and install the first time they are needed by any command. If you want to pre-install all of the external tools, simply type this::
+  source deactivate
 
-  py.test -v test/unit/test_tools.py
+Easy deployment script for viral-ngs
+------------------------------------
 
-However, there are two tools in particular that cannot be auto-installed
-due to licensing restrictions.  You will need to download and install
-these tools on your own (paying for it if your use case requires it) and
-set environment variables pointing to their installed location.
+**viral-ngs** can be deployed with help from the script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects. 
 
- * GATK - http://www.broadinstitute.org/gatk/
- * Novoalign - http://www.novocraft.com/products/novoalign/
+One-line install command 
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The environment variables you will need to set are ``GATK_PATH`` and
-``NOVOALIGN_PATH``. These should be set to the full directory path
-that contains these tools (the jar file for GATK and the executable
-binaries for Novoalign).
+This one-line command will install viral-ngs on a 64-bit macOS or Linux system::
 
-In order to run GATK, you will need to have an appropriate version of
-the Java JDK installed. As of this writing, Java 1.7 is required for
-GATK 3.3.0.
+  ./easy-deploy-script/easy-deploy-viral-ngs.sh setup
 
-Alternatively, if you are using the Snakemake pipelines, you can create
-a dictionary called "env_vars" in the config.yaml file for Snakemake,
-and the pipelines will automatically set all environment variables prior
-to running any scripts.
+One-line install command for Broad Institute users
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The version of MOSAIK we use seems to fail compile on GCC-4.9 but compiles
-fine on GCC-4.4. We have not tried intermediate versions of GCC, nor the
-latest versions of MOSAIK.
+This one-line command will download the ``easy-deploy-viral-ngs.sh`` script and setup viral-ngs in the current working directory. Simply ssh to one of the Broad login nodes and paste this command::
+
+  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -l m_mem_free=10G -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
+
+**Note:** The script will run the install on a UGER interactive node, so you must have the ability to create to start a new interactive session. A project can be specified via ``qrsh -P "<project_name>"``
+
+Usage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Installation**
+
+* ``./easy-deploy-viral-ngs.sh setup`` Installs a fresh copy of viral-ngs, installs all dependencies, and creates a directory, ``viral-ngs-etc/``, in the current working directory.
+
+Resulting directories::
+
+  viral-ngs-etc/
+      conda-env/
+      viral-ngs/
+      mc3/
+
+**Activating the environment**
+
+* ``source ./easy-deploy-viral-ngs.sh load`` Loads the dotkits needed by viral-ngs and activates the Python virtual environment
+
+**Creating a project directory**
+
+* ``./easy-deploy-viral-ngs.sh create-project <project_name>`` Creates a directory for a new Snakemake-compatible project, with data directories and symlinked run scripts. Copies in the files ``Snakefile`` and ``config.yaml``
+
+
+Resulting directories::
+
+  viral-ngs-analysis-software/
+      projects/
+          <project_name>/
+              Snakefile
+              bin/ (symlink)
+              config.yaml
+              data/
+              log/
+              reports/
+              run-pipe_LSF.sh (symlink)
+              run-pipe_UGER.sh (symlink)
+              samples-assembly-failures.txt
+              samples-assembly.txt
+              samples-depletion.txt
+              samples-runs.txt
+              tmp/
+              venv/ (symlink)
+              [...other project files...]
+
 
 Virtualized Installation (Easy Deploy)
 --------------------------------------
@@ -106,9 +138,9 @@ Requirements
 As noted above, GATK and NovoAlign cannot be installed automatically due to
 licensing restrictions. In order to run the easy deployment script, you will
 first need to license and download these tools, and set the ``GATK_PATH`` and
-``NOVOALIGN_PATH`` environment variables.
+``NOVOALIGN_LICENSE_PATH`` environment variables.
 
-The easy deployment script has been tested to run on OS X 10.10 (Yosemite) and
+The easy deployment script has been tested to run on OS X 10.11 (El Capitan) and
 Ubuntu 15.04 (Vivid Vervet).
 
 
@@ -150,7 +182,7 @@ after the fact via ``rsync``.
 Running Easy Deploy
 ~~~~~~~~~~~~~~~~~~~
 
-Running Easy Deploy to create a virtualized viral-ngs environment is as simple as running ``easy-deploy/run.sh``. Before running this script, copy any data you wish to have in the vm to the ``easy-deploy/data`` directory on your local machine. During setup, the
+Running Easy Deploy to create a virtualized viral-ngs environment is as simple as running ``easy-deploy-virtualized/run.sh``. Before running this script, copy any data you wish to have in the vm to the ``easy-deploy-virtualized/data`` directory on your local machine. During setup, the
 files will be copied into the ``~/data/`` directory of virtual machine.
 
 To start, the script ``run.sh`` installs the necessary dependencies on the user's machine (ansible, vagrant, virtualbox, and virtualbox-aws). The provisioning is handled by Ansible, with Vagrant handling creation of the VMs and EC2 instances. On OSX it depends on Homebrew, and will install it if it is not present. It depends on having apt on linux. Ruby >=2.0 is required for vagrant-aws, so versions of Ubuntu older than 15.04 (notably 14.04 LTS) will need to have ruby >=2.0 installed and made default.
@@ -160,4 +192,4 @@ Details on Easy Deploy
 
 Per the Vagrantfile, local VM RAM usage is set to 8GB. On EC2 it currently uses an m4.2xlarge instance with 32GB of RAM and 8 vCPUs.
 
-Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: `/home/ubuntu/`), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.
+Ansible clones the master branch of viral-ngs from GitHub, creates a Python 3 virtual environment, and installs the viral-ngs Python dependencies. The viral-ngs tool unit tests are run to download, install, and build all of the viral-ngs tools. A ``Snakefile`` for viral-ngs is copied to the home directory of the VM (locally: ``/home/vagrant/``, on EC2: `/home/ubuntu/`), along with an associated ``config.yaml`` file. Files to contain sample names (``sample-depletion.txt``, etc.) are also created. A directory is created within the VM, ``~/data/``, to store data to be processed. This directory on the VM is synced to the ``./data/`` directory on the host machine, relative to the location of the ``easy-deploy-virtualized/Vagrantfile``. On local VMs, syncing of the directory is two-way and fast. On EC2 instances, the syncing is currently one way (local->EC2) due to Vagrant limitations.

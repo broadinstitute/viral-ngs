@@ -15,7 +15,6 @@ import Bio.SeqIO
 
 TOOL_NAME = "mummer"
 tool_version = '3.23'
-url = 'http://iweb.dl.sourceforge.net/project/mummer/mummer/{ver}/MUMmer{ver}.tar.gz'
 
 log = logging.getLogger(__name__)
 
@@ -25,12 +24,7 @@ class MummerTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [
-                tools.CondaPackage(TOOL_NAME, version=tool_version),
-                tools.DownloadPackage(url.format(ver=tool_version),
-                                      'MUMmer{}'.format(tool_version),
-                                      post_download_command='cd MUMmer{}; make -s'.format(tool_version),
-                                      verifycmd='{}/MUMmer{}/mummer -h > /dev/null 2>&1'.format(
-                                          util.file.get_build_path(), tool_version))
+                tools.CondaPackage(TOOL_NAME, version=tool_version)
                 ]
         tools.Tool.__init__(self, install_methods=install_methods)
 
@@ -48,7 +42,7 @@ class MummerTool(tools.Tool):
         toolCmd = [os.path.join(self.install_and_get_path(), 'mummer'),
             refFasta] + qryFastas
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd, check=True)
+        subprocess.check_call(toolCmd)
 
     def nucmer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None):
@@ -72,7 +66,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd, check=True)
+        subprocess.check_call(toolCmd)
 
     def promer(self, refFasta, qryFasta, outDelta, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None):
@@ -96,7 +90,7 @@ class MummerTool(tools.Tool):
             toolCmd.extend(['--mincluster', str(mincluster)])
         toolCmd.extend([refFasta, qryFasta])
         log.debug(' '.join(toolCmd))
-        util.misc.run_and_print(toolCmd, check=True)
+        subprocess.check_call(toolCmd)
 
     def delta_filter(self, inDelta, outDelta):
         toolCmd = [os.path.join(self.install_and_get_path(), 'delta-filter'),

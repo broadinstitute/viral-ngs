@@ -12,6 +12,10 @@ email_point_of_contact_for_ncbi: "someone@example.com"
 # Directory path containing the bmTagger databases used for depletion
 # of human reads and metagenomic contaminants
 # See: ftp://ftp.ncbi.nih.gov/pub/agarwala/bmtagger/README.bmtagger.txt
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz
 bmtagger_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 bmtagger_dbs_remove:
   - "hg19"
@@ -21,23 +25,33 @@ bmtagger_dbs_remove:
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
 #      http://www.compbio.ox.ac.uk/analysis_tools/BLAST/formatdb.shtml
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz
 blast_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 # Within blast_db_dir, the prefix of the database containing sequences to remove during depletion
 blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
+# For pre-built hosted databases, you may download:
+#  - https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz
 trim_clip_db: "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
-spikeins_db: "/idi/sabeti-scratch/kandersen/references/other/ercc_spike-ins.fasta"
+spikeins_db: "/idi/sabeti-scratch/genomes/other/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz
 kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_full_20150910"
 
 # Path of DIAMOND database file for metagenomics identification
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz
 diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 
 # Directory of the krona database for generating html reports.
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
 krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
 
 # Directory of the NCBI taxonomy dmp files
@@ -114,6 +128,13 @@ assembly_min_length_fraction_of_reference: 0.50
 # sequence must have to be considered acceptable quality.
 assembly_min_unambig: 0.50
 
+# parameters passed to Novoalign during the assembly refinement stages
+refine_assembly_1_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
+refine_assembly_2_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100"
+
+# parameters passed to Novoalign for mapping reads back to the consensus
+map_reads_to_self_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100 -k"
+
 # Alignment parameters for nucmer (MUMmer) during the scaffolding step.
 # Shown below are defaults.
 #assembly_nucmer_max_gap:     200
@@ -139,6 +160,19 @@ mafft_maxiters: 1000
 # Roughly, ~1/2 hour to 1 hour required per million reads.
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
 trinity_n_reads: 250000
+
+# Minimum number of reads on each strand
+vphaser_min_reads_each: 5
+
+# Maximum allowable ratio of number of reads on the two
+# strands. Ignored if vphaser_max_bins=0.
+vphaser_max_bins: 10
+
+# A simple filter for the VCF merge step.
+# If set to true, keep only the alleles that have at least two
+# independent libraries of support and 
+# allele freq > 0.005. If false, no filtering is performed.
+vcf_merge_naive_filter: false
 
 #    |----------------------- Data storage locations ---------------------------
 
@@ -178,9 +212,12 @@ reports_dir: "reports"
 # The directory containing the viral-ngs files (intrahost.py, taxon_filter.py, etc.)
 bin_dir: "bin"
 
-# The directory of the Python virtual environment to be
+# The directory of the virtual environment to be
 # activated before execution of the pipeline
-venv_dir: "venv"
+conda_env_dir: "conda-env"
+
+# The directory of a (mini)conda install
+miniconda_dir: "mc3"
 
 # The directory of where the reference genome fasta files should be stored.
 ref_genome_dir: "ref_genome"

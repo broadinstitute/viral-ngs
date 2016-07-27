@@ -1,6 +1,6 @@
 # Unit tests for intrahost.py
 
-__author__ = "PLACEHOLDER"
+__author__ = "dpark@broadinstitute.org"
 
 # built-ins
 from collections import OrderedDict
@@ -130,7 +130,7 @@ class MockVphaserOutput:
                            for acount in acounts]
 
 
-class TestPerSample(test.TestCaseWithTmp):
+class TestIntrahostFilters(unittest.TestCase):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
         a single sample, reformats the output slightly, and performs
@@ -151,6 +151,15 @@ class TestPerSample(test.TestCaseWithTmp):
         self.assertAlmostEqual(float(output[0][6]), expected[6], places=4)
         self.assertEqual(output[0][7:], expected[7:])
 
+
+@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+class TestPerSample(test.TestCaseWithTmp):
+    ''' This tests step 1 of the iSNV calling process
+        (intrahost.vphaser_one_sample), which runs V-Phaser2 on
+        a single sample, reformats the output slightly, and performs
+        strand-bias filtering and adds library-bias statistics.
+    '''
+
     def test_vphaser_one_sample(self):
         # Files here were created as follows:
         # - in.bam was copied from input directory for TestVPhaser2; see notes
@@ -170,52 +179,6 @@ class TestPerSample(test.TestCaseWithTmp):
         outTab = util.file.mkstempfname('.txt')
         intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
-        self.assertEqualContents(outTab, expected)
-
-    def test_vphaser_one_sample_indels(self):
-        # Files here were created as follows:
-        # ref.indels.fasta is Seed-stock-137_S2_L001_001.fasta
-        # in.indels.bam was created from Seed-stock-137_S2_L001_001.mapped.bam
-        #     as follows:
-        # Created two .sam files using samtools view, restricting to ranges
-        # 6811-7011 and 13081-13281, respectively. Paired reads were removed
-        # from those files by throwing out the second occurence of any read name
-        # and anding the flag fields with 16. Then, a random 90% of reads were
-        # removed, except that any reads containing the indel variants at
-        # 6911 and 13181 were kept. Then the resulting 2 files were combined.
-        myInputDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(myInputDir, 'in.indels.bam')
-        refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
-        outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0)
-        expected = os.path.join(myInputDir, 'vphaser_one_sample_indels_expected.txt')
-        self.assertEqualContents(outTab, expected)
-
-    def test_vphaser_one_sample_2libs(self):
-        # in.2libs.bam was created by "manually" editing in.bam and moving about
-        # 1/3 of the reads to ReadGroup2.
-        myInputDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(myInputDir, 'in.2libs.bam')
-        refFasta = os.path.join(myInputDir, 'ref.fasta')
-        outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
-        expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
-        self.assertEqualContents(outTab, expected)
-
-    def test_vphaser_one_sample_3libs_and_chi2(self):
-        # In addition to testing that we can handle 3 libraries, this is testing
-        #    the chi2_contingency approximation to fisher_exact. The 4th, 5th,
-        #    and 6th rows have large enough minor allele count that their
-        #    p-values are calculated using the chi2 approximation. The other
-        #    rows are testing the 2 x 3 case of fisher_exact.
-        # in.3libs.bam was created by "manually" editing in.2libs.bam and moving
-        # about 1/2 of the reads in ReadGroup2 to ReadGroup3.
-        myInputDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(myInputDir, 'in.3libs.bam')
-        refFasta = os.path.join(myInputDir, 'ref.fasta')
-        outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
-        expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
 
@@ -395,6 +358,34 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(':'.join(rows[1][1].split(':')[:2]), '0:0.0')
         self.assertEqual(':'.join(rows[1][2].split(':')[:2]), '0:0.3')
 
+    def test_snps_with_varying_read_depth(self):
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1_1', 'ATCGGAC')])
+        # ATCGGAC-
+        merger.add_genome('s2', [('s2_1', 'TCGGACT')])
+        # -TCGGACT
+        merger.add_genome('s3', [('s3_1', 'TCGGACT')])
+        # -TCGGACT
+        merger.add_snp('s1', 's1_1', 3, [('C', 60, 100), ('A', 25, 15)])
+        merger.add_snp('s2', 's2_1', 2, [('C', 12, 6), ('A', 2, 0)])
+        merger.add_snp('s3', 's3_1', 5, [('A', 7, 4), ('T', 2, 3)])
+        rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos + 1, 3)
+        self.assertEqual(rows[0].ref, 'C')
+        self.assertEqual(rows[0].alt, 'A')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:3]), '0:0.2:200')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:3]), '0:0.1:20')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(rows[1].contig, 'ref1')
+        self.assertEqual(rows[1].pos + 1, 6)
+        self.assertEqual(rows[1].ref, 'A')
+        self.assertEqual(rows[1].alt, 'T')
+        self.assertEqual(':'.join(rows[1][0].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(':'.join(rows[1][1].split(':')[:3]), '0:0.0:.')
+        self.assertEqual(':'.join(rows[1][2].split(':')[:3]), '0:0.3125:16')
+
     def test_snps_downstream_of_indels(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
         merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
@@ -447,7 +438,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].alt, 'A')
         self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.1')
         self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '1:1.0')
-        self.assertEqual(rows[0][2], '.:.:.:.')
+        self.assertEqual(rows[0][2], '.:.:.:.:.')
 
     def test_simple_insertions(self):
         # IA, ITCG, etc
@@ -517,7 +508,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 4)
         self.assertEqual(rows[0].ref, 'GTTC')
         self.assertEqual(rows[0].alt, 'GC,G')
-        self.assertEqual(rows[0][0], '1:0.9,0.1:0,1,1:.,1.0,1.0')
+        self.assertEqual(rows[0][0], '1:0.9,0.1:200:0,1,1:.,1.0,1.0')
 
     def test_insertion_spans_deletion(self):
         # sample assembly has deletion against reference and isnv inserts back into it
@@ -604,14 +595,14 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].ref, 'GAA')
         # multiple options because the allele frequencies can be the same
         self.assertIn(rows[0].alt, ['C,G,A', 'G,C,A'])
-        self.assertIn(rows[0][0], ['2:0.0,0.7,0.3:0,0,1,1:.,.,1.0,1.0', '1:0.7,0.0,0.3:0,1,0,1:.,1.0,.,1.0'])
-        self.assertIn(rows[0][1], ['1:1.0,0.0,0.0:.:.', '2:0.0,1.0,0.0:.:.'])
+        self.assertIn(rows[0][0], ['2:0.0,0.7,0.3:200:0,0,1,1:.,.,1.0,1.0', '1:0.7,0.0,0.3:200:0,1,0,1:.,1.0,.,1.0'])
+        self.assertIn(rows[0][1], ['1:1.0,0.0,0.0:.:.:.', '2:0.0,1.0,0.0:.:.:.'])
         self.assertEqual(rows[1].contig, 'ref1')
         self.assertEqual(rows[1].pos + 1, 7)
         self.assertEqual(rows[1].ref, 'C')
         self.assertEqual(rows[1].alt, 'T')
-        self.assertEqual(rows[1][0], '0:0.0:.:.')
-        self.assertEqual(rows[1][1], '1:0.8:1,1:1.0,1.0')
+        self.assertEqual(rows[1][0], '0:0.0:.:.:.')
+        self.assertEqual(rows[1][1], '1:0.8:200:1,1:1.0,1.0')
 
     def test_snp_past_end_of_some_consensus(self):
         # Some sample contains SNP beyond the end of the consensus
@@ -631,8 +622,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 2)
         self.assertEqual(rows[0].ref, 'T')
         self.assertEqual(rows[0].alt, 'G')
-        self.assertEqual(rows[0][0], '0:0.3:1,1:1.0,1.0')
-        self.assertEqual(rows[0][1], '.:.:.:.')
+        self.assertEqual(rows[0][0], '0:0.3:200:1,1:1.0,1.0')
+        self.assertEqual(rows[0][1], '.:.:.:.:.')
 
     def test_deletion_within_insertion(self):
         # sample assembly has insertion against reference and isnv deletes from it

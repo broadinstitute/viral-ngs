@@ -1,0 +1,288 @@
+-
+  hosts: all
+  vars:
+    # Replace with ansible_user in ansible 2.0
+    user: "{{ ansible_user }}"
+    home_dir: "/home/{{ user }}"
+    deploy: "clone"
+    synced_git_dir: "{{ home_dir }}/viral-ngs"
+    viral_ngs_tree_id_cache: "{{ home_dir }}/viral-ngs-hash"
+    project_dir: "{{ home_dir }}/bin"
+    venv_dir: "{{ home_dir }}/venv"
+    data_dir: "{{ home_dir }}/data"
+    licensed_tools_dir: "{{ home_dir }}/licensed_tools"
+    gatk_path: "{{ licensed_tools_dir }}/gatk"
+    novoalign_path: "{{ licensed_tools_dir }}/novoalign"
+    conda_path: "{{home_dir}}/miniconda3/bin"
+  environment:
+    GATK_PATH: "{{ gatk_path }}"
+    NOVOALIGN_PATH: "{{ novoalign_path }}"
+    TEST_VAR: "foo"
+  become: yes
+  tasks:
+    - name: update apt cache (apt-get update)
+      apt: update_cache=yes
+
+    - name: Install gcc-4.7 # needed to build MOSAIK
+      apt: pkg=gcc-4.7 state=installed
+
+    #- name: Add Ubuntu universe repository # needed for bamtools
+    #  apt_repository:
+    #    repo: 'deb-src http://archive.canonical.com/ubuntu vivid universe'
+    #    state: present
+
+    - name: Install htop
+      apt: pkg=htop state=installed
+    - name: Install git
+      apt: pkg=git state=installed
+
+    - name: download conda installer script
+      get_url:
+        url: https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        dest: "{{ home_dir }}/Miniconda3-latest-Linux-x86_64.sh"
+        mode: "0755"
+      register: conda_script_downloaded
+    - name: install conda
+      command: "bash {{ home_dir }}/Miniconda3-latest-Linux-x86_64.sh -b" # -b indicates agreement with license
+      become: no
+      args:
+        creates: "{{home_dir}}/miniconda3"
+      when: conda_script_downloaded|success
+    - name: "add {{conda_path}} to path"
+      lineinfile:
+        dest: /etc/environment
+        state: present
+        backrefs: yes
+        regexp: 'PATH=(["]*)((?!.*?{{conda_path}}).*?)(["]*)$'
+        line: 'PATH=\1\2:{{conda_path}}\3'
+    - name: "run conda_setup.sh"
+      script: conda_setup.sh
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
+
+    - name: Install python-virtualenv
+      apt: pkg=python-virtualenv state=installed
+    - name: Install python3
+      apt: pkg=python3 state=installed
+    - name: Install python3-pip
+      apt: pkg=python3-pip state=installed
+    - name: Install python-software-properties
+      apt: pkg=python-software-properties state=installed
+    - name: Install openjdk-7-jdk
+      apt: pkg=openjdk-7-jdk state=installed
+    - name: Install zlib1g-dev
+      apt: pkg=zlib1g-dev state=installed
+    - name: Install unzip
+      apt: pkg=unzip state=installed
+    - name: Install libncur5-dev
+      apt: pkg=libncurses5-dev state=installed
+    - name: Install libncursesw5-dev
+      apt: pkg=libncursesw5-dev state=installed
+
+    # Kraken deps
+    - name: Install cmake
+      apt: pkg=cmake state=installed
+    - name: Install autoconf
+      apt: pkg=autoconf state=installed
+    - name: Install libtool
+      apt: pkg=libtool state=installed
+    # Diamond deps
+    - name: Install libboost-all-dev
+      apt: pkg=libboost-all-dev state=installed
+
+    # these apt packages are perhaps unnecessary
+    - name: Install zlibc
+      apt: pkg=zlibc state=installed
+    - name: Install libzip2
+      apt: pkg=libzip2 state=installed
+    - name: Install libz-dev
+      apt: pkg=libz-dev state=installed
+    - name: Install bamtools
+      apt: pkg=bamtools state=installed
+    - name: Install libbamtools-dev
+      apt: pkg=libbamtools-dev state=installed
+
+    - name: Get cached viral ngs tree id
+      command: "cat {{ viral_ngs_tree_id_cache }}"
+      register: cached_viral_ngs_tree_id
+      ignore_errors: yes
+      when: deploy == "archive"
+
+    - name: Get synced git HEAD tree id
+      command: git rev-parse --verify HEAD
+      register: viral_ngs_head_id
+      args:
+        chdir: "{{ synced_git_dir }}"
+      when: deploy == "archive"
+
+    - name: Viral ngs git archive copy from synced folder
+      shell: "{{ item }}"
+      args:
+        chdir: "{{ synced_git_dir }}"
+      with_items:
+        - "rm -rf {{ project_dir }}"
+        - "mkdir -p {{ project_dir }}"
+        - "git archive {{ viral_ngs_head_id.stdout }} | tar -x -C {{ project_dir }}"
+        - "git describe --tags --always --dirty > {{ project_dir }}/VERSION"
+        - "echo {{ viral_ngs_head_id.stdout }} > {{ viral_ngs_tree_id_cache }}"
+      when: deploy == "archive" and cached_viral_ngs_tree_id.stdout != viral_ngs_head_id.stdout
+
+    - name: Cloning latest version of viral-ngs from GitHub
+      git:
+        repo: https://github.com/broadinstitute/viral-ngs.git
+        dest: "{{ project_dir }}"
+        version: HEAD
+        accept_hostkey: yes
+        depth: 1
+      when: deploy == "clone"
+
+    - name: Deleting directory for symlink deploy
+      file:
+        path: "{{ project_dir }}"
+        state: absent
+      when: deploy == "sync"
+
+    - name: Symlinking synced git repo to project dir
+      file:
+        src: "{{ synced_git_dir }}"
+        dest: "{{ project_dir }}"
+        state: link
+      when: deploy == "sync"
+
+    - name: copy viral-ngs config.yaml
+      command: "cp {{ project_dir }}/pipes/config.yaml  {{ home_dir }}/config.yaml" # {{ data_dir }}/config.yaml
+      args:
+        chdir: "{{ home_dir }}"
+        creates: "{{ data_dir }}/config.yaml"
+
+    - name: copy viral-ngs Snakefile
+      command: "cp {{ project_dir }}/pipes/Snakefile  {{ home_dir }}/Snakefile" # {{ data_dir }}/Snakefile
+      args:
+        chdir: "{{ home_dir }}"
+        creates: "{{ data_dir }}/Snakefile"
+
+    - name: copy gatk; REQUIRES host GATK_PATH set to licensed copy
+      copy:
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        src: "{{ lookup('env','GATK_PATH') }}/" # trailing slash to copy contents only like rsync
+        dest: "{{ gatk_path }}"
+
+    - name: copy novoalign; REQUIRES host NOVOALIGN_PATH set to licensed copy
+      copy:
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        src: "{{ lookup('env','NOVOALIGN_PATH') }}/" # trailing slash to copy contents only like rsync
+        dest: "{{ novoalign_path }}"
+
+    - name: Set GATK_PATH env var
+      lineinfile:
+        dest: "/etc/environment"
+        line: "GATK_PATH={{ gatk_path }}"
+        insertafter: 'EOF'
+        regexp: "GATK_PATH={{ gatk_path }}"
+        state: present
+
+    - name: Set NOVOALIGN_PATH env var
+      lineinfile:
+        dest: "/etc/environment"
+        line: "NOVOALIGN_PATH={{ novoalign_path }}"
+        insertafter: 'EOF'
+        regexp: "NOVOALIGN_PATH={{ novoalign_path }}"
+        state: present
+
+    - name: Create virtualenv
+      command: "virtualenv --python=/usr/bin/python3.4 {{ venv_dir }}"
+      args:
+        creates: "{{ venv_dir }}"
+
+    - name: Setup viral-ngs virtualenv (general)
+      pip:
+        virtualenv: "{{ venv_dir }}"
+        requirements: "{{ project_dir }}/requirements.txt"
+
+    - name: Setup viral-ngs virtualenv (Snakemake)
+      pip:
+        virtualenv: "{{ venv_dir }}"
+        requirements: "{{ project_dir }}/requirements-tests.txt"
+
+    - name: Setup viral-ngs virtualenv (Snakemake)
+      pip:
+        virtualenv: "{{ venv_dir }}"
+        requirements: "{{ project_dir }}/requirements-pipes.txt"
+
+    - name: Set owner of various files
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        #mode: 0755
+        recurse: yes
+      with_items:
+        - "{{ home_dir }}/"
+
+    - name: Set execution bit of various files
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: 0755
+        recurse: yes
+      with_items:
+        - "{{ project_dir }}/tools/build/"
+        - "{{ gatk_path }}/"
+        - "{{ novoalign_path }}/"
+
+    - name: Copy virtualenv wrapper template
+      template:
+        src: "venv_exec.j2"
+        dest: "{{ venv_dir }}/exec"
+        mode: 0755
+
+    - name: Install viral-ngs tools
+      command: "{{ venv_dir }}/exec py.test -v test/unit/test_tools.py"
+      args:
+        chdir: "{{ project_dir }}"
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{conda_path}}"
+
+    - name: Modify .bashrc so venv is loaded on connect
+      lineinfile:
+        dest: "{{ home_dir }}/.bashrc"
+        line: 'test -z "$VIRTUAL_ENV" && source {{ venv_dir }}/bin/activate'
+        insertafter: 'EOF'
+        regexp: 'test -z "$VIRTUAL_ENV" && source {{ venv_dir }}/bin/activate'
+        state: present
+
+    - name: Create some required files
+      file:
+        path: "{{ item }}"
+        state: touch
+        owner: "{{ user }}"
+        group: "{{ user }}"
+      with_items:
+        - "{{ home_dir }}/samples-depletion.txt"
+        - "{{ home_dir }}/samples-assembly.txt"
+        - "{{ home_dir }}/samples-runs.txt"
+        - "{{ home_dir }}/samples-assembly-failures.txt"
+        #- "{{ home_dir }}/flowcells.txt"
+
+    - name: Set owner of various files
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        #mode: 0755
+        recurse: yes
+      with_items:
+        - "{{ home_dir }}/"
+        - "{{ data_dir }}/"
+        - "{{ data_dir }}/00_raw/"
+        - "{{ data_dir }}/01_cleaned/"
+        - "{{ data_dir }}/01_per_sample/"
+        - "{{ data_dir }}/02_align_to_self/"
+        - "{{ data_dir }}/02_assembly/"
+        - "{{ data_dir }}/03_align_to_ref/"
+        - "{{ data_dir }}/03_interhost/"
+        - "{{ data_dir }}/04_intrahost/"

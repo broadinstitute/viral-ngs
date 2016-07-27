@@ -30,8 +30,8 @@ rule depletion:
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
             UGER=config.get('UGER_queues', {}).get('long', '-q long'),
-            bmtaggerDbs = expand("{dbdir}/{db}", dbdir=config["bmtagger_db_dir"], db=config["bmtagger_dbs_remove"]),
-            blastDbs = expand("{dbdir}/{db}", dbdir=config["blast_db_dir"], db=config["blast_db_remove"]),
+            bmtaggerDbs = " ".join(expand("{dbdir}/{db}", dbdir=config["bmtagger_db_dir"], db=config["bmtagger_dbs_remove"])),
+            blastDbs = " ".join(expand("{dbdir}/{db}", dbdir=config["blast_db_dir"], db=config["blast_db_remove"])),
             revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
             logid="{sample}",
             threads=int(config.get("number_of_threads", 1))
@@ -56,16 +56,19 @@ rule filter_to_taxon:
         expand('{lastal_ref_db_dir}/lastal.suf', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
         expand('{lastal_ref_db_dir}/lastal.tis', lastal_ref_db_dir=config["lastal_ref_db_dir"])
     output: config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
-    resources: mem=3
+    resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             lastalDb=os.path.join(config["lastal_ref_db_dir"], "lastal"),
             logid="{sample}"
     shell:  "{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
 
 def merge_one_per_sample_inputs(wildcards):
     if 'seqruns_demux' not in config or not os.path.isfile(config['seqruns_demux']):
-        return config["data_dir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
+        if wildcards.adjective == 'raw':
+            return config["data_dir"] + '/' + config["subdirs"]["source"] + '/' + wildcards.sample + '.bam'
+        else:
+            return config["data_dir"]+'/'+config["subdirs"]["depletion"] +'/'+ wildcards.sample + '.' + wildcards.adjective + '.bam'
     runs = set()
     for lane in read_tab_file(config['seqruns_demux']):
         for well in read_tab_file(lane['barcode_file']):
@@ -87,7 +90,7 @@ rule merge_one_per_sample:
     '''
     input:  merge_one_per_sample_inputs
     output: config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=7
+    resources: mem=10
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}-{adjective}",

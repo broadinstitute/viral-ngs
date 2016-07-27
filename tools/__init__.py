@@ -3,14 +3,17 @@
 __author__ = "dpark@broadinstitute.org,irwin@broadinstitute.org"
 
 import collections
+import json
+import operator
 import os
 import re
 import logging
 import tempfile
 import shutil
+import shlex
+import subprocess
 import util.file
 import util.misc
-import json
 
 try:
     # Python 3.x
@@ -36,6 +39,21 @@ __all__ = sorted(
 installed_tools = {}
 
 _log = logging.getLogger(__name__)
+
+
+def iter_leaf_subclasses(aClass):
+    "Iterate over subclasses at all levels that don't themselves have a subclass"
+    isLeaf = True
+    for subclass in sorted(aClass.__subclasses__(), key=operator.attrgetter("__name__")):
+        isLeaf = False
+        for leafClass in iter_leaf_subclasses(subclass):
+            if not getattr(leafClass, '_skiptest', False):
+                yield leafClass
+    if isLeaf:
+        yield aClass
+
+def all_tool_classes():
+    return iter_leaf_subclasses(Tool)
 
 
 def get_tool_by_name(name):
@@ -215,6 +233,10 @@ class CondaPackage(InstallMethod):
         env_root_path=None,
         conda_cache_path=None,
         patches=None,
+        post_install_command=None,
+        post_install_ret=0,
+        post_verify_command=None,
+        post_verify_ret=0
     ):
         # if the executable name is specifed, use it; otherwise use the package name
         self.executable = executable or package
@@ -225,24 +247,71 @@ class CondaPackage(InstallMethod):
         else:
             self.version = CondaPackageVersion(version)
 
+        self.post_install_command = post_install_command
+        self.post_install_ret = post_install_ret
+
+        # call the post-verification command.
+        # Useful for copying in license files, building databases, etc.
+        # The post-verify command is executed relative to the conda environment bin/
+        # And has the active conda environment on the PATH
+        self.post_verify_command = post_verify_command
+        self.post_verify_ret = post_verify_ret
+        self.post_verify_cmd_executed = False
+
         self.verifycmd = verifycmd
         self.verifycode = verifycode
         self.require_executability = require_executability
         self.patches = patches or []
 
-        env_root_path = env_root_path or os.path.join(util.file.get_build_path(), 'conda-tools')
-        env = env or 'default'
-        self.env_path = os.path.realpath(os.path.expanduser(
-            os.path.join(env_root_path, env)))
+        # if we have specified a conda env/root, use it
+        # alternatively, use viral-ngs tools dir as default env root if os.environ["CONDA_ENV_PATH"] is not defined
+        #
+        # in newer versions of conda, CONDA_DEFAULT_ENV can be used
+        # as it is always the full path (in earlier versions it could be name or path)
+        # CONDA_ENV_PATH is always a path, but not always present        
+        self.env_path = None
+        if "CONDA_ENV_PATH" in os.environ and len(os.environ["CONDA_ENV_PATH"]):
+            _log.debug('CONDA_ENV_PATH found')
+            last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_ENV_PATH"]))
+            self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.environ["CONDA_ENV_PATH"]
+        elif "CONDA_DEFAULT_ENV" in os.environ and len(os.environ["CONDA_DEFAULT_ENV"]):
+            _log.debug('CONDA_ENV_PATH not found, using CONDA_DEFAULT_ENV')
+            conda_env_path = os.environ.get('CONDA_DEFAULT_ENV')  # path to current conda environment
+            if conda_env_path:
+                if os.path.isdir(conda_env_path):
+                    _log.debug('Conda env found is specified as dir: %s' % conda_env_path)
+                    conda_env_path = os.path.abspath(conda_env_path)
+                    last_path_component = os.path.basename(os.path.normpath(conda_env_path))
+                    self.env_path = os.path.dirname(last_path_component) if last_path_component == "bin" else conda_env_path
+                else: # if conda env is an environment name, infer the path
+                    _log.debug('Conda env found is specified by name: %s' % conda_env_path)
+                    result = util.misc.run_and_print(["conda", "env", "list", "--json"], silent=True, env=os.environ)
+                    if result.returncode == 0:
+                        command_output = result.stdout.decode("UTF-8")
+                        data = json.loads(self._string_from_start_of_json(command_output))
+                        if len(data) > 0:
+                            if "envs" in data and len(data["envs"]):
+                                for item in data["envs"]:
+                                    if os.path.basename(os.path.realpath(item)) == conda_env_path:
+                                        self.env_path = os.path.realpath(item)
+                                        break
 
-        conda_cache_path = conda_cache_path or os.path.join(util.file.get_build_path(), 'conda-cache')
-        self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
+        # if the env is being overridden, or if we could not find an active conda env
+        if env_root_path or env or not self.env_path:
+            env_root_path = env_root_path or os.path.join(util.file.get_project_path(), 'tools', 'conda-tools')
+            env = env or 'default'
+            self.env_path = os.path.realpath(os.path.expanduser(
+                os.path.join(env_root_path, env)))
 
         # set an env variable to the conda cache path. this env gets passed to the
         # the subprocess, and the variable instructs conda where to place its cache files
+        conda_cache_path = conda_cache_path or os.path.join(util.file.get_project_path(), 'tools', 'conda-cache')
+        self.conda_cache_path = os.path.realpath(os.path.expanduser(conda_cache_path))
         self.conda_env = os.environ
-        self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path
+        old_envs_path = os.environ.get('CONDA_DEFAULT_ENV')
+        self.conda_env["CONDA_ENVS_PATH"] = conda_cache_path+":"+os.path.dirname(self.env_path)
 
+        #_log.info("Tool install conda env path: %s", self.env_path)
         self.installed = False
         self._is_attempted = False
 
@@ -282,12 +351,8 @@ class CondaPackage(InstallMethod):
         return os.path.join(self.bin_path, self.executable)
 
     def apply_patches(self):
-        result = None
         for path, patch in self.patches:
-            result = self._patch(path, patch)
-            if result.returncode != 0:
-                return result
-        return result
+            self._patch(path, patch)
 
 
     def _patch(self, path, patch):
@@ -298,12 +363,11 @@ class CondaPackage(InstallMethod):
         file_path = os.path.join(self.env_path, path)
         patch_path = os.path.join(
             util.file.get_project_path(), 'tools', 'patches', patch)
-        return util.misc.run_and_print(['patch', file_path, patch_path],
-                                       check=True)
+        subprocess.check_call(['patch', file_path, patch_path])
 
     @property
     def _package_installed(self):
-        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(["conda", "list", "-f", "-c", "-p", self.env_path, "--json", self.package], loglevel=logging.DEBUG, env=self.conda_env)
         if result.returncode == 0:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -331,15 +395,30 @@ class CondaPackage(InstallMethod):
         else:
             self.installed = False
         if self.installed:
+            # call the post-verification command.
+            # Useful for copying in license files, building databases, etc.
+            # This is executed relative to the conda environment bin/
+            # And has the active conda environment on the PATH
+            if (not self.post_verify_cmd_executed) and self.post_verify_command:
+                post_verify_command = shlex.split(self.post_verify_command)
+                _log.debug("Running post-verification cmd: {}".format(self.post_verify_command))
+
+                result = util.misc.run_and_print(post_verify_command, silent=False, check=False, env=self.conda_env, cwd=self.bin_path)
+                post_verify_cmd_return_code = result.returncode
+                if post_verify_cmd_return_code == self.post_verify_ret:
+                    self.post_verify_cmd_executed = True
+                else:
+                    raise subprocess.CalledProcessError(post_verify_cmd_return_code, "Post verification command failed with exit %s: %s" % (post_verify_cmd_return_code, self.post_verify_command))
+
             return installed_version
         return False
 
     def _attempt_install(self):
         try:
             # check for presence of conda command
-            util.misc.run_and_print(["conda", "-V"], silent=True, check=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], loglevel=logging.INFO, check=True, env=self.conda_env)
         except:
-            _log.debug("conda NOT installed; using custom tool install")
+            _log.debug("conda NOT installed")
             self._is_attempted = True
             self.installed = False
             return
@@ -375,12 +454,13 @@ class CondaPackage(InstallMethod):
         _log.debug("Attempting install...")
         self.install_package()
         self.verify_install()
+        self.post_install()
 
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
         run_cmd = ["conda", "list", "-c", "--json", "-f", "-p", self.env_path, self.package]
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, silent=True, check=False, env=self.conda_env)
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
@@ -400,12 +480,34 @@ class CondaPackage(InstallMethod):
                     return CondaPackageVersion(installed_version, installed_build_type)
         return None
 
+    def package_available(self):
+        # If we ever use conda to install pip packages as tools, "-c" needs to be removed
+        run_cmd = ["conda", "search", "--json", "-c", self.channel, self.package]
+
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.INFO, env=self.conda_env)
+        if result.returncode == 0:
+            try:
+                command_output = result.stdout.decode("UTF-8")
+                data = json.loads(self._string_from_start_of_json(command_output))
+            except:
+                _log.warning("failed to decode JSON output from conda search: %s", result.stdout.decode("UTF-8"))
+                return # return rather than raise so we can fall back to the next install method
+
+            if data and len(data):
+                if self.package in data and "error" not in data:
+                    for sub_pkg in data[self.package]:
+                        if sub_pkg.get("version", "") == self.version.version_spec:
+                            return True
+
+        _log.info("Conda package for %s is not available on this platform.", self.package)
+        return False
+
     def uninstall_package(self):
         run_cmd = ["conda", "remove", "-q", "-y", "--json", "-p", self.env_path, self.package]
 
         result = util.misc.run_and_print(
             run_cmd,
-            silent=True,
+            loglevel=logging.INFO,
             env=self.conda_env)
 
         if result.returncode == 0:
@@ -423,6 +525,10 @@ class CondaPackage(InstallMethod):
         self.verify_install()
 
     def install_package(self):
+        #if not self.package_available():
+        #    _log.error("Conda package for %s cannot be installed; it is not available on this platform. Related functionality may not be available.", self.package)
+        #    return
+
         # try to create the environment and install the package
         run_cmd = ["conda", "create", "-q", "-y", "--json", "-c", self.channel, "-p", self.env_path, self._package_str]
 
@@ -433,7 +539,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, silent=True, env=self.conda_env)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.INFO, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -448,10 +554,11 @@ class CondaPackage(InstallMethod):
 
             result = util.misc.run_and_print(
                 [
-                    "conda", "install", "--json", "-c", self.channel, "-y", "-q", "-p", self.env_path,
+                    # --no-update-dependencies ensures subsequent installs do not bump versions of prior pinned installs
+                    "conda", "install", "--json", "-c", self.channel, "-y", "-q", "--no-update-dependencies", "-p", self.env_path,
                     self._package_str
                 ],
-                silent=True,
+                loglevel=logging.DEBUG,
                 env=self.conda_env,
             )
 
@@ -465,15 +572,23 @@ class CondaPackage(InstallMethod):
 
                 if data["success"] == True:
                     _log.debug("Package installed.")
-            result = self.apply_patches()
-            if result and result.returncode != 0:
-                _log.error("Failed to apply patches.")
-                return
+            self.apply_patches()
 
         else:
             if "success" in data.keys() and data["success"]:
                 # we were able to create the environment and install the package
                 _log.debug("Conda environment created and package installed.")
+
+    def post_install(self):
+        """
+            Runs a shell command after package installation, 
+            relative to the directory containing the executable
+        """
+        if self.post_install_command:
+            destination_dir = os.path.dirname(os.path.realpath(self.executable_path()))
+            return_code = os.system('cd "{}" && {}'.format(destination_dir, self.post_install_command))
+            if self.post_install_ret is not None:
+                assert return_code == self.post_install_ret
 
 
 class DownloadPackage(InstallMethod):

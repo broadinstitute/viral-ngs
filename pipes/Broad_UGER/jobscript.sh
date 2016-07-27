@@ -4,15 +4,16 @@
 
 source /broad/software/scripts/useuse
 use Python-3.4
+CONDAENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["conda_env_dir"]));f.close()'`
+MINICONDADIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["miniconda_dir"]));f.close()'`
 BINDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["bin_dir"]));f.close()'`
 DATADIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["data_dir"]));f.close()'`
-VENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["venv_dir"]));f.close()'`
 unuse Python-3.4
 
-source "$BINDIR/pipes/Broad_common/setup_dotkits.sh"
+export PATH="$MINICONDADIR/bin:$PATH"
 
 # load Python virtual environment
-source "$VENVDIR/bin/activate"
+source activate "$CONDAENVDIR"
 
 # if listing the data directory fails, exit 99 to reschedule the job
 # since the node with the job doesn't have the NFS share mounted.
@@ -20,7 +21,14 @@ source "$VENVDIR/bin/activate"
 # For this to work, re-run must be set to y via "qsub -r y"
 ls "$DATADIR" || exit 99
 
+echo $JOB_ID
+echo "=============================="
+
 {exec_job}
+
+# Report resource consumption because it's not reported by default
+echo "------------------------------"
+qstat -j $JOB_ID | grep '^usage'
 
 # if the job succeeds, snakemake 
 # touches jobfinished, thus if it exists cat succeeds. if cat fails, the error code indicates job failure
