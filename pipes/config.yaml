@@ -128,6 +128,13 @@ assembly_min_length_fraction_of_reference: 0.50
 # sequence must have to be considered acceptable quality.
 assembly_min_unambig: 0.50
 
+# parameters passed to Novoalign during the assembly refinement stages
+refine_assembly_1_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
+refine_assembly_2_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100"
+
+# parameters passed to Novoalign for mapping reads back to the consensus
+map_reads_to_self_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100 -k"
+
 # Alignment parameters for nucmer (MUMmer) during the scaffolding step.
 # Shown below are defaults.
 #assembly_nucmer_max_gap:     200
