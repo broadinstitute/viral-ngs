@@ -128,6 +128,13 @@ assembly_min_length_fraction_of_reference: 0.50
 # sequence must have to be considered acceptable quality.
 assembly_min_unambig: 0.50
 
+# parameters passed to Novoalign during the assembly refinement stages
+refine_assembly_1_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
+refine_assembly_2_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100"
+
+# parameters passed to Novoalign for mapping reads back to the consensus
+map_reads_to_self_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100 -k"
+
 # Alignment parameters for nucmer (MUMmer) during the scaffolding step.
 # Shown below are defaults.
 #assembly_nucmer_max_gap:     200
@@ -153,6 +160,19 @@ mafft_maxiters: 1000
 # Roughly, ~1/2 hour to 1 hour required per million reads.
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
 trinity_n_reads: 250000
+
+# Minimum number of reads on each strand
+vphaser_min_reads_each: 5
+
+# Maximum allowable ratio of number of reads on the two
+# strands. Ignored if vphaser_max_bins=0.
+vphaser_max_bins: 10
+
+# A simple filter for the VCF merge step.
+# If set to true, keep only the alleles that have at least two
+# independent libraries of support and 
+# allele freq > 0.005. If false, no filtering is performed.
+vcf_merge_naive_filter: false
 
 #    |----------------------- Data storage locations ---------------------------
 
