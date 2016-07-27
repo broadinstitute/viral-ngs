@@ -328,7 +328,7 @@ def parser_vphaser_one_sample(parser=argparse.ArgumentParser()):
     parser.add_argument("--removeDoublyMappedReads",
                         default=False,
                         action="store_true",
-                        help="""When calling V-Phaser, keep reads mapping to more than one contig.""")
+                        help="""When calling V-Phaser, remove reads mapping to more than one contig. Default is to keep the reads.""")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, vphaser_one_sample, split_args=True)
     return parser
