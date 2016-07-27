@@ -161,6 +161,19 @@ mafft_maxiters: 1000
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
 trinity_n_reads: 250000
 
+# Minimum number of reads on each strand
+vphaser_min_reads_each: 5
+
+# Maximum allowable ratio of number of reads on the two
+# strands. Ignored if vphaser_max_bins=0.
+vphaser_max_bins: 10
+
+# A simple filter for the VCF merge step.
+# If set to true, keep only the alleles that have at least two
+# independent libraries of support and 
+# allele freq > 0.005. If false, no filtering is performed.
+vcf_merge_naive_filter: false
+
 #    |----------------------- Data storage locations ---------------------------
 
 # The parent directory containing data sub-directories.
