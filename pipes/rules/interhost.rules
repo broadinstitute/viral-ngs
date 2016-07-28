@@ -44,7 +44,7 @@ rule ref_guided_consensus:
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
             logid="{sample}",
-            novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502",
+            novoalign_options=config.get("ref_guided_consensus_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
             min_coverage="3",
             numThreads=str(config.get("number_of_threads", 1))
     run:
