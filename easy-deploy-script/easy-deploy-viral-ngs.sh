@@ -106,7 +106,9 @@ function prepend_miniconda(){
 
         # update to the latest conda this way, since the shell script 
         # is often months out of date
-        conda update -y conda
+        if [ -z "$SKIP_CONDA_UPDATE" ]; then
+            conda update -y conda
+        fi
     else
         echo "Miniconda directory not found."
         exit 1
