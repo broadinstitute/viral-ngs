@@ -50,17 +50,7 @@ MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
 # TODO: check that we are on a machine with sufficient RAM
 
-function strLen() {
-    local bytlen sreal oLang=$LANG
-    LANG=C
-    bytlen=${#1}
-    printf -v sreal %q "$1"
-    LANG=$oLang
-    return $bytlen # int can be returned
-}
-
-strLen $MINICONDA_PATH &> /dev/null
-current_prefix_length=$?
+current_prefix_length=$(echo $MINICONDA_PATH | wc -c)
 if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     echo "ERROR: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
     echo "$MINICONDA_PATH"
@@ -116,7 +106,9 @@ function prepend_miniconda(){
 
         # update to the latest conda this way, since the shell script 
         # is often months out of date
-        conda update -y conda
+        if [ -z "$SKIP_CONDA_UPDATE" ]; then
+            conda update -y conda
+        fi
     else
         echo "Miniconda directory not found."
         exit 1
