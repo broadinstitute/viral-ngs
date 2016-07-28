@@ -135,6 +135,9 @@ refine_assembly_2_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100"
 # parameters passed to Novoalign for mapping reads back to the consensus
 map_reads_to_self_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100 -k"
 
+# parameters passed to Novoalign for refining the reference-guided consensus
+ref_guided_consensus_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
+
 # Alignment parameters for nucmer (MUMmer) during the scaffolding step.
 # Shown below are defaults.
 #assembly_nucmer_max_gap:     200
