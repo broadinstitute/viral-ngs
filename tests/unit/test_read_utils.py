@@ -186,6 +186,21 @@ class TestFastqBam(TestCaseWithTmp):
         self.assertEqualContents(outHeaderFix, inHeader)
 
 
+class TestRmdupUnaligned(TestCaseWithTmp):
+    def test_mvicuna_empty_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+
+        input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
+        expected_bam = os.path.join(util.file.get_test_input_path(self), 'expected.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_mvicuna_bam(
+            input_bam,
+            output_bam
+        )
+
+        self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
+
+
 class TestSplitReads(TestCaseWithTmp):
     'Test various options of split_reads command.'
 

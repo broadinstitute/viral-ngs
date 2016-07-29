@@ -813,8 +813,6 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     for rg in read_groups:
         lb_to_files.setdefault(rg.get('LB', 'none'), set())
         fname = rg['ID']
-        if 'PU' in rg:
-            fname = rg['PU']
         lb_to_files[rg.get('LB', 'none')].add(os.path.join(tempDir, fname))
     log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
 
@@ -829,6 +827,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
             with open(infastqs[d], 'wt') as outf:
                 for fprefix in files:
                     fn = '%s_%d.fastq' % (fprefix, d + 1)
+
                     if os.path.isfile(fn):
                         with open(fn, 'rt') as inf:
                             for line in inf:
