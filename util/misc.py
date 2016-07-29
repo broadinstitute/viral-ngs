@@ -248,17 +248,17 @@ def run_and_print(args, stdout=None, stderr=None,
                                     cwd=cwd)
         output = []
         while process.poll() is None:
-            if not silent:
-                for c in iter(process.stdout.read, b""):
-                    output.append(c)
-                    print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
-                    sys.stdout.flush() # flush buffer to stdout
+            for c in iter(process.stdout.read, b""):
+                output.append(c)
+                if not silent:
+                   print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                sys.stdout.flush() # flush buffer to stdout
 
         # in case there are still chars in the pipe buffer
-        if not silent:
-            for c in iter(lambda: process.stdout.read(1), b""):
-                print(c, end="")
-                sys.stdout.flush() # flush buffer to stdout
+        for c in iter(lambda: process.stdout.read(1), b""):
+           if not silent:
+               print(c, end="")
+           sys.stdout.flush() # flush buffer to stdout
 
         if check and process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, args,
