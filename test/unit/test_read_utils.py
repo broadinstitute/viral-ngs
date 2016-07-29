@@ -187,7 +187,7 @@ class TestFastqBam(TestCaseWithTmp):
 
 
 class TestRmdupUnaligned(TestCaseWithTmp):
-    def test_mvicuna_empty_input(self):
+    def test_mvicuna_canned_input(self):
         samtools = tools.samtools.SamtoolsTool()
 
         input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
