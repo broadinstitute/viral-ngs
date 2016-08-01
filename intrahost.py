@@ -1131,7 +1131,7 @@ def sampleIDMatch(inputString):
         Given a sample name in the form of [sample] or [sample]-#,
         return only [sample]
     """
-    idRegex = re.compile(r"(.*?)(?:-\d+|$)+")
+    idRegex = re.compile(r"(.*?)(?:-\d+)?$")
     m = idRegex.match(inputString)
 
     if m:
