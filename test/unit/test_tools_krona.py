@@ -27,8 +27,8 @@ class TestToolKrona(TestCaseWithTmp):
         in_tsv = util.file.mkstempfname('.tsv')
         output = util.file.mkstempfname('.output')
         self.krona.import_taxonomy(
-            self.db, [in_tsv], output, query_column=3,
-            taxid_column=5, score_column=7, no_hits=True, no_rank=True)
+            self.db, [in_tsv], output, query_column=3, taxid_column=5, score_column=7, no_hits=True, no_rank=True
+        )
         args = self.mock_run.call_args[0][0]
         self.assertEqual('ktImportTaxonomy', os.path.basename(args[0]))
         self.assertTrue(util.misc.list_contains(['-tax', self.db], args))
@@ -52,5 +52,5 @@ class TestToolKrona(TestCaseWithTmp):
         self.krona.create_db(self.db)
         args = self.mock_run.call_args[0][0]
         self.assertEqual('updateTaxonomy.sh', os.path.basename(args[0]))
-        self.assertIn('--local', args)
+        self.assertTrue(util.misc.list_contains(['--only-build', self.db], args))
         self.assertIn(self.db, args)
