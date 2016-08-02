@@ -25,7 +25,7 @@ def find_files(root_dir, filt):
             yield join(root, filename)
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def set_tempdir(request):
     util.file.set_tmp_dir(None)
     request.addfinalizer(util.file.destroy_tmp_dir)
