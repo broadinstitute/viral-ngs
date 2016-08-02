@@ -6,20 +6,18 @@ import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = tools.CondaPackageVersion('2.6', '3')
+CONDA_TOOL_VERSION = '2.7'
 
 
 class Krona(tools.Tool):
-
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
             install_methods.append(
                 tools.CondaPackage(
-                    TOOL_NAME, version=CONDA_TOOL_VERSION,
-                    executable='ktImportTaxonomy',
-                    patches=[('opt/krona/updateTaxonomy.sh',
-                              'krona_updateTaxonomy.sh.patch')]))
+                    TOOL_NAME,
+                    version=CONDA_TOOL_VERSION,
+                    executable='ktImportTaxonomy'))
         super(Krona, self).__init__(install_methods=install_methods)
 
     @property
@@ -31,8 +29,15 @@ class Krona(tools.Tool):
         opt = os.path.abspath(join(bin_path, '..', 'opt', 'krona'))
         return opt
 
-    def import_taxonomy(self, db, input_tsvs, output, query_column=None, taxid_column=None,
-                        score_column=None, no_hits=None, no_rank=None):
+    def import_taxonomy(self,
+                        db,
+                        input_tsvs,
+                        output,
+                        query_column=None,
+                        taxid_column=None,
+                        score_column=None,
+                        no_hits=None,
+                        no_rank=None):
         self.install()
         bin_path = os.path.dirname(self.executable_path())
         env = os.environ.copy()
@@ -59,5 +64,5 @@ class Krona(tools.Tool):
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
 
         sh = join(self.opt, 'updateTaxonomy.sh')
-        cmd = [sh, '--local', os.path.abspath(db_dir)]
+        cmd = [sh, '--only-build', os.path.abspath(db_dir)]
         util.misc.run_and_print(cmd, env=env, check=True)
