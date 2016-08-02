@@ -106,9 +106,10 @@ function prepend_miniconda(){
 
         # update to the latest conda this way, since the shell script 
         # is often months out of date
-        if [ -z "$SKIP_CONDA_UPDATE" ]; then
-            conda update -y conda
-        fi
+        #if [ -z "$SKIP_CONDA_UPDATE" ]; then
+        #    echo "Updating conda..."
+        #    conda update -y conda
+        #fi
     else
         echo "Miniconda directory not found."
         exit 1
@@ -137,6 +138,7 @@ function install_miniconda(){
 
     if [ -d "$MINICONDA_PATH/bin" ]; then
         prepend_miniconda
+        conda install conda==4.0.10
     else
         echo "It looks like the Miniconda installation failed"
         exit 1
