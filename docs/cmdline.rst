@@ -12,5 +12,6 @@ Command line tools
    reports
    illumina
    broad_utils
+   ncbi
 
 
