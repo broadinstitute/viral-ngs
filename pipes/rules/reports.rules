@@ -30,8 +30,10 @@ rule fastqc_report:
             makedirs(config["reports_dir"])
             shutil.rmtree(output[0], ignore_errors=True)
             makedirs(os.path.join(config["reports_dir"], 'fastqc'))
-            shell("/idi/sabeti-scratch/kandersen/bin/fastqc/fastqc -f bam {input} -o {config[reports_dir]}/fastqc")
+            shell("fastqc -f bam {input} -o {config[reports_dir]}/fastqc")
+            shell("unzip {config[reports_dir]}/fastqc/{wildcards.sample}_fastqc.zip -d {config[reports_dir]}/fastqc")
             os.unlink(output[0]+'.zip')
+            os.unlink(output[0]+'.html')
 
 rule consolidate_fastqc:
     input:
