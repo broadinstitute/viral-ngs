@@ -893,6 +893,14 @@ def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
     parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
     parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
+    parser.add_argument(
+        "--includeUnmated",
+        help="Include unmated reads in the main output fastq files (default: %(default)s)",
+        default=False,
+        action="store_true"
+    )
+    parser.add_argument('--unpairedOutFastq1', default=None, help='File name of output unpaired reads from 1st end of paired-end reads (independent of --includeUnmated)')
+    parser.add_argument('--unpairedOutFastq2', default=None, help='File name of output unpaired reads from 2nd end of paired-end reads (independent of --includeUnmated)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_rmdup_prinseq_fastq)
     return parser
@@ -903,7 +911,7 @@ def main_rmdup_prinseq_fastq(args):
         reads.  Also removes reads with more than one N.
     '''
     prinseq = tools.prinseq.PrinseqTool()
-    prinseq.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2)
+    prinseq.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2, args.includeUnmated, args.unpairedOutFastq1, args.unpairedOutFastq2)
     return 0
 
 
