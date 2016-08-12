@@ -530,7 +530,8 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 
 def refine_assembly(inFasta, inBam, outFasta,
                     outVcf=None, outBam=None, novo_params='', min_coverage=2,
-                    chr_names=None, keep_all_reads=False, JVMmemory=None, threads=1):
+                    major_cutoff=0.5, chr_names=None, keep_all_reads=False,
+                    JVMmemory=None, threads=1, already_realign_bam=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -556,27 +557,31 @@ def refine_assembly(inFasta, inBam, outFasta,
     picard_index.execute(deambigFasta, overwrite=True)
     samtools.faidx(deambigFasta, overwrite=True)
 
-    # Novoalign reads to self
-    novoBam = util.file.mkstempfname('.novoalign.bam')
-    min_qual = 0 if keep_all_reads else 1
-    novoalign.execute(inBam, inFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
-    rmdupBam = util.file.mkstempfname('.rmdup.bam')
-    opts = ['CREATE_INDEX=true']
-    if not keep_all_reads:
-        opts.append('REMOVE_DUPLICATES=true')
-    picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
-    os.unlink(novoBam)
-    realignBam = util.file.mkstempfname('.realign.bam')
-    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(rmdupBam)
-    if outBam:
-        shutil.copyfile(realignBam, outBam)
+    if already_realign_bam:
+        realignBam = already_realign_bam
+    else:
+        # Novoalign reads to self
+        novoBam = util.file.mkstempfname('.novoalign.bam')
+        min_qual = 0 if keep_all_reads else 1
+        novoalign.execute(inBam, inFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
+        rmdupBam = util.file.mkstempfname('.rmdup.bam')
+        opts = ['CREATE_INDEX=true']
+        if not keep_all_reads:
+            opts.append('REMOVE_DUPLICATES=true')
+        picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
+        os.unlink(novoBam)
+        realignBam = util.file.mkstempfname('.realign.bam')
+        gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
+        os.unlink(rmdupBam)
+        if outBam:
+            shutil.copyfile(realignBam, outBam)
 
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(realignBam)
+    if already_realign_bam is None:
+        os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
     if chr_names:
@@ -587,6 +592,8 @@ def refine_assembly(inFasta, inBam, outFasta,
         '--trim_ends',
         '--min_coverage',
         str(min_coverage),
+        '--major_cutoff',
+        str(major_cutoff)
     ] + name_opts))
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
@@ -609,6 +616,8 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument('outFasta',
                         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
+    parser.add_argument('--already_realign_bam',
+        default=None,)
     parser.add_argument(
         '--outBam',
         default=None,
@@ -618,6 +627,13 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
                         default=3,
                         type=int,
                         help='Minimum read coverage required to call a position unambiguous.')
+    parser.add_argument('--major_cutoff',
+                        default=0.5,
+                        type=float,
+                        help="""If the major allele is present at a frequency higher than this cutoff,
+        we will call an unambiguous base at that position.  If it is equal to or below
+        this cutoff, we will call an ambiguous base representing all possible alleles at
+        that position. [default: %(default)s]""")
     parser.add_argument('--novo_params',
                         default='-r Random -l 40 -g 40 -x 20 -t 100',
                         help='Alignment parameters for Novoalign.')
