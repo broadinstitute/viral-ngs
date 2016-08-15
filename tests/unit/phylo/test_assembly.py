@@ -79,7 +79,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (0,0,0,0,0))
+        self.assertEqual(read_stats, (0, 0, 0, 0, 0, 0))
 
     def test_subsamp_small_50(self):
         inDir = util.file.get_test_input_path()
@@ -88,7 +88,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,86,86,50))
+        self.assertEqual(read_stats, (200, 172, 172, 50, 50, 0))
 
     def test_subsamp_small_90(self):
         inDir = util.file.get_test_input_path()
@@ -97,7 +97,8 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,86,86,90))
+        # counts are individual reads
+        self.assertEqual(read_stats, (200, 172, 172, 90, 90, 0))
 
     def test_subsamp_small_200(self):
         inDir = util.file.get_test_input_path()
@@ -106,7 +107,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,99,99,112))
+        self.assertEqual(read_stats, (200, 172, 172, 185, 172, 13))
 
     def test_subsamp_big_500(self):
         inDir = util.file.get_test_input_path()
@@ -115,7 +116,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (9355,9275,8155,8155,500))
+        self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))
 
 
 class TestAmbiguityBases(unittest.TestCase):
