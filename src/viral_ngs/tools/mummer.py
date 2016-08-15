@@ -282,7 +282,7 @@ class MummerTool(tools.Tool):
                     seq.append(contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right)))
 
                 # write this chromosome to fasta file
-                for line in util.file.fastaMaker([(c, ''.join(seq))]):
+                for line in util.file.fastaMaker([(str(c)+"contigs_ordered_and_oriented_[{}-{}]".format(left, right), ''.join(seq))]):
                     outf.write(line)
 
 
