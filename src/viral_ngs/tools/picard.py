@@ -211,8 +211,14 @@ class DownsampleSamTool(PicardTools):
         samtools = tools.samtools.SamtoolsTool()
         total_read_count = samtools.count(inBam)
 
+        if total_read_count == 0:
+            _log.info("Input BAM has no reads. Copying to output.")
+            shutil.copyfile(inBam, outBam)
+
         probability = Decimal(int(read_count)) / Decimal(total_read_count)
         probability = 1 if probability > 1 else probability
+
+        assert probability >= 0
 
         if probability < 1:
             # per the Picard docs, HighAccuracy is recommended for read counts <50k
