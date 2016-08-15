@@ -325,7 +325,7 @@ class CoordMapper2Seqs(object):
 
 def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
-    parser.add_argument("genomes", nargs='+', help="genome name")
+    parser.add_argument("genomes", nargs='+', help="genome name (snpEff db name, or NCBI accessions)")
     parser.add_argument("outVcf", help="Output VCF file")
     parser.add_argument("emailAddress",
                         help="""Your email address. To access the Genbank CoreNucleotide database,

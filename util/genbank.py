@@ -3,6 +3,7 @@
 # built-ins
 import time
 import os
+import re
 import logging
 
 # third-party
@@ -10,6 +11,16 @@ from Bio import Entrez
 
 log = logging.getLogger(__name__)
 
+
+def parse_accession_str(chr_ref):
+    '''
+        This tries to match an NCBI accession as defined here:
+            http://www.ncbi.nlm.nih.gov/Sequin/acc.html
+    '''
+    m = re.search(r"(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
+    if m:
+        chr_ref = m.group("accession")
+    return chr_ref
 
 def get_feature_table_id(featureTableFile):
     seqid = ""

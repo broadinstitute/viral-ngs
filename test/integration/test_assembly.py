@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import itertools
 import unittest
+import pytest
 
 import Bio.SeqIO
 
@@ -90,3 +91,52 @@ class TestRefineAssembly(TestCaseWithTmp):
         expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
 
+
+class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
+    # common setup
+    def setUp(self):
+        super().setUp()
+        self.inDir = util.file.get_test_input_path(self)
+
+        self.refFasta = os.path.join(self.inDir, 'ref.influenza_partial.fasta')
+        self.outOrientFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            os.path.join(self.inDir, 'contigs.influenza.fasta'),
+            self.refFasta,
+            self.outOrientFasta)
+
+    # common teardown
+    def tearDown(self):
+        os.unlink(self.outOrientFasta)
+        super().tearDown()
+
+    def test_impute_from_oriented_muscle(self):
+        self.influenza_impute("muscle")
+        
+    def test_impute_from_oriented_mafft(self):
+        self.influenza_impute("mafft")
+
+    def test_impute_from_oriented_mummer(self):
+        self.influenza_impute("mummer")
+
+    # common impute function using the specified aligner
+    def influenza_impute(self, aligner):
+        outImputeFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(self.inDir, 'expected.influenza.impute.'+aligner+'.fasta')
+        # ensure we can run impute_from_reference from the output of order_and_orient
+        # without errors, but don't actually check the output
+        assembly.impute_from_reference(
+            self.outOrientFasta,
+            self.refFasta,
+            outImputeFasta,
+            minLengthFraction=0.8,
+            minUnambig=0.2,
+            replaceLength=5,
+            newName='test_influenza.genome',
+            aligner=aligner)
+        
+        # if we were interested in checking the output...
+        # self.assertEqualContents(
+        #     outImputeFasta,
+        #     expected
+        # )  
