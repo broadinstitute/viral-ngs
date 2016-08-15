@@ -430,7 +430,7 @@ def impute_from_reference(inFasta, inReference, outFasta, minLengthFraction, min
                 concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
                 ref_file = util.file.mkstempfname('.ref.fasta')
                 actual_file = util.file.mkstempfname('.actual.fasta')
-                aligned_file = util.file.mkstempfname('.mafft.fasta')
+                aligned_file = util.file.mkstempfname('.'+aligner+'.fasta')
                 refName = refSeqObj.id
                 with open(concat_file, 'wt') as outf:
                     Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
