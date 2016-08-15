@@ -152,7 +152,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
                                                   tmp_bam_unpaired)
 
             tmp_bam_unpaired_subsamp = util.file.mkstempfname('.unpaired.subsamp.bam')
-            reads_to_add = (n_reads - (n_rmdup_paired))
+            reads_to_add = (n_reads - (n_rmdup_paired*2))
             downsamplesam.downsample_to_approx_count(tmp_bam_unpaired, tmp_bam_unpaired_subsamp, reads_to_add)
             n_unpaired_subsamp = samtools.count(tmp_bam_unpaired_subsamp)
             os.unlink(tmp_bam_unpaired)
@@ -189,7 +189,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     log.info("Pre-Trinity read filters: ")
     log.info("  {} read pairs at start ".format(n_input))
     log.info("  {} read pairs after Trimmomatic ({} unpaired) ".format(n_trim, n_trim_unpaired))
-    log.info("  {} read pairs after Prinseq rmdup {} ".format(n_rmdup, "({} unpaired)".format(n_rmdup_unpaired) if did_include_subsampled_unpaired_reads else ""))
+    log.info("  {} read pairs after Prinseq rmdup {} ".format(n_rmdup, "({} unpaired)".format(n_trim_unpaired-n_rmdup_unpaired) if did_include_subsampled_unpaired_reads else ""))
     log.info("  {} reads for trinity ({}{})".format(n_output, "paired subsampled {} -> {}".format(n_rmdup_paired, n_paired_subsamp) if not did_include_subsampled_unpaired_reads else "{} read pairs".format(n_rmdup_paired), " + unpaired subsampled {} -> {}".format(n_rmdup_unpaired, n_unpaired_subsamp) if did_include_subsampled_unpaired_reads else ""))
     log.info("  {} individual reads".format(n_final_individual_reads))
 
