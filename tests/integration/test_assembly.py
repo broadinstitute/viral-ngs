@@ -95,7 +95,7 @@ class TestRefineAssembly(TestCaseWithTmp):
 class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
     # common setup
     def setUp(self):
-        super().setUp()
+        super(TestOrderOrientAndImputeFromReference, self).setUp()
         self.inDir = util.file.get_test_input_path(self)
 
         self.refFasta = os.path.join(self.inDir, 'ref.influenza_partial.fasta')
@@ -108,7 +108,7 @@ class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
     # common teardown
     def tearDown(self):
         os.unlink(self.outOrientFasta)
-        super().tearDown()
+        super(TestOrderOrientAndImputeFromReference, self).tearDown()
 
     def test_impute_from_oriented_muscle(self):
         self.influenza_impute("muscle")
@@ -134,7 +134,7 @@ class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
             replaceLength=5,
             newName='test_influenza.genome',
             aligner=aligner)
-        
+
         # if we were interested in checking the output...
         # self.assertEqualContents(
         #     outImputeFasta,
