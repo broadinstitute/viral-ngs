@@ -288,7 +288,7 @@ class MummerTool(tools.Tool):
                         alternate_contigs.append((c, left, right, ranked_unique_seqs))
 
                 # write this chromosome to fasta file
-                for line in util.file.fastaMaker([(str(c)+"contigs_ordered_and_oriented_[{}-{}]".format(left, right), ''.join(seq))]):
+                for line in util.file.fastaMaker([(str(c)+"_contigs_ordered_and_oriented", ''.join(seq))]):
                     outf.write(line)
 
         # if alternate scaffolds exist, emit to output fasta file (if specified)
