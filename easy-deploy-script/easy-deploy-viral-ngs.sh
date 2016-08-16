@@ -33,13 +33,10 @@ PROJECTS_DIR="projects"
 MINICONDA_DIR="mc3"
 
 VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
-VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
 PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
-# part of the prefix length hack
-#ALT_CONDA_LOCATION="/home/unix/$(whoami)/.vgs-miniconda-pathhack"
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -58,19 +55,23 @@ if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     echo "https://github.com/conda/conda-build/pull/877"
     echo "To prevent this error, move this script higher in the filesystem hierarchy."
     exit 1
+fi
 
-    # semi-working symlink hack below
-    # echo ""
-    # echo "To get around this we are creaing a symlink $ALT_CONDA_LOCATION and installing there (though the files will reside in the correct location)."
-    # mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
-    # mkdir -p "$MINICONDA_PATH"
-    # if [ ! -L "$ALT_CONDA_LOCATION" ]; then
-    #    ln -s "$MINICONDA_PATH" "$ALT_CONDA_LOCATION"
-    #    echo "ln -s \"$MINICONDA_PATH\" \"$ALT_CONDA_LOCATION\""
-    # else
-    #    touch -h "$ALT_CONDA_LOCATION"
-    # fi
-    # export MINICONDA_PATH="$ALT_CONDA_LOCATION"
+ram_check=$(python -c "bytearray(1024000000)" &> /dev/null)
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Unable to allocate 1GB."
+    echo "=============================================================="
+    echo "It appears your current system does not have enough free RAM."
+    echo "Consider logging in to a machine with more available memory."
+    echo "=============================================================="
+    echo ""
+
+    if [[ $sourced -eq 0 ]]; then
+        exit 1
+    else
+        return 1
+    fi
 fi
 
 function set_locale(){
@@ -239,9 +240,9 @@ function check_viral_ngs_version(){
     # so, after a call to "activate_env"
     if [ -z "$SKIP_VERSION_CHECK" ]; then
         echo "Checking viral-ngs version..."
-        CURRENT_VER="$(conda list viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')"
+        CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')"
         # perhaps a better way...
-        AVAILABLE_VER="$(conda search -f -c bioconda viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
+        AVAILABLE_VER="$(conda search --override-channels -f -c bioconda viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
         if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
             echo ""
             echo "============================================================================================================"
@@ -391,7 +392,7 @@ else
 
                         # recreate symlink to folder for latest viral-ngs in conda-env/opt/
                         symlink_viral_ngs
-                        
+
                         echo ""
                         echo "=================================================================================="
                         echo "Note that if viral-ngs-derived files are present in your project folders,"
