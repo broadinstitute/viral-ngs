@@ -335,6 +335,7 @@ __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
+        outAlternateContigs=None,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
@@ -360,6 +361,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         inReference,
         inFasta,
         outFasta,
+        outAlternateContigs=outAlternateContigs,
         extend=True,
         breaklen=breaklen,
         min_pct_id=min_pct_id,
@@ -384,6 +386,12 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
         'outFasta',
         help="""Output assembly, FASTA format, with the same number of
                 chromosomes as inReference, and in the same order."""
+    )
+    parser.add_argument(
+        '--outAlternateContigs',
+        help="""Output sequences (FASTA format) from alternative contigs that mapped,
+                but were not chosen for the final output.""",
+        default=None
     )
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',

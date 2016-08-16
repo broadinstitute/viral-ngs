@@ -284,7 +284,7 @@ class MummerTool(tools.Tool):
                     ranked_unique_seqs = contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right))
                     seq.append(ranked_unique_seqs[0])
                     # emit the "alternates" in a separate file
-                    if outAlternateContigs:
+                    if outAlternateContigs and len(ranked_unique_seqs) > 1:
                         alternate_contigs.append((c, left, right, ranked_unique_seqs))
 
                 # write this chromosome to fasta file
@@ -293,6 +293,7 @@ class MummerTool(tools.Tool):
 
         # if alternate scaffolds exist, emit to output fasta file (if specified)
         if outAlternateContigs and alternate_contigs:
+            log.info("emitting alternative scaffold sequences to {}".format(outAlternateContigs))
             with open(outAlternateContigs, 'wt') as outf:
                 for c, left, right, seqs in alternate_contigs:
                     for line in util.file.fastaMaker([
