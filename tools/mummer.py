@@ -197,6 +197,7 @@ class MummerTool(tools.Tool):
         os.unlink(tiling)
 
     def scaffold_contigs_custom(self, refFasta, contigsFasta, outFasta,
+            outAlternateContigs=None,
             aligner='nucmer', extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
@@ -262,6 +263,7 @@ class MummerTool(tools.Tool):
         os.unlink(delta_2)
 
         # for each chromosome, create the scaffolded sequence and write everything to fasta
+        alternate_contigs = []
         with open(outFasta, 'wt') as outf:
             for c in [seqObj.id for seqObj in Bio.SeqIO.parse(refFasta, 'fasta')]:
                 if c not in fs.get_seqids():
@@ -279,11 +281,24 @@ class MummerTool(tools.Tool):
                             for f in features
                         )
                     # pick the "right" one and glue together into a chromosome
-                    seq.append(contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right)))
+                    ranked_unique_seqs = contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right))
+                    seq.append(ranked_unique_seqs[0])
+                    # emit the "alternates" in a separate file
+                    if outAlternateContigs:
+                        alternate_contigs.append((c, left, right, ranked_unique_seqs))
 
                 # write this chromosome to fasta file
                 for line in util.file.fastaMaker([(str(c)+"contigs_ordered_and_oriented_[{}-{}]".format(left, right), ''.join(seq))]):
                     outf.write(line)
+
+        # if alternate scaffolds exist, emit to output fasta file (if specified)
+        if outAlternateContigs and alternate_contigs:
+            with open(outAlternateContigs, 'wt') as outf:
+                for c, left, right, seqs in alternate_contigs:
+                    for line in util.file.fastaMaker([
+                        ("{}:{}-{}_option_{}".format(c,left,right,i), s)
+                        for i,s in enumerate(seqs)]):
+                        outf.write(line)
 
 
     def align_one_to_one(self, refFasta, otherFasta, outFasta):
@@ -326,7 +341,7 @@ class MummerTool(tools.Tool):
 def contig_chooser(alt_seqs, ref_len, coords_debug=""):
     ''' Our little heuristic to choose an alternative sequence from a pile
         of alignments to a reference. Takes a list of strings (one string per
-        contig). The output will be a single string:
+        contig). This method will choose a single sequence from the input:
             1. if there are no alt_seqs, emit a stretch of Ns, same length as ref
             2. if there is only one alt_seq, emit that one
             3. if there are many alt_seqs, emit the most popular (if there is one)
@@ -336,17 +351,23 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                 is one), otherwise, choose randomly amongst the remainder
             5. otherwise, choose randomly amongst the same-as-ref length sequences
             6. or just choose randomly if there are no same-as-ref length sequences
+        The output will be a list of unique strings, where the first string
+        is the "chosen" sequence, and the remaining strings are the alternative
+        sequences (in no particular order, but guaranteed to be unique).
     '''
     if not alt_seqs:
         # no contigs align here, emit Ns of appropriate length
         new_seq = 'N' * ref_len
+        other_seqs = []
     elif len(alt_seqs) == 1:
         # only one contig aligns here
         new_seq = alt_seqs[0]
+        other_seqs = []
     else:
         # multiple contigs align here
         ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
             key=lambda x:x[1], reverse=True))
+        other_seqs = list(s for s,n in ranks)
         if len(ranks)==1:
             # only one unique sequence exists
             new_seq = ranks[0][0]
@@ -389,7 +410,8 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                     if len(alt_seqs)>1:
                         log.warn("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
-    return new_seq
+        other_seqs = list(s for s in other_seqs if s!=new_seq)
+    return [new_seq] + other_seqs
 
 
 class AmbiguousAlignmentException(Exception):
