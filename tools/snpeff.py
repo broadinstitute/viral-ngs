@@ -59,7 +59,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run_and_print(tool_cmd, stdin=stdin, buffered=True, silent=True, check=True)
+        return util.misc.run_and_print(tool_cmd, stdin=stdin, buffered=True, silent=("databases" in command), check=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -77,7 +77,7 @@ class SnpEff(tools.Tool):
         self.installed_dbs.add(dbname)
 
     def create_db(self, accessions, emailAddress, JVMmemory):
-        sortedAccessionString = ", ".join(sorted(accessions))
+        sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         # if the database is not installed, we need to make it
@@ -93,7 +93,7 @@ class SnpEff(tools.Tool):
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
             util.genbank.fetch_full_records_from_genbank(
-                accessions,
+                sorted(accessions), 
                 outputDir,
                 emailAddress,
                 forceOverwrite=True,
