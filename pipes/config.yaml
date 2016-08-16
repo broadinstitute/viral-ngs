@@ -118,6 +118,9 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
+# the minimum percent of a contig that must align to the reference
+scaffold_min_pct_contig_aligned: 0.6
+
 # The minimum length an assembled sequence must have
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
