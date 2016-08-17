@@ -338,7 +338,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         outAlternateContigs=None,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
-        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.6):
+        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -457,7 +457,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
         "--min_pct_contig_aligned",
         "-v",
         type=float,
-        default=0.6,
+        default=0.3,
         help="show-tiling: minimum percent of contig length in alignment (0.0 - 1.0, default: %(default)s)"
     )
     #parser.add_argument("--trimmed_contigs",
