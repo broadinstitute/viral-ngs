@@ -258,6 +258,29 @@ class TestSplitReads(TestCaseWithTmp):
         self.assertEqualContents(outPrefix + '02', expectedFasta2)
 
 
+class TestAlignAndFix(TestCaseWithTmp):
+    def setUp(self):
+        super(TestAlignAndFix, self).setUp()
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        self.refFasta = util.file.mkstempfname('.ref.fasta')
+        shutil.copyfile(orig_ref, self.refFasta)
+
+    def test_novoalign(self):
+        self.simple_execution('novoalign')
+
+    def test_bwa(self):
+        self.simple_execution('bwa')
+
+    def simple_execution(self, aligner):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+        outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
+        args.func_main(args)
+
+
 class TestMvicuna(TestCaseWithTmp):
     """
     Input consists of 3 read pairs.
