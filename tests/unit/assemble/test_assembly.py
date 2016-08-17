@@ -183,6 +183,19 @@ class TestOrderAndOrient(TestCaseWithTmp):
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
+    def test_hiv_wraparound(self):
+        # this tests a misassembly from Trinity and checks that we still use some of the contig
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hiv.wrapped.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hiv.wrapped.fasta'),
+            os.path.join(inDir, 'ref.hiv.fasta'),
+            outFasta)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
+
     @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
         inDir = util.file.get_test_input_path(self)
