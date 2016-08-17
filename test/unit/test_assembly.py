@@ -196,6 +196,21 @@ class TestOrderAndOrient(TestCaseWithTmp):
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
+    def test_alternate_contigs(self):
+        # this tests that --outAlternateContigs works as expected
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        altFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hiv.big_indel.fasta')
+        expectedAlt = os.path.join(inDir, 'expected.hiv.big_indel.alternates.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hiv.big_indel.fasta'),
+            os.path.join(inDir, 'ref.hiv.fasta'),
+            outFasta,
+            outAlternateContigs=altFasta)
+        self.assertEqualContents(outFasta, expected)
+        self.assertEqualContents(altFasta, expectedAlt)
+
     @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
         inDir = util.file.get_test_input_path(self)
