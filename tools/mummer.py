@@ -101,7 +101,8 @@ class MummerTool(tools.Tool):
 
     def show_tiling(self, inDelta, outTiling, outFasta=None,
             circular=False, min_pct_id=None, min_contig_len=None,
-            min_pct_contig_aligned=None, tab_delim=False):
+            min_pct_contig_aligned=None, tab_delim=False,
+            min_contig_coverage_diff=None):
         opts = []
         if circular:
             opts.append('-c')
@@ -109,13 +110,16 @@ class MummerTool(tools.Tool):
             opts.append('-a')
         if min_pct_id is not None:
             opts.append('-i')
-            opts.append(str(min_pct_id))
+            opts.append(str(100.0 * min_pct_id))
         if min_contig_len is not None:
             opts.append('-l')
             opts.append(str(min_contig_len))
         if min_pct_contig_aligned is not None:
             opts.append('-v')
             opts.append(str(100.0 * min_pct_contig_aligned))
+        if min_contig_coverage_diff is not None:
+            opts.append('-V')
+            opts.append(str(100.0 * min_contig_coverage_diff))
         toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling')]
         if outFasta:
             toolCmd = toolCmd + ['-p', outFasta]
@@ -173,6 +177,7 @@ class MummerTool(tools.Tool):
     def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
+            min_contig_coverage_diff=0.0,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Use MUMmer's pseudomolecule feature to scaffold contigs
             onto a reference genome.
@@ -191,6 +196,7 @@ class MummerTool(tools.Tool):
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_contig_coverage_diff=min_contig_coverage_diff,
             min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
         os.unlink(delta_2)
@@ -200,6 +206,7 @@ class MummerTool(tools.Tool):
             outAlternateContigs=None,
             aligner='nucmer', extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
+            min_contig_coverage_diff=0.0,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Re-implement a less buggy version of MUMmer's pseudomolecule
             feature to scaffold contigs onto a reference genome.
@@ -222,6 +229,7 @@ class MummerTool(tools.Tool):
         self.show_tiling(delta_2, tiling, tab_delim=True,
             min_pct_id=min_pct_id,
             min_contig_len=min_contig_len,
+            min_contig_coverage_diff=min_contig_coverage_diff,
             min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
 
