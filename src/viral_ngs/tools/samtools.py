@@ -122,6 +122,7 @@ class SamtoolsTool(tools.Tool):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
 
     def dumpHeader(self, inBam, outHeader):
+        opts = []
         if inBam.endswith('.bam'):
             opts = ['-H']
         elif inBam.endswith('.sam'):
