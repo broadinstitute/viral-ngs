@@ -118,9 +118,6 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
-# the minimum percent of a contig that must align to the reference
-scaffold_min_pct_contig_aligned: 0.6
-
 # The minimum length an assembled sequence must have
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
@@ -130,6 +127,11 @@ assembly_min_length_fraction_of_reference: 0.50
 # The minimum fraction of unambiguous (non-N) bases an assembled
 # sequence must have to be considered acceptable quality.
 assembly_min_unambig: 0.50
+
+# The replace_length is the number of bases on each end of each segment
+# of the reference genome where we throw away de-novo contigs and use only
+# reference-based read alignments during assembly.
+#assembly_replace_length: 55
 
 # parameters passed to Novoalign during the assembly refinement stages
 refine_assembly_1_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
@@ -146,6 +148,7 @@ ref_guided_consensus_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
 #assembly_nucmer_max_gap:     200
 #assembly_nucmer_min_match:   10
 #assembly_nucmer_min_cluster: 65
+#scaffold_min_pct_contig_aligned: 0.3
 
 # The number of threads to use for tools supporting multiple threads.
 # Should equal the number of CPU cores present on the machine(s)

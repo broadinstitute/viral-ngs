@@ -101,7 +101,8 @@ class MummerTool(tools.Tool):
 
     def show_tiling(self, inDelta, outTiling, outFasta=None,
             circular=False, min_pct_id=None, min_contig_len=None,
-            min_pct_contig_aligned=None, tab_delim=False):
+            min_pct_contig_aligned=None, tab_delim=False,
+            min_contig_coverage_diff=None):
         opts = []
         if circular:
             opts.append('-c')
@@ -109,13 +110,16 @@ class MummerTool(tools.Tool):
             opts.append('-a')
         if min_pct_id is not None:
             opts.append('-i')
-            opts.append(str(min_pct_id))
+            opts.append(str(100.0 * min_pct_id))
         if min_contig_len is not None:
             opts.append('-l')
             opts.append(str(min_contig_len))
         if min_pct_contig_aligned is not None:
             opts.append('-v')
             opts.append(str(100.0 * min_pct_contig_aligned))
+        if min_contig_coverage_diff is not None:
+            opts.append('-V')
+            opts.append(str(100.0 * min_contig_coverage_diff))
         toolCmd = [os.path.join(self.install_and_get_path(), 'show-tiling')]
         if outFasta:
             toolCmd = toolCmd + ['-p', outFasta]
@@ -173,6 +177,7 @@ class MummerTool(tools.Tool):
     def scaffold_contigs(self, refFasta, contigsFasta, outFasta,
             aligner='nucmer', circular=False, extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
+            min_contig_coverage_diff=0.0,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Use MUMmer's pseudomolecule feature to scaffold contigs
             onto a reference genome.
@@ -191,14 +196,17 @@ class MummerTool(tools.Tool):
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, outFasta=outFasta, circular=circular,
             min_pct_id=min_pct_id, min_contig_len=min_contig_len,
+            min_contig_coverage_diff=min_contig_coverage_diff,
             min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
         os.unlink(delta_2)
         os.unlink(tiling)
 
     def scaffold_contigs_custom(self, refFasta, contigsFasta, outFasta,
+            outAlternateContigs=None,
             aligner='nucmer', extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
+            min_contig_coverage_diff=0.0,
             min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
         ''' Re-implement a less buggy version of MUMmer's pseudomolecule
             feature to scaffold contigs onto a reference genome.
@@ -221,6 +229,7 @@ class MummerTool(tools.Tool):
         self.show_tiling(delta_2, tiling, tab_delim=True,
             min_pct_id=min_pct_id,
             min_contig_len=min_contig_len,
+            min_contig_coverage_diff=min_contig_coverage_diff,
             min_pct_contig_aligned=min_pct_contig_aligned)
         os.unlink(delta_1)
 
@@ -262,6 +271,7 @@ class MummerTool(tools.Tool):
         os.unlink(delta_2)
 
         # for each chromosome, create the scaffolded sequence and write everything to fasta
+        alternate_contigs = []
         with open(outFasta, 'wt') as outf:
             for c in [seqObj.id for seqObj in Bio.SeqIO.parse(refFasta, 'fasta')]:
                 if c not in fs.get_seqids():
@@ -279,11 +289,25 @@ class MummerTool(tools.Tool):
                             for f in features
                         )
                     # pick the "right" one and glue together into a chromosome
-                    seq.append(contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right)))
+                    ranked_unique_seqs = contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right))
+                    seq.append(ranked_unique_seqs[0])
+                    # emit the "alternates" in a separate file
+                    if outAlternateContigs and len(ranked_unique_seqs) > 1:
+                        alternate_contigs.append((c, left, right, ranked_unique_seqs))
 
                 # write this chromosome to fasta file
-                for line in util.file.fastaMaker([(str(c)+"contigs_ordered_and_oriented_[{}-{}]".format(left, right), ''.join(seq))]):
+                for line in util.file.fastaMaker([(str(c)+"_contigs_ordered_and_oriented", ''.join(seq))]):
                     outf.write(line)
+
+        # if alternate scaffolds exist, emit to output fasta file (if specified)
+        if outAlternateContigs and alternate_contigs:
+            log.info("emitting alternative scaffold sequences to {}".format(outAlternateContigs))
+            with open(outAlternateContigs, 'wt') as outf:
+                for c, left, right, seqs in alternate_contigs:
+                    for line in util.file.fastaMaker([
+                        ("{}:{}-{}_option_{}".format(c,left,right,i), s)
+                        for i,s in enumerate(seqs)]):
+                        outf.write(line)
 
 
     def align_one_to_one(self, refFasta, otherFasta, outFasta):
@@ -326,7 +350,7 @@ class MummerTool(tools.Tool):
 def contig_chooser(alt_seqs, ref_len, coords_debug=""):
     ''' Our little heuristic to choose an alternative sequence from a pile
         of alignments to a reference. Takes a list of strings (one string per
-        contig). The output will be a single string:
+        contig). This method will choose a single sequence from the input:
             1. if there are no alt_seqs, emit a stretch of Ns, same length as ref
             2. if there is only one alt_seq, emit that one
             3. if there are many alt_seqs, emit the most popular (if there is one)
@@ -336,17 +360,23 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                 is one), otherwise, choose randomly amongst the remainder
             5. otherwise, choose randomly amongst the same-as-ref length sequences
             6. or just choose randomly if there are no same-as-ref length sequences
+        The output will be a list of unique strings, where the first string
+        is the "chosen" sequence, and the remaining strings are the alternative
+        sequences (in no particular order, but guaranteed to be unique).
     '''
     if not alt_seqs:
         # no contigs align here, emit Ns of appropriate length
         new_seq = 'N' * ref_len
+        other_seqs = []
     elif len(alt_seqs) == 1:
         # only one contig aligns here
         new_seq = alt_seqs[0]
+        other_seqs = []
     else:
         # multiple contigs align here
         ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
             key=lambda x:x[1], reverse=True))
+        other_seqs = list(s for s,n in ranks)
         if len(ranks)==1:
             # only one unique sequence exists
             new_seq = ranks[0][0]
@@ -389,7 +419,8 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                     if len(alt_seqs)>1:
                         log.warn("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
-    return new_seq
+        other_seqs = list(s for s in other_seqs if s!=new_seq)
+    return [new_seq] + other_seqs
 
 
 class AmbiguousAlignmentException(Exception):
