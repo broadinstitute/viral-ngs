@@ -1070,40 +1070,42 @@ def align_and_fix(
 
     assert aligner in ["novoalign", "bwa"]
 
-    bwa_map_threshold = 30
+    refFastaCopy = mkstempfname('.ref_copy.fasta')
+    shutil.copyfile(refFasta, refFastaCopy)
 
-    tools.picard.CreateSequenceDictionaryTool().execute(refFasta, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(refFasta, overwrite=True)    
+    tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
+    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)    
 
     if aligner_options is None:
         if aligner=="novoalign":
             aligner_options = '-r Random'
         elif aligner=='bwa':
-            aligner_options = '-T ' + str(bwa_map_threshold)
+            aligner_options = '-T 30' # quality threshold
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
         
-        tools.novoalign.NovoalignTool().index_fasta(refFasta)
+        tools.novoalign.NovoalignTool().index_fasta(refFastaCopy)
 
         tools.novoalign.NovoalignTool().execute(
-            inBam, refFasta, bam_aligned,
+            inBam, refFastaCopy, bam_aligned,
             options=aligner_options.split(),
             JVMmemory=JVMmemory
         )
     elif aligner=='bwa':
         bwa = tools.bwa.Bwa()
-        bwa.index(refFasta)
+        bwa.index(refFastaCopy)
 
-        aln_bam_prefilter = util.file.mkstempfname('.prefiltered.bam')
-        bwa.mem(inBam, refFasta, aln_bam_prefilter, opts=aligner_options.split()+['-R', '@RG\tID:bwa\tSM:sample'])
+        opts = aligner_options.split()
 
-        # @haydenm says:
-        # For some reason (particularly when the --sensitive option is on), bwa
-        # doesn't listen to its '-T' flag and outputs alignments with score less
-        # than the '-T 30' threshold. So filter these:
-        tools.samtools.SamtoolsTool().view(["-b", "-h", "-q", str(bwa_map_threshold)], aln_bam_prefilter, bam_aligned)
-        os.unlink(aln_bam_prefilter)
+        # get the quality threshold from the opts
+        # for downstream filtering
+        bwa_map_threshold = 30
+        if '-T' in opts:
+            if opts.index("-T")+1 <= len(opts):
+                bwa_map_threshold = int(opts[opts.index("-T")+1])
+
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
 
     bam_mkdup = mkstempfname('.mkdup.bam')
     tools.picard.MarkDuplicatesTool().execute(
@@ -1115,7 +1117,7 @@ def align_and_fix(
     tools.samtools.SamtoolsTool().index(bam_mkdup)
 
     bam_realigned = mkstempfname('.realigned.bam')
-    tools.gatk.GATKTool().local_realign(bam_mkdup, refFasta, bam_realigned, JVMmemory=JVMmemory, threads=threads)
+    tools.gatk.GATKTool().local_realign(bam_mkdup, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
     os.unlink(bam_mkdup)
 
     if outBamAll:
