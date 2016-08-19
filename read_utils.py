@@ -1055,7 +1055,8 @@ def align_and_fix(
     inBam, refFasta,
     outBamAll=None,
     outBamFiltered=None,
-    novoalign_options='',
+    aligner_options='',
+    aligner="novoalign",
     JVMmemory=None,
     threads=1
 ):
@@ -1067,12 +1068,44 @@ def align_and_fix(
         log.warn("are you sure you meant to do nothing?")
         return
 
+    assert aligner in ["novoalign", "bwa"]
+
+    refFastaCopy = mkstempfname('.ref_copy.fasta')
+    shutil.copyfile(refFasta, refFastaCopy)
+
+    tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
+    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)    
+
+    if aligner_options is None:
+        if aligner=="novoalign":
+            aligner_options = '-r Random'
+        elif aligner=='bwa':
+            aligner_options = '-T 30' # quality threshold
+
     bam_aligned = mkstempfname('.aligned.bam')
-    tools.novoalign.NovoalignTool().execute(
-        inBam, refFasta, bam_aligned,
-        options=novoalign_options.split(),
-        JVMmemory=JVMmemory
-    )
+    if aligner=="novoalign":
+        
+        tools.novoalign.NovoalignTool().index_fasta(refFastaCopy)
+
+        tools.novoalign.NovoalignTool().execute(
+            inBam, refFastaCopy, bam_aligned,
+            options=aligner_options.split(),
+            JVMmemory=JVMmemory
+        )
+    elif aligner=='bwa':
+        bwa = tools.bwa.Bwa()
+        bwa.index(refFastaCopy)
+
+        opts = aligner_options.split()
+
+        # get the quality threshold from the opts
+        # for downstream filtering
+        bwa_map_threshold = 30
+        if '-T' in opts:
+            if opts.index("-T")+1 <= len(opts):
+                bwa_map_threshold = int(opts[opts.index("-T")+1])
+
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
 
     bam_mkdup = mkstempfname('.mkdup.bam')
     tools.picard.MarkDuplicatesTool().execute(
@@ -1081,8 +1114,10 @@ def align_and_fix(
     )
     os.unlink(bam_aligned)
 
+    tools.samtools.SamtoolsTool().index(bam_mkdup)
+
     bam_realigned = mkstempfname('.realigned.bam')
-    tools.gatk.GATKTool().local_realign(bam_mkdup, refFasta, bam_realigned, JVMmemory=JVMmemory, threads=threads)
+    tools.gatk.GATKTool().local_realign(bam_mkdup, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
     os.unlink(bam_mkdup)
 
     if outBamAll:
@@ -1096,7 +1131,7 @@ def align_and_fix(
 
 def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument('refFasta', help='Reference genome, FASTA format; will be indexed by Picard and Novoalign.')
     parser.add_argument(
         '--outBamAll',
         default=None,
@@ -1109,7 +1144,8 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         help='''Aligned, sorted, and indexed reads.  Unmapped reads and
                 duplicate reads are removed from this file.'''
     )
-    parser.add_argument('--novoalign_options', default='-r Random', help='Novoalign options (default: %(default)s)')
+    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
+    parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
