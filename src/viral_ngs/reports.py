@@ -669,34 +669,24 @@ def align_and_plot_coverage(
 
     map_threshold = min_score_to_output or 30
 
-    bwa_opts + ["-T", str(map_threshold)]
-
     aln_bam = util.file.mkstempfname('.bam')
 
-    bwa.mem(in_bam, ref_indexed, aln_bam, opts=bwa_opts)
-
-    # @haydenm says:
-    # For some reason (particularly when the --sensitive option is on), bwa
-    # doesn't listen to its '-T' flag and outputs alignments with score less
-    # than the '-T 30' threshold. So filter these:
-    aln_bam_filtered = util.file.mkstempfname('.filtered.bam')
-    samtools.view(["-b", "-h", "-q", str(map_threshold)], aln_bam, aln_bam_filtered)
-    os.unlink(aln_bam)
+    bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts, min_qual=map_threshold)
 
     aln_bam_dupe_processed = util.file.mkstempfname('.filtered_dupe_processed.bam')
     if excludeDuplicates:
         opts = list(picardOptions)
         dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
         tools.picard.MarkDuplicatesTool().execute(
-            [aln_bam_filtered], aln_bam_dupe_processed,
+            [aln_bam], aln_bam_dupe_processed,
             dupe_removal_out_metrics, picardOptions=opts,
             JVMmemory=JVMmemory
         )
     else:
-        aln_bam_dupe_processed = aln_bam_filtered
+        aln_bam_dupe_processed = aln_bam
 
     samtools.sort(aln_bam_dupe_processed, bam_aligned)
-    os.unlink(aln_bam_filtered)
+    os.unlink(aln_bam)
     
     if excludeDuplicates:
         os.unlink(aln_bam_dupe_processed)
