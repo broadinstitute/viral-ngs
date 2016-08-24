@@ -24,12 +24,12 @@ cmdline += "-o {logdir} -e {logdir} ".format(logdir=LOGDIR)
 mem = props.get('resources', {}).get('mem')
 if mem:
     cmdline += ' -l m_mem_free={}G,h_rss={}G '.format(mem, round(1.2 * float(int(mem)), 2))
-    if mem >= 15:
+    if mem >= 15 or cores>4:
         cmdline += ' -R y '
 
 cores = props.get('resources', {}).get('cores')
 if cores:
-    cmdline += ' -pe smp {} '.format(int(cores))
+    cmdline += ' -pe smp {} -binding linear:{} '.format(int(cores), int(cores))
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER", "") + " "
