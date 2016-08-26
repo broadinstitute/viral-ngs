@@ -531,7 +531,7 @@ __commands__.append(('impute_from_reference', parser_impute_from_reference))
 def refine_assembly(inFasta, inBam, outFasta,
                     outVcf=None, outBam=None, novo_params='', min_coverage=2,
                     major_cutoff=0.5, chr_names=None, keep_all_reads=False,
-                    JVMmemory=None, threads=1, already_realign_bam=None):
+                    JVMmemory=None, threads=1, already_realigned_bam=None):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
@@ -557,8 +557,8 @@ def refine_assembly(inFasta, inBam, outFasta,
     picard_index.execute(deambigFasta, overwrite=True)
     samtools.faidx(deambigFasta, overwrite=True)
 
-    if already_realign_bam:
-        realignBam = already_realign_bam
+    if already_realigned_bam:
+        realignBam = already_realigned_bam
     else:
         # Novoalign reads to self
         novoBam = util.file.mkstempfname('.novoalign.bam')
@@ -580,7 +580,7 @@ def refine_assembly(inFasta, inBam, outFasta,
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
-    if already_realign_bam is None:
+    if already_realigned_bam is None:
         os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
@@ -616,8 +616,11 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument('outFasta',
                         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
-    parser.add_argument('--already_realign_bam',
-        default=None,)
+    parser.add_argument('--already_realigned_bam',
+                        default=None,
+                        help="""BAM with reads that are already aligned to inFasta.
+        This bypasses the alignment process by novoalign and instead uses the given
+        BAM to make an assembly. When set, outBam is ignored.""")
     parser.add_argument(
         '--outBam',
         default=None,
