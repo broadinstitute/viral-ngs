@@ -17,8 +17,9 @@ By default, the pipeline will install a single-threaded version of [Novoalign](h
   `docker build --rm .`
   
 ### To run
-  Download licensed copies of GATK and Novoalign to the host machine (for Linux-64), and run:
-```export GATK_PATH=/path/to/gatk/
+Download licensed copies of GATK and Novoalign to the host machine (for Linux-64), and run:
+```shell
+export GATK_PATH=/path/to/gatk/
 export NOVOALIGN_PATH=/path/to/novoalign/
 docker run --rm -v $NOVOALIGN_PATH:/novoalign -v $GATK_PATH:/gatk -v /path/to/dir/on/host:/user-data -t -i <image_ID> "<command>.py subcommand"
 ```
@@ -37,7 +38,8 @@ To use a shell within a viral-ngs Docker container, pass `/bin/bash` to the run 
 
 #### Clean slate
 If you receive a "no space on device" error, sometimes a fresh start can be helpful. You can run these commands to remove **ALL** current docker images, containers, and volumes (be careful! the commands will also remove Docker items unrelated to viral-ngs):
-```docker kill $(docker ps -a -q)
+```shell
+docker kill $(docker ps -a -q)
 docker rm $(docker ps -a -q)
 docker rmi $(docker images -a -q)
 docker volume rm $(docker volume ls -qf dangling=true)
