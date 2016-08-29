@@ -57,6 +57,16 @@ if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     exit 1
 fi
 
+python_check=$(hash python)
+if [ $? -ne 0 ]; then
+    echo "It looks like Python is not installed. Exiting."
+    if [[ $sourced -eq 0 ]]; then
+        exit 1
+    else
+        return 1
+    fi
+fi
+
 ram_check=$(python -c "bytearray(1024000000)" &> /dev/null)
 if [ $? -ne 0 ]; then
     echo ""
