@@ -1161,6 +1161,9 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
     '''
+
+    assert outBam or outStats, "Either outBam or outStats must be specified"
+
     if outBam is None:
         bam_aligned = mkstempfname('.aligned.bam')
     else:
@@ -1181,8 +1184,8 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
 def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
-    parser.add_argument('outBam', help='Output aligned, indexed BAM file', default=None)
-    parser.add_argument('outStats', help='Output idxstats file', default=None)
+    parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
+    parser.add_argument('--outStats', help='Output idxstats file', default=None)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser
