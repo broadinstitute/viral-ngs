@@ -38,7 +38,7 @@ To use a shell within a viral-ngs Docker container, pass `/bin/bash` to the run 
 
 #### Clean slate
 If you receive a "no space on device" error, sometimes a fresh start can be helpful. You can run these commands to remove **ALL** current docker images, containers, and volumes (be careful! the commands will also remove Docker items unrelated to viral-ngs):
-```
+```shell
 docker kill $(docker ps -a -q)
 docker rm $(docker ps -a -q)
 docker rmi $(docker images -a -q)
