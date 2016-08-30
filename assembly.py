@@ -758,7 +758,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument(
         'outFasta',
-         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.')
+         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
     )
     parser.add_argument(
         '--already_realigned_bam',
