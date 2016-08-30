@@ -79,7 +79,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (0,0,0,0,0))
+        self.assertEqual(read_stats, (0, 0, 0, 0, 0, 0))
 
     def test_subsamp_small_50(self):
         inDir = util.file.get_test_input_path()
@@ -88,7 +88,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,86,86,50))
+        self.assertEqual(read_stats, (200, 172, 172, 50, 50, 0))
 
     def test_subsamp_small_90(self):
         inDir = util.file.get_test_input_path()
@@ -97,7 +97,8 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,86,86,90))
+        # counts are individual reads
+        self.assertEqual(read_stats, (200, 172, 172, 90, 90, 0))
 
     def test_subsamp_small_200(self):
         inDir = util.file.get_test_input_path()
@@ -106,7 +107,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (100,99,99,99,112))
+        self.assertEqual(read_stats, (200, 172, 172, 185, 172, 13))
 
     def test_subsamp_big_500(self):
         inDir = util.file.get_test_input_path()
@@ -115,7 +116,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (9355,9275,8155,8155,500))
+        self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))
 
 
 class TestAmbiguityBases(unittest.TestCase):
@@ -181,6 +182,34 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_hiv_wraparound(self):
+        # this tests a misassembly from Trinity and checks that we still use some of the contig
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hiv.wrapped.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hiv.wrapped.fasta'),
+            os.path.join(inDir, 'ref.hiv.fasta'),
+            outFasta)
+        self.assertEqual(
+            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
+            str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_alternate_contigs(self):
+        # this tests that --outAlternateContigs works as expected
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        altFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.hiv.big_indel.fasta')
+        expectedAlt = os.path.join(inDir, 'expected.hiv.big_indel.alternates.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.hiv.big_indel.fasta'),
+            os.path.join(inDir, 'ref.hiv.fasta'),
+            outFasta,
+            outAlternateContigs=altFasta)
+        self.assertEqualContents(outFasta, expected)
+        self.assertEqualContents(altFasta, expectedAlt)
 
     @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
@@ -532,34 +561,40 @@ class TestContigChooser(unittest.TestCase):
     def test_no_seqs(self):
         for test_len in (7,2,228,52):
             actual = tools.mummer.contig_chooser([], test_len)
-            self.assertEqual(actual, 'N' * test_len)
+            self.assertEqual(actual, ['N' * test_len])
 
     def test_one_seq(self):
         for test_seq in ('A', '', 'GACTGATG', 'non-biological :characters!'):
             actual = tools.mummer.contig_chooser([test_seq], 90)
-            self.assertEqual(actual, test_seq)
+            self.assertEqual(actual, [test_seq])
 
     def test_most_popular_seq(self):
         alt_seqs = ['AA', 'aa', 'GGA', 'T', 'GGA']
-        expected = 'GGA'
+        expected_choice = 'GGA'
+        expected_alts = set(('AA', 'aa', 'T'))
         actual = tools.mummer.contig_chooser(alt_seqs, 2)
-        self.assertEqual(actual, expected)
+        self.assertEqual(actual[0], expected_choice)
+        self.assertEqual(set(actual[1:]), expected_alts)
 
     def test_most_popular_seq_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
         actual = tools.mummer.contig_chooser(alt_seqs, 2)
-        self.assertEqual(actual, 'aa')
+        self.assertEqual(actual[0], 'aa')
+        self.assertEqual(set(actual[1:]), set(('AA', 'GGA', 'T', 'GGC')))
         actual = tools.mummer.contig_chooser(alt_seqs, 3)
-        self.assertEqual(actual, 'GGA')
+        self.assertEqual(actual[0], 'GGA')
+        self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC']
         actual = tools.mummer.contig_chooser(alt_seqs, 20)
-        self.assertEqual(actual, 'GGA')
+        self.assertEqual(actual[0], 'GGA')
+        self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
         actual = tools.mummer.contig_chooser(alt_seqs, 1)
-        self.assertEqual(actual, 'GGA')
+        self.assertEqual(actual[0], 'GGA')
+        self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
 
     def test_same_as_ref_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
         actual = tools.mummer.contig_chooser(alt_seqs, 1)
-        self.assertEqual(actual, 'T')
+        self.assertEqual(actual[0], 'T')
 
 
