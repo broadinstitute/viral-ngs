@@ -128,6 +128,11 @@ assembly_min_length_fraction_of_reference: 0.50
 # sequence must have to be considered acceptable quality.
 assembly_min_unambig: 0.50
 
+# The replace_length is the number of bases on each end of each segment
+# of the reference genome where we throw away de-novo contigs and use only
+# reference-based read alignments during assembly.
+#assembly_replace_length: 55
+
 # parameters passed to Novoalign during the assembly refinement stages
 refine_assembly_1_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
 refine_assembly_2_novoalign_params: "-r Random -l 40 -g 40 -x 20 -t 100"
@@ -143,6 +148,7 @@ ref_guided_consensus_novoalign_params: "-r Random -l 30 -g 40 -x 20 -t 502"
 #assembly_nucmer_max_gap:     200
 #assembly_nucmer_min_match:   10
 #assembly_nucmer_min_cluster: 65
+#scaffold_min_pct_contig_aligned: 0.3
 
 # The number of threads to use for tools supporting multiple threads.
 # Should equal the number of CPU cores present on the machine(s)

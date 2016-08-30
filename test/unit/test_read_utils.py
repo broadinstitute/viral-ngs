@@ -82,6 +82,14 @@ class TestBwamemIdxstats(TestCaseWithTmp):
         self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
         self.assertGreater(actual_count, 18000)
 
+    def test_bwamem_idxstats_no_bam_output(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outStats = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
+        read_utils.bwamem_idxstats(inBam, self.ebolaRef, None, outStats)
+        with open(outStats, 'rt') as inf:
+            actual_count = int(inf.readline().strip().split('\t')[2])
+        self.assertGreater(actual_count, 18000)
+
 class TestFastqToFasta(TestCaseWithTmp):
 
     def test_fastq_to_fasta(self):
@@ -256,6 +264,29 @@ class TestSplitReads(TestCaseWithTmp):
         expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.02')
         self.assertEqualContents(outPrefix + '01', expectedFasta1)
         self.assertEqualContents(outPrefix + '02', expectedFasta2)
+
+
+class TestAlignAndFix(TestCaseWithTmp):
+    def setUp(self):
+        super(TestAlignAndFix, self).setUp()
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        self.refFasta = util.file.mkstempfname('.ref.fasta')
+        shutil.copyfile(orig_ref, self.refFasta)
+
+    def test_novoalign(self):
+        self.simple_execution('novoalign')
+
+    def test_bwa(self):
+        self.simple_execution('bwa')
+
+    def simple_execution(self, aligner):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+        outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
+        args.func_main(args)
 
 
 class TestMvicuna(TestCaseWithTmp):

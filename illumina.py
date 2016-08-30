@@ -461,6 +461,9 @@ class SampleSheet(object):
                 miseq_skip = False
                 row_num = 0
                 for line in inf:
+                    # if this is a blank line, skip parsing and continue to the next line...
+                    if len(line.rstrip('\n').rstrip('\r').strip()) == 0:
+                        continue
                     csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
                     row = next(csv.reader([line.strip().rstrip('\n')], dialect="samplesheet"))
                     row = [item.strip() for item in row] # remove leading/trailing whitespace from each item

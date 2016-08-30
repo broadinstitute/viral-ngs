@@ -40,15 +40,15 @@ class PrinseqTool(tools.Tool):
             shutil.copyfile(outprefix+'.fastq', outFastq)
             os.unlink(outprefix+'.fastq')
 
-    def rmdup_fastq_paired(self, inFastq1, inFastq2, outFastq1, outFastq2, purgeUnmated=False):
+    def rmdup_fastq_paired(self, inFastq1, inFastq2, outFastq1, outFastq2, includeUnmated=False, unpairedOutFastq1=None, unpairedOutFastq2=None):
         ''' remove duplicate reads and reads with multiple Ns '''
 
         if not os.path.exists(inFastq2) or os.path.getsize(inFastq2) == 0:
             # input is single-end
             log.debug("prinseq input is unpaired")
             util.file.touch(outFastq2)
-            if purgeUnmated:
-                # purgeUnmated on unpaired input implies no output
+            if not includeUnmated:
+                # excluding unmated on unpaired input implies no output
                 util.file.touch(outFastq1)
             else:
                 self.rmdup_fastq_single(inFastq1, outFastq1)
@@ -71,12 +71,22 @@ class PrinseqTool(tools.Tool):
                     outprefix+'_2.fastq', outprefix+'_2_singletons.fastq'):
                 # if any of the four output files is empty, prinseq doesn't create it at all, which is bad for us
                 util.file.touch(fn)
-            if purgeUnmated:
-                shutil.copyfile(outprefix+'_1.fastq', outFastq1)
-                shutil.copyfile(outprefix+'_2.fastq', outFastq2)
-            else:
+            
+            # if the user desires the unmated reads to be included in the output fastqs
+            if includeUnmated:
                 util.file.cat(outFastq1, (outprefix+'_1.fastq', outprefix+'_1_singletons.fastq'))
                 util.file.cat(outFastq2, (outprefix+'_2.fastq', outprefix+'_2_singletons.fastq'))
+            else:
+                shutil.copyfile(outprefix+'_1.fastq', outFastq1)
+                shutil.copyfile(outprefix+'_2.fastq', outFastq2)
+
+            # if a path is specified for the unmated reads
+            if unpairedOutFastq1 is not None:
+                shutil.copyfile(outprefix+'_1_singletons.fastq', unpairedOutFastq1)
+
+            if unpairedOutFastq2 is not None:
+                shutil.copyfile(outprefix+'_2_singletons.fastq', unpairedOutFastq2)
+
             os.unlink(outprefix+'_1.fastq')
             os.unlink(outprefix+'_2.fastq')
             os.unlink(outprefix+'_1_singletons.fastq')
