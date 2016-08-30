@@ -22,6 +22,7 @@ import Bio.Data.IUPACData
 import pysam
 
 # module-specific
+import util.genbank
 import util.cmd
 import util.file
 import util.vcf
@@ -426,15 +427,6 @@ def strip_accession_version(acc):
     return acc
 
 
-def parse_accession_str(chr_ref):
-    '''
-        This tries to match an NCBI accession as defined here:
-            http://www.ncbi.nlm.nih.gov/Sequin/acc.html
-    '''
-    m = re.search(r"(?P<accession>(?:[a-zA-Z]{1,6}|NC_)\d{1,10})(?:\.(?P<version>\d+))?.*", chr_ref)
-    if m:
-        chr_ref = m.group("accession")
-    return chr_ref
 
 # def merge_to_vcf(refFasta, outVcf, samples, isnvs, assemblies, strip_chr_version=False, naive_filter=False):
 
@@ -481,7 +473,7 @@ def merge_to_vcf(
         # write out the contig lengths present in the reference genome
         for c, clen in ref_chrlens:
             if parse_accession:
-                c = parse_accession_str(c)
+                c = util.genbank.parse_accession_str(c)
             if strip_chr_version:
                 c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
@@ -809,7 +801,7 @@ def merge_to_vcf(
                     # prepare output row and write to file
                     c = ref_sequence.id
                     if parse_accession:
-                        c = parse_accession_str(c)
+                        c = util.genbank.parse_accession_str(c)
                     if strip_chr_version:
                         c = strip_accession_version(c)
                     out = [c, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF:DP:NL:LB']
@@ -1131,7 +1123,7 @@ def sampleIDMatch(inputString):
         Given a sample name in the form of [sample] or [sample]-#,
         return only [sample]
     """
-    idRegex = re.compile(r"(.*?)(?:-\d+|$)+")
+    idRegex = re.compile(r"(.*?)(?:-\d+)?$")
     m = idRegex.match(inputString)
 
     if m:

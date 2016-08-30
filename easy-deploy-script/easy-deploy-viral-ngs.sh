@@ -33,13 +33,10 @@ PROJECTS_DIR="projects"
 MINICONDA_DIR="mc3"
 
 VIRAL_CONDA_ENV_PATH="$SCRIPTPATH/$CONTAINING_DIR/$CONDA_ENV_BASENAME"
-VIRAL_CONDA_CACHE_PATH="/broad/hptmp/$(whoami)/$CONTAINING_DIR/$CONDA_ENV_CACHE"
 PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
-# part of the prefix length hack
-#ALT_CONDA_LOCATION="/home/unix/$(whoami)/.vgs-miniconda-pathhack"
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -58,19 +55,33 @@ if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     echo "https://github.com/conda/conda-build/pull/877"
     echo "To prevent this error, move this script higher in the filesystem hierarchy."
     exit 1
+fi
 
-    # semi-working symlink hack below
-    # echo ""
-    # echo "To get around this we are creaing a symlink $ALT_CONDA_LOCATION and installing there (though the files will reside in the correct location)."
-    # mkdir -p "$(dirname $ALT_CONDA_LOCATION)"
-    # mkdir -p "$MINICONDA_PATH"
-    # if [ ! -L "$ALT_CONDA_LOCATION" ]; then
-    #    ln -s "$MINICONDA_PATH" "$ALT_CONDA_LOCATION"
-    #    echo "ln -s \"$MINICONDA_PATH\" \"$ALT_CONDA_LOCATION\""
-    # else
-    #    touch -h "$ALT_CONDA_LOCATION"
-    # fi
-    # export MINICONDA_PATH="$ALT_CONDA_LOCATION"
+python_check=$(hash python)
+if [ $? -ne 0 ]; then
+    echo "It looks like Python is not installed. Exiting."
+    if [[ $sourced -eq 0 ]]; then
+        exit 1
+    else
+        return 1
+    fi
+fi
+
+ram_check=$(python -c "bytearray(1024000000)" &> /dev/null)
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Unable to allocate 1GB."
+    echo "=============================================================="
+    echo "It appears your current system does not have enough free RAM."
+    echo "Consider logging in to a machine with more available memory."
+    echo "=============================================================="
+    echo ""
+
+    if [[ $sourced -eq 0 ]]; then
+        exit 1
+    else
+        return 1
+    fi
 fi
 
 function set_locale(){
@@ -106,9 +117,10 @@ function prepend_miniconda(){
 
         # update to the latest conda this way, since the shell script 
         # is often months out of date
-        if [ -z "$SKIP_CONDA_UPDATE" ]; then
-            conda update -y conda
-        fi
+        #if [ -z "$SKIP_CONDA_UPDATE" ]; then
+        #    echo "Updating conda..."
+        #    conda update -y conda
+        #fi
     else
         echo "Miniconda directory not found."
         exit 1
@@ -137,6 +149,7 @@ function install_miniconda(){
 
     if [ -d "$MINICONDA_PATH/bin" ]; then
         prepend_miniconda
+        conda install -q -y conda==4.0.10
     else
         echo "It looks like the Miniconda installation failed"
         exit 1
@@ -207,7 +220,52 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup,upgrade}"
+}
+
+function symlink_viral_ngs(){
+    # the conda-installed viral-ngs folder resides within the
+    # opt/ directory of the conda environment, but it contains
+    # a version number, so we'll ls and grep for the name
+    # and assume it's the first one to show up
+    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+        echo "Linking to current viral-ngs install..."
+        EXPECTED_VIRAL_NGS_VERSION=$(conda list viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')
+        VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep "$EXPECTED_VIRAL_NGS_VERSION" | grep -m 1 "viral-ngs")
+
+        if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
+            ln -s "$VIRAL_NGS_CONDA_PATH" "$VIRAL_NGS_PATH"
+        else
+            echo "Could not find viral-ngs install in conda env:"
+            echo "$VIRAL_NGS_CONDA_PATH"
+            exit 1
+        fi
+    else
+        echo "$VIRAL_NGS_DIR/ symlink already exists. Skipping link."
+    fi
+}
+
+function check_viral_ngs_version(){
+    # this must be run within an active conda environment
+    # so, after a call to "activate_env"
+    if [ -z "$SKIP_VERSION_CHECK" ]; then
+        echo "Checking viral-ngs version..."
+        CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')"
+        # perhaps a better way...
+        AVAILABLE_VER="$(conda search --override-channels -f -c bioconda viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
+        if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
+            echo ""
+            echo "============================================================================================================"
+            echo "Your copy of viral-ngs appears to be outdated ($CURRENT_VER). A newer version is available ($AVAILABLE_VER)."
+            echo "Check the release notes and consider upgrading:"
+            echo "https://github.com/broadinstitute/viral-ngs/releases"
+            echo "To upgrade: $(basename $SCRIPT) upgrade"
+            echo "============================================================================================================"
+            echo ""
+        else
+            echo "viral-ngs is up to date ($CURRENT_VER)"
+        fi
+    fi
 }
 
 if [ $# -eq 0 ]; then
@@ -240,31 +298,12 @@ else
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
                         conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
                     else
-                        echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping python venv setup."
-                    fi
-
-                    # the conda-installed viral-ngs folder resides within the
-                    # opt/ directory of the conda environment, but it contains
-                    # a version number, so we'll ls and grep for the name
-                    # and assume it's the first one to show up
-                    # TODO: parse out the version number from 
-                    # conda list
-                    if [ ! -L "$VIRAL_NGS_PATH" ]; then
-                        EXPECTED_VIRAL_NGS_VERSION=$(conda list | grep viral-ngs | awk -F" " '{print $2}')
-                        VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep -m 1 "viral-ngs")
-
-                        if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
-                            ln -s "$VIRAL_NGS_CONDA_PATH" "$VIRAL_NGS_PATH"
-                        else
-                            echo "Could not find viral-ngs install in conda env:"
-                            echo "$VIRAL_NGS_CONDA_PATH"
-                            exit 1
-                        fi
-                    else
-                        echo "$VIRAL_NGS_DIR/ symlink already exists. Skipping link."
+                        echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping conda env setup."
                     fi
 
                     activate_env
+
+                    symlink_viral_ngs
 
                     # install tools
                     py.test $VIRAL_NGS_PATH/test/unit/test_tools.py
@@ -320,11 +359,67 @@ else
                     echo "Usage: source $(basename $SCRIPT) load"
                 else
                     activate_env
+
+                    check_viral_ngs_version
+
                     ls -lah
+
                     return 0
                 fi
             else
                 echo "Usage: source $(basename $SCRIPT) load"
+                if [[ $sourced -eq 0 ]]; then
+                    exit 1
+                else
+                    return 1
+                fi
+            fi
+       ;;
+       "upgrade")
+            if [ $# -eq 1 ]; then
+                if [[ $sourced -eq 1 ]]; then
+                    echo "ABORTING. $(basename $SCRIPT) must not be sourced during upgrade"
+                    echo "Usage: $(basename $SCRIPT) upgrade"
+                    return 1
+                else
+                    echo "Upgrading viral-ngs..."
+
+                    if [ -z "$CONDA_DEFAULT_ENV" ]; then
+                        activate_env
+                    else
+                        if [ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]; then
+                            echo "A viral-ngs upgrade cannot be run while a conda environment is active."
+                            echo "The current environment must first be disabled via 'source deactivate'"
+                            exit 1
+                        fi
+                    fi
+
+                    if [ ! -z "$(conda list viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')" ]; then
+                        if [ -L "$VIRAL_NGS_PATH" ]; then
+                            rm $VIRAL_NGS_PATH # remove symlink
+                        fi
+                        conda update -y -c bioconda viral-ngs
+
+                        # recreate symlink to folder for latest viral-ngs in conda-env/opt/
+                        symlink_viral_ngs
+
+                        echo ""
+                        echo "=================================================================================="
+                        echo "Note that if viral-ngs-derived files are present in your project folders,"
+                        echo "they may need to be updated. Check the release notes and commit log for more info:"
+                        echo "https://github.com/broadinstitute/viral-ngs/releases"
+                        echo "=================================================================================="
+                        echo ""
+                    else
+                        echo "The viral-ngs package does not appear to be installed. Have you run setup?"
+                        echo "Usage: $(basename $SCRIPT) setup"
+                        exit 1
+                    fi
+                    #source deactivate
+                    exit 0
+                fi
+            else
+                echo "Usage: source $(basename $SCRIPT) upgrade"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
