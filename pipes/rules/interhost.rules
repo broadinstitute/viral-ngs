@@ -53,6 +53,17 @@ rule ref_guided_consensus:
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["interhost"]]))
             shell("{config[bin_dir]}/assembly.py refine_assembly {input[0]} {input[2]} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads --chr_names " + " ".join(["{wildcards.sample}-" + str(i+1) for i in range(len(config["accessions_for_ref_genome_build"]))]) +" --threads {params.numThreads}")
 
+rule ref_guided_consensus_aligned_with_dups:
+    input: config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
+    output: config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.only_aligned.bam'
+    resources:
+            mem=8,
+            cores=int(config.get("number_of_threads", 1))
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            logid="{sample}"
+    shell: "samtools view -b -F 4 -o {output} {input}"
+
 rule ref_guided_diversity:
     input:  
             expand("{data_dir}/{subdir}/{sample}.{ext}",
