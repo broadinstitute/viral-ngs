@@ -41,7 +41,9 @@ all_inputs = [
     # intrahost variant calling
     config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.vcf.gz',
     # create summary reports
-    config["reports_dir"]+'/summary.fastqc.txt',
+    expand("{reports_dir}/summary.fastqc.{adjective}.txt",
+           reports_dir=config["reports_dir"],
+           adjective=['raw', 'cleaned', 'taxfilt', 'align_to_self'])
 ]
 
 if config.get('spikeins_db'):
