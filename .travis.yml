@@ -1,5 +1,8 @@
 language: python
 
+jdk:
+  - oraclejdk8
+
 matrix:
     include:
         - os: linux
