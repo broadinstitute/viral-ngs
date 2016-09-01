@@ -43,6 +43,7 @@ else # if it does not exist, we need to install miniconda
     conda config --add channels bioconda
     conda config --add channels r
     conda update -y -q conda
+    conda install java-jdk==8.0.92
 fi
 
 conda info -a # for debugging
