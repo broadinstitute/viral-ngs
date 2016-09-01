@@ -36,7 +36,7 @@ else # if it does not exist, we need to install miniconda
         # so conda has a higher precedence
         export PATH="$MINICONDA_DIR/bin:$PATH"
     else
-        export PATH="$PATH:$MINICONDA_DIR/bin"
+        export PATH="$MINICONDA_DIR/bin:$PATH"
     fi
     hash -r
     conda config --set always_yes yes --set changeps1 no
