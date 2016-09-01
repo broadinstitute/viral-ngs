@@ -9,7 +9,7 @@ if [ -d "$MINICONDA_DIR" ] && [ -e "$MINICONDA_DIR/bin/conda" ]; then
         # so conda has a higher precedence
         export PATH="$MINICONDA_DIR/bin:$PATH"
     else
-        export PATH="$PATH:$MINICONDA_DIR/bin"
+        export PATH="$MINICONDA_DIR/bin:$PATH"
     fi
     hash -r
 else # if it does not exist, we need to install miniconda
