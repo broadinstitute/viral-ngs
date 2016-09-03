@@ -26,7 +26,7 @@ matrix:
         # This token provides Travis API access to trigger builds of dependent repos
         # It is in the env for only one matrix job so it is only available
         # For this one build, so we can check for the value to trigger only one dependent build
-        - secure: LVamCd5GJatnR9GobXltx0aPZKyYopWMGwjtSmZlvxWbGlSQe0sJuZlc3wRw0UC+LVSUqsNYAHPJQNpt62I1lPSEut2FOPviH8NtxcSp3GVb105Ac609kbDqjNRLGYEhJ2FNd1cokRh9aAnIsqqtasji1by/dxLGivi2wFVFrMjv0YSzjGlVQnk3wHDun02hq1c0a/t7dGVrsiNznkWD4lvZlMlcOlrs5UXoqxuXho/Th3XZZdxkHzaXny15wMvn3iZyKUTR+uYZF1XDRFPSwHSN6medReUmsRJDCuECOt+V18rW13Q/ShKOWi8crEpT9JNZGnommcqDOwy1W0spoqYX/m5QqcEgz1yhWrlftU1yztlkBQTaXQtFO2YEgnDym1GZt3QqD4M8vrS+w1B1K0Av1EzKFPdEuUxXz5LwLOPIkAqxiLEoF7NeWPymd5AiBwnBpEH18SpdegI+7bbWJxGDehrpnMrkMXqaX15/mRKxa+pcXfLRajw9HVIfQX4TCdensSdF5LvXgD8SX3UMqktEKOVdBbiPV9EzZoDghQq9rRHDslndLNkF/HlGvfX8s+WpqtBCjRAufr+pbgjb1SiA1r70pJQFgiUljYOv9ebTLvCarj/Wml7h6ILLWuQkTk54xo7qzHUdKtmOlPpStWUJcR7q9WO2QRyDNc26Q5s=
+        - secure: "LBDyx6nm7N/0FGjcyK6y2WtFGu2KAghZC2+Qrs/vT38kaJjlL+5K6Ck0MeoJzG3jS3YQsCug9HGT54oVurK5lmZpq6f4YEppYtQY65v5rc0OxWNGjttd/rZpvXqN4Bvahbo2+/sQVrWbnACgfYFpwJ5ka9tvzkQf8HP7HUqZKe0="
 #        - os: osx
 #          language: generic
 #          env:
