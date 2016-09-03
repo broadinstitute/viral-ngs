@@ -1,5 +1,15 @@
 language: python
 
+env:
+  global:
+    - CACHE_DIR="$HOME/misc_cache"
+    - MINICONDA_DIR="$HOME/miniconda"
+    - PIP_DIR="$HOME/virtualenv"
+    - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
+    - PYTHONIOENCODING=UTF8
+    # travis-encrypted value that will set $BUNDLE_SECRET when decrypted by Travis
+    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+
 matrix:
   include:
     - os: linux
@@ -16,7 +26,7 @@ matrix:
         # This token provides Travis API access to trigger builds of dependent repos
         # It is in the env for only one matrix job so it is only available
         # For this one build, so we can check for the value to trigger only one dependent build
-        - secure: "LVamCd5GJatnR9GobXltx0aPZKyYopWMGwjtSmZlvxWbGlSQe0sJuZlc3wRw0UC+LVSUqsNYAHPJQNpt62I1lPSEut2FOPviH8NtxcSp3GVb105Ac609kbDqjNRLGYEhJ2FNd1cokRh9aAnIsqqtasji1by/dxLGivi2wFVFrMjv0YSzjGlVQnk3wHDun02hq1c0a/t7dGVrsiNznkWD4lvZlMlcOlrs5UXoqxuXho/Th3XZZdxkHzaXny15wMvn3iZyKUTR+uYZF1XDRFPSwHSN6medReUmsRJDCuECOt+V18rW13Q/ShKOWi8crEpT9JNZGnommcqDOwy1W0spoqYX/m5QqcEgz1yhWrlftU1yztlkBQTaXQtFO2YEgnDym1GZt3QqD4M8vrS+w1B1K0Av1EzKFPdEuUxXz5LwLOPIkAqxiLEoF7NeWPymd5AiBwnBpEH18SpdegI+7bbWJxGDehrpnMrkMXqaX15/mRKxa+pcXfLRajw9HVIfQX4TCdensSdF5LvXgD8SX3UMqktEKOVdBbiPV9EzZoDghQq9rRHDslndLNkF/HlGvfX8s+WpqtBCjRAufr+pbgjb1SiA1r70pJQFgiUljYOv9ebTLvCarj/Wml7h6ILLWuQkTk54xo7qzHUdKtmOlPpStWUJcR7q9WO2QRyDNc26Q5s="
+        - secure: LVamCd5GJatnR9GobXltx0aPZKyYopWMGwjtSmZlvxWbGlSQe0sJuZlc3wRw0UC+LVSUqsNYAHPJQNpt62I1lPSEut2FOPviH8NtxcSp3GVb105Ac609kbDqjNRLGYEhJ2FNd1cokRh9aAnIsqqtasji1by/dxLGivi2wFVFrMjv0YSzjGlVQnk3wHDun02hq1c0a/t7dGVrsiNznkWD4lvZlMlcOlrs5UXoqxuXho/Th3XZZdxkHzaXny15wMvn3iZyKUTR+uYZF1XDRFPSwHSN6medReUmsRJDCuECOt+V18rW13Q/ShKOWi8crEpT9JNZGnommcqDOwy1W0spoqYX/m5QqcEgz1yhWrlftU1yztlkBQTaXQtFO2YEgnDym1GZt3QqD4M8vrS+w1B1K0Av1EzKFPdEuUxXz5LwLOPIkAqxiLEoF7NeWPymd5AiBwnBpEH18SpdegI+7bbWJxGDehrpnMrkMXqaX15/mRKxa+pcXfLRajw9HVIfQX4TCdensSdF5LvXgD8SX3UMqktEKOVdBbiPV9EzZoDghQq9rRHDslndLNkF/HlGvfX8s+WpqtBCjRAufr+pbgjb1SiA1r70pJQFgiUljYOv9ebTLvCarj/Wml7h6ILLWuQkTk54xo7qzHUdKtmOlPpStWUJcR7q9WO2QRyDNc26Q5s=
 #        - os: osx
 #          language: generic
 #          env:
@@ -34,15 +44,6 @@ cache:
   - $HOME/virtualenv
   - $HOME/miniconda
 
-env:
-  global:
-  - CACHE_DIR="$HOME/misc_cache"
-  - MINICONDA_DIR="$HOME/miniconda"
-  - PIP_DIR="$HOME/virtualenv"
-  - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
-  - PYTHONIOENCODING=UTF8
-  # travis-encrypted value that will set $BUNDLE_SECRET when decrypted by Travis
-  - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
 
 
 git:
