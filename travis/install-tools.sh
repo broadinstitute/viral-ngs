@@ -7,11 +7,12 @@ if [ ! -d $GATK_PATH ]; then
     exit 1
 
   else
-    echo "Fetching encrypted Novoalign & GATK bundle for Travis"
+    echo "Fetching encrypted GATK bundle for Travis"
     pwd
-    wget http://www.broadinstitute.org/~dpark/viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc
-    openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in viral_ngs-gatk_novoalign-encrypted_for_travis.tar.gz.enc -out bin_bundles.tar.gz
-    tar -xzpvf bin_bundles.tar.gz -C "$CACHE_DIR"
+    wget https://storage.googleapis.com/sabeti-public/software_testing/GenomeAnalysisTK-3.6.tar.gz.enc
+    openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in GenomeAnalysisTK-3.6.tar.gz.enc -out GenomeAnalysisTK-3.6.tar.gz
+    md5sum GenomeAnalysisTK-3.6.tar.gz
+    tar -xzpvf GenomeAnalysisTK-3.6.tar.gz -C "$CACHE_DIR"
 
   fi
 fi
