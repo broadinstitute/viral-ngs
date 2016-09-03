@@ -162,6 +162,8 @@ body="{
   $SCRIPT_BODY
 }}"
 
+echo "Making request to start tests in other repository..."
+
 # It does not work to put / in place of %2F in the URL below.  I'm not sure why.
 curl -s -X POST \
   -H "Content-Type: application/json" \
