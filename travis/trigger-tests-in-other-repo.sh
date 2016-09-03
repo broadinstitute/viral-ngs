@@ -1,7 +1,9 @@
 #!/bin/bash
 
+echo "Script called to trigger tests in external repository..."
+
 # only initiate tests in other repo if the travis token string has a value
-if [ -n "$TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO" ]; then
+if [ ! -z "$TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO" ]; then
     echo "TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO is defined"
     # if this is on mater or a pull request, but not a tagged release
     if [ $TRAVIS_PULL_REQUEST != "false" -o $TRAVIS_BRANCH = "master" -o -n "$TRAVIS_TAG" ]; then
@@ -13,4 +15,6 @@ if [ -n "$TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO" ]; then
             ./travis/trigger-travis.sh --script "\"UPSTREAM_BRANCH=$TRAVIS_BRANCH sh travis/tests-long.sh\"" broadinstitute viral-ngs-deploy $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO "UPSTREAM_BRANCH=$TRAVIS_BRANCH"
         fi
     fi
+else
+    echo "TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO is undefined. Check the secure variable."
 fi
