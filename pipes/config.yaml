@@ -16,20 +16,18 @@ email_point_of_contact_for_ncbi: "someone@example.com"
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz
-bmtagger_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 bmtagger_dbs_remove:
-  - "hg19"
-  - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
-  - "metagenomics_contaminants_v3"
+  - "/idi/sabeti-scratch/kandersen/references/depletion_databases/hg19"
+  - "/idi/sabeti-scratch/kandersen/references/depletion_databases/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
+  - "/idi/sabeti-scratch/kandersen/references/depletion_databases/metagenomics_contaminants_v3"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
 #      http://www.compbio.ox.ac.uk/analysis_tools/BLAST/formatdb.shtml
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz
-blast_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
-# Within blast_db_dir, the prefix of the database containing sequences to remove during depletion
-blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
+blast_db_remove: 
+  - "/idi/sabeti-scratch/kandersen/references/depletion_databases/metag_v3.ncRNA.mRNA.mitRNA.consensus"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
