@@ -143,8 +143,8 @@ else
     MESSAGE=""
 fi
 
-if [ -n $SCRIPT_VAL ]; then
-  SCRIPT_BODY = ",\"script\": \"$SCRIPT_VAL\""
+if [ -n "$SCRIPT_VAL" ]; then
+  SCRIPT_BODY=",\"script\": \"$SCRIPT_VAL\""
 else
   SCRIPT_BODY=""
 fi
