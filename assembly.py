@@ -283,9 +283,14 @@ def assemble_trinity(
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
 
+    picard_opts = {
+                 'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                 'CLIPPING_ACTION': 'X'
+    }
+
     read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1])
+    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
     try:
         tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     except subprocess.CalledProcessError as e:
@@ -663,8 +668,10 @@ def refine_assembly(
     outBam=None,
     novo_params='',
     min_coverage=2,
+    major_cutoff=0.5,
     chr_names=None,
     keep_all_reads=False,
+    already_realigned_bam=None,
     JVMmemory=None,
     threads=1
 ):
@@ -693,27 +700,31 @@ def refine_assembly(
     picard_index.execute(deambigFasta, overwrite=True)
     samtools.faidx(deambigFasta, overwrite=True)
 
-    # Novoalign reads to self
-    novoBam = util.file.mkstempfname('.novoalign.bam')
-    min_qual = 0 if keep_all_reads else 1
-    novoalign.execute(inBam, inFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
-    rmdupBam = util.file.mkstempfname('.rmdup.bam')
-    opts = ['CREATE_INDEX=true']
-    if not keep_all_reads:
-        opts.append('REMOVE_DUPLICATES=true')
-    picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
-    os.unlink(novoBam)
-    realignBam = util.file.mkstempfname('.realign.bam')
-    gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(rmdupBam)
-    if outBam:
-        shutil.copyfile(realignBam, outBam)
+    if already_realigned_bam:
+        realignBam = already_realigned_bam
+    else:
+        # Novoalign reads to self
+        novoBam = util.file.mkstempfname('.novoalign.bam')
+        min_qual = 0 if keep_all_reads else 1
+        novoalign.execute(inBam, inFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
+        rmdupBam = util.file.mkstempfname('.rmdup.bam')
+        opts = ['CREATE_INDEX=true']
+        if not keep_all_reads:
+            opts.append('REMOVE_DUPLICATES=true')
+        picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
+        os.unlink(novoBam)
+        realignBam = util.file.mkstempfname('.realign.bam')
+        gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
+        os.unlink(rmdupBam)
+        if outBam:
+            shutil.copyfile(realignBam, outBam)
 
     # Modify original assembly with VCF calls from GATK
     tmpVcf = util.file.mkstempfname('.vcf.gz')
     tmpFasta = util.file.mkstempfname('.fasta')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(realignBam)
+    if already_realigned_bam is None:
+        os.unlink(realignBam)
     os.unlink(deambigFasta)
     name_opts = []
     if chr_names:
@@ -726,6 +737,8 @@ def refine_assembly(
             '--trim_ends',
             '--min_coverage',
             str(min_coverage),
+            '--major_cutoff',
+            str(major_cutoff)
         ] + name_opts)
     )
     if outVcf:
@@ -750,7 +763,14 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument(
         'outFasta',
-        help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
+         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
+    )
+    parser.add_argument(
+        '--already_realigned_bam',
+        default=None,
+        help="""BAM with reads that are already aligned to inFasta.
+            This bypasses the alignment process by novoalign and instead uses the given
+            BAM to make an assembly. When set, outBam is ignored."""
     )
     parser.add_argument(
         '--outBam',
@@ -763,6 +783,15 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         default=3,
         type=int,
         help='Minimum read coverage required to call a position unambiguous.'
+    )
+    parser.add_argument(
+        '--major_cutoff',
+        default=0.5,
+        type=float,
+        help="""If the major allele is present at a frequency higher than this cutoff,
+            we will call an unambiguous base at that position.  If it is equal to or below
+            this cutoff, we will call an ambiguous base representing all possible alleles at
+            that position. [default: %(default)s]"""
     )
     parser.add_argument(
         '--novo_params',

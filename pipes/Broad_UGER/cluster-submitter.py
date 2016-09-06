@@ -22,14 +22,14 @@ cmdline += "-o {logdir} -e {logdir} ".format(logdir=LOGDIR)
 
 # pass memory resource request to cluster
 mem = props.get('resources', {}).get('mem')
+cores = props.get('resources', {}).get('cores')
 if mem:
     cmdline += ' -l h_vmem={}G,h_rss={}G '.format(mem, round(1.2 * float(int(mem)), 2))
-    if mem >= 15:
+    if mem >= 15 or (cores and cores >= 4):
         cmdline += ' -R y '
 
-cores = props.get('resources', {}).get('cores')
 if cores:
-    cmdline += ' -pe smp {} '.format(int(cores))
+    cmdline += ' -pe smp {} -binding linear:{} '.format(int(cores), int(cores))
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER", "") + " "
