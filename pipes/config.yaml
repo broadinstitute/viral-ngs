@@ -26,8 +26,10 @@ bmtagger_dbs_remove:
 #      http://www.compbio.ox.ac.uk/analysis_tools/BLAST/formatdb.shtml
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hybsel_probe_adapters.tar.gz
 blast_db_remove: 
   - "/idi/sabeti-scratch/shared-resources/depletion-databases/metag_v3.ncRNA.mRNA.mitRNA.consensus"
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/hybsel_probe_adapters"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
