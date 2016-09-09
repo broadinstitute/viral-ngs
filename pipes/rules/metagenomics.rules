@@ -1,15 +1,24 @@
 from os.path import join
 
 samples = list(read_samples_file(config.get("samples_metagenomics")))
-adjectives = ('raw', 'cleaned')
 
 rule all_metagenomics:
     input:
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.{adjective}.{method}.report"), sample=samples, adjective=adjectives, method=['kraken']),
+                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken']),
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.{adjective}.{method}.krona.html"), sample=samples, adjective=adjectives, method=['kraken'])
+                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken'])
     params: LSF='-N'
+
+
+rule all_metagenomics_host_depleted:
+    input:
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.{method}.report"), sample=samples, method=['kraken']),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['kraken'])
+    params: LSF='-N'
+
 
 method_props = {
     'diamond': {
