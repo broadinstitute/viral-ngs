@@ -15,11 +15,30 @@ export PATH="$MINICONDADIR/bin:$PATH"
 # load Python virtual environment
 source activate "$CONDAENVDIR"
 
-# if listing the data directory fails, exit 99 to reschedule the job
-# since the node with the job doesn't have the NFS share mounted.
-# Hopefully it will be sent to a node that has it mounted.
-# For this to work, re-run must be set to y via "qsub -r y"
-ls "$DATADIR" || exit 99
+
+# As a simple solution to transient UGER problems, maintain a list of blacklisted
+# nodes. When a node fails a check, add its hostname to the list and exit 99
+# to reschedule the job. Blacklist these nodes via qsub
+# Maintain the list of blacklisted nodes as filenames in /broad/hptmp/$(whoami)/blacklisted-nodes
+BLACKLISTED_NODES="/broad/hptmp/$(whoami)/blacklisted-nodes/"
+mkdir -p $BLACKLISTED_NODES
+
+# Cleanup blacklisted nodes if they have not been touched in a day
+find $BLACKLISTED_NODES -name "*" -type f -mmin +2880 -delete
+
+if ! ls "$DATADIR"; then
+    # Listing the data directory fails since the node does not have the
+    # NFS share mounted
+    touch "$BLACKLISTED_NODES$(hostname)"
+    exit 99
+fi
+if [ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]; then
+    # There is too little shared memory available; snakemake needs a little
+    # for its use of multiprocessing.Lock()
+    touch "$BLACKLISTED_NODES$(hostname)"
+    exit 99
+fi
+
 
 echo $JOB_ID
 echo "=============================="
