@@ -20,7 +20,7 @@ source activate "$CONDAENVDIR"
 # nodes. When a node fails a check, add its hostname to the list and exit 99
 # to reschedule the job. Blacklist these nodes via qsub
 # Maintain the list of blacklisted nodes as filenames in /broad/hptmp/$(whoami)/blacklisted-nodes
-BLACKLISTED_NODES="/broad/hptmp/$(whoami)/blacklisted-nodes/"
+BLACKLISTED_NODES="/broad/hptmp/$(whoami)/blacklisted-nodes"
 mkdir -p $BLACKLISTED_NODES
 
 # Cleanup blacklisted nodes if they have not been touched in a day
@@ -29,13 +29,13 @@ find $BLACKLISTED_NODES -name "*" -type f -mmin +2880 -delete
 if ! ls "$DATADIR"; then
     # Listing the data directory fails since the node does not have the
     # NFS share mounted
-    touch "$BLACKLISTED_NODES$(hostname)"
+    touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
 if [ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]; then
     # There is too little shared memory available; snakemake needs a little
-    # for its use of multiprocessing.Lock()
-    touch "$BLACKLISTED_NODES$(hostname)"
+    # for its use of multiprocessing.Lock() to setup logging
+    touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
 
