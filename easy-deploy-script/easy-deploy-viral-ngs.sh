@@ -67,10 +67,10 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-ram_check=$(python -c "bytearray(1024000000)" &> /dev/null)
+ram_check=$(python -c "bytearray(768000000)" &> /dev/null)
 if [ $? -ne 0 ]; then
     echo ""
-    echo "Unable to allocate 1GB."
+    echo "Unable to allocate 768MB."
     echo "=============================================================="
     echo "It appears your current system does not have enough free RAM."
     echo "Consider logging in to a machine with more available memory."
@@ -200,6 +200,7 @@ function activate_env(){
             echo "Activating viral-ngs environment..."
             prepend_miniconda
             source activate $VIRAL_CONDA_ENV_PATH
+            export PS1="(\033[1mviral-ngs\033[0m)\s:\h:\w \! \$ "
         else
             if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
                 echo "It looks like a conda environment is already active,"
