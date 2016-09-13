@@ -38,6 +38,8 @@ if mem:
     # on UGER, memory requests are per-core (according to BITS as of Sept. 6, 2016)
     mem_per_core = round((int(mem)*1024)/int(cores), 2)
     if blacklisted_nodes:
+        # Pass h= as the hostname parameter; it accepts a regex, so
+        # invert the match to blacklist hostnames
         cmdline += " -l h_vmem={}M,h_rss={}M,h='!({})' ".format(
             mem_per_core, round(1.2 * mem_per_core, 2),
             '|'.join(blacklisted_nodes))
@@ -47,6 +49,8 @@ if mem:
     if mem >= 15 or (cores and cores >= 4):
         cmdline += ' -R y '
 elif blacklisted_nodes:
+    # Pass h= as the hostname parameter; it accepts a regex, so
+    # invert the match to blacklist hostnames
     cmdline += " -l h='!({})' ".format('|'.join(blacklisted_nodes))
 
 if cores:
