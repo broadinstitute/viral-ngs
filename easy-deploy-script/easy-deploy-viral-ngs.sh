@@ -45,9 +45,7 @@ MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
     printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] ||
  [[ -n $BASH_VERSION && $0 != "$BASH_SOURCE" ]]) && sourced=1 || sourced=0
 
-# TODO: check that we are on a machine with sufficient RAM
-
-current_prefix_length=$(echo $MINICONDA_PATH | wc -c)
+current_prefix_length=$(echo $MINICONDA_PATH | wc -c | sed -n '1h;1!H;${;g;s/^[ \t]*//g;s/[ \t]*$//g;p;}') # sed trims whitespace
 if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     echo "ERROR: The conda path to be created by this script is too long to work with conda ($current_prefix_length characters):"
     echo "$MINICONDA_PATH"
@@ -67,10 +65,10 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-ram_check=$(python -c "bytearray(1024000000)" &> /dev/null)
+ram_check=$(python -c "bytearray(768000000)" &> /dev/null)
 if [ $? -ne 0 ]; then
     echo ""
-    echo "Unable to allocate 1GB."
+    echo "Unable to allocate 768MB."
     echo "=============================================================="
     echo "It appears your current system does not have enough free RAM."
     echo "Consider logging in to a machine with more available memory."
@@ -150,6 +148,7 @@ function install_miniconda(){
     if [ -d "$MINICONDA_PATH/bin" ]; then
         prepend_miniconda
         conda install -q -y conda==4.0.10
+        conda install -q -y conda-build>=1.7.1
     else
         echo "It looks like the Miniconda installation failed"
         exit 1
@@ -200,6 +199,7 @@ function activate_env(){
             echo "Activating viral-ngs environment..."
             prepend_miniconda
             source activate $VIRAL_CONDA_ENV_PATH
+            export PS1="(\033[1mviral-ngs\033[0m)\s:\h:\w \! \$ "
         else
             if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
                 echo "It looks like a conda environment is already active,"
@@ -220,7 +220,7 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup,upgrade}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2,upgrade}"
 }
 
 function symlink_viral_ngs(){
@@ -277,8 +277,8 @@ if [ $# -eq 0 ]; then
     fi
 else
     case "$1" in
-       "setup")
-            if [ $# -eq 1 ]; then
+       "setup"|"setup-py2")
+            if [ $# -eq 1 -o $# -eq 2 ]; then
                 if [[ $sourced -eq 1 ]]; then
                     echo "ABORTING. $(basename $SCRIPT) must not be sourced during setup"
                     echo "Usage: $(basename $SCRIPT) setup"
@@ -296,10 +296,32 @@ else
                     install_miniconda
 
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
-                        conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                        # provide an option to use Python 2 in the conda environment
+                        if [ "$1" == "setup-py2" ]; then
+                            conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH python=2
+                        else
+                            conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH python=3
+                        fi
+                        
+                        # provide an avenue to specify a package path, or to use a previously-built local package
+                        if [ $# -eq 2 ]; then
+                            if [ "$2" == "--use-local" ]; then
+                                conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH --use-local viral-ngs
+                                echo "using local...."
+                                exit 0
+                            else
+                                conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH $2
+                            fi
+                        elif [ $# -eq 1 ]; then
+                            conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                        fi
+
                     else
                         echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping conda env setup."
                     fi
+
+                    echo "exiting.....$1"
+                    exit 0
 
                     activate_env
 
