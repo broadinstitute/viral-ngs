@@ -38,6 +38,11 @@ if [ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]; then
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
+if ! python3 -c 'from Bio import SeqIO'; then
+    # This sporadically fails, perhaps due to NFS lag; it may be
+    # available on a retry
+    exit 99
+fi
 
 
 echo $JOB_ID
