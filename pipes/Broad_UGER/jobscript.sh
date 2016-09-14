@@ -29,12 +29,14 @@ find $BLACKLISTED_NODES -name "*" -type f -mmin +2880 -delete
 if ! ls "$DATADIR"; then
     # Listing the data directory fails since the node does not have the
     # NFS share mounted
+    echo "Host '$(hostname)' does not have NFS share mounted. Retrying.." 1>&2
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
 if [ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]; then
     # There is too little shared memory available; snakemake needs a little
     # for its use of multiprocessing.Lock() to setup logging
+    echo "Host '$(hostname)' has full or near-full /dev/shm. Retrying.." 1>&2
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
