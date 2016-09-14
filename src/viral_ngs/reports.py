@@ -112,11 +112,12 @@ def get_assembly_stats(sample,
     if os.path.isfile(bam_fname):
         with pysam.AlignmentFile(bam_fname, 'rb') as bam:
             coverages = list([pcol.nsegments for pcol in bam.pileup()])
-        out['aln2self_cov_median'] = median(coverages)
-        out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
-        out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
-        for thresh in cov_thresholds:
-            out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
+        if coverages:
+            out['aln2self_cov_median'] = median(coverages)
+            out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
+            out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
+            for thresh in cov_thresholds:
+                out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
 
     return (header, out)
 
