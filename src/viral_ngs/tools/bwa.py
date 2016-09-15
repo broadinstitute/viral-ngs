@@ -89,7 +89,6 @@ class Bwa(tools.Tool):
                 picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
                 JVMmemory=JVMmemory
             )
-            os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_merged.bam".format(outBam))
             for bam in align_bams:
                 os.unlink(bam)
 
