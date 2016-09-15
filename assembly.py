@@ -267,12 +267,7 @@ __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
 def assemble_trinity(
-    inBam, clipDb,
-    outFasta, n_reads=100000,
-    outReads=None,
-    always_succeed=False,
-    JVMmemory=None,
-    threads=1
+    inBam, clipDb, outFasta, n_reads=100000, outReads=None, always_succeed=False, JVMmemory=None, threads=1
 ):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
@@ -284,13 +279,18 @@ def assemble_trinity(
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
 
     picard_opts = {
-                 'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-                 'CLIPPING_ACTION': 'X'
+        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+        'CLIPPING_ACTION': 'X'
     }
 
     read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
+    tools.picard.SamToFastqTool().execute(
+        subsamp_bam,
+        subsampfq[0],
+        subsampfq[1],
+        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts)
+    )
     try:
         tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     except subprocess.CalledProcessError as e:
@@ -384,8 +384,7 @@ def order_and_orient(inFasta, inReference, outFasta,
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument(
-        'inReference',
-        help='Reference genome for ordering, orienting, and merging contigs, FASTA format.'
+        'inReference', help='Reference genome for ordering, orienting, and merging contigs, FASTA format.'
     )
     parser.add_argument(
         'outFasta',
@@ -554,7 +553,7 @@ def impute_from_reference(
                 concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
                 ref_file = util.file.mkstempfname('.ref.fasta')
                 actual_file = util.file.mkstempfname('.actual.fasta')
-                aligned_file = util.file.mkstempfname('.'+aligner+'.fasta')
+                aligned_file = util.file.mkstempfname('.' + aligner + '.fasta')
                 refName = refSeqObj.id
                 with open(concat_file, 'wt') as outf:
                     Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
@@ -571,8 +570,7 @@ def impute_from_reference(
                 elif aligner == 'muscle':
                     if len(refSeqObj) > 40000:
                         tools.muscle.MuscleTool().execute(
-                            concat_file, aligned_file, quiet=False,
-                            maxiters=2, diags=True
+                            concat_file, aligned_file, quiet=False, maxiters=2, diags=True
                         )
                     else:
                         tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
@@ -613,8 +611,7 @@ def impute_from_reference(
 
 def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument(
-        'inFasta',
-        help='Input assembly/contigs, FASTA format, already ordered, oriented and merged with inReference.'
+        'inFasta', help='Input assembly/contigs, FASTA format, already ordered, oriented and merged with inReference.'
     )
     parser.add_argument('inReference', help='Reference genome to impute with, FASTA format.')
     parser.add_argument('outFasta', help='Output assembly, FASTA format.')
@@ -730,16 +727,12 @@ def refine_assembly(
     if chr_names:
         name_opts = ['--name'] + chr_names
     main_vcf_to_fasta(
-        parser_vcf_to_fasta(argparse.ArgumentParser(
-        )).parse_args([
-            tmpVcf,
-            tmpFasta,
-            '--trim_ends',
-            '--min_coverage',
-            str(min_coverage),
-            '--major_cutoff',
-            str(major_cutoff)
-        ] + name_opts)
+        parser_vcf_to_fasta(argparse.ArgumentParser()).parse_args(
+            [
+                tmpVcf, tmpFasta, '--trim_ends', '--min_coverage', str(min_coverage), '--major_cutoff',
+                str(major_cutoff)
+            ] + name_opts
+        )
     )
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
@@ -762,8 +755,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
     parser.add_argument(
-        'outFasta',
-         help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
+        'outFasta', help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
     )
     parser.add_argument(
         '--already_realigned_bam',
@@ -779,10 +771,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('--outVcf', default=None, help='GATK genotype calls for genome in inFasta coordinate space.')
     parser.add_argument(
-        '--min_coverage',
-        default=3,
-        type=int,
-        help='Minimum read coverage required to call a position unambiguous.'
+        '--min_coverage', default=3, type=int, help='Minimum read coverage required to call a position unambiguous.'
     )
     parser.add_argument(
         '--major_cutoff',
@@ -794,9 +783,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
             that position. [default: %(default)s]"""
     )
     parser.add_argument(
-        '--novo_params',
-        default='-r Random -l 40 -g 40 -x 20 -t 100',
-        help='Alignment parameters for Novoalign.'
+        '--novo_params', default='-r Random -l 40 -g 40 -x 20 -t 100', help='Alignment parameters for Novoalign.'
     )
     parser.add_argument(
         "--chr_names",
@@ -813,9 +800,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="keep_all_reads"
     )
     parser.add_argument(
-        '--JVMmemory',
-        default=tools.gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        '--JVMmemory', default=tools.gatk.GATKTool.jvmMemDefault, help='JVM virtual memory size (default: %(default)s)'
     )
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -838,9 +823,7 @@ def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
     parser.add_argument("outFile", help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument(
-        "-of", "--output-format",
-        help="Format for output sequence (default: %(default)s)",
-        default="fasta"
+        "-of", "--output-format", help="Format for output sequence (default: %(default)s)", default="fasta"
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, main_filter_short_seqs)
@@ -870,9 +853,7 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
     parser.add_argument("output", help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
     parser.add_argument(
-        "-n", "--name",
-        type=str, help="fasta header output name (default: existing header)",
-        default=None
+        "-n", "--name", type=str, help="fasta header output name (default: existing header)", default=None
     )
     parser.add_argument(
         "-cn",
@@ -1215,9 +1196,7 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
     for vcfrow in vcfIter:
         try:
             for c, start, stop, s, alleles in vcfrow_parse_and_call_snps(
-                vcfrow, samples, min_dp=min_dp,
-                major_cutoff=major_cutoff,
-                min_dp_ratio=min_dp_ratio
+                vcfrow, samples, min_dp=min_dp, major_cutoff=major_cutoff, min_dp_ratio=min_dp_ratio
             ):
                 # changing chromosome?
                 if c != cur_c:

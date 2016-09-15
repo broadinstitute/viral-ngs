@@ -30,47 +30,61 @@ log = logging.getLogger(__name__)
 
 
 def parser_illumina_demux(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
+    parser.add_argument(
+        'inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.'
+    )
     parser.add_argument('lane', help='Lane number.', type=int)
     parser.add_argument('outDir', help='Output directory for BAM files.')
 
-    parser.add_argument('--outMetrics',
-                        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
-                        default=None)
-    parser.add_argument('--commonBarcodes',
-                        help='Write a TSV report of all barcode counts, in descending order.',
-                        default=None)
-    parser.add_argument('--sampleSheet',
-                        default=None,
-                        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
+    parser.add_argument(
+        '--outMetrics',
+        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
+        default=None
+    )
+    parser.add_argument(
+        '--commonBarcodes', help='Write a TSV report of all barcode counts, in descending order.', default=None
+    )
+    parser.add_argument(
+        '--sampleSheet',
+        default=None,
+        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
-                                Default is to look for a SampleSheet.csv in the inDir.''')
+                                Default is to look for a SampleSheet.csv in the inDir.'''
+    )
     parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
-    parser.add_argument('--read_structure',
-                        help='Override read structure (default: read from RunInfo.xml).',
-                        default=None)
+    parser.add_argument(
+        '--read_structure', help='Override read structure (default: read from RunInfo.xml).', default=None
+    )
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
         if opt not in ('read_structure', 'num_processors'):
-            parser.add_argument('--' + opt,
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
+            parser.add_argument(
+                '--' + opt,
+                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
+                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt)
+            )
     for opt in tools.picard.IlluminaBasecallsToSamTool.option_list:
         if opt == 'adapters_to_check':
-            parser.add_argument('--' + opt,
-                                nargs='*',
-                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
+            parser.add_argument(
+                '--' + opt,
+                nargs='*',
+                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
+                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt)
+            )
         elif opt == 'read_structure':
             pass
         else:
-            parser.add_argument('--' + opt,
-                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
+            parser.add_argument(
+                '--' + opt,
+                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
+                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt)
+            )
 
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
+    parser.add_argument(
+        '--JVMmemory',
+        help='JVM virtual memory size (default: %(default)s)',
+        default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
@@ -109,8 +123,10 @@ def main_illumina_demux(args):
     barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
     samples.make_barcodes_file(extract_input)
     out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts = dict(
+        (opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
     picardOpts['read_structure'] = read_structure
     tools.picard.ExtractIlluminaBarcodesTool().execute(
         illumina.get_BCLdir(),
@@ -119,7 +135,8 @@ def main_illumina_demux(args):
         barcodes_tmpdir,
         out_metrics,
         picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory
+    )
 
     if args.commonBarcodes:
         count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
@@ -127,8 +144,10 @@ def main_illumina_demux(args):
     # Picard IlluminaBasecallsToSam
     basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
     samples.make_params_file(args.outDir, basecalls_input)
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts = dict(
+        (opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
     picardOpts['run_start_date'] = run_date
     picardOpts['read_structure'] = read_structure
     if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
@@ -140,7 +159,8 @@ def main_illumina_demux(args):
         args.lane,
         basecalls_input,
         picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory
+    )
 
     # clean up
     os.unlink(extract_input)
@@ -152,51 +172,68 @@ def main_illumina_demux(args):
 
 __commands__.append(('illumina_demux', parser_illumina_demux))
 
-
 # ==========================
 # ***  common_barcodes   ***
 # ==========================
 
-def parser_common_barcodes(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
-    parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outSummary', help='Path to the summary file (.tsv format). It includes two columns: (barcode, count)')
 
-    parser.add_argument('--truncateToLength',
-                        help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
-                        type=int,
-                        default=None)
-    parser.add_argument('--omitHeader', 
-                        help='If specified, a header will not be added to the outSummary tsv file.',
-                        action='store_true')
-    parser.add_argument('--includeNoise', 
-                        help='If specified, barcodes with periods (".") will be included.',
-                        action='store_true')
-    parser.add_argument('--outMetrics',
-                        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
-                        default=None)
-    parser.add_argument('--sampleSheet',
-                        default=None,
-                        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
+def parser_common_barcodes(parser=argparse.ArgumentParser()):
+    parser.add_argument(
+        'inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.'
+    )
+    parser.add_argument('lane', help='Lane number.', type=int)
+    parser.add_argument(
+        'outSummary', help='Path to the summary file (.tsv format). It includes two columns: (barcode, count)'
+    )
+
+    parser.add_argument(
+        '--truncateToLength',
+        help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
+        type=int,
+        default=None
+    )
+    parser.add_argument(
+        '--omitHeader',
+        help='If specified, a header will not be added to the outSummary tsv file.',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--includeNoise', help='If specified, barcodes with periods (".") will be included.', action='store_true'
+    )
+    parser.add_argument(
+        '--outMetrics',
+        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
+        default=None
+    )
+    parser.add_argument(
+        '--sampleSheet',
+        default=None,
+        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
-                                Default is to look for a SampleSheet.csv in the inDir.''')
+                                Default is to look for a SampleSheet.csv in the inDir.'''
+    )
     parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
-    parser.add_argument('--read_structure',
-                        help='Override read structure (default: read from RunInfo.xml).',
-                        default=None)
+    parser.add_argument(
+        '--read_structure', help='Override read structure (default: read from RunInfo.xml).', default=None
+    )
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
         if opt not in ('read_structure', 'num_processors'):
-            parser.add_argument('--' + opt,
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
+            parser.add_argument(
+                '--' + opt,
+                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
+                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt)
+            )
 
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
+    parser.add_argument(
+        '--JVMmemory',
+        help='JVM virtual memory size (default: %(default)s)',
+        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_common_barcodes)
     return parser
+
 
 def main_common_barcodes(args):
     ''' 
@@ -225,8 +262,10 @@ def main_common_barcodes(args):
     barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
     samples.make_barcodes_file(barcode_file)
     out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts = dict(
+        (opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
     picardOpts['read_structure'] = read_structure
     tools.picard.ExtractIlluminaBarcodesTool().execute(
         illumina.get_BCLdir(),
@@ -235,7 +274,8 @@ def main_common_barcodes(args):
         barcodes_tmpdir,
         out_metrics,
         picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory
+    )
 
     count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, args.truncateToLength, args.includeNoise, args.omitHeader)
 
@@ -245,7 +285,9 @@ def main_common_barcodes(args):
     illumina.close()
     return 0
 
+
 __commands__.append(('common_barcodes', parser_common_barcodes))
+
 
 def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, includeNoise=False, omitHeader=False):
     # collect the barcode file paths for all tiles
@@ -264,7 +306,11 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
 
     # sort the counts, descending. Truncate the result if desired
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
-    sorted_counts = list((k, barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
+    sorted_counts = list(
+        (k, barcode_counts[k]) for k in sorted(
+            barcode_counts, key=barcode_counts.get, reverse=True
+        )[:count_to_write]
+    )
 
     # write the barcodes and their corresponding counts
     with open(outSummary, 'w') as tsvfile:
@@ -319,11 +365,13 @@ class IlluminaDirectory(object):
         if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
             # this is not the correct root-level directory
             # sometimes this points to one level up
-            subdirs = list(os.path.join(self.path, x) for x in os.listdir(self.path)
-                           if os.path.isdir(os.path.join(self.path, x)))
+            subdirs = list(
+                os.path.join(self.path, x) for x in os.listdir(self.path) if os.path.isdir(os.path.join(self.path, x))
+            )
             if len(subdirs) != 1:
-                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (subdirectories: %s)' %
-                                (self.uri, str(subdirs)))
+                raise Exception(
+                    'cannot find Data/Intensities/BaseCalls/ inside %s (subdirectories: %s)' % (self.uri, str(subdirs))
+                )
             self.path = subdirs[0]
             if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
                 raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
@@ -432,11 +480,12 @@ class RunInfo(object):
 # ***  SampleSheet   ***
 # ======================
 
+
 class SampleSheetError(Exception):
+
     def __init__(self, message, fname):
-        super(SampleSheetError, self).__init__(
-            'Failed to read SampleSheet {}. {}'.format(
-                fname, message))
+        super(SampleSheetError, self).__init__('Failed to read SampleSheet {}. {}'.format(fname, message))
+
 
 class SampleSheet(object):
     ''' A class that reads an Illumina SampleSheet.csv or alternative/simplified
@@ -466,7 +515,7 @@ class SampleSheet(object):
                         continue
                     csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
                     row = next(csv.reader([line.strip().rstrip('\n')], dialect="samplesheet"))
-                    row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
+                    row = [item.strip() for item in row]    # remove leading/trailing whitespace from each item
                     if miseq_skip:
                         if line.startswith('[Data]'):
                             # start paying attention *after* this line
@@ -503,12 +552,14 @@ class SampleSheet(object):
                             if 'sample' not in row[0].lower():
                                 # this is an actual data row! (no header exists in this file)
                                 row_num += 1
-                                self.rows.append({
-                                    'sample': row[0],
-                                    'barcode_1': row[1],
-                                    'barcode_2': row[2],
-                                    'row_num': str(row_num)
-                                })
+                                self.rows.append(
+                                    {
+                                        'sample': row[0],
+                                        'barcode_1': row[1],
+                                        'barcode_2': row[2],
+                                        'row_num': str(row_num)
+                                    }
+                                )
                         else:
                             raise SampleSheetError('unrecognized filetype', infile)
                         for h in ('sample', 'barcode_1'):
@@ -610,13 +661,15 @@ class SampleSheet(object):
         with open(outFile, 'wt') as outf:
             outf.write('\t'.join(header) + '\n')
             # add one catchall entry at the end called Unmatched
-            rows = self.rows + [{
-                'barcode_1': 'N',
-                'barcode_2': 'N',
-                'sample': 'Unmatched',
-                'library': 'Unmatched',
-                'run': 'Unmatched'
-            }]
+            rows = self.rows + [
+                {
+                    'barcode_1': 'N',
+                    'barcode_2': 'N',
+                    'sample': 'Unmatched',
+                    'library': 'Unmatched',
+                    'run': 'Unmatched'
+                }
+            ]
             for row in rows:
                 out = {
                     'BARCODE_1': row['barcode_1'],
@@ -649,9 +702,15 @@ class SampleSheet(object):
 # =============================
 
 
-def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=None,
-                       sequencing_center=None,
-                       JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault):
+def miseq_fastq_to_bam(
+    outBam,
+    sampleSheet,
+    inFastq1,
+    inFastq2=None,
+    runInfo=None,
+    sequencing_center=None,
+    JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault
+):
     ''' Convert fastq read files to a single bam file. Fastq file names must conform
         to patterns emitted by Miseq machines. Sample metadata must be provided
         in a SampleSheet.csv that corresponds to the fastq filename. Specifically,
@@ -669,7 +728,8 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
         assert mo, "fastq filename %s does not match the patterns used by an Illumina Miseq machine" % inFastq2
         assert mo.group(2) == '2', "fastq2 must correspond to read 2, not read %s" % mo.group(2)
         assert mo.group(1) == sample_num, "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (
-            sample_num, mo.group(1))
+            sample_num, mo.group(1)
+        )
 
     # load metadata
     samples = SampleSheet(sampleSheet, allow_non_unique=True)
@@ -708,12 +768,14 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
 
     # run Picard
     picard = tools.picard.FastqToSamTool()
-    picard.execute(inFastq1,
-                   inFastq2,
-                   sampleName,
-                   outBam,
-                   picardOptions=picard.dict_to_picard_opts(picardOpts),
-                   JVMmemory=JVMmemory)
+    picard.execute(
+        inFastq1,
+        inFastq2,
+        sampleName,
+        outBam,
+        picardOptions=picard.dict_to_picard_opts(picardOpts),
+        JVMmemory=JVMmemory
+    )
     return 0
 
 
@@ -726,17 +788,19 @@ def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--sequencing_center',
         default=None,
-        help='Name of your sequencing center (default is the sequencing machine ID from the RunInfo.xml)')
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FastqToSamTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
+        help='Name of your sequencing center (default is the sequencing machine ID from the RunInfo.xml)'
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FastqToSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, miseq_fastq_to_bam, split_args=True)
     return parser
 
 
 __commands__.append(('miseq_fastq_to_bam', parser_miseq_fastq_to_bam))
-
 
 
 # ==============================
@@ -750,6 +814,8 @@ def extract_fc_metadata(flowcell, outRunInfo, outSampleSheet):
     shutil.copy(illumina.get_RunInfo().get_fname(), outRunInfo)
     shutil.copy(illumina.get_SampleSheet().get_fname(), outSampleSheet)
     return 0
+
+
 def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
     parser.add_argument('flowcell', help='Illumina directory (possibly tarball)')
     parser.add_argument('outRunInfo', help='Output RunInfo.xml file.')
@@ -757,6 +823,8 @@ def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
     return parser
+
+
 __commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))
 
 

@@ -16,12 +16,12 @@ import json
 from itertools import permutations
 from collections import OrderedDict, Sequence
 try:
-    from itertools import zip_longest # pylint: disable=E0611
+    from itertools import zip_longest    # pylint: disable=E0611
 except ImportError:
-    from itertools import izip_longest as zip_longest # pylint: disable=E0611
+    from itertools import izip_longest as zip_longest    # pylint: disable=E0611
 try:
-    from UserDict import DictMixin # pylint: disable=E0611
-except ImportError:  # for Py3
+    from UserDict import DictMixin    # pylint: disable=E0611
+except ImportError:    # for Py3
     from collections import MutableMapping as DictMixin
 
 # third-party libraries
@@ -45,6 +45,7 @@ log = logging.getLogger(__name__)
 
 
 class CoordMapperError(Exception):
+
     def __init___(self, *args, **kwargs):
         super(CoordMapperError, self).__init__(self, *args, **kwargs)
 
@@ -113,7 +114,8 @@ class CoordMapper(DictMixin):
         """
         if len(self.chrMaps.keys()) != 4:
             raise LookupError(
-                "CoordMapper.mapAtoB expects two input sequences and is provided only as a legacy function")
+                "CoordMapper.mapAtoB expects two input sequences and is provided only as a legacy function"
+            )
 
         return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
 
@@ -127,7 +129,8 @@ class CoordMapper(DictMixin):
         """
         if len(self.chrMaps.keys()) != 4:
             raise LookupError(
-                "CoordMapper.mapBtoA expects two input sequences and is provided only as a legacy function")
+                "CoordMapper.mapBtoA expects two input sequences and is provided only as a legacy function"
+            )
 
         return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
 
@@ -201,8 +204,7 @@ class CoordMapper(DictMixin):
                         # raise an error
                         # (could occur if same sequence is read in from multiple files)
                         if (seq2.id in self.chrMaps[seq1.id]):
-                            raise KeyError(
-                                "duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
+                            raise KeyError("duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
 
                         mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
                         mapDict = self.chrMaps[seq1.id]
@@ -254,6 +256,7 @@ class CoordMapper2Seqs(object):
             - A gap in one sequence is never adjacent to a gap in the other;
                 there must always be an intervening real base between two gaps.
     """
+
     #
     # Implementation:
     #     mapArrays is a pair of arrays of equal length such that
@@ -268,10 +271,10 @@ class CoordMapper2Seqs(object):
 
     def __init__(self, seq0, seq1):
         self.mapArrays = [array.array('I'), array.array('I')]
-        baseCount0 = 0  # Number of real bases in seq0 up to and including cur pos
-        baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
-        beforeStart = True  # Haven't yet reached first pair of aligned real bases
-        gapSinceLast = False  # Have encounted a gap since last pair in mapArrays
+        baseCount0 = 0    # Number of real bases in seq0 up to and including cur pos
+        baseCount1 = 0    # Number of real bases in seq1 up to and including cur pos
+        beforeStart = True    # Haven't yet reached first pair of aligned real bases
+        gapSinceLast = False    # Have encounted a gap since last pair in mapArrays
         for b0, b1 in zip_longest(seq0, seq1):
             if b0 is None or b1 is None:
                 raise Exception('CoordMapper2Seqs: sequences must be same length.')
@@ -285,8 +288,8 @@ class CoordMapper2Seqs(object):
                     self.mapArrays[1].append(baseCount1)
                     gapSinceLast = False
                     beforeStart = False
-                finalPos0 = baseCount0  # Last pair of aligned real bases so far
-                finalPos1 = baseCount1  # Last pair of aligned real bases so far
+                finalPos0 = baseCount0    # Last pair of aligned real bases so far
+                finalPos1 = baseCount1    # Last pair of aligned real bases so far
             else:
                 gapSinceLast = True
         if len(self.mapArrays[0]) == 0:
@@ -327,11 +330,13 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("genomes", nargs='+', help="genome name (snpEff db name, or NCBI accessions)")
     parser.add_argument("outVcf", help="Output VCF file")
-    parser.add_argument("emailAddress",
-                        help="""Your email address. To access the Genbank CoreNucleotide database,
+    parser.add_argument(
+        "emailAddress",
+        help="""Your email address. To access the Genbank CoreNucleotide database,
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
-        a user at the email address provided before blocking access.""")
+        a user at the email address provided before blocking access."""
+    )
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
@@ -348,44 +353,52 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastas', nargs='+', help='Input FASTA files.')
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--localpair',
-                       default=None,
-                       action='store_true',
-                       help='All pairwise alignments are computed with the Smith-Waterman algorithm.')
-    group.add_argument('--globalpair',
-                       default=None,
-                       action='store_true',
-                       help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.')
+    group.add_argument(
+        '--localpair',
+        default=None,
+        action='store_true',
+        help='All pairwise alignments are computed with the Smith-Waterman algorithm.'
+    )
+    group.add_argument(
+        '--globalpair',
+        default=None,
+        action='store_true',
+        help='All pairwise alignments are computed with the Needleman-Wunsch algorithm.'
+    )
 
-    parser.add_argument('--preservecase',
-                        default=None,
-                        action='store_true',
-                        help='Preserve base or aa case, as well as symbols.')
-    parser.add_argument('--reorder',
-                        default=None,
-                        action='store_true',
-                        help='Output is ordered aligned rather than in the order of the input (default: %(default)s).')
-    parser.add_argument('--gapOpeningPenalty',
-                        default=1.53,
-                        type=float,
-                        help='Gap opening penalty (default: %(default)s).')
+    parser.add_argument(
+        '--preservecase', default=None, action='store_true', help='Preserve base or aa case, as well as symbols.'
+    )
+    parser.add_argument(
+        '--reorder',
+        default=None,
+        action='store_true',
+        help='Output is ordered aligned rather than in the order of the input (default: %(default)s).'
+    )
+    parser.add_argument(
+        '--gapOpeningPenalty', default=1.53, type=float, help='Gap opening penalty (default: %(default)s).'
+    )
     parser.add_argument('--ep', type=float, help='Offset (works like gap extension penalty).')
     parser.add_argument('--verbose', default=False, action='store_true', help='Full output (default: %(default)s).')
-    parser.add_argument('--outputAsClustal',
-                        default=None,
-                        action='store_true',
-                        help='Write output file in Clustal format rather than FASTA')
+    parser.add_argument(
+        '--outputAsClustal',
+        default=None,
+        action='store_true',
+        help='Write output file in Clustal format rather than FASTA'
+    )
     parser.add_argument(
         '--maxiters',
         default=0,
         type=int,
         help="""Maximum number of refinement iterations (default: %(default)s).
-                Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.""")
+                Note: if "--localpair" or "--globalpair" is specified this defaults to 1000."""
+    )
     parser.add_argument(
         '--threads',
         default=-1,
         type=int,
-        help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
+        help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).'
+    )
     return parser
 
 
@@ -404,7 +417,8 @@ def main_align_mafft(args):
 
     if int(args.threads) == 0 or int(args.threads) < -1:
         raise argparse.ArgumentTypeError(
-            'Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
+            'Argument "--threads" must be non-zero. Specify "-1" to use all available cores.'
+        )
 
     tools.mafft.MafftTool().execute(
         inFastas=args.inFastas,
@@ -418,7 +432,8 @@ def main_align_mafft(args):
         verbose=args.verbose,
         outputAsClustal=args.outputAsClustal,
         maxiters=args.maxiters,
-        threads=args.threads)
+        threads=args.threads
+    )
 
     return 0
 
@@ -434,20 +449,24 @@ def parser_multichr_mafft(parser):
     parser = parser_general_mafft(parser)
 
     parser.add_argument('outDirectory', help='Location for the output files (default is cwd: %(default)s)')
-    parser.add_argument('--outFilePrefix',
-                        default="aligned",
-                        help='Prefix for the output file name (default: %(default)s)')
-    parser.add_argument('--sampleRelationFile',
-                        default=None,
-                        help="""If the parameter sampleRelationFile is specified
+    parser.add_argument(
+        '--outFilePrefix', default="aligned", help='Prefix for the output file name (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--sampleRelationFile',
+        default=None,
+        help="""If the parameter sampleRelationFile is specified
         (as a file path), a JSON file will be written mapping
-        sample name to sequence position in the output.""")
-    parser.add_argument('--sampleNameListFile',
-                        default=None,
-                        help="""If the parameter sampleRelationFile is specified
+        sample name to sequence position in the output."""
+    )
+    parser.add_argument(
+        '--sampleNameListFile',
+        default=None,
+        help="""If the parameter sampleRelationFile is specified
         (as a file path), a file will be written mapping
         sample names in the order of their sequence
-        positions in the output.""")
+        positions in the output."""
+    )
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, multichr_mafft)
@@ -460,7 +479,8 @@ def multichr_mafft(args):
 
     if int(args.threads) == 0 or int(args.threads) < -1:
         raise argparse.ArgumentTypeError(
-            'Argument "--threads" must be non-zero. Specify "-1" to use all available cores.')
+            'Argument "--threads" must be non-zero. Specify "-1" to use all available cores.'
+        )
 
     # get the absolute path to the output directory in case it has been specified as a relative path,
     # since MAFFT relies on its CWD for path resolution
@@ -494,7 +514,8 @@ def multichr_mafft(args):
             verbose=args.verbose,
             outputAsClustal=args.outputAsClustal,
             maxiters=args.maxiters,
-            threads=args.threads)
+            threads=args.threads
+        )
 
     return 0
 
@@ -526,8 +547,9 @@ def vcf_header(a):
     header = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
-    header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT',
-                               'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]) + '\n' # pylint: disable=E1101
+    header += '#' + '\t'.join(
+        ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'] + [x.id for x in a]
+    ) + '\n'    # pylint: disable=E1101
 
     return header
 
@@ -553,9 +575,12 @@ def make_vcf(a, ref_idx, chrom):
                             genos.append(m + 1)
             yield row + genos
 
+
 class TranspositionError(Exception):
+
     def __init___(self, *args, **kwargs):
         super(TranspositionError, self).__init__(self, *args, **kwargs)
+
 
 def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sampleNameListFile=None):
     ''' Input:  a list of FASTA files representing a genome for each sample.
@@ -582,8 +607,9 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
     if sampleRelationFile:
         with open(os.path.realpath(sampleRelationFile), "w") as outFile:
             # dict mapping sample->index, zero indexed
-            sampleIdxMap = dict((os.path.basename(v).replace(".fasta", ""), k)
-                                for k, v in enumerate(inputFilenamesList))
+            sampleIdxMap = dict(
+                (os.path.basename(v).replace(".fasta", ""), k) for k, v in enumerate(inputFilenamesList)
+            )
             json.dump(sampleIdxMap, outFile, sort_keys=True, indent=4, separators=(',', ': '))
 
     if sampleNameListFile:

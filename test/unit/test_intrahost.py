@@ -187,12 +187,12 @@ class VcfMergeRunner:
     '''
 
     def __init__(self, ref_genome=None):
-        self.genomes = {}  # {sample : {chrom : bases, ...}, ...}
-        self.genomeFastas = OrderedDict()  # {sample: fastaFileName, ...
-        self.alignedFastas = []  # [chr1, chr2, ...]
+        self.genomes = {}    # {sample : {chrom : bases, ...}, ...}
+        self.genomeFastas = OrderedDict()    # {sample: fastaFileName, ...
+        self.alignedFastas = []    # [chr1, chr2, ...]
         self.isnvs = {}
         self.sample_order = []
-        self.sequence_order = OrderedDict()  # { sample: [seq1, seq2, ... ], ... }
+        self.sequence_order = OrderedDict()    # { sample: [seq1, seq2, ... ], ... }
         if ref_genome:
             self.set_ref(ref_genome)
 
@@ -218,7 +218,7 @@ class VcfMergeRunner:
         assert sample in self.genomeFastas
         assert chrom in self.genomes[sample]
         assert 1 <= pos <= len(self.genomes[sample][chrom])
-        if acounts[0][0] != '':  # deletion
+        if acounts[0][0] != '':    # deletion
             assert self.genomes[sample][chrom][pos - 1:].startswith(acounts[0][0])
         self.isnvs[sample].add_indel(chrom, pos, acounts, libinfo)
 
@@ -236,8 +236,9 @@ class VcfMergeRunner:
 
         seqIds = list(itertools.chain.from_iterable(self.sequence_order.values()))
 
-        intrahost.merge_to_vcf(self.ref, outVcf, seqIds, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
-                               self.alignedFastas)
+        intrahost.merge_to_vcf(
+            self.ref, outVcf, seqIds, list(self.dump_isnv_tmp_file(s) for s in self.sample_order), self.alignedFastas
+        )
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
@@ -282,7 +283,8 @@ class VcfMergeRunner:
                 outputAsClustal=None,
                 maxiters=1000,
                 threads=-1,
-                retree=retree)
+                retree=retree
+            )
             self.alignedFastas.append(alignedOutFile)
 
 
@@ -325,7 +327,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
                 emptyfile, emptyfile
             ], [
                 s1, s2
-            ])
+            ]
+        )
         with util.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
             self.assertEqual(vcf.chrlens(), {'ref1': 8, 'ref2': 5})
@@ -702,6 +705,6 @@ class TestVcfMerge(test.TestCaseWithTmp):
         self.assertEqual(rows[0].pos + 1, 2)
         self.assertEqual(rows[0].ref, 'TC')
         self.assertEqual(rows[0].alt, 'T,TAC')
-        self.assertEqual(rows[0][0].split(':')[0], '0')  # s1 is 0.5 TC, 0.3 T, 0.2 TAC
+        self.assertEqual(rows[0][0].split(':')[0], '0')    # s1 is 0.5 TC, 0.3 T, 0.2 TAC
         for actual, expected in zip(rows[0][0].split(':')[1].split(','), [0.3, 0.2]):
             self.assertAlmostEqual(float(actual), expected, places=2)

@@ -57,9 +57,10 @@ def read_lsf_logfile(infname):
 
 
 def read_all_logfiles(dirname):
-    header = ['job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host', 'status', 'run_time',
-              'start_time', 'end_time', 'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads', 'logfile'
-             ]
+    header = [
+        'job_id', 'job_name', 'job_prefix', 'job_suffix', 'queue', 'exec_host', 'status', 'run_time', 'start_time',
+        'end_time', 'CPU time', 'Max Memory', 'Max Swap', 'Max Processes', 'Max Threads', 'logfile'
+    ]
     yield header
     for fname in os.listdir(dirname):
         try:
@@ -71,8 +72,7 @@ def read_all_logfiles(dirname):
 
 
 def parser_report():
-    parser = argparse.ArgumentParser(
-        description="Read a directory full of LSF log files and produce a tabular report.")
+    parser = argparse.ArgumentParser(description="Read a directory full of LSF log files and produce a tabular report.")
     parser.add_argument("log_dir", help="Input directory of LSF log files")
     parser.add_argument("outFile", help="Output report file")
     return parser

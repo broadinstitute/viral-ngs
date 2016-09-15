@@ -6,10 +6,12 @@ import tools
 from tools import *
 import pytest
 
+
 @pytest.fixture(params=tools.all_tool_classes())
 def tool_class(request):
     print(request.param)
     return request.param
+
 
 def test_tool_install(tool_class):
     t = tool_class()

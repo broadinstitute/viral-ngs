@@ -35,11 +35,10 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-
-
 @patch('metagenomics.blast_lca')
 @patch('metagenomics.kraken_dfs_report')
 class TestDiamondCalls(TestCaseWithTmp):
+
     def setUp(self):
         super().setUp()
         patcher = patch('tools.picard.SamToFastqTool', autospec=True)
@@ -58,16 +57,15 @@ class TestDiamondCalls(TestCaseWithTmp):
         out_report = util.file.mkstempfname('report.txt')
         metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report)
         self.mock_samtofastq().execute.assert_called_once_with(
-            self.inBam, mock.ANY, mock.ANY, picardOptions=mock.ANY,
-            JVMmemory=mock.ANY)
+            self.inBam, mock.ANY, mock.ANY, picardOptions=mock.ANY, JVMmemory=mock.ANY
+        )
         picard_opts = self.mock_samtofastq().execute.call_args[1]['picardOptions']
         six.assertCountEqual(
             self, picard_opts,
-            ['CLIPPING_ACTION=X', 'CLIPPING_ATTRIBUTE=%s'
-             % tools.picard.SamToFastqTool.illumina_clipping_attribute])
+            ['CLIPPING_ACTION=X', 'CLIPPING_ATTRIBUTE=%s' % tools.picard.SamToFastqTool.illumina_clipping_attribute]
+        )
         self.mock_diamond().install.assert_called_once_with()
-        self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'--threads': 1})
+        self.mock_diamond().blastx.assert_called_once_with(self.db, mock.ANY, mock.ANY, options={'--threads': 1})
         assert self.mock_diamond().view.called
         assert isinstance(metagenomics.blast_lca.call_args[0][0], metagenomics.TaxonomyDb)
         assert isinstance(metagenomics.kraken_dfs_report.call_args[0][0], metagenomics.TaxonomyDb)
@@ -75,8 +73,7 @@ class TestDiamondCalls(TestCaseWithTmp):
     def test_num_threads(self, mock_blast_lca, mock_dfs):
         out_report = util.file.mkstempfname('report.txt')
         metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, numThreads=11)
-        self.mock_diamond().blastx.assert_called_once_with(
-            self.db, mock.ANY, mock.ANY, options={'--threads': 11})
+        self.mock_diamond().blastx.assert_called_once_with(self.db, mock.ANY, mock.ANY, options={'--threads': 11})
         self.assertEqual(self.mock_diamond().view.call_args[1]['options']['--threads'], 11)
 
 
@@ -93,17 +90,18 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def test_krona_import_taxonomy(self):
         out_html = util.file.mkstempfname('.html')
-        metagenomics.krona(self.inTsv, self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
-                           noHits=True, noRank=True)
+        metagenomics.krona(
+            self.inTsv, self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7, noHits=True, noRank=True
+        )
         self.mock_krona().import_taxonomy.assert_called_once_with(
-            self.db, [self.inTsv], out_html, query_column=3, taxid_column=5, score_column=7,
-            no_hits=True, no_rank=True)
+            self.db, [self.inTsv], out_html, query_column=3, taxid_column=5, score_column=7, no_hits=True, no_rank=True
+        )
 
 
 @pytest.fixture
 def taxa_db_simple():
     db = metagenomics.TaxonomyDb()
-    db.gis = {1:2, 2:3, 3:4, 4:5}
+    db.gis = {1: 2, 2: 3, 3: 4, 4: 5}
     db.parents = {1: 1, 2: 1, 3: 2, 4: 3, 5: 4}
     return db
 
@@ -119,17 +117,7 @@ def taxa_db(parents, names, ranks):
 
 @pytest.fixture
 def parents():
-    return {
-        1: 1,
-        3: 1,
-        6: 3,
-        7: 6,
-        8: 7,
-        10: 6,
-        11: 7,
-        12: 8,
-        13: 12
-    }
+    return {1: 1, 3: 1, 6: 3, 7: 6, 8: 7, 10: 6, 11: 7, 12: 8, 13: 12}
 
 
 @pytest.fixture
@@ -169,8 +157,7 @@ def ranks():
 
 @pytest.fixture
 def simple_m8():
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
     return open(join(test_path, 'simple.m8'))
 
 
@@ -195,12 +182,9 @@ def test_push_up_tree_hits(parents):
     expected = Counter({3: 5, 6: 6, 13: 5})
     assert metagenomics.push_up_tree_hits(parents, hits.copy(), min_support=5) == expected
 
-    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support=10) ==
-            Counter({6: 11}))
-    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support=18) ==
-            Counter({1: 19}))
-    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support_percent=100) ==
-            Counter({1: 19}))
+    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support=10) == Counter({6: 11}))
+    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support=18) == Counter({1: 19}))
+    assert (metagenomics.push_up_tree_hits(parents, hits.copy(), min_support_percent=100) == Counter({1: 19}))
 
 
 def test_parents_to_children(parents):
@@ -216,8 +200,7 @@ def test_rank_code():
 
 
 def test_blast_records(simple_m8):
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
     with simple_m8 as f:
         records = list(metagenomics.blast_records(f))
     assert len(records) == 110
@@ -226,9 +209,9 @@ def test_blast_records(simple_m8):
 
 
 def test_blast_lca(taxa_db_simple, simple_m8):
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
-    expected = textwrap.dedent("""\
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
+    expected = textwrap.dedent(
+        """\
     M04004:13:000000000-AGV3H:1:1101:12068:2105\t2
     M04004:13:000000000-AGV3H:1:1101:13451:2146\t2
     M04004:13:000000000-AGV3H:1:1101:13509:2113\t2
@@ -236,7 +219,8 @@ def test_blast_lca(taxa_db_simple, simple_m8):
     M04004:13:000000000-AGV3H:1:1101:18179:2130\t2
     M04004:13:000000000-AGV3H:1:1111:10629:2610\t2
     M04004:13:000000000-AGV3H:1:1111:10629:26101\t2
-    """)
+    """
+    )
     out = StringIO()
     with simple_m8 as f:
         metagenomics.blast_lca(taxa_db_simple, f, out, paired=True)
@@ -245,8 +229,7 @@ def test_blast_lca(taxa_db_simple, simple_m8):
 
 
 def test_paired_query_id():
-    tup = ['query', 'gi|10|else', 90., 80, 60, 2, 30, 80,
-           1100, 1150, 1e-7, 64.5]
+    tup = ['query', 'gi|10|else', 90., 80, 60, 2, 30, 80, 1100, 1150, 1e-7, 64.5]
 
     blast1 = metagenomics.BlastRecord(*tup)
     assert metagenomics.paired_query_id(blast1) == blast1
@@ -268,8 +251,7 @@ def test_paired_query_id():
 
 
 def test_translate_gi_to_tax_id(taxa_db_simple):
-    tup = ['query', 'gi|4|else', 90., 80, 60, 2, 30, 80,
-           1100, 1150, 1e-7, 64.5]
+    tup = ['query', 'gi|4|else', 90., 80, 60, 2, 30, 80, 1100, 1150, 1e-7, 64.5]
     blast1 = metagenomics.BlastRecord(*tup)
 
     tup[1] = 5
@@ -280,7 +262,8 @@ def test_translate_gi_to_tax_id(taxa_db_simple):
 def test_kraken_dfs_report(taxa_db):
     hits = Counter({1: 101, 3: 103, 10: 105, 12: 107})
 
-    expected = textwrap.dedent('''\
+    expected = textwrap.dedent(
+        '''\
     100.00\t416\t101\t-\t1\troot
     75.72\t315\t103\tD\t3\t  three
     50.96\t212\t0\t-\t6\t    six
@@ -288,7 +271,8 @@ def test_kraken_dfs_report(taxa_db):
     25.72\t107\t0\t-\t7\t      seven
     25.72\t107\t0\t-\t8\t        eight
     25.72\t107\t107\tS\t12\t          twelve
-    ''')
+    '''
+    )
     report = metagenomics.kraken_dfs_report(taxa_db, hits)
     text_report = '\n'.join(list(report)) + '\n'
     assert text_report == expected

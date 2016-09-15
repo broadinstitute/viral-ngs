@@ -50,9 +50,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
     )
     parser.add_argument(
-        '--taxfiltBam',
-        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
-        default=None
+        '--taxfiltBam', help='Output BAM: blastnBam run through taxonomic selection via LASTAL.', default=None
     )
     parser.add_argument(
         '--bmtaggerDbs',
@@ -63,15 +61,10 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument(
-        '--blastDbs',
-        nargs='+',
-        required=True,
-        help='One or more reference databases for blast to deplete from input.'
+        '--blastDbs', nargs='+', required=True, help='One or more reference databases for blast to deplete from input.'
     )
     parser.add_argument(
-        '--lastDb',
-        help='One reference database for last (required if --taxfiltBam is specified).',
-        default=None
+        '--lastDb', help='One reference database for last (required if --taxfiltBam is specified).', default=None
     )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument(
@@ -163,8 +156,7 @@ def trimmomatic(
             'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
                 sliding_window_size=sliding_window_size,
                 sliding_window_q_cutoff=sliding_window_q_cutoff,
-            ), 
-            'MINLEN:{minlength_to_keep}'.format(minlength_to_keep=minlength_to_keep),
+            ), 'MINLEN:{minlength_to_keep}'.format(minlength_to_keep=minlength_to_keep),
             'ILLUMINACLIP:{clipFasta}:2:30:12'.format(clipFasta=clipFasta)
         ]
     )
@@ -679,8 +671,7 @@ def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
 def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument(
-        'inFastq2',
-        help='Input fastq file; 2nd end of paired-end reads.  '
+        'inFastq2', help='Input fastq file; 2nd end of paired-end reads.  '
         'Must have same names as inFastq1'
     )
     parser.add_argument(
@@ -745,12 +736,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
     multi_db_deplete_bam(
-        args.inBam,
-        args.refDbs,
-        deplete_bmtagger_bam,
-        args.outBam,
-        threads=args.threads,
-        JVMmemory=args.JVMmemory
+        args.inBam, args.refDbs, deplete_bmtagger_bam, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory
     )
 
 
@@ -1150,8 +1136,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', help='Location of the input FASTA file')
     parser.add_argument(
-        'outputDirectory',
-        help='Location for the output files (Where *.bitmask and *.srprism files will be stored)'
+        'outputDirectory', help='Location for the output files (Where *.bitmask and *.srprism files will be stored)'
     )
     parser.add_argument(
         '--outputFilePrefix',

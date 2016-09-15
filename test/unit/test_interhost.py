@@ -30,8 +30,10 @@ class TestCoordMapper(test.TestCaseWithTmp):
 
     def setUp(self):
         super(TestCoordMapper, self).setUp()
-        self.genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
-        self.genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC'), ('second_chr', 'AGTCGGTTTCCAC'),])
+        self.genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),
+                                      ('chr2', 'AGTCGGTTTTCAG'),])
+        self.genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC'),
+                                      ('second_chr', 'AGTCGGTTTCCAC'),])
         self.cm = interhost.CoordMapper()
         self.cm.align_and_load_sequences([self.genomeA, self.genomeB])
 
@@ -41,11 +43,13 @@ class TestCoordMapper(test.TestCaseWithTmp):
             self.assertEqual(self.cm.mapBtoA('second_chr', pos), ('chr2', pos))
 
     def test_map_indels(self):
-        expLists = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, [11, 13], 14, 15, 16, 17, 18, 19, 20, 21],
-                    [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13, 14, 15, 16, 17, 18, 19, 20, 21],]
+        expLists = [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, [11, 13], 14, 15, 16, 17, 18, 19, 20, 21],
+            [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+        ]
         for mapper, fromChrom, goodRange, toChrom, expected in [
-            [self.cm.mapAtoB, 'chr1', range(3, 22), 'first_chrom', expLists[0]], [self.cm.mapBtoA, 'first_chrom',
-                                                                                  range(1, 22), 'chr1', expLists[1]]
+            [self.cm.mapAtoB, 'chr1', range(3, 22), 'first_chrom', expLists[0]],
+            [self.cm.mapBtoA, 'first_chrom', range(1, 22), 'chr1', expLists[1]]
         ]:
             result = [mapper(fromChrom, pos) for pos in goodRange]
             for chrom, mappedPos in result:
@@ -81,7 +85,8 @@ class TestCoordMapper(test.TestCaseWithTmp):
             self.cm.mapBtoA('nonexistentchr', 2)
 
     def test_unequal_genomes_error(self):
-        genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
+        genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),
+                                 ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(interhost.TranspositionError):
             cm = interhost.CoordMapper()
@@ -100,16 +105,20 @@ class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
 
     def setUp(self):
         super(TestCoordMapperMultipleSeqs, self).setUp()
-        self.genomeA = makeTempFasta([
-            ('chr1', 'ATGCACGTACGTATGCAAATCGG'),
-            ('chr2', 'AGTCGGTTTTCAG'),
-            ('chr3', 'GACTTTTGGCTGA'),
-        ])
-        self.genomeB = makeTempFasta([
-            ('first_chrom', 'GCACGTACGTATTTGCAAATC'),
-            ('second_chr', 'AGTCGGTTTCCAC'),
-            ('third_chr', 'CACCTTTGGCTGA'),
-        ])
+        self.genomeA = makeTempFasta(
+            [
+                ('chr1', 'ATGCACGTACGTATGCAAATCGG'),
+                ('chr2', 'AGTCGGTTTTCAG'),
+                ('chr3', 'GACTTTTGGCTGA'),
+            ]
+        )
+        self.genomeB = makeTempFasta(
+            [
+                ('first_chrom', 'GCACGTACGTATTTGCAAATC'),
+                ('second_chr', 'AGTCGGTTTCCAC'),
+                ('third_chr', 'CACCTTTGGCTGA'),
+            ]
+        )
         self.cm = interhost.CoordMapper()
         self.cm.align_and_load_sequences([self.genomeA, self.genomeB])
 
@@ -127,11 +136,13 @@ class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
             self.assertEqual(self.cm.mapChr('second_chr', 'chr2', pos), ('chr2', pos))
 
     def test_map_indels(self):
-        expLists = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, [11, 13], 14, 15, 16, 17, 18, 19, 20, 21],
-                    [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13, 14, 15, 16, 17, 18, 19, 20, 21],]
+        expLists = [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, [11, 13], 14, 15, 16, 17, 18, 19, 20, 21],
+            [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+        ]
         for mapper, fromChrom, goodRange, toChrom, expected in [
-            [self.cm.mapChr, 'chr1', range(3, 22), 'first_chrom', expLists[0]], [self.cm.mapChr, 'first_chrom',
-                                                                                 range(1, 22), 'chr1', expLists[1]]
+            [self.cm.mapChr, 'chr1', range(3, 22), 'first_chrom', expLists[0]],
+            [self.cm.mapChr, 'first_chrom', range(1, 22), 'chr1', expLists[1]]
         ]:
             result = [mapper(fromChrom, toChrom, pos) for pos in goodRange]
             for chrom, mappedPos in result:
@@ -165,7 +176,8 @@ class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
         self.assertRaises(KeyError, self.cm.mapChr, 'chr1', 'nonexistentchr', 2)
 
     def test_unequal_genomes_error(self):
-        genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
+        genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),
+                                 ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(Exception):
             cm = interhost.CoordMapper()
@@ -211,29 +223,37 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
     """
 
     def test_basic_alignment(self):
-        alignment = makeTempFasta([('s1', 'ATCG'), ('s2', 'ACCG'), ('s3', 'AG-T'),])
+        alignment = makeTempFasta([('s1', 'ATCG'),
+                                   ('s2', 'ACCG'),
+                                   ('s3', 'AG-T'),])
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
 
     def test_unequal_len(self):
-        alignment = makeTempFasta([('s1', 'AA'), ('s2', 'A'),])
+        alignment = makeTempFasta([('s1', 'AA'),
+                                   ('s2', 'A'),])
         cm = interhost.CoordMapper()
         with self.assertRaises(Exception):
             cm.load_alignments([alignment])
 
     def test_no_real_bases_in_sample(self):
-        alignment1 = makeTempFasta([('s1', 'AA'), ('s2', '--'),])
+        alignment1 = makeTempFasta([('s1', 'AA'),
+                                    ('s2', '--'),])
         cm = interhost.CoordMapper()
         with self.assertRaises(Exception):
             cm.load_alignments([alignment1])
 
-        alignment2 = makeTempFasta([('s1', '--'), ('s2', 'AA'), ('s3', 'TT'),])
+        alignment2 = makeTempFasta([('s1', '--'),
+                                    ('s2', 'AA'),
+                                    ('s3', 'TT'),])
         cm = interhost.CoordMapper()
         with self.assertRaises(Exception):
             cm.load_alignments([alignment2])
 
     def test_no_real_bases_at_position(self):
-        alignment = makeTempFasta([('s1', 'AT-G'), ('s2', 'AC-G'), ('s3', 'AG-T'),])
+        alignment = makeTempFasta([('s1', 'AT-G'),
+                                   ('s2', 'AC-G'),
+                                   ('s3', 'AG-T'),])
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
         for i in (1, 2, 3):
@@ -245,7 +265,9 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
             self.assertEqual(cm.mapChr('s3', 's2', i), ('s2', i))
 
     def test_aligned_gaps(self):
-        alignment = makeTempFasta([('s1', 'ATCG'), ('s2', 'AC-G'), ('s3', 'AG-T'),])
+        alignment = makeTempFasta([('s1', 'ATCG'),
+                                   ('s2', 'AC-G'),
+                                   ('s3', 'AG-T'),])
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
         for i in (1, 2, 3):
@@ -259,13 +281,15 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
             self.assertEqual(cm.mapChr('s3', 's1', x), ('s1', y))
 
     def test_adjacent_gaps(self):
-        alignment = makeTempFasta([
-            ('s1', 'ATCTG'),
-            ('s2', 'AC--G'),
-            ('s3', 'A-TTG'),
-            ('s4', 'A-C-G'),
-            ('s5', 'A--CG'),
-        ])
+        alignment = makeTempFasta(
+            [
+                ('s1', 'ATCTG'),
+                ('s2', 'AC--G'),
+                ('s3', 'A-TTG'),
+                ('s4', 'A-C-G'),
+                ('s5', 'A--CG'),
+            ]
+        )
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
         for x, y in ((1, 1), (2, 2), (3, 2), (4, 2), (5, 3)):
@@ -286,7 +310,8 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
                 self.assertEqual(cm.mapChr(b, a, i), (a, i))
 
     def test_one_real_base(self):
-        alignment = makeTempFasta([('s1', 'AC-'), ('s2', '-CA'),])
+        alignment = makeTempFasta([('s1', 'AC-'),
+                                   ('s2', '-CA'),])
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
         self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', None))
@@ -295,7 +320,8 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
         self.assertEqual(cm.mapChr('s2', 's1', 2), ('s1', None))
 
     def test_exactly_two_pairs(self):
-        alignment = makeTempFasta([('s1', 'A--T'), ('s2', 'AGGT'),])
+        alignment = makeTempFasta([('s1', 'A--T'),
+                                   ('s2', 'AGGT'),])
         cm = interhost.CoordMapper()
         cm.load_alignments([alignment])
         self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', [1, 3]))

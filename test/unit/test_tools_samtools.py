@@ -50,5 +50,5 @@ class TestToolSamtools(TestCaseWithTmp):
         samtools.downsample_to_approx_count(in_sam, out_bam, desired_count)
 
         assert samtools.count(out_bam) in range(
-            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))+1
+            int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance)) + 1
         ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance

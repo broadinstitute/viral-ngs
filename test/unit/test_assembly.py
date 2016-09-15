@@ -35,7 +35,6 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-
 class TestAssembleTrinity(TestCaseWithTmp):
     ''' Test the assemble_trinity command (no validation of output) '''
 
@@ -64,9 +63,15 @@ class TestAssembleTrinity(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        self.assertRaises(assembly.DenovoAssemblyError,
+        self.assertRaises(
+            assembly.DenovoAssemblyError,
             assembly.assemble_trinity,
-            inBam, clipDb, outFasta, threads=4, always_succeed=False)
+            inBam,
+            clipDb,
+            outFasta,
+            threads=4,
+            always_succeed=False
+        )
 
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
@@ -141,21 +146,17 @@ class TestOrderAndOrient(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hhv3.fasta')
         assembly.order_and_orient(
-            os.path.join(inDir, 'contigs.hhv3.fasta'),
-            os.path.join(inDir, 'ref.hhv3.fasta'),
-            outFasta)
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            os.path.join(inDir, 'contigs.hhv3.fasta'), os.path.join(inDir, 'ref.hhv3.fasta'), outFasta
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_lassa_multisegment(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.lasv.fasta')
         assembly.order_and_orient(
-            os.path.join(inDir, 'contigs.lasv.fasta'),
-            os.path.join(inDir, 'ref.lasv.fasta'),
-            outFasta)
+            os.path.join(inDir, 'contigs.lasv.fasta'), os.path.join(inDir, 'ref.lasv.fasta'), outFasta
+        )
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
@@ -164,9 +165,8 @@ class TestOrderAndOrient(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.influenza.fasta')
         assembly.order_and_orient(
-            os.path.join(inDir, 'contigs.influenza.fasta'),
-            os.path.join(inDir, 'ref.influenza.fasta'),
-            outFasta)
+            os.path.join(inDir, 'contigs.influenza.fasta'), os.path.join(inDir, 'ref.influenza.fasta'), outFasta
+        )
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
@@ -177,11 +177,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
         expected = os.path.join(inDir, 'expected.ebov.doublehit.fasta')
         assembly.order_and_orient(
             os.path.join(inDir, 'contigs.ebov.doublehit.fasta'),
-            os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'),
-            outFasta)
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'), outFasta
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_hiv_wraparound(self):
         # this tests a misassembly from Trinity and checks that we still use some of the contig
@@ -189,12 +187,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hiv.wrapped.fasta')
         assembly.order_and_orient(
-            os.path.join(inDir, 'contigs.hiv.wrapped.fasta'),
-            os.path.join(inDir, 'ref.hiv.fasta'),
-            outFasta)
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            os.path.join(inDir, 'contigs.hiv.wrapped.fasta'), os.path.join(inDir, 'ref.hiv.fasta'), outFasta
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_alternate_contigs(self):
         # this tests that --outAlternateContigs works as expected
@@ -207,7 +202,8 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contigs.hiv.big_indel.fasta'),
             os.path.join(inDir, 'ref.hiv.fasta'),
             outFasta,
-            outAlternateContigs=altFasta)
+            outAlternateContigs=altFasta
+        )
         self.assertEqualContents(outFasta, expected)
         self.assertEqualContents(altFasta, expectedAlt)
 
@@ -220,7 +216,8 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contigs.lasv.fasta'),
             os.path.join(inDir, 'ref.lasv.fasta'),
             outFasta,
-            aligner='promer')
+            aligner='promer'
+        )
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
@@ -229,12 +226,9 @@ class TestOrderAndOrient(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.ebov.small.fasta')
         assembly.order_and_orient(
-            os.path.join(inDir, 'contigs.ebov.fasta'),
-            os.path.join(inDir, 'ref.ebov.small.fasta'),
-            outFasta)
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            os.path.join(inDir, 'contigs.ebov.fasta'), os.path.join(inDir, 'ref.ebov.small.fasta'), outFasta
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
 
 class TestImputeFromReference(TestCaseWithTmp):
@@ -253,10 +247,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minLengthFraction=0.8,
             minUnambig=0.6,
             replaceLength=55,
-            newName='HHV3-test')
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            newName='HHV3-test'
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_varicella_big_mummer(self):
         inDir = util.file.get_test_input_path(self)
@@ -271,10 +264,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.6,
             replaceLength=55,
             aligner='mummer',
-            newName='HHV3-test')
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            newName='HHV3-test'
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_muscle(self):
         inDir = util.file.get_test_input_path(self)
@@ -288,10 +280,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.2,
             replaceLength=5,
             newName='test_sub-EBOV.genome',
-            aligner='muscle')
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            aligner='muscle'
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mafft(self):
         inDir = util.file.get_test_input_path(self)
@@ -305,10 +296,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.2,
             replaceLength=5,
             newName='test_sub-EBOV.genome',
-            aligner='mafft')
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            aligner='mafft'
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mummer(self):
         inDir = util.file.get_test_input_path(self)
@@ -322,10 +312,9 @@ class TestImputeFromReference(TestCaseWithTmp):
             minUnambig=0.2,
             replaceLength=5,
             newName='test_sub-EBOV.genome',
-            aligner='mummer')
-        self.assertEqual(
-            str(Bio.SeqIO.read(outFasta, 'fasta').seq),
-            str(Bio.SeqIO.read(expected, 'fasta').seq))
+            aligner='mummer'
+        )
+        self.assertEqual(str(Bio.SeqIO.read(outFasta, 'fasta').seq), str(Bio.SeqIO.read(expected, 'fasta').seq))
 
 
 class TestMutableSequence(unittest.TestCase):
@@ -559,7 +548,7 @@ class TestContigChooser(unittest.TestCase):
     ''' Test the contig_chooser heuristic used by our MUMmer-based custom scaffolder. '''
 
     def test_no_seqs(self):
-        for test_len in (7,2,228,52):
+        for test_len in (7, 2, 228, 52):
             actual = tools.mummer.contig_chooser([], test_len)
             self.assertEqual(actual, ['N' * test_len])
 
@@ -596,5 +585,3 @@ class TestContigChooser(unittest.TestCase):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
         actual = tools.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'T')
-
-

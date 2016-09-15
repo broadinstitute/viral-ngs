@@ -36,8 +36,10 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
             pass
         with open(os.path.join(workdir, 'data', '00_raw', s + '.bam'), 'wt') as outf:
             pass
-    for fn in ('samples-assembly.txt', 'samples-depletion.txt', 'samples-runs.txt', 'samples-assembly-failures.txt',
-               'samples-metagenomics.txt'):
+    for fn in (
+        'samples-assembly.txt', 'samples-depletion.txt', 'samples-runs.txt', 'samples-assembly-failures.txt',
+        'samples-metagenomics.txt'
+    ):
         with open(os.path.join(workdir, fn), 'wt') as outf:
             for s in sample_names:
                 outf.write(s + '\n')
@@ -66,41 +68,56 @@ class TestSimpleDryRuns(TestCaseWithTmp):
 
     def test_dryrun_all(self):
         ''' Test that the "all" rule dryruns properly '''
-        self.assertTrue(snakemake.snakemake(
-            os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.yaml'),
-            workdir=self.workdir,
-            dryrun=True))
-        self.assertTrue(snakemake.snakemake(
-            os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.yaml'),
-            workdir=self.workdir,
-            dryrun=True,
-            targets=['all']))
+        self.assertTrue(
+            snakemake.snakemake(
+                os.path.join(self.workdir, 'Snakefile'),
+    #configfile=os.path.join(self.workdir, 'config.yaml'),
+                workdir=self.workdir,
+                dryrun=True
+            )
+        )
+        self.assertTrue(
+            snakemake.snakemake(
+                os.path.join(self.workdir, 'Snakefile'),
+    #configfile=os.path.join(self.workdir, 'config.yaml'),
+                workdir=self.workdir,
+                dryrun=True,
+                targets=['all']
+            )
+        )
 
     def test_dryrun_all_assemble(self):
         ''' Test that the "all_assemble" rule dryruns properly '''
-        self.assertTrue(snakemake.snakemake(
-            os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.yaml'),
-            workdir=self.workdir,
-            dryrun=True,
-            targets=['all_assemble']))
+        self.assertTrue(
+            snakemake.snakemake(
+                os.path.join(self.workdir, 'Snakefile'),
+    #configfile=os.path.join(self.workdir, 'config.yaml'),
+                workdir=self.workdir,
+                dryrun=True,
+                targets=['all_assemble']
+            )
+        )
 
     def test_dryrun_all_deplete(self):
         ''' Test that the "all_deplete" rule dryruns properly '''
-        self.assertTrue(snakemake.snakemake(
-            os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.yaml'),
-            workdir=self.workdir,
-            dryrun=True,
-            targets=['all_deplete']))
+        self.assertTrue(
+            snakemake.snakemake(
+                os.path.join(self.workdir, 'Snakefile'),
+    #configfile=os.path.join(self.workdir, 'config.yaml'),
+                workdir=self.workdir,
+                dryrun=True,
+                targets=['all_deplete']
+            )
+        )
 
     def test_dryrun_all_metagenomics(self):
         ''' Test that the "all_metagenomics" rule dryruns properly '''
-        self.assertTrue(snakemake.snakemake(
-            os.path.join(self.workdir, 'Snakefile'),
-            #configfile=os.path.join(self.workdir, 'config.yaml'),
-            workdir=self.workdir,
-            dryrun=True,
-            targets=['all_metagenomics']))
+        self.assertTrue(
+            snakemake.snakemake(
+                os.path.join(self.workdir, 'Snakefile'),
+    #configfile=os.path.join(self.workdir, 'config.yaml'),
+                workdir=self.workdir,
+                dryrun=True,
+                targets=['all_metagenomics']
+            )
+        )

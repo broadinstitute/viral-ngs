@@ -19,8 +19,8 @@ import util.file
 
 log = logging.getLogger(__name__)
 
-
 skip_test = True
+
 
 class TestNcbiFetch(TestCaseWithTmp):
 
@@ -28,8 +28,10 @@ class TestNcbiFetch(TestCaseWithTmp):
         super(TestNcbiFetch, self).setUp()
 
         # these are Orungo accessions
-        self.accessions = ["JQ610675.1", "JQ610676.1", "JQ610677.1", "JQ610678.1", "JQ610679.1", "JQ610680.1",
-                           "JQ610681.1", "JQ610682.1", "JQ610683.1", "JQ610684.1"]
+        self.accessions = [
+            "JQ610675.1", "JQ610676.1", "JQ610677.1", "JQ610678.1", "JQ610679.1", "JQ610680.1", "JQ610681.1",
+            "JQ610682.1", "JQ610683.1", "JQ610684.1"
+        ]
 
         self.myInputDir = util.file.get_test_input_path(self)
 
@@ -50,13 +52,15 @@ class TestNcbiFetch(TestCaseWithTmp):
             createdFilePath = os.path.join(tempDir, fileName)
             log.info("createdFilePath: {}".format(createdFilePath))
             assert os.path.exists(
-                createdFilePath), "File that should have been created does not exist: %s" % createdFilePath
+                createdFilePath
+            ), "File that should have been created does not exist: %s" % createdFilePath
             self.assertEqualContents(createdFilePath, os.path.join(self.myInputDir, fileName))
 
         for fileName in null_files:
             shouldNotExistFilePath = os.path.join(tempDir, fileName)
             assert not os.path.exists(
-                shouldNotExistFilePath), "File exists but it should not: %s" % shouldNotExistFilePath
+                shouldNotExistFilePath
+            ), "File exists but it should not: %s" % shouldNotExistFilePath
 
 
 class TestFastaFetch(TestNcbiFetch):
@@ -70,10 +74,9 @@ class TestFastaFetch(TestNcbiFetch):
         expectedFiles = [a + ".fasta" for a in self.accessions]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
@@ -81,10 +84,9 @@ class TestFastaFetch(TestNcbiFetch):
         expectedFiles = ["orungo.fasta"]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
@@ -92,10 +94,9 @@ class TestFastaFetch(TestNcbiFetch):
         expectedFiles = ["orungo.fasta"]
         null_files = [a + ".fasta" for a in self.accessions]
 
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
@@ -107,10 +108,9 @@ class TestFastaFetch(TestNcbiFetch):
         null_files = []
 
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
@@ -119,17 +119,15 @@ class TestFastaFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
         # an error should be raised the second time the call is made
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
@@ -138,16 +136,14 @@ class TestFastaFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
         # no error should be raised the second time the call is made
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
@@ -156,10 +152,9 @@ class TestFastaFetch(TestNcbiFetch):
         expectedFiles.append("orungo.fa")
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_fastas,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_fastas, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
 
 class TestFeatureTableFetch(TestNcbiFetch):
@@ -173,10 +168,9 @@ class TestFeatureTableFetch(TestNcbiFetch):
         expectedFiles = [a + ".tbl" for a in self.accessions]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
@@ -184,10 +178,9 @@ class TestFeatureTableFetch(TestNcbiFetch):
         expectedFiles = ["orungo.tbl"]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
@@ -195,10 +188,9 @@ class TestFeatureTableFetch(TestNcbiFetch):
         expectedFiles = ["orungo.tbl"]
         null_files = [a + ".tbl" for a in self.accessions]
 
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
@@ -210,10 +202,12 @@ class TestFeatureTableFetch(TestNcbiFetch):
         null_files = []
 
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_feature_tables,
+                additional_args=args,
+                expected_files=expectedFiles,
+                null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
@@ -222,17 +216,18 @@ class TestFeatureTableFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
         # an error should be raised the second time the call is made
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_feature_tables,
+                additional_args=args,
+                expected_files=expectedFiles,
+                null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
@@ -241,16 +236,14 @@ class TestFeatureTableFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
         # no error should be raised the second time the call is made
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
@@ -259,10 +252,9 @@ class TestFeatureTableFetch(TestNcbiFetch):
         expectedFiles.append("orungo.table")
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_feature_tables,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_feature_tables, additional_args=args, expected_files=expectedFiles, null_files=null_files
+        )
 
 
 class TestGenbankRecordFetch(TestNcbiFetch):
@@ -276,10 +268,12 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         expectedFiles = [a + ".gbk" for a in self.accessions]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_concat(self):
@@ -287,10 +281,12 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         expectedFiles = ["orungo.gbk"]
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_removal_of_intermediates(self):
@@ -298,10 +294,12 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         expectedFiles = ["orungo.gbk"]
         null_files = [a + ".gbk" for a in self.accessions]
 
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_individual_preexistance(self):
@@ -313,10 +311,12 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         null_files = []
 
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_genbank_records,
+                additional_args=args,
+                expected_files=expectedFiles,
+                null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_combined_preexistance(self):
@@ -325,17 +325,21 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
         # an error should be raised the second time the call is made
         with self.assertRaises(AssertionError):
-            self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                            additional_args=args,
-                                            expected_files=expectedFiles,
-                                            null_files=null_files)
+            self.perform_download_and_check(
+                ncbi.parser_fetch_genbank_records,
+                additional_args=args,
+                expected_files=expectedFiles,
+                null_files=null_files
+            )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_overwrite(self):
@@ -344,16 +348,20 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         null_files = []
 
         # call once to create the combined file
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
         # no error should be raised the second time the call is made
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )
 
     @unittest.skipIf(skip_test, "test is marked to be skipped")
     def test_different_file_extension(self):
@@ -362,7 +370,9 @@ class TestGenbankRecordFetch(TestNcbiFetch):
         expectedFiles.append("orungo.gb")
         null_files = []
 
-        self.perform_download_and_check(ncbi.parser_fetch_genbank_records,
-                                        additional_args=args,
-                                        expected_files=expectedFiles,
-                                        null_files=null_files)
+        self.perform_download_and_check(
+            ncbi.parser_fetch_genbank_records,
+            additional_args=args,
+            expected_files=expectedFiles,
+            null_files=null_files
+        )

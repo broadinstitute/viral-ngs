@@ -35,31 +35,37 @@ from util.stats import mean, median
 log = logging.getLogger(__name__)
 
 
-def get_assembly_stats(sample,
-                       cov_thresholds=(1, 5, 20, 100),
-                       assembly_dir='data/02_assembly', assembly_tmp='tmp/02_assembly',
-                       align_dir='data/02_align_to_self', reads_dir='data/01_per_sample',
-                       raw_reads_dir='data/00_raw'):
+def get_assembly_stats(
+    sample,
+    cov_thresholds=(1, 5, 20, 100),
+    assembly_dir='data/02_assembly',
+    assembly_tmp='tmp/02_assembly',
+    align_dir='data/02_align_to_self',
+    reads_dir='data/01_per_sample',
+    raw_reads_dir='data/00_raw'
+):
     ''' Fetch assembly-level statistics for a given sample '''
     out = {'sample': sample}
     samtools = tools.samtools.SamtoolsTool()
-    header = ['sample',
-              'reads_raw',
-              'reads_cleaned',
-              'reads_taxfilt',
-              'assembled_trinity',
-              'trinity_in_reads',
-              'n_contigs',
-              'contig_len',
-              'unambig_bases',
-              'pct_unambig',
-              'aln2self_reads_tot',
-              'aln2self_reads_aln',
-              'aln2self_reads_rmdup',
-              'aln2self_pct_nondup',
-              'aln2self_cov_median',
-              'aln2self_cov_mean',
-              'aln2self_cov_mean_non0',] + ['aln2self_cov_%dX' % t for t in cov_thresholds]
+    header = [
+        'sample',
+        'reads_raw',
+        'reads_cleaned',
+        'reads_taxfilt',
+        'assembled_trinity',
+        'trinity_in_reads',
+        'n_contigs',
+        'contig_len',
+        'unambig_bases',
+        'pct_unambig',
+        'aln2self_reads_tot',
+        'aln2self_reads_aln',
+        'aln2self_reads_rmdup',
+        'aln2self_pct_nondup',
+        'aln2self_cov_median',
+        'aln2self_cov_mean',
+        'aln2self_cov_mean_non0',
+    ] + ['aln2self_cov_%dX' % t for t in cov_thresholds]
 
     # per-sample unaligned read stats
     for adj in ('cleaned', 'taxfilt'):
@@ -67,19 +73,21 @@ def get_assembly_stats(sample,
         if os.path.isfile(reads_bam):
             out['reads_' + adj] = samtools.count(reads_bam)
     if os.path.isdir(raw_reads_dir):
-        out['reads_raw'] = sum(samtools.count(bam)
-            # correct issue where sample names containing other sample names as substrings leads
-            # to extra files being included in the count
-            #
-            # add a dot before the wildcard, and assume the sample name is found before the dot.
-            # this works for now since dots are the filename field separators
-            # and leading/trailing dots are stripped from sample names in util.file.string_to_file_name()
-            # TODO: replace this with better filtering?
-            for bam in glob.glob(os.path.join(raw_reads_dir, sample + ".*.bam")))
+        out['reads_raw'] = sum(
+            samtools.count(bam)
+    # correct issue where sample names containing other sample names as substrings leads
+    # to extra files being included in the count
+    #
+    # add a dot before the wildcard, and assume the sample name is found before the dot.
+    # this works for now since dots are the filename field separators
+    # and leading/trailing dots are stripped from sample names in util.file.string_to_file_name()
+    # TODO: replace this with better filtering?
+            for bam in glob.glob(os.path.join(raw_reads_dir, sample + ".*.bam"))
+        )
 
     # pre-assembly stats
-    out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample +
-                                                           '.assembly1-trinity.fasta')) and 1 or 0
+    out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample + '.assembly1-trinity.fasta')
+                                             ) and 1 or 0
     sub_bam = os.path.join(assembly_tmp, sample + '.subsamp.bam')
     if os.path.isfile(sub_bam):
         out['trinity_in_reads'] = samtools.count(sub_bam)
@@ -128,13 +136,15 @@ def assembly_stats(samples, outFile, cov_thresholds, assembly_dir, assembly_tmp,
     with open(outFile, 'wt') as outf:
         for sample in samples:
             log.info("fetching stats on " + sample)
-            header, out = get_assembly_stats(sample,
-                                             cov_thresholds=cov_thresholds,
-                                             assembly_dir=assembly_dir,
-                                             assembly_tmp=assembly_tmp,
-                                             align_dir=align_dir,
-                                             reads_dir=reads_dir,
-                                             raw_reads_dir=raw_reads_dir)
+            header, out = get_assembly_stats(
+                sample,
+                cov_thresholds=cov_thresholds,
+                assembly_dir=assembly_dir,
+                assembly_tmp=assembly_tmp,
+                align_dir=align_dir,
+                reads_dir=reads_dir,
+                raw_reads_dir=raw_reads_dir
+            )
             if not header_written:
                 outf.write('\t'.join(map(str, header)) + '\n')
                 header_written = True
@@ -145,26 +155,32 @@ def assembly_stats(samples, outFile, cov_thresholds, assembly_dir, assembly_tmp,
 def parser_assembly_stats(parser=argparse.ArgumentParser()):
     parser.add_argument('samples', nargs='+', help='Sample names.')
     parser.add_argument('outFile', help='Output report file.')
-    parser.add_argument('--cov_thresholds',
-                        nargs='+',
-                        type=int,
-                        default=(1, 5, 20, 100),
-                        help='Genome coverage thresholds to report on. (default: %(default)s)')
-    parser.add_argument('--assembly_dir',
-                        default='data/02_assembly',
-                        help='Directory with assembly outputs. (default: %(default)s)')
-    parser.add_argument('--assembly_tmp',
-                        default='tmp/02_assembly',
-                        help='Directory with assembly temp files. (default: %(default)s)')
-    parser.add_argument('--align_dir',
-                        default='data/02_align_to_self',
-                        help='Directory with reads aligned to own assembly. (default: %(default)s)')
-    parser.add_argument('--reads_dir',
-                        default='data/01_per_sample',
-                        help='Directory with unaligned filtered read BAMs. (default: %(default)s)')
-    parser.add_argument('--raw_reads_dir',
-                        default='data/00_raw',
-                        help='Directory with unaligned raw read BAMs. (default: %(default)s)')
+    parser.add_argument(
+        '--cov_thresholds',
+        nargs='+',
+        type=int,
+        default=(1, 5, 20, 100),
+        help='Genome coverage thresholds to report on. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--assembly_dir', default='data/02_assembly', help='Directory with assembly outputs. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--assembly_tmp', default='tmp/02_assembly', help='Directory with assembly temp files. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--align_dir',
+        default='data/02_align_to_self',
+        help='Directory with reads aligned to own assembly. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--reads_dir',
+        default='data/01_per_sample',
+        help='Directory with unaligned filtered read BAMs. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--raw_reads_dir', default='data/00_raw', help='Directory with unaligned raw read BAMs. (default: %(default)s)'
+    )
     util.cmd.attach_main(parser, assembly_stats, split_args=True)
     return parser
 
@@ -183,24 +199,24 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     per_chr_fastas = interhost.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
 
     results = OrderedDict()
-    results["same_unambig"]  = 0
-    results["snp_unambig"]   = 0
+    results["same_unambig"] = 0
+    results["snp_unambig"] = 0
     results["indel_unambig"] = 0
-    results["indel_ambig"]   = 0
-    results["ambig_one"]     = 0
-    results["ambig_two"]     = 0
-    results["ambig_both"]    = 0
-    results["unambig_both"]  = 0
+    results["indel_ambig"] = 0
+    results["ambig_one"] = 0
+    results["ambig_two"] = 0
+    results["ambig_both"] = 0
+    results["unambig_both"] = 0
 
     for chr_fasta in per_chr_fastas:
-        same_unambig  = 0
-        snp_unambig   = 0
+        same_unambig = 0
+        snp_unambig = 0
         indel_unambig = 0
-        indel_ambig   = 0
-        ambig_one     = 0
-        ambig_two     = 0
-        ambig_both    = 0
-        unambig_both  = 0
+        indel_ambig = 0
+        ambig_one = 0
+        ambig_two = 0
+        ambig_both = 0
+        unambig_both = 0
 
         alignOutFileName = util.file.mkstempfname('.fasta')
         aligner.execute(chr_fasta, alignOutFileName, fmt="clw")
@@ -213,16 +229,14 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                 c1 = col[0]
                 c2 = col[1]
 
-                if (c1 in ambiguous
-                   and c2 in ambiguous):
-                    ambig_both +=1
+                if (c1 in ambiguous and c2 in ambiguous):
+                    ambig_both += 1
                 elif c1 in ambiguous:
                     ambig_one += 1
                 elif c2 in ambiguous:
                     ambig_two += 1
 
-                if (c1 in IUPACUnambiguousDNA().letters
-                   and c2 in IUPACUnambiguousDNA().letters):
+                if (c1 in IUPACUnambiguousDNA().letters and c2 in IUPACUnambiguousDNA().letters):
                     unambig_both += 1
                     if c1 == c2:
                         same_unambig += 1
@@ -235,10 +249,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                     c1 in IUPACUnambiguousDNA().letters)):
                     indel_unambig += 1
 
-                if ((c1 == gap and
-                    c2 in ambiguous) or
-                   (c2 == gap and
-                    c1 in ambiguous)):
+                if ((c1 == gap and c2 in ambiguous) or (c2 == gap and c1 in ambiguous)):
                     indel_ambig += 1
 
         if printCounts:
@@ -252,14 +263,14 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
             print("ambig_both   ", ambig_both)
             print("unambig_both ", unambig_both)
 
-        results["same_unambig"]  += same_unambig
-        results["snp_unambig"]   += snp_unambig
+        results["same_unambig"] += same_unambig
+        results["snp_unambig"] += snp_unambig
         results["indel_unambig"] += indel_unambig
-        results["indel_ambig"]   += indel_ambig
-        results["ambig_one"]     += ambig_one
-        results["ambig_two"]     += ambig_two
-        results["ambig_both"]    += ambig_both
-        results["unambig_both"]  += unambig_both
+        results["indel_ambig"] += indel_ambig
+        results["ambig_one"] += ambig_one
+        results["ambig_two"] += ambig_two
+        results["ambig_both"] += ambig_both
+        results["unambig_both"] += unambig_both
 
     if printCounts:
         print("\nCounts for this sample:")
@@ -278,6 +289,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
             csvout.writerow(list(results.keys()))
             csvout.writerow(list(results.values()))
 
+
 def parser_alignment_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastaFileOne', help='First fasta file for an alignment')
     parser.add_argument('inFastaFileTwo', help='First fasta file for an alignment')
@@ -285,6 +297,8 @@ def parser_alignment_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--printCounts', help='', action='store_true')
     util.cmd.attach_main(parser, alignment_summary, split_args=True)
     return parser
+
+
 __commands__.append(('alignment_summary', parser_alignment_summary))
 
 
@@ -343,8 +357,10 @@ def get_lib_info(runfile):
             if plate.lower().startswith('plate'):
                 plate = plate[5:]
             well_id = well['Well'][0].upper() + "%02d" % int(well['Well'][1:])
-            dat = [well['sample'], lane['flowcell'] + '.' + lane['lane'], well['barcode_1'] + '-' + well['barcode_2'],
-                   plate.strip() + ':' + well_id, get_earliest_date(lane['bustard_dir']), well.get('Tube_ID', '')]
+            dat = [
+                well['sample'], lane['flowcell'] + '.' + lane['lane'], well['barcode_1'] + '-' + well['barcode_2'],
+                plate.strip() + ':' + well_id, get_earliest_date(lane['bustard_dir']), well.get('Tube_ID', '')
+            ]
             libs[libname].append(dat)
     return libs
 
@@ -367,7 +383,7 @@ def consolidate_spike_count(inDir, outFile):
             with open(fn, 'rt') as inf:
                 for line in inf:
                     if not line.startswith('Input bam') and not line.startswith('*'):
-                        spike, count = [line.strip().split('\t')[i] for i in [0,2]]
+                        spike, count = [line.strip().split('\t')[i] for i in [0, 2]]
                         outf.write('\t'.join([s, spike, count]) + '\n')
 
 
@@ -379,7 +395,6 @@ def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('consolidate_spike_count', parser_consolidate_spike_count))
-
 
 # =========================
 
@@ -445,14 +460,10 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         help="The title displayed on the coverage plot (default: '%(default)s')"
     )
     parser.add_argument(
-        '-q', dest="base_q_threshold",
-        default=None, type=int,
-        help="The minimum base quality threshold"
+        '-q', dest="base_q_threshold", default=None, type=int, help="The minimum base quality threshold"
     )
     parser.add_argument(
-        '-Q', dest="mapping_q_threshold",
-        default=None,
-        type=int, help="The minimum mapping quality threshold"
+        '-Q', dest="mapping_q_threshold", default=None, type=int, help="The minimum mapping quality threshold"
     )
     parser.add_argument(
         '-m',
@@ -585,11 +596,7 @@ def plot_coverage(
                 plt.plot(range(prior_domain_max, domain_max), position_depths, antialiased=True, color=segment_color)
             elif plot_data_style == "dots":
                 plt.plot(
-                    range(prior_domain_max, domain_max),
-                    position_depths,
-                    'ro',
-                    antialiased=True,
-                    color=segment_color
+                    range(prior_domain_max, domain_max), position_depths, 'ro', antialiased=True, color=segment_color
                 )
 
         plt.title(plot_title, fontsize=font_size * 1.2)
@@ -679,16 +686,14 @@ def align_and_plot_coverage(
         opts = list(picardOptions)
         dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
         tools.picard.MarkDuplicatesTool().execute(
-            [aln_bam], aln_bam_dupe_processed,
-            dupe_removal_out_metrics, picardOptions=opts,
-            JVMmemory=JVMmemory
+            [aln_bam], aln_bam_dupe_processed, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=JVMmemory
         )
     else:
         aln_bam_dupe_processed = aln_bam
 
     samtools.sort(aln_bam_dupe_processed, bam_aligned)
     os.unlink(aln_bam)
-    
+
     if excludeDuplicates:
         os.unlink(aln_bam_dupe_processed)
 
@@ -696,8 +701,9 @@ def align_and_plot_coverage(
 
     # -- call plot function --
     plot_coverage(
-        bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
-        base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, excludeDuplicates, out_summary
+        bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi,
+        plot_title, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, excludeDuplicates,
+        out_summary
     )
 
     # remove the output bam, unless it is needed
@@ -716,18 +722,13 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
     parser = parser_plot_coverage_common(parser)
     parser.add_argument('ref_fasta', default=None, help='Reference genome, FASTA format.')
     parser.add_argument(
-        '--outBam',
-        dest="out_bam",
-        default=None,
-        help='Output aligned, indexed BAM file. Default is to write to temp.'
+        '--outBam', dest="out_bam", default=None, help='Output aligned, indexed BAM file. Default is to write to temp.'
     )
     parser.add_argument(
-        '--sensitive', action="store_true",
-        help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1' "
+        '--sensitive', action="store_true", help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1' "
     )
     parser.add_argument(
-        '--excludeDuplicates', action="store_true",
-        help="MarkDuplicates with Picard and only plot non-duplicates"
+        '--excludeDuplicates', action="store_true", help="MarkDuplicates with Picard and only plot non-duplicates"
     )
     parser.add_argument(
         '--JVMmemory',
@@ -754,7 +755,6 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('align_and_plot_coverage', parser_align_and_plot_coverage))
-
 
 # =======================
 
