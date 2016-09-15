@@ -90,6 +90,7 @@ class TestBwamemIdxstats(TestCaseWithTmp):
             actual_count = int(inf.readline().strip().split('\t')[2])
         self.assertGreater(actual_count, 18000)
 
+
 class TestFastqToFasta(TestCaseWithTmp):
 
     def test_fastq_to_fasta(self):
@@ -129,17 +130,21 @@ class TestFastqBam(TestCaseWithTmp):
 
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1,
-                                  inFastq2,
-                                  outBamCmd,
-                                  '--sampleName',
-                                  'FreeSample',
-                                  '--JVMmemory',
-                                  '1g',
-                                  '--picardOptions',
-                                  'LIBRARY_NAME=Alexandria',
-                                  'PLATFORM=9.75',
-                                  'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
+        args = parser.parse_args(
+            [
+                inFastq1,
+                inFastq2,
+                outBamCmd,
+                '--sampleName',
+                'FreeSample',
+                '--JVMmemory',
+                '1g',
+                '--picardOptions',
+                'LIBRARY_NAME=Alexandria',
+                'PLATFORM=9.75',
+                'SEQUENCING_CENTER=KareemAbdul-Jabbar',
+            ]
+        )
         args.func_main(args)
 
         # Note for developers: if you're fixing the tests to handle non-bugs
@@ -153,14 +158,10 @@ class TestFastqBam(TestCaseWithTmp):
         samtools.view(['-h'], outBamCmd, outSam)
         # picard.sam.FastqToSam outputs header fields in different order for
         #    java version 1.8 vs 1.7/1.6, so compare both
-        self.assertTrue(filecmp.cmp(outSam,
-                                    expected1_7Sam,
-                                    shallow=False) or filecmp.cmp(outSam,
-                                                                  expected1_8Sam,
-                                                                  shallow=False) or
-                                                      filecmp.cmp(outSam,
-                                                                  expected1_8Sam_v15,
-                                                                  shallow=False))
+        self.assertTrue(
+            filecmp.cmp(outSam, expected1_7Sam, shallow=False) or filecmp.cmp(outSam, expected1_8Sam, shallow=False) or
+            filecmp.cmp(outSam, expected1_8Sam_v15, shallow=False)
+        )
 
         # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
@@ -169,15 +170,19 @@ class TestFastqBam(TestCaseWithTmp):
 
         # out.bam -> out1.fastq, out2.fastq, outHeader.txt; trim 1 base from 1
         parser = read_utils.parser_bam_to_fastq(argparse.ArgumentParser())
-        args = parser.parse_args([outBamTxt,
-                                  outFastq1,
-                                  outFastq2,
-                                  '--outHeader',
-                                  outHeader,
-                                  '--JVMmemory',
-                                  '1g',
-                                  '--picardOptions',
-                                  'READ1_TRIM=1',])
+        args = parser.parse_args(
+            [
+                outBamTxt,
+                outFastq1,
+                outFastq2,
+                '--outHeader',
+                outHeader,
+                '--JVMmemory',
+                '1g',
+                '--picardOptions',
+                'READ1_TRIM=1',
+            ]
+        )
         args.func_main(args)
 
         # filter out any "PG" lines from header for testing purposes
@@ -189,22 +194,20 @@ class TestFastqBam(TestCaseWithTmp):
                         outf.write(line)
 
         # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
-        self.assertEqualContents(outFastq1, expectedFastq1)  # 1 base trimmed
+        self.assertEqualContents(outFastq1, expectedFastq1)    # 1 base trimmed
         self.assertEqualContents(outFastq2, inFastq2)
         self.assertEqualContents(outHeaderFix, inHeader)
 
 
 class TestRmdupUnaligned(TestCaseWithTmp):
+
     def test_mvicuna_canned_input(self):
         samtools = tools.samtools.SamtoolsTool()
 
         input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
         expected_bam = os.path.join(util.file.get_test_input_path(self), 'expected.bam')
         output_bam = util.file.mkstempfname("output.bam")
-        read_utils.rmdup_mvicuna_bam(
-            input_bam,
-            output_bam
-        )
+        read_utils.rmdup_mvicuna_bam(input_bam, output_bam)
 
         self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
 
@@ -267,6 +270,7 @@ class TestSplitReads(TestCaseWithTmp):
 
 
 class TestAlignAndFix(TestCaseWithTmp):
+
     def setUp(self):
         super(TestAlignAndFix, self).setUp()
         orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
@@ -285,7 +289,8 @@ class TestAlignAndFix(TestCaseWithTmp):
         outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
 
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
-            [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
+            [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner]
+        )
         args.func_main(args)
 
 
@@ -313,7 +318,8 @@ class TestMvicuna(TestCaseWithTmp):
         pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
         unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
         args = read_utils.parser_dup_remove_mvicuna(argparse.ArgumentParser()).parse_args(
-            [inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, '--unpairedOutFastq', unpairedOutFastq])
+            [inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, '--unpairedOutFastq', unpairedOutFastq]
+        )
         args.func_main(args)
 
         # Compare to expected

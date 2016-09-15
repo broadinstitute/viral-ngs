@@ -27,16 +27,19 @@ def get_json_from_picard(picardDir):
     ''' for example, /seq/walkup/picard/{flowcell_minus_first_char} '''
     analysisDir = max(
         (os.path.getmtime(os.path.join(picardDir, d)), d) for d in os.listdir(picardDir)
-        if os.path.isdir(os.path.join(picardDir, d)))[1]
+        if os.path.isdir(os.path.join(picardDir, d))
+    )[1]
     jsonfile = list(glob.glob(os.path.join(picardDir, analysisDir, 'info', 'logs', '*.json')))
     if len(jsonfile) != 1:
         raise Exception("error")
     return jsonfile[0]
 
+
 def get_run_date(jsonfile):
     with open(jsonfile, 'rt') as inf:
         runDate = json.load(inf)['workflow']['runDate']
     return runDate
+
 
 def get_bustard_dir(jsonfile):
     with open(jsonfile, 'rt') as inf:
@@ -49,10 +52,14 @@ def parser_get_bustard_dir(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_bustard_dir)
     return parser
+
+
 def main_get_bustard_dir(args):
     'Find the basecalls directory from a Picard directory'
     print(get_bustard_dir(get_json_from_picard(args.inDir)))
     return 0
+
+
 __commands__.append(('get_bustard_dir', parser_get_bustard_dir))
 
 
@@ -61,16 +68,20 @@ def parser_get_run_date(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_run_date)
     return parser
+
+
 def main_get_run_date(args):
     'Find the sequencing run date from a Picard directory'
     print(get_run_date(get_json_from_picard(args.inDir)))
     return 0
-__commands__.append(('get_run_date', parser_get_run_date))
 
+
+__commands__.append(('get_run_date', parser_get_run_date))
 
 # ===============
 # ***  misc   ***
 # ===============
+
 
 def iterate_wells(runfile):
     for lane in util.file.read_tabfile_dict(runfile):
@@ -83,8 +94,9 @@ def get_all_samples(runfile):
 
 
 def get_all_libraries(runfile):
-    return list(sorted(set(well['sample'] + '.l' + well['library_id_per_sample'] for lane, well in iterate_wells(
-        runfile))))
+    return list(
+        sorted(set(well['sample'] + '.l' + well['library_id_per_sample'] for lane, well in iterate_wells(runfile)))
+    )
 
 
 def get_run_id(well):
@@ -97,8 +109,9 @@ def get_run_id(well):
 
 
 def get_all_runs(runfile):
-    return list(sorted(get_run_id(well) + '.' + lane['flowcell'] + '.' + lane['lane'] for lane, well in iterate_wells(
-        runfile)))
+    return list(
+        sorted(get_run_id(well) + '.' + lane['flowcell'] + '.' + lane['lane'] for lane, well in iterate_wells(runfile))
+    )
 
 
 def parser_get_all_names(parser=argparse.ArgumentParser()):
@@ -107,6 +120,8 @@ def parser_get_all_names(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', 'ERROR'),))
     util.cmd.attach_main(parser, main_get_all_names)
     return parser
+
+
 def main_get_all_names(args):
     'Get all samples'
     if args.type == 'samples':
@@ -118,12 +133,15 @@ def main_get_all_names(args):
     for s in method(args.runfile):
         print(s)
     return 0
+
+
 __commands__.append(('get_all_names', parser_get_all_names))
 
 
 # =======================
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
 
 if __name__ == '__main__':
     util.cmd.main_argparse(__commands__, __doc__)

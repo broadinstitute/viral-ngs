@@ -12,6 +12,7 @@ import util.file
 
 __author__ = "dpark@broadinstitute.org"
 
+
 def install_all_tools():
     sumtime = 0.0
     n_tools = 0
@@ -29,14 +30,17 @@ def install_all_tools():
         if success:
             n_success += 1
         n_tools += 1
-    print("Total %d tools attempted, %d succeeded, %d failed, cumulative install time %0.1f seconds" % (
-        n_tools, n_success, n_tools - n_success, sumtime))
+    print(
+        "Total %d tools attempted, %d succeeded, %d failed, cumulative install time %0.1f seconds" %
+        (n_tools, n_success, n_tools - n_success, sumtime)
+    )
     return (n_tools == n_success)
-        
+
 
 if __name__ == '__main__':
-    print("this install script is %s" % (
-        os.path.abspath(os.path.expanduser(__file__))))
-    print("installing tools into: %s (build, conda-tools, conda-cache)" % (
-        os.path.join(util.file.get_project_path(), 'tools')))
+    print("this install script is %s" % (os.path.abspath(os.path.expanduser(__file__))))
+    print(
+        "installing tools into: %s (build, conda-tools, conda-cache)" %
+        (os.path.join(util.file.get_project_path(), 'tools'))
+    )
     sys.exit(0 if install_all_tools() else 1)

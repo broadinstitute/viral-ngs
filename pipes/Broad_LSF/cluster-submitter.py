@@ -19,7 +19,9 @@ if props["params"].get("logid"):
 
 # -E is a pre-exec command, that reschedules the job if the command fails
 #   in this case, if the data dir is unavailable (as may be the case for a hot-mounted file path)
-cmdline = 'bsub -P {proj_name} -J {jobname} -r -E "ls {datadir}" '.format(proj_name='viral_ngs', jobname=jobname, datadir=DATADIR)
+cmdline = 'bsub -P {proj_name} -J {jobname} -r -E "ls {datadir}" '.format(
+    proj_name='viral_ngs', jobname=jobname, datadir=DATADIR
+)
 
 # log file output
 if "-N" not in props["params"].get("LSF", ""):

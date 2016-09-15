@@ -147,9 +147,7 @@ def parser_index_fasta_picard(parser=argparse.ArgumentParser()):
 def main_index_fasta_picard(args):
     '''Create an index file for a reference genome suitable for Picard/GATK.'''
     tools.picard.CreateSequenceDictionaryTool().execute(
-        args.inFasta, overwrite=True,
-        picardOptions=args.picardOptions,
-        JVMmemory=args.JVMmemory
+        args.inFasta, overwrite=True, picardOptions=args.picardOptions, JVMmemory=args.JVMmemory
     )
     return 0
 
@@ -194,9 +192,7 @@ def main_mkdup_picard(args):
     if args.remove:
         opts = ['REMOVE_DUPLICATES=true'] + opts
     tools.picard.MarkDuplicatesTool().execute(
-        args.inBams, args.outBam,
-        args.outMetrics, picardOptions=opts,
-        JVMmemory=args.JVMmemory
+        args.inBams, args.outBam, args.outMetrics, picardOptions=opts, JVMmemory=args.JVMmemory
     )
     return 0
 
@@ -249,9 +245,7 @@ def parser_picard(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)'
     )
     parser.add_argument(
-        '--picardOptions',
-        default=[], nargs='*',
-        help='Optional arguments to Picard, OPTIONNAME=value ...'
+        '--picardOptions', default=[], nargs='*', help='Optional arguments to Picard, OPTIONNAME=value ...'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_picard)
@@ -281,18 +275,10 @@ def parser_sort_bam(parser=argparse.ArgumentParser()):
         default=tools.picard.SortSamTool.default_sort_order
     )
     parser.add_argument(
-        "--index",
-        help="Index outBam (default: %(default)s)",
-        default=False,
-        action="store_true",
-        dest="index"
+        "--index", help="Index outBam (default: %(default)s)", default=False, action="store_true", dest="index"
     )
     parser.add_argument(
-        "--md5",
-        help="MD5 checksum outBam (default: %(default)s)",
-        default=False,
-        action="store_true",
-        dest="md5"
+        "--md5", help="MD5 checksum outBam (default: %(default)s)", default=False, action="store_true", dest="md5"
     )
     parser.add_argument(
         '--JVMmemory',
@@ -300,10 +286,7 @@ def parser_sort_bam(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)'
     )
     parser.add_argument(
-        '--picardOptions',
-        default=[],
-        nargs='*',
-        help='Optional arguments to Picard\'s SortSam, OPTIONNAME=value ...'
+        '--picardOptions', default=[], nargs='*', help='Optional arguments to Picard\'s SortSam, OPTIONNAME=value ...'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_sort_bam)
@@ -318,8 +301,7 @@ def main_sort_bam(args):
     if args.md5:
         opts = ['CREATE_MD5_FILE=true'] + opts
     tools.picard.SortSamTool().execute(
-        args.inBam, args.outBam, args.sortOrder,
-        picardOptions=opts, JVMmemory=args.JVMmemory
+        args.inBam, args.outBam, args.sortOrder, picardOptions=opts, JVMmemory=args.JVMmemory
     )
     return 0
 
@@ -487,10 +469,7 @@ def fastq_to_bam(
         if any(opt.lower() == 'CREATE_MD5_FILE=True'.lower() for opt in picardOptions):
             raise Exception("""CREATE_MD5_FILE is not allowed with '--header.'""")
     tools.picard.FastqToSamTool().execute(
-        inFastq1, inFastq2,
-        sampleName, fastqToSamOut,
-        picardOptions=picardOptions,
-        JVMmemory=JVMmemory
+        inFastq1, inFastq2, sampleName, fastqToSamOut, picardOptions=picardOptions, JVMmemory=JVMmemory
     )
 
     if header:
@@ -535,13 +514,7 @@ defaultFormat = 'fastq'
 
 
 def split_reads(
-    inFileName,
-    outPrefix,
-    outSuffix="",
-    maxReads=None,
-    numChunks=None,
-    indexLen=defaultIndexLen,
-    fmt=defaultFormat
+    inFileName, outPrefix, outSuffix="", maxReads=None, numChunks=None, indexLen=defaultIndexLen, fmt=defaultFormat
 ):
     '''Split fasta or fastq file into chunks of maxReads reads or into
            numChunks chunks named outPrefix01, outPrefix02, etc.
@@ -584,8 +557,7 @@ def split_reads(
 def parser_split_reads(parser=argparse.ArgumentParser()):
     parser.add_argument('inFileName', help='Input fastq or fasta file.')
     parser.add_argument(
-        'outPrefix',
-        help='Output files will be named ${outPrefix}01${outSuffix}, ${outPrefix}02${outSuffix}...'
+        'outPrefix', help='Output files will be named ${outPrefix}01${outSuffix}, ${outPrefix}02${outSuffix}...'
     )
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
@@ -596,9 +568,7 @@ def parser_split_reads(parser=argparse.ArgumentParser()):
                maxReads nor numChunks is specified).'''.format(defaultMaxReads)
     )
     group.add_argument(
-        '--numChunks',
-        type=int, default=None,
-        help='Number of output files, if maxReads is not specified.'
+        '--numChunks', type=int, default=None, help='Number of output files, if maxReads is not specified.'
     )
     parser.add_argument(
         '--indexLen',
@@ -899,8 +869,16 @@ def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
         default=False,
         action="store_true"
     )
-    parser.add_argument('--unpairedOutFastq1', default=None, help='File name of output unpaired reads from 1st end of paired-end reads (independent of --includeUnmated)')
-    parser.add_argument('--unpairedOutFastq2', default=None, help='File name of output unpaired reads from 2nd end of paired-end reads (independent of --includeUnmated)')
+    parser.add_argument(
+        '--unpairedOutFastq1',
+        default=None,
+        help='File name of output unpaired reads from 1st end of paired-end reads (independent of --includeUnmated)'
+    )
+    parser.add_argument(
+        '--unpairedOutFastq2',
+        default=None,
+        help='File name of output unpaired reads from 2nd end of paired-end reads (independent of --includeUnmated)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_rmdup_prinseq_fastq)
     return parser
@@ -911,7 +889,10 @@ def main_rmdup_prinseq_fastq(args):
         reads.  Also removes reads with more than one N.
     '''
     prinseq = tools.prinseq.PrinseqTool()
-    prinseq.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2, args.includeUnmated, args.unpairedOutFastq1, args.unpairedOutFastq2)
+    prinseq.rmdup_fastq_paired(
+        args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2, args.includeUnmated, args.unpairedOutFastq1,
+        args.unpairedOutFastq2
+    )
     return 0
 
 
@@ -999,9 +980,7 @@ def parser_gatk_ug(parser=argparse.ArgumentParser()):
         help='UnifiedGenotyper options (default: %(default)s)'
     )
     parser.add_argument(
-        '--JVMmemory',
-        default=tools.gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        '--JVMmemory', default=tools.gatk.GATKTool.jvmMemDefault, help='JVM virtual memory size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_ug)
@@ -1011,9 +990,7 @@ def parser_gatk_ug(parser=argparse.ArgumentParser()):
 def main_gatk_ug(args):
     '''Call genotypes using the GATK UnifiedGenotyper.'''
     tools.gatk.GATKTool().ug(
-        args.inBam, args.refFasta,
-        args.outVcf, options=args.options.split(),
-        JVMmemory=args.JVMmemory
+        args.inBam, args.refFasta, args.outVcf, options=args.options.split(), JVMmemory=args.JVMmemory
     )
     return 0
 
@@ -1026,9 +1003,7 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard.')
     parser.add_argument('outBam', help='Realigned reads.')
     parser.add_argument(
-        '--JVMmemory',
-        default=tools.gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        '--JVMmemory', default=tools.gatk.GATKTool.jvmMemDefault, help='JVM virtual memory size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_realign)
@@ -1039,9 +1014,7 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
 def main_gatk_realign(args):
     '''Local realignment of BAM files with GATK IndelRealigner.'''
     tools.gatk.GATKTool().local_realign(
-        args.inBam, args.refFasta,
-        args.outBam, JVMmemory=args.JVMmemory,
-        threads=args.threads
+        args.inBam, args.refFasta, args.outBam, JVMmemory=args.JVMmemory, threads=args.threads
     )
     return 0
 
@@ -1052,7 +1025,8 @@ __commands__.append(('gatk_realign', parser_gatk_realign))
 
 
 def align_and_fix(
-    inBam, refFasta,
+    inBam,
+    refFasta,
     outBamAll=None,
     outBamFiltered=None,
     aligner_options='',
@@ -1074,25 +1048,23 @@ def align_and_fix(
     shutil.copyfile(refFasta, refFastaCopy)
 
     tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)    
+    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
-        if aligner=="novoalign":
+        if aligner == "novoalign":
             aligner_options = '-r Random'
-        elif aligner=='bwa':
-            aligner_options = '-T 30' # quality threshold
+        elif aligner == 'bwa':
+            aligner_options = '-T 30'    # quality threshold
 
     bam_aligned = mkstempfname('.aligned.bam')
-    if aligner=="novoalign":
-        
+    if aligner == "novoalign":
+
         tools.novoalign.NovoalignTool().index_fasta(refFastaCopy)
 
         tools.novoalign.NovoalignTool().execute(
-            inBam, refFastaCopy, bam_aligned,
-            options=aligner_options.split(),
-            JVMmemory=JVMmemory
+            inBam, refFastaCopy, bam_aligned, options=aligner_options.split(), JVMmemory=JVMmemory
         )
-    elif aligner=='bwa':
+    elif aligner == 'bwa':
         bwa = tools.bwa.Bwa()
         bwa.index(refFastaCopy)
 
@@ -1102,15 +1074,14 @@ def align_and_fix(
         # for downstream filtering
         bwa_map_threshold = 30
         if '-T' in opts:
-            if opts.index("-T")+1 <= len(opts):
-                bwa_map_threshold = int(opts[opts.index("-T")+1])
+            if opts.index("-T") + 1 <= len(opts):
+                bwa_map_threshold = int(opts[opts.index("-T") + 1])
 
         bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
 
     bam_mkdup = mkstempfname('.mkdup.bam')
     tools.picard.MarkDuplicatesTool().execute(
-        [bam_aligned], bam_mkdup, picardOptions=['CREATE_INDEX=true'],
-        JVMmemory=JVMmemory
+        [bam_aligned], bam_mkdup, picardOptions=['CREATE_INDEX=true'], JVMmemory=JVMmemory
     )
     os.unlink(bam_aligned)
 
@@ -1144,8 +1115,12 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         help='''Aligned, sorted, and indexed reads.  Unmapped reads and
                 duplicate reads are removed from this file.'''
     )
-    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
-    parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
+    parser.add_argument(
+        '--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"'
+    )
+    parser.add_argument(
+        '--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)'
+    )
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -1194,6 +1169,7 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
 __commands__.append(('bwamem_idxstats', parser_bwamem_idxstats))
 
 # =========================
+
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)

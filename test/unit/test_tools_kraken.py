@@ -72,22 +72,25 @@ class TestToolKrakenMocked(TestCaseWithTmp):
 
     def test_classify_num_threads(self):
         out_reads = util.file.mkstempfname('.reads.txt')
-        
+
         self.kraken.classify(self.inBam, self.db, out_reads)
         args = self.mock_check_call.call_args[0][0]
         self.assertEqual('kraken', os.path.basename(args[0]))
         self.assertIn('--threads', args)
-        actual = args[args.index('--threads')+1]
+        actual = args[args.index('--threads') + 1]
         self.assertEqual(actual, str(util.misc.available_cpu_count()), args)
 
-        for requested in (1,2,3,8,11,20):
+        for requested in (1, 2, 3, 8, 11, 20):
             expected = min(util.misc.available_cpu_count(), requested)
             self.kraken.classify(self.inBam, self.db, out_reads, numThreads=requested)
             args = self.mock_check_call.call_args[0][0]
             self.assertEqual('kraken', os.path.basename(args[0]))
             self.assertIn('--threads', args)
-            actual = args[args.index('--threads')+1]
-            self.assertEqual(actual, str(expected), "failure for requested %s, expected %s, actual %s" % (requested, expected, actual))
+            actual = args[args.index('--threads') + 1]
+            self.assertEqual(
+                actual, str(expected),
+                "failure for requested %s, expected %s, actual %s" % (requested, expected, actual)
+            )
 
 
 @unittest.skipIf(tools.is_osx(), "kraken osx binary does not yet exist on bioconda")

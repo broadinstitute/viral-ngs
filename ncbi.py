@@ -48,13 +48,14 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     if not line.startswith('>Feature '):
                         raise Exception("not sure how to handle a non-Feature record")
                     refID = line[len('>Feature '):].strip()
-                    if not ((refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and
-                                len(refID) > 4):
+                    if not (
+                        (refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and len(refID) > 4
+                    ):
                         raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
                     refID = refID[refID.find("|") + 1:-1]
                     refSeqID = [x for x in cmap.keys() if refID in x][0]
                     #altid = cmap.mapChr(refSeqID, altid)
-                    altid = list(set(cmap.keys()) - set([refSeqID]))[0]  # cmap.mapChr(refSeqID, altid)
+                    altid = list(set(cmap.keys()) - set([refSeqID]))[0]    # cmap.mapChr(refSeqID, altid)
                     line = '>Feature ' + altid
                     feature_keep = True
                 elif line[0] != '\t':
@@ -116,13 +117,15 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
     parser.add_argument("ref_tbl", help="Input reference annotations (NCBI TBL format)")
     parser.add_argument("alt_fasta", help="Input sequence of new genome")
     parser.add_argument("out_tbl", help="Output file with transferred annotations")
-    parser.add_argument('--oob_clip',
-                        default=False,
-                        action='store_true',
-                        help='''Out of bounds feature behavior.
+    parser.add_argument(
+        '--oob_clip',
+        default=False,
+        action='store_true',
+        help='''Out of bounds feature behavior.
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
-               but truncate any features that are partly out of bounds''')
+               but truncate any features that are partly out of bounds'''
+    )
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer, split_args=True)
     return parser
@@ -146,7 +149,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
         created by tbl_transfer_common.
     """
 
-    ref_tbl = ""  # must be identified in list of tables
+    ref_tbl = ""    # must be identified in list of tables
     ref_fasta_filename = ""
     matchingRefSeq = None
 
@@ -208,23 +211,29 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
 
 
 def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
-    parser.add_argument("inputFasta",
-                        help="""FASTA file containing input sequences,
-        including pre-made alignments and reference sequence""")
+    parser.add_argument(
+        "inputFasta",
+        help="""FASTA file containing input sequences,
+        including pre-made alignments and reference sequence"""
+    )
     parser.add_argument("refFasta", help="FASTA file containing the reference genome")
-    parser.add_argument("refAnnotTblFiles",
-                        nargs='+',
-                        help="""Name of the reference feature tables,
+    parser.add_argument(
+        "refAnnotTblFiles",
+        nargs='+',
+        help="""Name of the reference feature tables,
         each of which should have a filename comrised of [refId].tbl
-        so they can be matched against the reference sequences""")
+        so they can be matched against the reference sequences"""
+    )
     parser.add_argument("outputDir", help="The output directory")
-    parser.add_argument('--oob_clip',
-                        default=False,
-                        action='store_true',
-                        help='''Out of bounds feature behavior.
+    parser.add_argument(
+        '--oob_clip',
+        default=False,
+        action='store_true',
+        help='''Out of bounds feature behavior.
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
-               but truncate any features that are partly out of bounds''')
+               but truncate any features that are partly out of bounds'''
+    )
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
     return parser
@@ -233,88 +242,107 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
 __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))
 
 
-def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                 removeSeparateFiles, chunkSize):
+def fetch_fastas(
+    accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles,
+    chunkSize
+):
     '''
         This function downloads and saves the FASTA files
         from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_fastas_from_genbank(accession_IDs,
-                                           destinationDir,
-                                           emailAddress,
-                                           forceOverwrite,
-                                           combinedFilePrefix,
-                                           removeSeparateFiles,
-                                           fileExt,
-                                           "fasta",
-                                           chunkSize=chunkSize)
+    util.genbank.fetch_fastas_from_genbank(
+        accession_IDs,
+        destinationDir,
+        emailAddress,
+        forceOverwrite,
+        combinedFilePrefix,
+        removeSeparateFiles,
+        fileExt,
+        "fasta",
+        chunkSize=chunkSize
+    )
 
 
-def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                         removeSeparateFiles, chunkSize):
+def fetch_feature_tables(
+    accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles,
+    chunkSize
+):
     '''
         This function downloads and saves
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_feature_tables_from_genbank(accession_IDs,
-                                                   destinationDir,
-                                                   emailAddress,
-                                                   forceOverwrite,
-                                                   combinedFilePrefix,
-                                                   removeSeparateFiles,
-                                                   fileExt,
-                                                   "ft",
-                                                   chunkSize=chunkSize)
+    util.genbank.fetch_feature_tables_from_genbank(
+        accession_IDs,
+        destinationDir,
+        emailAddress,
+        forceOverwrite,
+        combinedFilePrefix,
+        removeSeparateFiles,
+        fileExt,
+        "ft",
+        chunkSize=chunkSize
+    )
 
 
-def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                          removeSeparateFiles, chunkSize):
+def fetch_genbank_records(
+    accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt, removeSeparateFiles,
+    chunkSize
+):
     '''
         This function downloads and saves
         full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_full_records_from_genbank(accession_IDs,
-                                                 destinationDir,
-                                                 emailAddress,
-                                                 forceOverwrite,
-                                                 combinedFilePrefix,
-                                                 removeSeparateFiles,
-                                                 fileExt,
-                                                 "gb",
-                                                 chunkSize=chunkSize)
+    util.genbank.fetch_full_records_from_genbank(
+        accession_IDs,
+        destinationDir,
+        emailAddress,
+        forceOverwrite,
+        combinedFilePrefix,
+        removeSeparateFiles,
+        fileExt,
+        "gb",
+        chunkSize=chunkSize
+    )
 
 
 def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
-    parser.add_argument("emailAddress",
-                        help="""Your email address. To access the Genbank CoreNucleotide database,
+    parser.add_argument(
+        "emailAddress",
+        help="""Your email address. To access the Genbank CoreNucleotide database,
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access. This email address should
         be registered with NCBI. To register an email address, simply send
         an email to eutilities@ncbi.nlm.nih.gov including your email address and
-        the tool name (tool='https://github.com/broadinstitute/viral-ngs').""")
+        the tool name (tool='https://github.com/broadinstitute/viral-ngs')."""
+    )
     parser.add_argument("destinationDir", help="Output directory with where .fasta and .tbl files will be saved")
     parser.add_argument("accession_IDs", nargs='+', help="List of Genbank nuccore accession IDs")
-    parser.add_argument('--forceOverwrite',
-                        default=False,
-                        action='store_true',
-                        help='''Overwrite existing files, if present.''')
-    parser.add_argument('--combinedFilePrefix',
-                        help='''The prefix of the file containing the combined concatenated
-                 results returned by the list of accession IDs, in the order provided.''')
+    parser.add_argument(
+        '--forceOverwrite', default=False, action='store_true', help='''Overwrite existing files, if present.'''
+    )
+    parser.add_argument(
+        '--combinedFilePrefix',
+        help='''The prefix of the file containing the combined concatenated
+                 results returned by the list of accession IDs, in the order provided.'''
+    )
     parser.add_argument('--fileExt', default=None, help='''The extension to use for the downloaded files''')
-    parser.add_argument('--removeSeparateFiles',
-                        default=False,
-                        action='store_true',
-                        help='''If specified, remove the individual files and leave only the combined file.''')
-    parser.add_argument('--chunkSize',
-                        default=1,
-                        type=int,
-                        help='''Causes files to be downloaded from GenBank in chunks of N accessions.
+    parser.add_argument(
+        '--removeSeparateFiles',
+        default=False,
+        action='store_true',
+        help='''If specified, remove the individual files and leave only the combined file.'''
+    )
+    parser.add_argument(
+        '--chunkSize',
+        default=1,
+        type=int,
+        help='''Causes files to be downloaded from GenBank in chunks of N accessions.
         Each chunk will be its own combined file, separate from any combined
         file created via --combinedFilePrefix (default: %(default)s). If chunkSize is
         unspecified and >500 accessions are provided, chunkSize will be set to 500 to
-        adhere to the NCBI guidelines on information retreival.''')
+        adhere to the NCBI guidelines on information retreival.'''
+    )
     return parser
 
 
@@ -388,9 +416,16 @@ def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=N
         outf.write("StructuredCommentSuffix\t##Genome-Assembly-Data-END##\n")
 
 
-def prep_genbank_files(templateFile, fasta_files, annotDir,
-                       master_source_table=None, comment=None, sequencing_tech=None,
-                       coverage_table=None, biosample_map=None):
+def prep_genbank_files(
+    templateFile,
+    fasta_files,
+    annotDir,
+    master_source_table=None,
+    comment=None,
+    sequencing_tech=None,
+    coverage_table=None,
+    biosample_map=None
+):
     ''' Prepare genbank submission files.  Requires .fasta and .tbl files as input,
         as well as numerous other metadata files for the submission.  Creates a
         directory full of files (.sqn in particular) that can be sent to GenBank.
@@ -421,11 +456,11 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
         with open(fn, "r") as inf:
             asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
             for idx, seq_obj in enumerate(asm_fasta):
-                sample = sample_base + "-" + str(idx+1)
+                sample = sample_base + "-" + str(idx + 1)
 
                 # write the segment to a temp .fasta file
                 # in the same dir so fasta2fsa functions as expected
-                out_file_name = os.path.join(os.path.dirname(fn),sample+".fasta")
+                out_file_name = os.path.join(os.path.dirname(fn), sample + ".fasta")
                 with open(out_file_name, "w") as out_chr_fasta:
                     Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
 
@@ -438,10 +473,12 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                 if master_source_table:
                     shutil.copy(master_source_table, os.path.join(annotDir, sample + '.src'))
                 # make .cmt files
-                make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
-                                             name=sample,
-                                             coverage=coverage.get(sample),
-                                             seq_tech=sequencing_tech)
+                make_structured_comment_file(
+                    os.path.join(annotDir, sample + '.cmt'),
+                    name=sample,
+                    coverage=coverage.get(sample),
+                    seq_tech=sequencing_tech
+                )
 
     # run tbl2asn (relies on filesnames matching by prefix)
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
@@ -451,20 +488,25 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
 def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     parser.add_argument('templateFile', help='Submission template file (.sbt) including author and contact info')
     parser.add_argument("fasta_files", nargs='+', help="Input fasta files")
-    parser.add_argument("annotDir",
-                        help="Output directory with genbank submission files (.tbl files must already be there)")
+    parser.add_argument(
+        "annotDir", help="Output directory with genbank submission files (.tbl files must already be there)"
+    )
     parser.add_argument('--comment', default=None, help='comment field')
     parser.add_argument('--sequencing_tech', default=None, help='sequencing technology (e.g. Illumina HiSeq 2500)')
     parser.add_argument('--master_source_table', default=None, help='source modifier table')
-    parser.add_argument("--biosample_map",
-                        help="""A file with two columns and a header: sample and BioSample.
-        This file may refer to samples that are not included in this submission.""")
-    parser.add_argument('--coverage_table',
-                        default=None,
-                        help='''A genome coverage report file with a header row.  The table must
+    parser.add_argument(
+        "--biosample_map",
+        help="""A file with two columns and a header: sample and BioSample.
+        This file may refer to samples that are not included in this submission."""
+    )
+    parser.add_argument(
+        '--coverage_table',
+        default=None,
+        help='''A genome coverage report file with a header row.  The table must
         have at least two columns named sample and aln2self_cov_median.  All other
         columns are ignored. Rows referring to samples not in this submission are
-        ignored.''')
+        ignored.'''
+    )
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser
@@ -513,17 +555,23 @@ def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
 
 
 def parser_prep_sra_table(parser=argparse.ArgumentParser()):
-    parser.add_argument('lib_fname',
-                        help='A file that lists all of the library IDs that will be submitted in this batch')
-    parser.add_argument("biosampleFile",
-                        help="""A file with two columns and a header: sample and BioSample.
-        This file may refer to samples that are not included in this submission.""")
-    parser.add_argument("md5_fname",
-                        help="""A file with two columns and no header.  Two columns are MD5 checksum and filename.
+    parser.add_argument(
+        'lib_fname', help='A file that lists all of the library IDs that will be submitted in this batch'
+    )
+    parser.add_argument(
+        "biosampleFile",
+        help="""A file with two columns and a header: sample and BioSample.
+        This file may refer to samples that are not included in this submission."""
+    )
+    parser.add_argument(
+        "md5_fname",
+        help="""A file with two columns and no header.  Two columns are MD5 checksum and filename.
         Should contain an entry for every bam file being submitted in this batch.
-        This is typical output from "md5sum *.cleaned.bam".""")
-    parser.add_argument("outFile",
-                        help="Output table that contains most of the variable columns needed for SRA submission.")
+        This is typical output from "md5sum *.cleaned.bam"."""
+    )
+    parser.add_argument(
+        "outFile", help="Output table that contains most of the variable columns needed for SRA submission."
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, prep_sra_table, split_args=True)
     return parser

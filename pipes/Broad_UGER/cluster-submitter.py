@@ -26,8 +26,8 @@ cores = props.get('resources', {}).get('cores')
 cores = cores or 1
 if mem:
     # on UGER, memory requests are per-core (according to BITS as of Sept. 6, 2016)
-    mem_per_core = round((int(mem)*1024)/int(cores), 2)
-    cmdline += ' -l h_vmem={}M,h_rss={}M '.format(  mem_per_core, round(1.2 * mem_per_core, 2)  )
+    mem_per_core = round((int(mem) * 1024) / int(cores), 2)
+    cmdline += ' -l h_vmem={}M,h_rss={}M '.format(mem_per_core, round(1.2 * mem_per_core, 2))
     if mem >= 15 or (cores and cores >= 4):
         cmdline += ' -R y '
 

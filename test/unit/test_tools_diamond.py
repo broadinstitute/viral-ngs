@@ -12,9 +12,7 @@ import util.misc
 import tools.diamond
 import test
 
-
-CompletedProcess = collections.namedtuple(
-    'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
+CompletedProcess = collections.namedtuple('CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
 
 class TestToolDiamond(test.TestCaseWithTmp):
@@ -53,8 +51,7 @@ class TestToolDiamond(test.TestCaseWithTmp):
         self.assertIn('--db', args)
         self.assertIn(db, args)
 
-        inputs = [os.path.join(self.data_dir, f)
-                  for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
+        inputs = [os.path.join(self.data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
         output = os.path.join(tempfile.tempdir, 'zaire_ebola.daa')
         output_tab = os.path.join(tempfile.tempdir, 'zaire_ebola.m8')

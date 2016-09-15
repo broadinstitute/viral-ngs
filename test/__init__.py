@@ -12,9 +12,11 @@ import hashlib
 import util.file
 from tools.samtools import SamtoolsTool
 
+
 def assert_equal_contents(testCase, filename1, filename2):
     'Assert contents of two files are equal for a unittest.TestCase'
     testCase.assertTrue(filecmp.cmp(filename1, filename2, shallow=False))
+
 
 def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     ''' Assert that two bam files are equivalent
@@ -43,6 +45,7 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
             if os.path.exists(fname):
                 os.unlink(fname)
 
+
 def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file):
     ''' Compare the checksum of a test file with the expected checksum 
         stored in a second file
@@ -58,11 +61,12 @@ def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file):
     with open(checksum_file, "rb") as f:
         expected_checksum = str(f.readline().decode("utf-8"))
 
-    expected_checksum = expected_checksum.replace("\r","").replace("\n","")
+    expected_checksum = expected_checksum.replace("\r", "").replace("\n", "")
 
     assert len(expected_checksum) > 0
 
     testCase.assertEqual(hash_md5.hexdigest(), expected_checksum)
+
 
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'
@@ -94,8 +98,10 @@ tests in this folder from being silently excluded, assure this bit is not set.
 
 def assert_none_executable():
     testDir = os.path.dirname(__file__)
-    assert all(not os.access(os.path.join(testDir, filename), os.X_OK) for filename in os.listdir(testDir)
-               if filename.endswith('.py'))
+    assert all(
+        not os.access(os.path.join(testDir, filename), os.X_OK) for filename in os.listdir(testDir)
+        if filename.endswith('.py')
+    )
 
 
 assert_none_executable()
