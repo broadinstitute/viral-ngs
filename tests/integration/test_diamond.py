@@ -22,7 +22,7 @@ import util.file
 def find_files(root_dir, filt):
     matches = []
     for root, dirnames, filenames in os.walk(root_dir):
-        for filename in fnmatch.filter(filenames, '*.ffn'):
+        for filename in fnmatch.filter(filenames, filt):
             yield join(root, filename)
 
 
@@ -101,7 +101,7 @@ def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
 
 
 @pytest.fixture(scope='session')
-def taxonomy_db(request, tmpdir_factory, diamond, db_type):
+def taxonomy_db(request, tmpdir_factory, db_type):
     return join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy')
 
 
