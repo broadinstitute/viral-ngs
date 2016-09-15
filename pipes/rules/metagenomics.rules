@@ -5,10 +5,20 @@ samples = list(read_samples_file(config.get("samples_metagenomics")))
 rule all_metagenomics:
     input:
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.{method}.report"), sample=samples, method=['kraken', 'diamond']),
+                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken']),
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.{method}.krona.html"), sample=samples, method=['kraken', 'diamond'])
+                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken'])
     params: LSF='-N'
+
+
+rule all_metagenomics_host_depleted:
+    input:
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.{method}.report"), sample=samples, method=['kraken']),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['kraken'])
+    params: LSF='-N'
+
 
 method_props = {
     'diamond': {
@@ -22,9 +32,9 @@ method_props = {
 }
 
 rule diamond:
-    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
-    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.report"),
-            lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.diamond.lca.gz")
+    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
+    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.report"),
+            lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
                mem=15
     params: numThreads=str(config.get("number_of_threads", 1)),
@@ -35,9 +45,9 @@ rule diamond:
         """
 
 rule kraken:
-    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
-    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.report"),
-            reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken.reads.gz")
+    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
+    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.report"),
+            reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
                mem=15
     params: numThreads=str(config.get("number_of_threads", 1)),
@@ -49,8 +59,8 @@ rule kraken:
 
 rule krona_import_taxonomy:
     input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
-           ".".join([wildcards.sample, method_props[wildcards.method]['reads_ext']]))
-    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{method,\w+}.krona.html")
+           ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']]))
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond}.krona.html")
     run:
         # method_props key can be changed to allow for different tools, 
         # but with new changes Diamond output should look like Kraken output
