@@ -15,6 +15,7 @@ import tools
 import tools.diamond
 import tools.picard
 import util.file
+
 # from test import TestCaseWithTmp
 
 
@@ -55,16 +56,14 @@ def krona():
     return krona
 
 
-@pytest.fixture(scope='session',
-                params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
+@pytest.fixture(scope='session', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
 def db_type(request):
     return request.param
 
 
 def input_fastq_paths():
     data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
-    return [os.path.join(data_dir, f)
-            for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
+    return [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
 
 def input_bam_paths():
@@ -76,8 +75,7 @@ def input_bam_paths():
 def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
-        fastqs = [os.path.join(data_dir, f)
-                  for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
+        fastqs = [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
         bam_name = 'zaire_ebola.bam'
         bam = str(tmpdir_factory.getbasetemp().join(bam_name))
@@ -91,16 +89,13 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
 def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
-        fastqs = [join(data_dir, f)
-                  for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
+        fastqs = [join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
         return fastqs
 
     bam = join(data_dir, 'test-reads.bam')
     basename = os.path.basename(bam)
-    fastq1 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.1.fastq'.format(basename))
-    fastq2 = join(str(tmpdir_factory.getbasetemp()),
-                  '{}.2.fastq'.format(basename))
+    fastq1 = join(str(tmpdir_factory.getbasetemp()), '{}.1.fastq'.format(basename))
+    fastq2 = join(str(tmpdir_factory.getbasetemp()), '{}.2.fastq'.format(basename))
     sam_to_fastq.execute(bam, fastq1, fastq2)
     return fastq1, fastq2
 
@@ -130,10 +125,8 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
     return db
 
 
-@pytest.mark.skipif(tools.is_osx(),
-                    reason="Diamond osx binary does not yet exist on bioconda")
-@pytest.mark.skipif(sys.version_info < (3,2),
-                    reason="Python version is too old for snakemake.")
+@pytest.mark.skipif(tools.is_osx(), reason="Diamond osx binary does not yet exist on bioconda")
+@pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
@@ -142,22 +135,22 @@ def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
     }
     runner.set_override_config(override_config)
     runner.setup()
-    runner.link_samples([input_bam], destination='per_sample',
-                        link_transform=snake.rename_raw_bam)
+    runner.link_samples([input_bam], destination='per_sample', link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     # krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
     #                      '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'diamond.krona.html']))
 
-    diamond_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
-                       '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'diamond.report']))
+    diamond_out = join(
+        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'diamond.report'])
+    )
     runner.run([diamond_out])
     assert os.path.getsize(diamond_out) > 0
     # assert os.path.getsize(krona_out) > 0
 
 
-@pytest.mark.skipif(tools.is_osx(),
-                    reason="Diamond osx binary does not yet exist on bioconda")
+@pytest.mark.skipif(tools.is_osx(), reason="Diamond osx binary does not yet exist on bioconda")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_lca = util.file.mkstempfname('.lca.tsv')
