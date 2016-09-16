@@ -2,6 +2,7 @@
 # source is not used here because it is specified in pytest.ini
 [run]
 branch = True
+omit = tools/conda-tools/*
 
 [report]
 
