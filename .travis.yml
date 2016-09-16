@@ -17,11 +17,6 @@ matrix:
 #              - TRAVIS_OSX_PYTHON_VERSION=py35
 #              - TRAVIS_PYTHON_VERSION=3.5.1
 
-addons:
-  apt:
-    packages:
-      - oracle-java8-installer
-
 cache:
  directories:
   - $HOME/misc_cache
