@@ -12,10 +12,14 @@ if [ ! -d $GATK_PATH ]; then
     wget https://storage.googleapis.com/sabeti-public/software_testing/GenomeAnalysisTK-3.6.tar.gz.enc
     openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in GenomeAnalysisTK-3.6.tar.gz.enc -out GenomeAnalysisTK-3.6.tar.gz
     md5sum GenomeAnalysisTK-3.6.tar.gz
-    tar -xzpvf GenomeAnalysisTK-3.6.tar.gz -C "$CACHE_DIR"
+    # It appears that GATK tarball is produced on OS X leading to warnings
+    TAR_OPTS=
+    [[ "$TRAVIS_OS_NAME" = "linux" ]] && TAR_OPTS="--warning=no-unknown-keyword"
+    tar "$TAR_OPTS" -xzpvf GenomeAnalysisTK-3.6.tar.gz -C "$CACHE_DIR"
 
   fi
 fi
+
 
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # encrypted bundle contains linux binary for Novoalign, remove that here
@@ -29,5 +33,10 @@ fi
 
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
-conda create -y -m -c bioconda -p tools/conda-tools/default --file $HOME/requirements-conda.txt
+conda create -y -m -c bioconda -p tools/conda-tools/default --file $HOME/requirements-conda.txt python="$TRAVIS_PYTHON_VERSION"
+
+echo 'Sourcing default environment'
+source activate tools/conda-tools/default
+conda info -a # for debugging
+
 ./install_tools.py

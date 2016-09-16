@@ -45,8 +45,8 @@ before_install:
 
 install:
   - source travis/install-conda.sh
-  - travis/install-pip.sh
   - source travis/install-tools.sh
+  - travis/install-pip.sh
 
 script:
   - travis/tests-unit.sh
