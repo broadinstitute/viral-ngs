@@ -175,7 +175,8 @@ def sam_lca(db, sam_file, output, top_percent=10, min_support_percent=0, min_sup
     '''
 
     with pysam.AlignmentFile(sam_file, 'rb') as sam:
-        mapped_segs = (seg for seg in sam if seg.flag & 0x4 == 0)
+        # 0x4 is unmapped, 0x400 is duplicate
+        mapped_segs = (seg for seg in sam if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0)
         seg_groups = (v for k, v in itertools.groupby(mapped_segs, operator.attrgetter('query_name')))
         for seg_group in seg_groups:
             seg_group = list(seg_group)

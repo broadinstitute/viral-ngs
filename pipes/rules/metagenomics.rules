@@ -1,6 +1,5 @@
 from os.path import join
 
-shell.executable("/bin/bash")
 samples = list(read_samples_file(config.get("samples_metagenomics")))
 
 rule all_metagenomics:
