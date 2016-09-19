@@ -89,7 +89,6 @@ class Bwa(tools.Tool):
                 picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
                 JVMmemory=JVMmemory
             )
-            os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_merged.bam".format(outBam))
             for bam in align_bams:
                 os.unlink(bam)
 
@@ -121,6 +120,7 @@ class Bwa(tools.Tool):
 
         headerFile = util.file.mkstempfname('.{}.header.txt'.format(rgid))
         # Strip inBam to just one RG (if necessary)
+        removeInput = False
         if len(rgs) == 1:
             one_rg_inBam = inBam
             tools.samtools.SamtoolsTool().dumpHeader(one_rg_inBam, headerFile)
@@ -133,6 +133,7 @@ class Bwa(tools.Tool):
                 return
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
+            removeInput = True
             
             with open(headerFile, 'wt') as outf:
                 for row in samtools.getHeader(inBam):
@@ -159,7 +160,12 @@ class Bwa(tools.Tool):
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
         self.mem(one_rg_inBam, refDb, aln_bam_prefilter, opts=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
-        os.unlink(one_rg_inBam)
+        
+        # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
+        # and we can safely delete it this file
+        # if there was only one RG in the input, we used it directly and should not delete it
+        if removeInput:
+            os.unlink(one_rg_inBam)
 
         # @haydenm says: 
         # For some reason (particularly when the --sensitive option is on), bwa

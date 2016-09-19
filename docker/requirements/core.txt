@@ -18,3 +18,15 @@ snpeff=4.1l
 trimmomatic=0.36
 trinity=date.2011_11_26
 vphaser2=2.0
+# Python packages below
+biopython=1.68
+matplotlib=1.5.3
+future>=0.15.2
+PyYAML=3.11
+pysam=0.9.1
+pycodestyle
+mock==2.0.0
+six<2
+pytest=2.9.1
+pytest-cov=2.2.1
+pytest-xdist=1.14
