@@ -26,16 +26,24 @@ mkdir -p $BLACKLISTED_NODES
 # Cleanup blacklisted nodes if they have not been touched in a day
 find $BLACKLISTED_NODES -name "*" -type f -mmin +2880 -delete
 
-if ! ls "$DATADIR"; then
+# Specify whether to require that a node have the NFS share mounted
+REQUIRE_NFS_SHARE_MOUNTED=true
+
+# Specify whether to require that a node have >1G of shared memory
+# (/dev/shm) available (e.g., snakemake requires a little for its
+# use of multiprocessing.Lock() to setup logging)
+REQUIRE_AVAILABLE_SHARED_MEMORY=true
+
+# Perform checks on node and decide whether to blacklist
+if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! ls "$DATADIR"; then
     # Listing the data directory fails since the node does not have the
     # NFS share mounted
     echo "Host '$(hostname)' does not have NFS share mounted. Retrying.." 1>&2
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
-if [ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]; then
-    # There is too little shared memory available; snakemake needs a little
-    # for its use of multiprocessing.Lock() to setup logging
+if [[ "$REQUIRE_AVAILABLE_SHARED_MEMORY" = true ]] && [[ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]]; then
+    # There is too little shared memory available
     echo "Host '$(hostname)' has full or near-full /dev/shm. Retrying.." 1>&2
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
