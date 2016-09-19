@@ -32,7 +32,7 @@ else
 fi
 
 # Set to conda's java
-# export JAVA_HOME="$(pwd)/tools/conda-tools/default/jre"
+export JAVA_HOME="$(pwd)/tools/conda-tools/default/jre"
 
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
