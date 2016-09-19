@@ -52,7 +52,7 @@ diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 # Directory of the krona database for generating html reports.
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
-krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
+krona_db: "/idi/sabeti-scratch/yesimon/db/krona_taxonomy"
 
 # Directory of the NCBI taxonomy dmp files
 taxonomy_db: "/idi/sabeti-scratch/yesimon/db/taxonomy"
