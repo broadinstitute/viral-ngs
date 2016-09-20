@@ -25,11 +25,14 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # encrypted bundle contains linux binary for Novoalign, remove that here
     unset NOVOALIGN_PATH
     # some conda packages dont exist on OSX
-    cat requirements-conda.txt | grep -v diamond | grep -v kraken > $HOME/requirements-conda.txt
+    cat requirements-conda.txt | grep -v kraken > $HOME/requirements-conda.txt
 else
     # for linux, just use requirements-conda as-is
     cp requirements-conda.txt $HOME
 fi
+
+# Set to conda's java
+export JAVA_HOME="$(pwd)/tools/conda-tools/default/jre"
 
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
