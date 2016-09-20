@@ -34,6 +34,10 @@ REQUIRE_NFS_SHARE_MOUNTED=true
 # use of multiprocessing.Lock() to setup logging)
 REQUIRE_AVAILABLE_SHARED_MEMORY=true
 
+# Specify whether to require that a node can run java without
+# error (e.g., for some time the node 'sgi1' could not run java)
+REQUIRE_JAVA_TO_RUN=true
+
 # Perform checks on node and decide whether to blacklist
 if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! ls "$DATADIR"; then
     # Listing the data directory fails since the node does not have the
@@ -45,6 +49,12 @@ fi
 if [[ "$REQUIRE_AVAILABLE_SHARED_MEMORY" = true ]] && [[ $(df -k /dev/shm | tail -n 1 | awk '{{print $4}}') -lt 1000000 ]]; then
     # There is too little shared memory available
     echo "Host '$(hostname)' has full or near-full /dev/shm. Retrying.." 1>&2
+    touch "$BLACKLISTED_NODES/$(hostname)"
+    exit 99
+fi
+if [[ "$REQUIRE_JAVA_TO_RUN" = true ]] && ! java -version; then
+    # Java does not run successfully
+    echo "Host '$(hostname)' cannot run java. Retrying.." 1>&2
     touch "$BLACKLISTED_NODES/$(hostname)"
     exit 99
 fi
