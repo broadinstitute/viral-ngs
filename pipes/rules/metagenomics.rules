@@ -57,6 +57,20 @@ rule kraken:
         {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
         """
 
+
+rule align_rna:
+    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
+    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.rna_bwa.report"),
+            bam=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.rna_bwa.bam")
+    resources: cores=int(config.get("number_of_threads", 1)),
+               mem=8
+    params: numThreads=str(config.get("number_of_threads", 1)),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long')
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --outBam {output.bam} --numThreads {params.numThreads}
+        """
+
 rule krona_import_taxonomy:
     input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
            ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']]))

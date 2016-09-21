@@ -54,6 +54,9 @@ diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
 krona_db: "/idi/sabeti-scratch/yesimon/db/krona_taxonomy"
 
+# BWA index prefix for metagenomic alignment.
+align_rna_db: "/idi/sabeti-scratch/shared-resources/rna_bwa/human_viral_16s"
+
 # Directory of the NCBI taxonomy dmp files
 taxonomy_db: "/idi/sabeti-scratch/yesimon/db/taxonomy"
 
