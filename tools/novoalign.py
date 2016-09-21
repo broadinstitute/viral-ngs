@@ -28,7 +28,7 @@ TOOL_VERSION = "3.04.04"
 
 class NovoalignTool(tools.Tool):
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, license_path=None):
         self.tool_version = None
         install_methods = []
         for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
@@ -39,12 +39,23 @@ class NovoalignTool(tools.Tool):
                         require_executability=True
                     )
                 )
-        if os.environ.get("NOVOALIGN_LICENSE_PATH"):
-            # called relative to the conda bin/ directory
-            post_verify_command = "cp {lic_path} ./".format(lic_path=os.environ.get("NOVOALIGN_LICENSE_PATH"))
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
-        else:
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+
+        post_verify_command = None
+        for novo_license_path in [license_path, os.environ.get("NOVOALIGN_LICENSE_PATH"), '']:
+            if novo_license_path is not None and os.path.isfile(novo_license_path):
+                # called relative to the conda bin/ directory
+                uname = os.uname()
+                # we ideally want the "update" copy operation
+                # but only GNU cp has it. On OSX, the license will be copied each time.
+                if uname[0] == 'Darwin':
+                    copy_operation = ''
+                else:
+                    copy_operation = '-u'
+
+                post_verify_command = "cp {copy_operation} {lic_path} ./".format(copy_operation=copy_operation, lic_path=novo_license_path)
+                break # if we've found a license file, stop looking
+            
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
