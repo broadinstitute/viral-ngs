@@ -39,15 +39,16 @@ class Bwa(tools.Tool):
         if stdout:
             stdout.close()
 
-    def index(self, inFasta, algorithm=None):
+    def index(self, inFasta, output=None, algorithm=None):
         cmd = []
         if algorithm is not None:
             if algorithm not in ('is', 'bwtsw'):
                 raise NameError(algorithm + " is not a recognized algorithm")
             cmd.extend(('-a', algorithm))
+        if output:
+            cmd.extend(('-p', output))
         cmd.append(inFasta)
         self.execute('index', cmd)
-
 
     def align_mem_bam(self, inBam, refDb, outBam, options=None, min_qual=30, threads=None, JVMmemory=None):
         options = options or []
@@ -159,8 +160,8 @@ class Bwa(tools.Tool):
         aln_bam_prefilter = util.file.mkstempfname('.prefiltered.bam')
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
-        self.mem(one_rg_inBam, refDb, aln_bam_prefilter, opts=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
-        
+        self.mem(one_rg_inBam, refDb, aln_bam_prefilter, options=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
+
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
         # if there was only one RG in the input, we used it directly and should not delete it
@@ -181,7 +182,7 @@ class Bwa(tools.Tool):
         # if the aligned bam file contains no reads after filtering
         # just create an empty file
         if tools.samtools.SamtoolsTool().count(tmp_bam_aligned) == 0:
-             util.file.touch(outBam)
+            util.file.touch(outBam)
         else:
             # samtools reheader seems to segfault on some alignments created by bwa
             # so rather than reheader, BWA will write out the RG given to it via '-R'
@@ -202,8 +203,8 @@ class Bwa(tools.Tool):
             )
             #os.unlink(reheadered_bam)
 
-    def mem(self, inReads, refDb, outAlign, opts=None, min_qual=None, threads=None):
-        opts = [] if not opts else opts
+    def mem(self, inReads, refDb, outAlign, options=None, min_qual=None, threads=None):
+        options = [] if not options else options
 
         threads = threads or util.misc.available_cpu_count()
         samtools = tools.samtools.SamtoolsTool()
@@ -212,15 +213,15 @@ class Bwa(tools.Tool):
         aln_sam = util.file.mkstempfname('.sam')
         samtools.bam2fq(inReads, fq1, fq2)
 
-        if '-t' not in opts:
+        if '-t' not in options:
             threads = threads or utils.misc.available_cpu_count()
-            opts.extend( ('-t', str(threads)) )
+            options.extend(('-t', str(threads)))
 
-        if '-T' not in opts:
+        if '-T' not in options:
             min_qual = min_qual or 30
-            opts.extend( ('-T', str(min_qual)) )
+            options.extend(('-T', str(min_qual)))
 
-        self.execute('mem', opts + [refDb, fq1, fq2], stdout=aln_sam)
+        self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
 
         os.unlink(fq1)
         os.unlink(fq2)
