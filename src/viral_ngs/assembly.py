@@ -687,6 +687,11 @@ def refine_assembly(
     '''
     chr_names = chr_names or []
 
+    # if the input fasta is empty, create an empty output fasta and return
+    if (os.path.getsize(inFasta) == 0):
+        util.file.touch(outFasta)
+        return 0
+
     # Get tools
     picard_index = tools.picard.CreateSequenceDictionaryTool()
     picard_mkdup = tools.picard.MarkDuplicatesTool()
@@ -751,8 +756,13 @@ def refine_assembly(
 
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
-    samtools.faidx(outFasta, overwrite=True)
-    novoalign.index_fasta(outFasta)
+    # if the input bam is empty, an empty fasta will be created, however
+    # faidx cannot index an empty fasta file, so only index if the fasta
+    # has a non-zero size
+    if (os.path.getsize(outFasta) > 0):
+        samtools.faidx(outFasta, overwrite=True)
+        novoalign.index_fasta(outFasta)
+        
     return 0
 
 
