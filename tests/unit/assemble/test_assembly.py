@@ -35,6 +35,82 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
+class TestAssemble(TestCaseWithTmp):
+    ''' Test edge cases of the de novo assembly pipeline '''
+
+    def test_empty_input_bam_assembly(self):
+        novoalign = tools.novoalign.NovoalignTool()
+        novoalign.install()
+
+        # prep inputs
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        inFasta = util.file.mkstempfname('.ref.fasta')
+        shutil.copyfile(orig_ref, inFasta)
+        novoalign.index_fasta(inFasta)
+
+        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        
+        outFasta = util.file.mkstempfname('.refined.fasta')
+
+        # run refine_assembly
+        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
+                "-r Random -l 30 -g 40 -x 20 -t 502"]
+        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        # the expected output is an empty fasta file
+        self.assertTrue(os.path.isfile(outFasta))
+        self.assertTrue(os.path.getsize(outFasta) == 0)
+
+
+    def test_empty_input_fasta_assembly(self):
+        novoalign = tools.novoalign.NovoalignTool()
+        novoalign.install()
+
+        # make the input fasta empty
+        inFasta = util.file.mkstempfname('.input.fasta')
+        util.file.touch(inFasta)
+        novoalign.index_fasta(inFasta)
+
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+
+        outFasta = util.file.mkstempfname('.refined.fasta')
+
+        # run refine_assembly
+        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
+                "-r Random -l 30 -g 40 -x 20 -t 502"]
+        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        # the expected output is an empty fasta file
+        self.assertTrue(os.path.isfile(outFasta))
+        self.assertTrue(os.path.getsize(outFasta) == 0)
+
+
+    def test_empty_input_succeed(self):
+        novoalign = tools.novoalign.NovoalignTool()
+        novoalign.install()
+
+        # make the input fasta empty
+        inFasta = util.file.mkstempfname('.input.fasta')
+        util.file.touch(inFasta)
+        novoalign.index_fasta(inFasta)
+
+        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        
+        outFasta = util.file.mkstempfname('.refined.fasta')
+
+        # run refine_assembly
+        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
+                "-r Random -l 30 -g 40 -x 20 -t 502"]
+        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        print(args)
+        args.func_main(args)
+
+        # the expected output is an empty fasta file
+        self.assertTrue(os.path.isfile(outFasta))
+        self.assertTrue(os.path.getsize(outFasta) == 0)
+
 
 class TestAssembleTrinity(TestCaseWithTmp):
     ''' Test the assemble_trinity command (no validation of output) '''
