@@ -495,7 +495,8 @@ def impute_from_reference(
     replaceLength,
     newName=None,
     aligner='muscle',
-    index=False
+    index=False,
+    novoalign_license_path=None
 ):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
@@ -606,7 +607,7 @@ def impute_from_reference(
     if index:
         tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
         tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
-        tools.novoalign.NovoalignTool().index_fasta(outFasta)
+        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(outFasta)
 
     return 0
 
@@ -652,6 +653,12 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="index"
     )
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
@@ -673,7 +680,9 @@ def refine_assembly(
     keep_all_reads=False,
     already_realigned_bam=None,
     JVMmemory=None,
-    threads=1
+    threads=1,
+    gatk_path=None,
+    novoalign_license_path=None
 ):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
@@ -691,8 +700,8 @@ def refine_assembly(
     picard_index = tools.picard.CreateSequenceDictionaryTool()
     picard_mkdup = tools.picard.MarkDuplicatesTool()
     samtools = tools.samtools.SamtoolsTool()
-    novoalign = tools.novoalign.NovoalignTool()
-    gatk = tools.gatk.GATKTool()
+    novoalign = tools.novoalign.NovoalignTool(license_path=novoalign_license_path)
+    gatk = tools.gatk.GATKTool(path=gatk_path)
 
     # Create deambiguated genome for GATK
     deambigFasta = util.file.mkstempfname('.deambig.fasta')
@@ -816,6 +825,18 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         '--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--GATK_PATH',
+        default=None,
+        dest="gatk_path",
+        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
