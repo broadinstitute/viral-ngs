@@ -84,12 +84,16 @@ class RevertSamTool(PicardTools):
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
-    def execute(self, inBams, outBam, outMetrics=None, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(
+        self, inBams, outBam, outMetrics=None, taggingPolicy=None, picardOptions=None, JVMmemory=None
+    ):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if not outMetrics:
             outMetrics = util.file.mkstempfname('.metrics')
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam, 'METRICS_FILE=' + outMetrics]
+        if taggingPolicy:
+            opts += ['TAGGING_POLICY={}'.format(taggingPolicy)]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
