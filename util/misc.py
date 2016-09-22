@@ -8,6 +8,7 @@ import re
 import subprocess
 import multiprocessing
 import sys
+import time
 
 import util.file
 
@@ -198,80 +199,96 @@ except ImportError:
 def run_and_print(args, stdout=None, stderr=None,
                   stdin=None, shell=False, env=None, cwd=None,
                   timeout=None, silent=False, buffered=False, check=False,
-                  loglevel=None):
+                  loglevel=None, expected_return_code=0, retries=0, retry_delay_sec=2):
     '''Capture stdout+stderr and print.
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
+
+    expected_return_code is used for retrying, and for buffered output
     '''
+
+    assert not (check and retries), "check and retries cannot both be set for run_and_print()"
+
     if loglevel:
         silent = False
-    if not buffered:
-        if check and not silent:
-            try:
+
+    retry_count = 0
+    while True:
+        if not buffered:
+            if check and not silent:
+                try:
+                    result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                               timeout=timeout, check=check)
+                except subprocess.CalledProcessError as e:
+                    if loglevel:
+                        try:
+                            log.log(loglevel, result.stdout.decode('utf-8'))
+                        except NameError:
+                            # in some situations, result does not get assigned anything
+                            pass
+                        except AttributeError:
+                            log.log(loglevel, result.output.decode('utf-8'))
+                    else:
+                        print(e.output.decode('utf-8'))
+                        try:
+                            print(e.stderr.decode('utf-8'))
+                        except AttributeError:
+                            pass
+                        sys.stdout.flush()
+                    raise(e)
+            else:
                 result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                           timeout=timeout, check=check)
-            except subprocess.CalledProcessError as e:
-                if loglevel:
-                    try:
-                        log.log(loglevel, result.stdout.decode('utf-8'))
-                    except NameError:
-                        # in some situations, result does not get assigned anything
-                        pass
-                    except AttributeError:
-                        log.log(loglevel, result.output.decode('utf-8'))
-                else:
-                    print(e.output.decode('utf-8'))
-                    try:
-                        print(e.stderr.decode('utf-8'))
-                    except AttributeError:
-                        pass
+                             stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                             timeout=timeout, check=check)
+                if not silent and not loglevel:
+                    print(result.stdout.decode('utf-8'))
                     sys.stdout.flush()
-                raise(e)
+                elif loglevel:
+                    log.log(loglevel, result.stdout.decode('utf-8'))
+
         else:
-            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                         timeout=timeout, check=check)
-            if not silent and not loglevel:
-                print(result.stdout.decode('utf-8'))
-                sys.stdout.flush()
-            elif loglevel:
-                log.log(loglevel, result.stdout.decode('utf-8'))
+            CompletedProcess = collections.namedtuple(
+            'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
-    else:
-        CompletedProcess = collections.namedtuple(
-        'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
+            process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, env=env,
+                                        cwd=cwd)
+            output = []
+            while process.poll() is None:
+                for c in iter(process.stdout.read, b""):
+                    output.append(c)
+                    if not silent:
+                       print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
+                    sys.stdout.flush() # flush buffer to stdout
 
-        process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, env=env,
-                                    cwd=cwd)
-        output = []
-        while process.poll() is None:
-            for c in iter(process.stdout.read, b""):
-                output.append(c)
-                if not silent:
-                   print(c.decode('utf-8'), end="") # print for py3 / p2 from __future__
-                sys.stdout.flush() # flush buffer to stdout
+            # in case there are still chars in the pipe buffer
+            for c in iter(lambda: process.stdout.read(1), b""):
+               if not silent:
+                   print(c, end="")
+               sys.stdout.flush() # flush buffer to stdout
 
-        # in case there are still chars in the pipe buffer
-        for c in iter(lambda: process.stdout.read(1), b""):
-           if not silent:
-               print(c, end="")
-           sys.stdout.flush() # flush buffer to stdout
+            if check and process.returncode != expected_return_code:
+                raise subprocess.CalledProcessError(process.returncode, args,
+                                                    b''.join(output))
+            result = CompletedProcess(
+                args, process.returncode, b''.join(output), b'')
 
-        if check and process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, args,
-                                                b''.join(output))
-        result = CompletedProcess(
-            args, process.returncode, b''.join(output), b'')
+        if (result.returncode != expected_return_code) and (retry_count < retries):
+            retry_count += 1
+            log.info("Waiting and retrying...")
+            time.sleep(retry_delay_sec)
+            continue
+        else:
+            break
 
     return result
 
 
 def run_and_save(args, stdout=None, stdin=None,
                  outf=None, stderr=None, preexec_fn=None,
-                 close_fds=False, shell=False, cwd=None, env=None, check=True):
+                 close_fds=False, shell=False, cwd=None, env=None, check=True, expected_return_code=0):
     assert outf is not None
 
     sp = subprocess.Popen(args,
@@ -289,7 +306,7 @@ def run_and_save(args, stdout=None, stdin=None,
     if err:
         sys.stdout.write(err.decode("UTF-8"))
 
-    if sp.returncode != 0 and check:
+    if sp.returncode != expected_return_code and check:
         raise subprocess.CalledProcessError(sp.returncode, str(args[0]))
 
     return sp

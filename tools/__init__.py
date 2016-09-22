@@ -559,7 +559,7 @@ class CondaPackage(InstallMethod):
                     self._package_str
                 ],
                 loglevel=logging.DEBUG,
-                env=self.conda_env,
+                env=self.conda_env
             )
 
             if result.returncode == 0:
