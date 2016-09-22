@@ -42,7 +42,17 @@ class TaxIdError(ValueError):
 class TaxonomyDb(object):
 
     def __init__(
-        self, tax_dir=None, gis=None, nodes=None, names=None, gis_paths=None, nodes_path=None, names_path=None
+        self,
+        tax_dir=None,
+        gis=None,
+        nodes=None,
+        names=None,
+        gis_paths=None,
+        nodes_path=None,
+        names_path=None,
+        load_gis=False,
+        load_nodes=False,
+        load_names=False
     ):
         if tax_dir:
             gis_paths = [join(tax_dir, 'gi_taxid_nucl.dmp'), join(tax_dir, 'gi_taxid_prot.dmp')]
@@ -51,71 +61,71 @@ class TaxonomyDb(object):
         self.gis_paths = gis_paths
         self.nodes_path = nodes_path
         self.names_path = names_path
-        if gis:
-            self.gis = gis
-        elif gis_paths:
-            self.gis = {}
-            for gi_path in gis_paths:
-                self.gis.update(load_gi_single_dmp(gi_path))
-        if nodes:
-            self.ranks, self.parents = nodes
-        elif nodes_path:
-            self.ranks, self.parents = load_nodes(nodes_path)
-        if names:
-            self.names = names
-        elif names_path:
-            self.names = load_names(names_path)
+        if load_gis:
+            if gis:
+                self.gis = gis
+            elif gis_paths:
+                self.gis = {}
+                for gi_path in gis_paths:
+                    self.gis.update(self.load_gi_single_dmp(gi_path))
+        if load_nodes:
+            if nodes:
+                self.ranks, self.parents = nodes
+            elif nodes_path:
+                self.ranks, self.parents = self.load_nodes(nodes_path)
+        if load_names:
+            if names:
+                self.names = names
+            elif names_path:
+                self.names = self.load_names(names_path)
 
+    def load_gi_single_dmp(self, dmp_path):
+        '''Load a gi->taxid dmp file from NCBI taxonomy.'''
+        gi_array = {}
+        with open(dmp_path) as f:
+            for i, line in enumerate(f):
+                gi, taxid = line.strip().split('\t')
+                gi = int(gi)
+                taxid = int(taxid)
+                gi_array[gi] = taxid
+                if (i + 1) % 1000000 == 0:
+                    print('Loaded {} gis'.format(i), file=sys.stderr)
+        return gi_array
 
-def load_gi_single_dmp(dmp_path):
-    '''Load a gi->taxid dmp file from NCBI taxonomy.'''
-    gi_array = {}
-    with open(dmp_path) as f:
-        for i, line in enumerate(f):
-            gi, taxid = line.strip().split('\t')
-            gi = int(gi)
-            taxid = int(taxid)
-            gi_array[gi] = taxid
-            if (i + 1) % 1000000 == 0:
-                print('Loaded {} gis'.format(i), file=sys.stderr)
-    return gi_array
-
-
-def load_names(names_db, scientific_only=True):
-    '''Load the names.dmp file from NCBI taxonomy.'''
-    if scientific_only:
-        names = {}
-    else:
-        names = collections.defaultdict(list)
-    for line in open(names_db):
-        parts = line.strip().split('|')
-        taxid = int(parts[0])
-        name = parts[1].strip()
-        #unique_name = parts[2].strip()
-        class_ = parts[3].strip()
+    def load_names(self, names_db, scientific_only=True):
+        '''Load the names.dmp file from NCBI taxonomy.'''
         if scientific_only:
-            if class_ == 'scientific name':
-                names[taxid] = name
+            names = {}
         else:
-            names[taxid].append(name)
-    return names
-
-
-def load_nodes(nodes_db):
-    '''Load ranks and parents arrays from NCBI taxonomy.'''
-    ranks = {}
-    parents = {}
-    with open(nodes_db) as f:
-        for line in f:
+            names = collections.defaultdict(list)
+        for line in open(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
-            parent_taxid = int(parts[1])
-            rank = parts[2].strip()
-            #embl_code = parts[3].strip()
-            #division_id = parts[4].strip()
-            parents[taxid] = parent_taxid
-            ranks[taxid] = rank
-    return ranks, parents
+            name = parts[1].strip()
+            #unique_name = parts[2].strip()
+            class_ = parts[3].strip()
+            if scientific_only:
+                if class_ == 'scientific name':
+                    names[taxid] = name
+            else:
+                names[taxid].append(name)
+        return names
+
+    def load_nodes(self, nodes_db):
+        '''Load ranks and parents arrays from NCBI taxonomy.'''
+        ranks = {}
+        parents = {}
+        with open(nodes_db) as f:
+            for line in f:
+                parts = line.strip().split('|')
+                taxid = int(parts[0])
+                parent_taxid = int(parts[1])
+                rank = parts[2].strip()
+                #embl_code = parts[3].strip()
+                #division_id = parts[4].strip()
+                parents[taxid] = parent_taxid
+                ranks[taxid] = rank
+        return ranks, parents
 
 
 BlastRecord = collections.namedtuple(
@@ -594,7 +604,7 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
             with gzip.open(outM8, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb)
+    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True, load_gis=True)
     tmp_lca_tsv = util.file.mkstempfname('.tsv')
     with open(tmp_m8) as m8, open(tmp_lca_tsv, 'w') as lca:
         blast_lca(tax_db, m8, lca, paired=True, min_bit_score=50)
@@ -639,7 +649,7 @@ def align_rna_metagenomics(
     min_score_to_output=None
 ):
     '''
-        Take reads, align to reference with BWA-MEM, and generate a coverage plot
+        Align to metagenomics bwa index, mark duplicates, and generate LCA report
     '''
     picardOptions = picardOptions if picardOptions else []
     if outBam is None:
@@ -674,13 +684,13 @@ def align_rna_metagenomics(
     else:
         aln_bam_dupe_processed = aln_bam
 
-    samtools.sort(aln_bam_dupe_processed, bam_aligned, args=['-n'])
+    samtools.sort(aln_bam_dupe_processed, bam_aligned, args=['-n'], threads=numThreads)
     os.unlink(aln_bam)
 
     if excludeDuplicates:
         os.unlink(aln_bam_dupe_processed)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb)
+    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
     tmp_lca_tsv = util.file.mkstempfname('.tsv')
     with open(tmp_lca_tsv, 'w') as lca:
         sam_lca(tax_db, bam_aligned, lca, top_percent=10, min_support_percent=0, min_support=1)
@@ -692,6 +702,7 @@ def align_rna_metagenomics(
     with open(tmp_lca_tsv) as f:
         hits = taxa_hits_from_tsv(f)
     with open(outReport, 'w') as f:
+
         for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
             print(line, file=f)
 
@@ -750,7 +761,6 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
                         for row in file_reader:
                             # for only the two relevant columns
                             output_writer.writerow([f for f in row])
-                            #output_writer.writerow([row[c-1] for c in tool_data_columns["kraken"]])
 
     # create a human-readable summary of the Kraken reports
     # kraken-report can only be used on kraken reports since it depends on queries being in its database
