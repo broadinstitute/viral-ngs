@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./contrib/update-conda-env.sh
