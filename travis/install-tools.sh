@@ -36,7 +36,14 @@ export JAVA_HOME="$(pwd)/tools/conda-tools/default/jre"
 
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
-conda create -y -m -c bioconda -p tools/conda-tools/default --file $HOME/requirements-conda.txt python="$TRAVIS_PYTHON_VERSION"
+
+tries=0
+until [ $tries -ge 4 ]
+do
+  conda create -y -m -c bioconda -p tools/conda-tools/default --file $HOME/requirements-conda.txt python="$TRAVIS_PYTHON_VERSION" && break
+  tries=$[$tries+1]
+  sleep 5
+done
 
 echo 'Sourcing default environment'
 source activate tools/conda-tools/default
