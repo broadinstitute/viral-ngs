@@ -539,7 +539,7 @@ class CondaPackage(InstallMethod):
             python_version = "python=" + python_version if python_version else ""
             run_cmd.extend([python_version])
 
-        result = util.misc.run_and_print(run_cmd, loglevel=logging.INFO, env=self.conda_env, retries=3, retry_delay_sec=5)
+        result = util.misc.run_and_print(run_cmd, loglevel=logging.INFO, env=self.conda_env)
         try:
             command_output = result.stdout.decode("UTF-8")
             data = json.loads(self._string_from_start_of_json(command_output))
@@ -559,9 +559,7 @@ class CondaPackage(InstallMethod):
                     self._package_str
                 ],
                 loglevel=logging.DEBUG,
-                env=self.conda_env,
-                retries=3, 
-                retry_delay_sec=5
+                env=self.conda_env
             )
 
             if result.returncode == 0:

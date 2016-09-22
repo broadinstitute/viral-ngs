@@ -204,7 +204,12 @@ def run_and_print(args, stdout=None, stderr=None,
 
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
+
+    expected_return_code is used for retrying, and for buffered output
     '''
+
+    assert not (check and retries), "check and retries cannot both be set for run_and_print()"
+
     if loglevel:
         silent = False
 
