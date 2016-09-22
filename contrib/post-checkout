@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function cmd_exists() {
+    if hash $@ 2> /dev/null ; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# if conda is available
+if cmd_exists "conda"; then
+    # if a conda environment is active
+    if [ ! -z "$CONDA_DEFAULT_ENV" ]; then
+        # update the conda environment to install the requirements specified
+        if [ "$(uname)" == "Darwin" ]; then
+            # some conda packages dont exist on OSX
+            cat requirements-conda.txt | grep -v kraken > /tmp/requirements-conda.txt
+        else
+            # for linux, just use requirements-conda as-is
+            cp requirements-conda.txt /tmp/requirements-conda.txt
+        fi
+
+        conda install -y -c bioconda --file /tmp/requirements-conda.txt
+    fi
+fi
