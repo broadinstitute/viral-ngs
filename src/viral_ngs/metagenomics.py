@@ -211,7 +211,7 @@ def sam_lca(db, sam_file, output=None, top_percent=10, unique_only=True):
             if mapped_segs:
                 tax_id = process_sam_hits(db, mapped_segs, top_percent)
                 if tax_id is None:
-                    log.debug('Query: {} has no valid taxonomy paths.'.format(query_name))
+                    log.warn('Query: {} has no valid taxonomy paths.'.format(query_name))
                     if unique_only:
                         continue
                     else:
@@ -458,7 +458,7 @@ def rank_code(rank):
         return "-"
 
 
-def taxa_hits_from_tsv(f, tax_id_column=2):
+def taxa_hits_from_tsv(f, tax_id_column=3):
     '''Return a counter of hits from tsv.'''
     c = collections.Counter()
     for row in csv.reader(f, delimiter='\t'):
@@ -669,7 +669,7 @@ def align_rna_metagenomics(
     outBam=None,
     dupeLca=None,
     outLca=None,
-    sensitive=False,
+    sensitive=None,
     JVMmemory=None,
     numThreads=None,
     picardOptions=None,
@@ -736,7 +736,12 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--dupeReport', help='Generate report including duplicates.')
-    parser.add_argument('--sensitive', help='Sensitive BWA mem options.')
+    parser.add_argument(
+        '--noSensitive',
+        dest='sensitive',
+        action="store_false",
+        help='Use default BWA mem options instead of sensitive options.'
+    )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')
