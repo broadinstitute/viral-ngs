@@ -952,6 +952,12 @@ def parser_novoalign(parser=argparse.ArgumentParser()):
         default=tools.picard.SortSamTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_novoalign)
     return parser
@@ -959,7 +965,7 @@ def parser_novoalign(parser=argparse.ArgumentParser()):
 
 def main_novoalign(args):
     '''Align reads with Novoalign. Sort and index BAM output.'''
-    tools.novoalign.NovoalignTool().execute(
+    tools.novoalign.NovoalignTool(license_path=args.novoalign_license_path).execute(
         args.inBam,
         args.refFasta,
         args.outBam,
@@ -975,9 +981,19 @@ __commands__.append(('novoalign', parser_novoalign))
 
 def parser_novoindex(parser=argparse.ArgumentParser()):
     parser.add_argument('refFasta', help='Reference genome, FASTA format.')
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, tools.novoalign.NovoalignTool().index_fasta, split_args=True)
+    util.cmd.attach_main(parser, main_novoindex)
     return parser
+
+def main_novoindex(args):
+    tools.novoalign.NovoalignTool(license_path=args.novoalign_license_path).index_fasta(args.refFasta)
+    return 0
 
 
 __commands__.append(('novoindex', parser_novoindex))
@@ -1003,6 +1019,11 @@ def parser_gatk_ug(parser=argparse.ArgumentParser()):
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
+    parser.add_argument(
+        '--GATK_PATH',
+        default=None,
+        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_ug)
     return parser
@@ -1010,7 +1031,7 @@ def parser_gatk_ug(parser=argparse.ArgumentParser()):
 
 def main_gatk_ug(args):
     '''Call genotypes using the GATK UnifiedGenotyper.'''
-    tools.gatk.GATKTool().ug(
+    tools.gatk.GATKTool(path=args.GATK_PATH).ug(
         args.inBam, args.refFasta,
         args.outVcf, options=args.options.split(),
         JVMmemory=args.JVMmemory
@@ -1030,6 +1051,11 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
         default=tools.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
+    parser.add_argument(
+        '--GATK_PATH',
+        default=None,
+        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_realign)
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
@@ -1038,10 +1064,10 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
 
 def main_gatk_realign(args):
     '''Local realignment of BAM files with GATK IndelRealigner.'''
-    tools.gatk.GATKTool().local_realign(
+    tools.gatk.GATKTool(path=args.GATK_PATH).local_realign(
         args.inBam, args.refFasta,
         args.outBam, JVMmemory=args.JVMmemory,
-        threads=args.threads
+        threads=args.threads, 
     )
     return 0
 
@@ -1058,7 +1084,9 @@ def align_and_fix(
     aligner_options='',
     aligner="novoalign",
     JVMmemory=None,
-    threads=1
+    threads=1,
+    gatk_path=None,
+    novoalign_license_path=None
 ):
     ''' Take reads, align to reference with Novoalign, mark duplicates
         with Picard, realign indels with GATK, and optionally filter
@@ -1085,9 +1113,9 @@ def align_and_fix(
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
         
-        tools.novoalign.NovoalignTool().index_fasta(refFastaCopy)
+        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(refFastaCopy)
 
-        tools.novoalign.NovoalignTool().execute(
+        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
             inBam, refFastaCopy, bam_aligned,
             options=aligner_options.split(),
             JVMmemory=JVMmemory
@@ -1117,7 +1145,7 @@ def align_and_fix(
     tools.samtools.SamtoolsTool().index(bam_mkdup)
 
     bam_realigned = mkstempfname('.realigned.bam')
-    tools.gatk.GATKTool().local_realign(bam_mkdup, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
+    tools.gatk.GATKTool(path=gatk_path).local_realign(bam_mkdup, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
     os.unlink(bam_mkdup)
 
     if outBamAll:
@@ -1148,6 +1176,18 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument(
+        '--GATK_PATH',
+        default=None,
+        dest="gatk_path",
+        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_and_fix, split_args=True)
     return parser
