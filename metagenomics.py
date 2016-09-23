@@ -67,16 +67,19 @@ class TaxonomyDb(object):
             elif gis_paths:
                 self.gis = {}
                 for gi_path in gis_paths:
+                    log.info('Loading taxonomy gis: %s', gi_path)
                     self.gis.update(self.load_gi_single_dmp(gi_path))
         if load_nodes:
             if nodes:
                 self.ranks, self.parents = nodes
             elif nodes_path:
+                log.info('Loading taxonomy nodes: %s', nodes_path)
                 self.ranks, self.parents = self.load_nodes(nodes_path)
         if load_names:
             if names:
                 self.names = names
             elif names_path:
+                log.info('Loading taxonomy names: %s', names_path)
                 self.names = self.load_names(names_path)
 
     def load_gi_single_dmp(self, dmp_path):
@@ -89,7 +92,7 @@ class TaxonomyDb(object):
                 taxid = int(taxid)
                 gi_array[gi] = taxid
                 if (i + 1) % 1000000 == 0:
-                    print('Loaded {} gis'.format(i), file=sys.stderr)
+                    log.info('Loaded %s gis', i)
         return gi_array
 
     def load_names(self, names_db, scientific_only=True):
@@ -178,10 +181,17 @@ def extract_tax_id(sam1):
         raise TaxIdError(parts)
 
 
-def sam_lca(db, sam_file, output=None, top_percent=10, min_support_percent=0, min_support=1):
+def sam_lca(db, sam_file, output=None, top_percent=10, unique_only=True):
     ''' Calculate the LCA taxonomy id for multi-mapped reads in a samfile.
 
     Assumes the sam is sorted by query name. Writes tsv output: query_id \t tax_id.
+
+    Args:
+      db: (TaxonomyDb) Taxonomy db.
+      sam_file: (path) Sam file.
+      output: (io) Output file.
+      top_percent: (float) Only this percent within top hit are used.
+      unique_only: (bool) If true, only output assignments for unique, mapped reads. If False, set unmapped or duplicate reads as unclassified.
 
     Return:
       (collections.Counter) Counter of taxid hits
@@ -189,19 +199,30 @@ def sam_lca(db, sam_file, output=None, top_percent=10, min_support_percent=0, mi
 
     c = collections.Counter()
     with pysam.AlignmentFile(sam_file, 'rb') as sam:
-        # 0x4 is unmapped, 0x400 is duplicate
-        mapped_segs = (seg for seg in sam if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0)
-        seg_groups = (v for k, v in itertools.groupby(mapped_segs, operator.attrgetter('query_name')))
+        seg_groups = (v for k, v in itertools.groupby(sam, operator.attrgetter('query_name')))
         for seg_group in seg_groups:
-            seg_group = list(seg_group)
-            tax_id = process_sam_hits(db, seg_group, top_percent)
-            query_name = seg_group[0].query_name
-            if not tax_id:
-                log.debug('Query: {} has no valid taxonomy paths.'.format(query_name))
+            segs = list(seg_group)
+            query_name = segs[0].query_name
+            # 0x4 is unmapped, 0x400 is duplicate
+            mapped_segs = [seg for seg in segs if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0]
+            if unique_only and not mapped_segs:
+                continue
+
+            if mapped_segs:
+                tax_id = process_sam_hits(db, mapped_segs, top_percent)
+                if tax_id is None:
+                    log.warn('Query: {} has no valid taxonomy paths.'.format(query_name))
+                    if unique_only:
+                        continue
+                    else:
+                        tax_id = 0
             else:
-                if output:
-                    output.write('{}\t{}\n'.format(query_name, tax_id))
-                c[tax_id] += 1
+                tax_id = 0
+
+            if output:
+                classified = 'C' if tax_id else 'U'
+                output.write('{}\t{}\t{}\n'.format(classified, query_name, tax_id))
+            c[tax_id] += 1
     return c
 
 
@@ -237,8 +258,8 @@ def blast_lca(db,
         query_id = blast_group[0].query_id
         if not tax_id:
             log.debug('Query: {} has no valid taxonomy paths.'.format(query_id))
-        else:
-            output.write('{}\t{}\n'.format(query_id, tax_id))
+        classified = 'C' if tax_id else 'U'
+        output.write('{}\t{}\t{}\n'.format(classified, query_id, tax_id))
 
 
 def process_sam_hits(db, sam_hits, top_percent):
@@ -259,8 +280,6 @@ def process_sam_hits(db, sam_hits, top_percent):
     # Sort requires realized list
     valid_hits.sort(key=lambda sam1: sam1.get_tag('AS'), reverse=True)
 
-    if not valid_hits:
-        return
     tax_ids = [extract_tax_id(hit) for hit in valid_hits]
     return coverage_lca(tax_ids, db.parents)
 
@@ -439,7 +458,7 @@ def rank_code(rank):
         return "-"
 
 
-def taxa_hits_from_tsv(f, tax_id_column=2):
+def taxa_hits_from_tsv(f, tax_id_column=3):
     '''Return a counter of hits from tsv.'''
     c = collections.Counter()
     for row in csv.reader(f, delimiter='\t'):
@@ -650,11 +669,11 @@ def align_rna_metagenomics(
     outBam=None,
     dupeLca=None,
     outLca=None,
-    sensitive=False,
+    sensitive=None,
     JVMmemory=None,
     numThreads=None,
     picardOptions=None,
-    min_score_to_output=None
+    min_score_to_output=None,
 ):
     '''
         Align to metagenomics bwa index, mark duplicates, and generate LCA report
@@ -664,9 +683,9 @@ def align_rna_metagenomics(
     bwa = tools.bwa.Bwa()
     samtools = tools.samtools.SamtoolsTool()
 
-    bwa_opts = []
+    bwa_opts = ['-a']
     if sensitive:
-        bwa_opts += "-k 12 -A 1 -B 1 -O 1 -E 1".split()
+        bwa_opts += '-k 12 -A 1 -B 1 -O 1 -E 1'.split()
 
     map_threshold = min_score_to_output or 30
 
@@ -678,7 +697,7 @@ def align_rna_metagenomics(
     if dupeReport:
         aln_bam_sorted = util.file.mkstempfname('.align_namesorted.bam')
         samtools.sort(aln_bam, aln_bam_sorted, args=['-n'], threads=numThreads)
-        sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outLca=dupeLca)
+        sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outLca=dupeLca, unique_only=False)
         os.unlink(aln_bam_sorted)
 
     aln_bam_deduped = outBam if outBam else util.file.mkstempfname('.align_deduped.bam')
@@ -694,7 +713,7 @@ def align_rna_metagenomics(
         os.unlink(aln_bam_deduped)
 
 
-def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None):
+def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None, unique_only=None):
     lca_tsv = outLca
 
     if outLca:
@@ -703,7 +722,7 @@ def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None):
         lca_tsv = util.file.mkstempfname('.tsv')
 
     with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
-        hits = sam_lca(tax_db, bam_aligned, lca, top_percent=10, min_support_percent=0, min_support=1)
+        hits = sam_lca(tax_db, bam_aligned, lca, top_percent=10, unique_only=unique_only)
 
     with open(outReport, 'w') as f:
 
@@ -717,7 +736,12 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--dupeReport', help='Generate report including duplicates.')
-    parser.add_argument('--sensitive', help='Sensitive BWA mem options.')
+    parser.add_argument(
+        '--noSensitive',
+        dest='sensitive',
+        action="store_false",
+        help='Use default BWA mem options instead of sensitive options.'
+    )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')

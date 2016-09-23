@@ -58,7 +58,7 @@ krona_db: "/idi/sabeti-scratch/yesimon/db/krona_taxonomy"
 align_rna_db: "/idi/sabeti-scratch/shared-resources/rna_bwa/human_viral_16s"
 
 # Directory of the NCBI taxonomy dmp files
-taxonomy_db: "/idi/sabeti-scratch/yesimon/db/taxonomy"
+taxonomy_db: "/idi/sabeti-scratch/shared-resources/taxonomy"
 
 # These are variables that must be set
 env_vars:
