@@ -178,12 +178,16 @@ def extract_tax_id(sam1):
         raise TaxIdError(parts)
 
 
-def sam_lca(db, sam_file, output, top_percent=10, min_support_percent=0, min_support=1):
+def sam_lca(db, sam_file, output=None, top_percent=10, min_support_percent=0, min_support=1):
     ''' Calculate the LCA taxonomy id for multi-mapped reads in a samfile.
 
     Assumes the sam is sorted by query name. Writes tsv output: query_id \t tax_id.
+
+    Return:
+      (collections.Counter) Counter of taxid hits
     '''
 
+    c = collections.Counter()
     with pysam.AlignmentFile(sam_file, 'rb') as sam:
         # 0x4 is unmapped, 0x400 is duplicate
         mapped_segs = (seg for seg in sam if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0)
@@ -195,7 +199,10 @@ def sam_lca(db, sam_file, output, top_percent=10, min_support_percent=0, min_sup
             if not tax_id:
                 log.debug('Query: {} has no valid taxonomy paths.'.format(query_name))
             else:
-                output.write('{}\t{}\n'.format(query_name, tax_id))
+                if output:
+                    output.write('{}\t{}\n'.format(query_name, tax_id))
+                c[tax_id] += 1
+    return c
 
 
 def blast_lca(db,
@@ -639,10 +646,11 @@ def align_rna_metagenomics(
     db,
     taxDb,
     outReport,
+    dupeReport=None,
     outBam=None,
+    dupeLca=None,
     outLca=None,
     sensitive=False,
-    excludeDuplicates=True,
     JVMmemory=None,
     numThreads=None,
     picardOptions=None,
@@ -652,10 +660,6 @@ def align_rna_metagenomics(
         Align to metagenomics bwa index, mark duplicates, and generate LCA report
     '''
     picardOptions = picardOptions if picardOptions else []
-    if outBam is None:
-        bam_aligned = util.file.mkstempfname('.aligned.bam')
-    else:
-        bam_aligned = outBam
 
     bwa = tools.bwa.Bwa()
     samtools = tools.samtools.SamtoolsTool()
@@ -669,46 +673,42 @@ def align_rna_metagenomics(
     aln_bam = util.file.mkstempfname('.bam')
     bwa.mem(inBam, db, aln_bam, options=bwa_opts, min_qual=map_threshold)
 
-    aln_bam_dupe_processed = util.file.mkstempfname('.filtered_dupe_processed.bam')
-    if excludeDuplicates:
-        opts = list(picardOptions)
-        dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
-        pic = tools.picard.MarkDuplicatesTool()
-        pic.execute(
-            [aln_bam],
-            aln_bam_dupe_processed,
-            dupe_removal_out_metrics,
-            picardOptions=opts,
-            JVMmemory=pic.jvmMemDefault
-        )
-    else:
-        aln_bam_dupe_processed = aln_bam
+    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
-    samtools.sort(aln_bam_dupe_processed, bam_aligned, args=['-n'], threads=numThreads)
+    if dupeReport:
+        aln_bam_sorted = util.file.mkstempfname('.align_namesorted.bam')
+        samtools.sort(aln_bam, aln_bam_sorted, args=['-n'], threads=numThreads)
+        sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outLca=dupeLca)
+        os.unlink(aln_bam_sorted)
+
+    aln_bam_deduped = outBam if outBam else util.file.mkstempfname('.align_deduped.bam')
+    opts = list(picardOptions)
+    dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
+    pic = tools.picard.MarkDuplicatesTool()
+    pic.execute([aln_bam], aln_bam_deduped, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=pic.jvmMemDefault)
     os.unlink(aln_bam)
 
-    if excludeDuplicates:
-        os.unlink(aln_bam_dupe_processed)
+    sam_lca_report(tax_db, aln_bam_deduped, outReport=outReport, outLca=outLca)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
-    tmp_lca_tsv = util.file.mkstempfname('.tsv')
-    with open(tmp_lca_tsv, 'w') as lca:
-        sam_lca(tax_db, bam_aligned, lca, top_percent=10, min_support_percent=0, min_support=1)
+    if not outBam:
+        os.unlink(aln_bam_deduped)
+
+
+def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None):
+    lca_tsv = outLca
+
     if outLca:
-        with open(tmp_lca_tsv, 'rb') as f_in:
-            with gzip.open(outLca, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+        lca_tsv = outLca
+    else:
+        lca_tsv = util.file.mkstempfname('.tsv')
 
-    with open(tmp_lca_tsv) as f:
-        hits = taxa_hits_from_tsv(f)
+    with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
+        hits = sam_lca(tax_db, bam_aligned, lca, top_percent=10, min_support_percent=0, min_support=1)
+
     with open(outReport, 'w') as f:
 
         for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
             print(line, file=f)
-
-    # remove the output bam, unless it is needed
-    if outBam is None:
-        os.unlink(bam_aligned)
 
 
 def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
@@ -716,10 +716,11 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Bwa index prefix.')
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
-    parser.add_argument('--excludeDuplicates', default=True, help='Remove duplicates using Picard MarkDuplicates.')
+    parser.add_argument('--dupeReport', help='Generate report including duplicates.')
     parser.add_argument('--sensitive', help='Sensitive BWA mem options.')
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
+    parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)

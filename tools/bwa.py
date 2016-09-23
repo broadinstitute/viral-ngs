@@ -225,7 +225,7 @@ class Bwa(tools.Tool):
 
         os.unlink(fq1)
         os.unlink(fq2)
-        samtools.sort(aln_sam, outAlign)
+        samtools.sort(aln_sam, outAlign, threads=threads)
         os.unlink(aln_sam)
         # cannot index sam files; only do so if a bam/cram is desired
         if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
