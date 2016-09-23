@@ -23,19 +23,15 @@ rule all_metagenomics_host_depleted:
 method_props = {
     'diamond': {
         'reads_ext': 'diamond.lca.gz',
-        'krona_columns': (1, 2),
     },
     'kraken': {
         'reads_ext': 'kraken.reads.gz',
-        'krona_columns': (2, 3),
     },
     'rna_bwa': {
         'reads_ext': 'rna_bwa.lca.gz',
-        'krona_columns': (1, 2),
     },
     'rna_bwa_dupes': {
         'reads_ext': 'rna_bwa.lca_dupes.gz',
-        'krona_columns': (1, 2),
     }
 }
 
@@ -85,12 +81,8 @@ rule krona_import_taxonomy:
     input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
            ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']]))
     output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_dupes}.krona.html")
-    run:
-        # method_props key can be changed to allow for different tools, 
-        # but with new changes Diamond output should look like Kraken output
-        # in terms of the location of the two needed columns
-        query_col, taxid_col = method_props["kraken"]['krona_columns']
-        shell("""
-        {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank \
-          --queryColumn {query_col}  --taxidColumn {taxid_col}
-        """)
+    resources: mem=4
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank
+        """

@@ -338,14 +338,15 @@ def cat(output_file, input_files):
 
 
 @contextlib.contextmanager
-def temp_catted_files(input_files, prefix=None, suffix=None):
+def temp_catted_files(input_files, suffix=None, prefix=None):
     '''Create a temporary file holding catted contents of input_files.'''
+    fn = mkstempfname(suffix=suffix, prefix=prefix)
     try:
-        fn = util.file.mkstempfname(prefix=prefix, suffix=suffix)
         cat(fn, input_files)
         yield fn
     finally:
         os.remove(fn)
+
 
 def string_to_file_name(string_value):
     replacements_dict = {
