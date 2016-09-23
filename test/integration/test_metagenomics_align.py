@@ -107,13 +107,15 @@ def bwa_db(request, tmpdir_factory, bwa, db_type):
 
 def test_meta_bwa(bwa_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
+    dupe_report = util.file.mkstempfname('.dupes.report')
     out_bam = util.file.mkstempfname('.output.bam')
-    cmd = [input_bam, bwa_db, taxonomy_db, out_report, '--outBam', out_bam]
+    cmd = [input_bam, bwa_db, taxonomy_db, out_report, '--dupeReport', dupe_report, '--outBam', out_bam]
     parser = metagenomics.parser_align_rna_metagenomics(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
 
     assert os.path.getsize(out_report) > 0
+    assert os.path.getsize(dupe_report) > 0
     assert os.path.getsize(out_bam) > 0
 
 
@@ -131,12 +133,12 @@ def test_pipes(tmpdir, bwa_db, taxonomy_db, input_bam):
 
     report_out = join(
         runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
-        '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'rna_bwa.report'])
+        '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.report'])
     )
 
     bam_out = join(
         runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
-        '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'rna_bwa.bam'])
+        '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.bam'])
     )
 
     runner.run([report_out])
