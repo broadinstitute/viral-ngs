@@ -67,16 +67,22 @@ class TaxonomyDb(object):
             elif gis_paths:
                 self.gis = {}
                 for gi_path in gis_paths:
+                    print('Loading taxonomy gis: {}'.format(gi_path))
+                    sys.stdout.flush()
                     self.gis.update(self.load_gi_single_dmp(gi_path))
         if load_nodes:
             if nodes:
                 self.ranks, self.parents = nodes
             elif nodes_path:
+                print('Loading taxonomy nodes: {}'.format(nodes_path))
+                sys.stdout.flush()
                 self.ranks, self.parents = self.load_nodes(nodes_path)
         if load_names:
             if names:
                 self.names = names
             elif names_path:
+                print('Loading taxonomy names: {}'.format(names_path))
+                sys.stdout.flush()
                 self.names = self.load_names(names_path)
 
     def load_gi_single_dmp(self, dmp_path):
