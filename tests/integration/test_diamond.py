@@ -16,8 +16,6 @@ import tools.diamond
 import tools.picard
 import util.file
 
-# from test import TestCaseWithTmp
-
 
 def find_files(root_dir, filt):
     matches = []
@@ -109,7 +107,6 @@ def taxonomy_db(request, tmpdir_factory, db_type):
 def diamond_db(request, tmpdir_factory, diamond, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
-    print(db_dir)
 
     db = str(tmpdir_factory.getbasetemp().join(db_type + '.dmnd'))
     translated = str(tmpdir_factory.getbasetemp().join(db_type + '.fa'))
@@ -125,32 +122,51 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
     return db
 
 
-@pytest.mark.skipif(tools.is_osx(), reason="Diamond osx binary does not yet exist on bioconda")
+TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
+                  'gi_taxid_prot.dmp',
+                  'names.dmp',
+                  'nodes.dmp',)
+
+
+@pytest.fixture(scope='session')
+def krona_db(request, tmpdir_factory, krona, db_type):
+    data_dir = join(util.file.get_test_input_path(), db_type)
+    db_dir = os.path.join(data_dir, 'db')
+
+    db = str(tmpdir_factory.mktemp('krona_db_{}'.format(db_type)))
+    for d in TAXONOMY_FILES:
+        src = join(db_dir, 'taxonomy', d)
+        dest = join(db, d)
+        os.symlink(src, dest)
+    krona.create_db(db)
+    return db
+
+
 @pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
-def test_pipes(tmpdir, diamond_db, taxonomy_db, input_bam):
+def test_pipes(tmpdir, diamond_db, taxonomy_db, krona_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
         'diamond_db': diamond_db,
         'taxonomy_db': taxonomy_db,
+        'krona_db': krona_db,
     }
     runner.set_override_config(override_config)
     runner.setup()
     runner.link_samples([input_bam], destination='per_sample', link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
-    # krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
-    #                      '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'diamond.krona.html']))
+    krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+                         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'diamond.krona.html']))
 
     diamond_out = join(
         runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'diamond.report'])
     )
-    runner.run([diamond_out])
+    runner.run([krona_out])
     assert os.path.getsize(diamond_out) > 0
-    # assert os.path.getsize(krona_out) > 0
+    assert os.path.getsize(krona_out) > 0
 
 
-@pytest.mark.skipif(tools.is_osx(), reason="Diamond osx binary does not yet exist on bioconda")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_lca = util.file.mkstempfname('.lca.tsv')
