@@ -8,7 +8,8 @@ function cmd_exists() {
     fi
 }
 
-requirements_file="$(mktemp -t requirements-conda.txt)"
+requirements_file="$(mktemp)"
+trap "rm $requirements_file" EXIT
 
 # if conda is available
 if cmd_exists "conda"; then
@@ -24,6 +25,5 @@ if cmd_exists "conda"; then
         fi
 
         conda install -y -c bioconda --file "$requirements_file"
-        rm "$requirements_file"
     fi
 fi
