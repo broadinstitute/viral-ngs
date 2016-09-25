@@ -24,7 +24,8 @@ source activate "$CONDAENVDIR"
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
     --jobs 90 --immediate-submit \
-        --latency-wait 60 \
+    --force-use-threads \
+    --latency-wait 60 \
     --config mode=UGER \
     --directory . \
     --jobscript "$BINDIR/pipes/Broad_UGER/jobscript.sh" \
