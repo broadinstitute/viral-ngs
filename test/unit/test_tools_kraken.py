@@ -17,9 +17,6 @@ class TestToolKrakenMocked(TestCaseWithTmp):
     def setUp(self):
         super().setUp()
 
-        patcher = mock.patch('util.misc.run_and_print', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_run_and_print = patcher.start()
         patcher = mock.patch('util.misc.run', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
