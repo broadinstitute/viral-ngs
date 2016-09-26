@@ -68,8 +68,7 @@ class SnakemakeRunner(object):
         self.bindir = join(self.workdir, 'bin')
         self.root = util.file.get_project_path()
         os.symlink(self.root, self.bindir)
-        os.symlink(join(self.root, 'pipes', 'Snakefile'),
-                   join(self.workdir, 'Snakefile'))
+        os.symlink(join(self.root, 'pipes', 'Snakefile'), join(self.workdir, 'Snakefile'))
         with open(join(self.root, 'pipes', 'config.yaml')) as f:
             config = yaml.load(f)
         if self.override_config:
@@ -88,8 +87,7 @@ class SnakemakeRunner(object):
     def link_samples(self, samples, destination='source', link_transform=None):
         """Links samples files in data destination dir."""
         for sample in samples:
-            link = join(self.data_dir, self.config['subdirs'][destination],
-                        os.path.basename(sample))
+            link = join(self.data_dir, self.config['subdirs'][destination], os.path.basename(sample))
 
             if link_transform:
                 link = link_transform(link)
@@ -104,8 +102,7 @@ class SnakemakeRunner(object):
         sample files that weren't written to.
         """
         samples = samples or self.samples
-        all_sample_files = [self.config[key] for key in
-                            SnakemakeRunner.SAMPLE_FILE_KEYS]
+        all_sample_files = [self.config[key] for key in SnakemakeRunner.SAMPLE_FILE_KEYS]
 
         if not sample_files:
             sample_files = all_sample_files
@@ -123,4 +120,4 @@ class SnakemakeRunner(object):
         cmd = ['snakemake', '--verbose', '--reason', '--printshellcmds']
         if rules:
             cmd.extend(rules)
-        res = util.misc.run_and_print(cmd, check=True, cwd=self.workdir)
+        res = subprocess.check_call(cmd, cwd=self.workdir)

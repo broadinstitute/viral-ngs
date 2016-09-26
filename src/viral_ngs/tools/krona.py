@@ -2,7 +2,6 @@ import tools
 import os.path
 import subprocess
 from os.path import join
-import util.misc
 from builtins import super
 
 TOOL_NAME = 'krona'
@@ -55,7 +54,7 @@ class Krona(tools.Tool):
             cmd.append('-k')
         cmd.extend(input_tsvs)
 
-        util.misc.run_and_print(cmd, env=env, check=True)
+        subprocess.check_call(cmd, env=env)
 
     def create_db(self, db_dir):
         """Caution - this deletes the original .dmp files."""
@@ -65,4 +64,4 @@ class Krona(tools.Tool):
 
         sh = join(self.opt, 'updateTaxonomy.sh')
         cmd = [sh, '--only-build', os.path.abspath(db_dir)]
-        util.misc.run_and_print(cmd, env=env, check=True)
+        subprocess.check_call(cmd, env=env)
