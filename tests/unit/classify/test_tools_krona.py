@@ -17,7 +17,7 @@ class TestToolKrona(TestCaseWithTmp):
         self.krona = tools.krona.Krona()
         self.krona.install()
 
-        patcher = patch('util.misc.run_and_print', autospec=True)
+        patcher = patch('subprocess.check_call', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_run = patcher.start()
 
