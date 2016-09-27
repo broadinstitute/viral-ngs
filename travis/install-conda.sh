@@ -40,9 +40,9 @@ else # if it does not exist, we need to install miniconda
     fi
     hash -r
     conda config --set always_yes yes --set changeps1 no
-    conda config --add channels conda-forge
     conda config --add channels bioconda
     conda config --add channels r
+    conda config --add channels conda-forge
     conda update -y -q conda
     conda install java-jdk==8.0.92
 fi
