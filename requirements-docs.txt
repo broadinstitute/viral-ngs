@@ -2,4 +2,4 @@ Sphinx==1.4.4
 sphinx-argparse==0.1.14
 boltons==15.0.0
 sphinx-rtd-theme==0.1.9
-matplotlib==1.5.1
+matplotlib==1.5.3
