@@ -37,6 +37,8 @@ PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
+SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
+
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -97,6 +99,38 @@ function set_locale(){
     export LC_MEASUREMENT="$1"
     export LC_IDENTIFICATION="$1"
     export LC_ALL="$1"
+}
+
+
+function ask() {
+    while true; do
+ 
+        if [ "${2:-}" = "Y" ]; then
+            prompt="Y/n"
+            default=Y
+        elif [ "${2:-}" = "N" ]; then
+            prompt="y/N"
+            default=N
+        else
+            prompt="y/n"
+            default=
+        fi
+ 
+        # Ask the question
+        read -p "$1 [$prompt] " REPLY
+ 
+        # Default?
+        if [ -z "$REPLY" ]; then
+            REPLY=$default
+        fi
+ 
+        # Check if the reply is valid
+        case "$REPLY" in
+            Y*|y*) echo " "; return 0 ;;
+            N*|n*) echo " "; return 1 ;;
+        esac
+ 
+    done
 }
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -228,7 +262,7 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2,upgrade}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2,upgrade,update-easy-deploy}"
 }
 
 function symlink_viral_ngs(){
@@ -274,6 +308,51 @@ function check_viral_ngs_version(){
             echo "viral-ngs is up to date ($CURRENT_VER)"
         fi
     fi
+}
+
+function updateSelf() {
+  # this function overwrites this script with one downloaded from
+  # the first argument passed to the funciton, $1
+
+  echo "Performing self-update..."
+
+  cp "$SCRIPT" "$SCRIPT.bak"
+
+  # Download new version
+  echo -n "Downloading latest version..."
+  if ! wget --quiet --output-document="$SCRIPT.tmp" "$1" ; then
+    echo "Error while trying to wget new version!"
+    echo "File requested: $SELF_UPDATE_URL"
+    exit 1
+  fi
+  echo "done."
+
+  # Copy permissions from old version
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+      OCTAL_MODE=$(stat -f '%A' $SCRIPT)
+  else
+      OCTAL_MODE=$(stat -c '%a' $SCRIPT)
+  fi
+  if ! chmod $OCTAL_MODE "$SCRIPT.tmp" ; then
+    echo "Failed: Error while trying to set mode on $SCRIPT.tmp."
+    exit 1
+  fi
+
+  # Spawn update script
+  cat > update-easy-deploy-script.sh << EOF
+#!/bin/bash
+# Overwrite old file with new
+if mv "$SCRIPT.tmp" "$SCRIPT"; then
+  echo "done." 
+  echo "Self-update complete."
+  rm \$0
+else
+  echo "Failed!"
+fi
+EOF
+
+  echo -n "Overwriting old script with new one..."
+  exec /bin/bash update-easy-deploy-script.sh
 }
 
 if [ $# -eq 0 ]; then
@@ -447,6 +526,35 @@ else
                 fi
             else
                 echo "Usage: source $(basename $SCRIPT) upgrade"
+                if [[ $sourced -eq 0 ]]; then
+                    exit 1
+                else
+                    return 1
+                fi
+            fi
+       ;;
+       "update-easy-deploy")
+            if [ $# -eq 1 ]; then
+                if [[ $sourced -eq 1 ]]; then
+                    echo "ABORTING. $(basename $SCRIPT) must not be sourced during upgrade"
+                    echo "Usage: $(basename $SCRIPT) update-easy-deploy"
+                    return 1
+                else
+                    if [ -z "$CONDA_DEFAULT_ENV" ]; then
+                        if [ ! -z "$SKIP_SELF_UPDATE_CONFIRM" ] || $(ask "Are you sure you want to update the easy deploy script to the latest version?" Y); then
+                            updateSelf "$SELF_UPDATE_URL"
+                        fi
+                    else
+                        echo "It looks like a conda environment is active."
+                        echo "To update this script, first deactivate the environment"
+                        echo "then call update-easy-deploy. Example:"
+                        echo "  source deactivate && $(basename $SCRIPT) update-easy-deploy"
+                        exit 1
+                    fi
+
+                fi
+            else
+                echo "Usage: source $(basename $SCRIPT) update-easy-deploy"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
