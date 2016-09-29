@@ -187,7 +187,7 @@ function activate_env(){
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         echo "viral-ngs parent directory found"
     else
-        echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
+        echo "viral-ngs parent directory not found: $SCRIPTPATH/$CONTAINING_DIR not found."
         echo "Have you run the setup?"
         echo "Usage: $0 setup"
         cd $STARTING_DIR
@@ -260,7 +260,7 @@ function check_viral_ngs_version(){
         echo "Checking viral-ngs version..."
         CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')"
         # perhaps a better way...
-        AVAILABLE_VER="$(conda search --override-channels -f -c bioconda -c r -c conda-forge viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
+        AVAILABLE_VER="$(conda search --override-channels -f -c r -c bioconda -c conda-forge -c defaults --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
         if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
             echo ""
             echo "============================================================================================================"
@@ -306,22 +306,22 @@ else
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
                         # provide an option to use Python 2 in the conda environment
                         if [ "$1" == "setup-py2" ]; then
-                            conda create -c bioconda -c r -c conda-forge -y -p $VIRAL_CONDA_ENV_PATH python=2
+                            conda create -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH python=2
                         else
-                            conda create -c bioconda -c r -c conda-forge -y -p $VIRAL_CONDA_ENV_PATH python=3
+                            conda create -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH python=3
                         fi
                         
                         # provide an avenue to specify a package path, or to use a previously-built local package
                         if [ $# -eq 2 ]; then
                             if [ "$2" == "--use-local" ]; then
-                                conda install -c bioconda -c r -c conda-forge -y -p $VIRAL_CONDA_ENV_PATH --use-local viral-ngs
+                                conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH --use-local viral-ngs
                                 echo "using local...."
                                 exit 0
                             else
-                                conda install -c bioconda -c r -c conda-forge -y -p $VIRAL_CONDA_ENV_PATH $2
+                                conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH $2
                             fi
                         elif [ $# -eq 1 ]; then
-                            conda install -c bioconda -c r -c conda-forge -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                            conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
                         fi
 
                     else
@@ -339,7 +339,7 @@ else
                     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
                     if [ -z "$GATK_JAR_PATH" ]; then
                         # if the env var is not set, try to get the jar location using the default Broad path
-                        if [[ "$(dnsdomainname)" == *"broadinstitute.org" || "$HOSTNAME" == *".broadinstitute.org" || "$DOMAINNAME" == "broadinstitute.org" ]]; then
+                        if [[ "$(hash dnsdomainname &> /dev/null && dnsdomainname || echo '')" == *"broadinstitute.org" || "$HOSTNAME" == *".broadinstitute.org" || "$DOMAINNAME" == "broadinstitute.org" ]]; then
                             echo "This script is being run on a Broad Institute system."
                             echo "Trying to find GATK..."
                             export GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && sleep 5 && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
@@ -425,7 +425,7 @@ else
                         if [ -L "$VIRAL_NGS_PATH" ]; then
                             rm $VIRAL_NGS_PATH # remove symlink
                         fi
-                        conda update -y -c bioconda -c r -c conda-forge viral-ngs
+                        conda update -y -c r -c bioconda -c conda-forge -c defaults --override-channels viral-ngs
 
                         # recreate symlink to folder for latest viral-ngs in conda-env/opt/
                         symlink_viral_ngs
