@@ -21,6 +21,8 @@ Configure Conda
 The viral-ngs software and its dependencies are distributed through the bioconda channel for the conda package manager. It is necessary to add this channel to the conda config::
 
   conda config --add channels bioconda
+  conda config --add channels r
+  conda config --add channels conda-forge
 
 Make a conda environment and install viral-ngs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

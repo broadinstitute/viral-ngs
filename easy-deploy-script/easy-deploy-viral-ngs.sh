@@ -37,6 +37,8 @@ PROJECTS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$SCRIPTPATH/$CONTAINING_DIR/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$SCRIPTPATH/$CONTAINING_DIR/$MINICONDA_DIR"
 
+SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
+
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -97,6 +99,38 @@ function set_locale(){
     export LC_MEASUREMENT="$1"
     export LC_IDENTIFICATION="$1"
     export LC_ALL="$1"
+}
+
+
+function ask() {
+    while true; do
+ 
+        if [ "${2:-}" = "Y" ]; then
+            prompt="Y/n"
+            default=Y
+        elif [ "${2:-}" = "N" ]; then
+            prompt="y/N"
+            default=N
+        else
+            prompt="y/n"
+            default=
+        fi
+ 
+        # Ask the question
+        read -p "$1 [$prompt] " REPLY
+ 
+        # Default?
+        if [ -z "$REPLY" ]; then
+            REPLY=$default
+        fi
+ 
+        # Check if the reply is valid
+        case "$REPLY" in
+            Y*|y*) echo " "; return 0 ;;
+            N*|n*) echo " "; return 1 ;;
+        esac
+ 
+    done
 }
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -187,7 +221,7 @@ function activate_env(){
     if [ -d "$SCRIPTPATH/$CONTAINING_DIR" ]; then
         echo "viral-ngs parent directory found"
     else
-        echo "viral-ngs parent directory not found: $CONTAINING_DIR not found."
+        echo "viral-ngs parent directory not found: $SCRIPTPATH/$CONTAINING_DIR not found."
         echo "Have you run the setup?"
         echo "Usage: $0 setup"
         cd $STARTING_DIR
@@ -228,7 +262,7 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2,upgrade}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2,upgrade,update-easy-deploy}"
 }
 
 function symlink_viral_ngs(){
@@ -260,7 +294,7 @@ function check_viral_ngs_version(){
         echo "Checking viral-ngs version..."
         CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')"
         # perhaps a better way...
-        AVAILABLE_VER="$(conda search --override-channels -f -c bioconda viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
+        AVAILABLE_VER="$(conda search --override-channels -f -c r -c bioconda -c conda-forge -c defaults --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F" " '{print $2}' | perl -lape 's/"//g')"
         if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
             echo ""
             echo "============================================================================================================"
@@ -274,6 +308,51 @@ function check_viral_ngs_version(){
             echo "viral-ngs is up to date ($CURRENT_VER)"
         fi
     fi
+}
+
+function updateSelf() {
+  # this function overwrites this script with one downloaded from
+  # the first argument passed to the funciton, $1
+
+  echo "Performing self-update..."
+
+  cp "$SCRIPT" "$SCRIPT.bak"
+
+  # Download new version
+  echo -n "Downloading latest version..."
+  if ! wget --quiet --output-document="$SCRIPT.tmp" "$1" ; then
+    echo "Error while trying to wget new version!"
+    echo "File requested: $SELF_UPDATE_URL"
+    exit 1
+  fi
+  echo "done."
+
+  # Copy permissions from old version
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+      OCTAL_MODE=$(stat -f '%A' $SCRIPT)
+  else
+      OCTAL_MODE=$(stat -c '%a' $SCRIPT)
+  fi
+  if ! chmod $OCTAL_MODE "$SCRIPT.tmp" ; then
+    echo "Failed: Error while trying to set mode on $SCRIPT.tmp."
+    exit 1
+  fi
+
+  # Spawn update script
+  cat > update-easy-deploy-script.sh << EOF
+#!/bin/bash
+# Overwrite old file with new
+if mv "$SCRIPT.tmp" "$SCRIPT"; then
+  echo "done." 
+  echo "Self-update complete."
+  rm \$0
+else
+  echo "Failed!"
+fi
+EOF
+
+  echo -n "Overwriting old script with new one..."
+  exec /bin/bash update-easy-deploy-script.sh
 }
 
 if [ $# -eq 0 ]; then
@@ -306,22 +385,22 @@ else
                     if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
                         # provide an option to use Python 2 in the conda environment
                         if [ "$1" == "setup-py2" ]; then
-                            conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH python=2
+                            conda create -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH python=2
                         else
-                            conda create -c bioconda -y -p $VIRAL_CONDA_ENV_PATH python=3
+                            conda create -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH python=3
                         fi
                         
                         # provide an avenue to specify a package path, or to use a previously-built local package
                         if [ $# -eq 2 ]; then
                             if [ "$2" == "--use-local" ]; then
-                                conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH --use-local viral-ngs
+                                conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH --use-local viral-ngs
                                 echo "using local...."
                                 exit 0
                             else
-                                conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH $2
+                                conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH $2
                             fi
                         elif [ $# -eq 1 ]; then
-                            conda install -c bioconda -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
+                            conda install -c r -c bioconda -c conda-forge -c defaults --override-channels -y -p $VIRAL_CONDA_ENV_PATH viral-ngs
                         fi
 
                     else
@@ -339,7 +418,7 @@ else
                     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
                     if [ -z "$GATK_JAR_PATH" ]; then
                         # if the env var is not set, try to get the jar location using the default Broad path
-                        if [[ "$(dnsdomainname)" == *"broadinstitute.org" || "$HOSTNAME" == *".broadinstitute.org" || "$DOMAINNAME" == "broadinstitute.org" ]]; then
+                        if [[ "$(hash dnsdomainname &> /dev/null && dnsdomainname || echo '')" == *"broadinstitute.org" || "$HOSTNAME" == *".broadinstitute.org" || "$DOMAINNAME" == "broadinstitute.org" ]]; then
                             echo "This script is being run on a Broad Institute system."
                             echo "Trying to find GATK..."
                             export GATK_JAR_PATH=$(ls /humgen/gsa-hpprojects/GATK/bin &> /dev/null && sleep 5 && find /humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-$EXPECTED_GATK_VERSION-* -maxdepth 0 -type d)/GenomeAnalysisTK.jar
@@ -425,7 +504,7 @@ else
                         if [ -L "$VIRAL_NGS_PATH" ]; then
                             rm $VIRAL_NGS_PATH # remove symlink
                         fi
-                        conda update -y -c bioconda viral-ngs
+                        conda update -y -c r -c bioconda -c conda-forge -c defaults --override-channels viral-ngs
 
                         # recreate symlink to folder for latest viral-ngs in conda-env/opt/
                         symlink_viral_ngs
@@ -447,6 +526,35 @@ else
                 fi
             else
                 echo "Usage: source $(basename $SCRIPT) upgrade"
+                if [[ $sourced -eq 0 ]]; then
+                    exit 1
+                else
+                    return 1
+                fi
+            fi
+       ;;
+       "update-easy-deploy")
+            if [ $# -eq 1 ]; then
+                if [[ $sourced -eq 1 ]]; then
+                    echo "ABORTING. $(basename $SCRIPT) must not be sourced during upgrade"
+                    echo "Usage: $(basename $SCRIPT) update-easy-deploy"
+                    return 1
+                else
+                    if [ -z "$CONDA_DEFAULT_ENV" ]; then
+                        if [ ! -z "$SKIP_SELF_UPDATE_CONFIRM" ] || $(ask "Are you sure you want to update the easy deploy script to the latest version?" Y); then
+                            updateSelf "$SELF_UPDATE_URL"
+                        fi
+                    else
+                        echo "It looks like a conda environment is active."
+                        echo "To update this script, first deactivate the environment"
+                        echo "then call update-easy-deploy. Example:"
+                        echo "  source deactivate && $(basename $SCRIPT) update-easy-deploy"
+                        exit 1
+                    fi
+
+                fi
+            else
+                echo "Usage: source $(basename $SCRIPT) update-easy-deploy"
                 if [[ $sourced -eq 0 ]]; then
                     exit 1
                 else
