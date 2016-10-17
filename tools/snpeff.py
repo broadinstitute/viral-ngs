@@ -140,7 +140,7 @@ class SnpEff(tools.Tool):
         else:
             raise Exception("invalid input")
 
-        sortedAccessionString = ", ".join(sorted(genomes))
+        sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(genomes)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         genomeToUse = ""
