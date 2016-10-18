@@ -90,7 +90,7 @@ rule isnvs_vcf_filtered:
             snpEff_ref=" ".join(config["accessions_for_ref_genome_build"]),
             samples=list(read_samples_file(config["samples_assembly"])),
             emailAddress=config["email_point_of_contact_for_ncbi"],
-            naiveFilter="--naive_filter" if config["email_point_of_contact_for_ncbi"] else ""
+            naiveFilter="--naive_filter" if config["vcf_merge_naive_filter"] else ""
     run:
             shell("{config[bin_dir]}/intrahost.py merge_to_vcf {params.refGenome} {output[0]}"
                 + " --samples " + " ".join(params.samples)
