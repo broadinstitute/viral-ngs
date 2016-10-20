@@ -264,18 +264,23 @@ class CondaPackage(InstallMethod):
         self.patches = patches or []
 
         # if we have specified a conda env/root, use it
-        # alternatively, use viral-ngs tools dir as default env root if os.environ["CONDA_ENV_PATH"] is not defined
+        # alternatively, use cms tools dir as default env root if os.environ["CONDA_PREFIX"] is not defined
         #
-        # in newer versions of conda, CONDA_DEFAULT_ENV can be used
-        # as it is always the full path (in earlier versions it could be name or path)
-        # CONDA_ENV_PATH is always a path, but not always present        
+        # as it is always the path
+        # CONDA_PREFIX is always a full path, but may not be present in older versions
+        # CONDA_ENV_PATH may be used instead
+        # in even older versions of conda, CONDA_DEFAULT_ENV can be used as another fallback
         self.env_path = None
-        if "CONDA_ENV_PATH" in os.environ and len(os.environ["CONDA_ENV_PATH"]):
+        if "CONDA_PREFIX" in os.environ and len(os.environ["CONDA_PREFIX"]):
+            #_log.debug('CONDA_PREFIX found')
+            last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_PREFIX"]))
+            self.env_path = os.path.dirname(os.environ["CONDA_PREFIX"]) if last_path_component == "bin" else os.environ["CONDA_PREFIX"]
+        elif "CONDA_ENV_PATH" in os.environ and len(os.environ["CONDA_ENV_PATH"]):
             #_log.debug('CONDA_ENV_PATH found')
             last_path_component = os.path.basename(os.path.normpath(os.environ["CONDA_ENV_PATH"]))
             self.env_path = os.path.dirname(os.environ["CONDA_ENV_PATH"]) if last_path_component == "bin" else os.environ["CONDA_ENV_PATH"]
         elif "CONDA_DEFAULT_ENV" in os.environ and len(os.environ["CONDA_DEFAULT_ENV"]):
-            #_log.debug('CONDA_ENV_PATH not found, using CONDA_DEFAULT_ENV')
+            #_log.debug('CONDA_PREFIX not found, using CONDA_DEFAULT_ENV')
             conda_env_path = os.environ.get('CONDA_DEFAULT_ENV')  # path to current conda environment
             if conda_env_path:
                 if os.path.isdir(conda_env_path):
