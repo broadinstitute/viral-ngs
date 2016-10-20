@@ -16,9 +16,10 @@ import math
 import tempfile
 import shutil
 import functools
+import concurrent.futures
 
 from Bio import SeqIO
-import concurrent.futures
+import pysam
 
 import util.cmd
 import util.file
@@ -43,7 +44,7 @@ log = logging.getLogger(__name__)
 
 def parser_deplete_human(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('revertBam', help='Output BAM: read markup reverted with Picard.')
+    parser.add_argument('revertBam', nargs='?', help='Output BAM: read markup reverted with Picard.')
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of human reads with BMTagger.')
     parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument(
@@ -87,17 +88,48 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
 def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
         Optionally, use lastal to select a specific taxon of interest.'''
-    tools.picard.RevertSamTool().execute(
-        args.inBam, args.revertBam, picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
-    )
+
+    # only RevertSam if inBam is already aligned
+    # Most of the time the input will be unaligned
+    # so we can save save time if we can skip RevertSam in the unaligned case
+    #
+    # via the SAM/BAM spec, if the file is aligned, an SQ line should be present
+    # in the header. Using pysam, we can check this if header['SQ'])>0
+    #   https://samtools.github.io/hts-specs/SAMv1.pdf
+
+    # if the user has requested a revertBam
+    revertBamOut = args.revertBam if args.revertBam else mkstempfname('.bam')
+
+    bamToDeplete = args.inBam
+    with pysam.AlignmentFile(args.inBam, 'rb', check_sq=False) as bam:
+        # if it looks like the bam is aligned, revert it
+        if 'SQ' in bam.header and len(bam.header['SQ'])>0:      
+            tools.picard.RevertSamTool().execute(
+                args.inBam, revertBamOut, picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
+            )
+            bamToDeplete = revertBamOut
+        else:
+            # if we don't need to produce a revertBam file
+            # but the user has specified one anyway
+            # simply touch the output
+            if args.revertBam:
+                log.warning("An output was specified for 'revertBam', but the input is unaligned, so RevertSam was not needed. Touching the output.")
+                util.file.touch(revertBamOut)
+                # TODO: error out? run RevertSam anyway?
+
     multi_db_deplete_bam(
-        args.revertBam,
+        bamToDeplete,
         args.bmtaggerDbs,
         deplete_bmtagger_bam,
         args.bmtaggerBam,
         threads=args.threads,
         JVMmemory=args.JVMmemory
     )
+
+    # if the user has not specified saving a revertBam, we used a temp file and can remove it
+    if not args.revertBam:
+        os.unlink(revertBamOut)
+
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
     multi_db_deplete_bam(
         args.rmdupBam,
