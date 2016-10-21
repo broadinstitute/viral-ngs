@@ -80,7 +80,7 @@ cat $1 &>/dev/null
 if [[ $? -eq 0 ]]; then
     exit 0
 else
-    if [[ "{immediate_submit}" -eq "True" ]]; then
+    if [[ "{workflow.immediate_submit}" -eq "True" ]]; then
         exit 100
     else
         exit $EXIT_STATUS
