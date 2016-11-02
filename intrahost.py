@@ -959,26 +959,27 @@ def parse_ann(ann_field, alleles, transcript_blacklist=None):
     alleles = alleles[1:]
 
     effs = [eff.split('|') for eff in ann_field.split(',')]
-    effs = [(eff[0], dict((k, eff[i]) for k, i in (('eff_type', 1), ('eff_gene', 3), ('eff_protein', 6), (
+    effs = [(eff[0]+"-"+eff[6], dict((k, eff[i]) for k, i in (('eff_type', 1), ('eff_gene', 3), ('eff_protein', 6), (
         'eff_codon_dna', 9), ('eff_aa', 10), ('eff_aa_pos', 13), ('eff_prot_len', 13)))) for eff in effs
             if eff[6] not in transcript_blacklist]
-    effs_dict = dict(effs)
+    effs_dict = dict(effs)    # effs_dict contains key,val pairs where key is BOTH the alt allele plus each transcript being annotated
+    effs_alleles = [ k[:k.index("-")] for k in effs_dict ]    # effs_alleles is a non-unique list of all alt alleles to keep track of how many ANNs were processed
     if not effs:
         return {}
 
-    if len(effs) != len(effs_dict):
+    if len(effs) != len(effs_alleles):    # raises an exception iff an alt allele has more than one annotation for the same transcript; does not error with overlapping transcripts being annotated
         raise SnpEffException("ANN field has non-unique alleles")
     for a in alleles:
-        if a not in effs_dict:
+        if a not in effs_alleles:    # raises an exception iff an alt allele is not found in the ANN field
             raise SnpEffException("ANN field is missing ALT allele: " + a)
-    if len(effs) != len(set(alleles)):
+    if len(set(effs_alleles)) != len(set(alleles)):    # raises an exception if ANN field has different number of unique alleles than alt alleles
         raise SnpEffException("ANN field has %s entries, but ALT field has %s unique alleles: %s" % (
             len(effs), len(set(alleles)), ','.join(alleles)))
 
     out = {}
     for k in ('eff_type', 'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein'):
         a_out = []
-        for a in alleles:
+        for a in effs_dict:
             v = effs_dict[a][k]
             if k == 'eff_codon_dna' and v.startswith('c.'):
                 v = v[2:]
