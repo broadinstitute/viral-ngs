@@ -4,6 +4,18 @@
 # determine the directory of this script
 SCRIPT_DIRECTORY=$(dirname $(readlink --canonicalize-existing $0))
 
+
+# Use --wait-submit to run snakemake without --immediate-submit. This means that the snakemake
+# process must be alive for the duration of the pipeline.
+IMMEDIATE_SUBMIT=1
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --wait-submit ) IMMEDIATE_SUBMIT=0; shift ;;
+        * ) break ;;
+    esac
+done
+
+
 # load necessary Broad dotkits
 source /broad/software/scripts/useuse
 reuse -q UGER
@@ -21,13 +33,17 @@ export PATH="$MINICONDADIR/bin:$PATH"
 # load conda environment
 source activate "$CONDAENVDIR"
 
+ARGS=""
+[[ $IMMEDIATE_SUBMIT -eq 1 ]] && ARGS+=" --immediate-submit "
+echo $ARGS
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
-    --jobs 90 --immediate-submit \
-    --force-use-threads \
-    --latency-wait 60 \
-    --config mode=UGER \
-    --directory . \
-    --jobscript "$BINDIR/pipes/Broad_UGER/jobscript.sh" \
-    --cluster $BINDIR'/pipes/Broad_UGER/cluster-submitter.py {dependencies} {config[log_dir]}' \
-    "$@"
+          $ARGS \
+          --jobs 90 \
+          --force-use-threads \
+          --latency-wait 60 \
+          --config mode=UGER \
+          --directory . \
+          --jobscript "$BINDIR/pipes/Broad_UGER/jobscript.sh" \
+          --cluster "$BINDIR"'/pipes/Broad_UGER/cluster-submitter.py {dependencies} {config[log_dir]}' \
+          "$@"
