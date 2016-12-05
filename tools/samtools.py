@@ -154,8 +154,7 @@ class SamtoolsTool(tools.Tool):
         # an input samtools process to read a bam file
         # bufsize 0=unbuffered, 1=linebuffered, -1=system buffered (usually fully)
         in_process = subprocess.Popen(in_args, bufsize=1, stdout=subprocess.PIPE,
-                                    universal_newlines=True,
-                                    stderr=subprocess.STDOUT)
+                                    universal_newlines=True)
 
         # an output samtools process to write filtered output via stdin
         out_args = [self.install_and_get_path(), 'view', '-h', '-o', outBam]
