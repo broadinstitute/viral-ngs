@@ -52,3 +52,19 @@ class TestToolSamtools(TestCaseWithTmp):
         assert samtools.count(out_bam) in range(
             int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))+1
         ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
+
+    def test_filterByCigarString(self):
+        # The test input contains three reads to remove; one each: 
+        #   leading indel, trailing indel, both leading and trailing
+        # It also has a cigar string with an indel between alignment matches
+        in_sam = os.path.join(util.file.get_test_input_path(self), 'indel_cigar.sam')
+        out_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        # We'll use the default regex, which matches leading or trailing indels.
+        # It is reproduced here in case the default changes:
+        # '^((?:[0-9]+[ID]){1}(?:[0-9]+[MNIDSHPX=])+)|((?:[0-9]+[MNIDSHPX=])+(?:[0-9]+[ID]){1})$'
+        samtools.filterByCigarString(in_sam, out_bam)
+
+        assert samtools.count(out_bam)==39, "Output read count does not match the expected count."
