@@ -123,10 +123,15 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
 
     bam_to_process = sorted_bam_file
     if removeDoublyMappedReads:
-        bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
+        leading_or_trailing_indels_removed = util.file.mkstempfname('.mapped-leading_or_trailing_indels_removed.bam')
+        # vphaser crashes when cigar strings have leading or trailing indels
+        # so we will use filterByCigarString() with its default regex to remove such reads
+        samtoolsTool.filterByCigarString(sorted_bam_file, leading_or_trailing_indels_removed)
 
-        samtoolsTool.removeDoublyMappedReads(sorted_bam_file, bam_to_process)
+        bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
+        samtoolsTool.removeDoublyMappedReads(leading_or_trailing_indels_removed, bam_to_process)
         samtoolsTool.index(bam_to_process)
+        os.unlink(leading_or_trailing_indels_removed)
 
     variantIter = Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
