@@ -40,7 +40,7 @@ REQUIRE_AVAILABLE_SHARED_MEMORY=true
 REQUIRE_JAVA_TO_RUN=true
 
 # Perform checks on node and decide whether to blacklist
-if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! ls "$DATADIR"; then
+if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! $(ls "$DATADIR" &> /dev/null); then
     # Listing the data directory fails since the node does not have the
     # NFS share mounted
     echo "Host '$(hostname)' does not have NFS share mounted. Retrying.." 1>&2
