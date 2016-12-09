@@ -189,9 +189,11 @@ def main_argparse(commands, description):
         # the end of execution.
 
         proposed_dir = 'tmp-%s-%s' % (script_name(), args.command)
-        if 'LSB_JOBID' in os.environ:
-            proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ['LSB_JOBID'],
-                                                os.environ['LSB_JOBINDEX'])
+        for e in ('LSB_JOBID', 'JOB_ID'): # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
+            if e in os.environ:
+                proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ[e],
+                                                    os.environ['LSB_JOBINDEX'])
+                break
         tempfile.tempdir = tempfile.mkdtemp(prefix='%s-' % proposed_dir, dir=args.tmp_dir)
         log.debug("using tempDir: %s", tempfile.tempdir)
         os.environ['TMPDIR'] = tempfile.tempdir  # this is for running R
@@ -221,13 +223,16 @@ def find_tmp_dir():
     tmpdir = '/tmp'
     if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):
         tmpdir = '/local/scratch'
-    if 'LSB_JOBID' in os.environ:
-        # this directory often exists for LSF jobs, but not always.
-        # for example, if the job is part of a job array, this directory is called
-        # something unpredictable and unfindable, so just use /local/scratch
-        proposed_dir = '/local/scratch/%s.tmpdir' % os.environ['LSB_JOBID']
-        if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
-            tmpdir = proposed_dir
-    elif 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
-        tmpdir = os.environ['TMPDIR']
+    # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
+    for e in ('LSB_JOBID', 'JOB_ID'): 
+        if e in os.environ:
+            # this directory often exists for LSF jobs, but not always.
+            # for example, if the job is part of a job array, this directory is called
+            # something unpredictable and unfindable, so just use /local/scratch
+            proposed_dir = '/local/scratch/%s.tmpdir' % os.environ[e]
+            if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
+                tmpdir = proposed_dir
+                break
+        elif 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
+            tmpdir = os.environ['TMPDIR']
     return tmpdir
