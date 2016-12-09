@@ -467,7 +467,7 @@ def taxa_hits_from_tsv(f, tax_id_column=3):
     return c
 
 
-def kraken_dfs_report(db, taxa_hits, prepend_column=True):
+def kraken_dfs_report(db, taxa_hits):
     '''Return a kraken compatible DFS report of taxa hits.
 
     Args:
@@ -477,7 +477,6 @@ def kraken_dfs_report(db, taxa_hits, prepend_column=True):
     Return:
       []str lines of the report
     '''
-    line_prefix = '\t' if prepend_column else ''
 
     db.children = parents_to_children(db.parents)
     total_hits = sum(taxa_hits.values())
@@ -488,7 +487,6 @@ def kraken_dfs_report(db, taxa_hits, prepend_column=True):
     if unclassified_hits > 0:
         percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
         lines.append(
-            line_prefix +
             '\t'.join([
                 str(percent_covered), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
             ])
@@ -643,7 +641,7 @@ def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
     with open(tmp_lca_tsv) as f:
         hits = taxa_hits_from_tsv(f)
     with open(outReport, 'w') as f:
-        for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
+        for line in kraken_dfs_report(tax_db, hits):
             print(line, file=f)
 
 
@@ -726,7 +724,7 @@ def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None, unique_only=None
 
     with open(outReport, 'w') as f:
 
-        for line in kraken_dfs_report(tax_db, hits, prepend_column=True):
+        for line in kraken_dfs_report(tax_db, hits):
             print(line, file=f)
 
 

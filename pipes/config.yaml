@@ -55,9 +55,15 @@ diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 krona_db: "/idi/sabeti-scratch/yesimon/db/krona_taxonomy"
 
 # BWA index prefix for metagenomic alignment.
-align_rna_db: "/idi/sabeti-scratch/shared-resources/rna_bwa/human_viral_16s"
+# This contains the full human reference genome, multiple diverse sequences covering human
+# pathogenic viruses, as well as LSU and SSU rRNA sequences from SILVA.
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/human_viral_rrna.tar.lz4
+align_rna_db: "/idi/sabeti-scratch/shared-resources/rna_bwa/human_viral_rrna"
 
 # Directory of the NCBI taxonomy dmp files
+# For pre-packaged hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/taxonomy.tar.lz4
 taxonomy_db: "/idi/sabeti-scratch/shared-resources/taxonomy"
 
 # These are variables that must be set

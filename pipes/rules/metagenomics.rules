@@ -5,9 +5,9 @@ samples = list(read_samples_file(config.get("samples_metagenomics")))
 rule all_metagenomics:
     input:
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa.dupes']),
+                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa.nodupes']),
         expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa_dupes'])
+                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa_nodupes'])
     params: LSF='-N'
 
 
@@ -30,8 +30,8 @@ method_props = {
     'rna_bwa': {
         'reads_ext': 'rna_bwa.lca.gz',
     },
-    'rna_bwa_dupes': {
-        'reads_ext': 'rna_bwa.lca_dupes.gz',
+    'rna_bwa_nodupes': {
+        'reads_ext': 'rna_bwa.lca_nodupes.gz',
     }
 }
 
@@ -40,7 +40,7 @@ rule diamond:
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.report"),
             lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
-               mem=15
+               mem=120
     params: numThreads=str(config.get("number_of_threads", 1)),
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
@@ -53,7 +53,7 @@ rule kraken:
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.report"),
             reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
-               mem=15
+               mem=120
     params: numThreads=str(config.get("number_of_threads", 1)),
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
@@ -64,24 +64,24 @@ rule kraken:
 rule align_rna:
     input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.report"),
-            dupe_report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.dupes.report"),
+            dupe_report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
             bam=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"),
             lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
-            dupes_lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_dupes.gz")
+            nodupes_lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
-               mem=8
+               mem=26
     params: numThreads=str(config.get("number_of_threads", 1)),
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.dupes_lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --numThreads {params.numThreads}
         """
 
 rule krona_import_taxonomy:
     input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
            ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']]))
-    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_dupes}.krona.html")
-    resources: mem=4
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_nodupes}.krona.html")
+    resources: mem=32
     shell:
         """
         {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank
