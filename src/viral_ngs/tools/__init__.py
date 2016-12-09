@@ -421,9 +421,9 @@ class CondaPackage(InstallMethod):
     def _attempt_install(self):
         try:
             # check for presence of conda command
-            util.misc.run_and_print(["conda", "-V"], loglevel=logging.INFO, check=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], buffered=True, check=True, env=self.conda_env, silent=True)
         except:
-            _log.debug("conda NOT installed")
+            _log.warning("conda NOT installed")
             self._is_attempted = True
             self.installed = False
             return

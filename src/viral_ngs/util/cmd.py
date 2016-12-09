@@ -192,7 +192,7 @@ def main_argparse(commands, description):
         for e in ('LSB_JOBID', 'JOB_ID'): # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
             if e in os.environ:
                 proposed_dir = 'tmp-%s-%s-%s-%s' % (script_name(), args.command, os.environ[e],
-                                                    os.environ['LSB_JOBINDEX'])
+                                                    os.environ.get('LSB_JOBINDEX','0'))
                 break
         tempfile.tempdir = tempfile.mkdtemp(prefix='%s-' % proposed_dir, dir=args.tmp_dir)
         log.debug("using tempDir: %s", tempfile.tempdir)

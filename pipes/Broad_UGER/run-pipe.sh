@@ -35,7 +35,6 @@ source activate "$CONDAENVDIR"
 
 ARGS=""
 [[ $IMMEDIATE_SUBMIT -eq 1 ]] && ARGS+=" --immediate-submit "
-echo $ARGS
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
           $ARGS \
