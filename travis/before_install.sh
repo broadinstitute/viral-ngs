@@ -12,11 +12,9 @@ if [ -z "$TRAVIS_TAG" ]; then
     #ln -s $CACHE_DIR/conda-cache tools
     #ln -s $CACHE_DIR/conda-tools tools
 
+    # Report how big things are
+    echo "Docker cache space usage:"
+    du -hs $MINICONDA_DIR $PIP_DIR $CACHE_DIR/*
 else
     echo "Travis docker cache disabled for tools/build on tag: $TRAVIS_TAG"
-
 fi
-
-# Report how big things are
-echo "Docker cache space usage:"
-du -hs $MINICONDA_DIR $PIP_DIR $CACHE_DIR/*
