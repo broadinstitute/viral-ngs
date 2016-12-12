@@ -61,7 +61,7 @@ if [[ "$REQUIRE_JAVA_TO_RUN" = true ]] && ! java -version; then
 fi
 
 
-echo "JOB ID\t$JOB_ID"
+echo -e "JOB ID\t$JOB_ID"
 echo "=============================="
 
 {exec_job}
