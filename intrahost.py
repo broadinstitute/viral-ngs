@@ -133,6 +133,14 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
         samtoolsTool.index(bam_to_process)
         os.unlink(leading_or_trailing_indels_removed)
 
+    # For low-quality data, the process of removing doubly-mapped reads
+    # can remove all reads. In such cases, stub out an empty vphaser output
+    # file to allow the pipeline to continue
+    if samtoolsTool.count(bam_to_process) == 0:
+        log.warning("The bam file %s has 0 reads after removing doubly-mapped reads. Writing blank V-Phaser output.", bam_to_process)
+        util.file.touch(outTab)
+        return None
+
     variantIter = Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
 
