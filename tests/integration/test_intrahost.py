@@ -16,7 +16,7 @@ import util.file
 import test
 import tools
 
-@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+#@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
@@ -42,6 +42,21 @@ class TestPerSample(test.TestCaseWithTmp):
         intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_indels_expected.txt')
         self.assertEqualContents(outTab, expected)
+
+    def test_vphaser_one_sample_one_mate_unpaired(self):
+        # Files here were created as follows:
+        # ref.indels.fasta is Seed-stock-137_S2_L001_001.fasta
+        # in.oneunmapped.bam was created from in.indels.bam, with flag 0->89, 16->73:
+        # When removing doubly mapped reads, doing so can result in all reads
+        # being removed in the case of low-quality runs with few reads
+        # This tests that when v-phaser2 input is empty, a blank
+        # file is created as output.
+        myInputDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(myInputDir, 'in.oneunmapped.bam')
+        refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
+        outTab = util.file.mkstempfname('.txt')
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0, removeDoublyMappedReads=True)
+        assert os.path.getsize(outTab) == 0
 
     def test_vphaser_one_sample_2libs(self):
         # in.2libs.bam was created by "manually" editing in.bam and moving about
