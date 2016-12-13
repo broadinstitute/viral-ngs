@@ -39,7 +39,7 @@ rule assemble_trinity:
     input:  config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     resources: 
-            mem=4,
+            mem=10,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-q short'),
@@ -52,7 +52,7 @@ rule assemble_trinity:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[bin_dir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads}")
+            shell("{config[bin_dir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads} --JVMmemory 5g")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
