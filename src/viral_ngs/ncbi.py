@@ -202,7 +202,12 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
 
             cmap = interhost.CoordMapper()
             cmap.load_alignments([combined_fasta_filename])
-            alt_chrlens = fasta_chrlens(combined_fasta_filename)
+            # sequences in the fasta file here should NOT include gaps
+            # since alt_chrlens is only used to in the case of features that would 
+            # extend beyond the genome (for reporting >{seq.len})
+            alt_chrlens = {}#fasta_chrlens(combined_fasta_filename)
+            alt_chrlens[seq.id] = len(seq.seq.ungap("-"))
+            alt_chrlens[matchingRefSeq.id] = len(matchingRefSeq.seq.ungap("-"))
 
             tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
 
