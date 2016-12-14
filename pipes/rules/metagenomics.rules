@@ -69,7 +69,7 @@ rule align_rna:
             lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
             nodupes_lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
     resources: cores=int(config.get("number_of_threads", 1)),
-               mem=26
+               mem=36
     params: numThreads=str(config.get("number_of_threads", 1)),
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
