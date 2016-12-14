@@ -97,7 +97,7 @@ def multi_align_mafft_memory(_, input):
         mem=8
     elif sample_count in range(50,100):
         mem=16
-    elif sample_count > 100:
+    elif sample_count >= 100:
         mem=32
     return mem
 
