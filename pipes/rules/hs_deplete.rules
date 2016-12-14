@@ -90,6 +90,18 @@ def merge_one_per_sample_inputs(wildcards):
             "to ensure they match up with the sample bams.".format(wildcards.sample, wildcards.adjective))
     return sorted(runs)
 
+
+def merge_one_per_sample_queue(_, input):
+    total_size = 0
+    for fn in input:
+        if not os.path.exists(fn):
+            return config.get('UGER_queues', {}).get('short', '-q short')
+        total_size += os.stat(fn).st_size
+    if total_size > 1500000000:
+        return config.get('UGER_queues', {}).get('long', '-q long')
+    return config.get('UGER_queues', {}).get('short', '-q short')
+
+
 rule merge_one_per_sample:
     ''' All of the above depletion steps are run once per flowcell per lane per
         multiplexed sample.  This reduces recomputation on the same data when
@@ -102,7 +114,7 @@ rule merge_one_per_sample:
     output: config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
     resources: mem=10
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=merge_one_per_sample_queue,
             logid="{sample}-{adjective}",
             tmpf_bam=config["tmp_dir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
