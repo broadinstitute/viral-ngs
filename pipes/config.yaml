@@ -41,8 +41,8 @@ spikeins_db: "/idi/sabeti-scratch/genomes/other/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
 # For pre-built hosted databases, you may download:
-#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz
-kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_full_20150910"
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_viral_diversity.tar.gz
+kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_viral_diversity"
 
 # Path of DIAMOND database file for metagenomics identification
 # For pre-built hosted databases, you may download:
