@@ -76,6 +76,15 @@ def get_assembly_stats(sample,
             # and leading/trailing dots are stripped from sample names in util.file.string_to_file_name()
             # TODO: replace this with better filtering?
             for bam in glob.glob(os.path.join(raw_reads_dir, sample + ".*.bam")))
+        sample_raw_fname = os.path.join(raw_reads_dir, sample + ".bam")
+        if os.path.isfile(sample_raw_fname):
+            # if "00_raw/sample.bam" exists, these were not demuxed by snakemake
+            if out['reads_raw']:
+                # if sample.bam AND sample.library.flowcell.lane.bam exist, we have a problem!
+                out['reads_raw'] = 'ambiguous filenames in raw reads directory!'
+            else:
+                # just count the sample.bam reads
+                out['reads_raw'] = samtools.count(sample_raw_fname)
 
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample +

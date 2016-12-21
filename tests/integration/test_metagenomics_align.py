@@ -107,7 +107,7 @@ def bwa_db(request, tmpdir_factory, bwa, db_type):
 
 def test_meta_bwa(bwa_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
-    dupe_report = util.file.mkstempfname('.dupes.report')
+    dupe_report = util.file.mkstempfname('.nodupes.report')
     out_bam = util.file.mkstempfname('.output.bam')
     cmd = [input_bam, bwa_db, taxonomy_db, out_report, '--dupeReport', dupe_report, '--outBam', out_bam]
     parser = metagenomics.parser_align_rna_metagenomics(argparse.ArgumentParser())

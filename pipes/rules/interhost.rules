@@ -91,6 +91,16 @@ rule ref_guided_diversity:
             shell("cat " + " ".join(params.inFastas) + " > {output[0]}")
             merge_vcfs(params.inVcfs, params.refGenome, output[1])
 
+def multi_align_mafft_memory(_, input):
+    sample_count = len(list(read_samples_file(config["samples_assembly"])))
+    if sample_count in range(0,50):
+        mem=8
+    elif sample_count in range(50,100):
+        mem=16
+    elif sample_count >= 100:
+        mem=32
+    return mem
+
 rule multi_align_mafft:
     input:
         expand("{data_dir}/{subdir}/{sample}.fasta",
@@ -105,10 +115,10 @@ rule multi_align_mafft:
                 subdir=config["subdirs"]["multialign_ref"],
                 chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))        
     resources: 
-            mem=8,
+            mem=multi_align_mafft_memory,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             samples=list(read_samples_file(config["samples_assembly"])),
