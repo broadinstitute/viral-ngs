@@ -1,8 +1,8 @@
-pytest==2.9.1
+pytest==3.0.5
 coveralls==1.1
 pycodestyle
 mock==2.0.0
 six<2
-pytest-cov==2.2.1
+pytest-cov==2.4.0
 pytest-logging==2015.11.4
-pytest-xdist==1.14
+pytest-xdist==1.15.0
