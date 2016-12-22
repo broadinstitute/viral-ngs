@@ -735,10 +735,10 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--dupeReport', help='Generate report including duplicates.')
     parser.add_argument(
-        '--noSensitive',
+        '--sensitive',
         dest='sensitive',
-        action="store_false",
-        help='Use default BWA mem options instead of sensitive options.'
+        action="store_true",
+        help='Use sensitive instead of default BWA mem options.'
     )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
