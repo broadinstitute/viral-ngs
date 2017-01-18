@@ -1085,11 +1085,12 @@ def align_and_fix(
     aligner="novoalign",
     JVMmemory=None,
     threads=1,
+    skip_mark_dupes=False,
     gatk_path=None,
     novoalign_license_path=None
 ):
-    ''' Take reads, align to reference with Novoalign, mark duplicates
-        with Picard, realign indels with GATK, and optionally filter
+    ''' Take reads, align to reference with Novoalign, optionally mark duplicates
+        with Picard, realign indels with GATK, and optionally filters
         final file to mapped/non-dupe reads.
     '''
     if not (outBamAll or outBamFiltered):
@@ -1135,18 +1136,21 @@ def align_and_fix(
 
         bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
 
-    bam_mkdup = mkstempfname('.mkdup.bam')
-    tools.picard.MarkDuplicatesTool().execute(
-        [bam_aligned], bam_mkdup, picardOptions=['CREATE_INDEX=true'],
-        JVMmemory=JVMmemory
-    )
-    os.unlink(bam_aligned)
+    if skip_mark_dupes:
+        bam_marked = bam_aligned
+    else:
+        bam_marked = mkstempfname('.mkdup.bam')
+        tools.picard.MarkDuplicatesTool().execute(
+            [bam_aligned], bam_marked, picardOptions=['CREATE_INDEX=true'],
+            JVMmemory=JVMmemory
+        )
+        os.unlink(bam_aligned)
 
-    tools.samtools.SamtoolsTool().index(bam_mkdup)
+    tools.samtools.SamtoolsTool().index(bam_marked)
 
     bam_realigned = mkstempfname('.realigned.bam')
-    tools.gatk.GATKTool(path=gatk_path).local_realign(bam_mkdup, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(bam_mkdup)
+    tools.gatk.GATKTool(path=gatk_path).local_realign(bam_marked, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
+    os.unlink(bam_marked)
 
     if outBamAll:
         shutil.copyfile(bam_realigned, outBamAll)
@@ -1163,19 +1167,25 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--outBamAll',
         default=None,
-        help='''Aligned, sorted, and indexed reads.  Unmapped reads are
-                retained and duplicate reads are marked, not removed.'''
+        help='''Aligned, sorted, and indexed reads.  Unmapped and duplicate reads are
+                retained. By default, duplicate reads are marked. If "--skipMarkDupes" 
+                is specified duplicate reads are included in outout without being marked.'''
     )
     parser.add_argument(
         '--outBamFiltered',
         default=None,
-        help='''Aligned, sorted, and indexed reads.  Unmapped reads and
-                duplicate reads are removed from this file.'''
+        help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file, 
+                as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided, 
+                duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--skipMarkDupes', 
+                        help='If specified, duplicate reads will not be marked in the resulting output file.',
+                        dest="skip_mark_dupes",
+                        action='store_true')
     parser.add_argument(
         '--GATK_PATH',
         default=None,
