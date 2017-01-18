@@ -475,7 +475,10 @@ class CondaPackage(InstallMethod):
                 return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
-                installed_package_string = data[0]
+                if isinstance(data[0], dict):
+                    installed_package_string = data[0]["dist_name"]
+                else:
+                    installed_package_string = data[0]
                 package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
                 matches = package_info_re.match(installed_package_string)
                 if matches:
