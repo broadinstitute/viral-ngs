@@ -328,7 +328,7 @@ def coverage_lca(query_ids, parents, lca_percent=100):
         path = []
         while query_id != 1:
             path.append(query_id)
-            if parents[query_id] == 0:
+            if parents.get(query_id, 0) == 0:
                 log.warn('Parent for query id: {} missing'.format(query_id))
                 break
             query_id = parents[query_id]
