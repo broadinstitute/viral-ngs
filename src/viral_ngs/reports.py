@@ -16,6 +16,7 @@ import math
 import shutil
 
 import pysam
+from pybedtools import BedTool
 import Bio.SeqIO
 import Bio.AlignIO
 from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
@@ -428,14 +429,14 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     parser.add_argument(
         '--plotWidth',
         dest="plot_width",
-        default=1024,
+        default=880,
         type=int,
         help="Width of the plot in pixels (default: %(default)s)"
     )
     parser.add_argument(
         '--plotHeight',
         dest="plot_height",
-        default=768,
+        default=680,
         type=int,
         help="Width of the plot in pixels (default: %(default)s)"
     )
@@ -466,7 +467,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     parser.add_argument(
         '-m',
         dest="max_coverage_depth",
-        default=1000000,
+        default=None,
         type=int,
         help="The max coverage depth (default: %(default)s)"
     )
@@ -497,7 +498,7 @@ def plot_coverage(
     read_length_threshold,
     plot_only_non_duplicates=False,
     out_summary=None
-):
+    ):
     ''' 
         Generate a coverage plot from an aligned bam file
     '''
@@ -522,6 +523,7 @@ def plot_coverage(
 
     bam_dupe_processed = util.file.mkstempfname('.dupe_processed.bam')
     if plot_only_non_duplicates:
+        # TODO: this is probably not necessary since "samtools depth" does not count marked duplicates
         # write a new bam file; exclude reads with the 1024 flag set (PCR or optical duplicates)
         samtools.view(["-F", "1024"], in_bam, bam_dupe_processed)
     else:
@@ -541,15 +543,39 @@ def plot_coverage(
     opts = []
     opts += ['-aa']    # report coverate at "absolutely all" positions
     if base_q_threshold:
+        if not plot_only_non_duplicates:
+            # Note: "bedtools genomecov" will count depth including duplicates, but does
+            # not expose options for filtering by quality. When duplicates
+            # are excluded, "samtools depth" is used which does support quality filtering
+            # We use either samtools or bedtools, because the former ignores marked duplicates
+            # from its depth count while bedtools includes them. 
+            log.warning("'-q' ignored since --plotOnlyNonDuplicates is absent")
         opts += ["-q", str(base_q_threshold)]
     if mapping_q_threshold:
+        if not plot_only_non_duplicates:
+            log.warning("'-Q' ignored since --plotOnlyNonDuplicates is absent")
         opts += ["-Q", str(mapping_q_threshold)]
     if max_coverage_depth:
+        if not plot_only_non_duplicates:
+            log.warning("'-m' ignored since --plotOnlyNonDuplicates is absent")
         opts += ["-m", str(max_coverage_depth)]
     if read_length_threshold:
+        if not plot_only_non_duplicates:
+            log.warning("'-l' ignored since --plotOnlyNonDuplicates is absent")
         opts += ["-l", str(read_length_threshold)]
 
-    samtools.depth(bam_sorted, coverage_tsv_file, opts)
+    # add option here for bedtools to report coverage w/ duplicates 
+    # (and then samtools for no-dups)
+    #
+    # Ex.
+    #   samtools depth -aa mapped-to-ref.with-dups.tmp.bam
+    #   bedtools genomecov -ibam mapped-to-ref.with-dups.tmp.bam -d
+    if not plot_only_non_duplicates:
+        bt = BedTool(bam_sorted)
+        # "d=True" is the equivalent of passing "-d" to the bedtools CLI
+        bt.genome_coverage(d=True).saveas(coverage_tsv_file)
+    else:
+        samtools.depth(bam_sorted, coverage_tsv_file, opts)
     os.unlink(bam_sorted)
 
     # ---- create plot based on coverage_tsv_file ----
@@ -624,7 +650,7 @@ def parser_plot_coverage(parser=argparse.ArgumentParser()):
         '--plotOnlyNonDuplicates',
         dest="plot_only_non_duplicates",
         action="store_true",
-        help="Plot only non-duplicates (samtools -F 1024)"
+        help="Plot only non-duplicates (samtools -F 1024), coverage counted by bedtools rather than samtools."
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, plot_coverage, split_args=True)
@@ -655,33 +681,63 @@ def align_and_plot_coverage(
     excludeDuplicates=False,
     JVMmemory=None,
     picardOptions=None,
-    min_score_to_output=None
+    min_score_to_output=None,
+    aligner="bwa",
+    aligner_options='',
+    novoalign_license_path=None
 ):
     ''' 
         Take reads, align to reference with BWA-MEM, and generate a coverage plot
     '''
+
+    # TODO: use read_utils.py::align_and_fix in place of the duplicated alignment code here
+    # The main difference is the presence/absence of GATK's local_realign
+
     if out_bam is None:
         bam_aligned = util.file.mkstempfname('.aligned.bam')
     else:
         bam_aligned = out_bam
 
+    assert aligner in ["bwa", "novoalign"]
+    if aligner_options is None:
+        if aligner=="novoalign":
+            aligner_options = '-r Random -l 40 -g 40 -x 20 -t 100 -k'
+        elif aligner=='bwa':
+            aligner_options = '-T 30' # quality threshold
+
+    samtools = tools.samtools.SamtoolsTool()
+
     ref_indexed = util.file.mkstempfname('.reference.fasta')
     shutil.copyfile(ref_fasta, ref_indexed)
 
-    bwa = tools.bwa.Bwa()
-    samtools = tools.samtools.SamtoolsTool()
-
-    bwa.index(ref_indexed)
-
-    bwa_opts = []
-    if sensitive:
-        bwa_opts + "-k 12 -A 1 -B 1 -O 1 -E 1".split()
-
-    map_threshold = min_score_to_output or 30
-
     aln_bam = util.file.mkstempfname('.bam')
+    if aligner=="bwa":
+        bwa = tools.bwa.Bwa()
+        
 
-    bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts, min_qual=map_threshold)
+        bwa.index(ref_indexed)
+
+        bwa_opts = aligner_options.split()
+        if sensitive:
+            bwa_opts + "-k 12 -A 1 -B 1 -O 1 -E 1".split()
+
+        # get the quality threshold from the opts
+        # for downstream filtering
+        bwa_map_threshold = min_score_to_output or 30
+        if '-T' in bwa_opts:
+            if bwa_opts.index("-T")+1 <= len(bwa_opts):
+                bwa_map_threshold = int(bwa_opts[bwa_opts.index("-T")+1])
+
+        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts, min_qual=bwa_map_threshold)
+    elif aligner=="novoalign":
+        
+        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(ref_indexed)
+
+        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
+            in_bam, ref_indexed, aln_bam,
+            options=aligner_options.split(),
+            JVMmemory=JVMmemory
+        )
 
     aln_bam_dupe_processed = util.file.mkstempfname('.filtered_dupe_processed.bam')
     if excludeDuplicates:
@@ -732,7 +788,7 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--sensitive', action="store_true",
-        help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1' "
+        help="Equivalent to giving bwa: '-k 12 -A 1 -B 1 -O 1 -E 1'. Only relevant if the bwa aligner is selected (the default). "
     )
     parser.add_argument(
         '--excludeDuplicates', action="store_true",
@@ -755,6 +811,14 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
         default=30,
         type=int,
         help="The min score to output during alignment (default: %(default)s)"
+    )
+    parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='bwa', help='aligner (default: %(default)s)')
+    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: "-T 30"')
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
