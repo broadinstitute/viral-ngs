@@ -23,7 +23,7 @@ import sys
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
-TOOL_VERSION = "3.06.05"
+TOOL_VERSION = "3.04.04"
 
 
 class NovoalignTool(tools.Tool):
