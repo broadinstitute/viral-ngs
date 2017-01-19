@@ -77,7 +77,7 @@ env_vars:
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
   # To use multi-threaded Novoalign, it must be licensed and downloaded
   # manually out of band.
-  NOVOALIGN_PATH: "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
+  NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
 
 # ==================== [ Values that may be changed ] ==========================
 
