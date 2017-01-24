@@ -45,7 +45,7 @@ rule diamond:
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads} --tmp_dir {config[tmp_dir]}
         """
 
 rule kraken:
@@ -58,7 +58,7 @@ rule kraken:
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads} --tmp_dir {config[tmp_dir]}
         """
 
 rule align_rna:
@@ -74,7 +74,7 @@ rule align_rna:
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --numThreads {params.numThreads} --tmp_dir {config[tmp_dir]}
         """
 
 rule krona_import_taxonomy:

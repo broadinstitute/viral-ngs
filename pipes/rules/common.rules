@@ -74,3 +74,5 @@ def webfile_readlines(uriToGet):
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
+
+os.makedirs(config.get('tmp_dir'), exist_ok=True)
