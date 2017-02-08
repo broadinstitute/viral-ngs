@@ -41,13 +41,12 @@ In order to finish installing viral-ngs, you will need to activate its conda env
 Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://www.broadinstitute.org/gatk/download/>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
 
   # (download licensed copy of GATK)
-  gath-register /path/to/GenomeAnalysisTK.jar
+  gatk-register /path/to/GenomeAnalysisTK.jar
 
 The single-threaded version of `Novoalign <http://www.novocraft.com/products/novoalign/>`_ is installed by default. If you have a license for Novoalign to enable multi-threaded operation, viral-ngs will copy it to the viral-ngs conda environment if the ``NOVOALIGN_LICENSE_PATH`` environment variable is set. Alternatively, the conda version of Novoalign can be overridden if the ``NOVOALIGN_PATH`` environment variable is set. If you obtain a Novoalign license after viral-ngs has already been installed, it can be added to the conda environment by calling::
 
   # obtain a Novoalign license file: novoalign.lic
-  novoalign-register-license /path/to/novoalign.lic
-
+  novoalign-license-register /path/to/novoalign.lic
 
 Activating viral-ngs once installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
