@@ -33,11 +33,6 @@ matrix:
 #              - TRAVIS_OSX_PYTHON_VERSION=py35
 #              - TRAVIS_PYTHON_VERSION=3.5.1
 
-addons:
-  apt:
-    packages:
-      - oracle-java8-installer
-
 cache:
  directories:
   - $HOME/misc_cache
@@ -54,8 +49,8 @@ before_install:
 
 install:
   - source travis/install-conda.sh
-  - travis/install-pip.sh
   - source travis/install-tools.sh
+  - travis/install-pip.sh
 
 script:
   - travis/tests-unit.sh

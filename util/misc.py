@@ -209,9 +209,21 @@ def run_and_print(args, stdout=None, stderr=None,
     if not buffered:
         if check and not silent:
             try:
-                result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, env=env, cwd=cwd,
-                           timeout=timeout, check=check)
+                result = run(
+                    args,
+                    stdin=stdin,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                    cwd=cwd,
+                    timeout=timeout,
+                    check=check
+                )
+                print(result.stdout.decode('utf-8'))
+                try:
+                    print(result.stderr.decode('utf-8'))
+                except AttributeError:
+                    pass
             except subprocess.CalledProcessError as e:
                 if loglevel:
                     try:

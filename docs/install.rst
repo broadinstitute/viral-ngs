@@ -21,6 +21,8 @@ Configure Conda
 The viral-ngs software and its dependencies are distributed through the bioconda channel for the conda package manager. It is necessary to add this channel to the conda config::
 
   conda config --add channels bioconda
+  conda config --add channels r
+  conda config --add channels conda-forge
 
 Make a conda environment and install viral-ngs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,13 +41,12 @@ In order to finish installing viral-ngs, you will need to activate its conda env
 Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://www.broadinstitute.org/gatk/download/>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
 
   # (download licensed copy of GATK)
-  gath-register /path/to/GenomeAnalysisTK.jar
+  gatk-register /path/to/GenomeAnalysisTK.jar
 
 The single-threaded version of `Novoalign <http://www.novocraft.com/products/novoalign/>`_ is installed by default. If you have a license for Novoalign to enable multi-threaded operation, viral-ngs will copy it to the viral-ngs conda environment if the ``NOVOALIGN_LICENSE_PATH`` environment variable is set. Alternatively, the conda version of Novoalign can be overridden if the ``NOVOALIGN_PATH`` environment variable is set. If you obtain a Novoalign license after viral-ngs has already been installed, it can be added to the conda environment by calling::
 
   # obtain a Novoalign license file: novoalign.lic
-  novoalign-register-license /path/to/novoalign.lic
-
+  novoalign-license-register /path/to/novoalign.lic
 
 Activating viral-ngs once installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,12 +62,13 @@ To deactivate the conda environment::
 Easy deployment script for viral-ngs
 ------------------------------------
 
-**viral-ngs** can be deployed with help from the script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects. 
+**viral-ngs** can be deployed with help of a shell script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects.  The script is available from the repository `broadinstitute/viral-ngs-deploy <https://github.com/broadinstitute/viral-ngs-deploy/tree/master/easy-deploy-script>`_.
+
 
 One-line install command 
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This one-line command will install viral-ngs on a 64-bit macOS or Linux system::
+After downloading the easy-install shell script, this one-line command will install viral-ngs on a 64-bit macOS or Linux system::
 
   ./easy-deploy-script/easy-deploy-viral-ngs.sh setup
 
@@ -75,7 +77,7 @@ One-line install command for Broad Institute users
 
 This one-line command will download the ``easy-deploy-viral-ngs.sh`` script and setup viral-ngs in the current working directory. Simply ssh to one of the Broad login nodes and paste this command::
 
-  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -l m_mem_free=10G -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
+  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && reuse UGER && qrsh -l h_vmem=10G -cwd -N "viral-ngs_deploy" -q interactive ./easy-deploy-viral-ngs.sh setup
 
 **Note:** The script will run the install on a UGER interactive node, so you must have the ability to create to start a new interactive session. A project can be specified via ``qrsh -P "<project_name>"``
 
