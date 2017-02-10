@@ -229,13 +229,13 @@ def test_blast_lca(taxa_db_simple, simple_m8):
     test_path = join(util.file.get_test_input_path(),
                              'TestTaxonomy')
     expected = textwrap.dedent("""\
-    M04004:13:000000000-AGV3H:1:1101:12068:2105\t2
-    M04004:13:000000000-AGV3H:1:1101:13451:2146\t2
-    M04004:13:000000000-AGV3H:1:1101:13509:2113\t2
-    M04004:13:000000000-AGV3H:1:1101:14644:2160\t2
-    M04004:13:000000000-AGV3H:1:1101:18179:2130\t2
-    M04004:13:000000000-AGV3H:1:1111:10629:2610\t2
-    M04004:13:000000000-AGV3H:1:1111:10629:26101\t2
+    C\tM04004:13:000000000-AGV3H:1:1101:12068:2105\t2
+    C\tM04004:13:000000000-AGV3H:1:1101:13451:2146\t2
+    C\tM04004:13:000000000-AGV3H:1:1101:13509:2113\t2
+    C\tM04004:13:000000000-AGV3H:1:1101:14644:2160\t2
+    C\tM04004:13:000000000-AGV3H:1:1101:18179:2130\t2
+    C\tM04004:13:000000000-AGV3H:1:1111:10629:2610\t2
+    C\tM04004:13:000000000-AGV3H:1:1111:10629:26101\t2
     """)
     out = StringIO()
     with simple_m8 as f:
@@ -292,3 +292,11 @@ def test_kraken_dfs_report(taxa_db):
     report = metagenomics.kraken_dfs_report(taxa_db, hits)
     text_report = '\n'.join(list(report)) + '\n'
     assert text_report == expected
+
+
+def test_coverage_lca(taxa_db):
+    assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents) == 6
+    assert metagenomics.coverage_lca([1, 3], taxa_db.parents) == 1
+    assert metagenomics.coverage_lca([6, 7, 8], taxa_db.parents) == 6
+    assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents, 50) == 7
+    assert metagenomics.coverage_lca([9], taxa_db.parents) is None

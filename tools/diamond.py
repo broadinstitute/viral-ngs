@@ -12,8 +12,8 @@ import subprocess
 import tools
 import util.file
 
-TOOL_VERSION = '0.7.10'
-CONDA_VERSION = tools.CondaPackageVersion('0.7.10', 'boost1.60_1')
+TOOL_VERSION = '0.8.22'
+CONDA_VERSION = tools.CondaPackageVersion('0.8.22', '2')
 
 log = logging.getLogger(__name__)
 

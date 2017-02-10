@@ -477,7 +477,16 @@ class SampleSheet(object):
                         miseq_skip = True
                     elif header is None:
                         header = row
-                        if 'Sample_ID' in header:
+                        if all(x in header for x in ['Sample_ID','Index']):
+                            # this is a Broad Platform MiSeq-generated SampleSheet.csv
+                            keymapper = {
+                                'Sample_ID': 'sample',
+                                'Index': 'barcode_1',
+                                'Index2': 'barcode_2',
+                                'Sample_Name': 'sample_name'
+                            }
+                            header = list(map(keymapper.get, header))
+                        elif 'Sample_ID' in header:
                             # this is a MiSeq-generated SampleSheet.csv
                             keymapper = {
                                 'Sample_ID': 'sample',
@@ -487,7 +496,7 @@ class SampleSheet(object):
                             }
                             header = list(map(keymapper.get, header))
                         elif 'SampleID' in header:
-                            # this is a Broad Platform generated SampleSheet.csv
+                            # this is a Broad Platform HiSeq-generated SampleSheet.csv
                             keymapper = {
                                 'SampleID': 'sample',
                                 'Index': 'barcode_1',
@@ -528,7 +537,7 @@ class SampleSheet(object):
                         row['row_num'] = str(row_num)
                         if (self.only_lane is not None and row.get('lane') and self.only_lane != row['lane']):
                             continue
-                        if row['sample'] and row['barcode_1']:
+                        if ('sample' in row and row['sample']) and ('barcode_1' in row and row['barcode_1']):
                             self.rows.append(row)
             # go back and re-shuffle miseq columns if use_sample_name applies
             if (self.use_sample_name and 'sample_name' in header and all(row.get('sample_name') for row in self.rows)):

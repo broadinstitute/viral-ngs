@@ -1,26 +1,37 @@
 language: python
 
+env:
+  global:
+    - CACHE_DIR="$HOME/misc_cache"
+    - MINICONDA_DIR="$HOME/miniconda"
+    - PIP_DIR="$HOME/virtualenv"
+    - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
+    - PYTHONIOENCODING=UTF8
+    # travis-encrypted value that will set $BUNDLE_SECRET when decrypted by Travis
+    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+
 matrix:
-    include:
-        - os: linux
-          sudo: false
-          python: 2.7
-        - os: linux
-          sudo: false
-          python: 3.4
-        - os: linux
-          sudo: false
-          python: 3.5
+  include:
+    - os: linux
+      sudo: false
+      python: 2.7
+    - os: linux
+      sudo: false
+      python: 3.4
+    - os: linux
+      sudo: false
+      python: 3.5
+      env:
+        # travis-encrypted value to set $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO when decrypted by Travis
+        # This token provides Travis API access to trigger builds of dependent repos
+        # It is in the env for only one matrix job so it is only available
+        # For this one build, so we can check for the value to trigger only one dependent build
+        - secure: "LBDyx6nm7N/0FGjcyK6y2WtFGu2KAghZC2+Qrs/vT38kaJjlL+5K6Ck0MeoJzG3jS3YQsCug9HGT54oVurK5lmZpq6f4YEppYtQY65v5rc0OxWNGjttd/rZpvXqN4Bvahbo2+/sQVrWbnACgfYFpwJ5ka9tvzkQf8HP7HUqZKe0="
 #        - os: osx
 #          language: generic
 #          env:
 #              - TRAVIS_OSX_PYTHON_VERSION=py35
 #              - TRAVIS_PYTHON_VERSION=3.5.1
-
-addons:
-  apt:
-    packages:
-      - oracle-java8-installer
 
 cache:
  directories:
@@ -28,14 +39,7 @@ cache:
   - $HOME/virtualenv
   - $HOME/miniconda
 
-env:
-  global:
-  - CACHE_DIR="$HOME/misc_cache"
-  - MINICONDA_DIR="$HOME/miniconda"
-  - PIP_DIR="$HOME/virtualenv"
-  - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
-  - PYTHONIOENCODING=UTF8
-  - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+
 
 git:
   depth: 3
@@ -45,12 +49,12 @@ before_install:
 
 install:
   - source travis/install-conda.sh
-  - travis/install-pip.sh
   - source travis/install-tools.sh
+  - travis/install-pip.sh
 
 script:
   - travis/tests-unit.sh
-  - travis/tests-long.sh
+  - travis/tests-long.sh && ./travis/trigger-tests-in-other-repo.sh
 
 after_success:
   - coveralls

@@ -16,33 +16,33 @@ email_point_of_contact_for_ncbi: "someone@example.com"
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA.tar.gz
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hg19.tar.gz
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metagenomics_contaminants_v3.tar.gz
-bmtagger_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
 bmtagger_dbs_remove:
-  - "hg19"
-  - "GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
-  - "metagenomics_contaminants_v3"
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/hg19"
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/metagenomics_contaminants_v3"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
 #      http://www.compbio.ox.ac.uk/analysis_tools/BLAST/formatdb.shtml
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/metag_v3.ncRNA.mRNA.mitRNA.consensus.tar.gz
-blast_db_dir: "/idi/sabeti-scratch/kandersen/references/depletion_databases"
-# Within blast_db_dir, the prefix of the database containing sequences to remove during depletion
-blast_db_remove: "metag_v3.ncRNA.mRNA.mitRNA.consensus"
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/hybsel_probe_adapters.tar.gz
+blast_db_remove: 
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/metag_v3.ncRNA.mRNA.mitRNA.consensus"
+  - "/idi/sabeti-scratch/shared-resources/depletion-databases/hybsel_probe_adapters"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
 #  - https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz
-trim_clip_db: "/idi/sabeti-scratch/kandersen/references/depletion_databases/contaminants.fasta"
+trim_clip_db: "/idi/sabeti-scratch/shared-resources/depletion-databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
 spikeins_db: "/idi/sabeti-scratch/genomes/other/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
 # For pre-built hosted databases, you may download:
-#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_db.tar.gz
-kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_full_20150910"
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_viral_diversity.tar.gz
+kraken_db: "/idi/sabeti-scratch/yesimon/db/kraken_viral_diversity"
 
 # Path of DIAMOND database file for metagenomics identification
 # For pre-built hosted databases, you may download:
@@ -52,10 +52,19 @@ diamond_db: "/idi/sabeti-scratch/yesimon/db/diamond_db/nr"
 # Directory of the krona database for generating html reports.
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
-krona_db: "/idi/sabeti-scratch/yesimon/db/krona"
+krona_db: "/idi/sabeti-scratch/yesimon/db/krona_taxonomy"
+
+# BWA index prefix for metagenomic alignment.
+# This contains the full human reference genome, multiple diverse sequences covering human
+# pathogenic viruses, as well as LSU and SSU rRNA sequences from SILVA.
+# For pre-built hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/human_viral_rrna.tar.lz4
+align_rna_db: "/idi/sabeti-scratch/shared-resources/rna_bwa/human_viral_rrna"
 
 # Directory of the NCBI taxonomy dmp files
-taxonomy_db: "/idi/sabeti-scratch/yesimon/db/taxonomy"
+# For pre-packaged hosted databases, you may download:
+#  - https://storage.googleapis.com/sabeti-public/meta_dbs/taxonomy.tar.lz4
+taxonomy_db: "/idi/sabeti-scratch/shared-resources/taxonomy"
 
 # These are variables that must be set
 env_vars:
@@ -68,7 +77,7 @@ env_vars:
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
   # To use multi-threaded Novoalign, it must be licensed and downloaded
   # manually out of band.
-  NOVOALIGN_PATH: "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
+  NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
 
 # ==================== [ Values that may be changed ] ==========================
 

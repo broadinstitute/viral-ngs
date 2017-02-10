@@ -5,6 +5,7 @@
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os
+shell.executable("/bin/bash")
 
 configfile: "config.yaml"
 
@@ -58,4 +59,3 @@ rule assembly_report:
             " --align_dir {config[data_dir]}/{config[subdirs][align_self]}" \
             " --reads_dir {config[data_dir]}/{config[subdirs][per_sample]}" \
             " --raw_reads_dir {config[data_dir]}/{config[subdirs][source]}"
-

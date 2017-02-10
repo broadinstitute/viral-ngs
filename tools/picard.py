@@ -18,10 +18,9 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '1.141'
+TOOL_VERSION = '2.5.0'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
-# Note: Version 1.126 is latest as of 2014-12-02
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
 
 _log = logging.getLogger(__name__)
@@ -52,18 +51,18 @@ class PicardTools(tools.Tool):
             JVMmemory = self.jvmMemDefault
 
         # the conda version wraps the jar file with a shell script
-        if self.install_and_get_path().endswith(".jar"):
+        path = self.install_and_get_path()
+        if path.endswith(".jar"):
             tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar',
-                self.install_and_get_path(), command
+                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', path, command
             ] + picardOptions
         else:
-            tool_cmd = [
-                self.install_and_get_path(), '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command
-            ] + picardOptions
+            env = os.environ.copy()
+            env.pop('JAVA_HOME', None)
+            tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
         _log.debug(' '.join(tool_cmd))
 
-        subprocess.check_call(tool_cmd)
+        subprocess.check_call(tool_cmd, env=env)
 
     @staticmethod
     def dict_to_picard_opts(options):
@@ -85,12 +84,16 @@ class RevertSamTool(PicardTools):
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
-    def execute(self, inBams, outBam, outMetrics=None, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(
+        self, inBams, outBam, outMetrics=None, taggingPolicy=None, picardOptions=None, JVMmemory=None
+    ):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if not outMetrics:
             outMetrics = util.file.mkstempfname('.metrics')
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam, 'METRICS_FILE=' + outMetrics]
+        if taggingPolicy:
+            opts += ['TAGGING_POLICY={}'.format(taggingPolicy)]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 

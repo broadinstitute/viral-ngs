@@ -53,7 +53,7 @@ class Kraken(tools.Tool):
         '''
         self.execute('kraken-build', db, db, options=options,
                             option_string=option_string)
-    
+
     def classify(self, inBam, db, outReads, numThreads=None):
         """Classify input reads (bam)
 
@@ -88,13 +88,13 @@ class Kraken(tools.Tool):
         res = self.execute('kraken', db, outReads, args=[tmp_fastq1, tmp_fastq2], options=opts)
         os.unlink(tmp_fastq1)
         os.unlink(tmp_fastq2)
-        
+
     def filter(self, inReads, db, outReads, filterThreshold):
         """Filter Kraken hits
         """
         self.execute('kraken-filter', db, outReads, args=[inReads],
                             options={'--threshold': filterThreshold})
-    
+
     def report(self, inReads, db, outReport):
         """Convert Kraken read-based output to summary reports
         """
@@ -133,13 +133,12 @@ class Kraken(tools.Tool):
         elif command == 'kraken-build':
             jellyfish_path = Jellyfish().install_and_get_path()
             env = os.environ.copy()
-            env['PATH'] = ':'.join([os.path.dirname(jellyfish_path),
-                                   env['PATH']])
-            util.misc.run_and_print(cmd, env=env, check=True, silent=False)
+            env['PATH'] = ':'.join([os.path.dirname(jellyfish_path), env['PATH']])
+            subprocess.check_call(cmd, env=env)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
-                util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE,
-                              check=True)
+                util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE, check=True)
+
 
 @tools.skip_install_test(condition=tools.is_osx())
 class Jellyfish(Kraken):
