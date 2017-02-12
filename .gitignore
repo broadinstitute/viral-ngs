@@ -58,11 +58,12 @@ coverage.xml
 test/input/TestVPhaser2/in.bam.bti
 
 easy-deploy/data/Snakefile
+easy-deploy-virtualized/data/Snakefile
 
-easy-deploy/data/config.json
-easy-deploy/data/config.yaml
+easy-deploy-virtualized/data/config.json
+easy-deploy-virtualized/data/config.yaml
 
-easy-deploy/data/viral-ngs/
+easy-deploy-virtualized/data/viral-ngs/
 
 **/.vagrant/
 
