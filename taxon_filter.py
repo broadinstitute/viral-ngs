@@ -419,30 +419,22 @@ def filter_lastal_bam(
         reference database using LASTAL.
     '''
     # convert BAM to paired FASTQ
-    inReads1 = mkstempfname('.1.fastq')
-    inReads2 = mkstempfname('.2.fastq')
-    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
+    inReads = mkstempfname('.all.fastq')
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads)
 
-    # look for hits in inReads1 and inReads2
-    hitList1 = mkstempfname('.1.hits')
-    hitList2 = mkstempfname('.2.hits')
+    # look for hits in FASTQ
+    hitList1 = mkstempfname('.hits')
     lastal_get_hits(
-        inReads1, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches,
+        inReads, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches,
         max_length_for_initial_matches, max_initial_matches_per_position
     )
-    os.unlink(inReads1)
-    lastal_get_hits(
-        inReads2, db, hitList2, max_gapless_alignments_per_position, min_length_for_initial_matches,
-        max_length_for_initial_matches, max_initial_matches_per_position
-    )
-    os.unlink(inReads2)
+    os.unlink(inReads)
 
-    # merge hits
+    # merge & uniqify hits
     hitList = mkstempfname('.hits')
     with open(hitList, 'wt') as outf:
-        subprocess.check_call(['sort', '-u', hitList1, hitList2], stdout=outf)
+        subprocess.check_call(['sort', '-u', hitList1], stdout=outf)
     os.unlink(hitList1)
-    os.unlink(hitList2)
 
     # filter original BAM file against keep list
     tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
