@@ -69,7 +69,7 @@ class SamtoolsTool(tools.Tool):
 
     def bam2fq(self, inBam, outFq1, outFq2=None):
         if outFq2 is None:
-            self.execute('bam2fq', ['-s', outFq1, inBam])
+            self.execute('bam2fq', ['-n', '-0', outFq1, inBam])
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
 
