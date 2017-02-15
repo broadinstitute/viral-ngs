@@ -208,6 +208,16 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 
         self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
 
+    def test_mvicuna_empty_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_mvicuna_bam(
+            empty_bam,
+            output_bam
+        )
+        self.assertEqual(samtools.count(output_bam), 0)
+
 
 class TestSplitReads(TestCaseWithTmp):
     'Test various options of split_reads command.'

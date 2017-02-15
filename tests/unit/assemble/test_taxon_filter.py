@@ -52,111 +52,88 @@ class TestTrimmomatic(TestCaseWithTmp):
 
 class TestFilterLastal(TestCaseWithTmp):
 
-    def test_filter_lastal_fastq_ebola(self):
-        # Create refDbs
-        commonInputDir = util.file.get_test_input_path()
-        myInputDir = util.file.get_test_input_path(self)
-        refFasta = os.path.join(commonInputDir, 'ebola.fasta')
-        dbsDir = tempfile.mkdtemp()
-        refDbs = os.path.join(dbsDir, 'ebola')
-        lastdbPath = tools.last.Lastdb().install_and_get_path()
-        subprocess.check_call([lastdbPath, refDbs, refFasta])
-
-        # Call main_filter_lastal
-        inFastq = os.path.join(myInputDir, 'in.fastq')
-        outFastq = util.file.mkstempfname('.fastq')
-        args = taxon_filter.parser_filter_lastal(argparse.ArgumentParser()).parse_args([inFastq, refDbs, outFastq])
-        args.func_main(args)
-
-        # Check that results match expected
-        expectedFastq = os.path.join(myInputDir, 'expected.fastq')
-        assert_equal_contents(self, outFastq, expectedFastq)
-
-    def test_filter_lastal_bam_polio(self):
-
-        # Build polio database
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
         polio_fasta = os.path.join(
             util.file.get_test_input_path(),
             'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Poliovirus_uid15288', 'NC_002058.ffn'
         )
         dbDir = tempfile.mkdtemp()
-        lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(dbDir, 'NC_002058'))
+        self.lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(dbDir, 'NC_002058'))
 
-        # Call main_filter_lastal_bam
+    def test_filter_lastal_bam_polio(self):
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.blastn.bam')
-        outBam = util.file.mkstempfname('-out-taxfilt.bam', directory=dbDir)
+        outBam = util.file.mkstempfname('-out-taxfilt.bam')
         args = taxon_filter.parser_filter_lastal_bam(argparse.ArgumentParser()).parse_args([
-            inBam, lastdb_path, outBam])
+            inBam, self.lastdb_path, outBam])
         args.func_main(args)
-
-        # Check that results match expected
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.taxfilt.imperfect.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
 
+    def test_lastal_empty_input(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        outBam = util.file.mkstempfname('-out-taxfilt.bam')
+        taxon_filter.filter_lastal_bam(
+            empty_bam,
+            self.lastdb_path,
+            outBam
+        )
+        assert_equal_bam_reads(self, outBam, empty_bam)
+
+    def test_lastal_empty_output(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
+        outBam = util.file.mkstempfname('-out-taxfilt.bam')
+        taxon_filter.filter_lastal_bam(
+            in_bam,
+            self.lastdb_path,
+            outBam
+        )
+        assert_equal_bam_reads(self, outBam, empty_bam)
+
 
 class TestBmtagger(TestCaseWithTmp):
-    """
-    How test data was created:
-      humanChr1Subset.fa has 200 bases from human chr1
-      humanChr9Subset.fa has 200 bases from human chr9
-      bmtool -d humanChr1Subset.fa -o humanChr1Subset.bitmask -w 8
-      bmtool -d humanChr9Subset.fa -o humanChr9Subset.bitmask -w 8
-      in[12].fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
-          with arbitrary quality scores.
-    """
+    '''
+        How test data was created:
+          exported 5kb region of chr6
+          created pan-viral fasta file from all NCBI viral accessions
+          used wgsim to create simulated reads
+    '''
 
     def setUp(self):
         TestCaseWithTmp.setUp(self)
         self.tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
+        myInputDir = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman')
+        ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
+        self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
+        self.bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, self.database_prefix_path + ".bitmask")
+        self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
 
-        for db in ['humanChr1Subset', 'humanChr9Subset']:
-            # .map file is > 100M, so recreate instead of copying
-            dbfa = os.path.join(myInputDir, db + '.fa')
-            dbsrprism = os.path.join(self.tempDir, db + '.srprism')
-            srprismdb_path = tools.bmtagger.SrprismTool().build_database(dbfa, dbsrprism)
-            # .bitmask and .srprism.* files must be in same dir, so copy
-            shutil.copy(os.path.join(myInputDir, db + '.bitmask'), self.tempDir)
-
-    def test_partition_bmtagger(self):
-        outMatch = [os.path.join(self.tempDir, 'outMatch.{}.fastq'.format(n)) for n in '12']
-        outNoMatch = [os.path.join(self.tempDir, 'outNoMatch.{}.fastq'.format(n)) for n in '12']
-        myInputDir = util.file.get_test_input_path(self)
-        args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [
-                os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
-                    self.tempDir, 'humanChr1Subset'
-                ), os.path.join(self.tempDir, 'humanChr9Subset'), '--outMatch', outMatch[0], outMatch[
-                    1], '--outNoMatch', outNoMatch[0], outNoMatch[1]
-            ]
-        )
+    def test_deplete_bmtagger_bam(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        outBam = util.file.mkstempfname('-out.bam')
+        args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
+            inBam, self.database_prefix_path, outBam])
         args.func_main(args)
+        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
+        assert_equal_bam_reads(self, outBam, expectedOut)
 
-        # Compare to expected
-        for case in ['Match.1', 'Match.2', 'NoMatch.1', 'NoMatch.2']:
-            assert_equal_contents(
-                self, os.path.join(self.tempDir, 'out' + case + '.fastq'),
-                os.path.join(myInputDir, 'expected.' + case + '.fastq')
-            )
-
-    def test_deplete_bmtagger(self):
-        myInputDir = util.file.get_test_input_path(self)
-        args = taxon_filter.parser_partition_bmtagger(argparse.ArgumentParser()).parse_args(
-            [
-                os.path.join(myInputDir, 'in1.fastq'), os.path.join(myInputDir, 'in2.fastq'), os.path.join(
-                    self.tempDir, 'humanChr1Subset'
-                ), os.path.join(self.tempDir, 'humanChr9Subset'), '--outNoMatch', os.path.join(
-                    self.tempDir, 'deplete.1.fastq'), os.path.join(self.tempDir, 'deplete.2.fastq')
-            ]
-        )
+    def test_bmtagger_empty_input(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
+            empty_bam, self.database_prefix_path, out_bam])
         args.func_main(args)
+        assert_equal_bam_reads(self, out_bam, empty_bam)
 
-        # Compare to expected
-        for case in ['1', '2']:
-            assert_equal_contents(
-                self, os.path.join(self.tempDir, 'deplete.' + case + '.fastq'),
-                os.path.join(myInputDir, 'expected.NoMatch.' + case + '.fastq')
-            )
+    def test_bmtagger_empty_output(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
+            in_bam, self.database_prefix_path, out_bam])
+        args.func_main(args)
+        assert_equal_bam_reads(self, out_bam, empty_bam)
 
 
 class TestBlastnDbBuild(TestCaseWithTmp):
@@ -256,192 +233,6 @@ class TestLastalDbBuild(TestCaseWithTmp):
             )
 
 
-class TestDepleteHuman(TestCaseWithTmp):
-    '''
-        How test data was created:
-          exported 5kb region of chr6
-          created pan-viral fasta file from all NCBI viral accessions
-          used wgsim to create simulated reads
-    '''
-
-    def setUp(self):
-        TestCaseWithTmp.setUp(self)
-        self.tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
-        ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
-        self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
-        polio_fasta = os.path.join(
-            util.file.get_test_input_path(),
-            'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Poliovirus_uid15288', 'NC_002058.ffn'
-        )
-
-        # create blast db
-        self.blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
-
-        # create bmtagger db
-        self.bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, self.database_prefix_path + ".bitmask")
-        self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
-
-        # create last db
-        self.lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(self.tempDir, 'polio'))
-
-    def test_deplete_human(self):
-        myInputDir = util.file.get_test_input_path(self)
-
-        # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
-            [
-                os.path.join(myInputDir, 'test-reads.bam'),
-                # output files
-                os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
-                os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
-                os.path.join(self.tempDir, 'test-reads.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'test-reads.taxfilt.imperfect.bam'),
-                # DBs
-                "--blastDbs", self.blastdb_path,
-                "--bmtaggerDbs", self.database_prefix_path,
-                "--lastDb", self.lastdb_path,
-                "--threads", "4"
-            ]
-        )
-        args.func_main(args)
-
-        # Compare to expected
-        for fname in [
-            'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 'test-reads.blastn.bam',
-            'test-reads.taxfilt.imperfect.bam'
-        ]:
-            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
-
-    def test_deplete_human_aligned_input(self):
-        myInputDir = util.file.get_test_input_path(self)
-
-        # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
-            [
-                os.path.join(myInputDir, 'test-reads-aligned.bam'),
-                # output files
-                os.path.join(self.tempDir, 'test-reads.revert.bam'),
-                os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
-                os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
-                os.path.join(self.tempDir, 'test-reads.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'test-reads.taxfilt.imperfect.bam'),
-                # DBs
-                "--blastDbs", self.blastdb_path,
-                "--bmtaggerDbs", self.database_prefix_path,
-                "--lastDb", self.lastdb_path,
-                "--threads", "4"
-            ]
-        )
-        args.func_main(args)
-
-        # Compare to expected
-        for fname in [
-            'test-reads.revert.bam', 'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 'test-reads.blastn.bam',
-            'test-reads.taxfilt.imperfect.bam'
-        ]:
-            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
-
-    def test_deplete_empty(self):
-        myInputDir = util.file.get_test_input_path(self)
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-
-        # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
-            [
-                empty_bam,
-                # output files
-                os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
-                os.path.join(self.tempDir, 'deplete-empty.rmdup.bam'),
-                os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
-                "--taxfiltBam", os.path.join(self.tempDir, 'deplete-empty.taxfilt.bam'),
-                # DBs
-                "--blastDbs", self.blastdb_path,
-                "--bmtaggerDbs", self.database_prefix_path,
-                "--lastDb", self.lastdb_path,
-                "--threads", "4"
-            ]
-        )
-        args.func_main(args)
-
-        # Compare to expected
-        for fname in [
-            'deplete-empty.bmtagger.bam',
-            'deplete-empty.rmdup.bam', 'deplete-empty.blastn.bam',
-            'deplete-empty.taxfilt.bam'
-        ]:
-            assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)
-
-    def test_revert_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        tools.picard.RevertSamTool().execute(
-            empty_bam,
-            util.file.mkstempfname(),
-            picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
-        )
-
-    def test_bmtagger_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        taxon_filter.multi_db_deplete_bam(
-            empty_bam,
-            [self.database_prefix_path],
-            taxon_filter.deplete_bmtagger_bam,
-            util.file.mkstempfname()
-        )
-
-    def test_bmtagger_empty_output(self):
-        in_bam = os.path.join(util.file.get_test_input_path(self), 'test-reads-human.bam')
-        taxon_filter.multi_db_deplete_bam(
-            in_bam,
-            [self.database_prefix_path],
-            taxon_filter.deplete_bmtagger_bam,
-            util.file.mkstempfname()
-        )
-
-    def test_mvicuna_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        read_utils.rmdup_mvicuna_bam(
-            empty_bam,
-            util.file.mkstempfname()
-        )
-
-    def test_blastn_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        taxon_filter.multi_db_deplete_bam(
-            empty_bam,
-            [self.blastdb_path],
-            taxon_filter.deplete_blastn_bam,
-            util.file.mkstempfname()
-        )
-
-    def test_blastn_empty_output(self):
-        in_bam = os.path.join(util.file.get_test_input_path(self), 'test-reads-human.bam')
-        taxon_filter.multi_db_deplete_bam(
-            in_bam,
-            [self.blastdb_path],
-            taxon_filter.deplete_blastn_bam,
-            util.file.mkstempfname()
-        )
-
-    def test_lastal_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        taxon_filter.filter_lastal_bam(
-            empty_bam,
-            self.lastdb_path,
-            util.file.mkstempfname()
-        )
-
-    def test_lastal_empty_output(self):
-        in_bam = os.path.join(util.file.get_test_input_path(self), 'test-reads-human.bam')
-        taxon_filter.filter_lastal_bam(
-            in_bam,
-            self.lastdb_path,
-            util.file.mkstempfname()
-        )
-
-
 class TestDepleteBlastnBam(TestCaseWithTmp):
     '''
         How test data was created:
@@ -450,6 +241,16 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         in.fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
         with arbitrary quality scores.
     '''
+
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
+        commonInputDir = util.file.get_test_input_path()
+        ref_fasta = os.path.join(commonInputDir, 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
+        self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
+
+        # create blast db
+        self.blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
 
     def test_deplete_blastn_bam(self):
         tempDir = tempfile.mkdtemp()
@@ -523,3 +324,27 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                 shallow=False
             )
         )
+
+    def test_blastn_empty_input(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        taxon_filter.multi_db_deplete_bam(
+            empty_bam,
+            [self.blastdb_path],
+            taxon_filter.deplete_blastn_bam,
+            out_bam
+        )
+        assert_equal_bam_reads(self, out_bam, empty_bam)
+
+    def test_blastn_empty_output(self):
+        in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        taxon_filter.multi_db_deplete_bam(
+            in_bam,
+            [self.blastdb_path],
+            taxon_filter.deplete_blastn_bam,
+            out_bam
+        )
+        assert_equal_bam_reads(self, out_bam, empty_bam)
+
