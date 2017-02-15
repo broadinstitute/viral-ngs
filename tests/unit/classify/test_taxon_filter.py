@@ -80,7 +80,7 @@ class TestFilterLastal(TestCaseWithTmp):
             'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Poliovirus_uid15288', 'NC_002058.ffn'
         )
         dbDir = tempfile.mkdtemp()
-        lastdb_path = tools.last.Lastdb().build_database(polio_fasta, dbDir)
+        lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(dbDir, 'NC_002058'))
 
         # Call main_filter_lastal_bam
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.blastn.bam')
@@ -283,7 +283,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
 
         # create last db
-        self.lastdb_path = tools.last.Lastdb().build_database(polio_fasta, self.database_prefix_path)
+        self.lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(self.tempDir, 'polio'))
 
     def test_deplete_human(self):
         myInputDir = util.file.get_test_input_path(self)
@@ -442,41 +442,14 @@ class TestDepleteHuman(TestCaseWithTmp):
         )
 
 
-class TestDepleteBlastn(TestCaseWithTmp):
-    '''
-    How test data was created:
-      humanChr1Subset.fa has 200 bases from human chr1
-      humanChr9Subset.fa has 200 bases from human chr9
-      in.fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
-          with arbitrary quality scores.
-    '''
-
-    def test_deplete_blastn(self):
-        tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
-
-        # Make blast databases
-        makeblastdbPath = tools.blast.MakeblastdbTool().install_and_get_path()
-        dbnames = ['humanChr1Subset.fa', 'humanChr9Subset.fa']
-        refDbs = []
-        for dbname in dbnames:
-            refDb = os.path.join(tempDir, dbname)
-            os.symlink(os.path.join(myInputDir, dbname), refDb)
-            refDbs.append(refDb)
-            util.misc.run_and_print([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb], check=True)
-
-        # Run deplete_blastn
-        outFile = os.path.join(tempDir, 'out.fastq')
-        args = taxon_filter.parser_deplete_blastn(argparse.ArgumentParser()).parse_args(
-            [os.path.join(myInputDir, 'in.fastq'), outFile, refDbs[0], refDbs[1]]
-        )
-        args.func_main(args)
-
-        # Compare to expected
-        assert_equal_contents(self, outFile, os.path.join(myInputDir, 'expected.fastq'))
-
-
 class TestDepleteBlastnBam(TestCaseWithTmp):
+    '''
+        How test data was created:
+        humanChr1Subset.fa has 200 bases from human chr1
+        humanChr9Subset.fa has 200 bases from human chr9
+        in.fastq "reads" are from humanChr[19]Subset.fa and ebola genome,
+        with arbitrary quality scores.
+    '''
 
     def test_deplete_blastn_bam(self):
         tempDir = tempfile.mkdtemp()
