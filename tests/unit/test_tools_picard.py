@@ -50,3 +50,14 @@ class TestToolPicard(TestCaseWithTmp):
         assert samtools.count(out_bam) in range(
             int(desired_count - (desired_count * tolerance)), int(desired_count + (desired_count * tolerance))+1
         ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
+
+    def test_revert_bam_empty_input(self):
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        out_bam = util.file.mkstempfname()
+        tools.picard.RevertSamTool().execute(
+            empty_bam,
+            out_bam,
+            picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
+        )
+        samtools = tools.samtools.SamtoolsTool()
+        assert samtools.count(out_bam) == 0
