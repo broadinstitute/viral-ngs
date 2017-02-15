@@ -52,7 +52,7 @@ class TestTrimmomatic(TestCaseWithTmp):
 
 class TestFilterLastal(TestCaseWithTmp):
 
-    def test_filter_lastal(self):
+    def test_filter_lastal_fastq_ebola(self):
         # Create refDbs
         commonInputDir = util.file.get_test_input_path()
         myInputDir = util.file.get_test_input_path(self)
@@ -71,6 +71,27 @@ class TestFilterLastal(TestCaseWithTmp):
         # Check that results match expected
         expectedFastq = os.path.join(myInputDir, 'expected.fastq')
         assert_equal_contents(self, outFastq, expectedFastq)
+
+    def test_filter_lastal_bam_polio(self):
+
+        # Build polio database
+        polio_fasta = os.path.join(
+            util.file.get_test_input_path(),
+            'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Poliovirus_uid15288', 'NC_002058.ffn'
+        )
+        dbDir = tempfile.mkdtemp()
+        lastdb_path = tools.last.Lastdb().build_database(polio_fasta, dbDir)
+
+        # Call main_filter_lastal_bam
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.blastn.bam')
+        outBam = util.file.mkstempfname('-out-taxfilt.bam', directory=dbDir)
+        args = taxon_filter.parser_filter_lastal_bam(argparse.ArgumentParser()).parse_args([
+            inBam, lastdb_path, outBam])
+        args.func_main(args)
+
+        # Check that results match expected
+        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.taxfilt.imperfect.bam')
+        assert_equal_bam_reads(self, outBam, expectedOut)
 
 
 class TestBmtagger(TestCaseWithTmp):
