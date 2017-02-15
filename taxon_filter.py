@@ -459,63 +459,9 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
 
-def filter_lastal(
-    inFastq,
-    refDb,
-    outFastq,
-    max_gapless_alignments_per_position=1,
-    min_length_for_initial_matches=5,
-    max_length_for_initial_matches=50,
-    max_initial_matches_per_position=100
-):
-    ''' Restrict input reads to those that align to the given
-        reference database using LASTAL. Also, remove duplicates with prinseq.
-    '''
-    assert outFastq.endswith('.fastq')
-
-    filtered_fastq = mkstempfname('.filtered.fastq')
-    lastal_chunked_fastq(
-        inFastq,
-        refDb,
-        filtered_fastq,
-        max_gapless_alignments_per_position=max_gapless_alignments_per_position,
-        min_length_for_initial_matches=min_length_for_initial_matches,
-        max_length_for_initial_matches=max_length_for_initial_matches,
-        max_initial_matches_per_position=max_initial_matches_per_position
-    )
-
-    # remove duplicate reads and reads with multiple Ns
-    if os.path.getsize(filtered_fastq) == 0:
-        # prinseq-lite fails on empty file input (which can happen in real life
-        # if no reads match the refDb) so handle this scenario specially
-        log.info("output is empty: no reads in input match refDb")
-        shutil.copyfile(filtered_fastq, outFastq)
-    else:
-        prinseqPath = tools.prinseq.PrinseqTool().install_and_get_path()
-        prinseqCmd = [
-            'perl', prinseqPath, '-ns_max_n', '1', '-derep', '1', '-fastq', filtered_fastq, '-out_bad', 'null',
-            '-line_width', '0', '-out_good', outFastq[:-6]
-        ]
-        log.debug(' '.join(prinseqCmd))
-        util.misc.run_and_print(prinseqCmd, check=True)
-    os.unlink(filtered_fastq)
-
-
-def parser_filter_lastal(parser=argparse.ArgumentParser()):
-    parser = parser_lastal_generic(parser)
-    parser.add_argument("inFastq", help="Input fastq file")
-    parser.add_argument("refDb", help="Reference database to retain from input")
-    parser.add_argument("outFastq", help="Output fastq file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, filter_lastal, split_args=True)
-    return parser
-
-
-__commands__.append(('filter_lastal', parser_filter_lastal))
-
-# ============================
-# ***  partition_bmtagger  ***
-# ============================
+# ==============================
+# ***  deplete_bmtagger_bam  ***
+# ==============================
 
 
 def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
@@ -562,189 +508,6 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     os.unlink(matchesFile)
 
 
-def select_reads(inFastq, outFastq, selectorFcn):
-    """
-        selectorFcn: Bio.SeqRecord.SeqRecord -> bool
-        Output in outFastq all reads from inFastq for which
-            selectorFcn returns True.
-        TO DO: change this to use Picard FilterSamReads (and operate
-            on BAM files) which is likely much faster. This is the
-            slowest step of partition_bmtagger currently.
-    """
-    with util.file.open_or_gzopen(inFastq, 'rt') as inFile:
-        with util.file.open_or_gzopen(outFastq, 'wt') as outFile:
-            for rec in SeqIO.parse(inFile, 'fastq'):
-                if selectorFcn(rec):
-                    SeqIO.write([rec], outFile, 'fastq')
-
-
-def partition_bmtagger(inFastq1, inFastq2, databases, outMatch=None, outNoMatch=None):
-    """
-    Use bmtagger to partition the input reads into ones that match at least one
-        of the databases and ones that don't match any of the databases.
-    inFastq1, inFastq2: paired-end input reads in fastq format
-        The names of the reads must be in one-to-one correspondence.
-    databases: for each db in databases bmtagger expects files
-        db.bitmask created by bmtool, and
-        db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
-    outMatch, outNoMatch: either may be None, otherwise a pair of files to
-        hold the matching or unmatched reads.
-    """
-    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
-
-    # bmtagger calls several executables in the same directory, and blastn;
-    # make sure they are accessible through $PATH
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
-    path = os.environ['PATH'].split(os.pathsep)
-    for t in (bmtaggerPath, blastnPath):
-        d = os.path.dirname(t)
-        if d not in path:
-            path = [d] + path
-    path = os.pathsep.join(path)
-    os.environ['PATH'] = path
-
-    # bmtagger's list of matches strips /1 and /2 from ends of reads
-    strip12 = lambda id : id[:-2] if id.endswith('/1') or id.endswith('/2') \
-        else id
-
-    tempDir = tempfile.mkdtemp()
-    matchesFiles = [mkstempfname() for db in databases]
-    curReads1, curReads2 = inFastq1, inFastq2
-    for count, (db, matchesFile) in \
-            enumerate(zip(databases, matchesFiles)):
-
-        # Loop invariants:
-        #     At the end of the kth loop, curReadsN has the original reads
-        #     depleted by all matches to the first k databases, and
-        #     matchesFiles[:k] contain the list of matching read names.
-
-        cmdline = [
-            bmtaggerPath, '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1, '-2',
-            curReads2, '-o', matchesFile
-        ]
-        log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline, check=True)
-        prevReads1, prevReads2 = curReads1, curReads2
-        if count < len(databases) - 1:
-            curReads1, curReads2 = mkstempfname(), mkstempfname()
-        elif outNoMatch is not None:
-            # Final time through loop, output depleted to requested files
-            curReads1, curReads2 = outNoMatch[0], outNoMatch[1]
-        else:
-            # No need to calculate final depleted file. No one asked for it.
-            # Technically, this violates the loop invariant ;-)
-            break
-        log.debug("starting select_reads")
-        with open(matchesFile) as inf:
-            matches = set(line.strip() for line in inf)
-        noMatchFcn = lambda rec: strip12(rec.id) not in matches
-        select_reads(prevReads1, curReads1, noMatchFcn)
-        select_reads(prevReads2, curReads2, noMatchFcn)
-    if outMatch is not None:
-        log.debug("preparing outMatch files")
-        allMatches = set()
-        for matchesFile in matchesFiles:
-            with open(matchesFile) as inf:
-                newMatches = set(line.strip() for line in inf)
-            allMatches = allMatches.union(newMatches)
-        matchFcn = lambda rec: strip12(rec.id) in allMatches
-        select_reads(inFastq1, outMatch[0], matchFcn)
-        select_reads(inFastq2, outMatch[1], matchFcn)
-    log.debug("partition_bmtagger complete")
-
-
-def deplete_bmtagger(inFastq1, inFastq2, databases, outFastq1, outFastq2):
-    """
-    Use bmtagger to partition the input reads into ones that match at least one
-        of the databases and ones that don't match any of the databases.
-    inFastq1, inFastq2: paired-end input reads in fastq format
-        The names of the reads must be in one-to-one correspondence.
-    databases: for each db in databases bmtagger expects files
-        db.bitmask created by bmtool, and
-        db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
-    outFastq1, outFastq2: pair of output fastq files depleted of reads present
-        in the databases
-    This version is optimized for the case of only requiring depletion, which
-    allows us to avoid time-intensive lookups.
-    """
-    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
-
-    # bmtagger calls several executables in the same directory, and blastn;
-    # make sure they are accessible through $PATH
-    path = os.environ['PATH'].split(os.pathsep)
-    for t in (bmtaggerPath, blastnPath):
-        d = os.path.dirname(t)
-        if d not in path:
-            path = [d] + path
-    path = os.pathsep.join(path)
-    os.environ['PATH'] = path
-
-    tempDir = tempfile.mkdtemp()
-    curReads1, curReads2 = inFastq1, inFastq2
-    tempfiles = []
-    for db in databases:
-        outprefix = mkstempfname()
-        cmdline = [
-            bmtaggerPath, '-X', '-b', db + '.bitmask', '-x', db + '.srprism', '-T', tempDir, '-q1', '-1', curReads1,
-            '-2', curReads2, '-o', outprefix
-        ]
-        log.debug(' '.join(cmdline))
-        util.misc.run_and_print(cmdline, check=True)
-        curReads1, curReads2 = [outprefix + suffix for suffix in ('_1.fastq', '_2.fastq')]
-        tempfiles += [curReads1, curReads2]
-    shutil.copyfile(curReads1, outFastq1)
-    shutil.copyfile(curReads2, outFastq2)
-    for fn in tempfiles:
-        os.unlink(fn)
-    log.debug("deplete_bmtagger complete")
-
-
-def parser_partition_bmtagger(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument(
-        'inFastq2',
-        help='Input fastq file; 2nd end of paired-end reads.  '
-        'Must have same names as inFastq1'
-    )
-    parser.add_argument(
-        'refDbs',
-        nargs='+',
-        help='''Reference databases (one or more) to deplete from input.
-                For each db, requires prior creation of db.bitmask by bmtool,
-                and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.
-             '''
-    )
-    parser.add_argument('--outMatch', nargs=2, help='Filenames for fastq output of matching reads.')
-    parser.add_argument('--outNoMatch', nargs=2, help='Filenames for fastq output of unmatched reads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_partition_bmtagger)
-    return parser
-
-
-def main_partition_bmtagger(args):
-    ''' Use bmtagger to partition input reads into ones that
-        match at least one of several databases and ones that don't match
-        any of the databases.
-    '''
-    inFastq1 = args.inFastq1
-    inFastq2 = args.inFastq2
-    databases = args.refDbs
-    outMatch = args.outMatch
-    outNoMatch = args.outNoMatch
-    assert outMatch or outNoMatch
-    # comment this out until we can figure out why bmtagger -X fails only on Travis
-    # if outMatch==None:
-    #    deplete_bmtagger(inFastq1, inFastq2, databases, outNoMatch[0], outNoMatch[1])
-    # else:
-    #    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
-    # return 0
-    partition_bmtagger(inFastq1, inFastq2, databases, outMatch, outNoMatch)
-
-
-__commands__.append(('partition_bmtagger', parser_partition_bmtagger))
-
-
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument(
@@ -765,7 +528,6 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
     return parser
 
-
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
     multi_db_deplete_bam(
@@ -776,7 +538,6 @@ def main_deplete_bam_bmtagger(args):
         threads=args.threads,
         JVMmemory=args.JVMmemory
     )
-
 
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
