@@ -488,8 +488,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     os.environ['PATH'] = path
 
     inReads1 = mkstempfname('.1.fastq')
-    inReads2 = mkstempfname('.2.fastq')
-    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1, inReads2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1)
 
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
@@ -498,11 +497,13 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
-        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf, '-x', db + '.srprism', '-T', tempDir, '-q1', '-1',
-        inReads1, '-2', inReads2, '-o', matchesFile
+        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf, '-x', db + '.srprism', '-T', tempDir, '-q1',
+        '-1', inReads1, '-o', matchesFile
     ]
     log.debug(' '.join(cmdline))
     util.misc.run_and_print(cmdline, check=True)
+    os.unlink(inReads1)
+    os.unlink(bmtaggerConf)
 
     tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
     os.unlink(matchesFile)
@@ -659,22 +660,18 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
 def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
-    #blastnPath = tools.blast.BlastnTool().install_and_get_path()
     fastq1 = mkstempfname('.1.fastq')
-    fastq2 = mkstempfname('.2.fastq')
     fasta = mkstempfname('.1.fasta')
     blast_hits = mkstempfname('.blast_hits.txt')
-    halfBam = mkstempfname('.half.bam')
     blastOutFile = mkstempfname('.hits.txt')
 
     # Initial BAM -> FASTQ pair
-    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1, fastq2)
+    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1)
 
-    # Find BLAST hits against FASTQ1
+    # Find BLAST hits
     read_utils.fastq_to_fasta(fastq1, fasta)
     os.unlink(fastq1)
-    os.unlink(fastq2)
-    log.info("running blastn on %s pair 1 against %s", inBam, db)
+    log.info("running blastn on %s against %s", inBam, db)
     blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
     with open(blast_hits, 'wt') as outf:
         for blastOutFile in blastOutFiles:
@@ -685,35 +682,11 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=
                         idVal = idVal[:-2]
                     outf.write(idVal + '\n')
             os.unlink(blastOutFile)
+    os.unlink(fasta)
 
-    # Deplete BAM of hits in FASTQ1
-    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, halfBam, JVMmemory=JVMmemory)
-
-    # Depleted BAM -> FASTQ pair
-    tools.samtools.SamtoolsTool().bam2fq(halfBam, fastq1, fastq2)
-
-    # Find BLAST hits against FASTQ2 (which is already smaller than before)
-    read_utils.fastq_to_fasta(fastq2, fasta)
-    os.unlink(fastq1)
-    os.unlink(fastq2)
-    log.info("running blastn on %s pair 2 against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-    with open(blast_hits, 'wt') as outf:
-        for blastOutFile in blastOutFiles:
-            with open(blastOutFile, 'rt') as inf:
-                for line in inf:
-                    idVal = line.split('\t')[0].strip()
-                    if idVal.endswith('/1') or idVal.endswith('/2'):
-                        idVal = idVal[:-2]
-                    outf.write(idVal + '\n')
-            os.unlink(blastOutFile)
-
-    # Deplete BAM of hits against FASTQ2
-    tools.picard.FilterSamReadsTool().execute(halfBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
-
-    # Clean up
-    for fn in (fasta, blast_hits, halfBam):
-        os.unlink(fn)
+    # Deplete BAM of hits
+    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
+    os.unlink(blast_hits)
 
 
 def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
