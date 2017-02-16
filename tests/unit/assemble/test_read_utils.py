@@ -167,31 +167,6 @@ class TestFastqBam(TestCaseWithTmp):
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
 
-        # out.bam -> out1.fastq, out2.fastq, outHeader.txt; trim 1 base from 1
-        parser = read_utils.parser_bam_to_fastq(argparse.ArgumentParser())
-        args = parser.parse_args([outBamTxt,
-                                  outFastq1,
-                                  outFastq2,
-                                  '--outHeader',
-                                  outHeader,
-                                  '--JVMmemory',
-                                  '1g',
-                                  '--picardOptions',
-                                  'READ1_TRIM=1',])
-        args.func_main(args)
-
-        # filter out any "PG" lines from header for testing purposes
-        # I don't like this... let's replace later.
-        with open(outHeader, 'rt') as inf:
-            with open(outHeaderFix, 'wt') as outf:
-                for line in inf:
-                    if not line.startswith('@PG'):
-                        outf.write(line)
-
-        # compare to out1.fastq, out2.fastq, outHeader.txt to in and expected
-        self.assertEqualContents(outFastq1, expectedFastq1)  # 1 base trimmed
-        self.assertEqualContents(outFastq2, inFastq2)
-        self.assertEqualContents(outHeaderFix, inHeader)
 
 
 class TestRmdupUnaligned(TestCaseWithTmp):
@@ -218,62 +193,37 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         )
         self.assertEqual(samtools.count(output_bam), 0)
 
+class TestMvicuna(TestCaseWithTmp):
+    """
+    Input consists of 3 read pairs.
+    Second read pair is identical to first.
+    Third read pair has same 5' read as first, but different 3' read.
+    What Mvicuna did was create paired output files in which the 2nd read
+        was deleted. It created an empty unpaired output file. Although
+        it initially created the postDupRm pair, it renamed them to the output
+        pair.
+    [IJ:]I have no idea if this is the correct behavior, but test checks that it
+        doesn't change.
+    """
 
-class TestSplitReads(TestCaseWithTmp):
-    'Test various options of split_reads command.'
-
-    def test_max_reads(self):
-        'Test splitting fastq using --maxReads option, with indexLen 1.'
+    def test_mvicuna(self):
+        tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
-        inFastq = os.path.join(myInputDir, 'in.fastq')
-        outPrefix = util.file.mkstempfname()
 
-        # Split
-        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq, outPrefix, '--maxReads', '4', '--indexLen', '1'])
-        args.func_main(args)
+        # Run mvicuna
+        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
+        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
+        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
+        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
+        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
+        tools.mvicuna.MvicunaTool().rmdup(
+            (inFastq1, inFastq2), (pairedOutFastq1, pairedOutFastq2),
+            outUnpaired=unpairedOutFastq)
 
-        # Check that results match expected
-        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.1')
-        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.2')
-        self.assertEqualContents(outPrefix + '1', expectedFastq1)
-        self.assertEqualContents(outPrefix + '2', expectedFastq2)
+        # Compare to expected
+        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
+            self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
 
-    def test_num_chunks(self):
-        'Test spliting fastq.gz using --numChunks option, with default indexLen.'
-        myInputDir = util.file.get_test_input_path(self)
-        inFastq = os.path.join(myInputDir, 'in.fastq.gz')
-        outPrefix = util.file.mkstempfname()
-
-        # Split
-        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq, outPrefix, '--numChunks', '3'])
-        args.func_main(args)
-
-        # Check that results match expected
-        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq.01')
-        expectedFastq2 = os.path.join(myInputDir, 'expected.fastq.02')
-        expectedFastq3 = os.path.join(myInputDir, 'expected.fastq.03')
-        self.assertEqualContents(outPrefix + '01', expectedFastq1)
-        self.assertEqualContents(outPrefix + '02', expectedFastq2)
-        self.assertEqualContents(outPrefix + '03', expectedFastq3)
-
-    def test_fasta(self):
-        'Test splitting fasta file.'
-        myInputDir = util.file.get_test_input_path(self)
-        inFasta = os.path.join(myInputDir, 'in.fasta')
-        outPrefix = util.file.mkstempfname()
-
-        # Split
-        parser = read_utils.parser_split_reads(argparse.ArgumentParser())
-        args = parser.parse_args([inFasta, outPrefix, '--numChunks', '2', '--format', 'fasta'])
-        args.func_main(args)
-
-        # Check that results match expected
-        expectedFasta1 = os.path.join(myInputDir, 'expected.fasta.01')
-        expectedFasta2 = os.path.join(myInputDir, 'expected.fasta.02')
-        self.assertEqualContents(outPrefix + '01', expectedFasta1)
-        self.assertEqualContents(outPrefix + '02', expectedFasta2)
 
 
 class TestAlignAndFix(TestCaseWithTmp):
@@ -299,33 +249,3 @@ class TestAlignAndFix(TestCaseWithTmp):
         args.func_main(args)
 
 
-class TestMvicuna(TestCaseWithTmp):
-    """
-    Input consists of 3 read pairs.
-    Second read pair is identical to first.
-    Third read pair has same 5' read as first, but different 3' read.
-    What Mvicuna did was create paired output files in which the 2nd read
-        was deleted. It created an empty unpaired output file. Although
-        it initially created the postDupRm pair, it renamed them to the output
-        pair.
-    [IJ:]I have no idea if this is the correct behavior, but test checks that it
-        doesn't change.
-    """
-
-    def test_mvicuna(self):
-        tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
-
-        # Run mvicuna
-        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
-        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
-        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
-        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
-        args = read_utils.parser_dup_remove_mvicuna(argparse.ArgumentParser()).parse_args(
-            [inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, '--unpairedOutFastq', unpairedOutFastq])
-        args.func_main(args)
-
-        # Compare to expected
-        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
-            self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
