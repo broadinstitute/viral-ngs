@@ -30,25 +30,6 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-class TestTrimmomatic(TestCaseWithTmp):
-
-    def test_trimmomatic(self):
-        myInputDir = util.file.get_test_input_path(self)
-        inFastq1 = os.path.join(myInputDir, 'in1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in2.fastq')
-        pairedOutFastq1 = util.file.mkstempfname()
-        pairedOutFastq2 = util.file.mkstempfname()
-        clipFasta = os.path.join(myInputDir, 'clip.fasta')
-        parser = taxon_filter.parser_trim_trimmomatic(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta])
-        args.func_main(args)
-
-        # Check that results match expected
-        expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
-        expected2Fastq = os.path.join(myInputDir, 'expected2.fastq')
-        assert_equal_contents(self, pairedOutFastq1, expected1Fastq)
-        assert_equal_contents(self, pairedOutFastq2, expected2Fastq)
-
 
 class TestFilterLastal(TestCaseWithTmp):
 
