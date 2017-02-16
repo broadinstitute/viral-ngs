@@ -27,12 +27,12 @@ import util.file
 import util.misc
 import util.vcf
 import read_utils
-import taxon_filter
 import tools
 import tools.picard
 import tools.samtools
 import tools.gatk
 import tools.novoalign
+import tools.trimmomatic
 import tools.trinity
 import tools.mafft
 import tools.mummer
@@ -58,7 +58,7 @@ class DenovoAssemblyError(Exception):
 
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
-        This should probably move over to read_utils or taxon_filter.
+        This should probably move over to read_utils.
     '''
 
     downsamplesam = tools.picard.DownsampleSamTool()
@@ -79,7 +79,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
         for i in range(2):
             shutil.copyfile(infq[i], trimfq[i])
     else:
-        taxon_filter.trimmomatic(
+        tools.trimmomatic.TrimmomaticTool().execute(
             infq[0],
             infq[1],
             trimfq[0],
@@ -1479,7 +1479,7 @@ def dpdiff(inVcfs, outFile):
     return 0
 
 
-__commands__.append(('dpdiff', parser_dpdiff))
+#__commands__.append(('dpdiff', parser_dpdiff))
 
 
 def full_parser():
