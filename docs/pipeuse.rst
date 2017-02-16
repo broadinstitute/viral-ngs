@@ -338,3 +338,38 @@ Taxonomic filtration of raw reads
 
 Starting from Illumina BCL directories
 --------------------------------------
+
+When starting from Illumina run directories, the viral-ngs Snakemake pipeline can demultiplex raw BCL files,
+and merge samples from multiple flowcell lanes or libraries. To use viral-ngs in this way, create the following files:
+
+``flowcells.txt`` (example below): A tab-delimited file describing the flowcells to demultiplex, as well as the lane to use, 
+a path to the file listing the barcodes used in the lane, the ``bustard_dir`` (the run directory as written by an Illumina sequencer), 
+and an optional column for ``max_mismatches``, which specifies how many bases are allowed to differ for a read to be assigned to a particular barcode (default: 0). The column ``max_mismatches`` may be omitted, including its header.
+
+::
+
+    flowcell        lane    barcode_file    bustard_dir     max_mismatches
+    H32G3ADXY       1       /path/to/barcodes.txt    /path/to/illumina/run/directory/run_BH32G3ADXY 1
+    H32G3ADXY       2       /path/to/barcodes.txt    /path/to/illumina/run/directory/run_BH32G3ADXY 1
+    AKJ6R   1       /path/to/barcodes.txt      /path/to/illumina/run/directory/run_AKJ6R      1
+
+
+``barcodes.txt`` (example below): A tab-delimited file describing the barcodes used for a given sample, along with a library ID.
+
+::
+
+    sample  barcode_1       barcode_2       library_id_per_sample
+    41C     TAAGGCGA        TATCCTCT        AP2
+    21P     CGTACTAG        TATCCTCT        AP2
+    42C     AGGCAGAA        TATCCTCT        AP2
+    41P     TCCTGAGC        TATCCTCT        AP2
+    42P     GGACTCCT        TATCCTCT        AP2
+    61C     TAGGCATG        TATCCTCT        AP2
+    61P     CTCTCTAC        AGAGTAGA        AP2
+    62C     CAGAGAGG        AGAGTAGA        AP2
+    62P     GCTACGCT        AGAGTAGA        AP2
+    142C    CGAGGCTG        AGAGTAGA        AP2
+    WATERCTL        AAGAGGCA        AGAGTAGA        AP2
+
+``samples-depletion.txt``: the list of sample names to deplete `as described above <#adding-input-data>`__.
+
