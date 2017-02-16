@@ -28,7 +28,6 @@ import tools
 import tools.blast
 import tools.last
 import tools.prinseq
-import tools.trimmomatic
 import tools.bmtagger
 import tools.picard
 import tools.samtools
@@ -146,119 +145,7 @@ def main_deplete_human(args):
 
 __commands__.append(('deplete_human', parser_deplete_human))
 
-# ==========================
-# ***  trim_trimmomatic  ***
-# ==========================
 
-
-def trimmomatic(
-    inFastq1,
-    inFastq2,
-    pairedOutFastq1,
-    pairedOutFastq2,
-    clipFasta,
-    unpairedOutFastq1=None,
-    unpairedOutFastq2=None,
-    leading_q_cutoff=15,
-    trailing_q_cutoff=15,
-    minlength_to_keep=30,
-    sliding_window_size=4,
-    sliding_window_q_cutoff=25
-):
-    '''Trim read sequences with Trimmomatic.'''
-    trimmomaticPath = tools.trimmomatic.TrimmomaticTool().install_and_get_path()
-    unpairedFastq1 = unpairedOutFastq1 or mkstempfname()
-    unpairedFastq2 = unpairedOutFastq2 or mkstempfname()
-
-    javaCmd = []
-
-    # the conda version wraps the jar file with a shell script
-    if trimmomaticPath.endswith(".jar"):
-        #  This java program has a lot of argments...
-        javaCmd.extend(
-            [
-                'java', '-Xmx2g', '-Djava.io.tmpdir=' + tempfile.tempdir, '-classpath', trimmomaticPath,
-                'org.usadellab.trimmomatic.TrimmomaticPE'
-            ]
-        )
-    else:
-        javaCmd.extend([trimmomaticPath, "PE"])
-
-    # Explicitly use Phred-33 quality scores
-    javaCmd.extend(['-phred33'])
-
-    javaCmd.extend(
-        [
-            inFastq1, inFastq2, pairedOutFastq1, unpairedFastq1, pairedOutFastq2, unpairedFastq2,
-            'LEADING:{leading_q_cutoff}'.format(leading_q_cutoff=leading_q_cutoff),
-            'TRAILING:{trailing_q_cutoff}'.format(trailing_q_cutoff=trailing_q_cutoff),
-            'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
-                sliding_window_size=sliding_window_size,
-                sliding_window_q_cutoff=sliding_window_q_cutoff,
-            ), 
-            'MINLEN:{minlength_to_keep}'.format(minlength_to_keep=minlength_to_keep),
-            'ILLUMINACLIP:{clipFasta}:2:30:12'.format(clipFasta=clipFasta)
-        ]
-    )
-
-    log.debug(' '.join(javaCmd))
-    util.misc.run_and_print(javaCmd, check=True)
-
-    if not unpairedOutFastq1:
-        os.unlink(unpairedFastq1)
-    if not unpairedOutFastq2:
-        os.unlink(unpairedFastq2)
-
-
-def parser_trim_trimmomatic(parser=argparse.ArgumentParser()):
-    parser.add_argument("inFastq1", help="Input reads 1")
-    parser.add_argument("inFastq2", help="Input reads 2")
-    parser.add_argument("pairedOutFastq1", help="Paired output 1")
-    parser.add_argument("pairedOutFastq2", help="Paired output 2")
-    parser.add_argument("--unpairedOutFastq1", help="Unpaired output 1 (default: write to temp and discard)")
-    parser.add_argument("--unpairedOutFastq2", help="Unpaired output 2 (default: write to temp and discard)")
-    parser.add_argument(
-        '--leadingQCutoff',
-        dest="leading_q_cutoff",
-        help='minimum quality required to keep a base on the leading end (default: %(default)s)',
-        type=int,
-        default=15
-    )
-    parser.add_argument(
-        '--trailingQCutoff',
-        dest="trailing_q_cutoff",
-        help='minimum quality required to keep a base on the trailing end (default: %(default)s)',
-        type=int,
-        default=15
-    )
-    parser.add_argument(
-        '--minlengthToKeep',
-        dest="minlength_to_keep",
-        help='minimum length of reads to be kept (default: %(default)s)',
-        type=int,
-        default=30
-    )
-    parser.add_argument(
-        '--slidingWindowSize',
-        dest="sliding_window_size",
-        help='the number of bases to average across (default: %(default)s)',
-        type=int,
-        default=4
-    )
-    parser.add_argument(
-        '--slidingWindowQCutoff',
-        dest="sliding_window_q_cutoff",
-        help='specifies the average quality required in the sliding window (default: %(default)s)',
-        type=int,
-        default=25
-    )
-    parser.add_argument("clipFasta", help="Fasta file with adapters, PCR sequences, etc. to clip off")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, trimmomatic, split_args=True)
-    return parser
-
-
-__commands__.append(('trim_trimmomatic', parser_trim_trimmomatic))
 
 # =======================
 # ***  filter_lastal  ***
