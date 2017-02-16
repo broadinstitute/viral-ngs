@@ -40,7 +40,7 @@ class TrimmomaticTool(tools.Tool):
         unpairedFastq2 = unpairedOutFastq2 or util.file.mkstempfname()
         javaCmd = [trimmomaticPath]
 
-        if inFastq2 is None:
+        if inFastq2 is None or os.path.getsize(inFastq2) < 10:
             # Unpaired reads
             javaCmd.extend([
                     'SE', '-phred33',
