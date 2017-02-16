@@ -408,52 +408,7 @@ def main_filter_bam(args):
 
 __commands__.append(('filter_bam', parser_filter_bam))
 
-# =======================
-# ***  bam_to_fastq   ***
-# =======================
 
-
-def bam_to_fastq(
-    inBam,
-    outFastq1,
-    outFastq2,
-    outHeader=None,
-    JVMmemory=tools.picard.SamToFastqTool.jvmMemDefault,
-    picardOptions=None
-):
-    ''' Convert a bam file to a pair of fastq paired-end read files and optional
-        text header.
-    '''
-    picardOptions = picardOptions or []
-
-    tools.picard.SamToFastqTool().execute(inBam, outFastq1, outFastq2, picardOptions=picardOptions, JVMmemory=JVMmemory)
-    if outHeader:
-        tools.samtools.SamtoolsTool().dumpHeader(inBam, outHeader)
-    return 0
-
-
-def parser_bam_to_fastq(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input bam file.')
-    parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('--outHeader', help='Optional text file name that will receive bam header.', default=None)
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.SamToFastqTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--picardOptions',
-        default=[],
-        nargs='*',
-        help='Optional arguments to Picard\'s SamToFastq, OPTIONNAME=value ...'
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, bam_to_fastq, split_args=True)
-    return parser
-
-
-__commands__.append(('bam_to_fastq', parser_bam_to_fastq))
 
 # =======================
 # ***  fastq_to_bam   ***
@@ -532,101 +487,6 @@ __commands__.append(('fastq_to_bam', parser_fastq_to_bam))
 defaultIndexLen = 2
 defaultMaxReads = 1000
 defaultFormat = 'fastq'
-
-
-def split_reads(
-    inFileName,
-    outPrefix,
-    outSuffix="",
-    maxReads=None,
-    numChunks=None,
-    indexLen=defaultIndexLen,
-    fmt=defaultFormat
-):
-    '''Split fasta or fastq file into chunks of maxReads reads or into
-           numChunks chunks named outPrefix01, outPrefix02, etc.
-       If both maxReads and numChunks are None, use defaultMaxReads.
-       The number of characters in file names after outPrefix is indexLen;
-            if not specified, use defaultIndexLen.
-    '''
-    if maxReads is None:
-        if numChunks is None:
-            maxReads = defaultMaxReads
-        else:
-            with util.file.open_or_gzopen(inFileName, 'rt') as inFile:
-                totalReadCount = 0
-                for rec in SeqIO.parse(inFile, fmt):
-                    totalReadCount += 1
-                maxReads = int(totalReadCount / numChunks + 0.5)
-
-    with util.file.open_or_gzopen(inFileName, 'rt') as inFile:
-        readsWritten = 0
-        curIndex = 0
-        outFile = None
-        for rec in SeqIO.parse(inFile, fmt):
-            if outFile is None:
-                indexstring = "%0" + str(indexLen) + "d"
-                outFileName = outPrefix + (indexstring % (curIndex + 1)) + outSuffix
-                outFile = util.file.open_or_gzopen(outFileName, 'wt')
-            SeqIO.write([rec], outFile, fmt)
-            readsWritten += 1
-            if readsWritten == maxReads:
-                outFile.close()
-                outFile = None
-                readsWritten = 0
-                curIndex += 1
-        if outFile is not None:
-            outFile.close()
-
-    return 0
-
-
-def parser_split_reads(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFileName', help='Input fastq or fasta file.')
-    parser.add_argument(
-        'outPrefix',
-        help='Output files will be named ${outPrefix}01${outSuffix}, ${outPrefix}02${outSuffix}...'
-    )
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument(
-        '--maxReads',
-        type=int,
-        default=None,
-        help='''Maximum number of reads per chunk (default {:d} if neither
-               maxReads nor numChunks is specified).'''.format(defaultMaxReads)
-    )
-    group.add_argument(
-        '--numChunks',
-        type=int, default=None,
-        help='Number of output files, if maxReads is not specified.'
-    )
-    parser.add_argument(
-        '--indexLen',
-        type=int,
-        default=defaultIndexLen,
-        help='''Number of characters to append to outputPrefix for each
-               output file (default %(default)s).
-               Number of files must not exceed 10^INDEXLEN.'''
-    )
-    parser.add_argument(
-        '--format',
-        dest="fmt",
-        choices=['fastq', 'fasta'],
-        default=defaultFormat,
-        help='Input fastq or fasta file (default: %(default)s).'
-    )
-    parser.add_argument(
-        '--outSuffix',
-        default='',
-        help='''Output filename suffix (e.g. .fastq or .fastq.gz).
-                  A suffix ending in .gz will cause the output file
-                  to be gzip compressed. Default is no suffix.'''
-    )
-    util.cmd.attach_main(parser, split_reads, split_args=True)
-    return parser
-
-
-__commands__.append(('split_reads', parser_split_reads))
 
 
 def split_bam(inBam, outBams):
@@ -778,7 +638,10 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     # Run M-Vicuna on FASTQ files
     outFastq1 = mkstempfname('.1.fastq')
     outFastq2 = mkstempfname('.2.fastq')
-    tools.mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
+    if inFastq2 is None or os.path.getsize(inFastq2) < 10:
+        tools.mvicuna.MvicunaTool().rmdup_single(inFastq1, outFastq1)
+    else:
+        tools.mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
 
     # Make a list of reads to keep
     with open(readList, 'at') as outf:
@@ -865,27 +728,6 @@ def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('rmdup_mvicuna_bam', parser_rmdup_mvicuna_bam))
 
-
-def parser_dup_remove_mvicuna(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('pairedOutFastq1', help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('pairedOutFastq2', help='Output fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('--unpairedOutFastq', default=None, help='File name of output unpaired reads')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_dup_remove_mvicuna)
-    return parser
-
-
-def main_dup_remove_mvicuna(args):
-    '''Run mvicuna's duplicate removal operation on paired-end reads.'''
-    tools.mvicuna.MvicunaTool().rmdup(
-        (args.inFastq1, args.inFastq2), (args.pairedOutFastq1, args.pairedOutFastq2), args.unpairedOutFastq
-    )
-    return 0
-
-
-__commands__.append(('dup_remove_mvicuna', parser_dup_remove_mvicuna))
 
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
