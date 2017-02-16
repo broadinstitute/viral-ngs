@@ -2,7 +2,7 @@ blast=2.2.31
 bmtagger=3.101
 bwa=0.7.15
 diamond=0.8.22=2
-gatk=3.7
+gatk=3.6
 kraken-all=0.10.6_eaf8fb68
 krona=2.7
 last=719
