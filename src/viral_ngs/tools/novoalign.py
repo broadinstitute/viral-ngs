@@ -177,7 +177,7 @@ class NovoalignTool(tools.Tool):
         tmp_sam = util.file.mkstempfname('.novoalign.sam')
         tmp_sam_err = util.file.mkstempfname('.novoalign.sam.err')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
-        cmd = cmd + ['-F', 'BAMPE', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
+        cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         _log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
             util.misc.run_and_save(cmd, outf=outf)

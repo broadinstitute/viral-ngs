@@ -63,6 +63,34 @@ class MvicunaTool(tools.Tool):
         for tmpfname, outfname in zip(tmp2OutPair, outPair):
             shutil.copyfile(tmpfname, outfname)
 
+    def rmdup_single(self, inFastq, outFastq):
+        """
+        Run mvicuna's duplicate removal operation on single-end input reads in
+            fastq format, producing output in fastq format.
+        Notes on weird behaviors of M-Vicuna DupRm:
+            For some reason, it requires you to specify both -opfq and -drm_op even for
+            single-end input.
+
+            Actually, more interestingly, this doesn't work at all.
+        """
+        _log.warn("MVicuna duplicate removal doesn't work for single-end reads. Copying input to output and allowing all reads to pass.")
+        shutil.copyfile(inFastq, outFastq)
+        '''
+        tmp1OutPair = (
+            util.file.mkstempfname(suffix='.tmp1out.1.fastq'), util.file.mkstempfname(suffix='.tmp1out.2.fastq')
+        )
+        tmp2OutPair = (
+            util.file.mkstempfname(suffix='.tmp2out.1.fastq'), util.file.mkstempfname(suffix='.tmp2out.2.fastq')
+        )
+        cmdline = [
+            self.install_and_get_path(), '-isfq', inFastq, '-osfq', outFastq,
+            '-opfq', ','.join(tmp2OutPair), '-drm_op', ','.join(tmp1OutPair),
+            '-tasks', 'DupRm'
+        ]
+        _log.debug(' '.join(cmdline))
+        subprocess.check_call(cmdline)
+        '''
+
 
 def _get_mvicuna_path():
     uname = os.uname()
