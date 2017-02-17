@@ -225,9 +225,6 @@ if __name__ == "__main__":
                 if reqs_file:
                     recipe_variables[var_name] = []
                     for line in reqs_file:
-
-                        #print("Before: "+line.replace("\n",""))
-                        #print("After:  "+reformat_package_line(line)+"\n")
                         conda_style_package_line = reformat_package_line(line)
                         if len(conda_style_package_line):
                             recipe_variables[var_name].append(conda_style_package_line)
@@ -260,17 +257,15 @@ if __name__ == "__main__":
                         # if this is an md5 line, don't write it out
                         if line.strip().startswith("md5"):
                             continue
-                        # if this is not a url line, write it verbatim
+                        # if this is not an md5 line, write it verbatim
                         else:
                             outf.writelines([line])
 
                             # if this is a url line
                             if line.strip().startswith("url"):
                                 # parse out the url
-                                #print(line)
                                 url_re = re.compile(r"^(?:(?P<leadingspace>\s*)url:\s*)(?P<url>[\S]*)(?P<extra>.*)$")
                                 matches = url_re.match(line)
-                                #print(matches)
                                 if matches:
                                     if matches.group("url"):
                                         # download file and calculate md5
