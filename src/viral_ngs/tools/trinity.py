@@ -6,12 +6,15 @@
     viral genomes.
 '''
 
+import contextlib
 import logging
 import os
 import os.path
+import resource
 import subprocess
 import tempfile
 import shutil
+import sys
 import tools
 
 TOOL_NAME = "trinity"
@@ -19,6 +22,26 @@ TOOL_VERSION = "2011-11-26"
 CONDA_TOOL_VERSION = "date.2011_11_26" # conda versions cannot have hyphens...
 
 log = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def unlimited_stack():
+    '''Set the ulimit on stack size to be infinity.
+
+    OS X has a fixed hard stack size limit of 64 MB, so we're not setting it here.
+    '''
+    soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    if sys.platform.startswith('linux'):
+        new_soft, new_hard = (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+        try:
+            resource.setrlimit(resource.RLIMIT_STACK, (new_soft, new_hard))
+            yield
+            resource.setrlimit(resource.RLIMIT_STACK, (soft, hard))
+        except (ValueError, OSError) as e:
+            log.warning('Error raising stacksize to unlimited: %s', str(e))
+            yield
+    else:
+        yield
 
 
 class TrinityTool(tools.Tool):
@@ -51,7 +74,7 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
-        subprocess.check_call(cmd)
+        with unlimited_stack():
+            subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
-
