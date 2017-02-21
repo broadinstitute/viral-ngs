@@ -26,3 +26,13 @@ future>=0.15.2
 pysam=0.9.1
 bedtools=2.26.0
 pybedtools=0.7.8
+PyYAML==3.11
+pytest==3.0.5
+pycodestyle
+mock==2.0.0
+six<2
+pytest-cov==2.4.0
+pytest-catchlog==1.2.2
+pytest-xdist==1.15.0
+flake8<=3
+Jinja2==2.8
