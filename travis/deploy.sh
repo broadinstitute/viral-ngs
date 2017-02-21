@@ -38,7 +38,7 @@ PKG_VERSION=$1
 if [ ! -z "$ANACONDA_TOKEN" ]; then
     echo "Running $SCRIPTPATH/package-conda.sh"
     # Render recipe from template and dependency files, setting the tag as the current version
-    packaging/conda-recipe/render-recipe.py $PKG_VERSION --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-py-tests.txt
+    packaging/conda-recipe/render-recipe.py $PKG_VERSION --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt
     conda build --python $TRAVIS_PYTHON_VERSION --token $ANACONDA_TOKEN packaging/conda-recipe/viral-ngs
     # TODO: this is where we check the exit code of conda build, and if successful,
     # trigger the viral-ngs-deploy repository to build the docker container
