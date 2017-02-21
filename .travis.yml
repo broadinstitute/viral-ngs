@@ -54,9 +54,9 @@ script:
 after_success:
   - coveralls
 
-# before_deploy:
-#   - source travis/install-conda.sh
-#   - conda install -y jinja2 # needed to render conda recipe
+before_deploy:
+  - source travis/install-conda.sh
+  - conda install -y jinja2 # needed to render conda recipe
 
 deploy:
   provider: script

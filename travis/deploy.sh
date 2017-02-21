@@ -27,7 +27,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 SCRIPT=$SOURCE
 SCRIPT_DIRNAME="$(dirname "$SOURCE")"
-SCRIPTPATH="$(cd -P "$(echo $SCRIPT_DIRNAME)" &> /dev/null && pwd)"
+SCRIPTPATH="$(cd -P "$SCRIPT_DIRNAME" &> /dev/null && pwd)"
 SCRIPT="$SCRIPTPATH/$(basename "$SCRIPT")"
 
 PKG_VERSION=$1
@@ -38,12 +38,11 @@ PKG_VERSION=$1
 if [ ! -z "$ANACONDA_TOKEN" ]; then
     echo "Running $SCRIPTPATH/package-conda.sh"
     # Render recipe from template and dependency files, setting the tag as the current version
-    packaging/conda-recipe/render-recipe.py $PKG_VERSION --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt
-    if conda build --python $TRAVIS_PYTHON_VERSION --token $ANACONDA_TOKEN packaging/conda-recipe/viral-ngs; then
+    packaging/conda-recipe/render-recipe.py "$PKG_VERSION" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt && \
+        conda build --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs && \
+        ./travis/trigger-tests-in-other-repo.sh
         # check the exit code of conda build, and if successful,
         # trigger the viral-ngs-deploy repository to test/build the docker container
-        ./travis/trigger-tests-in-other-repo.sh
-    fi
 else
     echo "ANACONDA_TOKEN is not defined. Conda package upload is only supported for branches on the original repository."
 fi
