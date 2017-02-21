@@ -47,6 +47,7 @@ else # if it does not exist, we need to install miniconda
     conda install -y -q conda=4.2 # pin to 4.2.* until this is fixed: https://github.com/conda/conda-build/issues/1666
     conda config --set auto_update_conda false
     conda install -y java-jdk==8.0.92
+    conda install -y conda-build
 fi
 
 conda info -a # for debugging

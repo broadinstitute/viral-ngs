@@ -3,7 +3,6 @@
 # stdlib
 import os, sys, re
 import glob
-import jinja2
 import json
 import pprint
 import argparse
@@ -14,6 +13,9 @@ try:
     from urllib.request import urlopen
 except ImportError:
     from urllib2 import urlopen
+
+# third party
+import jinja2
 
 """
 Renders Jinja2 templates using variables from dependency files
