@@ -34,11 +34,14 @@ PKG_VERSION=$1
 
 # === Build conda package and upload
 
+echo "Python binary: $(which python)"
+echo "Python version: $(python --version)"
+
 # if the ANACONDA_TOKEN is defined (not on an external branch)
 if [ ! -z "$ANACONDA_TOKEN" ]; then
     echo "Running $SCRIPTPATH/package-conda.sh"
     # Render recipe from template and dependency files, setting the tag as the current version
-    packaging/conda-recipe/render-recipe.py "$PKG_VERSION" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt && \
+    python packaging/conda-recipe/render-recipe.py "$PKG_VERSION" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt && \
         conda build --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs && \
         ./travis/trigger-tests-in-other-repo.sh
         # check the exit code of conda build, and if successful,
