@@ -1,15 +1,14 @@
 language: python
+sudo: false
 
 matrix:
+    fast_finish: true
     include:
         - os: linux
-          sudo: false
           python: 2.7
         - os: linux
-          sudo: false
           python: 3.4
         - os: linux
-          sudo: false
           python: 3.5
 #        - os: osx
 #          language: generic
