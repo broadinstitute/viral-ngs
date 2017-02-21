@@ -40,11 +40,13 @@ else # if it does not exist, we need to install miniconda
     fi
     hash -r
     conda config --set always_yes yes --set changeps1 no
+    conda config --set anaconda_upload yes # for uploading packages after successful build
     conda config --add channels bioconda
     conda config --add channels r
     conda config --add channels conda-forge
-    conda update -y -q conda
-    conda install java-jdk==8.0.92
+    conda install -y -q conda=4.2 # pin to 4.2.* until this is fixed: https://github.com/conda/conda-build/issues/1666
+    conda config --set auto_update_conda false
+    conda install -y java-jdk==8.0.92
 fi
 
 conda info -a # for debugging
