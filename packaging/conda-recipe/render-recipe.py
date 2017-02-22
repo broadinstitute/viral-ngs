@@ -253,7 +253,7 @@ if __name__ == "__main__":
         # populate md5 hashes for any source urls present
         if(template_file.endswith(".yaml")):
             # calculate and add md5 hashes to recipe
-            with open(os.path.join(dir_path, output_directory, template_file), "rb") as inf:
+            with open(os.path.join(dir_path, output_directory, template_file), "r") as inf:
                 with open(os.path.join(dir_path, output_directory, template_file+".checksumed"), "w") as outf:
                     for line in inf:
                         # if this is an md5 line, don't write it out
