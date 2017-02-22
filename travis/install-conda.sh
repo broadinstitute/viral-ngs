@@ -49,6 +49,7 @@ else # if it does not exist, we need to install miniconda
     conda install -y java-jdk==8.0.92
     conda install -y conda-build # needed to build recipe
     conda install -y anaconda-client # needed to upload build package to anaconda.org
+    conda install -y -c conda-forge curl # the bioconda curl is broken as of 21 Feb 2017
 fi
 
 conda info -a # for debugging
