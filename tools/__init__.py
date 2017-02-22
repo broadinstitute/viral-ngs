@@ -479,7 +479,8 @@ class CondaPackage(InstallMethod):
                     installed_package_string = data[0]["dist_name"]
                 else:
                     installed_package_string = data[0]
-                package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
+                # regex to match package specs in the format bioconda::biopython-1.68-py35_0
+                package_info_re = re.compile(r"(?:(?P<channel>.*)::)?(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
                 matches = package_info_re.match(installed_package_string)
                 if matches:
                     installed_version = matches.group("version")
