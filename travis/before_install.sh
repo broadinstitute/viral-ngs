@@ -24,5 +24,5 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     #   /Users/travis/build.sh: line 159: shell_session_update: command not found
     # Under OSX, some versions of ruby seem to cause this error.
     # See: https://github.com/travis-ci/travis-ci/issues/6307
-    rvm get stable
+    rvm get head
 fi
