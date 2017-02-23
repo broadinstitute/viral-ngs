@@ -18,3 +18,11 @@ if [ -z "$TRAVIS_TAG" ]; then
 else
     echo "Travis docker cache disabled for tools/build on tag: $TRAVIS_TAG"
 fi
+
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    # used to correct this error on Travis:
+    #   /Users/travis/build.sh: line 159: shell_session_update: command not found
+    # Under OSX, some versions of ruby seem to cause this error.
+    # See: https://github.com/travis-ci/travis-ci/issues/6307
+    rvm get stable
+fi
