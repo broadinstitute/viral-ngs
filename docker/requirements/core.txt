@@ -16,6 +16,7 @@ picard=2.5.0
 prinseq=0.20.4
 samtools=1.3.1
 snpeff=4.1l
+tbl2asn
 trimmomatic=0.36
 trinity=date.2011_11_26
 vphaser2=2.0
