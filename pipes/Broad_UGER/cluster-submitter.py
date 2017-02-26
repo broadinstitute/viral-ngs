@@ -16,10 +16,16 @@ props = read_job_properties(jobscript)
 # in /broad/hptmp/[username]/blacklisted-nodes/
 whoami = getpass.getuser()
 blacklisted_node_dir = os.path.join("/broad/hptmp", whoami, "blacklisted-nodes")
-if os.path.isdir(blacklisted_node_dir):
-    blacklisted_nodes = os.listdir(blacklisted_node_dir)
-else:
-    blacklisted_nodes = []
+if not os.path.exists(blacklisted_node_dir):
+    os.makedirs(blacklisted_node_dir)
+def hard_blacklist_node(node):
+    blacklist_path = os.path.join(blacklisted_node_dir, node)
+    with open(blacklist_path, 'a'):
+        os.utime(blacklist_path, None)
+# Always blacklist 'sgi1'; it cannot perform basic operations like
+# allocating memory
+hard_blacklist_node('sgi1')
+blacklisted_nodes = os.listdir(blacklisted_node_dir)
 
 # set up job name, project name
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
