@@ -12,7 +12,7 @@ import subprocess
 import tools
 import util.file
 
-TOOL_VERSION = '0.8.22'
+TOOL_VERSION = '0.8.36'
 CONDA_VERSION = tools.CondaPackageVersion('0.8.22', '2')
 
 log = logging.getLogger(__name__)
