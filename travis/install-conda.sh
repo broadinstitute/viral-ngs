@@ -46,7 +46,7 @@ else # if it does not exist, we need to install miniconda
     conda config --add channels conda-forge
     conda install -y -q conda=4.2 # pin to 4.2.* until this is fixed: https://github.com/conda/conda-build/issues/1666
     conda config --set auto_update_conda false
-    conda install -y java-jdk==8.0.92
+    conda install -y java-jdk==8.0.122
     conda install -y conda-build # needed to build recipe
     conda install -y anaconda-client # needed to upload build package to anaconda.org
     conda install -y -c conda-forge curl # the bioconda curl is broken as of 21 Feb 2017
