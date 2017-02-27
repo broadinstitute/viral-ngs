@@ -1,4 +1,4 @@
-blast=2.2.31
+blast=2.6.0
 bmtagger=3.101
 bwa=0.7.15
 diamond=0.8.22=2
