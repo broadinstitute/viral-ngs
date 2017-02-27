@@ -1,7 +1,7 @@
 blast=2.2.31
 bmtagger=3.101
 bwa=0.7.15
-diamond=0.8.22=2
+diamond=0.8.36
 gatk=3.6
 kraken-all=0.10.6_eaf8fb68 # [linux]
 krona=2.7
