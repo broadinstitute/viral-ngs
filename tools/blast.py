@@ -4,7 +4,7 @@ import os
 import util.misc
 
 TOOL_NAME = "blast"
-TOOL_VERSION = "2.2.31"
+TOOL_VERSION = "2.6.0"
 
 
 class BlastTools(tools.Tool):
