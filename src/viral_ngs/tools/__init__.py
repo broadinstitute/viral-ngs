@@ -205,7 +205,8 @@ class CondaPackageVersion(object):
         if spec.build_type:
             if self.build_type != spec.build_type:
                 return False
-        return self.version == spec.version
+        # if the specified version is blank/None (not specified), any version will work
+        return (spec.version=="") or (spec.version==None) or (self.version == spec.version)
 
     @property
     def version_spec(self):
