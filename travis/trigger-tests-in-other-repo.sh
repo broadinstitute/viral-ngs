@@ -3,7 +3,7 @@
 echo "Script called to trigger tests in external repository..."
 
 # parse out the second part of the job number (the '1' of '223.1')
-JOB_NUMBER = echo $TRAVIS_JOB_NUMBER | perl -lape 's/^(\d+)\.(\d+)/$2/g'
+JOB_NUMBER=$(echo $TRAVIS_JOB_NUMBER | perl -lape 's/^(\d+)\.(\d+)/$2/g')
 
 # if this is the first job in the matrix, only then trigger the external 
 # repository to avoid triple-building the Docker image
