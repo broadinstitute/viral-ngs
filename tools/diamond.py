@@ -13,10 +13,8 @@ import tools
 import util.file
 
 TOOL_VERSION = '0.8.36'
-CONDA_VERSION = tools.CondaPackageVersion(TOOL_VERSION)
 
 log = logging.getLogger(__name__)
-
 
 @tools.skip_install_test(condition=tools.is_osx())
 class Diamond(tools.Tool):
@@ -26,7 +24,7 @@ class Diamond(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [
-                tools.CondaPackage("diamond", version=CONDA_VERSION)
+                tools.CondaPackage("diamond", version=TOOL_VERSION)
             ]
         super(Diamond, self).__init__(install_methods=install_methods)
 
