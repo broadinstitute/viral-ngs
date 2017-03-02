@@ -24,7 +24,7 @@ _log = logging.getLogger(__name__)
 TOOL_NAME = 'snpeff'
 TOOL_VERSION = '4.1l'
 
-URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1i_core.zip'
+URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1l_core.zip'
 
 
 class SnpEff(tools.Tool):
