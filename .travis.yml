@@ -52,6 +52,7 @@ script:
   - travis/tests-long.sh
 
 after_success:
+  - conda install -y -c conda-forge -f curl  # the bioconda curl is broken as of 21 Feb 2017
   - coveralls
 
 before_deploy:
