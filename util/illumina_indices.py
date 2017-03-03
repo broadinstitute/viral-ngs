@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 
 """
-    Related only to data within this file: 
-    Oligonucleotide sequences © 2016 Illumina, Inc. All rights reserved.
-    See: https://support.illumina.com/content/dam/illumina-support/documents/documentation/chemistry_documentation/experiment-design/illumina-adapter-sequences_1000000002694-01.pdf
+    Related only to sequence data within this file: 
+        "Oligonucleotide sequences © 2016 Illumina, Inc. All rights reserved."
+        See: https://support.illumina.com/content/dam/illumina-support/documents/documentation/chemistry_documentation/experiment-design/illumina-adapter-sequences_1000000002694-01.pdf
+    Python code below is under the license of this repository:
+        https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/LICENSE
 """
 
 import re
 
-class IlluminaAdapterReference(object):
+class IlluminaIndexReference(object):
 
     def __init__(self, kit=None, instrument=None):
         self.kit = kit
@@ -16,7 +18,7 @@ class IlluminaAdapterReference(object):
 
     _kits = {
         "TruSight Amplicon Panels":{
-            "_short_name":"",
+            "_short_name":"trusight_amp",
             "i7":{
                 "A701":[{"seq":"ATCACGAC","instruments":[]}],
                 "A702":[{"seq":"ACAGTGGT","instruments":[]}],
@@ -31,7 +33,6 @@ class IlluminaAdapterReference(object):
                 "A711":[{"seq":"AGGGTCAA","instruments":[]}],
                 "A712":[{"seq":"AGGAGTGG","instruments":[]}]
             },
-            "_short_name":"",
             "i7":{
                 "A501": [{"seq":"TGAACCTT", "instruments":["MiSeq","HiSeq 2000","HiSeq 2500"]}, {"seq":"AAGGTTCA", "instruments":["MiniSeq","NextSeq","HiSeq 3000","HiSeq 4000"]}],
                 "A502": [{"seq":"TGCTAAGT", "instruments":["MiSeq","HiSeq 2000","HiSeq 2500"]}, {"seq":"ACTTAGCA", "instruments":["MiniSeq","NextSeq","HiSeq 3000","HiSeq 4000"]}],
@@ -44,7 +45,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSight Cardio":{
-            "_short_name":"",
+            "_short_name":"trusight_cardio",
             "i7":{
                 "N701": [{"seq":"TAAGGCGA","instruments":[]}],
                 "N702": [{"seq":"CGTACTAG","instruments":[]}],
@@ -64,7 +65,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSight One":{
-            "_short_name":"",
+            "_short_name":"trusight_one",
             "i7":{
                 "N701":[{"seq":"TAAGGCGA","instruments":[]}],
                 "N702":[{"seq":"CGTACTAG","instruments":[]}],
@@ -87,7 +88,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSight Rapid Capture":{
-            "_short_name":"",
+            "_short_name":"trusight_rapid_capture",
             "i7":{
                 "N701":[{"seq":"TAAGGCGA","instruments":[]}],
                 "N702":[{"seq":"CGTACTAG","instruments":[]}],
@@ -110,7 +111,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSight Tumor 15":{
-            "_short_name":"",
+            "_short_name":"trusight_tumor_15",
             "i7":{
                 "R701": [{"seq":"ATCACG","instruments":[]}],
                 "R702": [{"seq":"CGATGT","instruments":[]}],
@@ -143,7 +144,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSight RNA Pan-Cancer Panel":{
-            "_short_name":"",
+            "_short_name":"trusight_rna_pan_cancer",
             "indices":{
                 "AR001": [{"seq":"ATCACG", "instruments":[], "LT_set":"B"}],
                 "AR002": [{"seq":"CGATGT", "instruments":[], "LT_set":"A"}],
@@ -172,7 +173,7 @@ class IlluminaAdapterReference(object):
             },
         },
         "Nextera Index Kit":{
-            "_short_name":"",
+            "_short_name":"nextera",
             "i7":{
                 "N701": [{"seq":"TAAGGCGA","instruments":[],"seq_in_adapter":"TCGCCTTA"}],
                 "N702": [{"seq":"CGTACTAG","instruments":[],"seq_in_adapter":"CTAGTACG"}],
@@ -200,7 +201,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "Nextera XT Index Kit v2":{
-            "_short_name":"",
+            "_short_name":"nextera_v2",
             "i7":{
                 "N701": [{"seq":"TAAGGCGA","instruments":[],"seq_in_adapter":"TCGCCTTA"}],
                 "N702": [{"seq":"CGTACTAG","instruments":[],"seq_in_adapter":"CTAGTACG"}],
@@ -247,7 +248,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSeq Amplicon Kits":{
-            "_short_name":"",
+            "_short_name":"truseq_amplicon",
             "i7":{
                 "A701":[{"seq":"ATCACGAC","instruments":[]}],
                 "A702":[{"seq":"ACAGTGGT","instruments":[]}],
@@ -274,7 +275,7 @@ class IlluminaAdapterReference(object):
             }
         },
         "TruSeq DNA Methylation":{
-            "_short_name":"",
+            "_short_name":"truseq_methylation",
             "indices":{
                 "Index 1": [{"seq":"ATCACG","instruments":[]}],
                 "Index 2": [{"seq":"CGATGT","instruments":[]}],
@@ -291,7 +292,7 @@ class IlluminaAdapterReference(object):
             },
         },
         "TruSeq HT Kits":{
-            "_short_name":"",
+            "_short_name":"truseq_ht",
             "i7":{
                 "D701":[{"seq":"ATTACTCG","instruments":[]}],
                 "D702":[{"seq":"TCCGGAGA","instruments":[]}],
@@ -324,7 +325,7 @@ class IlluminaAdapterReference(object):
         #     "_short_name":"",
         # },
         "TruSeq Ribo Profile":{
-            "_short_name":"",
+            "_short_name":"truseq_ribo",
             "indices":{
                 "A001": [{"seq":"ATCACG","instruments":[]}],
                 "A002": [{"seq":"CGATGT","instruments":[]}],
@@ -347,7 +348,7 @@ class IlluminaAdapterReference(object):
         #     "_short_name":"",
         # },
         "TruSeq Targeted RNA Expression":{
-            "_short_name":"",
+            "_short_name":"truseq_rna_expression",
             "i7":{
                 "R701": [{"seq":"ATCACG","instruments":[]}],
                 "R702": [{"seq":"CGATGT","instruments":[]}],
@@ -429,31 +430,31 @@ class IlluminaAdapterReference(object):
         # }
     }
 
-    @staticmethod
-    def neighbors(seq):
-        ''' Returns a list of Hamming-distance 1 ngiehbors to a string seq'''
-        neighborlist = []
+    @classmethod
+    def neighbors(cls, seq, distance=1):
+        ''' Returns a list Hamming-distance of 1 from the input seq'''
+        neighbor_list = []
+
         seq = seq.rstrip()
         for i in range(0, len(seq.rstrip())):
             for j in ["A", "C", "G", "T", "N"]:
                 if j == seq[i].upper():
-                    continue    #  The seq itself is not among its neighbors
+                    continue    #  Do not include the seq itself
                 q = seq[0:i] + j + seq[i+1:]
-                neighborlist.append(q)
-        return neighborlist
+                neighbor_list.append(q)
+
+        if distance==1:
+            return sorted(neighbor_list)
+        else:
+            return sorted(list(set([item for sublist in (cls.neighbors(s, distance=distance-1) for s in neighbor_list) for item in sublist if item!=seq])))
 
     @staticmethod
     def reverse_complement(seq):
         """
             Returns the reverse complement using string.maketrans
         """
-        table = maketrans("ACTGN","TGACN")
-        return seq.translate(table)[::-1]
-
-    def set_instrument(self, instrument):
-        pass
-    def set_kit(self, kit):
-        pass
+        table = bytearray.maketrans(b"ACTGN",b"TGACN")
+        return bytearray(seq.encode("UTF8")).translate(table)[::-1].decode("UTF8")
 
     @property
     def _barcodes_meta_all(self):
@@ -467,9 +468,9 @@ class IlluminaAdapterReference(object):
                             barcodes.append(barcode_meta)
         return barcodes
 
-    @property
-    def kits(self):
-        return sorted(list(self._kits.keys()))
+    @classmethod
+    def kits(cls):
+        return sorted(list(cls._kits.keys()))
 
     @property
     def instruments(self):
@@ -479,29 +480,50 @@ class IlluminaAdapterReference(object):
             if len(ins_for_barcode):
             
                 instruments |= set(ins_for_barcode)
-        return list(instruments)
+        return sorted(list(instruments))
 
-    @classmethod
-    def instruments_for_kit(self, kit):
-        pass
 
     def index_for_seq(self, seq, kit=None, instrument=None):
-        # use kit/instrument passed in if present, if not use instance
+        # use kit/instrument passed in if present
         # value forinstrument, if present, if neither return list of options
-        pass
+        possible_indices = set()
+        for kit_name,kit_value in self._kits.items():
+            if not kit or (kit_name == kit) or (kit_value["_short_name"]==kit):
+                for item_key,item_value in kit_value.items():
+                    if type(item_value) == dict:
+                        for index_name,index_value in item_value.items():
+                            for barcode_meta in index_value:
+                                if barcode_meta["seq"] == seq:
+                                    if not instrument or instrument in barcode_meta["instruments"]:
+                                        possible_indices |= set([index_name])
+        return sorted(list(possible_indices))
+
 
     def seq_for_index(self, index, kit=None, instrument=None):
-        # use kit/instrument passed in if present, if not use instance
+        # use kit/instrument passed in if present
         # value forinstrument, if present, if neither return list of options
-        pass
+        possible_seqs = set()
+        for kit_name,kit_value in self._kits.items():
+            if not kit or (kit_name == kit) or (kit_value["_short_name"]==kit):
+                for item_key,item_value in kit_value.items():
+                    if type(item_value) == dict:
+                        for index_name,index_value in item_value.items():
+                            matches = re.match("(?P<index>"+index_name+")", index)
+                            if matches:
+                                for barcode_meta in index_value:
+                                    possible_seqs |= set([barcode_meta["seq"]])
+        return sorted(list(possible_seqs))
 
-    def guess_index(self, seq, kit=None, instrument=None):
+    def guess_index(self, seq, distance=1, kit=None, instrument=None):
         # using neighbors()...
-        # use kit/instrument passed in if present, if not use instance
-        # value forinstrument, if present, if neither return list of options
-        pass
-
-if __name__ == "__main__":
-    #ref = IlluminaAdapterReference()
-    print(IlluminaAdapterReference().kits)
-    print(IlluminaAdapterReference().instruments)
+        # use kit/instrument if present
+        possible_indices = set()
+        # first include exact matches
+        exact_matches = self.index_for_seq(seq, kit=kit, instrument=instrument)
+        if len(exact_matches):
+            possible_indices |= set(exact_matches)
+        else:
+            # then include barcodes _distance_ away
+            for neighbor_seq in self.neighbors(seq, distance=distance):
+                possible_indices |= set(self.index_for_seq(neighbor_seq, kit=kit, instrument=instrument))
+        return sorted(list(possible_indices))
