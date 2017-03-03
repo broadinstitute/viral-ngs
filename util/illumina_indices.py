@@ -2,7 +2,7 @@
 
 """
     Related only to sequence data within this file: 
-        "Oligonucleotide sequences © 2016 Illumina, Inc. All rights reserved."
+        "Oligonucleotide sequences Copyright 2016 Illumina, Inc. All rights reserved."
         See: https://support.illumina.com/content/dam/illumina-support/documents/documentation/chemistry_documentation/experiment-design/illumina-adapter-sequences_1000000002694-01.pdf
     Python code below is under the license of this repository:
         https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/LICENSE
