@@ -268,7 +268,7 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
 
     # sort the counts, descending. Truncate the result if desired
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
-    sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k] or ["Unknown"]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
+    sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
 
     # write the barcodes and their corresponding counts
     with open(outSummary, 'w') as tsvfile:
