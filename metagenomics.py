@@ -702,10 +702,13 @@ def align_rna_metagenomics(
     opts = list(picardOptions)
     dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
     pic = tools.picard.MarkDuplicatesTool()
-    pic.execute([aln_bam], aln_bam_deduped, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=pic.jvmMemDefault)
-    os.unlink(aln_bam)
+    pic.execute([aln_bam], aln_bam_deduped, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=JVMmemory)
 
-    sam_lca_report(tax_db, aln_bam_deduped, outReport=outReport, outLca=outLca)
+
+    os.unlink(aln_bam)
+    aln_bam_dd_sorted = util.file.mkstempfname('.bam')
+    samtools.sort(aln_bam_deduped, aln_bam_dd_sorted, args=['-n'], threads=numThreads)
+    sam_lca_report(tax_db, aln_bam_dd_sorted, outReport=outReport, outLca=outLca)
 
     if not outBam:
         os.unlink(aln_bam_deduped)
@@ -744,6 +747,11 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.PicardTools.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)
     return parser
