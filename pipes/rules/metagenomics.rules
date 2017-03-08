@@ -74,7 +74,7 @@ rule align_rna:
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --JVMmemory 30g --numThreads {params.numThreads}
         """
 
 rule krona_import_taxonomy:
