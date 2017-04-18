@@ -19,6 +19,12 @@ if sys.version_info >= (3, 2):
     import snakemake
 
 
+def add_to_sample_list(workdir, sample_list_name, sample_names):
+    with open(os.path.join(workdir, 'samples-{}.txt'.format(sample_list_name)), 'a') as outf:
+        for sample_name in sample_names:
+            outf.write(sample_name + '\n')
+
+
 def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4', '9876', 'x.y-7b')):
     ''' Set up a very simple project directory with empty input files. '''
 
@@ -36,11 +42,8 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
             pass
         with open(os.path.join(workdir, 'data', '00_raw', s + '.bam'), 'wt') as outf:
             pass
-    for fn in ('samples-assembly.txt', 'samples-depletion.txt', 'samples-runs.txt', 'samples-assembly-failures.txt',
-               'samples-metagenomics.txt'):
-        with open(os.path.join(workdir, fn), 'wt') as outf:
-            for s in sample_names:
-                outf.write(s + '\n')
+    for name in ('assembly', 'depletion', 'runs', 'assembly-failures', 'metagenomics'):
+        add_to_sample_list(workdir, name, sample_names)
 
     shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'Snakefile'), workdir)
     shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'config.yaml'), workdir)
@@ -104,3 +107,12 @@ class TestSimpleDryRuns(TestCaseWithTmp):
             workdir=self.workdir,
             dryrun=True,
             targets=['all_metagenomics']))
+
+    def test_missing_merge_inputs(self):
+        add_to_sample_list(self.workdir, 'assembly', 'G_missing')
+        res = snakemake.snakemake(
+            os.path.join(self.workdir, 'Snakefile'),
+            workdir=self.workdir,
+            dryrun=True,
+            targets=['all_assemble'])
+        assert res == False

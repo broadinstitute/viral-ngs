@@ -40,7 +40,7 @@ REQUIRE_AVAILABLE_SHARED_MEMORY=true
 REQUIRE_JAVA_TO_RUN=true
 
 # Perform checks on node and decide whether to blacklist
-if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! ls "$DATADIR"; then
+if [[ "$REQUIRE_NFS_SHARE_MOUNTED" = true ]] && ! $(ls "$DATADIR" &> /dev/null); then
     # Listing the data directory fails since the node does not have the
     # NFS share mounted
     echo "Host '$(hostname)' does not have NFS share mounted. Retrying.." 1>&2
@@ -61,10 +61,11 @@ if [[ "$REQUIRE_JAVA_TO_RUN" = true ]] && ! java -version; then
 fi
 
 
-echo $JOB_ID
+echo -e "JOB ID\t$JOB_ID"
 echo "=============================="
 
 {exec_job}
+EXIT_STATUS=$?
 
 # Report resource consumption because it's not reported by default
 echo "------------------------------"
@@ -75,4 +76,13 @@ qstat -j $JOB_ID | grep '^usage'
 # an error code of 100 is needed since UGER only prevents execution of dependent jobs if the preceding
 # job exits with error code 100
 
-cat $1 &>/dev/null && exit 0 || exit 100
+cat $1 &>/dev/null
+if [[ $? -eq 0 ]]; then
+    exit 0
+else
+    if [[ "{workflow.immediate_submit}" -eq "True" ]]; then
+        exit 100
+    else
+        exit $EXIT_STATUS
+    fi
+fi

@@ -13,6 +13,8 @@ import os.path
 import subprocess
 import gzip
 
+TOOL_NAME = "tbl2asn"
+TOOL_VERSION = "25.3" # quirk: versions error-out one year after their compilation date
 TOOL_URL = 'ftp://ftp.ncbi.nih.gov/toolbox/ncbi_tools/converters/by_program/tbl2asn/{os}.tbl2asn.gz'
 
 log = logging.getLogger(__name__)
@@ -22,7 +24,9 @@ class Tbl2AsnTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [DownloadGzipBinary(TOOL_URL.format(os=get_bintype()), 'tbl2asn')]
+            install_methods = []
+            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+            install_methods.append(DownloadGzipBinary(TOOL_URL.format(os=get_bintype()), 'tbl2asn'))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -64,7 +68,20 @@ class Tbl2AsnTool(tools.Tool):
             tool_cmd += ['-X', 'C']
 
         log.debug(' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+
+        # tbl2asn has a fun quirk where if the build is more than a year old
+        # it exits with a non-zero code and tells you to upgrade
+        # See: https://www.ncbi.nlm.nih.gov/IEB/ToolBox/C_DOC/lxr/source/demo/tbl2asn.c#L9674
+        # We can try to work around this by examining the output for the upgrade message
+        try:
+            subprocess.check_output(tool_cmd)
+        except subprocess.CalledProcessError as e:
+            old_version_expected_output = "This copy of tbl2asn is more than a year old.  Please download the current version."
+            if old_version_expected_output in e.output:
+                pass
+            else:
+                raise
+
     # pylint: enable=W0221
 
 

@@ -98,9 +98,10 @@ def set_tmp_dir(name):
     proposed_prefix = ['tmp']
     if name:
         proposed_prefix.append(name)
-    for e in ('LSB_JOBID', 'LSB_JOBINDEX'):
+    for e in ('LSB_JOBID', 'LSB_JOBINDEX', 'JOB_ID'):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
+            break
     tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
     return tempfile.tempdir
 

@@ -205,7 +205,8 @@ class CondaPackageVersion(object):
         if spec.build_type:
             if self.build_type != spec.build_type:
                 return False
-        return self.version == spec.version
+        # if the specified version is blank/None (not specified), any version will work
+        return (spec.version=="") or (spec.version==None) or (self.version == spec.version)
 
     @property
     def version_spec(self):
@@ -421,9 +422,9 @@ class CondaPackage(InstallMethod):
     def _attempt_install(self):
         try:
             # check for presence of conda command
-            util.misc.run_and_print(["conda", "-V"], loglevel=logging.INFO, check=True, env=self.conda_env)
+            util.misc.run_and_print(["conda", "-V"], buffered=True, check=True, env=self.conda_env, silent=True)
         except:
-            _log.debug("conda NOT installed")
+            _log.warning("conda NOT installed")
             self._is_attempted = True
             self.installed = False
             return
@@ -475,8 +476,12 @@ class CondaPackage(InstallMethod):
                 return # return rather than raise so we can fall back to the next install method
 
             if data and len(data):
-                installed_package_string = data[0]
-                package_info_re = re.compile(r"(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
+                if isinstance(data[0], dict):
+                    installed_package_string = data[0]["dist_name"]
+                else:
+                    installed_package_string = data[0]
+                # regex to match package specs in the format bioconda::biopython-1.68-py35_0
+                package_info_re = re.compile(r"(?:(?P<channel>.*)::)?(?P<package_name>.*)-(?P<version>.*)-(?P<build_type>.*)")
                 matches = package_info_re.match(installed_package_string)
                 if matches:
                     installed_version = matches.group("version")
