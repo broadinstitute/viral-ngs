@@ -289,15 +289,16 @@ class CoordMapper2Seqs(object):
                 finalPos1 = baseCount1  # Last pair of aligned real bases so far
             else:
                 gapSinceLast = True
-        if len(self.mapArrays[0]) == 0:
-            raise Exception('CoordMapper2Seqs: no aligned bases.')
-        if self.mapArrays[0][-1] != finalPos0:
-            self.mapArrays[0].append(finalPos0)
-            self.mapArrays[1].append(finalPos1)
+        if len(self.mapArrays[0]) > 0:
+            if self.mapArrays[0][-1] != finalPos0:
+                self.mapArrays[0].append(finalPos0)
+                self.mapArrays[1].append(finalPos1)
 
     def __call__(self, fromPos, fromWhich):
         """ fromPos: 1-based coordinate
             fromWhich: if 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."""
+        if len(self.mapArrays[0]) == 0:
+            raise Exception('CoordMapper2Seqs: no aligned bases.')
         if fromPos != int(fromPos):
             raise TypeError('CoordMapper2Seqs: pos %s is not an integer' % fromPos)
         fromArray = self.mapArrays[fromWhich]
