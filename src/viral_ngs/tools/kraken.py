@@ -67,8 +67,9 @@ class Kraken(tools.Tool):
             with open(outReads, 'rt') as outf:
                 pass
             return
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
+
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq.gz')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq.gz')
         # do not convert this to samtools bam2fq unless we can figure out how to replicate
         # the clipping functionality of Picard SamToFastq
         picard = tools.picard.SamToFastqTool()
@@ -79,13 +80,17 @@ class Kraken(tools.Tool):
         picard.execute(inBam, tmp_fastq1, tmp_fastq2,
                        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
                        JVMmemory=picard.jvmMemDefault)
+
         if numThreads is None:
             numThreads = 10000000
         opts = {
-            '--paired': None,
             '--threads': min(int(numThreads), util.misc.available_cpu_count()),
         }
-        res = self.execute('kraken', db, outReads, args=[tmp_fastq1, tmp_fastq2], options=opts)
+        if os.path.getsize(tmp_fastq2) < 50:
+            res = self.execute('kraken', db, outReads, args=[tmp_fastq1], options=opts)
+        else:
+            opts['--paired'] = None
+            res = self.execute('kraken', db, outReads, args=[tmp_fastq1, tmp_fastq2], options=opts)
         os.unlink(tmp_fastq1)
         os.unlink(tmp_fastq2)
 

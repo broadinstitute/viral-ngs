@@ -328,7 +328,7 @@ def coverage_lca(query_ids, parents, lca_percent=100):
         path = []
         while query_id != 1:
             path.append(query_id)
-            if parents[query_id] == 0:
+            if parents.get(query_id, 0) == 0:
                 log.warn('Parent for query id: {} missing'.format(query_id))
                 break
             query_id = parents[query_id]
@@ -702,10 +702,13 @@ def align_rna_metagenomics(
     opts = list(picardOptions)
     dupe_removal_out_metrics = util.file.mkstempfname('.metrics')
     pic = tools.picard.MarkDuplicatesTool()
-    pic.execute([aln_bam], aln_bam_deduped, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=pic.jvmMemDefault)
-    os.unlink(aln_bam)
+    pic.execute([aln_bam], aln_bam_deduped, dupe_removal_out_metrics, picardOptions=opts, JVMmemory=JVMmemory)
 
-    sam_lca_report(tax_db, aln_bam_deduped, outReport=outReport, outLca=outLca)
+
+    os.unlink(aln_bam)
+    aln_bam_dd_sorted = util.file.mkstempfname('.bam')
+    samtools.sort(aln_bam_deduped, aln_bam_dd_sorted, args=['-n'], threads=numThreads)
+    sam_lca_report(tax_db, aln_bam_dd_sorted, outReport=outReport, outLca=outLca)
 
     if not outBam:
         os.unlink(aln_bam_deduped)
@@ -735,15 +738,20 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--dupeReport', help='Generate report including duplicates.')
     parser.add_argument(
-        '--noSensitive',
+        '--sensitive',
         dest='sensitive',
-        action="store_false",
-        help='Use default BWA mem options instead of sensitive options.'
+        action="store_true",
+        help='Use sensitive instead of default BWA mem options.'
     )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outLca', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.PicardTools.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)
     return parser
