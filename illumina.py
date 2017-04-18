@@ -155,6 +155,55 @@ __commands__.append(('illumina_demux', parser_illumina_demux))
 
 
 # ==========================
+# ***  lane_metrics   ***
+# ==========================
+
+def parser_lane_metrics(parser=argparse.ArgumentParser()):
+    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
+    parser.add_argument('outPrefix', help='''Prefix path to the *.illumina_lane_metrics and *.illumina_phasing_metrics files.''')
+    parser.add_argument('--read_structure',
+                        help='Override read structure (default: read from RunInfo.xml).',
+                        default=None)
+    parser.add_argument('--JVMmemory',
+                        help='JVM virtual memory size (default: %(default)s)',
+                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_lane_metrics)
+    return parser
+
+def main_lane_metrics(args):
+    '''
+        Write out lane metrics to a tsv file.
+    '''
+    # prepare
+    illumina = IlluminaDirectory(args.inDir)
+    illumina.load()
+    if args.read_structure:
+        read_structure = args.read_structure
+    else:
+        read_structure = illumina.get_RunInfo().get_read_structure()
+
+    # Picard CollectIlluminaLaneMetrics
+    output_dir = os.path.dirname(os.path.realpath(args.outPrefix))
+    output_prefix = os.path.basename(os.path.realpath(args.outPrefix))
+
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.CollectIlluminaLaneMetricsTool.option_list
+                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts['read_structure'] = read_structure
+    tools.picard.CollectIlluminaLaneMetricsTool().execute(
+        illumina.path,
+        output_dir,
+        output_prefix,
+        picardOptions=picardOpts,
+        JVMmemory=args.JVMmemory)
+
+    illumina.close()
+    return 0
+
+__commands__.append(('lane_metrics', parser_lane_metrics))
+
+
+# ==========================
 # ***  common_barcodes   ***
 # ==========================
 
