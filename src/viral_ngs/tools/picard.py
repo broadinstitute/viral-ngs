@@ -318,6 +318,38 @@ class BuildBamIndexTool(PicardTools):
         opts = ['INPUT=' + inBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
+class CollectIlluminaLaneMetricsTool(PicardTools):
+    subtoolName = 'CollectIlluminaLaneMetrics'
+    jvmMemDefault = '8g'
+    defaults = {'read_structure': '101T8B8B101T'}
+    option_list = (
+        'read_structure',
+    )
+
+    def execute(
+        self, run_dir,
+        output_dir, output_prefix,
+        picardOptions=None,
+        JVMmemory=None
+    ):    # pylint: disable=W0221
+        picardOptions = picardOptions or {}
+
+        opts_dict = self.defaults.copy()
+        for k, v in picardOptions.items():
+            opts_dict[k] = v
+        opts = []
+        for k, v in opts_dict.items():
+            if v is not None:
+                if type(v) in (list, tuple):
+                    for x in v:
+                        opts.append('='.join((k.upper(), str(x))))
+                else:
+                    opts.append('='.join((k.upper(), str(v))))
+                    
+        opts += ['RUN_DIRECTORY=' + run_dir]
+        opts += ['OUTPUT_DIRECTORY=' + output_dir]
+        opts += ['OUTPUT_PREFIX=' + output_prefix]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
 
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
