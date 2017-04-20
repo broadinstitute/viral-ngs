@@ -224,13 +224,15 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
     def test_no_real_bases_in_sample(self):
         alignment1 = makeTempFasta([('s1', 'AA'), ('s2', '--'),])
         cm = interhost.CoordMapper()
+        cm.load_alignments([alignment1])
         with self.assertRaises(Exception):
-            cm.load_alignments([alignment1])
+            cm.mapChr('s1', 's2', 1)
 
         alignment2 = makeTempFasta([('s1', '--'), ('s2', 'AA'), ('s3', 'TT'),])
         cm = interhost.CoordMapper()
+        cm.load_alignments([alignment2])
         with self.assertRaises(Exception):
-            cm.load_alignments([alignment2])
+            cm.mapChr('s2', 's1', 1)
 
     def test_no_real_bases_at_position(self):
         alignment = makeTempFasta([('s1', 'AT-G'), ('s2', 'AC-G'), ('s3', 'AG-T'),])

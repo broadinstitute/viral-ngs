@@ -64,7 +64,7 @@ rule kraken:
 rule align_rna:
     input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
     output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.report"),
-            dupe_report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
+            nodupes_report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
             bam=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"),
             lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
             nodupes_lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
@@ -74,7 +74,7 @@ rule align_rna:
             UGER=config.get('UGER_queues', {}).get('long', '-q long')
     shell:
         """
-        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.report} --dupeReport {output.dupe_report} --outBam {output.bam} --outLca {output.lca} --dupeLca {output.nodupes_lca} --numThreads {params.numThreads}
+        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outLca {output.nodupes_lca} --dupeLca {output.lca} --JVMmemory {resources.mem}g --numThreads {params.numThreads}
         """
 
 rule krona_import_taxonomy:

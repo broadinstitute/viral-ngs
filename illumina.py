@@ -21,6 +21,7 @@ from collections import defaultdict
 import util.cmd
 import util.file
 import tools.picard
+from util.illumina_indices import IlluminaIndexReference
 
 log = logging.getLogger(__name__)
 
@@ -154,13 +155,65 @@ __commands__.append(('illumina_demux', parser_illumina_demux))
 
 
 # ==========================
+# ***  lane_metrics   ***
+# ==========================
+
+def parser_lane_metrics(parser=argparse.ArgumentParser()):
+    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
+    parser.add_argument('outPrefix', help='''Prefix path to the *.illumina_lane_metrics and *.illumina_phasing_metrics files.''')
+    parser.add_argument('--read_structure',
+                        help='Override read structure (default: read from RunInfo.xml).',
+                        default=None)
+    parser.add_argument('--JVMmemory',
+                        help='JVM virtual memory size (default: %(default)s)',
+                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_lane_metrics)
+    return parser
+
+def main_lane_metrics(args):
+    '''
+        Write out lane metrics to a tsv file.
+    '''
+    # prepare
+    illumina = IlluminaDirectory(args.inDir)
+    illumina.load()
+    if args.read_structure:
+        read_structure = args.read_structure
+    else:
+        read_structure = illumina.get_RunInfo().get_read_structure()
+
+    # Picard CollectIlluminaLaneMetrics
+    output_dir = os.path.dirname(os.path.realpath(args.outPrefix))
+    output_prefix = os.path.basename(os.path.realpath(args.outPrefix))
+
+    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.CollectIlluminaLaneMetricsTool.option_list
+                      if hasattr(args, opt) and getattr(args, opt) != None)
+    picardOpts['read_structure'] = read_structure
+    tools.picard.CollectIlluminaLaneMetricsTool().execute(
+        illumina.path,
+        output_dir,
+        output_prefix,
+        picardOptions=picardOpts,
+        JVMmemory=args.JVMmemory)
+
+    illumina.close()
+    return 0
+
+__commands__.append(('lane_metrics', parser_lane_metrics))
+
+
+# ==========================
 # ***  common_barcodes   ***
 # ==========================
 
 def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
     parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outSummary', help='Path to the summary file (.tsv format). It includes two columns: (barcode, count)')
+    parser.add_argument('outSummary', help='''Path to the summary file (.tsv format). It includes several columns: 
+                                            (barcode1, likely_index_name1, barcode2, likely_index_name2, count), 
+                                            where likely index names are either the exact match index name for the barcode 
+                                            sequence, or those Hamming distance of 1 away.''')
 
     parser.add_argument('--truncateToLength',
                         help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
@@ -264,14 +317,14 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
 
     # sort the counts, descending. Truncate the result if desired
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
-    sorted_counts = list((k, barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
+    sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
 
     # write the barcodes and their corresponding counts
     with open(outSummary, 'w') as tsvfile:
         writer = csv.writer(tsvfile, delimiter='\t')
         # write the header unless the user has specified not to do so
         if not omitHeader:
-            writer.writerow(("Barcode", "Count"))
+            writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
         for barcode_count_tuple in sorted_counts:
             writer.writerow(barcode_count_tuple)
 
