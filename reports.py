@@ -460,7 +460,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         nargs=2,
         default=None,
         type=int,
-        help="Limits on the x-axis of the coverage plot"
+        help="Limits on the x-axis of the coverage plot; args are '<min> <max>'"
     )
     parser.add_argument(
         '--plotYLimits',
@@ -468,7 +468,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         nargs=2,
         default=None,
         type=int,
-        help="Limits on the y-axis of the coverage plot"
+        help="Limits on the y-axis of the coverage plot; args are '<min> <max>'"
     )
     parser.add_argument(
         '-q', dest="base_q_threshold",
