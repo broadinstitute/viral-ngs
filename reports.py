@@ -455,6 +455,22 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         help="The title displayed on the coverage plot (default: '%(default)s')"
     )
     parser.add_argument(
+        '--plotXLimits',
+        dest="plot_x_limits",
+        nargs=2,
+        default=None,
+        type=int,
+        help="Limits on the x-axis of the coverage plot; args are '<min> <max>'"
+    )
+    parser.add_argument(
+        '--plotYLimits',
+        dest="plot_y_limits",
+        nargs=2,
+        default=None,
+        type=int,
+        help="Limits on the y-axis of the coverage plot; args are '<min> <max>'"
+    )
+    parser.add_argument(
         '-q', dest="base_q_threshold",
         default=None, type=int,
         help="The minimum base quality threshold"
@@ -492,6 +508,8 @@ def plot_coverage(
     plot_height,
     plot_dpi,
     plot_title,
+    plot_x_limits,
+    plot_y_limits,
     base_q_threshold,
     mapping_q_threshold,
     max_coverage_depth,
@@ -631,6 +649,13 @@ def plot_coverage(
         plt.xlabel("bp", fontsize=font_size * 1.1)
         plt.ylabel("read depth", fontsize=font_size * 1.1)
 
+        if plot_x_limits is not None:
+            x_min, x_max = plot_x_limits
+            plt.xlim(x_min, x_max)
+        if plot_y_limits is not None:
+            y_min, y_max = plot_y_limits
+            plt.ylim(y_min, y_max)
+
         # to squash a backend renderer error on OSX related to tight layout
         if plt.get_backend().lower() in ['agg', 'macosx']:
             fig.set_tight_layout(True)
@@ -669,6 +694,8 @@ def align_and_plot_coverage(
     plot_height,
     plot_dpi,
     plot_title,
+    plot_x_limits,
+    plot_y_limits,
     base_q_threshold,
     mapping_q_threshold,
     max_coverage_depth,
@@ -762,7 +789,8 @@ def align_and_plot_coverage(
     # -- call plot function --
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
-        base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, excludeDuplicates, out_summary
+        plot_x_limits, plot_y_limits, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold,
+        excludeDuplicates, out_summary
     )
 
     # remove the output bam, unless it is needed
