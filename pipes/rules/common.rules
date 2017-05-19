@@ -1,4 +1,5 @@
 
+import copy
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -74,3 +75,45 @@ def webfile_readlines(uriToGet):
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
+
+def process_cfg_includes(cfg, seen=None, std_include=None):
+    '''Add bindings from any (nested) config includes'''
+    print('process_cfg_includes: cfg={} seen={} std_include={}'.format(cfg, seen, std_include))
+    if seen is None: seen = set()
+    seenOrig = copy.deepcopy(seen)
+    result=dict()
+
+    def make_list(x): return [x] if isinstance(x,str) else x
+
+    def merge_dicts(old,new):
+        result=dict()
+        result.update(old)
+        result.update(new)
+        return result
+
+    def do_update(old,new):
+        result = merge_dicts(old,new)
+        if 'env_vars' in old and 'env_vars' in new:
+            result['env_vars']=merge_dicts(old['env_vars'],new['env_vars'])
+        return result
+
+    cfg_includes=[]
+    if std_include: cfg_includes += [std_include]
+    cfg_includes += make_list(cfg.get('include_config', []))
+
+    for incl_cfg in cfg_includes:
+        assert os.path.isfile(incl_cfg), "Included config file does not exist: {}".format(incl_cfg)
+        assert os.path.realpath(incl_cfg) not in seen, "Circular config include: {} already seen (seen={})".format(incl_cfg,seen)
+        seen.add(os.path.realpath(incl_cfg))
+        result = do_update(result,load_cfg(incl_cfg, seen))
+
+    result = do_update(result, cfg)
+    return result
+    
+
+def load_cfg(f, seen):
+    '''Load a config file, including any includes'''
+    with open(f) as cfg_f:
+        return process_cfg_includes(yaml.safe_load(cfg_f) or dict(), seen)
+
+

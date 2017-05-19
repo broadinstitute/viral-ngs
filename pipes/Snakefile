@@ -9,22 +9,24 @@
 
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
-import os
+import os, yaml
 
 configfile: "config.yaml"
-pipesDir = os.path.join(os.path.expanduser(config['bin_dir']), 'pipes', 'rules')
+pipesDir = os.path.join(os.path.expanduser(config['bin_dir']), 'pipes')
+rulesDir = os.path.join(pipesDir, 'rules')
 
-include: os.path.join(pipesDir, 'common.rules')
+include: os.path.join(rulesDir, 'common.rules')
+config = process_cfg_includes(config, std_include=os.path.join(pipesDir,'config.yaml'))
 set_env_vars()
 
-include: os.path.join(pipesDir, 'demux.rules')
-include: os.path.join(pipesDir, 'hs_deplete.rules')
-include: os.path.join(pipesDir, 'assembly.rules')
-include: os.path.join(pipesDir, 'metagenomics.rules')
-include: os.path.join(pipesDir, 'interhost.rules')
-include: os.path.join(pipesDir, 'ncbi.rules')
-include: os.path.join(pipesDir, 'intrahost.rules')
-include: os.path.join(pipesDir, 'reports.rules')
+include: os.path.join(rulesDir, 'demux.rules')
+include: os.path.join(rulesDir, 'hs_deplete.rules')
+include: os.path.join(rulesDir, 'assembly.rules')
+include: os.path.join(rulesDir, 'metagenomics.rules')
+include: os.path.join(rulesDir, 'interhost.rules')
+include: os.path.join(rulesDir, 'ncbi.rules')
+include: os.path.join(rulesDir, 'intrahost.rules')
+include: os.path.join(rulesDir, 'reports.rules')
 
 samples_assembly = list(read_samples_file(config["samples_assembly"]))
 samples_metagenomics = list(read_samples_file(config["samples_metagenomics"]))
