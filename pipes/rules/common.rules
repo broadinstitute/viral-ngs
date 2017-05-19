@@ -77,7 +77,17 @@ def webfile_readlines(uriToGet):
             yield cleanedLine
 
 def process_cfg_includes(cfg, seen=None, std_include=None):
-    '''Add bindings from any (nested) config includes'''
+    '''Add bindings from any (nested) config includes.
+
+    Args:
+       cfg: a dictionary representing a config file. Can specify included config files via config entry
+         'include_config', which can be a file or a list of files.  (Relative paths are interpreted
+         relative to the current directory, not to the location of any config file).
+         Bindings from cfg override any bindings from config files it includes.
+
+       seen: set of config files already loaded (to catch circular includes)
+       std_include: the standard config file from the viral-ngs code checkout, pipes/config.yaml .
+    '''
     print('process_cfg_includes: cfg={} seen={} std_include={}'.format(cfg, seen, std_include))
     if seen is None: seen = set()
     seenOrig = copy.deepcopy(seen)
@@ -86,12 +96,17 @@ def process_cfg_includes(cfg, seen=None, std_include=None):
     def make_list(x): return [x] if isinstance(x,str) else x
 
     def merge_dicts(old,new):
+        """Return a new dict with entries from both dicts `old` and `new`. 
+           If both have an entry, one from `new` is used."""
         result=dict()
         result.update(old)
         result.update(new)
         return result
 
     def do_update(old,new):
+        """Merge two dicts, with entries from `new` taking priority.  If special entry `env_vars` exists in both,
+        the two entries will be merged in the results, with `env_vars` mappings from `new` taking priority.
+        """
         result = merge_dicts(old,new)
         if 'env_vars' in old and 'env_vars' in new:
             result['env_vars']=merge_dicts(old['env_vars'],new['env_vars'])
@@ -103,7 +118,8 @@ def process_cfg_includes(cfg, seen=None, std_include=None):
 
     for incl_cfg in cfg_includes:
         assert os.path.isfile(incl_cfg), "Included config file does not exist: {}".format(incl_cfg)
-        assert os.path.realpath(incl_cfg) not in seen, "Circular config include: {} already seen (seen={})".format(incl_cfg,seen)
+        assert os.path.realpath(incl_cfg) not in seen, \
+            "Circular config include: {} already seen (seen={})".format(incl_cfg,seen)
         seen.add(os.path.realpath(incl_cfg))
         result = do_update(result,load_cfg(incl_cfg, seen))
 
