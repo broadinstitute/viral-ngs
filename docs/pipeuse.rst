@@ -243,7 +243,7 @@ contaminents from reads:
 
 Pre-built databases for Trimmomatic:
 
--  `contaminants.fasta.tar.gz <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz>`__ (`*.lz4 <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.lz4>`__)
+-  `contaminants.fasta.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.lz4>`__)
 
 A FASTA file containing spike-ins to be reported:
 
