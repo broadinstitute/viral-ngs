@@ -8,6 +8,8 @@ import re
 import subprocess
 import multiprocessing
 import sys
+import copy
+import yaml
 
 import util.file
 
@@ -411,3 +413,29 @@ def which(application_binary_name):
         if os.path.exists(full_path) and os.access(full_path, os.X_OK):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
+
+def load_config(cfg, include_directive='include_config', std_includes=[]):
+    '''Load a config file, recursively loading any included config files.
+
+    Args:
+       cfg: the name of a YAML config file, or a dict read from such a file. 
+         Can specify included config files via config entry
+         with the key given by `include_directive`, the value of which can be a file or a list of files.  
+         (Relative paths are interpreted relative to the current directory, not to the location of any config file).
+         Bindings from cfg override any bindings from config files it includes.
+    '''
+
+    result=dict()
+
+    if isinstance(cfg, str): cfg = yaml.safe_load(cfg)
+
+    def make_list(x): return [x] if isinstance(x,str) else x
+
+    for included_cfg in make_list(std_includes)+make_list(cfg.get(include_directive, [])):
+        result.update(load_config(included_cfg))
+
+    # mappings in the current (top-level) config override any mappings from included configs
+    result.update(cfg)
+
+    return result
+

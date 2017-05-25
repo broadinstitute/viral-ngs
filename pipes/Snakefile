@@ -10,13 +10,14 @@
 __author__ = 'Daniel Park <dpark@broadinstitute.org>'
 
 import os, yaml
+import util.misc
 
 configfile: "config.yaml"
 pipesDir = os.path.join(os.path.expanduser(config['bin_dir']), 'pipes')
 rulesDir = os.path.join(pipesDir, 'rules')
 
 include: os.path.join(rulesDir, 'common.rules')
-config = process_cfg_includes(config, std_include=os.path.join(pipesDir,'config.yaml'))
+config = util.misc.load_config(config, std_includes=[os.path.join(pipesDir,'config.yaml')])
 set_env_vars()
 
 include: os.path.join(rulesDir, 'demux.rules')
