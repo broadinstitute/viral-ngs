@@ -8,6 +8,7 @@ import os.path
 import tempfile
 import shutil
 import subprocess
+import contextlib
 from decimal import *
 
 import pysam
@@ -101,19 +102,48 @@ class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2, outFastq0=None,
+                illuminaClipping=False,
+                picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        '''Write paired reads from `inBam` to `outFastq1` and `outFastq1`.  If `outFastq0` is given, write
+        any unpaired reads from `inBam` there, else ignore them.'''
+
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # Picard SamToFastq cannot deal with an empty input BAM file
-            with open(outFastq1, 'wt') as outf:
-                pass
-            with open(outFastq2, 'wt') as outf:
-                pass
+            for f in (outFastq1, outFastq2, outFastq0):
+                if f: util.file.touch_empty(f)
         else:
             picardOptions = picardOptions or []
+
             opts = [
                 'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
             ]
+            if outFastq0: 
+                assert outFastq2, "outFastq0 option only applies in paired-end output mode"
+                opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
+
+            if illuminaClipping: 
+                opts += PicardTools.dict_to_picard_opts({
+                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ACTION': 'X'
+                })
+
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        
+    @contextlib.contextmanager
+    def execute_tmp(self, inBam, sfx='', includeUnpaired=False, **kwargs):
+        '''Output reads from `inBam` to temp fastq files, and yield their filenames as a tuple.
+        If `includeUnpaired` is True, output unpaired reads to a third temp fastq file and yield it as a third
+        element of the tuple.
+        '''
+        if not includeUnpaired:
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq')) as (outFastq1, outFastq2):
+                self.execute(inBam, outFastq1, outFastq2, **kwargs)
+                yield outFastq1, outFastq2
+        else:
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq', sfx+'.0.fq')) as (outFastq1, outFastq2, outFastq0):
+                self.execute(inBam, outFastq1, outFastq2, outFastq0=outFastq0, **kwargs)
+                yield outFastq1, outFastq2, outFastq0
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
         if tools.samtools.SamtoolsTool().isEmpty(inBam):

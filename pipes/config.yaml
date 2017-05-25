@@ -192,6 +192,27 @@ vphaser_max_bins: 10
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
 
+# Preprocessing method for reads for de novo assembly
+assembly_preproc_method: 'subsamp'
+
+# Method of de novo assembly
+assembly_de_novo_method: 'trinity'
+
+# Method of choosing the reference to use for scaffolding
+refchoice_for_scaffold_method: 'common'
+
+# Method of scaffolding contigs
+scaffold_method: 'scaffolded'
+
+# Method of filling gaps between contigs from the reads
+gapfill_method: 'none'
+
+# Method of choosing the reference to use for imputation
+refchoice_for_impute_method: 'common'
+
+# Method for post-processing of the first refinement step.
+refine1_postprocess_method: ''
+
 #    |----------------------- Data storage locations ---------------------------
 
 # The parent directory containing data sub-directories.

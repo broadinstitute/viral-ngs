@@ -156,6 +156,58 @@ def main_index_fasta_picard(args):
 
 __commands__.append(('index_fasta_picard', parser_index_fasta_picard))
 
+# ==========================
+# ***  index_fasta_all   ***
+# ==========================
+
+def index_fasta_all(
+    theFasta,
+    JVMmemory=None,
+    threads=1,
+    novoalign_license_path=None
+):
+    ''' Index FASTA file for Picard, Samtools, and Novoalign.
+    '''
+    picard_index = tools.picard.CreateSequenceDictionaryTool()
+    samtools = tools.samtools.SamtoolsTool()
+    novoalign = tools.novoalign.NovoalignTool(license_path=novoalign_license_path)
+
+    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    picard_index.execute(theFasta, overwrite=True)
+    # if the input bam is empty, an empty fasta will be created, however
+    # faidx cannot index an empty fasta file, so only index if the fasta
+    # has a non-zero size
+    if (os.path.getsize(theFasta) > 0):
+        samtools.faidx(theFasta, overwrite=True)
+        novoalign.index_fasta(theFasta)
+        
+    return 0
+
+
+def parser_index_fasta_all(parser=argparse.ArgumentParser()):
+    parser.add_argument(
+        'theFasta',
+         help='FASTA format file to be indexed for Picard, Samtools, and Novoalign.'
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.gatk.GATKTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--NOVOALIGN_LICENSE_PATH',
+        default=None,
+        dest="novoalign_license_path",
+        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, index_fasta_all, split_args=True)
+    return parser
+
+
+__commands__.append(('index_fasta_all', parser_index_fasta_all))
+
+
 # =============================
 # ***  mkdup_picard   ***
 # =============================
