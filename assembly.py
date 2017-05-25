@@ -15,6 +15,8 @@ import os
 import os.path
 import shutil
 import subprocess
+import collections
+import json
 
 try:
     from itertools import zip_longest    # pylint: disable=E0611
@@ -45,16 +47,20 @@ import Bio.Data.IUPACData
 
 log = logging.getLogger(__name__)
 
+PreprocStats = collections.named_tuple('PreprocStats', 
+                                       ['n_start', 'n_trimmed', 'n_rmdup', 'n_output', 
+                                        'n_subsamp', 'n_unpaired_subsamp'])
+                                                    
+
+def format_preproc_stats(s):
+    return '{} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(s.n_start, s.n_trimmed, s.n_rmdup, s.n_output, s.n_subsamp, s.n_unpaired_subsamp)
 
 class DenovoAssemblyError(Exception):
 
-    def __init__(self, n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp):
+    def __init__(self, preprocStats):
         super(DenovoAssemblyError, self).__init__(
-            'denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(
-                n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp
-            )
+            'denovo assembly (Trinity) failed. '+format_preproc_stats(preprocStats)
         )
-
 
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outStatsFile=None):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
@@ -241,10 +247,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outStatsFile
                 os.unlink(f[i])
 
     # multiply counts so all reflect individual reads
-    outStats_tuple = (n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)
-    if outStatsFile: util.file.dump_file(outStatsFile, outStats_tuple)
-    return outStats_tuple
-
+    outStats = PreprocStats(n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)
+    if outStatsFile: util.file.dump_file(outStatsFile, json.dumps(outStats._asdict()))
+    return outStats
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
@@ -254,7 +259,7 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
         help="""Output reads, unaligned BAM format (currently, read groups and other
                 header information are destroyed in this process)."""
     )
-    parser.add_argument('--outStatsFile', help='If given, save to this file the stats about the reads we processed, as a tuple of the form (n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)')
+    parser.add_argument('--outStatsFile', help='If given, save to this file the stats about the reads we processed, in json format')
     parser.add_argument(
         '--n_reads',
         default=100000,
@@ -287,7 +292,7 @@ def assemble_trinity(
 
     if already_preprocessed_bam:
         subsamp_bam = inBam
-        read_stats = eval(util.file.slurp_file(preprocessed_bam_stats, noErr=True) or '(0,0,0,0,0,0)')
+        read_stats = json.loads(util.file.slurp_file(preprocessed_bam_stats)) if preprocessed_bam_stats else PreprocStats()
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
         read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
@@ -301,7 +306,7 @@ def assemble_trinity(
                 log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
                 util.file.touch_empty(outFasta)
             else:
-                raise DenovoAssemblyError(*read_stats)
+                raise DenovoAssemblyError(read_stats)
 
     if outReads: shutil.copyfile(subsamp_bam, outReads)
     if not already_preprocessed_bam: os.unlink(subsamp_bam)
