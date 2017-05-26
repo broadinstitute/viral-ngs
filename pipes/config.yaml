@@ -33,7 +33,7 @@ blast_db_remove:
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
-#  - https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.tar.gz
 trim_clip_db: "/idi/sabeti-scratch/shared-resources/depletion-databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
