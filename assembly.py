@@ -47,7 +47,7 @@ import Bio.Data.IUPACData
 
 log = logging.getLogger(__name__)
 
-PreprocStats = collections.named_tuple('PreprocStats', 
+PreprocStats = collections.namedtuple('PreprocStats', 
                                        ['n_start', 'n_trimmed', 'n_rmdup', 'n_output', 
                                         'n_subsamp', 'n_unpaired_subsamp'])
                                                     
