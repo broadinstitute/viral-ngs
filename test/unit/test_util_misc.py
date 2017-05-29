@@ -2,9 +2,11 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import util.misc
+import os
 import unittest
 import subprocess
+import util.misc
+import util.file
 
 
 class TestRunAndPrint(unittest.TestCase):
@@ -176,3 +178,14 @@ class TestFeatureSorter(unittest.TestCase):
                 ('aaaa', 17, 33, 1, [('aaaa', 17, 33, '-', [100, 'name', []]),]),
             ]
         )
+
+class TestConfigIncludes(unittest.TestCase):
+
+    def testConfigIncludes(self):
+        cfg1 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg1.yaml'))
+        cfg2 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg2.yaml'))
+        
+        print('cfg1={} cfg2={}'.format(cfg1,cfg2))
+        self.assertTrue('paramA' in cfg2)
+
+                

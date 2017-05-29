@@ -1,15 +1,15 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
-import collections
+import collections, collections.abc
 import itertools
 import logging
-import os
+import os, os.path
 import re
 import subprocess
 import multiprocessing
 import sys
 import copy
-import yaml
+import yaml, json
 
 import util.file
 
@@ -414,28 +414,67 @@ def which(application_binary_name):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
 
-def load_config(cfg, include_directive='include_config', std_includes=[]):
+def make_seq(x):
+    '''If `x` is a non-Sequence or a string, return [x], else return x.  Convenient for uniformly writing iterations
+    over parameters that may be passed in as an item or a list of items.'''
+    return x if isinstance(x, collections.abc.Sequence) and not isinstance(x,(str,bytes)) else [x]
+
+def merge_dict_paths(old_dict,new_dict):
+    '''Return a dictionary that contains all sequential mappings from the dicts`old_dict` or `new_dict`, giving
+    priority to values from `new`.  So, for any sequence of keys k1,...,kn, result[k1][k2]...[kn] will be defined iff
+    either old_dict[k1][k2]...[kn] or new_dict[k1][k2]...[kn] is defined, and will equal the latter if both are
+    defined, else will equal whichever one is defined.
+    '''
+    
+    result = copy.deepcopy(old_dict)
+    result.update(new_dict)
+    for k in old_dict.keys() & new_dict.keys():
+        v_old = old_dict[k]
+        v_new = new_dict[k]
+        if isinstance(v_old, collections.abc.Mapping) and isinstance(v_new, collections.abc.Mapping):
+            result[k] = merge_dict_paths(v_old, v_new)
+    return result
+
+def load_yaml_or_json(fname):
+    '''Load a dictionary from either a yaml or a json file'''
+    with open(fname) as f:
+        if fname.upper().endswith('.YAML'): return yaml.safe_load(f)
+        if fname.upper().endswith('.JSON'): return json.load(f)
+        raise TypeError('Unsupported dict file format: ' + fname)
+
+def load_config(cfg, include_directive='include', std_includes=[]):
     '''Load a config file, recursively loading any included config files.
 
     Args:
-       cfg: the name of a YAML config file, or a dict read from such a file. 
-         Can specify included config files via config entry
-         with the key given by `include_directive`, the value of which can be a file or a list of files.  
-         (Relative paths are interpreted relative to the current directory, not to the location of any config file).
-         Bindings from cfg override any bindings from config files it includes.
+       cfg: either a config mapping, or the name of a file containing one (in yaml or json format).
+         The mapping can include an entry pointing to other config files to include.
+         The key of the entr is `include_directive`, and the value is a filename or list of filenames of config files.
+         Relative filenames are interpreted relative to the directory containing `cfg`, if `cfg` is a filename,
+         else relative to the current directory.  Any files from `std_includes` are prepended to the list of
+         included config files.
+
+         Mappings from the including file override values from the included files.  Mappings from config files listed
+         later override values from config files listed earlier.  "Mapping" here means "sequence of keys",
+         i.e. cfg["key1"]["key2"]...["keyn"], rather than just cfg["key"].
     '''
 
     result=dict()
+    
+    cfg_fname=None
+    base_dir_for_includes=None
+    if isinstance(cfg, str):
+        cfg_fname=os.path.realpath(cfg)
+        base_dir_for_includes=os.path.dirname(cfg_fname)
+        cfg = load_yaml_or_json(cfg_fname)
 
-    if isinstance(cfg, str): cfg = yaml.safe_load(cfg)
-
-    def make_list(x): return [x] if isinstance(x,str) else x
-
-    for included_cfg in make_list(std_includes)+make_list(cfg.get(include_directive, [])):
-        result.update(load_config(included_cfg))
+    includes=make_seq(std_includes)+make_seq(cfg.get(include_directive, []))
+    print('includes={}'.format(includes))
+    for included_cfg_fname in includes:
+        print('included_cfg_fname={}'.format(included_cfg_fname))
+        if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
+            included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
+        result = merge_dict_paths(result, load_config(included_cfg_fname))
 
     # mappings in the current (top-level) config override any mappings from included configs
-    result.update(cfg)
-
-    return result
+    return merge_dict_paths(result, cfg)
 

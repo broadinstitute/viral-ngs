@@ -1,5 +1,5 @@
 
-import copy
+import copy, os, os.path
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -8,6 +8,10 @@ try:
 except ImportError:
     from urllib2 import urlopen
 shell.executable("/bin/bash")
+
+import util, util.misc
+
+config = util.misc.load_config(config, std_includes=[ os.path.join(os.path.expanduser(config['bin_dir']), 'pipes', 'config.yaml') ])
 
 def set_env_vars():
     import os

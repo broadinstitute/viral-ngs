@@ -1,0 +1,4 @@
+include: "cfg1.yaml"
+
+paramB: 10
+paramC: 15
