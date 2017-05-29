@@ -1,6 +1,6 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
-import collections, collections.abc
+import collections
 import itertools
 import logging
 import os, os.path
@@ -10,6 +10,14 @@ import multiprocessing
 import sys
 import copy
 import yaml, json
+
+try:
+    import collections.abc
+    collections_abc_Sequence = collections.abc.Sequence
+    collections_abc_Mapping = collections.abc.Mapping
+except ImportError:
+    collections_abc_Sequence = (tuple, list)
+    collections_abc_Mapping = dict
 
 import util.file
 
@@ -417,7 +425,7 @@ def which(application_binary_name):
 def make_seq(x):
     '''If `x` is a non-Sequence or a string, return [x], else return x.  Convenient for uniformly writing iterations
     over parameters that may be passed in as an item or a list of items.'''
-    return x if isinstance(x, collections.abc.Sequence) and not isinstance(x,(str,bytes)) else [x]
+    return x if isinstance(x, collections_abc_Sequence) and not isinstance(x,(str,bytes)) else [x]
 
 def merge_dict_paths(old_dict,new_dict):
     '''Return a dictionary that contains all sequential mappings from the dicts`old_dict` or `new_dict`, giving
@@ -431,7 +439,7 @@ def merge_dict_paths(old_dict,new_dict):
     for k in old_dict.keys() & new_dict.keys():
         v_old = old_dict[k]
         v_new = new_dict[k]
-        if isinstance(v_old, collections.abc.Mapping) and isinstance(v_new, collections.abc.Mapping):
+        if isinstance(v_old, collections_abc_Mapping) and isinstance(v_new, collections_abc_Mapping):
             result[k] = merge_dict_paths(v_old, v_new)
     return result
 
