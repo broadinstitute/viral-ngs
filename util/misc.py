@@ -436,7 +436,7 @@ def merge_dict_paths(old_dict,new_dict):
     
     result = copy.deepcopy(old_dict)
     result.update(new_dict)
-    for k in old_dict.keys() & new_dict.keys():
+    for k in set(old_dict.keys()) & set(new_dict.keys()):
         v_old = old_dict[k]
         v_new = new_dict[k]
         if isinstance(v_old, collections_abc_Mapping) and isinstance(v_new, collections_abc_Mapping):
