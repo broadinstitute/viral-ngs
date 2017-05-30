@@ -505,12 +505,9 @@ def dump_file( fname, value ):
     with open( fname, 'w' )  as out: 
         out.write( str( value ) )
 
-def slurp_file( fname, noErr=False ):
+def slurp_file( fname ):
     """Read entire file into one string."""
-    if not fname or not isinstance(fname,str) or not os.path.isfile( fname ): 
-        if noErr: return None
-        else: raise IOError( 'File not found: %s' % fname )
-    with open( fname ) as f:
+    with open_or_gzopen( fname ) as f:
         return f.read()
 
 def tabjoin( *args, **kwargs ):

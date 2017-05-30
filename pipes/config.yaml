@@ -199,7 +199,7 @@ assembly_preproc_method: 'subsamp'
 assembly_de_novo_method: 'trinity'
 
 # Method of choosing the reference to use for scaffolding
-refchoice_for_scaffold_method: 'common'
+scaffold_refchoice_method: 'common'
 
 # Method of scaffolding contigs
 scaffold_method: 'scaffolded'
@@ -208,10 +208,7 @@ scaffold_method: 'scaffolded'
 gapfill_method: 'none'
 
 # Method of choosing the reference to use for imputation
-refchoice_for_impute_method: 'common'
-
-# Method for post-processing of the first refinement step.
-refine1_postprocess_method: ''
+impute_refchoice_method: 'common'
 
 #    |----------------------- Data storage locations ---------------------------
 
