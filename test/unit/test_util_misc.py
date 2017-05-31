@@ -196,8 +196,11 @@ class TestDictFlatten(unittest.TestCase):
 class TestConfigIncludes(unittest.TestCase):
 
     def testConfigIncludes(self):
-        cfg1 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg1.yaml'))
-        cfg2 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg2.yaml'))
+
+        def test_fn(f): return os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', f)
+        cfg1 = util.misc.load_config(test_fn('cfg1.yaml'))
+        cfg2 = util.misc.load_config(test_fn('cfg2.yaml'), std_includes=[test_fn('cfg_std.yaml')],
+                                     param_renamings={'std_param_A_old': 'std_param_A_new'})
         
         self.assertIn('paramA', cfg2)
         self.assertEqual(cfg2["env_vars"]["var_A"],1)
@@ -213,5 +216,12 @@ class TestConfigIncludes(unittest.TestCase):
         self.assertEqual(cfg2["stage1"]["stage2"]["step_list"],[5,10,15])
         self.assertEqual(cfg2["stage1"]["stage3"]["step_list"],[3,33])
         self.assertEqual(cfg1["stage1"]["stage3"]["step_list"],[51,101,151])
+
+        self.assertEqual(cfg2["std_param_A_new"], 111)  # specified as std_param_A_old in cfg1.yaml
+
+
+
+
+        
 
 

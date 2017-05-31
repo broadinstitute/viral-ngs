@@ -1,3 +1,5 @@
+# Example config files for testing util.misc.load_config()
+
 include: "cfg1.yaml"
 
 paramB: 10

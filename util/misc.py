@@ -419,9 +419,10 @@ def is_nonstr_seq(x):
     return isinstance(x, collections.Sequence) and not isinstance(x,(str,bytes))
 
 def make_seq(x):
-    '''If `x` is a non-Sequence or a string, return [x], else return x.  Convenient for uniformly writing iterations
-    over parameters that may be passed in as an item or a list of items.'''
-    return x if is_nonstr_seq(x) else [x]
+    '''Return a tuple containing the items in `x`, or containig just `x` if `x` is a non-string sequence.  Convenient
+    for uniformly writing iterations over parameters that may be passed in as an item or a tuple/list of items.
+    '''
+    return tuple(x) if is_nonstr_seq(x) else (x,)
 
 def flatten_dict(d):
     '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
@@ -442,20 +443,26 @@ def load_yaml_or_json(fname):
         if fname.upper().endswith('.JSON'): return json.load(f)
         raise TypeError('Unsupported dict file format: ' + fname)
 
-def load_config(cfg, include_directive='include', std_includes=[]):
+def load_config(cfg, include_directive='include', std_includes=[], param_renamings={}):
     '''Load a config file, recursively loading any included config files.
 
     Args:
        cfg: either a config mapping, or the name of a file containing one (in yaml or json format).
+         A config mapping is just a dict, possibly including nested dicts, specifying config params.
          The mapping can include an entry pointing to other config files to include.
-         The key of the entr is `include_directive`, and the value is a filename or list of filenames of config files.
+         The key of the entry is `include_directive`, and the value is a filename or list of filenames of config files.
          Relative filenames are interpreted relative to the directory containing `cfg`, if `cfg` is a filename,
          else relative to the current directory.  Any files from `std_includes` are prepended to the list of
          included config files.
 
-         Mappings from the including file override values from the included files.  Mappings from config files listed
-         later override values from config files listed earlier.  "Mapping" here means "sequence of keys",
+         Mappings from `cfg` override values from any included files.  Mappings from config files included
+         later override values from config files included earlier.  "Mapping" here means "sequence of keys",
          i.e. cfg["key1"]["key2"]...["keyn"], rather than just cfg["key"].
+
+       include_directive: key used to specify included config files
+       std_includes: config files implicitly included before all others and before `cfg`
+       param_renamings: optional map of old/legacy config param names to new ones.  'Param names' here are
+        either keys or sequences of keys.
     '''
 
     result=dict()
@@ -470,10 +477,26 @@ def load_config(cfg, include_directive='include', std_includes=[]):
     for included_cfg_fname in includes:
         if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
             included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
-        result.update(flatten_dict(load_config(included_cfg_fname)))
+        result.update(flatten_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
+                                               param_renamings=param_renamings)))
 
     # mappings in the current (top-level) config override any mappings from included configs
-    result.update(flatten_dict(cfg))
+
+    cfg_flat = flatten_dict(cfg)
+    param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
+
+    for old_param, new_param in param_renamings_seq.items():
+        while new_param in param_renamings_seq: 
+            assert param_renamings_seq[new_param] not in (old_param, new_param), 'Circular param renamings'
+            new_param = param_renamings_seq[new_param]
+
+        if old_param in cfg_flat:
+            assert new_param not in cfg_flat or cfg_flat[new_param] == cfg_flat[old_param], 'Conflicting param settings'
+            cfg_flat[new_param] = cfg_flat[old_param]
+            log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param,new_param))
+
+    result.update(cfg_flat)
     return unflatten_dict(result)
 
 
+    
