@@ -2,3 +2,31 @@
 
 paramA: 3
 paramB: 5
+env_vars:
+  var_A: 1
+  var_B: 2
+paramZ: 22
+
+std_methods:
+  - a
+  - b
+  - c
+
+stage1:
+  stage2:
+    step_num: 3
+    step_list:
+      - 5
+      - 10
+      - 15
+  stage3:
+    step_num: 31
+    step_list:
+      - 51
+      - 101
+      - 151
+
+
+
+
+

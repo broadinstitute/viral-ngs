@@ -179,13 +179,39 @@ class TestFeatureSorter(unittest.TestCase):
             ]
         )
 
+
+class TestDictFlatten(unittest.TestCase):
+
+    def testDictFlatten(self):
+        z=dict(a=1,b=dict(c=2,e=3))
+        self.assertEqual(util.misc.unflatten_dict(util.misc.flatten_dict(z)), z)
+
+        self.assertEqual(util.misc.flatten_dict({}),{})
+        self.assertEqual(util.misc.flatten_dict({'a':1}),{('a',): 1})
+        self.assertEqual(util.misc.flatten_dict({'a':1,'b':2}),{('a',): 1, ('b',):2})
+        self.assertEqual(util.misc.flatten_dict({'a':1,'b':{'c':2}}),{('a',): 1, ('b','c'):2})
+        self.assertEqual(util.misc.flatten_dict({'a':1,'b':{'c':2,'d':{'e':3}}}),
+                         {('a',): 1, ('b','c'):2, ('b','d','e'):3})
+
 class TestConfigIncludes(unittest.TestCase):
 
     def testConfigIncludes(self):
         cfg1 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg1.yaml'))
         cfg2 = util.misc.load_config(os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', 'cfg2.yaml'))
         
-        print('cfg1={} cfg2={}'.format(cfg1,cfg2))
-        self.assertTrue('paramA' in cfg2)
+        self.assertIn('paramA', cfg2)
+        self.assertEqual(cfg2["env_vars"]["var_A"],1)
+        self.assertEqual(cfg2["env_vars"]["var_B"],3)
+        self.assertEqual(cfg2["env_vars"]["var_C"],4)
+        with self.assertRaises(KeyError): cfg2["env_vars"]["var_E"]
+        with self.assertRaises(KeyError): cfg2["var_A"]
+        self.assertFalse(cfg2["paramZ"])
+        self.assertTrue(cfg1["paramZ"])
 
-                
+        self.assertEqual(cfg2["std_methods"], ['a','b','c'])
+        self.assertEqual(cfg2["stage1"]["stage2"]["step_num"],3)
+        self.assertEqual(cfg2["stage1"]["stage2"]["step_list"],[5,10,15])
+        self.assertEqual(cfg2["stage1"]["stage3"]["step_list"],[3,33])
+        self.assertEqual(cfg1["stage1"]["stage3"]["step_list"],[51,101,151])
+
+

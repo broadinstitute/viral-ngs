@@ -1,7 +1,7 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
-import itertools
+import itertools, functools, operator
 import logging
 import os, os.path
 import re
@@ -10,14 +10,6 @@ import multiprocessing
 import sys
 import copy
 import yaml, json
-
-try:
-    import collections.abc
-    collections_abc_Sequence = collections.abc.Sequence
-    collections_abc_Mapping = collections.abc.Mapping
-except ImportError:
-    collections_abc_Sequence = (tuple, list)
-    collections_abc_Mapping = dict
 
 import util.file
 
@@ -422,25 +414,25 @@ def which(application_binary_name):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
 
+def is_nonstr_seq(x):
+    '''Tests whether `x` is a Sequence other than a string'''
+    return isinstance(x, collections.Sequence) and not isinstance(x,(str,bytes))
+
 def make_seq(x):
     '''If `x` is a non-Sequence or a string, return [x], else return x.  Convenient for uniformly writing iterations
     over parameters that may be passed in as an item or a list of items.'''
-    return x if isinstance(x, collections_abc_Sequence) and not isinstance(x,(str,bytes)) else [x]
+    return x if is_nonstr_seq(x) else [x]
 
-def merge_dict_paths(old_dict,new_dict):
-    '''Return a dictionary that contains all sequential mappings from the dicts`old_dict` or `new_dict`, giving
-    priority to values from `new`.  So, for any sequence of keys k1,...,kn, result[k1][k2]...[kn] will be defined iff
-    either old_dict[k1][k2]...[kn] or new_dict[k1][k2]...[kn] is defined, and will equal the latter if both are
-    defined, else will equal whichever one is defined.
-    '''
-    
-    result = copy.deepcopy(old_dict)
-    result.update(new_dict)
-    for k in set(old_dict.keys()) & set(new_dict.keys()):
-        v_old = old_dict[k]
-        v_new = new_dict[k]
-        if isinstance(v_old, collections_abc_Mapping) and isinstance(v_new, collections_abc_Mapping):
-            result[k] = merge_dict_paths(v_old, v_new)
+def flatten_dict(d):
+    '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
+    return dict(((k,)+k1,v1) for k, v in d.items() for k1, v1 in \
+                 (flatten_dict(v).items() if isinstance(v, collections.Mapping) else [((),v)]))
+
+def unflatten_dict(d):
+    '''Reverse operation to `flatten_dict`'''
+    result = dict()
+    for k, v in d.items():
+        functools.reduce(lambda d,k: d.setdefault(k,dict()), k[:-1], result)[k[-1]]=v
     return result
 
 def load_yaml_or_json(fname):
@@ -468,7 +460,6 @@ def load_config(cfg, include_directive='include', std_includes=[]):
 
     result=dict()
     
-    cfg_fname=None
     base_dir_for_includes=None
     if isinstance(cfg, str):
         cfg_fname=os.path.realpath(cfg)
@@ -476,13 +467,13 @@ def load_config(cfg, include_directive='include', std_includes=[]):
         cfg = load_yaml_or_json(cfg_fname)
 
     includes=make_seq(std_includes)+make_seq(cfg.get(include_directive, []))
-    print('includes={}'.format(includes))
     for included_cfg_fname in includes:
-        print('included_cfg_fname={}'.format(included_cfg_fname))
         if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
             included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
-        result = merge_dict_paths(result, load_config(included_cfg_fname))
+        result.update(flatten_dict(load_config(included_cfg_fname)))
 
     # mappings in the current (top-level) config override any mappings from included configs
-    return merge_dict_paths(result, cfg)
+    result.update(flatten_dict(cfg))
+    return unflatten_dict(result)
+
 

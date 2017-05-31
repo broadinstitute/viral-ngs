@@ -11,7 +11,19 @@ shell.executable("/bin/bash")
 
 import util, util.misc
 
-config = util.misc.load_config(config, std_includes=[ os.path.join(os.path.expanduser(config['bin_dir']), 'pipes', 'config.yaml') ])
+# Load mappings from any included config files, including the implicitly included default one.
+config = util.misc.load_config(config, std_includes=[ os.path.join(os.path.expanduser(config['bin_dir']), 
+                                                                   'pipes', 'config.yaml') ])
+
+# Load values for any config params that have been moved/renamed, so that legacy config files still work.
+renamedConfigParams = ()
+
+config_flat = util.misc.flatten_dict(config)
+for old_param, new_param in renamedConfigParams:
+    if old_param in config_flat:
+        config_flat[new_param] = config_flat[old_param]
+config = util.misc.unflatten_dict(config_flat)
+
 
 def set_env_vars():
     import os
