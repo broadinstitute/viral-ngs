@@ -1,13 +1,15 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
-import itertools
+import itertools, functools, operator
 import logging
-import os
+import os, os.path
 import re
 import subprocess
 import multiprocessing
 import sys
+import copy
+import yaml, json
 
 import util.file
 
@@ -411,3 +413,90 @@ def which(application_binary_name):
         if os.path.exists(full_path) and os.access(full_path, os.X_OK):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
+
+def is_nonstr_seq(x):
+    '''Tests whether `x` is a Sequence other than a string'''
+    return isinstance(x, collections.Sequence) and not isinstance(x,(str,bytes))
+
+def make_seq(x):
+    '''Return a tuple containing the items in `x`, or containig just `x` if `x` is a non-string sequence.  Convenient
+    for uniformly writing iterations over parameters that may be passed in as an item or a tuple/list of items.
+    '''
+    return tuple(x) if is_nonstr_seq(x) else (x,)
+
+def flatten_dict(d):
+    '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
+    return dict(((k,)+k1,v1) for k, v in d.items() for k1, v1 in \
+                 (flatten_dict(v).items() if isinstance(v, collections.Mapping) else [((),v)]))
+
+def unflatten_dict(d):
+    '''Reverse operation to `flatten_dict`'''
+    result = dict()
+    for k, v in d.items():
+        functools.reduce(lambda d,k: d.setdefault(k,dict()), k[:-1], result)[k[-1]]=v
+    return result
+
+def load_yaml_or_json(fname):
+    '''Load a dictionary from either a yaml or a json file'''
+    with open(fname) as f:
+        if fname.upper().endswith('.YAML'): return yaml.safe_load(f)
+        if fname.upper().endswith('.JSON'): return json.load(f)
+        raise TypeError('Unsupported dict file format: ' + fname)
+
+def load_config(cfg, include_directive='include', std_includes=[], param_renamings={}):
+    '''Load a config file, recursively loading any included config files.
+
+    Args:
+       cfg: either a config mapping, or the name of a file containing one (in yaml or json format).
+         A config mapping is just a dict, possibly including nested dicts, specifying config params.
+         The mapping can include an entry pointing to other config files to include.
+         The key of the entry is `include_directive`, and the value is a filename or list of filenames of config files.
+         Relative filenames are interpreted relative to the directory containing `cfg`, if `cfg` is a filename,
+         else relative to the current directory.  Any files from `std_includes` are prepended to the list of
+         included config files.
+
+         Mappings from `cfg` override values from any included files.  Mappings from config files included
+         later override values from config files included earlier.  "Mapping" here means "sequence of keys",
+         i.e. cfg["key1"]["key2"]...["keyn"], rather than just cfg["key"].
+
+       include_directive: key used to specify included config files
+       std_includes: config files implicitly included before all others and before `cfg`
+       param_renamings: optional map of old/legacy config param names to new ones.  'Param names' here are
+        either keys or sequences of keys.
+    '''
+
+    result=dict()
+    
+    base_dir_for_includes=None
+    if isinstance(cfg, str):
+        cfg_fname=os.path.realpath(cfg)
+        base_dir_for_includes=os.path.dirname(cfg_fname)
+        cfg = load_yaml_or_json(cfg_fname)
+
+    includes=make_seq(std_includes)+make_seq(cfg.get(include_directive, []))
+    for included_cfg_fname in includes:
+        if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
+            included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
+        result.update(flatten_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
+                                               param_renamings=param_renamings)))
+
+    # mappings in the current (top-level) config override any mappings from included configs
+
+    cfg_flat = flatten_dict(cfg)
+    param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
+
+    for old_param, new_param in param_renamings_seq.items():
+        while new_param in param_renamings_seq: 
+            assert param_renamings_seq[new_param] not in (old_param, new_param), 'Circular param renamings'
+            new_param = param_renamings_seq[new_param]
+
+        if old_param in cfg_flat:
+            assert new_param not in cfg_flat or cfg_flat[new_param] == cfg_flat[old_param], 'Conflicting param settings'
+            cfg_flat[new_param] = cfg_flat[old_param]
+            log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param,new_param))
+
+    result.update(cfg_flat)
+    return unflatten_dict(result)
+
+
+    
