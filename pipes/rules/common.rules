@@ -1,5 +1,5 @@
 
-import copy, os, os.path
+import os, os.path, sys
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -7,9 +7,11 @@ try:
     from urllib.request import urlopen
 except ImportError:
     from urllib2 import urlopen
-shell.executable("/bin/bash")
 
+sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
 import util, util.misc
+
+shell.executable("/bin/bash")
 
 # Load mappings from any included config files, including the implicitly included default one.
 config = util.misc.load_config(config, std_includes=[ os.path.join(os.path.expanduser(config['bin_dir']), 
