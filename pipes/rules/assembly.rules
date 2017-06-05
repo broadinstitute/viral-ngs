@@ -71,6 +71,15 @@ rule choose_reference_common:
     output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.common.fasta'
     shell: 'cp {input} {output}'
 
+rule choose_reference_clark:
+    '''Choose the reference to use with scaffolding and imputing steps. Default method just uses the common reference
+    from the config file.'''
+    input: expand( '{refselDir}/refsel.indexing.done', refselDir=config["refsel_dir"] ),
+        contigs=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-'+config.get("assembly_de_novo_method","trinity")+'.fasta'
+    output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.clark.fasta'
+    run: 
+        shell("{config[bin_dir]}/refsel.py select_ref {config[refsel_dir]} {input.contigs} {output}")
+
 
 rule order_and_orient:
     ''' order_and_orient (MUMmer): take the de novo assembly,
@@ -80,7 +89,7 @@ rule order_and_orient:
     '''
     input:  
         contigs=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-'+config.get("assembly_de_novo_method","trinity")+'.fasta',
-        refGenome=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.'+config.get("refchoice_for_scaffold_method","common")+'.fasta'
+        refGenome=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.'+config["scaffold_refsel_method"]+'.fasta'
     output: 
         scaffolded_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffolded.fasta',
         alternate_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-alternate_sequences.fasta'
@@ -128,7 +137,7 @@ rule impute_from_reference:
     '''
     input:  
         gapfilled_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-gapfilled-'+config.get("gapfill_method","none")+'.fasta',
-        refGenome=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.'+config.get("refchoice_for_impute_method","common")+'.fasta'
+        refGenome=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.reference.'+config["impute_refsel_method"]+'.fasta'
     output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=12
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
