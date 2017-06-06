@@ -15,6 +15,8 @@ import os
 import os.path
 import shutil
 import subprocess
+import collections
+import json
 
 try:
     from itertools import zip_longest    # pylint: disable=E0611
@@ -45,18 +47,22 @@ import Bio.Data.IUPACData
 
 log = logging.getLogger(__name__)
 
+PreprocStats = collections.namedtuple('PreprocStats', 
+                                       ['n_start', 'n_trimmed', 'n_rmdup', 'n_output', 
+                                        'n_subsamp', 'n_unpaired_subsamp'])
+                                                    
+
+def format_preproc_stats(s):
+    return '{} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(s.n_start, s.n_trimmed, s.n_rmdup, s.n_output, s.n_subsamp, s.n_unpaired_subsamp)
 
 class DenovoAssemblyError(Exception):
 
-    def __init__(self, n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp):
+    def __init__(self, preprocStats):
         super(DenovoAssemblyError, self).__init__(
-            'denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(
-                n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp
-            )
+            'denovo assembly (Trinity) failed. '+format_preproc_stats(preprocStats)
         )
 
-
-def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
+def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, outStatsFile=None):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
         This should probably move over to read_utils.
     '''
@@ -197,7 +203,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
 
     n_final_individual_reads = samtools.count(outBam)
 
-    log.info("Pre-Trinity read filters: ")
+    log.info("Pre-assembly read filters: ")
     log.info("    {} read pairs at start ".format(n_input))
     log.info(
         "    {} read pairs after Trimmomatic {}".format(
@@ -219,7 +225,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     else:
         log.info("  Paired read count sufficient to reach threshold ({})".format(n_reads))
     log.info(
-        "    {} individual reads for trinity ({}{})".format(
+        "    {} individual reads for de novo assembly ({}{})".format(
             n_output, "paired subsampled {} -> {}".format(n_rmdup_paired, n_paired_subsamp)
             if not did_include_subsampled_unpaired_reads else "{} read pairs".format(n_rmdup_paired),
             " + unpaired subsampled {} -> {}".format(n_rmdup_unpaired, n_unpaired_subsamp)
@@ -231,7 +237,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     if did_include_subsampled_unpaired_reads:
         if n_final_individual_reads < n_reads:
             log.warning(
-                "NOTE: Even with unpaired reads included, there are fewer unique trimmed reads than requested for Trinity input."
+                "NOTE: Even with unpaired reads included, there are fewer unique trimmed reads than requested for de novo assembly input."
             )
 
     # clean up temp files
@@ -241,8 +247,9 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
                 os.unlink(f[i])
 
     # multiply counts so all reflect individual reads
-    return (n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)
-
+    outStats = PreprocStats(n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)
+    if outStatsFile: util.file.dump_file(outStatsFile, json.dumps(outStats._asdict()))
+    return outStats
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
@@ -252,12 +259,14 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
         help="""Output reads, unaligned BAM format (currently, read groups and other
                 header information are destroyed in this process)."""
     )
+    parser.add_argument('--outStatsFile', help='If given, save to this file the stats about the reads we processed, in json format')
     parser.add_argument(
         '--n_reads',
         default=100000,
         type=int,
         help='Subsample reads to no more than this many individual reads. Note that paired reads are given priority, and unpaired reads are included to reach the count if there are too few paired reads to reach n_reads. (default %(default)s)'
     )
+
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
     return parser
@@ -270,6 +279,8 @@ def assemble_trinity(
     inBam, clipDb,
     outFasta, n_reads=100000,
     outReads=None,
+    already_preprocessed_bam=False,
+    preprocessed_bam_stats=None,
     always_succeed=False,
     JVMmemory=None,
     threads=1
@@ -278,45 +289,42 @@ def assemble_trinity(
         First trim reads with trimmomatic, rmdup with prinseq,
         and random subsample to no more than 100k reads.
     '''
-    if outReads:
-        subsamp_bam = outReads
+
+    if already_preprocessed_bam:
+        subsamp_bam = inBam
+        read_stats = json.loads(util.file.slurp_file(preprocessed_bam_stats)) if preprocessed_bam_stats else PreprocStats()
     else:
         subsamp_bam = util.file.mkstempfname('.subsamp.bam')
+        read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
 
-    picard_opts = {
-                 'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-                 'CLIPPING_ACTION': 'X'
-    }
+    with tools.picard.SamToFastqTool().execute_tmp(subsamp_bam, sfx='.subsamp', illuminaClipping=True) as subsampfq:
+        try:
+            tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], 
+                                                outFasta, JVMmemory=JVMmemory, threads=threads)
+        except subprocess.CalledProcessError as e:
+            if always_succeed:
+                log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
+                util.file.touch_empty(outFasta)
+            else:
+                raise DenovoAssemblyError(read_stats)
 
-    read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
-    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
-    try:
-        tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
-    except subprocess.CalledProcessError as e:
-        if always_succeed:
-            log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
-            util.file.touch(outFasta)
-        else:
-            raise DenovoAssemblyError(*read_stats)
-    os.unlink(subsampfq[0])
-    os.unlink(subsampfq[1])
-
-    if not outReads:
-        os.unlink(subsamp_bam)
-
+    if outReads: shutil.copyfile(subsamp_bam, outReads)
+    if not already_preprocessed_bam: os.unlink(subsamp_bam)
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
+    parser.add_argument('clipDb', help='Trimmomatic clip DB.  Ignored if --already_preprocessed_bam.')
     parser.add_argument('outFasta', help='Output assembly.')
     parser.add_argument(
         '--n_reads',
         default=100000,
         type=int,
-        help='Subsample reads to no more than this many pairs. (default %(default)s)'
+        help='Subsample reads to no more than this many pairs. Ignored if --already_preprocessed_bam.  (default %(default)s)'
     )
-    parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument('--outReads', help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
+    parser.add_argument('--already_preprocessed_bam', default=False, action='store_true',
+                        help='If true, `inBam` is already preprocessed')
+    parser.add_argument('--preprocessed_bam_stats', help='Load stats for already preprocessed `inBam` from this file.')
     parser.add_argument(
         "--always_succeed",
         help="""If Trinity fails (usually because insufficient reads to assemble),

@@ -94,6 +94,27 @@ def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     return fn
 
 
+@contextlib.contextmanager
+def tempfname(*args, **kwargs):
+    '''Create a tempfile name on context entry, delete the file (if it exists) on context exit.'''
+    fn = mkstempfname(*args, **kwargs)
+    try:
+        yield fn
+    finally:
+        if os.path.isfile(fn): os.unlink(fn)
+
+
+@contextlib.contextmanager
+def tempfnames(suffixes, *args, **kwargs):
+    '''Create a setof tempfile names on context entry, delete the files (if they exist) on context exit.'''
+    fns = [mkstempfname(sfx, *args, **kwargs) for sfx in suffixes]
+    try:
+        yield fns
+    finally:
+        for fn in fns: 
+            if os.path.isfile(fn): 
+                os.unlink(fn)
+
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
     if name:
@@ -473,3 +494,33 @@ def line_count(infname):
 def touch(fname, times=None):
     with open(fname, 'a'):
         os.utime(fname, times)
+
+def touch_empty(fname):
+    '''Make each file in fnames a zero-length file with the current timestamp.'''
+    with open(fname, 'w'):
+        pass
+
+def dump_file( fname, value ):
+    """store string in file"""
+    with open( fname, 'w' )  as out: 
+        out.write( str( value ) )
+
+def slurp_file( fname ):
+    """Read entire file into one string."""
+    with open_or_gzopen( fname ) as f:
+        return f.read()
+
+def tabjoin( *args, **kwargs ):
+    """Join args by tab"""
+    sep = kwargs.get( 'sep', '\t' )
+    return sep.join( map( str, args ) )
+
+def tabwriten( f, *args, **kwargs ):
+    """Write a tab-separated line to a file"""
+    f.write( tabjoin( *args, **kwargs ) )
+
+def tabwrite( f, *args, **kwargs ):
+    """Write a tab-separated line to a file, followed by a newline"""
+    tabwriten( f, *args, **kwargs )
+    f.write( '\n' )
+        

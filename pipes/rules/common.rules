@@ -1,4 +1,5 @@
 
+import os, os.path, sys
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -6,7 +7,15 @@ try:
     from urllib.request import urlopen
 except ImportError:
     from urllib2 import urlopen
+
+sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
+import util, util.misc
+
 shell.executable("/bin/bash")
+
+# Load mappings from any included config files, including the implicitly included default one.
+config = util.misc.load_config(config, std_includes=[ os.path.join(os.path.expanduser(config['bin_dir']), 
+                                                                   'pipes', 'config.yaml') ])
 
 def set_env_vars():
     import os
@@ -38,11 +47,13 @@ def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
                 for i in range(1, number_of_chromosomes+1):
                     yield line+"-{idx}".format(idx=str(i))
 
-def read_accessions_file(fname):
+def read_accessions_file(fname, nodups=False):
     if fname==None:
         return []
+    seen=set()
     with open(fname, 'rt') as inf:
-        for line in inf:
+        for lineno, line in enumerate(inf):
+            assert line.strip() not in seen, 'Duplicate accession {} in {} line {}'.format(line, fname, lineno)
             yield line.strip()
 
 def download_file(uriToGet, dest, destFileName=None):

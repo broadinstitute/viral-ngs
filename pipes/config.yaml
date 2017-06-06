@@ -192,6 +192,24 @@ vphaser_max_bins: 10
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
 
+# Preprocessing method for reads for de novo assembly
+assembly_preproc_method: 'subsamp'
+
+# Method of de novo assembly
+assembly_de_novo_method: 'trinity'
+
+# Method of choosing the reference to use for scaffolding
+scaffold_refsel_method: 'clark'
+
+# Method of scaffolding contigs
+scaffold_method: 'scaffolded'
+
+# Method of filling gaps between contigs from the reads
+gapfill_method: 'none'
+
+# Method of choosing the reference to use for imputation
+impute_refsel_method: 'clark'
+
 #    |----------------------- Data storage locations ---------------------------
 
 # The parent directory containing data sub-directories.
@@ -239,6 +257,9 @@ miniconda_dir: "mc3"
 
 # The directory of where the reference genome fasta files should be stored.
 ref_genome_dir: "ref_genome"
+
+# The directory where file related to reference selection should be stored
+refsel_dir: "refsel"
 
 # The directory where the lastal database files should be stored
 lastal_ref_db_dir: "lastal_db"
