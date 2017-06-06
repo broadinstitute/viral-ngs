@@ -258,6 +258,9 @@ miniconda_dir: "mc3"
 # The directory of where the reference genome fasta files should be stored.
 ref_genome_dir: "ref_genome"
 
+# The directory where file related to reference selection should be stored
+refsel_dir: "refsel"
+
 # The directory where the lastal database files should be stored
 lastal_ref_db_dir: "lastal_db"
 
