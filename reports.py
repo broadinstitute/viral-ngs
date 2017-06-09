@@ -746,7 +746,7 @@ def align_and_plot_coverage(
 
         bwa_opts = aligner_options.split()
         if sensitive:
-            bwa_opts + "-k 12 -A 1 -B 1 -O 1 -E 1".split()
+            bwa_opts += "-k 12 -A 1 -B 1 -O 1 -E 1".split()
 
         # get the quality threshold from the opts
         # for downstream filtering
