@@ -48,8 +48,8 @@ install:
   - travis/install-pip.sh
 
 script:
-  - travis/tests-unit.sh
   - travis/tests-long.sh
+  - travis/tests-unit.sh
 
 after_success:
   - coveralls
