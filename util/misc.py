@@ -426,13 +426,23 @@ def make_seq(x):
 
 def flatten_dict(d):
     '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
-    return dict(((k,)+k1,v1) for k, v in d.items() for k1, v1 in \
-                 (flatten_dict(v).items() if isinstance(v, collections.Mapping) else [((),v)]))
+    result=dict()
+    for k, v in d.items():
+        assert not isinstance(k,tuple), 'Dict already flattened? {}'.format(d)
+        if isinstance(v, collections.Mapping):
+            for k_rest, v_actual in flatten_dict(v).items():
+                result[(k,)+k_rest]=v_actual
+        else:
+            result[(k,)]=v
+    return result
+#    return dict(((k,)+k1,v1) for k, v in d.items() for k1, v1 in \
+#                 (flatten_dict(v).items() if isinstance(v, collections.Mapping) else [((),v)]))
 
 def unflatten_dict(d):
     '''Reverse operation to `flatten_dict`'''
     result = dict()
     for k, v in d.items():
+        # if k is (k1,k2,...kN), then ensure that result[k1][k2]...[kN]=v, creating intermediate dicts as needed
         functools.reduce(lambda d,k: d.setdefault(k,dict()), k[:-1], result)[k[-1]]=v
     return result
 
@@ -444,7 +454,11 @@ def load_yaml_or_json(fname):
         raise TypeError('Unsupported dict file format: ' + fname)
 
 def load_config(cfg, include_directive='include', std_includes=[], param_renamings={}):
-    '''Load a config file, recursively loading any included config files.
+    '''Load a config file, recursively loading any included config files; load any params specified under legacy names.
+
+    This function implements extensions to the standard way of specifying configuration parameters via (possibly nested)
+    dictionaries.  The extensions let config files include other config files, and let us rename parameters while
+    still letting them be specified under old names for backwards compatibility.
 
     Args:
        cfg: either a config mapping, or the name of a file containing one (in yaml or json format).
@@ -460,9 +474,9 @@ def load_config(cfg, include_directive='include', std_includes=[], param_renamin
          i.e. cfg["key1"]["key2"]...["keyn"], rather than just cfg["key"].
 
        include_directive: key used to specify included config files
-       std_includes: config files implicitly included before all others and before `cfg`
+       std_includes: config file(s) implicitly included before all others and before `cfg`
        param_renamings: optional map of old/legacy config param names to new ones.  'Param names' here are
-        either keys or sequences of keys.
+           either keys or sequences of keys.
     '''
 
     result=dict()
@@ -480,12 +494,14 @@ def load_config(cfg, include_directive='include', std_includes=[], param_renamin
         result.update(flatten_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
                                                param_renamings=param_renamings)))
 
-    # mappings in the current (top-level) config override any mappings from included configs
-
     cfg_flat = flatten_dict(cfg)
+
+    # load any params specified under legacy names, for backwards compatibility
     param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
 
     for old_param, new_param in param_renamings_seq.items():
+
+        # handle chains of param renamings
         while new_param in param_renamings_seq: 
             assert param_renamings_seq[new_param] not in (old_param, new_param), 'Circular param renamings'
             new_param = param_renamings_seq[new_param]
@@ -495,8 +511,7 @@ def load_config(cfg, include_directive='include', std_includes=[], param_renamin
             cfg_flat[new_param] = cfg_flat[old_param]
             log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param,new_param))
 
+    # mappings in the current (top-level) config override any mappings from included configs
     result.update(cfg_flat)
     return unflatten_dict(result)
 
-
-    
