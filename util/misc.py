@@ -449,8 +449,8 @@ def unflatten_dict(d):
 def load_yaml_or_json(fname):
     '''Load a dictionary from either a yaml or a json file'''
     with open(fname) as f:
-        if fname.upper().endswith('.YAML'): return yaml.safe_load(f)
-        if fname.upper().endswith('.JSON'): return json.load(f)
+        if fname.upper().endswith('.YAML'): return yaml.safe_load(f) or {}
+        if fname.upper().endswith('.JSON'): return json.load(f) or {}
         raise TypeError('Unsupported dict file format: ' + fname)
 
 def load_config(cfg, include_directive='include', std_includes=[], param_renamings={}):
