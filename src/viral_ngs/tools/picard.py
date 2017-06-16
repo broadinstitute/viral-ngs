@@ -106,7 +106,9 @@ class SamToFastqTool(PicardTools):
                 illuminaClipping=False,
                 picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
         '''Write paired reads from `inBam` to `outFastq1` and `outFastq1`.  If `outFastq0` is given, write
-        any unpaired reads from `inBam` there, else ignore them.'''
+        any unpaired reads from `inBam` there, else ignore them.  If `illuminaClipping` is True, 
+        trim reads at the clipping position specified by the Illumina clipping attribute
+        (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
 
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # Picard SamToFastq cannot deal with an empty input BAM file
