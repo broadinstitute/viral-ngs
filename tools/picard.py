@@ -113,7 +113,7 @@ class SamToFastqTool(PicardTools):
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # Picard SamToFastq cannot deal with an empty input BAM file
             for f in (outFastq1, outFastq2, outFastq0):
-                if f: util.file.touch_empty(f)
+                if f: util.file.make_empty(f)
         else:
             picardOptions = picardOptions or []
 
