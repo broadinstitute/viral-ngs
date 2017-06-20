@@ -3,10 +3,11 @@
 __author__ = "ilya@broadinstitute.org"
 
 import os, os.path
+import pytest
 import util.file
 
 def testTempFiles():
-    '''Test creation of tempfiles, as well as dump_file/slurp_file routines'''
+    '''Test creation of tempfiles using context managers, as well as dump_file/slurp_file routines'''
     tmp_fns = []
     sfx='tmp-file-test'
     with util.file.tempfname(sfx) as my_tmp_fn:
@@ -33,11 +34,17 @@ def testTempFiles():
                 assert os.path.getsize(fn) == len(fileValue)
                 assert util.file.slurp_file(fn) == fileValue
 
-                util.file.touch_empty(fn)
+                util.file.make_empty(fn)
                 assert os.path.getsize(fn)==0
 
                 tmp_fns.append(fn)
 
         assert os.path.isfile(my_tmp_fn) and not os.path.isfile(my_tmp_fns[0]) and not os.path.isfile(my_tmp_fns[1])
 
+        largeString = 'A' * (2*1024*1024)
+        util.file.dump_file(fname=my_tmp_fn, value=largeString)
+        with pytest.raises(RuntimeError):
+            util.file.slurp_file(my_tmp_fn, maxSizeMb=1)
+
     assert not os.path.isfile(my_tmp_fn)
+
