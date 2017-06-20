@@ -106,7 +106,7 @@ def tempfname(*args, **kwargs):
 
 @contextlib.contextmanager
 def tempfnames(suffixes, *args, **kwargs):
-    '''Create a setof tempfile names on context entry, delete the files (if they exist) on context exit.'''
+    '''Create a set of tempfile names on context entry, delete the files (if they exist) on context exit.'''
     fns = [mkstempfname(sfx, *args, **kwargs) for sfx in suffixes]
     try:
         yield fns
@@ -500,12 +500,12 @@ def make_empty(fname):
     with open(fname, 'w'):
         pass
 
-def dump_file( fname, value ):
+def dump_file(fname, value):
     """store string in file"""
-    with open( fname, 'w' )  as out: 
-        out.write( str( value ) )
+    with open(fname, 'w')  as out: 
+        out.write(str(value))
 
-def slurp_file( fname, maxSizeMb = 50 ):
+def slurp_file(fname, maxSizeMb=50):
     """Read entire file into one string.  If file is gzipped, uncompress it on-the-fly.  If file is larger
     than `maxSizeMb` megabytes, throw an error; this is to encourage proper use of iterators for reading
     large files.  If `maxSizeMb` is None or 0, file size is unlimited."""
@@ -513,6 +513,6 @@ def slurp_file( fname, maxSizeMb = 50 ):
     if maxSizeMb  and  fileSize > maxSizeMb*1024*1024: 
         raise RuntimeError('Tried to slurp large file {} (size={}); are you sure?  Increase `maxSizeMb` param if yes'.
                            format(fname, fileSize))
-    with open_or_gzopen( fname ) as f:
+    with open_or_gzopen(fname) as f:
         return f.read()
 
