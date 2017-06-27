@@ -19,6 +19,21 @@ rule all_metagenomics_host_depleted:
                     "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa'])
     params: LSF='-N'
 
+rule all_kraken:
+    input:
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.raw.kraken.report"), sample=samples),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.raw.kraken.krona.html"), sample=samples)
+    params: LSF='-N'
+
+rule all_kraken_host_depleted:
+    input:
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.kraken.report"), sample=samples),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.cleaned.kraken.krona.html"), sample=samples)
+    params: LSF='-N'
 
 method_props = {
     'diamond': {
