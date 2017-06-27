@@ -3,9 +3,10 @@
 __author__ = "dpark@broadinstitute.org"
 
 import unittest
-import os
+import os, os.path
 import tempfile
 import shutil
+import Bio.SeqIO, Bio.SeqRecord, Bio.Seq
 import util
 import util.file
 import tools
@@ -68,3 +69,15 @@ class TestToolSamtools(TestCaseWithTmp):
         samtools.filterByCigarString(in_sam, out_bam)
 
         assert samtools.count(out_bam)==39, "Output read count does not match the expected count."
+
+    def test_bam2fa(self):
+        samtools = tools.samtools.SamtoolsTool()
+        sam = os.path.join(util.file.get_test_input_path(self), 'simple.sam')
+        
+        with samtools.bam2fa_tmp(sam) as (fa1, fa2):
+            for fa in (fa1, fa2):
+                assert len(list(Bio.SeqIO.parse(fa, 'fasta')))==1
+
+        assert not os.path.isfile(fa1) and not os.path.isfile(fa2)
+
+
