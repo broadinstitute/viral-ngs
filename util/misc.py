@@ -451,7 +451,7 @@ def load_yaml_or_json(fname):
         if fname.upper().endswith('.JSON'): return json.load(f) or {}
         raise TypeError('Unsupported dict file format: ' + fname)
 
-def load_config(cfg, include_directive='include', std_includes=[], param_renamings={}):
+def load_config(cfg, include_directive='include', std_includes=(), param_renamings=None):
     '''Load a configuration, with support for some extra functionality that lets project configurations evolve
     without breaking backwards compatibility.
 
@@ -490,6 +490,8 @@ def load_config(cfg, include_directive='include', std_includes=[], param_renamin
          new code can access the parameter as cfg["de_novo_assembly"]["kmer_size"] while legacy users can keep
          specifying it as "trinity_kmer_size: 31".
     '''
+
+    param_renamings = param_renamings or {}
 
     result = dict()
     
