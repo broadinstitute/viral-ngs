@@ -114,26 +114,37 @@ def main_illumina_demux(args):
     # These links may break if the run directory is moved.
     # We should begin by removing broken links, if present,
     # and call CheckIlluminaDirectory ourselves if a 's.locs'
-    # file is present
-    if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
-        # recurse to remove broken links in directory
-        log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
-        broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
-        if len(broken_links):
-            for lpath in broken_links:
-                log.info("Removing broken symlink: %s", lpath)
-                os.unlink(lpath)
+    # file is present, but only if the directory check fails
+    # since link_locs=true tries to create symlinks even if they 
+    # (or the files) already exist
+    try:
+        tools.picard.CheckIlluminaDirectoryTool().execute(
+            illumina.get_BCLdir(),
+            args.lane,
+            illumina.get_RunInfo().get_read_structure(),
+            link_locs=link_locs
+        )
+    except subprocess.CalledProcessError as e:
+        log.warning("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
+        if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
+            # recurse to remove broken links in directory
+            log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
+            broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
+            if len(broken_links):
+                for lpath in broken_links:
+                    log.info("Removing broken symlink: %s", lpath)
+                    os.unlink(lpath)
 
-        # call CheckIlluminaDirectory with LINK_LOCS=true
-        link_locs=True
+            # call CheckIlluminaDirectory with LINK_LOCS=true
+            link_locs=True
 
-    log.info("Checking run directory with Picard...")
-    tools.picard.CheckIlluminaDirectoryTool().execute(
-        illumina.get_BCLdir(),
-        args.lane,
-        illumina.get_RunInfo().get_read_structure(),
-        link_locs=link_locs
-    )
+            log.info("Checking run directory with Picard...")
+            tools.picard.CheckIlluminaDirectoryTool().execute(
+                illumina.get_BCLdir(),
+                args.lane,
+                illumina.get_RunInfo().get_read_structure(),
+                link_locs=link_locs
+            )
 
     # Picard ExtractIlluminaBarcodes
     extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
