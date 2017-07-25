@@ -527,7 +527,7 @@ def is_broken_link(filename):
     return False
 
 
-def remove_broken_symlinks(rootdir, followlinks=False):
+def find_broken_symlinks(rootdir, followlinks=False):
     """
         This function removes broken symlinks within a directory, 
         doing the same in each child directory as well (though not following
@@ -539,17 +539,13 @@ def remove_broken_symlinks(rootdir, followlinks=False):
 
     # first check to see if the input is itself a broken link
     if is_broken_link(rootdir):
-        log.info("Removing broken symlink: %s", rootdir)
         broken_links_to_remove.append(rootdir.rstrip("/"))
     else:
         # otherwise traverse the directory hierarchy
-        log.info("Checking for broken symlinks to remove in: %s", rootdir)
         for rootpath, subfolders, files in os.walk(rootdir, followlinks=followlinks):
             for filename in files:
                 fpath = os.path.join(rootpath, filename)
                 if is_broken_link(fpath):
                     broken_links_to_remove.append(fpath.rstrip("/"))
 
-    for lpath in broken_links_to_remove:
-        log.info("Removing broken symlink: %s", lpath)
-        os.unlink(lpath)
+    return broken_links_to_remove

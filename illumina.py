@@ -117,10 +117,17 @@ def main_illumina_demux(args):
     # file is present
     if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
         # recurse to remove broken links in directory
-        util.file.remove_broken_symlinks(illumina.get_intensities_dir())
+        log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
+        broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
+        if len(broken_links):
+            for lpath in broken_links:
+                log.info("Removing broken symlink: %s", lpath)
+                os.unlink(lpath)
+
         # call CheckIlluminaDirectory with LINK_LOCS=true
         link_locs="true"
 
+    log.info("Checking run directory with Picard...")
     tools.picard.CheckIlluminaDirectoryTool().execute(
         illumina.get_BCLdir(),
         args.lane,
