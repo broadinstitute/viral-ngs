@@ -516,3 +516,36 @@ def slurp_file(fname, maxSizeMb=50):
     with open_or_gzopen(fname) as f:
         return f.read()
 
+def is_broken_link(filename):
+    # isfile() returns True if a file, or a working link
+    if os.path.isfile(filename) or os.path.isdir(filename):
+        return False
+    # otherwise if this is a link
+    if os.path.islink(filename):
+        # os.path.exists() returns false in the case of broken symlinks
+        return not os.path.exists(filename)
+    return False
+
+
+def find_broken_symlinks(rootdir, followlinks=False):
+    """
+        This function removes broken symlinks within a directory, 
+        doing the same in each child directory as well (though not following
+        functional symlinks, unless they're directories and followlinks=True).
+        @param followlinks: only applies to directory links as per os.walk
+    """
+
+    broken_links_to_remove = []
+
+    # first check to see if the input is itself a broken link
+    if is_broken_link(rootdir):
+        broken_links_to_remove.append(rootdir.rstrip("/"))
+    else:
+        # otherwise traverse the directory hierarchy
+        for rootpath, subfolders, files in os.walk(rootdir, followlinks=followlinks):
+            for filename in files:
+                fpath = os.path.join(rootpath, filename)
+                if is_broken_link(fpath):
+                    broken_links_to_remove.append(fpath.rstrip("/"))
+
+    return broken_links_to_remove
