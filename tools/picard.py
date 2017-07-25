@@ -85,7 +85,7 @@ class RevertSamTool(PicardTools):
 class CheckIlluminaDirectoryTool(PicardTools):
     subtoolName = 'CheckIlluminaDirectory'
 
-    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=None, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=False, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
         opts = [
             'BASECALLS_DIR=' + basecalls_dir,
@@ -116,7 +116,7 @@ class CheckIlluminaDirectoryTool(PicardTools):
              opts += ['LANES=' + str(lane)]
 
         if link_locs:
-            opts += ['LINK_LOCS='+link_locs]
+            opts += ['LINK_LOCS=true']
 
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 

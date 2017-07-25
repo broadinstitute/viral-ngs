@@ -106,7 +106,7 @@ def main_illumina_demux(args):
         samples = illumina.get_SampleSheet(only_lane=args.lane)
 
 
-    link_locs="false"
+    link_locs=False
     # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
     # called with LINK_LOCS=true, symlinks with absolute paths
     # may be created, pointing from tile-specific *.locs to the 
@@ -125,7 +125,7 @@ def main_illumina_demux(args):
                 os.unlink(lpath)
 
         # call CheckIlluminaDirectory with LINK_LOCS=true
-        link_locs="true"
+        link_locs=True
 
     log.info("Checking run directory with Picard...")
     tools.picard.CheckIlluminaDirectoryTool().execute(
