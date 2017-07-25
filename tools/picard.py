@@ -82,6 +82,45 @@ class RevertSamTool(PicardTools):
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
+class CheckIlluminaDirectoryTool(PicardTools):
+    subtoolName = 'CheckIlluminaDirectory'
+
+    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=None, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        picardOptions = picardOptions or []
+        opts = [
+            'BASECALLS_DIR=' + basecalls_dir,
+            'READ_STRUCTURE=' + read_structure
+        ]
+
+        if fake_files:
+            opts += ['FAKE_FILES=true']
+
+        if tile_numbers is not None:
+            if type(tile_numbers)==int:
+                tile_numbers = [tile_numbers]
+            for tile_number in set(tile_numbers):
+                 opts += ['TILE_NUMBERS=' + str(tile_number)]
+
+        if data_types is not None:
+            if isinstance(arg, str):
+                data_types = [data_types]
+            for data_type in set(data_types):
+                opts += ['DATA_TYPES=' + data_type]
+
+        # if lanes is a single int, cast it to a list
+        if type(lanes)==int:
+            lanes = [lanes]
+
+        assert type(lanes)==list, "Lanes must be a list specifying the lanes"
+        for lane in set(lanes):
+             opts += ['LANES=' + str(lane)]
+
+        if link_locs:
+            opts += ['LINK_LOCS='+link_locs]
+
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
+
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
