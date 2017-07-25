@@ -105,6 +105,36 @@ def main_illumina_demux(args):
     else:
         samples = illumina.get_SampleSheet(only_lane=args.lane)
 
+
+    link_locs=False
+    # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
+    # called with LINK_LOCS=true, symlinks with absolute paths
+    # may be created, pointing from tile-specific *.locs to the 
+    # single s.locs file in the Intensities directory.
+    # These links may break if the run directory is moved.
+    # We should begin by removing broken links, if present,
+    # and call CheckIlluminaDirectory ourselves if a 's.locs'
+    # file is present
+    if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
+        # recurse to remove broken links in directory
+        log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
+        broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
+        if len(broken_links):
+            for lpath in broken_links:
+                log.info("Removing broken symlink: %s", lpath)
+                os.unlink(lpath)
+
+        # call CheckIlluminaDirectory with LINK_LOCS=true
+        link_locs=True
+
+    log.info("Checking run directory with Picard...")
+    tools.picard.CheckIlluminaDirectoryTool().execute(
+        illumina.get_BCLdir(),
+        args.lane,
+        illumina.get_RunInfo().get_read_structure(),
+        link_locs=link_locs
+    )
+
     # Picard ExtractIlluminaBarcodes
     extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
     barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
@@ -417,8 +447,12 @@ class IlluminaDirectory(object):
             self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'), only_lane=only_lane)
         return self.samplesheet
 
+    def get_intensities_dir(self):
+        return os.path.join(self.path, 'Data', 'Intensities')
+
     def get_BCLdir(self):
-        return os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')
+        return os.path.join(self.get_intensities_dir(), 'BaseCalls')
+
 
 # ==================
 # ***  RunInfo   ***
