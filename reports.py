@@ -602,7 +602,7 @@ def plot_coverage(
     domain_max = 0
     with open(coverage_tsv_file, "r") as tabfile:
         for row in csv.reader(tabfile, delimiter='\t'):
-            segment_depths.setdefault(row[0], []).append(int(row[2]))
+            segment_depths.setdefault(row[0], []).append(float(row[2]))
             domain_max += 1
 
     domain_max = 0
