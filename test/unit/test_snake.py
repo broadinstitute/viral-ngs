@@ -17,8 +17,6 @@ from test import TestCaseWithTmp
 
 if sys.version_info >= (3, 5):
     import snakemake
-    import functools
-    import boto
 
 def add_to_sample_list(workdir, sample_list_name, sample_names):
     with open(os.path.join(workdir, 'samples-{}.txt'.format(sample_list_name)), 'a') as outf:
@@ -61,9 +59,6 @@ class TestSimpleDryRuns(TestCaseWithTmp):
         super(TestSimpleDryRuns, self).setUp()
         self.workdir = setup_dummy_simple()
         self.env = {'GATK_PATH': os.environ.get('GATK_PATH'), 'NOVOALIGN_PATH': os.environ.get('NOVOALIGN_PATH')}
-        # monkeypatch connect_s3 to specify anonymous unsigned access for testing
-        # this will need to be changed when Snakemake shifts to use boto3
-        boto.connect_s3 = functools.partial(boto.connect_s3, anon=True)
 
     def tearDown(self):
         for k, v in self.env.items():

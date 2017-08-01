@@ -50,20 +50,27 @@ method_props = {
     }
 }
 
-taxfiles = ['merged.dmp',
-            'gi_taxid.readme',
-            'gi_taxid_nucl_diff.dmp',
-            'names.dmp','taxcat_readme.txt','Cowner_dump.txt',
-            'taxcat.zip','division.dmp','coll_dump.txt',
-            'gi_taxid_prot_diff.dmp','gi_taxid.bin','gi_taxid_nucl_diff.zip',
-            'taxcat.tar','Ccode_dump.txt','citations.dmp','gc.prt','taxdump.tar','gencode.dmp',
-            'gi_taxid_prot.zip','taxdmp.zip','Icode_dump.txt','readme.txt','taxdump_readme.txt','gi_taxid_nucl.dmp','taxdump.tar.Z',
-            'categories.dmp','delnodes.dmp','gi_taxid_prot_diff.zip',
-            'nodes.dmp','taxcat.tar.Z','gi_taxid_prot.dmp','gi_taxid_nucl.zip'] # 'accession2taxid',
+taxfiles = [
+                'gi_taxid_nucl.dmp',
+                'gi_taxid_prot.dmp',
+                'names.dmp',
+                'nodes.dmp'
+            ]
+
+            # 'merged.dmp',
+            # 'gi_taxid.readme',
+            # 'gi_taxid_nucl_diff.dmp',
+            # ,'taxcat_readme.txt','Cowner_dump.txt',
+            # 'taxcat.zip','division.dmp','coll_dump.txt',
+            # 'gi_taxid_prot_diff.dmp','gi_taxid.bin','gi_taxid_nucl_diff.zip',
+            # 'taxcat.tar','Ccode_dump.txt','citations.dmp','gc.prt','taxdump.tar','gencode.dmp',
+            # 'gi_taxid_prot.zip','taxdmp.zip','Icode_dump.txt','readme.txt','taxdump_readme.txt',,'taxdump.tar.Z',
+            # 'categories.dmp','delnodes.dmp','gi_taxid_prot_diff.zip',
+            # ,'taxcat.tar.Z','gi_taxid_prot.dmp','gi_taxid_nucl.zip'] # 'accession2taxid',
 
 krakenfiles = ["database.idx","database.jdb","database.kdb","gi2seqid.map","lca.complete","seqid2taxid.map"]
 
-rna_bwa_ext = ['sa', 'bwt', 'bwt', 'ann', 'amb', 'amb', 'sa', 'pac', 'ann', 'pac', 'fa']
+rna_bwa_ext = ['sa', 'bwt', 'amb', 'sa', 'ann', 'pac'] #, 'fa']
 
 rule diamond:
     input: 
