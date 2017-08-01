@@ -1,5 +1,5 @@
 
-import os, os.path, sys
+import os, os.path, sys, collections
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -87,3 +87,58 @@ def webfile_readlines(uriToGet):
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
+
+# monkeypatch until boto fixes its config reader under py3
+try:
+    from boto.pyami.config import Config, ConfigParser
+
+    def get(self, section, name, default=None, **kw):
+        try:
+            val = ConfigParser.get(self, section, name, **kw)
+        except:
+            val = default
+        return val
+
+    Config.get = get
+
+except ImportError:
+    pass
+
+def strip_protocol(uri, relative=False):
+
+    def parse_address(text):
+        return re.search("^(?P<protocol>[a-zA-Z]+\://){1}(?P<path_remainder>.*)$", text)
+
+    if parse_address(uri):
+        if not relative:
+            return parse_address(uri).group("path_remainder")
+        else:
+            return os.path.join(".", parse_address(uri).group("path_remainder"))
+    else:
+        return uri
+
+def objectify_remote(file_address):
+    if file_address is None:
+        raise IOError("%s is None" % file_address)
+
+    # if this is a string, make it a list, otherwise use it as an iterable
+    file_list = file_address if util.misc.is_nonstr_iterable(file_address) else [file_address]
+
+    for index, uri in enumerate(file_list):
+        if uri.lower().startswith('s3://'):
+            import snakemake.remote.S3
+            remote_provider = snakemake.remote.S3.RemoteProvider()
+            # file_list[index] = remote_provider.remote(uri)
+            file_list[index] = remote_provider.remote(uri[5:])
+        if uri.lower().startswith('gs://'):
+            import snakemake.remote.GS
+            remote_provider = snakemake.remote.GS.RemoteProvider()
+            # file_list[index] = remote_provider.remote(uri)
+            file_list[index] = remote_provider.remote(uri[5:])
+        elif uri.lower().startswith('sftp://'):
+            import snakemake.remote.SFTP
+            remote_provider = snakemake.remote.SFTP.RemoteProvider()
+            # file_list[index] = remote_provider.remote(uri)
+            file_list[index] = remote_provider.remote(uri[7:])
+
+    return file_list

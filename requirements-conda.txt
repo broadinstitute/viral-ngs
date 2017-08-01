@@ -19,6 +19,7 @@ snpeff=4.1l
 tbl2asn=25.3
 trimmomatic=0.36
 trinity=date.2011_11_26
+unzip=6.0
 vphaser2=2.0
 # Python packages below
 biopython=1.68

@@ -478,10 +478,10 @@ __commands__.append(('order_and_orient', parser_order_and_orient))
 
 class PoorAssemblyError(Exception):
 
-    def __init__(self, chr_idx, seq_len, non_n_count):
+    def __init__(self, chr_idx, seq_len, non_n_count, min_length, segment_length):
         super(PoorAssemblyError, self).__init__(
-            'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}'.format(
-                chr_idx, seq_len, non_n_count
+            'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}; bases required of reference segment length: {}/{} ({:.0%})'.format(
+                chr_idx, seq_len, non_n_count, min_length, int(segment_length), float(min_length)/float(segment_length)
             )
         )
 
@@ -529,7 +529,7 @@ def impute_from_reference(
             for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
                 # our zip fails if one file has more seqs than the other
                 if not refSeqObj or not asmSeqObj:
-                    raise KeyError("inFasta and inReference do not have the same number of sequences.")
+                    raise KeyError("inFasta and inReference do not have the same number of sequences. This could be because the de novo assembly process was unable to create contigs for all segments.")
 
                 # error if PoorAssembly
                 minLength = len(refSeqObj) * minLengthFraction
@@ -548,7 +548,7 @@ def impute_from_reference(
                     )
                 )
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
-                    raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
+                    raise PoorAssemblyError(idx + 1, seq_len, non_n_count, minLength, len(refSeqObj))
 
                 # prepare temp input and output files
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
@@ -605,8 +605,8 @@ def impute_from_reference(
 
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     if index:
-        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
         tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(outFasta)
 
     return 0

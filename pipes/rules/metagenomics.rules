@@ -1,37 +1,37 @@
-from os.path import join
+import os.path
 
 samples = list(read_samples_file(config.get("samples_metagenomics")))
 
 rule all_metagenomics:
     input:
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.raw.{method}.report"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa.nodupes']),
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa_nodupes'])
     params: LSF='-N'
 
 
 rule all_metagenomics_host_depleted:
     input:
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.cleaned.{method}.report"), sample=samples, method=['kraken', 'rna_bwa']),
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa'])
     params: LSF='-N'
 
 rule all_kraken:
     input:
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.raw.kraken.report"), sample=samples),
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.raw.kraken.krona.html"), sample=samples)
     params: LSF='-N'
 
 rule all_kraken_host_depleted:
     input:
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.cleaned.kraken.report"), sample=samples),
-        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.cleaned.kraken.krona.html"), sample=samples)
     params: LSF='-N'
 
@@ -50,54 +50,90 @@ method_props = {
     }
 }
 
+taxfiles = ['merged.dmp',
+            'gi_taxid.readme',
+            'gi_taxid_nucl_diff.dmp',
+            'names.dmp','taxcat_readme.txt','Cowner_dump.txt',
+            'taxcat.zip','division.dmp','coll_dump.txt',
+            'gi_taxid_prot_diff.dmp','gi_taxid.bin','gi_taxid_nucl_diff.zip',
+            'taxcat.tar','Ccode_dump.txt','citations.dmp','gc.prt','taxdump.tar','gencode.dmp',
+            'gi_taxid_prot.zip','taxdmp.zip','Icode_dump.txt','readme.txt','taxdump_readme.txt','gi_taxid_nucl.dmp','taxdump.tar.Z',
+            'categories.dmp','delnodes.dmp','gi_taxid_prot_diff.zip',
+            'nodes.dmp','taxcat.tar.Z','gi_taxid_prot.dmp','gi_taxid_nucl.zip'] # 'accession2taxid',
+
+krakenfiles = ["database.idx","database.jdb","database.kdb","gi2seqid.map","lca.complete","seqid2taxid.map"]
+
+rna_bwa_ext = ['sa', 'bwt', 'bwt', 'ann', 'amb', 'amb', 'sa', 'pac', 'ann', 'pac', 'fa']
+
 rule diamond:
-    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
-    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.report"),
-            lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
-    resources: cores=int(config.get("number_of_threads", 1)),
-               mem=120
-    params: numThreads=str(config.get("number_of_threads", 1)),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long')
-    shell:
-        """
-        {config[bin_dir]}/metagenomics.py diamond {input} {config[diamond_db]} {config[taxonomy_db]} {output.report} --outLca {output.lca} --numThreads {params.numThreads}
-        """
+    input: 
+        bam         = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
+        diamond_db  = objectify_remote(expand("{path_prefix}.{ext}", path_prefix=config["diamond_db"], ext=["dmnd"])),
+        taxonomy_db = objectify_remote(expand("{path_prefix}/{taxfile}", path_prefix=config["taxonomy_db"], taxfile=taxfiles))
+    output: 
+        report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.report"),
+        lca    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
+    resources: 
+        threads=int(config.get("number_of_threads", 1)),
+        mem=120
+    params: 
+        threads=str(config.get("number_of_threads", 1)),
+        UGER=config.get('UGER_queues', {}).get('long', '-q long')
+    run:
+        diamond_db_prefix = os.path.dirname(strip_protocol(config["diamond_db"], relative=True))
+        taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
+        shell("{config[bin_dir]}/metagenomics.py diamond {input.bam} "+diamond_db_prefix+" "+taxonomy_db_prefix+" {output.report} --outLca {output.lca} --numThreads {params.threads}")
+        
 
 rule kraken:
-    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
-    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.report"),
-            reads=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
-    resources: cores=int(config.get("number_of_threads", 1)),
-               mem=120
-    params: numThreads=str(config.get("number_of_threads", 1)),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long')
-    shell:
-        """
-        {config[bin_dir]}/metagenomics.py kraken {input} {config[kraken_db]} --outReads {output.reads} --outReport {output.report} --numThreads {params.numThreads}
-        """
+    input: 
+        bam         = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
+        kraken_db   = objectify_remote(expand("{path_prefix}/{krakenfile}", path_prefix=config["kraken_db"], krakenfile=krakenfiles)),
+        taxonomy_db = objectify_remote(expand("{path_prefix}/taxonomy/{taxfile}", path_prefix=config["kraken_db"], taxfile=taxfiles))
+    output: 
+        report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.report"),
+        reads  = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
+    resources: 
+        threads=int(config.get("number_of_threads", 1)),
+        mem=120
+    params: 
+        threads=str(config.get("number_of_threads", 1)),
+        UGER=config.get('UGER_queues', {}).get('long', '-q long')
+    run:
+        kraken_db_prefix = strip_protocol(config["kraken_db"], relative=True)
+        shell("{config[bin_dir]}/metagenomics.py kraken {input.bam} "+kraken_db_prefix+" --outReads {output.reads} --outReport {output.report} --numThreads {params.threads}")
 
 rule align_rna:
-    input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
-    output: report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.report"),
-            nodupes_report=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
-            bam=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"),
-            lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
-            nodupes_lca=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
-    resources: cores=int(config.get("number_of_threads", 1)),
-               mem=36
-    params: numThreads=str(config.get("number_of_threads", 1)),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long')
-    shell:
-        """
-        {config[bin_dir]}/metagenomics.py align_rna {input} {config[align_rna_db]} {config[taxonomy_db]} {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outLca {output.nodupes_lca} --dupeLca {output.lca} --JVMmemory {resources.mem}g --numThreads {params.numThreads}
-        """
+    input: 
+        bam = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
+        rna_bwa_db = objectify_remote(expand("{path_prefix}.{ext}", path_prefix=config["align_rna_db"], ext=rna_bwa_ext)),
+        taxonomy_db = objectify_remote(expand("{path_prefix}/{taxfile}", path_prefix=config["taxonomy_db"], taxfile=taxfiles))
+    output: 
+        report         = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.report"),
+        nodupes_report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
+        bam            = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"),
+        lca            = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
+        nodupes_lca    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
+    resources: 
+        threads=int(config.get("number_of_threads", 1)),
+        mem=36
+    params: 
+        threads=str(config.get("number_of_threads", 1)),
+        UGER=config.get('UGER_queues', {}).get('long', '-q long')
+    run:
+        rna_bwa_path_prefix = strip_protocol(config["align_rna_db"], relative=True)
+        taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
+        shell("{config[bin_dir]}/metagenomics.py align_rna {input.bam} "+rna_bwa_path_prefix+" "+taxonomy_db_prefix+" {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outLca {output.nodupes_lca} --dupeLca {output.lca} --JVMmemory {resources.mem}g --numThreads {params.threads}")
 
 rule krona_import_taxonomy:
-    input: lambda wildcards: join(config["data_dir"], config["subdirs"]["metagenomics"], \
-           ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']]))
-    output: join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_nodupes}.krona.html")
-    resources: mem=32
-    shell:
-        """
-        {config[bin_dir]}/metagenomics.py krona {input} {config[krona_db]} {output} --noRank
-        """
+    input: 
+        tsv = lambda wildcards: os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], \
+           ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']])),
+        krona_db = objectify_remote(expand("{path_prefix}/{kronafile}", path_prefix=config["krona_db"], kronafile=["taxonomy.tab", "gi_taxid.dat"]))
+    output: 
+        os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_nodupes}.krona.html")
+    resources: 
+        mem=32
+    run:
+        krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
+        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")

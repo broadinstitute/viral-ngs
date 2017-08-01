@@ -1064,7 +1064,11 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
     samtools = tools.samtools.SamtoolsTool()
     bwa = tools.bwa.Bwa()
 
-    bwa.mem(inBam, refFasta, bam_aligned)
+    ref_indexed = util.file.mkstempfname('.reference.fasta')
+    shutil.copyfile(refFasta, ref_indexed)
+    bwa.index(ref_indexed)
+
+    bwa.mem(inBam, ref_indexed, bam_aligned)
 
     if outStats is not None:
         samtools.idxstats(bam_aligned, outStats)
