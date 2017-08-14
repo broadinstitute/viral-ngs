@@ -120,7 +120,7 @@ def strip_protocol(uri, relative=False):
 import snakemake.remote.S3
 import snakemake.remote.GS
 import snakemake.remote.SFTP
-def objectify_remote(file_address):
+def objectify_remote(file_address, *args, **kwargs):
     if file_address is None:
         raise IOError("%s is None" % file_address)
 
@@ -133,24 +133,23 @@ def objectify_remote(file_address):
                 remote_provider = snakemake.remote.S3.RemoteProvider()
             except:
                 try:
+                    # for boto2:
                     remote_provider = snakemake.remote.S3.RemoteProvider(anon=True)
+                    # when snakemake switches to boto3, something like this:
+                    # from botocore.config import Config
+                    # import botocore
+                    # remote_provider = snakemake.remote.S3.RemoteProvider(config=Config(signature_version=botocore.UNSIGNED))
+                    # # or...
+                    # from botocore.handlers import disable_signing
+                    # remote_provider.remote_interface().s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
                 except:
                     raise
-            # file_list[index] = remote_provider.remote(uri)
-            file_list[index] = remote_provider.remote(uri[5:])
+            file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('gs://'):
-            try:
-                remote_provider = snakemake.remote.GS.RemoteProvider()
-            except:
-                try:
-                    remote_provider = snakemake.remote.GS.RemoteProvider(anon=True)
-                except:
-                    raise
-            # file_list[index] = remote_provider.remote(uri)
-            file_list[index] = remote_provider.remote(uri[5:])
+            remote_provider = snakemake.remote.GS.RemoteProvider()
+            file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('sftp://'):
             remote_provider = snakemake.remote.SFTP.RemoteProvider()
-            # file_list[index] = remote_provider.remote(uri)
-            file_list[index] = remote_provider.remote(uri[7:])
+            file_list[index] = remote_provider.remote(uri, *args, **kwargs)
 
     return file_list

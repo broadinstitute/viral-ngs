@@ -2,6 +2,7 @@
 
 from builtins import super
 import argparse
+import os
 import os.path
 from os.path import join
 import sys
@@ -131,7 +132,7 @@ def test_kraken(kraken_db, input_bam):
 
 
 @pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary does not yet exist on bioconda")
-@pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
