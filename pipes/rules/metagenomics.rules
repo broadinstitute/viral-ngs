@@ -54,7 +54,8 @@ taxfiles = [
                 'gi_taxid_nucl.dmp',
                 'gi_taxid_prot.dmp',
                 'names.dmp',
-                'nodes.dmp'
+                'nodes.dmp',
+                'merged.dmp'
             ]
 
 taxfiles_kraken = [
