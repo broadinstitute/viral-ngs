@@ -125,7 +125,8 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
 TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
                   'gi_taxid_prot.dmp',
                   'names.dmp',
-                  'nodes.dmp',)
+                  'nodes.dmp',
+                  'merged.dmp')
 
 
 @pytest.fixture(scope='session')
