@@ -33,7 +33,9 @@ pytest==3.0.5
 pycodestyle
 mock==2.0.0
 six<2
+pytest-cov==2.5.1
 pytest-catchlog==1.2.2
+coverage>=4
 pytest-xdist==1.15.0
 flake8<=3
 Jinja2==2.8
