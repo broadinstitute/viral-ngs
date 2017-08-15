@@ -89,6 +89,7 @@ def webfile_readlines(uriToGet):
             yield cleanedLine
 
 # monkeypatch until boto fixes its config reader under py3
+# see: https://github.com/boto/boto/issues/2617
 try:
     from boto.pyami.config import Config, ConfigParser
 

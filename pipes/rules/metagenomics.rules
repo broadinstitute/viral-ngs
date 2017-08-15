@@ -88,7 +88,7 @@ rule diamond:
         threads=str(config.get("number_of_threads", 1)),
         UGER=config.get('UGER_queues', {}).get('long', '-q long')
     run:
-        diamond_db_prefix = os.path.dirname(strip_protocol(config["diamond_db"], relative=True))
+        diamond_db_prefix = os.path.splitext(strip_protocol(config["diamond_db"], relative=True))[0]
         taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
         shell("{config[bin_dir]}/metagenomics.py diamond {input.bam} "+diamond_db_prefix+" "+taxonomy_db_prefix+" {output.report} --outLca {output.lca} --numThreads {params.threads}")
         

@@ -119,7 +119,7 @@ def diamond_db(request, tmpdir_factory, diamond, db_type):
                     seq_record.seq = seq_record.seq.translate()
                     SeqIO.write(seq_record, f_out, 'fasta')
     diamond.build(db, [translated])
-    return db
+    return os.path.splitext(db)[0]
 
 
 TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
