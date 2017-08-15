@@ -3,3 +3,4 @@ filechunkio>=1.8
 snakemake>=4.0.0
 google-cloud-storage>=1.2.0
 google-cloud>=0.26.1
+pysftp>=0.2.8
