@@ -20,9 +20,9 @@ email_point_of_contact_for_ncbi: "someone@example.com"
 # The path prefix should contain files with each of the needed bmtagger extensions added:
 #   ['bitmask','srprism.ssa','srprism.imp','srprism.idx','srprism.map','srprism.ss','srprism.amp','srprism.rmp','srprism.pmp','srprism.ssd']
 bmtagger_dbs_remove:
-  - "gs://sabeti-public-dbs/bmtagger/hg19"
-  - "gs://sabeti-public-dbs/bmtagger/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
-  - "gs://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
+  - "s3://sabeti-public-dbs/bmtagger/hg19"
+  - "s3://sabeti-public-dbs/bmtagger/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
+  - "s3://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
@@ -34,36 +34,36 @@ bmtagger_dbs_remove:
 # The path prefix should contain files with each of the needed blast extensions added:
 #   ['nhr','nsq','nin']
 blast_db_remove: 
-  - "gs://sabeti-public-dbs/blast/metag_v3.ncRNA.mRNA.mitRNA.consensus"
-  - "gs://sabeti-public-dbs/blast/hybsel_probe_adapters"
+  - "s3://sabeti-public-dbs/blast/metag_v3.ncRNA.mRNA.mitRNA.consensus"
+  - "s3://sabeti-public-dbs/blast/hybsel_probe_adapters"
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.tar.gz
 # Can be a remote path to a fasta file (s3://, gs://, etc.). 
-trim_clip_db: "gs://sabeti-public-dbs/trim_clip/contaminants.fasta"
+trim_clip_db: "s3://sabeti-public-dbs/trim_clip/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
 # Can be a remote path to a fasta file (s3://, gs://, etc.). 
-spikeins_db: "gs://sabeti-public-dbs/spikeins/ercc_spike-ins.fasta"
+spikeins_db: "s3://sabeti-public-dbs/spikeins/ercc_spike-ins.fasta"
 
 # Directory of kraken database for metagenomics identification
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_viral_diversity.tar.gz
 # Can be a remote path dirname (s3://, gs://, etc.). 
-kraken_db: "gs://sabeti-public-dbs/kraken"
+kraken_db: "s3://sabeti-public-dbs/kraken"
 
 # Path of DIAMOND database file for metagenomics identification
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz
 # Can be a remote path prefix (s3://, gs://, etc.). 
-diamond_db: "gs://sabeti-public-dbs/diamond/nr-20170529"
+diamond_db: "s3://sabeti-public-dbs/diamond/nr-20170529"
 
 # Directory of the krona database for generating html reports.
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
 # Can be a remote path dirname (s3://, gs://, etc.). 
-krona_db: "gs://sabeti-public-dbs/krona"
+krona_db: "s3://sabeti-public-dbs/krona"
 
 # BWA index prefix for metagenomic alignment.
 # This contains the full human reference genome, multiple diverse sequences covering human
@@ -71,26 +71,26 @@ krona_db: "gs://sabeti-public-dbs/krona"
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/human_viral_rrna.tar.lz4
 # Can be a remote path prefix (s3://, gs://, etc.). 
-align_rna_db: "gs://sabeti-public-dbs/rna_bwa/human_viral_rrna"
+align_rna_db: "s3://sabeti-public-dbs/rna_bwa/human_viral_rrna"
 
 # Directory of the NCBI taxonomy dmp files
 # For pre-packaged hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/taxonomy.tar.lz4
 # Can be a remote path dirname (s3://, gs://, etc.). 
-taxonomy_db: "gs://sabeti-public-dbs/taxonomy"
+taxonomy_db: "s3://sabeti-public-dbs/taxonomy"
 
 # These are variables that must be set
 env_vars:
   # The directory path to the location of the GATK jar file.
   # It must be explicitly given since GATK has to be licensed and downloaded
   # manually out of band.
-  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
+  #GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
 
   # The directory path to the Novocraft utilities, including Novoalign.
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
   # To use multi-threaded Novoalign, it must be licensed and downloaded
   # manually out of band.
-  NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
+  #NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
 
 # ==================== [ Values that may be changed ] ==========================
 
