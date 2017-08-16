@@ -143,7 +143,7 @@ def krona_db(request, tmpdir_factory, krona, db_type):
     return db
 
 
-@pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir, diamond_db, taxonomy_db, krona_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=str(tmpdir))
     override_config = {
