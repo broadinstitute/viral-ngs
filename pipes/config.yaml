@@ -84,13 +84,13 @@ env_vars:
   # The directory path to the location of the GATK jar file.
   # It must be explicitly given since GATK has to be licensed and downloaded
   # manually out of band.
-  #GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
+  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
 
   # The directory path to the Novocraft utilities, including Novoalign.
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
   # To use multi-threaded Novoalign, it must be licensed and downloaded
   # manually out of band.
-  #NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
+  NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
 
 # ==================== [ Values that may be changed ] ==========================
 
