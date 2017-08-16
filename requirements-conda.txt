@@ -35,6 +35,5 @@ mock==2.0.0
 six<2
 pytest-catchlog==1.2.2
 pytest-cov==2.4.0
-# pytest-xdist==1.15.0
 flake8<=3
 Jinja2==2.8
