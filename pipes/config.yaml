@@ -33,7 +33,7 @@ blast_db_remove:
 
 # A fasta file containing sequences of adapters/primers/barcodes to be removed via Trimmomatic
 # For pre-built hosted databases, you may download:
-#  - https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz
+#  - https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.tar.gz
 trim_clip_db: "/idi/sabeti-scratch/shared-resources/depletion-databases/contaminants.fasta"
 
 # a fasta file containing sequences to report downstream as spike-ins
@@ -71,13 +71,13 @@ env_vars:
   # The directory path to the location of the GATK jar file.
   # It must be explicitly given since GATK has to be licensed and downloaded
   # manually out of band.
-  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.3-0-g37228af"
+  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
 
   # The directory path to the Novocraft utilities, including Novoalign.
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
   # To use multi-threaded Novoalign, it must be licensed and downloaded
   # manually out of band.
-  NOVOALIGN_PATH: "/idi/sabeti-scratch/kandersen/bin/novocraft_v3"
+  NOVOALIGN_PATH: "/idi/sabeti-scratch/shared-resources/software/novocraft_v3"
 
 # ==================== [ Values that may be changed ] ==========================
 

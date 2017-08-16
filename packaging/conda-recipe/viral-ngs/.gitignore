@@ -1,0 +1,6 @@
+# this directory is a placeholder to contain jinja2-rendered
+# conda recipes, so the files in it should be ignored
+
+*
+*/
+!.gitignore

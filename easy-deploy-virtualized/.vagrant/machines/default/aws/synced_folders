@@ -1,1 +1,0 @@
-{"rsync":{"/home/ubuntu/data":{"create":true,"type":"rsync","guestpath":"/home/ubuntu/data","hostpath":"/Users/tomkinsc/git-repositories/viral-ngs/easy-deploy/data","disabled":false,"__vagrantfile":true,"owner":"ubuntu","group":"ubuntu"}}}

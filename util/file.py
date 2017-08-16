@@ -7,7 +7,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import contextlib
-import os
+import os, os.path
 import gzip
 import tempfile
 import shutil
@@ -93,6 +93,27 @@ def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     os.close(fd)
     return fn
 
+
+@contextlib.contextmanager
+def tempfname(*args, **kwargs):
+    '''Create a tempfile name on context entry, delete the file (if it exists) on context exit.'''
+    fn = mkstempfname(*args, **kwargs)
+    try:
+        yield fn
+    finally:
+        if os.path.isfile(fn): os.unlink(fn)
+
+
+@contextlib.contextmanager
+def tempfnames(suffixes, *args, **kwargs):
+    '''Create a set of tempfile names on context entry, delete the files (if they exist) on context exit.'''
+    fns = [mkstempfname(sfx, *args, **kwargs) for sfx in suffixes]
+    try:
+        yield fns
+    finally:
+        for fn in fns: 
+            if os.path.isfile(fn): 
+                os.unlink(fn)
 
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
@@ -473,3 +494,58 @@ def line_count(infname):
 def touch(fname, times=None):
     with open(fname, 'a'):
         os.utime(fname, times)
+
+def make_empty(fname):
+    '''Make `fname` a zero-length file with the current timestamp.'''
+    with open(fname, 'w'):
+        pass
+
+def dump_file(fname, value):
+    """store string in file"""
+    with open(fname, 'w')  as out: 
+        out.write(str(value))
+
+def slurp_file(fname, maxSizeMb=50):
+    """Read entire file into one string.  If file is gzipped, uncompress it on-the-fly.  If file is larger
+    than `maxSizeMb` megabytes, throw an error; this is to encourage proper use of iterators for reading
+    large files.  If `maxSizeMb` is None or 0, file size is unlimited."""
+    fileSize = os.path.getsize(fname)
+    if maxSizeMb  and  fileSize > maxSizeMb*1024*1024: 
+        raise RuntimeError('Tried to slurp large file {} (size={}); are you sure?  Increase `maxSizeMb` param if yes'.
+                           format(fname, fileSize))
+    with open_or_gzopen(fname) as f:
+        return f.read()
+
+def is_broken_link(filename):
+    # isfile() returns True if a file, or a working link
+    if os.path.isfile(filename) or os.path.isdir(filename):
+        return False
+    # otherwise if this is a link
+    if os.path.islink(filename):
+        # os.path.exists() returns false in the case of broken symlinks
+        return not os.path.exists(filename)
+    return False
+
+
+def find_broken_symlinks(rootdir, followlinks=False):
+    """
+        This function removes broken symlinks within a directory, 
+        doing the same in each child directory as well (though not following
+        functional symlinks, unless they're directories and followlinks=True).
+        @param followlinks: only applies to directory links as per os.walk
+    """
+
+    broken_links_to_remove = []
+
+    # first check to see if the input is itself a broken link
+    if is_broken_link(rootdir):
+        broken_links_to_remove.append(rootdir.rstrip("/"))
+    else:
+        # otherwise traverse the directory hierarchy
+        for rootpath, subfolders, files in os.walk(rootdir, followlinks=followlinks):
+            for filename in files:
+                fpath = os.path.join(rootpath, filename)
+                if is_broken_link(fpath):
+                    broken_links_to_remove.append(fpath.rstrip("/"))
+
+    return broken_links_to_remove

@@ -1,4 +1,5 @@
 
+import os, os.path, sys
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -6,7 +7,19 @@ try:
     from urllib.request import urlopen
 except ImportError:
     from urllib2 import urlopen
+
+# Ensure that Snakemake rules can import viral-ngs python code
+sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
+import util, util.misc
+
 shell.executable("/bin/bash")
+
+# Load config params from any included config files, including the standard default one; load any params
+# specified under legacy names.
+config = util.misc.load_config(config, 
+                               std_includes=[os.path.join(os.path.expanduser(config['bin_dir']), 
+                                                          'pipes', 'config.yaml')],
+                               param_renamings={})
 
 def set_env_vars():
     import os

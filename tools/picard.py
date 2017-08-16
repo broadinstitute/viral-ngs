@@ -8,6 +8,7 @@ import os.path
 import tempfile
 import shutil
 import subprocess
+import contextlib
 from decimal import *
 
 import pysam
@@ -18,7 +19,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '2.5.0'
+TOOL_VERSION = '2.9.0'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
@@ -81,6 +82,45 @@ class RevertSamTool(PicardTools):
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
+class CheckIlluminaDirectoryTool(PicardTools):
+    subtoolName = 'CheckIlluminaDirectory'
+
+    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=False, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        picardOptions = picardOptions or []
+        opts = [
+            'BASECALLS_DIR=' + basecalls_dir,
+            'READ_STRUCTURE=' + read_structure
+        ]
+
+        if fake_files:
+            opts += ['FAKE_FILES=true']
+
+        if tile_numbers is not None:
+            if type(tile_numbers)==int:
+                tile_numbers = [tile_numbers]
+            for tile_number in set(tile_numbers):
+                 opts += ['TILE_NUMBERS=' + str(tile_number)]
+
+        if data_types is not None:
+            if isinstance(arg, str):
+                data_types = [data_types]
+            for data_type in set(data_types):
+                opts += ['DATA_TYPES=' + data_type]
+
+        # if lanes is a single int, cast it to a list
+        if type(lanes)==int:
+            lanes = [lanes]
+
+        assert type(lanes)==list, "Lanes must be a list specifying the lanes"
+        for lane in set(lanes):
+             opts += ['LANES=' + str(lane)]
+
+        if link_locs:
+            opts += ['LINK_LOCS=true']
+
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
+
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
@@ -101,19 +141,50 @@ class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2, outFastq0=None,
+                illuminaClipping=False,
+                picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        '''Write paired reads from `inBam` to `outFastq1` and `outFastq1`.  If `outFastq0` is given, write
+        any unpaired reads from `inBam` there, else ignore them.  If `illuminaClipping` is True, 
+        trim reads at the clipping position specified by the Illumina clipping attribute
+        (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
+
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # Picard SamToFastq cannot deal with an empty input BAM file
-            with open(outFastq1, 'wt') as outf:
-                pass
-            with open(outFastq2, 'wt') as outf:
-                pass
+            for f in (outFastq1, outFastq2, outFastq0):
+                if f: util.file.make_empty(f)
         else:
             picardOptions = picardOptions or []
+
             opts = [
                 'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
             ]
+            if outFastq0: 
+                assert outFastq2, "outFastq0 option only applies in paired-end output mode"
+                opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
+
+            if illuminaClipping: 
+                opts += PicardTools.dict_to_picard_opts({
+                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ACTION': 'X'
+                })
+
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        
+    @contextlib.contextmanager
+    def execute_tmp(self, inBam, sfx='', includeUnpaired=False, **kwargs):
+        '''Output reads from `inBam` to temp fastq files, and yield their filenames as a tuple.
+        If `includeUnpaired` is True, output unpaired reads to a third temp fastq file and yield it as a third
+        element of the tuple.
+        '''
+        if not includeUnpaired:
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq')) as (outFastq1, outFastq2):
+                self.execute(inBam, outFastq1, outFastq2, **kwargs)
+                yield outFastq1, outFastq2
+        else:
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq', sfx+'.0.fq')) as (outFastq1, outFastq2, outFastq0):
+                self.execute(inBam, outFastq1, outFastq2, outFastq0=outFastq0, **kwargs)
+                yield outFastq1, outFastq2, outFastq0
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
@@ -318,6 +389,38 @@ class BuildBamIndexTool(PicardTools):
         opts = ['INPUT=' + inBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
+class CollectIlluminaLaneMetricsTool(PicardTools):
+    subtoolName = 'CollectIlluminaLaneMetrics'
+    jvmMemDefault = '8g'
+    defaults = {'read_structure': '101T8B8B101T'}
+    option_list = (
+        'read_structure',
+    )
+
+    def execute(
+        self, run_dir,
+        output_dir, output_prefix,
+        picardOptions=None,
+        JVMmemory=None
+    ):    # pylint: disable=W0221
+        picardOptions = picardOptions or {}
+
+        opts_dict = self.defaults.copy()
+        for k, v in picardOptions.items():
+            opts_dict[k] = v
+        opts = []
+        for k, v in opts_dict.items():
+            if v is not None:
+                if type(v) in (list, tuple):
+                    for x in v:
+                        opts.append('='.join((k.upper(), str(x))))
+                else:
+                    opts.append('='.join((k.upper(), str(v))))
+                    
+        opts += ['RUN_DIRECTORY=' + run_dir]
+        opts += ['OUTPUT_DIRECTORY=' + output_dir]
+        opts += ['OUTPUT_PREFIX=' + output_prefix]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
 
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'

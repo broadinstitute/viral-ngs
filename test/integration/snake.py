@@ -117,7 +117,8 @@ class SnakemakeRunner(object):
 
     def run(self, rules=None):
         """Run snakemake with extra verbosity. """
-        cmd = ['snakemake', '--verbose', '--reason', '--printshellcmds']
+        # Use --resource=mem=2 to bypass shell quoting issues with whitespace separator
+        cmd = ['snakemake', '--verbose', '--reason', '--printshellcmds', '--resources=mem=2']
         if rules:
             cmd.extend(rules)
         res = subprocess.check_call(cmd, cwd=self.workdir)

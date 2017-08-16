@@ -156,28 +156,17 @@ class Bwa(tools.Tool):
                     readgroup_line = line
 
         assert len(readgroup_line) > 0
-        
-        aln_bam_prefilter = util.file.mkstempfname('.prefiltered.bam')
+
+        tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
-        self.mem(one_rg_inBam, refDb, aln_bam_prefilter, options=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
+        self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
         # if there was only one RG in the input, we used it directly and should not delete it
         if removeInput:
             os.unlink(one_rg_inBam)
-
-        # @haydenm says: 
-        # For some reason (particularly when the --sensitive option is on), bwa
-        # doesn't listen to its '-T' flag and outputs alignments with score less
-        # than the '-T 30' threshold. So filter these:
-        if min_qual > 0:
-            tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
-            tools.samtools.SamtoolsTool().view(["-b", "-h", "-q", str(min_qual)], aln_bam_prefilter, tmp_bam_aligned)
-            os.unlink(aln_bam_prefilter)
-        else:
-            shutil.move(aln_bam_prefilter, tmp_bam_aligned)
 
         # if the aligned bam file contains no reads after filtering
         # just create an empty file

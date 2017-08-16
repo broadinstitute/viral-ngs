@@ -22,6 +22,7 @@ import re
 import os.path
 import subprocess
 import tempfile
+import contextlib
 from collections import OrderedDict
 from decimal import *
 
@@ -69,9 +70,29 @@ class SamtoolsTool(tools.Tool):
 
     def bam2fq(self, inBam, outFq1, outFq2=None):
         if outFq2 is None:
-            self.execute('bam2fq', ['-s', outFq1, inBam])
+            self.execute('bam2fq', ['-n', inBam], stdout=outFq1)
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
+
+    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
+        args=['-1', outFa1]
+        if outFa2: args += ['-2', outFa2]
+        if outFa0: args += ['-0', outFa0]
+        args += [inBam]
+
+        self.execute('fasta', args)
+
+    @contextlib.contextmanager
+    def bam2fq_tmp(self, inBam):
+        with util.file.tempfnames(('.1.fq', '.2.fq')) as (reads1, reads2):
+            self.bam2fq(inBam, reads1, reads2)
+            yield reads1, reads2
+
+    @contextlib.contextmanager
+    def bam2fa_tmp(self, inBam):
+        with util.file.tempfnames(('.1.fa', '.2.fa')) as (reads1, reads2):
+            self.bam2fa(inBam, reads1, reads2)
+            yield reads1, reads2
 
     def sort(self, inFile, outFile, args=None, threads=None):
         # inFile can be .sam, .bam, .cram
