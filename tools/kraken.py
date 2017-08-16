@@ -17,12 +17,12 @@ import util.file
 import util.misc
 from builtins import super
 
-TOOL_NAME = "kraken-all"
+#TOOL_NAME = "kraken-all"
+TOOL_NAME = "kraken"
 TOOL_VERSION = '0.10.6_eaf8fb68'
 
 log = logging.getLogger(__name__)
 
-@tools.skip_install_test(condition=tools.is_osx())
 class Kraken(tools.Tool):
 
     BINS = ['kraken', 'kraken-build', 'kraken-filter', 'kraken-mpa-report', 'kraken-report', 'kraken-translate']
@@ -145,7 +145,6 @@ class Kraken(tools.Tool):
                 util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE, check=True)
 
 
-@tools.skip_install_test(condition=tools.is_osx())
 class Jellyfish(Kraken):
     """ Tool wrapper for Jellyfish (installed by kraken-all metapackage) """
     subtool_name = 'jellyfish'
