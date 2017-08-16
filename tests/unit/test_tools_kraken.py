@@ -87,7 +87,6 @@ class TestToolKrakenMocked(TestCaseWithTmp):
             self.assertEqual(actual, str(expected), "failure for requested %s, expected %s, actual %s" % (requested, expected, actual))
 
 
-@unittest.skipIf(tools.is_osx(), "kraken osx binary does not yet exist on bioconda")
 class TestToolKrakenExecute(TestCaseWithTmp):
 
     def setUp(self):
