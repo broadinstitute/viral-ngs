@@ -41,9 +41,6 @@ for i in $(seq 3); do
   sleep 5
 done
 
-# touch ~/.boto to work around boto2 error under py3 related to loading plugins from config file
-touch $HOME/.boto
-
 echo 'Sourcing default environment'
 source activate tools/conda-tools/default
 conda info -a # for debugging
