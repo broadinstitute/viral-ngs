@@ -47,4 +47,4 @@ conda info -a # for debugging
 
 ./install_tools.py
 
-#conda clean --all --yes # clean temp/cache files to reduce Travis cache size
+yes | conda clean --all --yes # clean temp/cache files to reduce Travis cache size
