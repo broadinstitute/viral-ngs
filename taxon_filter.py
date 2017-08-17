@@ -74,6 +74,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=None
     )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
+    parser.add_argument('--memory', dest="memory_mb" type=int, default=7168, help='The amount of memory to use in running bmtagger.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -116,10 +117,13 @@ def main_deplete_human(args):
                 util.file.touch(revertBamOut)
                 # TODO: error out? run RevertSam anyway?
 
+    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, memory_mb=args.memory, JVMmemory=JVMmemory)
+
     multi_db_deplete_bam(
         bamToDeplete,
         args.bmtaggerDbs,
-        deplete_bmtagger_bam,
+        wrapper,
         args.bmtaggerBam,
         threads=args.threads,
         JVMmemory=args.JVMmemory
@@ -419,10 +423,14 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
+
+    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, memory_mb=args.memory, JVMmemory=JVMmemory)
+
     multi_db_deplete_bam(
         args.inBam,
         args.refDbs,
-        deplete_bmtagger_bam,
+        wrapper,
         args.outBam,
         threads=args.threads,
         JVMmemory=args.JVMmemory
