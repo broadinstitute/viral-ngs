@@ -74,7 +74,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=None
     )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument('--memory', dest="memory_mb" type=int, default=7168, help='The amount of memory to use in running bmtagger.')
+    parser.add_argument('--memory', dest="memory_mb", type=int, default=7168, help='The amount of memory to use in running bmtagger.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
