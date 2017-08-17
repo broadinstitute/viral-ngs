@@ -102,8 +102,8 @@ def webfile_readlines(uriToGet):
 
 #     Config.get = get
 
-except ImportError:
-    pass
+# except ImportError:
+#     pass
 
 def strip_protocol(uri, relative=False):
 
