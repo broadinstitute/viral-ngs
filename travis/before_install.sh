@@ -9,7 +9,7 @@ if [ -z "$TRAVIS_TAG" ]; then
     rm -rf tools/build
     mkdir -p $CACHE_DIR/tools_build $CACHE_DIR/conda-tools $CACHE_DIR/conda-cache
     ln -s $CACHE_DIR/tools_build tools/build
-    #ln -s $CACHE_DIR/conda-cache tools
+    #ln -s $CACHE_DIR/conda-cache tools/conda-cache
     #ln -s $CACHE_DIR/conda-tools tools
 
     # Report how big things are
