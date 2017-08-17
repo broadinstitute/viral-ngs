@@ -127,7 +127,7 @@ except ImportError:
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
     def run(args, stdin=None, stdout=None, stderr=None, shell=False,
-            env=None, cwd=None, timeout=None, check=False):
+            env=None, cwd=None, timeout=None, check=False, executable=None):
         '''A poor man's substitute of python 3.5's subprocess.run().
 
         Should only be used for capturing stdout. If stdout is unneeded, a
@@ -144,7 +144,7 @@ except ImportError:
             try:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
-                    env=env, cwd=cwd)
+                    env=env, cwd=cwd, executable=executable)
                 return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
@@ -165,7 +165,8 @@ except ImportError:
         try:
             returncode = subprocess.call(
                 args, stdin=stdin, stdout=stdout,
-                stderr=stderr, shell=shell, env=env, cwd=cwd)
+                stderr=stderr, shell=shell, env=env, cwd=cwd,
+                executable=executable)
             if stdout_pipe:
                 stdout.close()
                 with open(stdout_fn, 'rb') as f:
@@ -308,6 +309,7 @@ def run_and_save(args, stdout=None, stdin=None,
 
     return sp
 
+
 class FeatureSorter(object):
     ''' This class helps sort genomic features. It's not terribly optimized
         for speed or anything. Slightly inspired by calhoun's MultiSequenceRangeMap.
@@ -402,9 +404,9 @@ def available_cpu_count():
 
 def which(application_binary_name):
     """
-        Similar to the *nix "which" command, 
+        Similar to the *nix "which" command,
         this function finds the first executable binary present
-        in the system PATH for the binary specified. 
+        in the system PATH for the binary specified.
         It differs in that it resolves symlinks.
     """
     path=os.getenv('PATH')
@@ -494,7 +496,7 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
     param_renamings = param_renamings or {}
 
     result = dict()
-    
+
     base_dir_for_includes = None
     if isinstance(cfg, str):
         cfg_fname = os.path.realpath(cfg)
@@ -516,7 +518,7 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
     for old_param, new_param in param_renamings_seq.items():
 
         # handle chains of param renamings
-        while new_param in param_renamings_seq: 
+        while new_param in param_renamings_seq:
             assert param_renamings_seq[new_param] not in (old_param, new_param), 'Circular param renamings'
             new_param = param_renamings_seq[new_param]
 
@@ -528,4 +530,3 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
     # mappings in the current (top-level) config override any mappings from included configs
     result.update(cfg_flat)
     return unflatten_dict(result)
-
