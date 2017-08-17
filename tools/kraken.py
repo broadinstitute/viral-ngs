@@ -55,11 +55,6 @@ class Kraken(tools.Tool):
                      option_string=option_string)
 
     def pipeline(self, inBam, db, outReport=None, outReads=None, filterThreshold=None, numThreads=None):
-        if tools.samtools.SamtoolsTool().isEmpty(inBam):
-            # kraken cannot deal with empty input
-            with open(outReads, 'rt') as outf:
-                pass
-            return
 
         with util.file.fifo(2) as (fastq1_pipe, fastq2_pipe):
             # do not convert this to samtools bam2fq unless we can figure out how to replicate
