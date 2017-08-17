@@ -64,6 +64,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
+                "--memory", 2500,
                 "--threads", "2"
             ]
         )
@@ -94,6 +95,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
+                "--memory", 2500,
                 "--threads", "2"
             ]
         )
@@ -123,6 +125,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
+                "--memory", 2500,
                 "--threads", "2"
             ]
         )
