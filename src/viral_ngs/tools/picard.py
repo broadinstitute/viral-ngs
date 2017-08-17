@@ -150,27 +150,22 @@ class SamToFastqTool(PicardTools):
         trim reads at the clipping position specified by the Illumina clipping attribute
         (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
 
-        if tools.samtools.SamtoolsTool().isEmpty(inBam):
-            # Picard SamToFastq cannot deal with an empty input BAM file
-            for f in (outFastq1, outFastq2, outFastq0):
-                if f: util.file.make_empty(f)
-        else:
-            picardOptions = picardOptions or []
+        picardOptions = picardOptions or []
 
-            opts = [
-                'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
-            ]
-            if outFastq0:
-                assert outFastq2, "outFastq0 option only applies in paired-end output mode"
-                opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
+        opts = [
+            'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
+        ]
+        if outFastq0:
+            assert outFastq2, "outFastq0 option only applies in paired-end output mode"
+            opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
 
-            if illuminaClipping:
-                opts += PicardTools.dict_to_picard_opts({
-                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-                    'CLIPPING_ACTION': 'X'
-                })
+        if illuminaClipping:
+            opts += PicardTools.dict_to_picard_opts({
+                'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                'CLIPPING_ACTION': 'X'
+            })
 
-            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory, background=background)
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory, background=background)
 
     @contextlib.contextmanager
     def execute_tmp(self, inBam, sfx='', includeUnpaired=False, **kwargs):
