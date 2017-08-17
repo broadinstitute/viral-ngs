@@ -16,9 +16,12 @@ import os.path
 from os.path import join
 import operator
 import queue
+import re
 import shutil
 import sys
+import tempfile
 
+from Bio import SeqIO
 import pysam
 
 import util.cmd
@@ -29,6 +32,7 @@ import tools.diamond
 import tools.kraken
 import tools.krona
 import tools.picard
+from util.file import open_or_gzopen
 
 __commands__ = []
 
@@ -37,6 +41,16 @@ log = logging.getLogger(__name__)
 
 class TaxIdError(ValueError):
     '''Taxonomy ID couldn't be determined.'''
+
+
+def maybe_compressed(fn):
+    fn_gz = fn + '.gz'
+    if os.path.exists(fn):
+        return fn
+    elif os.path.exists(fn_gz):
+        return fn_gz
+    else:
+        raise FileNotFoundError(fn)
 
 
 class TaxonomyDb(object):
@@ -55,9 +69,11 @@ class TaxonomyDb(object):
         load_names=False
     ):
         if tax_dir:
-            gis_paths = [join(tax_dir, 'gi_taxid_nucl.dmp'), join(tax_dir, 'gi_taxid_prot.dmp')]
-            nodes_path = join(tax_dir, 'nodes.dmp')
-            names_path = join(tax_dir, 'names.dmp')
+            gis_paths = [maybe_compressed(join(tax_dir, 'gi_taxid_nucl.dmp')),
+                         maybe_compressed(join(tax_dir, 'gi_taxid_prot.dmp'))]
+            nodes_path = maybe_compressed(join(tax_dir, 'nodes.dmp'))
+            names_path = maybe_compressed(join(tax_dir, 'names.dmp'))
+        self.tax_dir = tax_dir
         self.gis_paths = gis_paths
         self.nodes_path = nodes_path
         self.names_path = names_path
@@ -85,7 +101,7 @@ class TaxonomyDb(object):
     def load_gi_single_dmp(self, dmp_path):
         '''Load a gi->taxid dmp file from NCBI taxonomy.'''
         gi_array = {}
-        with open(dmp_path) as f:
+        with open_or_gzopen(dmp_path) as f:
             for i, line in enumerate(f):
                 gi, taxid = line.strip().split('\t')
                 gi = int(gi)
@@ -101,7 +117,7 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in open(names_db):
+        for line in open_or_gzopen(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
             name = parts[1].strip()
@@ -118,7 +134,7 @@ class TaxonomyDb(object):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with open(nodes_db) as f:
+        with open_or_gzopen(nodes_db) as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])
@@ -436,6 +452,134 @@ def parents_to_children(parents):
     return children
 
 
+
+def file_lines(filename):
+    if filename is not None:
+        with open(filename) as f:
+            for line in f:
+                yield line
+
+
+def collect_children(children, original_taxids):
+    '''Collect nodes with all children recursively.'''
+    taxids = original_taxids
+    while taxids:
+        taxid = taxids.pop()
+        yield taxid
+        for child_taxid in children[taxid]:
+            taxids.add(child_taxid)
+
+
+def collect_parents(parents, taxids):
+    '''Collect nodes with all parents recursively.'''
+    # The root taxid node is 1
+    yield 1
+    taxids_with_parents = set([1])
+    for taxid in taxids:
+        while taxid not in taxids_with_parents:
+            yield taxid
+            taxids_with_parents.add(taxid)
+            taxid = parents[taxid]
+
+
+def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=None,
+                    whitelistTreeTaxids=None, whitelistTreeTaxidFile=None,
+                    whitelistGiFile=None, whitelistAccessionFile=None,
+                    skipGi=None, skipAccession=None, skipDeadAccession=None,
+                    stripVersion=True):
+    '''
+    Generate a subset of the taxonomy db files filtered by the whitelist. The
+    whitelist taxids indicate specific taxids plus their parents to add to
+    taxonomy while whitelistTreeTaxids indicate specific taxids plus both
+    parents and all children taxa. Whitelist GI and accessions can only be
+    provided in file form and the resulting gi/accession2taxid files will be
+    filtered to only include those in the whitelist files. Finally, taxids +
+    parents for the gis/accessions will also be included.
+    '''
+    util.file.mkdir_p(os.path.join(outputDb, 'accession2taxid'))
+    db = TaxonomyDb(tax_dir=taxDb, load_nodes=True)
+
+    taxids = set()
+    if whitelistTaxids is not None:
+        taxids.update(set(whitelistTaxids))
+    taxids.update((int(x) for x in file_lines(whitelistTaxidFile)))
+
+    tree_taxids = set()
+    if whitelistTreeTaxids is not None:
+        tree_taxids.update(set(whitelistTreeTaxids))
+    taxids.update((int(x) for x in file_lines(whitelistTreeTaxidFile)))
+    keep_taxids = set(collect_parents(db.parents, taxids))
+
+    if tree_taxids:
+        db.children = parents_to_children(db.parents)
+        children_taxids = collect_children(db.children, tree_taxids)
+        keep_taxids.update(children_taxids)
+
+    # Taxids kept based on GI or Accession. Get parents afterwards to not pull in all GIs/accessions.
+    keep_seq_taxids = set()
+    def filter_file(path, sep='\t', taxid_column=0, gi_column=None, a2t=False, header=False):
+        input_path = os.path.join(db.tax_dir, path)
+        output_path = os.path.join(outputDb, path)
+
+        input_path = maybe_compressed(input_path)
+        with open_or_gzopen(input_path, 'rt') as f, \
+             open_or_gzopen(output_path, 'wt') as out_f:
+            if header:
+                out_f.write(next(f))
+            for line in f:
+                parts = line.split(sep)
+                taxid = int(parts[taxid_column])
+                if gi_column is not None:
+                    gi = int(parts[gi_column])
+                    if gi in gis:
+                        keep_seq_taxids.add(taxid)
+                        out_f.write(line)
+                        continue
+                if a2t:
+                    accession = parts[accession_column_i]
+                    if stripVersion:
+                        accession = accession.split('.', 1)[0]
+                    if accession in accessions:
+                        keep_seq_taxids.add(taxid)
+                        out_f.write(line)
+                        continue
+                if taxid in keep_taxids:
+                    out_f.write(line)
+
+    if not skipGi:
+        gis = set(int(x) for x in file_lines(whitelistGiFile))
+
+        filter_file('gi_taxid_nucl.dmp', taxid_column=1, gi_column=0)
+        filter_file('gi_taxid_prot.dmp', taxid_column=1, gi_column=0)
+
+    if not skipAccession:
+        if stripVersion:
+            accessions = set(x.strip('.', 1)[0] for x in file_lines(whitelistAccessionFile))
+            accession_column_i = 0
+        else:
+            accessions = set(file_lines(whitelistAccessionFile))
+            accession_column_i = 1
+
+        acc_dir = os.path.join(db.tax_dir, 'accession2taxid')
+        acc_paths = []
+        for fn in os.listdir(acc_dir):
+            if fn.endswith('.accession2taxid') or fn.endswith('.accession2taxid.gz'):
+                if skipDeadAccession and fn.startswith('dead_'):
+                    continue
+                acc_paths.append(os.path.join(acc_dir, fn))
+        for acc_path in acc_paths:
+            filter_file(os.path.relpath(acc_path, db.tax_dir), taxid_column=2, header=True, a2t=True)
+
+
+    # Add in taxids found from processing GI/accession
+    keep_seq_taxids = collect_parents(db.parents, keep_seq_taxids)
+    keep_taxids.update(keep_seq_taxids)
+
+    filter_file('nodes.dmp', sep='|')
+    filter_file('names.dmp', sep='|')
+    filter_file('merged.dmp')
+    filter_file('delnodes.dmp')
+
 def rank_code(rank):
     '''Get the short 1 letter rank code for named ranks.'''
     if rank == "species":
@@ -514,30 +658,7 @@ def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, numTh
 
     assert outReads or outReport, ('Either --outReads or --outReport must be specified.')
     kraken_tool = tools.kraken.Kraken()
-
-    # kraken classify
-    tmp_reads = util.file.mkstempfname('.kraken')
-    kraken_tool.classify(inBam, db, tmp_reads, numThreads=numThreads)
-
-    # kraken filter
-    if filterThreshold:
-        tmp_filtered_reads = util.file.mkstempfname('.filtered-kraken')
-        kraken_tool.filter(tmp_reads, db, tmp_filtered_reads, filterThreshold)
-        os.unlink(tmp_reads)
-    else:
-        tmp_filtered_reads = tmp_reads
-
-    # copy outReads
-    if outReads:
-        with open(tmp_filtered_reads, 'rb') as f_in:
-            with util.file.open_or_gzopen(outReads, 'w') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-    # kraken report
-    if outReport:
-        kraken_tool.report(tmp_filtered_reads, db, outReport)
-
-    os.unlink(tmp_filtered_reads)
+    kraken_tool.pipeline(inBam, db, outReport=outReport, outReads=outReads, filterThreshold=filterThreshold, numThreads=numThreads)
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
@@ -830,12 +951,194 @@ def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
     return parser
 
+def parser_subset_taxonomy(parser=argparse.ArgumentParser()):
+    parser.add_argument(
+        "taxDb",
+        help="Taxonomy database directory (containing nodes.dmp, parents.dmp etc.)",
+    )
+    parser.add_argument(
+        "outputDb",
+        help="Output taxonomy database directory",
+    )
+    parser.add_argument(
+        "--whitelistTaxids",
+        help="List of taxids to add to taxonomy (with parents)",
+        nargs='+', type=int
+    )
+    parser.add_argument(
+        "--whitelistTaxidFile",
+        help="File containing taxids - one per line - to add to taxonomy with parents.",
+    )
+    parser.add_argument(
+        "--whitelistTreeTaxids",
+        help="List of taxids to add to taxonomy (with parents and children)",
+        nargs='+', type=int
+    )
+    parser.add_argument(
+        "--whitelistTreeTaxidFile",
+        help="File containing taxids - one per line - to add to taxonomy with parents and children.",
+    )
+    parser.add_argument(
+        "--whitelistGiFile",
+        help="File containing GIs - one per line - to add to taxonomy with nodes.",
+    )
+    parser.add_argument(
+        "--whitelistAccessionFile",
+        help="File containing accessions - one per line - to add to taxonomy with nodes.",
+    )
+    parser.add_argument(
+        "--skipGi", action='store_true',
+        help="Skip GI to taxid mapping files"
+    )
+    parser.add_argument(
+        "--skipAccession", action='store_true',
+        help="Skip accession to taxid mapping files"
+    )
+    parser.add_argument(
+        "--skipDeadAccession", action='store_true',
+        help="Skip dead accession to taxid mapping files"
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, subset_taxonomy, split_args=True)
+    return parser
+
+
+def kraken_library_ids(library):
+    '''Parse gi/accession from ids of fasta files in library directory. '''
+    library_taxids = set()
+    library_gis = set()
+    library_accessions = set()
+    for dirpath, dirnames, filenames in os.walk(library, followlinks=True):
+        for filename in filenames:
+            if not filename.endswith('.fna') and not filename.endswith('.fa') and not filename.endswith('.ffn'):
+                continue
+            filepath = os.path.join(dirpath, filename)
+            for seqr in SeqIO.parse(filepath, 'fasta'):
+                name = seqr.name
+                # Search for encoded taxid
+                mo = re.search('kraken:taxid\|(\d+)\|', name)
+                if mo:
+                    taxid = int(mo.group(1))
+                    library_taxids.add(taxid)
+                    continue
+                # Search for gi
+                mo = re.search('gi\|(\d+)\|', name)
+                if mo:
+                    gi = int(mo.group(1))
+                    library_gis.add(gi)
+                    continue
+                # Search for accession
+                mo = re.search('([A-Z]+\d+\.\d+)', name)
+                if mo:
+                    accession = mo.group(1)
+                    library_accessions.add(gi)
+    return library_taxids, library_gis, library_accessions
+
+
+class KrakenBuildError(Exception):
+    '''Error while building kraken database.'''
+
+
+def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, numThreads=None, minimizerLen=None, kmerLen=None,
+                 maxDbSize=None, clean=None):
+    '''
+    Builds a kraken database from library directory of fastas and taxonomy db
+    directory. The --subsetTaxonomy option allows shrinking the taxonomy to only
+    include taxids associated with the library folders. For this to work, the
+    library fastas must have the standard id names such as `>NC1234.1`
+    accessions, `>gi|123456789|ref|XXXX||`, or custom kraken name
+    `>kraken:taxid|1234|`.
+
+    Setting the --minimizerLen (default: 16) small, such as 10, will drastically
+    shrink the db size for small inputs, which is useful for testing.
+
+    The built db may include symlinks to the original --library / --taxonomy
+    directories. If you want to build a static archiveable version of the
+    library, simply use the --clean option, which will also remove any
+    unnecessary files.
+    '''
+    util.file.mkdir_p(db)
+    library_dir = os.path.join(db, 'library')
+    library_exists = os.path.exists(library_dir)
+    if library:
+        try:
+            os.symlink(os.path.abspath(library), os.path.join(db, 'library'))
+        except FileExistsError:
+            pass
+    else:
+        if not library_exists:
+            raise FileNotFoundError('Library directory {} not found'.format(library_dir))
+
+    taxonomy_dir = os.path.join(db, 'taxonomy')
+    taxonomy_exists = os.path.exists(taxonomy_dir)
+    if taxonomy:
+        if taxonomy_exists:
+            raise KrakenBuildError('Output db directory already contains taxonomy directory {}'.format(taxonomy_dir))
+        if subsetTaxonomy:
+            kraken_taxids, kraken_gis, kraken_accessions = kraken_library_ids(library)
+
+            whitelist_taxid_f = util.file.mkstempfname()
+            with open(whitelist_taxid_f, 'wt') as f:
+                for taxid in kraken_taxids:
+                    print(taxid, file=f)
+
+            whitelist_gi_f = util.file.mkstempfname()
+            with open(whitelist_gi_f, 'wt') as f:
+                for gi in kraken_gis:
+                    print(gi, file=f)
+
+            whitelist_accession_f = util.file.mkstempfname()
+            with open(whitelist_accession_f, 'wt') as f:
+                for accession in kraken_accessions:
+                    print(accession, file=f)
+
+            # Context-managerize eventually
+            taxonomy_tmp = tempfile.mkdtemp()
+            subset_taxonomy(taxonomy, taxonomy_tmp, whitelistTaxidFile=whitelist_taxid_f,
+                            whitelistGiFile=whitelist_gi_f, whitelistAccessionFile=whitelist_accession_f)
+            shutil.move(taxonomy_tmp, taxonomy_dir)
+        else:
+            os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
+    else:
+        if not taxonomy_exists:
+            raise FileNotFoundError('Taxonomy directory {} not found'.format(taxonomy_dir))
+        if subsetTaxonomy:
+            raise KrakenBuildError('Cannot subset taxonomy if already in db folder')
+
+    kraken_tool = tools.kraken.Kraken()
+    options = {'--build': None}
+    if minimizerLen:
+        options['--minimizer-len'] = minimizerLen
+    if kmerLen:
+        options['--kmer-len'] = kmerLen
+    kraken_tool.build(db, options=options)
+
+    if clean:
+        kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
+
+
+def parser_kraken_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Kraken database directory.')
+    parser.add_argument('--library', help='Library directory of fasta files.')
+    parser.add_argument('--taxonomy', help='Taxonomy db directory.')
+    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
+    parser.add_argument('--minimizerLen', type=int, help='Minimizer length')
+    parser.add_argument('--kmerLen', type=int, help='Kmer length')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size (will shrink if too big)')
+    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
+    parser.add_argument('--numThreads', type=int, default=1, help='Number of threads to run. (default %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken_build, split_args=True)
+    return parser
+
 
 __commands__.append(('kraken', parser_kraken))
 __commands__.append(('diamond', parser_diamond))
 __commands__.append(('krona', parser_krona))
 __commands__.append(('align_rna', parser_align_rna_metagenomics))
 __commands__.append(('report_merge', parser_metagenomic_report_merge))
+__commands__.append(('subset_taxonomy', parser_subset_taxonomy))
+__commands__.append(('kraken_build', parser_kraken_build))
 
 
 def full_parser():
