@@ -113,8 +113,8 @@ def tempfnames(suffixes, *args, **kwargs):
     try:
         yield fns
     finally:
-        for fn in fns: 
-            if os.path.isfile(fn): 
+        for fn in fns:
+            if os.path.isfile(fn):
                 os.unlink(fn)
 
 def set_tmp_dir(name):
@@ -135,6 +135,19 @@ def destroy_tmp_dir(tempdir=None):
     elif tempfile.tempdir:
         shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
+
+
+@contextlib.contextmanager
+def fifo(num_pipes=1):
+    pipe_dir = tempfile.mkdtemp()
+    pipe_paths = []
+    for i in range(num_pipes):
+        pipe_path = os.path.join(pipe_dir, '{}.pipe'.format(i))
+        os.mkfifo(pipe_path)
+        pipe_paths.append(pipe_path)
+
+    yield pipe_paths
+    shutil.rmtree(pipe_dir)
 
 
 def mkdir_p(dirpath):
@@ -169,7 +182,7 @@ def read_tabfile_dict(inFile):
             else:
                 # if a row is longer than the header
                 if len(row) > len(header):
-                    # truncate the row to the header length, and only include extra items if they are not spaces 
+                    # truncate the row to the header length, and only include extra items if they are not spaces
                     # (takes care of the case where the user may enter an extra space at the end of a row)
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row)
@@ -513,7 +526,7 @@ def make_empty(fname):
 
 def dump_file(fname, value):
     """store string in file"""
-    with open(fname, 'w')  as out: 
+    with open(fname, 'w')  as out:
         out.write(str(value))
 
 def slurp_file(fname, maxSizeMb=50):
@@ -521,7 +534,7 @@ def slurp_file(fname, maxSizeMb=50):
     than `maxSizeMb` megabytes, throw an error; this is to encourage proper use of iterators for reading
     large files.  If `maxSizeMb` is None or 0, file size is unlimited."""
     fileSize = os.path.getsize(fname)
-    if maxSizeMb  and  fileSize > maxSizeMb*1024*1024: 
+    if maxSizeMb  and  fileSize > maxSizeMb*1024*1024:
         raise RuntimeError('Tried to slurp large file {} (size={}); are you sure?  Increase `maxSizeMb` param if yes'.
                            format(fname, fileSize))
     with open_or_gzopen(fname) as f:
@@ -540,7 +553,7 @@ def is_broken_link(filename):
 
 def find_broken_symlinks(rootdir, followlinks=False):
     """
-        This function removes broken symlinks within a directory, 
+        This function removes broken symlinks within a directory,
         doing the same in each child directory as well (though not following
         functional symlinks, unless they're directories and followlinks=True).
         @param followlinks: only applies to directory links as per os.walk

@@ -85,6 +85,16 @@ def kraken_db(request, tmpdir_factory, kraken, db_type):
     return db
 
 
+def test_taxonomy_subset(request, tmpdir_factory):
+    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
+    db_dir = os.path.join(data_dir, 'db', 'taxonomy')
+    sub_dir = str(tmpdir_factory.mktemp('taxonomy_subset'))
+    metagenomics.subset_taxonomy(db_dir, sub_dir, whitelistTaxids=[], whitelistTreeTaxids=[186536])
+
+    tax_db = metagenomics.TaxonomyDb(sub_dir, load_nodes=True, load_names=True)
+    assert 186536 in tax_db.parents
+
+
 TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
                   'gi_taxid_prot.dmp',
                   'names.dmp',
