@@ -351,7 +351,7 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 # ==============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, threads=None, memory_mb=7168, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -380,7 +380,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
-        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M 7168 --paired false"', file=f)
+        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {memory_mb} --paired false"'.format(memory_mb=memory_mb), file=f)
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
@@ -407,6 +407,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('outBam', help='Output BAM file.')
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
+    parser.add_argument('--memory', dest='memory_mb', type=int, default=7168, help='The amount of memory to use in running bmtagger.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,

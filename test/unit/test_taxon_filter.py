@@ -94,7 +94,7 @@ class TestBmtagger(TestCaseWithTmp):
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
         outBam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            inBam, self.database_prefix_path, outBam])
+            inBam, self.database_prefix_path, outBam, "--memory", 2500])
         args.func_main(args)
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
@@ -103,7 +103,7 @@ class TestBmtagger(TestCaseWithTmp):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         out_bam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            empty_bam, self.database_prefix_path, out_bam])
+            empty_bam, self.database_prefix_path, out_bam, "--memory", 2500])
         args.func_main(args)
         assert_equal_bam_reads(self, out_bam, empty_bam)
 
@@ -112,7 +112,7 @@ class TestBmtagger(TestCaseWithTmp):
         in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
         out_bam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            in_bam, self.database_prefix_path, out_bam])
+            in_bam, self.database_prefix_path, out_bam, "--memory", 2500])
         args.func_main(args)
         assert_equal_bam_reads(self, out_bam, empty_bam)
 
