@@ -32,6 +32,7 @@ import tools.picard
 import tools.samtools
 import tools.gatk
 import tools.novoalign
+import tools.spades
 import tools.trimmomatic
 import tools.trinity
 import tools.mafft
@@ -337,6 +338,47 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
+
+
+def assemble_spades(
+    inBam,
+    outFasta,
+    spades_opts='',
+    always_succeed=False,
+    threads=1,
+):
+    ''' This step runs the SPAdes assembler.
+    '''
+
+    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
+        try:
+            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+                                               contigs_out=outFasta, spades_opts=spades_opts)
+        except subprocess.CalledProcessError as e:
+            if always_succeed:
+                log.warn("denovo assembly (SPAdes) failed to assemble input, emitting empty output instead.")
+                util.file.touch_empty(outFasta)
+            else:
+                raise DenovoAssemblyError(0,0,0,0,0,0)
+
+def parser_assemble_spades(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('outFasta', help='Output assembly.')
+    parser.add_argument(
+        "--always_succeed",
+        help="""If SPAdes fails (usually because insufficient reads to assemble),
+                        emit an empty fasta file as output. Default is to throw a DenovoAssemblyError.""",
+        default=False,
+        action="store_true",
+        dest="always_succeed"
+    )
+    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, assemble_spades, split_args=True)
+    return parser
+
+
+__commands__.append(('assemble_spades', parser_assemble_spades))
 
 
 def order_and_orient(inFasta, inReference, outFasta,

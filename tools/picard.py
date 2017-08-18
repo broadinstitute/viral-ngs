@@ -152,6 +152,8 @@ class SamToFastqTool(PicardTools):
         trim reads at the clipping position specified by the Illumina clipping attribute
         (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
 
+        assert os.path.isfile(inBam)
+
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # Picard SamToFastq cannot deal with an empty input BAM file
             for f in (outFastq1, outFastq2, outFastq0):

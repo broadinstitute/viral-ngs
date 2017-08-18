@@ -145,6 +145,39 @@ class TestAssembleTrinity(TestCaseWithTmp):
             inBam, clipDb, outFasta, threads=4, always_succeed=False)
 
 
+class TestAssembleSpades(TestCaseWithTmp):
+    ''' Test the assemble_spades command (no validation of output) '''
+
+    def test_assembly(self):
+        inDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
+        self.assertGreater(os.path.getsize(outFasta), 0)
+        contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
+        self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 247, 294, 328, 348, 430])
+        os.unlink(outFasta)
+
+    def test_empty_input_succeed(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4, always_succeed=True)
+        self.assertEqual(os.path.getsize(outFasta), 0)
+        os.unlink(outFasta)
+
+    def test_empty_input_fail(self):
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        self.assertRaises(assembly.DenovoAssemblyError,
+            assembly.assemble_trinity,
+            inBam, clipDb, outFasta, threads=4, always_succeed=False)
+
+
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
     ''' Test the trim_rmdup_subsamp command '''
 

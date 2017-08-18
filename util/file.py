@@ -111,9 +111,16 @@ def tempfnames(suffixes, *args, **kwargs):
     try:
         yield fns
     finally:
-        for fn in fns:
-            if os.path.isfile(fn):
-                os.unlink(fn)
+        if  not keep_tmp():
+            for fn in fns:
+                if os.path.isfile(fn):
+                    os.unlink(fn)
+
+def keep_tmp():
+    """Whether to preserve temporary directories and files (useful during debugging).
+    Return True if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    """
+    return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
 
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
@@ -128,10 +135,11 @@ def set_tmp_dir(name):
 
 
 def destroy_tmp_dir(tempdir=None):
-    if tempdir:
-        shutil.rmtree(tempdir)
-    elif tempfile.tempdir:
-        shutil.rmtree(tempfile.tempdir)
+    if not keep_tmp():
+        if tempdir:
+            shutil.rmtree(tempdir)
+        elif tempfile.tempdir:
+            shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
 
 
