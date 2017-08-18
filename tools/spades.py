@@ -52,7 +52,7 @@ class SpadesTool(tools.Tool):
             util.file.make_empty(contigs_out)
             return
 
-        with tempfile.TemporaryDirectory('_spades') as spades_dir:
+        with util.file.temp_dir('_spades') as spades_dir:
             log.debug('spades_dir=' + spades_dir)
             args = ['-1', reads_fwd, '-2', reads_bwd ]
             if reads_unpaired: args += [ '-s', reads_unpaired ]
@@ -63,9 +63,6 @@ class SpadesTool(tools.Tool):
             self.execute( args = args )
 
             shutil.copyfile( src = os.path.join( spades_dir, 'transcripts.fasta' ), dst = contigs_out)
-            if util.file.keep_tmp():
-                shutil.copytree( src = spades_dir, dst = contigs_out + '.spades_dir' )
-                print('copied spades_dir to ', contigs_out + '.spades_dir')
 
 
 

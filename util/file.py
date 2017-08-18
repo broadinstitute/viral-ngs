@@ -116,6 +116,19 @@ def tempfnames(suffixes, *args, **kwargs):
                 if os.path.isfile(fn):
                     os.unlink(fn)
 
+@contextlib.contextmanager
+def temp_dir(*args, **kwargs):
+    """Create and return a temporary directory, which is cleaned up on context exit
+    unless keep_tmp() is True."""
+    try:
+        name = tempfile.mkdtemp(*args, **kwargs)
+        yield name
+    finally:
+        if keep_tmp():
+            log.debug('keeping tempdir ' + name)
+        else:
+            shutil.rmtree(name)
+
 def keep_tmp():
     """Whether to preserve temporary directories and files (useful during debugging).
     Return True if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
