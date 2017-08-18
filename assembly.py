@@ -354,10 +354,12 @@ def assemble_spades(
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_out=outFasta, spades_opts=spades_opts)
-        except subprocess.CalledProcessError as e:
+            if not os.path.isfile(outFasta) or os.path.getsize(outFasta) == 0:
+                raise RuntimeError()
+        except (subprocess.CalledProcessError, RuntimeError) as e:
             if always_succeed:
                 log.warn("denovo assembly (SPAdes) failed to assemble input, emitting empty output instead.")
-                util.file.touch_empty(outFasta)
+                util.file.make_empty(outFasta)
             else:
                 raise DenovoAssemblyError(0,0,0,0,0,0)
 
