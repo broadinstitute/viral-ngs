@@ -344,7 +344,9 @@ def assemble_spades(
     inBam,
     outFasta,
     spades_opts='',
+    contigs_untrusted=None,
     always_succeed=False,
+    mem_limit_gb=4,
     threads=1,
 ):
     ''' This step runs the SPAdes assembler.
@@ -353,7 +355,9 @@ def assemble_spades(
     with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                               contigs_out=outFasta, spades_opts=spades_opts)
+                                               contigs_untrusted=contigs_untrusted,
+                                               contigs_out=outFasta, spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                               threads=threads)
             if not os.path.isfile(outFasta) or os.path.getsize(outFasta) == 0:
                 raise RuntimeError()
         except (subprocess.CalledProcessError, RuntimeError) as e:
@@ -374,7 +378,9 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="always_succeed"
     )
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--contigs_untrusted', help='Contigs previously assempled from the same sample')
+    parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
+    parser.add_argument('--threads', default=1, type=int, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
     return parser
