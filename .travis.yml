@@ -17,10 +17,15 @@ matrix:
 #              - TRAVIS_PYTHON_VERSION=3.5.1
 
 cache:
- directories:
-  - $HOME/misc_cache
-  - $HOME/virtualenv
-  - $HOME/miniconda
+  directories:
+    - $HOME/misc_cache
+    - $HOME/miniconda
+  timeout: 480
+before_cache:
+  # Remove since we're caching the extracted directories
+  - conda clean --tarballs --yes
+  # Conda's repodata cache
+  - rm -r tools/conda-cache/.pkgs/cache
 
 env:
   global:
