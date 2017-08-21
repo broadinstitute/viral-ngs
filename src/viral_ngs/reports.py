@@ -708,7 +708,7 @@ def align_and_plot_coverage(
     excludeDuplicates=False,
     JVMmemory=None,
     picardOptions=None,
-    min_score_to_output=None,
+    min_score_to_filter=None,
     aligner="bwa",
     aligner_options='',
     novoalign_license_path=None
@@ -730,7 +730,7 @@ def align_and_plot_coverage(
         if aligner=="novoalign":
             aligner_options = '-r Random -l 40 -g 40 -x 20 -t 100 -k'
         elif aligner=='bwa':
-            aligner_options = '-T 30' # quality threshold
+            aligner_options = '' # use defaults
 
     samtools = tools.samtools.SamtoolsTool()
 
@@ -748,14 +748,8 @@ def align_and_plot_coverage(
         if sensitive:
             bwa_opts += "-k 12 -A 1 -B 1 -O 1 -E 1".split()
 
-        # get the quality threshold from the opts
-        # for downstream filtering
-        bwa_map_threshold = min_score_to_output or 30
-        if '-T' in bwa_opts:
-            if bwa_opts.index("-T")+1 <= len(bwa_opts):
-                bwa_map_threshold = int(bwa_opts[bwa_opts.index("-T")+1])
-
-        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts, min_qual=bwa_map_threshold)
+        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts,
+                          min_score_to_filter=min_score_to_filter)
     elif aligner=="novoalign":
         
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(ref_indexed)
@@ -834,11 +828,20 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
         help='Optional arguments to Picard\'s MarkDuplicates, OPTIONNAME=value ...'
     )
     parser.add_argument(
-        '-T',
-        dest="min_score_to_output",
-        default=30,
+        '--minScoreToFilter',
+        dest="min_score_to_filter",
         type=int,
-        help="The min score to output during alignment (default: %(default)s)"
+        help=("Filter bwa alignments using this value as the minimum allowed "
+              "alignment score. Specifically, sum the alignment scores across "
+              "all alignments for each query (including reads in a pair, "
+              "supplementary and secondary alignments) and then only include, "
+              "in the output, queries whose summed alignment score is at least "
+              "this value. This is only applied when the aligner is 'bwa'. "
+              "The filtering on a summed alignment score is sensible for reads "
+              "in a pair and supplementary alignments, but may not be "
+              "reasonable if bwa outputs secondary alignments (i.e., if '-a' "
+              "is in the aligner options). (default: not set - i.e., do not "
+              "filter bwa's output)")
     )
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='bwa', help='aligner (default: %(default)s)')
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: "-T 30"')

@@ -792,7 +792,6 @@ def align_rna_metagenomics(
     JVMmemory=None,
     numThreads=None,
     picardOptions=None,
-    min_score_to_output=None,
 ):
     '''
         Align to metagenomics bwa index, mark duplicates, and generate LCA report
@@ -806,10 +805,21 @@ def align_rna_metagenomics(
     if sensitive:
         bwa_opts += '-k 12 -A 1 -B 1 -O 1 -E 1'.split()
 
-    map_threshold = min_score_to_output or 30
+    # TODO: Use bwa.mem's min_score_to_filter argument to decrease false
+    # positives in the output. Currently, it works by summing the alignment
+    # score across all alignments output by bwa for each query (reads in a
+    # pair, supplementary, and secondary alignments). This is not reasonable
+    # for reads with secondary alignments because it will be easier for those
+    # reads/queries to exceed the threshold given by the value of the argument.
+    # In this context, bwa is called using '-a' as an option and its output
+    # will likely include many secondary alignments. One option is to add
+    # another argument to bwa.mem, similar to min_score_to_filter, that sets a
+    # threshold on the alignment score of output alignments but only filters on
+    # a per-alignment level (i.e., not by summing alignment scores across all
+    # alignments for each query).
 
     aln_bam = util.file.mkstempfname('.bam')
-    bwa.mem(inBam, db, aln_bam, options=bwa_opts, min_qual=map_threshold)
+    bwa.mem(inBam, db, aln_bam, options=bwa_opts)
 
     tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
