@@ -177,7 +177,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -281,7 +281,7 @@ class VcfMergeRunner:
                 verbose=False,
                 outputAsClustal=None,
                 maxiters=1000,
-                threads=-1,
+                threads=test._CPUS,
                 retree=retree)
             self.alignedFastas.append(alignedOutFile)
 
