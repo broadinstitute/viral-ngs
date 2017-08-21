@@ -27,30 +27,24 @@ def find_files(root_dir, filt):
             yield join(root, filename)
 
 
-@pytest.fixture(autouse=True, scope='session')
-def set_tempdir(request):
-    util.file.set_tmp_dir(None)
-    request.addfinalizer(util.file.destroy_tmp_dir)
-
-
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def fastq_to_sam():
     return tools.picard.FastqToSamTool()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def taxonomy_db(request, tmpdir_factory, db_type):
     return join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy')
 
 
-@pytest.fixture(scope='session')
-def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
+@pytest.fixture(scope='module')
+def input_bam(request, tmpdir_module, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
         fastqs = [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
         bam_name = 'zaire_ebola.bam'
-        bam = str(tmpdir_factory.getbasetemp().join(bam_name))
+        bam = os.path.join(tmpdir_module, bam_name)
         fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
         return bam
 
@@ -58,7 +52,7 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     return join(data_dir, 'test-reads.bam')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def bwa():
     bwa = tools.bwa.Bwa()
     bwa.install()
@@ -66,7 +60,7 @@ def bwa():
 
 
 # @pytest.fixture(scope='session', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
-@pytest.fixture(scope='session', params=['TestMetagenomicsSimple'])
+@pytest.fixture(scope='module', params=['TestMetagenomicsSimple'])
 def db_type(request):
     return request.param
 
@@ -80,14 +74,14 @@ FNA_TAXIDS = {
 }
 
 
-@pytest.fixture(scope='session')
-def bwa_db(request, tmpdir_factory, bwa, db_type):
+@pytest.fixture(scope='module')
+def bwa_db(request, tmpdir_module, bwa, db_type):
 
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
-    index_fa = str(tmpdir_factory.getbasetemp().join(db_type + '.bwa_index.fa'))
-    db = str(tmpdir_factory.getbasetemp().join(db_type + '.bwa'))
+    index_fa = os.path.join(tmpdir_module, db_type + '.bwa_index.fa')
+    db = os.path.join(tmpdir_module, db_type + '.bwa')
 
     with open(index_fa, "w") as f_out:
         for fname in find_files(join(db_dir, 'library'), '*.fna'):
@@ -120,8 +114,8 @@ def test_meta_bwa(bwa_db, taxonomy_db, input_bam):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
-def test_pipes(tmpdir, bwa_db, taxonomy_db, input_bam):
-    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
+def test_pipes(tmpdir_function, bwa_db, taxonomy_db, input_bam):
+    runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'align_rna_db': bwa_db,
         'taxonomy_db': taxonomy_db,

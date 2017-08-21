@@ -240,12 +240,10 @@ class TestAlignAndFix(TestCaseWithTmp):
         self.simple_execution('bwa')
 
     def simple_execution(self, aligner):
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
         outBamAll = util.file.mkstempfname('.outBamAll.bam')
         outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
 
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
         args.func_main(args)
-
-
