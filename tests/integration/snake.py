@@ -9,6 +9,7 @@ import subprocess
 import util.file
 import util.misc
 import yaml
+from test import _CPUS
 
 
 def merge_yaml_dicts(*dicts):
@@ -71,8 +72,9 @@ class SnakemakeRunner(object):
         os.symlink(join(self.root, 'pipes', 'Snakefile'), join(self.workdir, 'Snakefile'))
         with open(join(self.root, 'pipes', 'config.yaml')) as f:
             config = yaml.load(f)
+        self.config = merge_yaml_dicts(config, {'number_of_threads': _CPUS})
         if self.override_config:
-            self.config = merge_yaml_dicts(config, self.override_config)
+            self.config = merge_yaml_dicts(self.config, self.override_config)
         else:
             self.config = config
         with open(join(self.workdir, 'config.yaml'), 'w') as f:
@@ -117,8 +119,10 @@ class SnakemakeRunner(object):
 
     def run(self, rules=None):
         """Run snakemake with extra verbosity. """
-        # Use --resource=mem=2 to bypass shell quoting issues with whitespace separator
-        cmd = ['snakemake', '--verbose', '--reason', '--printshellcmds', '--resources=mem=2']
+        # --resources (with nargs) cannot be the last option before targets
+        cmd = ['snakemake', '--resources', 'mem=2', 'numThreads={}'.format(_CPUS),
+               '--verbose', '--reason', '--printshellcmds']
         if rules:
             cmd.extend(rules)
+
         res = subprocess.check_call(cmd, cwd=self.workdir)

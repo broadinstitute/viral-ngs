@@ -89,15 +89,16 @@ class NovoalignTool(tools.Tool):
         samtools = tools.samtools.SamtoolsTool()
 
         # fetch list of RGs
-        rgs = list(samtools.getReadGroups(inBam).keys())
+        rgs = samtools.getReadGroups(inBam)
 
+        rgs_list = list(samtools.getReadGroups(inBam).keys())
         if len(rgs) == 0:
             # Can't do this
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
 
         elif len(rgs) == 1:
             # Only one RG, keep it simple
-            self.align_one_rg_bam(inBam, refFasta, outBam, options=options, min_qual=min_qual, JVMmemory=JVMmemory)
+            self.align_one_rg_bam(inBam, refFasta, outBam, rgs=rgs, options=options, min_qual=min_qual, JVMmemory=JVMmemory)
 
         else:
             # Multiple RGs, align one at a time and merge
@@ -109,6 +110,7 @@ class NovoalignTool(tools.Tool):
                     refFasta,
                     tmp_bam,
                     rgid=rg,
+                    rgs=rgs,
                     options=options,
                     min_qual=min_qual,
                     JVMmemory=JVMmemory
@@ -126,7 +128,7 @@ class NovoalignTool(tools.Tool):
             for bam in align_bams:
                 os.unlink(bam)
 
-    def align_one_rg_bam(self, inBam, refFasta, outBam, rgid=None, options=None, min_qual=0, JVMmemory=None):
+    def align_one_rg_bam(self, inBam, refFasta, outBam, rgid=None, rgs=None, options=None, min_qual=0, JVMmemory=None):
         ''' Execute Novoalign on BAM inputs and outputs.
             Requires that only one RG exists (will error otherwise).
             Use Picard to sort and index the output BAM.
@@ -137,7 +139,7 @@ class NovoalignTool(tools.Tool):
         samtools = tools.samtools.SamtoolsTool()
 
         # Require exactly one RG
-        rgs = samtools.getReadGroups(inBam)
+        rgs = rgs if rgs is not None else samtools.getReadGroups(inBam)
         if len(rgs) == 0:
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
         elif len(rgs) == 1:
@@ -159,6 +161,7 @@ class NovoalignTool(tools.Tool):
             # special exit if this file is empty
             if samtools.count(tmp_bam) == 0:
                 return
+
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
             headerFile = util.file.mkstempfname('.{}.header.txt'.format(rgid))

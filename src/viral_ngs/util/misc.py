@@ -1,6 +1,7 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
+import contextlib
 import itertools, functools, operator
 import logging
 import os, os.path
@@ -16,6 +17,15 @@ import util.file
 log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
+
+import time
+@contextlib.contextmanager
+def timer(prefix):
+    start = time.time()
+    yield
+    finish = time.time()
+    elapsed = '{:.2f}'.format(finish - start)
+    print(prefix + ' - ' + elapsed, file=sys.stderr)
 
 
 def unique(items):
