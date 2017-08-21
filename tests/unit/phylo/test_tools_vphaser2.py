@@ -8,7 +8,7 @@ import unittest
 import util.file
 import tools
 from intrahost import vphaser_main
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, _CPUS
 
 
 @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
@@ -18,7 +18,7 @@ class TestVPhaser2(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
         outTab = util.file.mkstempfname('.txt')
-        vphaser_main(inBam, outTab, numThreads=8)
+        vphaser_main(inBam, outTab, numThreads=_CPUS)
         with open(outTab, 'rt') as outf:
             recs = map(lambda s: s.strip('\n').split('\t'), outf.readlines())
         with open(os.path.join(myInputDir, 'expected.cpickle'), 'rb') as expf:

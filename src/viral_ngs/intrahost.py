@@ -43,6 +43,7 @@ class AlleleFieldParser(object):
     of the fields in the allele columns of vphaser_one_sample output
     (corresponding to the SNP_or_LP_Profile columns in the V-Phaser 2 output).
     """
+    __slots__ = ('_allele', '_strandCounts', '_libBiasPval', '_libCounts')
 
     def __init__(self, field=None, allele=None, fcount=None, rcount=None, libBiasPval=None, libCounts=None):
         """ Input is either the string stored in one of the allele columns.
@@ -226,7 +227,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
         consensusAllele = row[3]
         pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
         chrom = row[0]
-        libCounts = [get_mpileup_allele_counts(libBamItem, chrom, pos, inConsFasta) for libBamItem in libBams]
+        libCounts = [get_mpileup_allele_counts(libBamItem, chrom, pos, inConsFasta, samtools=samtoolsTool) for libBamItem in libBams]
         numAlleles = len(row) - alleleCol
         countsMatrix = [[0] * numAlleles for lib in libBams]
         libCountsByAllele = []
@@ -293,7 +294,7 @@ def parse_alleles_string(allelesStr):
     return alleleCounts
 
 
-def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta):
+def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta, samtools=None):
     """ Return {allele : [forwardCount, reverseCount], ...}
         allele is:
             Iins for insertions where ins represents the inserted bases
@@ -301,8 +302,9 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta):
             base itself for non-indels
             'i' or 'd', in which case report count for consensus.
     """
+    samtools = samtools or SamtoolsTool()
     pileupFileName = util.file.mkstempfname('.txt')
-    SamtoolsTool().mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
+    samtools.mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
                                                    '-L', '50000', '-Q', '0', '-f', inConsFasta])
     with open(pileupFileName) as pileupFile:
         words = pileupFile.readline().split('\t')
