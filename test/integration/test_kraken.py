@@ -116,8 +116,9 @@ def test_kraken_tool(kraken, kraken_db, input_bam):
     kraken.classify(input_bam, kraken_db, out)
     kraken.filter(out, kraken_db, out_filtered, 0.05)
     kraken.report(out_filtered, kraken_db, out_report)
+    with util.file.open_or_gzopen(out_filtered, 'r') as inf:
+        assert len(inf.read()) > 0
     assert os.path.getsize(out_report) > 0
-    assert os.path.getsize(out_filtered) > 0
 
 
 def test_kraken(kraken_db, input_bam):
@@ -128,8 +129,9 @@ def test_kraken(kraken_db, input_bam):
     args = parser.parse_args(cmd)
     args.func_main(args)
 
+    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+        assert len(inf.read()) > 0
     assert os.path.getsize(out_report) > 0
-    assert os.path.getsize(out_reads) > 0
 
 
 @pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
@@ -173,3 +175,25 @@ def test_kraken_krona(kraken_db, krona_db, input_bam):
     parser = metagenomics.parser_krona(argparse.ArgumentParser())
     args = parser.parse_args([out_reads, krona_db, out_html])
     args.func_main(args)
+
+
+
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary does not yet exist on bioconda")
+def test_kraken_on_empty(kraken_db, input_bam):
+    if 'TestMetagenomicsViralMix' not in kraken_db:
+        return
+    input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+    out_report = util.file.mkstempfname('.report')
+    out_reads = util.file.mkstempfname('.reads.gz')
+    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+    args = parser.parse_args(cmd)
+    args.func_main(args)
+
+    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+        assert len(inf.read()) == 0
+    with open(out_report, 'rt') as inf:
+        out_report_contents = inf.readlines()
+    assert len(out_report_contents) == 1
+    out_report_contents = out_report_contents[0].rstrip('\n').split('\t')
+    assert out_report_contents == ['100.00', '0', '0', 'U', '0', 'unclassified']
