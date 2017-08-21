@@ -17,25 +17,18 @@ from test import TestCaseWithTmp
 from test.integration import snake
 
 
-@pytest.fixture(autouse=True, scope='session')
-def set_tempdir(request):
-    util.file.set_tmp_dir(None)
-    request.addfinalizer(util.file.destroy_tmp_dir)
-
-
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def fastq_to_sam():
     return tools.picard.FastqToSamTool()
 
 
-@pytest.fixture(scope='session')
-def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
+@pytest.fixture(scope='module')
+def input_bam(request, tmpdir_module, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
         fastqs = [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
-        bam_name = 'zaire_ebola.bam'
-        bam = str(tmpdir_factory.getbasetemp().join(bam_name))
+        bam = os.path.join(tmpdir_module, 'zaire_ebola.bam')
         fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
         return bam
 
@@ -43,32 +36,32 @@ def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
     return join(data_dir, 'test-reads.bam')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def kraken():
     kraken = tools.kraken.Kraken()
     kraken.install()
     return kraken
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def krona():
     krona = tools.krona.Krona()
     krona.install()
     return krona
 
 
-@pytest.fixture(scope='session', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
+@pytest.fixture(scope='module', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
 def db_type(request):
     return request.param
 
 
-@pytest.fixture(scope='session')
-def kraken_db(request, tmpdir_factory, kraken, db_type):
-
+@pytest.fixture(scope='module')
+def kraken_db(request, tmpdir_module, kraken, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
-    db = str(tmpdir_factory.mktemp('kraken_db_{}'.format(db_type)))
+    db = os.path.join(tmpdir_module, 'kraken_db_{}'.format(db_type))
+    os.mkdir(db)
     for d in ['library', 'taxonomy']:
         realpath = join(db_dir, d)
         name = join(db, d)
@@ -84,10 +77,10 @@ def kraken_db(request, tmpdir_factory, kraken, db_type):
     return db
 
 
-def test_taxonomy_subset(request, tmpdir_factory):
+def test_taxonomy_subset(request, tmpdir_function):
     data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
     db_dir = os.path.join(data_dir, 'db', 'taxonomy')
-    sub_dir = str(tmpdir_factory.mktemp('taxonomy_subset'))
+    sub_dir = tempfile.mktemp('taxonomy_subset')
     metagenomics.subset_taxonomy(db_dir, sub_dir, whitelistTaxids=[], whitelistTreeTaxids=[186536])
 
     tax_db = metagenomics.TaxonomyDb(sub_dir, load_nodes=True, load_names=True)
@@ -100,12 +93,13 @@ TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
                   'nodes.dmp',)
 
 
-@pytest.fixture(scope='session')
-def krona_db(request, tmpdir_factory, krona, db_type):
+@pytest.fixture(scope='module')
+def krona_db(request, tmpdir_module, krona, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = os.path.join(data_dir, 'db')
 
-    db = str(tmpdir_factory.mktemp('krona_db_{}'.format(db_type)))
+    db = os.path.join(tmpdir_module, 'krona_db_{}'.format(db_type))
+    os.mkdir(db)
     for d in TAXONOMY_FILES:
         src = join(db_dir, 'taxonomy', d)
         dest = join(db, d)
@@ -114,7 +108,7 @@ def krona_db(request, tmpdir_factory, krona, db_type):
     return db
 
 
-def test_kraken_tool(tmpdir, kraken, kraken_db, input_bam):
+def test_kraken_tool(kraken, kraken_db, input_bam):
     outdir = tempfile.mkdtemp('-kraken')
     out = join(outdir, 'zaire_ebola.kraken')
     out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
@@ -139,8 +133,8 @@ def test_kraken(kraken_db, input_bam):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
-def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
-    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
+def test_pipes(tmpdir_function, kraken_db, krona_db, input_bam):
+    runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'kraken_db': kraken_db,
         'krona_db': krona_db,
@@ -166,7 +160,7 @@ def test_pipes(tmpdir, kraken_db, krona_db, input_bam):
     assert os.path.getsize(krona_out) > 0
 
 
-def test_kraken_krona(tmpdir, kraken_db, krona_db, input_bam):
+def test_kraken_krona(kraken_db, krona_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
 
