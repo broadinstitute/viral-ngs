@@ -39,7 +39,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.indels.bam')
         refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=0)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_indels_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -55,7 +55,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.oneunmapped.bam')
         refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0, removeDoublyMappedReads=True)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=0, removeDoublyMappedReads=True)
         assert os.path.getsize(outTab) == 0
 
     @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
@@ -66,7 +66,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.2libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -83,6 +83,6 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.3libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)

@@ -41,9 +41,17 @@ log = logging.getLogger(__name__)
 class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
-        if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
-        tools.Tool.__init__(self, install_methods=install_methods)
+        self.installed_method = True
+
+    def install(self):
+        pass
+
+    def is_installed(self):
+        return True
+
+    def install_and_get_path(self):
+        # the conda version wraps the jar file with a shell script
+        return 'samtools'
 
     def version(self):
         return TOOL_VERSION

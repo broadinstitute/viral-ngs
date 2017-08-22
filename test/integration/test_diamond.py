@@ -24,37 +24,31 @@ def find_files(root_dir, filt):
             yield join(root, filename)
 
 
-@pytest.fixture(scope='session', autouse=True)
-def set_tempdir(request):
-    util.file.set_tmp_dir(None)
-    request.addfinalizer(util.file.destroy_tmp_dir)
-
-
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def fastq_to_sam():
     return tools.picard.FastqToSamTool()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def sam_to_fastq():
     return tools.picard.SamToFastqTool()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def diamond():
     diamond = tools.diamond.Diamond()
     diamond.install()
     return diamond
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 def krona():
     krona = tools.krona.Krona()
     krona.install()
     return krona
 
 
-@pytest.fixture(scope='session', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
+@pytest.fixture(scope='module', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
 def db_type(request):
     return request.param
 
@@ -69,22 +63,22 @@ def input_bam_paths():
     return join(data_dir, 'test-reads.bam')
 
 
-@pytest.fixture(scope='session')
-def input_bam(request, tmpdir_factory, fastq_to_sam, db_type):
+@pytest.fixture(scope='module')
+def input_bam(request, tmpdir_module, fastq_to_sam, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
         fastqs = [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
 
         bam_name = 'zaire_ebola.bam'
-        bam = str(tmpdir_factory.getbasetemp().join(bam_name))
+        bam = os.path.join(tmpdir_module, bam_name)
         fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
         return bam
 
     return input_bam_paths()
 
 
-@pytest.fixture(scope='session')
-def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
+@pytest.fixture(scope='module')
+def input_fastqs(request, tmpdir_module, sam_to_fastq, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     if db_type == 'TestMetagenomicsSimple':
         fastqs = [join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
@@ -92,24 +86,24 @@ def input_fastqs(request, tmpdir_factory, sam_to_fastq, db_type):
 
     bam = join(data_dir, 'test-reads.bam')
     basename = os.path.basename(bam)
-    fastq1 = join(str(tmpdir_factory.getbasetemp()), '{}.1.fastq'.format(basename))
-    fastq2 = join(str(tmpdir_factory.getbasetemp()), '{}.2.fastq'.format(basename))
+    fastq1 = join(tmpdir_module, '{}.1.fastq'.format(basename))
+    fastq2 = join(tmpdir_module, '{}.2.fastq'.format(basename))
     sam_to_fastq.execute(bam, fastq1, fastq2)
     return fastq1, fastq2
 
 
-@pytest.fixture(scope='session')
-def taxonomy_db(request, tmpdir_factory, db_type):
+@pytest.fixture(scope='module')
+def taxonomy_db(request, db_type):
     return join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy')
 
 
-@pytest.fixture(scope='session')
-def diamond_db(request, tmpdir_factory, diamond, db_type):
+@pytest.fixture(scope='module')
+def diamond_db(request, tmpdir_module, diamond, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
-    db = str(tmpdir_factory.getbasetemp().join(db_type + '.dmnd'))
-    translated = str(tmpdir_factory.getbasetemp().join(db_type + '.fa'))
+    db = os.path.join(tmpdir_module, db_type + '.dmnd')
+    translated = os.path.join(tmpdir_module, db_type + '.fa')
 
     lib_dir = join(db_dir, 'library')
     with open(translated, "w") as f_out:
@@ -129,12 +123,13 @@ TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
                   'merged.dmp')
 
 
-@pytest.fixture(scope='session')
-def krona_db(request, tmpdir_factory, krona, db_type):
+@pytest.fixture(scope='module')
+def krona_db(request, tmpdir_module, krona, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = os.path.join(data_dir, 'db')
 
-    db = str(tmpdir_factory.mktemp('krona_db_{}'.format(db_type)))
+    db = os.path.join(tmpdir_module, 'krona_db_{}'.format(db_type))
+    os.mkdir(db)
     for d in TAXONOMY_FILES:
         src = join(db_dir, 'taxonomy', d)
         dest = join(db, d)
@@ -144,8 +139,8 @@ def krona_db(request, tmpdir_factory, krona, db_type):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
-def test_pipes(tmpdir, diamond_db, taxonomy_db, krona_db, input_bam):
-    runner = snake.SnakemakeRunner(workdir=str(tmpdir))
+def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
+    runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'diamond_db': diamond_db,
         'taxonomy_db': taxonomy_db,

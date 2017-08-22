@@ -126,6 +126,7 @@ def set_tmp_dir(name):
             proposed_prefix.append(os.environ[e])
             break
     tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
+    os.environ['TMPDIR'] = tempfile.tempdir
     return tempfile.tempdir
 
 

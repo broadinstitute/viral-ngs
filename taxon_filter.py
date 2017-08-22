@@ -74,7 +74,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=None
     )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument('--memory', dest="memory_mb", type=int, default=7168, help='The amount of memory to use in running bmtagger.')
+    parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -103,7 +103,7 @@ def main_deplete_human(args):
     bamToDeplete = args.inBam
     with pysam.AlignmentFile(args.inBam, 'rb', check_sq=False) as bam:
         # if it looks like the bam is aligned, revert it
-        if 'SQ' in bam.header and len(bam.header['SQ'])>0:      
+        if 'SQ' in bam.header and len(bam.header['SQ'])>0:
             tools.picard.RevertSamTool().execute(
                 args.inBam, revertBamOut, picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
             )
@@ -117,13 +117,13 @@ def main_deplete_human(args):
                 util.file.touch(revertBamOut)
                 # TODO: error out? run RevertSam anyway?
 
-    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, memory_mb=args.memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         bamToDeplete,
         args.bmtaggerDbs,
-        wrapper,
+        bmtagger_wrapper,
         args.bmtaggerBam,
         threads=args.threads,
         JVMmemory=args.JVMmemory
@@ -132,8 +132,8 @@ def main_deplete_human(args):
     # if the user has not specified saving a revertBam, we used a temp file and can remove it
     if not args.revertBam:
         os.unlink(revertBamOut)
-
     read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
+
     multi_db_deplete_bam(
         args.rmdupBam,
         args.blastDbs,
@@ -355,7 +355,7 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 # ==============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, threads=None, memory_mb=7168, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprism_memory=7168, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -364,6 +364,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, memory_mb=7168, JVMmem
         db.bitmask created by bmtool, and
         db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
     outBam: the output BAM files to hold the unmatched reads.
+    srprism_memory: srprism memory in megabytes.
     """
     bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
 
@@ -384,7 +385,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, memory_mb=7168, JVMmem
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
-        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {memory_mb} --paired false"'.format(memory_mb=memory_mb), file=f)
+        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
@@ -397,7 +398,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, memory_mb=7168, JVMmem
     os.unlink(bmtaggerConf)
 
     tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
-    os.unlink(matchesFile)
+
 
 
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
@@ -411,7 +412,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('outBam', help='Output BAM file.')
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument('--memory', dest='memory_mb', type=int, default=7168, help='The amount of memory to use in running bmtagger.')
+    parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -425,7 +426,7 @@ def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
 
     def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, memory_mb=args.memory, JVMmemory=JVMmemory)
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         args.inBam,
@@ -439,13 +440,13 @@ def main_deplete_bam_bmtagger(args):
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None, **kwargs):
     samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
         if not samtools.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
-            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory)
+            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory, **kwargs)
             if tmpBamIn != inBam:
                 os.unlink(tmpBamIn)
             tmpBamIn = tmpBamOut
@@ -509,9 +510,9 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
 
     log.debug("chunk_max_size_per_thread %s" % chunk_max_size_per_thread)
 
-    # adjust chunk size so we don't have a small fraction 
+    # adjust chunk size so we don't have a small fraction
     # of a chunk running in its own blast process
-    # if the size of the last chunk is <80% the size of the others, 
+    # if the size of the last chunk is <80% the size of the others,
     # decrease the chunk size until the last chunk is 80%
     # this is bounded by the MIN_CHUNK_SIZE
     while (number_of_reads / chunkSize) % 1 < 0.8 and chunkSize > MIN_CHUNK_SIZE:
@@ -538,7 +539,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     hits_files = []
     # run blastn on each of the fasta input chunks
     with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
-        # if we have so few chunks that there are cpus left over, 
+        # if we have so few chunks that there are cpus left over,
         # divide extra cpus evenly among chunks where possible
         # rounding to 1 if there are more chunks than extra threads
         cpus_leftover = (threads - len(input_fastas))
@@ -650,7 +651,7 @@ __commands__.append(('lastal_build_db', parser_lastal_build_db))
 
 
 def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
-    """ Create a database for use with blastn from an input reference FASTA file 
+    """ Create a database for use with blastn from an input reference FASTA file
     """
 
     if outputFilePrefix:

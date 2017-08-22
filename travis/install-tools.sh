@@ -37,7 +37,7 @@ echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
 
 for i in $(seq 3); do
-  conda create --quiet -y -m -c broad-viral -c r -c bioconda -c conda-forge -c defaults -p tools/conda-tools/default --file requirements-conda.txt python="$TRAVIS_PYTHON_VERSION" && break
+  conda create --quiet -y -m -c broad-viral -c r -c bioconda -c conda-forge -c defaults -p tools/conda-tools/default --file requirements-conda.txt --file requirements-conda-tests.txt python="$TRAVIS_PYTHON_VERSION" && break
   sleep 5
 done
 
@@ -45,6 +45,4 @@ echo 'Sourcing default environment'
 source activate tools/conda-tools/default
 conda info -a # for debugging
 
-./install_tools.py
-
-yes | conda clean --all --yes # clean temp/cache files to reduce Travis cache size
+# yes | conda clean --all --yes # clean temp/cache files to reduce Travis cache size
