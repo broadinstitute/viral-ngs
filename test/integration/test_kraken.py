@@ -1,11 +1,9 @@
 # Integration tests for kraken
 
-from builtins import super
 import argparse
 import os.path
 from os.path import join
 import sys
-import tempfile
 import pytest
 import metagenomics
 import util.file
@@ -13,26 +11,12 @@ import tools
 import tools.kraken
 import tools.krona
 import tools.picard
-from test import TestCaseWithTmp
 from test.integration import snake
 
 
-@pytest.fixture(scope='module')
-def fastq_to_sam():
-    return tools.picard.FastqToSamTool()
-
-
-@pytest.fixture(scope='module')
-def input_bam(request, tmpdir_module, fastq_to_sam, db_type):
+@pytest.fixture()
+def input_bam(db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
-    if db_type == 'TestMetagenomicsSimple':
-        fastqs = [os.path.join(data_dir, f) for f in ['zaire_ebola.1.fastq', 'zaire_ebola.2.fastq']]
-
-        bam = os.path.join(tmpdir_module, 'zaire_ebola.bam')
-        fastq_to_sam.execute(fastqs[0], fastqs[1], '', bam)
-        return bam
-
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsViralMix')
     return join(data_dir, 'test-reads.bam')
 
 
@@ -60,31 +44,20 @@ def kraken_db(request, tmpdir_module, kraken, db_type):
     data_dir = join(util.file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
+    parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+
     db = os.path.join(tmpdir_module, 'kraken_db_{}'.format(db_type))
-    os.mkdir(db)
-    for d in ['library', 'taxonomy']:
-        realpath = join(db_dir, d)
-        name = join(db, d)
-        os.symlink(realpath, name)
+    parser = metagenomics.parser_kraken_build(argparse.ArgumentParser())
+    cmd = [db, '--library', join(db_dir, 'library'),
+           '--taxonomy', join(db_dir, 'taxonomy'),
+           '--subsetTaxonomy',
+           '--minimizerLen', '10',
+           '--clean']
 
-    # Minimizer len corresponds to memory/disk usage of index.
-    kraken.build(
-        db, options={
-            '--minimizer-len': 10,
-            '--build': None,
-        }
-    )
+    parser.parse_args(cmd)
+    args = parser.parse_args(cmd)
+    args.func_main(args)
     return db
-
-
-def test_taxonomy_subset(request, tmpdir_function):
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
-    db_dir = os.path.join(data_dir, 'db', 'taxonomy')
-    sub_dir = tempfile.mktemp('taxonomy_subset')
-    metagenomics.subset_taxonomy(db_dir, sub_dir, whitelistTaxids=[], whitelistTreeTaxids=[186536])
-
-    tax_db = metagenomics.TaxonomyDb(sub_dir, load_nodes=True, load_names=True)
-    assert 186536 in tax_db.parents
 
 
 TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
@@ -108,18 +81,6 @@ def krona_db(request, tmpdir_module, krona, db_type):
     return db
 
 
-def test_kraken_tool(kraken, kraken_db, input_bam):
-    outdir = tempfile.mkdtemp('-kraken')
-    out = join(outdir, 'zaire_ebola.kraken')
-    out_filtered = join(outdir, 'zaire_ebola.filtered-kraken')
-    out_report = join(outdir, 'zaire_ebola.kraken-report')
-    kraken.classify(input_bam, kraken_db, out)
-    kraken.filter(out, kraken_db, out_filtered, 0.05)
-    kraken.report(out_filtered, kraken_db, out_report)
-    assert os.path.getsize(out_report) > 0
-    assert os.path.getsize(out_filtered) > 0
-
-
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
@@ -128,8 +89,23 @@ def test_kraken(kraken_db, input_bam):
     args = parser.parse_args(cmd)
     args.func_main(args)
 
+    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+        assert len(inf.read()) > 0
+    with util.file.open_or_gzopen(out_report) as inf:
+        report_lines = [x.strip().split() for x in inf.readlines()]
+
     assert os.path.getsize(out_report) > 0
-    assert os.path.getsize(out_reads) > 0
+
+    if 'TestMetaegenomicsSimple' in kraken_db:
+        zaire_found = False
+        tai_found = False
+        for line in report_lines:
+            if line[-1] == 'Zaire ebolavirus' and float(line[0]) > 90:
+                zaire_found = True
+            elif 'Tai Forest' in line[-1]:
+                tai_found = True
+        assert zaire_found
+        assert not tai_found
 
 
 @pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
@@ -173,3 +149,25 @@ def test_kraken_krona(kraken_db, krona_db, input_bam):
     parser = metagenomics.parser_krona(argparse.ArgumentParser())
     args = parser.parse_args([out_reads, krona_db, out_html])
     args.func_main(args)
+
+
+
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary does not yet exist on bioconda")
+def test_kraken_on_empty(kraken_db, input_bam):
+    if 'TestMetagenomicsViralMix' not in kraken_db:
+        return
+    input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+    out_report = util.file.mkstempfname('.report')
+    out_reads = util.file.mkstempfname('.reads.gz')
+    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+    args = parser.parse_args(cmd)
+    args.func_main(args)
+
+    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+        assert len(inf.read()) == 0
+    with open(out_report, 'rt') as inf:
+        out_report_contents = inf.readlines()
+    assert len(out_report_contents) == 1
+    out_report_contents = out_report_contents[0].rstrip('\n').split('\t')
+    assert out_report_contents == ['100.00', '0', '0', 'U', '0', 'unclassified']

@@ -24,6 +24,6 @@ if cmd_exists "conda"; then
             cp requirements-conda.txt "$requirements_file"
         fi
 
-        conda install -y -c bioconda --file "$requirements_file"
+        conda install -y -c broad-viral -c bioconda --file "$requirements_file"
     fi
 fi
