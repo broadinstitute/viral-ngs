@@ -122,6 +122,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4)
         self.assertGreater(os.path.getsize(outFasta), 0)
+        shutil.copyfile(outFasta, 'trinity.fasta')
         contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
         self.assertEqual(contig_lens, [328, 348, 376, 381])
         os.unlink(outFasta)
@@ -151,20 +152,29 @@ class TestAssembleSpades(TestCaseWithTmp):
     def test_assembly(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
-        self.assertGreater(os.path.getsize(outFasta), 0)
-        contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
-        self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 247, 294, 328, 348, 430])
-        os.unlink(outFasta)
+        with util.file.tempfname('.fasta') as outFasta:
+            assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
+            self.assertGreater(os.path.getsize(outFasta), 0)
+            contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
+            self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 247, 294, 328, 348, 430])
+
+    def test_assembly_with_previously_assembled_contigs(self):
+        inDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
+        previously_assembled_contigs = os.path.join(inDir, 'trinity_contigs.fasta')
+        with util.file.tempfname('.fasta') as outFasta:
+            assembly.assemble_spades(inBam=inBam, previously_assembled_contigs=previously_assembled_contigs,
+                                     outFasta=outFasta, threads=4)
+            self.assertGreater(os.path.getsize(outFasta), 0)
+            contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
+            self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 294, 321, 328, 348, 430])
 
     def test_empty_input_succeed(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
-        self.assertEqual(os.path.getsize(outFasta), 0)
-        os.unlink(outFasta)
+        with util.file.tempfname('fasta') as outFasta:
+            assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
+            self.assertEqual(os.path.getsize(outFasta), 0)
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
     ''' Test the trim_rmdup_subsamp command '''

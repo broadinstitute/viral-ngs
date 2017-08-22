@@ -70,9 +70,9 @@ class SpadesTool(tools.Tool):
         with util.file.tmp_dir('_spades') as spades_dir:
             log.debug('spades_dir=' + spades_dir)
             args = ['-1', reads_fwd, '-2', reads_bwd ]
-            if reads_unpaired: args += [ '-s', reads_unpaired ]
+            if reads_unpaired: args += [ '--s1', reads_unpaired ]
             if contigs_trusted: args += [ '--trusted-contigs', contigs_trusted ]
-            if contigs_untrusted: args += [ '--untrusted-contigs', contigs_trusted ]
+            if contigs_untrusted: args += [ '--untrusted-contigs', contigs_untrusted ]
             if spades_opts: args += shlex.split(spades_opts)
             args += [ '--rna', '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
 
