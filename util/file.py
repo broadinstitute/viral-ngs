@@ -117,7 +117,7 @@ def tempfnames(suffixes, *args, **kwargs):
                     os.unlink(fn)
 
 @contextlib.contextmanager
-def temp_dir(*args, **kwargs):
+def tmp_dir(*args, **kwargs):
     """Create and return a temporary directory, which is cleaned up on context exit
     unless keep_tmp() is True."""
     try:

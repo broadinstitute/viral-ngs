@@ -67,7 +67,7 @@ class SpadesTool(tools.Tool):
             util.file.make_empty(contigs_out)
             return
 
-        with util.file.temp_dir('_spades') as spades_dir:
+        with util.file.tmp_dir('_spades') as spades_dir:
             log.debug('spades_dir=' + spades_dir)
             args = ['-1', reads_fwd, '-2', reads_bwd ]
             if reads_unpaired: args += [ '-s', reads_unpaired ]
