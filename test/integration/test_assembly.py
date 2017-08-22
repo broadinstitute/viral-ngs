@@ -15,7 +15,7 @@ import assembly
 import util.cmd
 import util.file
 import tools.novoalign
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, _CPUS
 
 
 class TestAssemble(TestCaseWithTmp):
@@ -30,7 +30,7 @@ class TestAssemble(TestCaseWithTmp):
         refGenome = util.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, refGenome)
         novoalign.index_fasta(refGenome)
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
         outFasta = util.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
@@ -61,12 +61,12 @@ class TestRefineAssembly(TestCaseWithTmp):
         tools.novoalign.NovoalignTool().index_fasta(imputeFasta)
         assembly.refine_assembly(
             imputeFasta,
-            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam'),
             refine1Fasta,
             # normally -r Random, but for unit tests, we want deterministic behavior
             novo_params='-r None -l 30 -x 20 -t 502',
             min_coverage=2,
-            threads=4)
+            threads=_CPUS)
         actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
         expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
@@ -81,12 +81,12 @@ class TestRefineAssembly(TestCaseWithTmp):
         tools.novoalign.NovoalignTool().index_fasta(refine1Fasta)
         assembly.refine_assembly(
             refine1Fasta,
-            os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
+            os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam'),
             refine2Fasta,
             # normally -r Random, but for unit tests, we want deterministic behavior
             novo_params='-r None -l 40 -x 20 -t 100',
             min_coverage=3,
-            threads=4)
+            threads=_CPUS)
         actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
         expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
@@ -112,7 +112,7 @@ class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
 
     def test_impute_from_oriented_muscle(self):
         self.influenza_impute("muscle")
-        
+
     def test_impute_from_oriented_mafft(self):
         self.influenza_impute("mafft")
 
@@ -139,4 +139,4 @@ class TestOrderOrientAndImputeFromReference(TestCaseWithTmp):
         # self.assertEqualContents(
         #     outImputeFasta,
         #     expected
-        # )  
+        # )

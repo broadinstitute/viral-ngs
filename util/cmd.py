@@ -21,18 +21,18 @@ log = logging.getLogger()
 tmp_dir = None
 
 class color(object):
-   """ *nix terminal control characters for altering text display 
-   """
-   PURPLE = '\033[95m'
-   CYAN = '\033[96m'
-   DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
-   GREEN = '\033[92m'
-   YELLOW = '\033[93m'
-   RED = '\033[91m'
-   BOLD = '\033[1m'
-   UNDERLINE = '\033[4m'
-   END = '\033[0m'
+    """ *nix terminal control characters for altering text display
+    """
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    DARKCYAN = '\033[36m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
 
 def setup_logger(log_level):
     loglevel = getattr(logging, log_level.upper(), None)
@@ -107,7 +107,7 @@ def attach_main(parser, cmd_main, split_args=False):
 class _HelpAction(argparse._HelpAction):
 
     def __call__(self, parser, namespace, values, option_string=None):
-        
+
         print("\nEnter a subcommand to view additional information:")
 
         # retrieve subparser actions from parser
@@ -120,7 +120,7 @@ class _HelpAction(argparse._HelpAction):
             # get all subparsers and print descriptions for each
             for choice, subparser in subparsers_action.choices.items():
                 print("\n{indent}{filename} {cmd} [...]".format(indent=indent_space, filename=os.path.basename(sys.argv[0]), cmd=color.BOLD+choice+color.END))
-                
+
                 # if the subparser has a description string, format and print it
                 if subparser.description:
                     # clean up line breaks and spaces in the triple-quoted string
@@ -200,15 +200,12 @@ def main_argparse(commands, description):
         os.environ['TMPDIR'] = tempfile.tempdir  # this is for running R
         try:
             ret = args.func_main(args)
-        except:
+        finally:
             if (hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep) or util.file.keep_tmp():
                 log.exception(
                     "Exception occurred while running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
             else:
                 shutil.rmtree(tempfile.tempdir)
-            raise
-        else:
-            shutil.rmtree(tempfile.tempdir)
     else:
         # otherwise just run the command
         ret = args.func_main(args)
@@ -225,7 +222,7 @@ def find_tmp_dir():
     if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):
         tmpdir = '/local/scratch'
     # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
-    for e in ('LSB_JOBID', 'JOB_ID'): 
+    for e in ('LSB_JOBID', 'JOB_ID'):
         if e in os.environ:
             # this directory often exists for LSF jobs, but not always.
             # for example, if the job is part of a job array, this directory is called
@@ -234,6 +231,6 @@ def find_tmp_dir():
             if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
                 tmpdir = proposed_dir
                 break
-        elif 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
-            tmpdir = os.environ['TMPDIR']
+    if 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
+        tmpdir = os.environ['TMPDIR']
     return tmpdir

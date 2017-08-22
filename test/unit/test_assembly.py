@@ -18,7 +18,7 @@ import itertools
 import tools.mummer
 import tools.novoalign
 import tools.picard
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, _CPUS
 
 
 def makeFasta(seqs, outFasta):
@@ -49,7 +49,7 @@ class TestAssemble(TestCaseWithTmp):
         novoalign.index_fasta(inFasta)
 
         inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        
+
         outFasta = util.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
@@ -97,7 +97,7 @@ class TestAssemble(TestCaseWithTmp):
         novoalign.index_fasta(inFasta)
 
         inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        
+
         outFasta = util.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
@@ -120,7 +120,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4)
+        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=_CPUS)
         self.assertGreater(os.path.getsize(outFasta), 0)
         shutil.copyfile(outFasta, 'trinity.fasta')
         contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
@@ -132,7 +132,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=4, always_succeed=True)
+        assembly.assemble_trinity(inBam, clipDb, outFasta, threads=_CPUS, always_succeed=True)
         self.assertEqual(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
 
@@ -143,7 +143,7 @@ class TestAssembleTrinity(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         self.assertRaises(assembly.DenovoAssemblyError,
             assembly.assemble_trinity,
-            inBam, clipDb, outFasta, threads=4, always_succeed=False)
+            inBam, clipDb, outFasta, threads=_CPUS, always_succeed=False)
 
 
 class TestAssembleSpades(TestCaseWithTmp):
@@ -703,5 +703,3 @@ class TestContigChooser(unittest.TestCase):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
         actual = tools.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'T')
-
-

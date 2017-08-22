@@ -1,7 +1,10 @@
-import sys
-import time
-import pytest
 import operator
+import os
+import pytest
+import shutil
+import sys
+import tempfile
+import time
 
 
 def timer():
@@ -25,6 +28,46 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
+
+
+@pytest.fixture(scope='session')
+def tmpdir_session(request, tmpdir_factory):
+    tmpdir = str(tmpdir_factory.mktemp('test-session'))
+
+    def reset():
+        shutil.rmtree(tmpdir)
+
+    request.addfinalizer(reset)
+    return tmpdir
+
+
+@pytest.fixture(scope='module')
+def tmpdir_module(request, tmpdir_factory):
+    tmpdir = str(tmpdir_factory.mktemp('test-module'))
+
+    def reset():
+        shutil.rmtree(tmpdir)
+
+    request.addfinalizer(reset)
+    return tmpdir
+
+
+@pytest.fixture(autouse=True)
+def tmpdir_function(request, tmpdir_factory):
+    old_tempdir = tempfile.tempdir
+    old_env_tmpdir = os.environ.get('TMPDIR')
+    new_tempdir = str(tmpdir_factory.mktemp('test-function'))
+    tempfile.tempdir = new_tempdir
+    os.environ['TMPDIR'] = new_tempdir
+
+    def reset():
+        shutil.rmtree(new_tempdir)
+        tempfile.tmpdir = old_tempdir
+        if old_env_tmpdir:
+            os.environ['TMPDIR'] = old_env_tmpdir
+
+    request.addfinalizer(reset)
+    return new_tempdir
 
 
 class FixtureReporter:

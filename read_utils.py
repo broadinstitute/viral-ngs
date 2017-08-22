@@ -951,7 +951,7 @@ def align_and_fix(
         if aligner=="novoalign":
             aligner_options = '-r Random'
         elif aligner=='bwa':
-            aligner_options = '-T 30' # quality threshold
+            aligner_options = '' # use defaults
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
@@ -969,14 +969,7 @@ def align_and_fix(
 
         opts = aligner_options.split()
 
-        # get the quality threshold from the opts
-        # for downstream filtering
-        bwa_map_threshold = 30
-        if '-T' in opts:
-            if opts.index("-T")+1 <= len(opts):
-                bwa_map_threshold = int(opts[opts.index("-T")+1])
-
-        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts)
 
     if skip_mark_dupes:
         bam_marked = bam_aligned

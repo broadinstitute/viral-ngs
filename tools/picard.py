@@ -31,16 +31,19 @@ class PicardTools(tools.Tool):
     """Base class for tools in the picard suite."""
     jvmMemDefault = '2g'
 
+    def install(self):
+        pass
+
+    def is_installed(self):
+        return True
+
+    def install_and_get_path(self):
+        # the conda version wraps the jar file with a shell script
+        return 'picard'
+
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
-
-        if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
-
-            target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
-            install_methods.append(tools.DownloadPackage(TOOL_URL, target_rel_path, require_executability=False))
-        tools.Tool.__init__(self, install_methods=install_methods)
+        self.installed_method = True
 
     def version(self):
         return TOOL_VERSION
@@ -53,16 +56,11 @@ class PicardTools(tools.Tool):
 
         # the conda version wraps the jar file with a shell script
         path = self.install_and_get_path()
-        if path.endswith(".jar"):
-            tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', path, command
-            ] + picardOptions
-        else:
-            env = os.environ.copy()
-            env.pop('JAVA_HOME', None)
-            tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
+        tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
         _log.debug(' '.join(tool_cmd))
 
+        env = os.environ.copy()
+        env.pop('JAVA_HOME', None)
         if background:
             subprocess.Popen(tool_cmd, env=env)
         else:
@@ -152,8 +150,8 @@ class SamToFastqTool(PicardTools):
         trim reads at the clipping position specified by the Illumina clipping attribute
         (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
 
-        assert os.path.isfile(inBam)
 
+        assert os.path.isfile(inBam)
         picardOptions = picardOptions or []
 
         opts = [
@@ -163,7 +161,7 @@ class SamToFastqTool(PicardTools):
             assert outFastq2, "outFastq0 option only applies in paired-end output mode"
             opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
 
-        if illuminaClipping: 
+        if illuminaClipping:
             opts += PicardTools.dict_to_picard_opts({
                 'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
                 'CLIPPING_ACTION': 'X'
@@ -275,7 +273,7 @@ class DownsampleSamTool(PicardTools):
             opts.extend(['RANDOM_SEED=' + str(random_seed)])
 
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-        
+
 
     def downsample_to_approx_count(
         self, inBam, outBam, read_count, picardOptions=None,
@@ -298,7 +296,7 @@ class DownsampleSamTool(PicardTools):
             # per the Picard docs, HighAccuracy is recommended for read counts <50k
             strategy = "HighAccuracy" if total_read_count < 50000 else "Chained"
             _log.info("Setting downsample accuracy to %s based on read count of %s" % (strategy, total_read_count))
-            
+
             self.execute(inBam, outBam, probability, strategy=strategy, accuracy=0.00001, picardOptions=picardOptions, JVMmemory=JVMmemory)
         else:
             _log.info("Requested downsample count exceeds number of reads. Including all reads in output.")
@@ -416,7 +414,7 @@ class CollectIlluminaLaneMetricsTool(PicardTools):
                         opts.append('='.join((k.upper(), str(x))))
                 else:
                     opts.append('='.join((k.upper(), str(v))))
-                    
+
         opts += ['RUN_DIRECTORY=' + run_dir]
         opts += ['OUTPUT_DIRECTORY=' + output_dir]
         opts += ['OUTPUT_PREFIX=' + output_prefix]
