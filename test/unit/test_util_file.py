@@ -48,3 +48,19 @@ def testTempFiles():
 
     assert not os.path.isfile(my_tmp_fn)
 
+def test_check_paths():
+    '''Test the util.file.check_paths()'''
+    from os.path import join
+    from util.file import check_paths
+    inDir = util.file.get_test_input_path()
+    def test_f(f):
+        return join(inDir, f)
+    check_paths(read=test_f('empty.bam'))
+    check_paths(read=[test_f('empty.bam')])
+    with pytest.raises(Exception):
+        check_paths(read=test_f('non_existent_file'))
+    with pytest.raises(Exception):
+        check_paths(write='/non/writeable/dir/file.txt')
+    with util.file.tmp_dir() as d:
+        check_paths(write=join(d, 'mydata.txt'))
+    

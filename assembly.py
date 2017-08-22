@@ -363,6 +363,7 @@ def assemble_spades(
         outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
             several contigs representing different variants of that region.
     '''
+    util.file.check_paths(read=inBam, write=outFasta)
 
     with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
