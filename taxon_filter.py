@@ -118,7 +118,7 @@ def main_deplete_human(args):
                 # TODO: error out? run RevertSam anyway?
 
     def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         bamToDeplete,
@@ -425,13 +425,13 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
 
-    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         args.inBam,
         args.refDbs,
-        wrapper,
+        bmtagger_wrapper,
         args.outBam,
         threads=args.threads,
         JVMmemory=args.JVMmemory
