@@ -354,14 +354,15 @@ def assemble_spades(
         inBam - reads to assemble.  May include both paired and unpaired reads.
         previously_assembled_contigs - (optional) already-assembled contigs from the same sample.
 
+    Outputs:
+        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
+            several contigs representing different variants of that region.
+
     Params:
         mem_limit_gb - max memory to use
         threads - number of threads to use
         spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
 
-    Outputs:
-        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
-            several contigs representing different variants of that region.
     '''
     util.file.check_paths(read=inBam, write=outFasta)
 
@@ -377,7 +378,8 @@ def assemble_spades(
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('outFasta', help='Output assembly.')
-    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assempled from the same sample')
+    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assembled from the same sample')
+    parser.add_argument('--spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     parser.add_argument('--threads', default=1, type=int, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))

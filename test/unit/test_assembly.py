@@ -122,7 +122,6 @@ class TestAssembleTrinity(TestCaseWithTmp):
         outFasta = util.file.mkstempfname('.fasta')
         assembly.assemble_trinity(inBam, clipDb, outFasta, threads=_CPUS)
         self.assertGreater(os.path.getsize(outFasta), 0)
-        shutil.copyfile(outFasta, 'trinity.fasta')
         contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
         self.assertEqual(contig_lens, [328, 348, 376, 381])
         os.unlink(outFasta)
