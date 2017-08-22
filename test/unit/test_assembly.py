@@ -15,6 +15,7 @@ import shutil
 import tempfile
 import argparse
 import itertools
+import pytest
 import tools.mummer
 import tools.novoalign
 import tools.picard
@@ -157,6 +158,7 @@ class TestAssembleSpades(TestCaseWithTmp):
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 247, 294, 328, 348, 430])
 
+    @pytest.mark.skip(reason="takes too long")
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
