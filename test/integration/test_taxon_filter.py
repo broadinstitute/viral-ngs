@@ -68,7 +68,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--srprismMemory", 1500,
+                "--srprismMemory", '1500',
                 "--threads", str(_CPUS)
             ]
         )
@@ -101,7 +101,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--srprismMemory", 1500,
+                "--srprismMemory", '1500',
                 "--threads", str(_CPUS)
             ]
         )
@@ -133,7 +133,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--srprismMemory", 1500,
+                "--srprismMemory", '1500',
                 "--threads", str(_CPUS)
             ]
         )
