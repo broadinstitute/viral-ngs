@@ -63,6 +63,7 @@ def test_check_paths():
         check_paths(write='/non/writable/dir/file.txt')
     with util.file.tmp_dir() as writable_dir:
         check_paths(write=(join(writable_dir, 'mydata1.txt'),
-                           join(writable_dir, 'mydata2.txt'))
+                           join(writable_dir, 'mydata2.txt')))
+
 
     
