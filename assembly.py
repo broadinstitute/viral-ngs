@@ -47,14 +47,13 @@ import Bio.Data.IUPACData
 log = logging.getLogger(__name__)
 
 
-class DenovoAssemblyError(Exception):
+class DenovoAssemblyError(RuntimeError):
 
-    def __init__(self, n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp):
-        super(DenovoAssemblyError, self).__init__(
-            'denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(
-                n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp
-            )
-        )
+    '''Indicates a failure of the de novo assembly step.  Can indicate an internal error in the assembler, but also
+    insufficient input data (for assemblers which cannot report that condition separately).'''
+
+    def __init__(self, reason):
+        super(DenovoAssemblyError, self).__init__(reason)
 
 
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
@@ -297,9 +296,10 @@ def assemble_trinity(
     except subprocess.CalledProcessError as e:
         if always_succeed:
             log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
-            util.file.touch(outFasta)
+            util.file.make_empty(outFasta)
         else:
-            raise DenovoAssemblyError(*read_stats)
+            raise DenovoAssemblyError('denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. '
+                                      '{} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(*read_stats))
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -344,41 +344,39 @@ def assemble_spades(
     inBam,
     outFasta,
     spades_opts='',
-    contigs_untrusted=None,
-    always_succeed=False,
+    previously_assembled_contigs=None,
     mem_limit_gb=4,
     threads=1,
 ):
-    ''' This step runs the SPAdes assembler.
+    ''' De novo RNA-seq assembly with the SPAdes assembler.
+
+    Inputs:
+        inBam - reads to assemble.  May include both paired and unpaired reads.
+        previously_assembled_contigs - (optional) already-assembled contigs from the same sample.
+
+    Params:
+        mem_limit_gb - max memory to use
+        threads - number of threads to use
+        spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
+
+    Outputs:
+        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
+            several contigs representing different variants of that region.
     '''
 
     with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                               contigs_untrusted=contigs_untrusted,
+                                               contigs_untrusted=previously_assembled_contigs,
                                                contigs_out=outFasta, spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
-            if not os.path.isfile(outFasta) or os.path.getsize(outFasta) == 0:
-                raise RuntimeError()
-        except (subprocess.CalledProcessError, RuntimeError) as e:
-            if always_succeed:
-                log.warn("denovo assembly (SPAdes) failed to assemble input, emitting empty output instead.")
-                util.file.make_empty(outFasta)
-            else:
-                raise DenovoAssemblyError(0,0,0,0,0,0)
+        except subprocess.CalledProcessError as e:
+            raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('outFasta', help='Output assembly.')
-    parser.add_argument(
-        "--always_succeed",
-        help="""If SPAdes fails (usually because insufficient reads to assemble),
-                        emit an empty fasta file as output. Default is to throw a DenovoAssemblyError.""",
-        default=False,
-        action="store_true",
-        dest="always_succeed"
-    )
-    parser.add_argument('--contigs_untrusted', help='Contigs previously assempled from the same sample')
+    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assempled from the same sample')
     parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     parser.add_argument('--threads', default=1, type=int, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))

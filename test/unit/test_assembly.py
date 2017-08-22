@@ -162,18 +162,9 @@ class TestAssembleSpades(TestCaseWithTmp):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
         outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4, always_succeed=True)
+        assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
         self.assertEqual(os.path.getsize(outFasta), 0)
         os.unlink(outFasta)
-
-    def test_empty_input_fail(self):
-        inDir = util.file.get_test_input_path()
-        inBam = os.path.join(inDir, 'empty.bam')
-        outFasta = util.file.mkstempfname('.fasta')
-        self.assertRaises(assembly.DenovoAssemblyError,
-            assembly.assemble_spades,
-            inBam=inBam, outFasta=outFasta, threads=4, always_succeed=False)
-
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
     ''' Test the trim_rmdup_subsamp command '''
