@@ -82,24 +82,6 @@ def get_resources():
         resources = json.load(inf)
     return resources
 
-def check_paths(read=(), write=()):
-    '''Check that we can read and write the specified files.  Throws an exception if any of the files
-    in `read` are not readable or any of the files specified in `write` are not writable.
-    `read` and `write` can be either single file names or sequences of file names.  Note: files in 
-    `write` will be overwritten and deleted as part of the check, unless they're also in `read`.'''
-    read = util.misc.make_seq(read)
-    for fname in read:
-        with open(fname):
-            pass
-
-    for fname in util.misc.make_seq(write):
-        if fname in read:
-            assert os.path.access(fname, os.W_OK)
-        else:
-            with open(fname, 'w'):
-                pass
-            os.unlink(fname)
-
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
         filename only.  This calls mkstemp, which does what we want, except
