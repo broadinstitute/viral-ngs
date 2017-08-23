@@ -12,6 +12,7 @@ import shutil
 import logging
 import argparse
 import util.version
+import util.file
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
@@ -200,7 +201,7 @@ def main_argparse(commands, description):
         try:
             ret = args.func_main(args)
         finally:
-            if hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep:
+            if (hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep) or util.file.keep_tmp():
                 log.exception(
                     "Exception occurred while running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
             else:
