@@ -4,6 +4,7 @@ __author__ = "ilya@broadinstitute.org"
 
 import os, os.path
 import pytest
+import tempfile
 import util.file
 
 def testTempFiles():
@@ -47,4 +48,28 @@ def testTempFiles():
             util.file.slurp_file(my_tmp_fn, maxSizeMb=1)
 
     assert not os.path.isfile(my_tmp_fn)
+
+def test_check_paths():
+    '''Test the util.file.check_paths()'''
+    from os.path import join
+    from util.file import check_paths
+    inDir = util.file.get_test_input_path()
+    def test_f(f):
+        return join(inDir, f)
+    check_paths(read=test_f('empty.bam'))
+    check_paths(read=[test_f('empty.bam')])
+    with pytest.raises(Exception):
+        check_paths(read=test_f('non_existent_file'))
+    with pytest.raises(Exception):
+        check_paths(write='/non/writable/dir/file.txt')
+    with tempfile.TemporaryDirectory() as writable_dir:
+        check_paths(write=(join(writable_dir, 'mydata1.txt'),
+                           join(writable_dir, 'mydata2.txt')))
+        with pytest.raises(Exception):
+            check_paths(write=writable_dir)
+            
+        util.file.make_empty(join(writable_dir, 'myempty.dat'))
+        check_paths(read_and_write=join(writable_dir, 'myempty.dat'))
+        
+
 
