@@ -82,7 +82,6 @@ def get_resources():
         resources = json.load(inf)
     return resources
 
-
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
         filename only.  This calls mkstemp, which does what we want, except
@@ -111,9 +110,29 @@ def tempfnames(suffixes, *args, **kwargs):
     try:
         yield fns
     finally:
-        for fn in fns:
-            if os.path.isfile(fn):
-                os.unlink(fn)
+        if  not keep_tmp():
+            for fn in fns:
+                if os.path.isfile(fn):
+                    os.unlink(fn)
+
+@contextlib.contextmanager
+def tmp_dir(*args, **kwargs):
+    """Create and return a temporary directory, which is cleaned up on context exit
+    unless keep_tmp() is True."""
+    try:
+        name = tempfile.mkdtemp(*args, **kwargs)
+        yield name
+    finally:
+        if keep_tmp():
+            log.debug('keeping tempdir ' + name)
+        else:
+            shutil.rmtree(name)
+
+def keep_tmp():
+    """Whether to preserve temporary directories and files (useful during debugging).
+    Return True if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    """
+    return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
 
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
@@ -129,10 +148,11 @@ def set_tmp_dir(name):
 
 
 def destroy_tmp_dir(tempdir=None):
-    if tempdir:
-        shutil.rmtree(tempdir)
-    elif tempfile.tempdir:
-        shutil.rmtree(tempfile.tempdir)
+    if not keep_tmp():
+        if tempdir:
+            shutil.rmtree(tempdir)
+        elif tempfile.tempdir:
+            shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
 
 
