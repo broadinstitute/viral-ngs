@@ -80,12 +80,3 @@ class SpadesTool(tools.Tool):
 
             shutil.copyfile(src=os.path.join(spades_dir, 'transcripts.fasta'), dst=contigs_out)
 
-
-
-
-
-                      
-                      
-
-    
-
