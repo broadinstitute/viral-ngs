@@ -364,7 +364,6 @@ def assemble_spades(
         spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
 
     '''
-    util.file.check_paths(read=inBam, write=outFasta)
 
     with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
