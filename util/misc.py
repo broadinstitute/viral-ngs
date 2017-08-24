@@ -513,14 +513,18 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
         base_dir_for_includes = os.path.dirname(cfg_fname)
         cfg = load_yaml_or_json(cfg_fname)
 
+    def flatten_cfg_dict(cfg):
+        '''Flatten a config mapping, filtering out None values representing empty subtrees.'''
+        return dict((k, v) for (k, v) in flatten_dict(cfg).items() if v is not None)
+
     includes = make_seq(std_includes) + make_seq(cfg.get(include_directive, []))
     for included_cfg_fname in includes:
         if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
             included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
-        result.update(flatten_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
-                                               param_renamings=param_renamings)))
+        result.update(flatten_cfg_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
+                                                   param_renamings=param_renamings)))
 
-    cfg_flat = flatten_dict(cfg)
+    cfg_flat = flatten_cfg_dict(cfg)
 
     # load any params specified under legacy names, for backwards compatibility
     param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
