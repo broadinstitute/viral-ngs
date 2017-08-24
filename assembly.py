@@ -339,23 +339,19 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
-def gapfill_gap2seq(
-    in_scaffold,
-    inBam,
-    out_scaffold,
-    gap2seq_opts='',
-    threads=1
-):
-    ''' This step runs the Sealer tool from ABySS assembler to close gaps in the assembly.
+def gapfill_gap2seq(in_scaffold, inBam, out_scaffold, gap2seq_opts='', threads=1, mem_limit_gb=4):
+    ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
-    tools.gap2seq.Gap2SeqTool().gapfill( in_scaffold, inBam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads )
+    tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, inBam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+                                        mem_limit_gb=mem_limit_gb)
 
-def parser_gapfill_gap2seq(parser=argparse.ArgumentParser()):
+def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
     parser.add_argument('in_scaffold', help='Scaffold with gaps (FASTA witht Ns)')
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('out_scaffold', help='Output assembly.')
     parser.add_argument('--gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
     parser.add_argument('--threads', default=1, type=int, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--mem_limit_gb', default=4, type=float, help='Max memory to use, in gigabytes')
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)

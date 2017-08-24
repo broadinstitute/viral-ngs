@@ -95,6 +95,7 @@ class Gap2SeqTool(tools.Tool):
                                 self.execute(args=args)
 
                         prev_scaffold = gap2seq_filled
+
                         if not any('N'*min_gap_to_close in str(rec.seq) for rec in Bio.SeqIO.parse(gap2seq_filled, 'fasta')):
                             log.info('no gaps left, quittting gap2seq early')
                             done=True
