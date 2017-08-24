@@ -36,10 +36,8 @@ class Gap2SeqTool(tools.Tool):
 
     def execute(self, args):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path()] + args
-        log.info('b4 gap2seq: ' + str(os.listdir()))
-        log.info('running gap2seq: ' + ' '.join(tool_cmd))
+        log.debug('running gap2seq: ' + ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
-        log.info('aft gap2seq: ' + str(os.listdir()))
 
     def gapfill(self, in_scaffold, inBam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
                 min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4, threads=1, time_limit_minutes=60):
@@ -79,7 +77,7 @@ class Gap2SeqTool(tools.Tool):
                 for solid_kmer_threshold in solid_kmer_thresholds:
                     for kmer_size in kmer_sizes:
                         gap2seq_filled = join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
-                        log.info('s={} k={} gap2seq_filled={}'.format(solid_kmer_threshold, kmer_size, gap2seq_filled))
+                        log.debug('s={} k={} gap2seq_filled={}'.format(solid_kmer_threshold, kmer_size, gap2seq_filled))
 
                         # gap2seq (or rather the gatb library it uses) currently has a bug where tempfiles are left in the
                         # current working directory.  So we run it in its own temp dir, but then must give absolute paths
