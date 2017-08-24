@@ -28,7 +28,7 @@ class Gap2SeqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, env='gap2seq_env', executable='Gap2Seq.sh')]
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq.sh')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
