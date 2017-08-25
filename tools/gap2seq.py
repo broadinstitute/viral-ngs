@@ -56,7 +56,7 @@ class Gap2SeqTool(tools.Tool):
             with util.file.pushd_popd(gap2seq_run_dir):
                 self.execute(file_args+args+more_args)
 
-    def gapfill(self, in_scaffold, inBam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
+    def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
                 min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4, threads=1, time_limit_minutes=60):
         """Try to fill the gaps in the given scaffold, using the reads.
 
@@ -65,7 +65,7 @@ class Gap2SeqTool(tools.Tool):
                 segment (for multi-segment genomes).  Contigs within each segment are
                 separated by Ns.  The exact number of Ns between contigs does not matter, as the length of the gap is one 
                 of the things determined by the gap-filling tool.  (But see `min_gap_to_close`).
-            inBam: reads to use for filling the gaps.  Only paired-end reads from the bam file are used, any unpaired reads
+            in_bam: reads to use for filling the gaps.  Only paired-end reads from the bam file are used, any unpaired reads
                 are ignored.
            
         Outputs:
@@ -84,7 +84,7 @@ class Gap2SeqTool(tools.Tool):
         """
         solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
         kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
-        with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as reads:
+        with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads:
             prev_scaffold = in_scaffold
             stop_time = time.time() + 60*time_limit_minutes
             with util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
