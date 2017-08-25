@@ -180,38 +180,6 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
 
-class TestDictFlatten(unittest.TestCase):
-
-    def testDictFlatten(self):
-        z=dict(a=1,b=dict(c=2,e=3))
-        self.assertEqual(util.misc.unflatten_dict(util.misc.flatten_dict(z)), z)
-
-        self.assertEqual(util.misc.flatten_dict({}),{})
-        self.assertEqual(util.misc.flatten_dict({'a':1}),{('a',): 1})
-        self.assertEqual(util.misc.flatten_dict({'a':1,'b':2}),{('a',): 1, ('b',):2})
-        self.assertEqual(util.misc.flatten_dict({'a':1,'b':{'c':2}}),{('a',): 1, ('b','c'):2})
-        self.assertEqual(util.misc.flatten_dict({'a':1,'b':{'c':2,'d':{'e':3}}}),
-                         {('a',): 1, ('b','c'):2, ('b','d','e'):3})
-
-        # test random dicts
-
-        def rand_dict(max_depth=5):
-            z=dict()
-            for i in range(random.randint(1,3)):
-                z[str(random.randint(0,5))] = random.randint(0,100) if max_depth==0 or random.randint(0,1) \
-                                              else rand_dict(max_depth-1)
-            return z
-
-        for randTestNum in range(1000):
-            z = rand_dict()
-            z_flat=util.misc.flatten_dict(z)
-            assert all( isinstance(k,tuple) and isinstance(v,int) for k,v in z_flat.items())
-            z_unflat=util.misc.unflatten_dict(z_flat)
-            z_reflat=util.misc.flatten_dict(z_unflat)
-            
-            self.assertEqual(z_unflat, z)
-            self.assertEqual(z_reflat, z_flat)
-
 class TestConfigIncludes(unittest.TestCase):
 
     def testConfigIncludes(self):
