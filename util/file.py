@@ -129,12 +129,12 @@ def tmp_dir(*args, **kwargs):
             shutil.rmtree(name)
 
 @contextlib.contextmanager
-def tmp_chdir(name):
+def pushd_popd(target_dir):
     '''Temporary change to the specified directory, restoring current directory on context exit.'''
     save_cwd = os.getcwd()
     try:
-        os.chdir(name)
-        yield
+        os.chdir(target_dir)
+        yield target_dir
     finally:
         os.chdir(save_cwd)
 

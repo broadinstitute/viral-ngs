@@ -2,6 +2,9 @@
     Gap2Seq - assembly gap closing tool
 '''
 
+import itertools
+import functools
+import operator
 import logging
 import os
 import os.path
@@ -35,9 +38,23 @@ class Gap2SeqTool(tools.Tool):
         return TOOL_VERSION
 
     def execute(self, args):    # pylint: disable=W0221
-        tool_cmd = [self.install_and_get_path()] + args
+        tool_cmd = [self.install_and_get_path()] + list(args)
         log.debug('running gap2seq: ' + ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
+
+    def _run_gap2seq(self, reads, scaffolds, filled, *args, **kwargs):
+        # gap2seq (or rather the gatb library it uses) currently has a bug where tempfiles are left in the
+        # current working directory.  So we run it in its own temp dir, but then must give absolute paths
+        # for all files.
+
+        abspath = os.path.abspath
+        file_args = ('-scaffolds', abspath(scaffolds), '-filled', abspath(filled), 
+                     '-reads', ','.join(map(abspath,reads)))
+        more_args = functools.reduce(operator.concat, 
+                                     [('-'+arg.replace('_','-'), str(val)) for arg, val in kwargs.items()], ())
+        with util.file.tmp_dir('_gap2seq_run_dir') as gap2seq_run_dir:
+            with util.file.pushd_popd(gap2seq_run_dir):
+                self.execute(file_args+args+more_args)
 
     def gapfill(self, in_scaffold, inBam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
                 min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4, threads=1, time_limit_minutes=60):
@@ -65,46 +82,28 @@ class Gap2SeqTool(tools.Tool):
             time_limit_minutes: stop trying to close more gaps after this many minutes (currently this is a soft/advisory limit)
         
         """
-        from os.path import abspath, join
         solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
         kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
-        samtools = tools.samtools.SamtoolsTool()
-        with samtools.bam2fq_tmp(inBam) as (reads1, reads2):
-            done = False
+        with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as reads:
             prev_scaffold = in_scaffold
             stop_time = time.time() + 60*time_limit_minutes
             with util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
-                for solid_kmer_threshold in solid_kmer_thresholds:
-                    for kmer_size in kmer_sizes:
-                        gap2seq_filled = join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
-                        log.debug('s={} k={} gap2seq_filled={}'.format(solid_kmer_threshold, kmer_size, gap2seq_filled))
+                for solid_kmer_threshold, kmer_size in itertools.product(solid_kmer_thresholds, kmer_sizes):
 
-                        # gap2seq (or rather the gatb library it uses) currently has a bug where tempfiles are left in the
-                        # current working directory.  So we run it in its own temp dir, but then must give absolute paths
-                        # for all files.
+                    filled_scaffold = os.path.join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
+                    self._run_gap2seq(reads, prev_scaffold, filled_scaffold,
+                                      *(['-all-upper', '-verbose']+shlex.split(gap2seq_opts)),
+                                      solid=solid_kmer_threshold, k=kmer_size, nb_cores=threads, max_mem=mem_limit_gb)
 
-                        args = ['-scaffolds', abspath(prev_scaffold), '-filled', abspath(gap2seq_filled),
-                                '-reads', ','.join((abspath(reads1), abspath(reads2))), '-solid', str(solid_kmer_threshold), 
-                                '-k', str(kmer_size), '-all-upper',
-                                '-verbose', '-nb-cores', str(threads), '-max-mem', str(mem_limit_gb)] + shlex.split(gap2seq_opts)
-                        
-                        with util.file.tmp_dir('_gap2seq_run_dir') as gap2seq_run_dir:
-                            with util.file.tmp_chdir(gap2seq_run_dir):
-                                self.execute(args=args)
+                    prev_scaffold = filled_scaffold
 
-                        prev_scaffold = gap2seq_filled
+                    if not any('N'*min_gap_to_close in str(rec.seq) for rec in Bio.SeqIO.parse(filled_scaffold, 'fasta')):
+                        log.info('no gaps left, quittting gap2seq early')
+                        break
+                    if time.time() > stop_time:
+                        log.info('Time limit for gap closing reached')
+                        break
 
-                        if not any('N'*min_gap_to_close in str(rec.seq) for rec in Bio.SeqIO.parse(gap2seq_filled, 'fasta')):
-                            log.info('no gaps left, quittting gap2seq early')
-                            done=True
-                            break
-                        if time.time() > stop_time:
-                            log.info('Time limit for gap closing reached')
-                            done=True
-                            break
-                    # end: for kmer_size in kmer_sizes
-                    if done: break
-                # end: for solid_kmer_threshold in solid_kmer_thresholds
 
                 shutil.copyfile(src=prev_scaffold, dst=out_scaffold)
 
