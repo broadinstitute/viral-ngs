@@ -106,4 +106,3 @@ class Gap2SeqTool(tools.Tool):
 
 
             shutil.copyfile(src=prev_scaffold, dst=out_scaffold)
-
