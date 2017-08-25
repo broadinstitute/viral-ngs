@@ -229,6 +229,7 @@ class TestConfigIncludes(unittest.TestCase):
         with self.assertRaises(KeyError): cfg2["var_A"]
         self.assertFalse(cfg2["paramZ"])
         self.assertTrue(cfg1["paramZ"])
+        self.assertEqual(cfg2["empty_subtree"]["x"], 1)
 
         self.assertEqual(cfg2["std_methods"], ['a','b','c'])
         self.assertEqual(cfg2["stage1"]["stage2"]["step_num"],3)
@@ -239,11 +240,4 @@ class TestConfigIncludes(unittest.TestCase):
         self.assertEqual(cfg2["std_param_A_new"], 111)  # specified as std_param_A_old in cfg1.yaml
 
         self.assertEqual(util.misc.load_config(test_fn('empty.yaml')), {})
-
-
-
-
-
-        
-
 
