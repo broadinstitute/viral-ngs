@@ -12,6 +12,8 @@ std_methods:
   - b
   - c
 
+empty_subtree:
+
 stage1:
   stage2:
     step_num: 3
