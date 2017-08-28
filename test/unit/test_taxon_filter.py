@@ -182,15 +182,15 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
         args.func_main(args)
 
         for ext in [
-            ".bitmask", ".srprism.amp", ".srprism.idx", ".srprism.imp", ".srprism.pmp", ".srprism.rmp",
-            ".srprism.ss", ".srprism.ssa", ".srprism.ssd"
+            ".bitmask", ".srprism.amp", ".srprism.imp", ".srprism.pmp", ".srprism.rmp",
+            ".srprism.ssa", ".srprism.ssd"
         ]:
             assert_equal_contents(
                 self, os.path.join(tempDir, output_prefix + ext),
                 os.path.join(myInputDir, "expected", output_prefix + ext)
             )
 
-        for ext in [".srprism.map"]:
+        for ext in [".srprism.map", ".srprism.idx", ".srprism.ss"]:
             assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
 
 
@@ -217,12 +217,14 @@ class TestLastalDbBuild(TestCaseWithTmp):
         )
         args.func_main(args)
 
-        for ext in [".bck", ".des", ".prj", ".sds", ".ssp", ".suf", ".tis"]:
+        for ext in [".bck", ".des", ".prj", ".sds", ".ssp", ".tis"]:
             assert_equal_contents(
                 self, os.path.join(tempDir, output_prefix + ext),
                 os.path.join(myInputDir, "expected", output_prefix + ext)
             )
 
+        for ext in [".suf"]:
+            assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
 
 class TestDepleteBlastnBam(TestCaseWithTmp):
     '''
