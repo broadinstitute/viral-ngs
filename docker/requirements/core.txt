@@ -1,6 +1,8 @@
 blast=2.6.0
 bmtagger=3.101
 bwa=0.7.15
+cd-hit=4.6.8
+cd-hit-auxtools=4.6.8
 diamond=0.8.36
 gatk=3.6
 kraken-all=0.10.6_fork2

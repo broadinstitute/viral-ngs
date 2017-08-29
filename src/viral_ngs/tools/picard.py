@@ -138,6 +138,22 @@ class MarkDuplicatesTool(PicardTools):
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
+class SplitSamByLibraryTool(PicardTools):
+    subtoolName = 'SplitSamByLibrary'
+
+    def execute(
+        self, in_bam, out_dir, picardOptions=None, JVMmemory=None
+    ):    # pylint: disable=W0221
+
+        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+            # Picard SplitSamByLibrary cannot deal with an empty input BAM file
+            shutil.copyfile(in_bam, os.path.join(out_dir, 'output.bam'))
+            return
+
+        opts = ['INPUT=' + in_bam, 'OUTPUT=' + out_dir]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory=JVMmemory)
+
+
 class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
@@ -304,11 +320,22 @@ class DownsampleSamTool(PicardTools):
 class MergeSamFilesTool(PicardTools):
     subtoolName = 'MergeSamFiles'
 
-    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory=JVMmemory, background=background)
+
+
+class ReplaceSamHeaderTool(PicardTools):
+    subtoolName = 'ReplaceSamHeader'
+
+    def execute(self, inBam, headerBam, outBam, picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
+
+        opts = ['INPUT=' + inBam,
+                'HEADER=' + headerBam,
+                'OUTPUT=' + outBam]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory=JVMmemory, background=background)
 
 
 class FilterSamReadsTool(PicardTools):
