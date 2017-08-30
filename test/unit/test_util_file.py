@@ -4,7 +4,6 @@ __author__ = "ilya@broadinstitute.org"
 
 import os, os.path
 import pytest
-import tempfile
 import util.file
 
 def testTempFiles():
