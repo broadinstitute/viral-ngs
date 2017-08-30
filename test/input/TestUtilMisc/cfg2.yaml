@@ -17,3 +17,6 @@ stage1:
       - 3
       - 33
 
+empty_subtree:
+  x: 1
+
