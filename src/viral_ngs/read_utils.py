@@ -1043,7 +1043,8 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 # =========================
 
 
-def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
+def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
+        min_score_to_filter=None, aligner_options=None):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
     '''
 
@@ -1057,7 +1058,9 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
     samtools = tools.samtools.SamtoolsTool()
     bwa = tools.bwa.Bwa()
 
-    bwa.mem(inBam, refFasta, bam_aligned)
+    bwa_opts = [] if aligner_options is None else aligner_options.split()
+    bwa.mem(inBam, refFasta, bam_aligned, options=bwa_opts,
+            min_score_to_filter=min_score_to_filter)
 
     if outStats is not None:
         samtools.idxstats(bam_aligned, outStats)
@@ -1071,6 +1074,26 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
     parser.add_argument('--outStats', help='Output idxstats file', default=None)
+    parser.add_argument(
+        '--minScoreToFilter',
+        dest="min_score_to_filter",
+        type=int,
+        help=("Filter bwa alignments using this value as the minimum allowed "
+              "alignment score. Specifically, sum the alignment scores across "
+              "all alignments for each query (including reads in a pair, "
+              "supplementary and secondary alignments) and then only include, "
+              "in the output, queries whose summed alignment score is at least "
+              "this value. This is only applied when the aligner is 'bwa'. "
+              "The filtering on a summed alignment score is sensible for reads "
+              "in a pair and supplementary alignments, but may not be "
+              "reasonable if bwa outputs secondary alignments (i.e., if '-a' "
+              "is in the aligner options). (default: not set - i.e., do not "
+              "filter bwa's output)")
+    )
+    parser.add_argument(
+        '--alignerOptions',
+        dest="aligner_options",
+        help="bwa options (default: bwa defaults)")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser
