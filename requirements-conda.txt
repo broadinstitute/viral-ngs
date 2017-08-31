@@ -7,6 +7,7 @@ kraken-all=0.10.6_fork2
 krona=2.7
 last=719
 fastqc=0.11.5
+gap2seq=2.1
 mafft=7.221
 mummer=3.23 
 muscle=3.8.1551 
