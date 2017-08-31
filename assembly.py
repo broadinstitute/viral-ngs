@@ -37,6 +37,7 @@ import tools.trinity
 import tools.mafft
 import tools.mummer
 import tools.muscle
+import tools.gap2seq
 
 # third-party
 import Bio.AlignIO
@@ -337,6 +338,30 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
+
+def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, gap2seq_opts='', threads=1, mem_limit_gb=4):
+    ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
+    '''
+    tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+                                        mem_limit_gb=mem_limit_gb)
+
+def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
+    parser.add_argument('inScaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
+                        'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('outScaffold', help='Output assembly.')
+    parser.add_argument('--threads', default=0, type=int, help='Number of threads (default: %(default)s); 0 means use all available cores')
+    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
+    parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
+                        help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
+    parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
+
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
+    return parser
+
+
+__commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
