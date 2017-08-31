@@ -57,7 +57,7 @@ class Gap2SeqTool(tools.Tool):
                 self.execute(file_args+args+more_args)
 
     def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
-                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4, threads=1, time_limit_minutes=60):
+                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=0, time_soft_limit_minutes=60.0):
         """Try to fill the gaps in the given scaffold, using the reads.
 
         Inputs:
@@ -78,15 +78,18 @@ class Gap2SeqTool(tools.Tool):
             min_gap_to_close: stop gap-closing if all gaps are no longer than this many Ns
             gap2seq_opts: extra command-line flags to pass to Gap2Seq
             mem_limit_gb: max memory to use, in gigabytes
-            threads: number of threads to use
-            time_limit_minutes: stop trying to close more gaps after this many minutes (currently this is a soft/advisory limit)
+            threads: number of threads to use; 0 or None means use all available cores.
+            time_soft_limit_minutes: stop trying to close more gaps after this many minutes (currently this is a soft/advisory limit)
         
         """
         solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
         kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
-        stop_time = time.time() + 60*time_limit_minutes
+        stop_time = time.time() + 60*time_soft_limit_minutes
         with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads, util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
 
+            # We call Gap2Seq for a range of parameter combinations.  Output of each call is input to the next call, so
+            # each call only deals with gaps not closed by prior calls.  We first try to close using higher-quality kmers,
+            # and if that fails try with lower-quality ones.
             prev_scaffold = in_scaffold
             for solid_kmer_threshold, kmer_size in itertools.product(solid_kmer_thresholds, kmer_sizes):
 
@@ -103,6 +106,5 @@ class Gap2SeqTool(tools.Tool):
                 if time.time() > stop_time:
                     log.info('Time limit for gap closing reached')
                     break
-
 
             shutil.copyfile(src=prev_scaffold, dst=out_scaffold)
