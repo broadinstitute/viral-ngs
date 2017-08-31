@@ -844,7 +844,7 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
               "filter bwa's output)")
     )
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='bwa', help='aligner (default: %(default)s)')
-    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: "-T 30"')
+    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: bwa defaults')
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
         default=None,
