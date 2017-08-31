@@ -29,7 +29,7 @@ class SpadesTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='spades.py',
-                                                  verifycmd='echo spades.py --test', env='spades_env')]
+                                                  verifycmd='echo spades.py --help', env='spades_env')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -41,7 +41,7 @@ class SpadesTool(tools.Tool):
         subprocess.check_call(tool_cmd)
 
     def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None,
-                 contigs_untrusted=None, mem_limit_gb=4, threads=1, spades_opts=''):
+                 contigs_untrusted=None, mem_limit_gb=4, threads=0, spades_opts=''):
         '''Assemble contigs from reads and (optionally) pre-existing contigs.
 
         Inputs:
@@ -51,7 +51,7 @@ class SpadesTool(tools.Tool):
             contigs_untrusted - optionally, already-assembled contigs of average quality
         Params:
             mem_limit_gb - max memory to use, in gigabytes
-            threads - number of threads to use
+            threads - number of threads to use (0 means use all available CPUs)
             spades_opts - additional options to pass to spades
         Outputs:
             contigs_out - assembled contigs in fasta format.  Note that, since we use the
@@ -61,6 +61,8 @@ class SpadesTool(tools.Tool):
                 See details at 
                 http://cab.spbu.ru/files/release3.10.1/rnaspades_manual.html#sec2.2 .
         '''
+
+        if not threads: threads = util.misc.available_cpu_count()
 
         if os.path.getsize(reads_fwd) == 0:
             # spades crashes on empty input, so just return empty output

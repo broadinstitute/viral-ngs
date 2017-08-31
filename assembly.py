@@ -346,7 +346,7 @@ def assemble_spades(
     spades_opts='',
     previously_assembled_contigs=None,
     mem_limit_gb=4,
-    threads=1,
+    threads=0,
 ):
     ''' De novo RNA-seq assembly with the SPAdes assembler.
 
@@ -360,12 +360,13 @@ def assemble_spades(
 
     Params:
         mem_limit_gb - max memory to use
-        threads - number of threads to use
+        threads - number of threads to use (0 means use all available CPUs)
         spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
 
     '''
 
-    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True) as (reads_fwd, reads_bwd, reads_unpaired):
+    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True,
+                                                   JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=previously_assembled_contigs,
@@ -380,7 +381,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('--previously_assembled_contigs', help='Contigs previously assembled from the same sample')
     parser.add_argument('--spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
-    parser.add_argument('--threads', default=1, type=int, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
     return parser
