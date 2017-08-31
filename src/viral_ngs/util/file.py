@@ -82,6 +82,27 @@ def get_resources():
         resources = json.load(inf)
     return resources
 
+def check_paths(read=(), write=(), read_and_write=()):
+    '''Check that we can read and write the specified files, throw an exception if not.  Useful for checking
+    error conditions early in the execution of a command.  Each arg can be a filename or iterable of filenames.
+    '''
+    read, write, read_and_write = map(util.misc.make_seq, (read, write, read_and_write))
+    assert not (set(read) & set(write))
+    assert not (set(read) & set(read_and_write))
+    assert not (set(write) & set(read_and_write))
+    
+    for fname in read+read_and_write:
+        with open(fname):
+            pass
+
+    for fname in write+read_and_write:
+        if not os.path.exists(fname):
+            with open(fname, 'w'):
+                pass
+            os.unlink(fname)
+        else:
+            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+                raise PermissionError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
@@ -111,9 +132,29 @@ def tempfnames(suffixes, *args, **kwargs):
     try:
         yield fns
     finally:
-        for fn in fns:
-            if os.path.isfile(fn):
-                os.unlink(fn)
+        if  not keep_tmp():
+            for fn in fns:
+                if os.path.isfile(fn):
+                    os.unlink(fn)
+
+@contextlib.contextmanager
+def tmp_dir(*args, **kwargs):
+    """Create and return a temporary directory, which is cleaned up on context exit
+    unless keep_tmp() is True."""
+    try:
+        name = tempfile.mkdtemp(*args, **kwargs)
+        yield name
+    finally:
+        if keep_tmp():
+            log.debug('keeping tempdir ' + name)
+        else:
+            shutil.rmtree(name)
+
+def keep_tmp():
+    """Whether to preserve temporary directories and files (useful during debugging).
+    Return True if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    """
+    return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
 
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
@@ -129,10 +170,11 @@ def set_tmp_dir(name):
 
 
 def destroy_tmp_dir(tempdir=None):
-    if tempdir:
-        shutil.rmtree(tempdir)
-    elif tempfile.tempdir:
-        shutil.rmtree(tempfile.tempdir)
+    if not keep_tmp():
+        if tempdir:
+            shutil.rmtree(tempdir)
+        elif tempfile.tempdir:
+            shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
 
 

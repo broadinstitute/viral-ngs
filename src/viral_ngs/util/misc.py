@@ -437,31 +437,13 @@ def make_seq(x):
     '''
     return tuple(x) if is_nonstr_iterable(x) else (x,)
 
-def flatten_dict(d):
-    '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
-    result = dict()
-    for k, v in d.items():
-        if isinstance(v, collections.Mapping):
-            for k_rest, v_actual in flatten_dict(v).items():
-                result[(k,)+k_rest] = v_actual
-        else:
-            result[(k,)] = v
-    return result
-
-def unflatten_dict(d):
-    '''Reverse operation to `flatten_dict`'''
-    result = dict()
-    for k, v in d.items():
-        # if k is (k1,k2,...kN), then ensure that result[k1][k2]...[kN]=v, creating intermediate dicts as needed
-        functools.reduce(lambda d,k: d.setdefault(k,dict()), k[:-1], result)[k[-1]]=v
-    return result
-
 def load_yaml_or_json(fname):
     '''Load a dictionary from either a yaml or a json file'''
     with open(fname) as f:
         if fname.upper().endswith('.YAML'): return yaml.safe_load(f) or {}
         if fname.upper().endswith('.JSON'): return json.load(f) or {}
         raise TypeError('Unsupported dict file format: ' + fname)
+
 
 def load_config(cfg, include_directive='include', std_includes=(), param_renamings=None):
     '''Load a configuration, with support for some extra functionality that lets project configurations evolve
@@ -513,14 +495,42 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
         base_dir_for_includes = os.path.dirname(cfg_fname)
         cfg = load_yaml_or_json(cfg_fname)
 
+    def _update_config(config, overwrite_config):
+        """Recursively update dictionary config with overwrite_config.
+
+        Adapted from snakemake.utils.
+        See
+        http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+        for details.
+
+        Args:
+          config (dict): dictionary to update
+          overwrite_config (dict): dictionary whose items will overwrite those in config
+
+        """
+
+        def _update(d, u):
+            def fix_None(v): return {} if v is None else v
+            for (key, value) in u.items():
+                if (isinstance(value, collections.Mapping)):
+                    d[key] = _update(fix_None(d.get(key, {})), value)
+                else:
+                    d[key] = fix_None(value)
+            return d
+
+        _update(config, overwrite_config)
+
+
     includes = make_seq(std_includes) + make_seq(cfg.get(include_directive, []))
     for included_cfg_fname in includes:
         if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
             included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
-        result.update(flatten_dict(load_config(cfg=included_cfg_fname, include_directive=include_directive,
-                                               param_renamings=param_renamings)))
+        _update_config(result, load_config(cfg=included_cfg_fname, 
+                                           include_directive=include_directive,
+                                           param_renamings=param_renamings))
 
-    cfg_flat = flatten_dict(cfg)
+    # mappings in the current (top-level) config override any mappings from included configs
+    _update_config(result, cfg)
 
     # load any params specified under legacy names, for backwards compatibility
     param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
@@ -529,14 +539,13 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
 
         # handle chains of param renamings
         while new_param in param_renamings_seq:
-            assert param_renamings_seq[new_param] not in (old_param, new_param), 'Circular param renamings'
             new_param = param_renamings_seq[new_param]
 
-        if old_param in cfg_flat:
-            assert new_param not in cfg_flat or cfg_flat[new_param] == cfg_flat[old_param], 'Conflicting param settings'
-            cfg_flat[new_param] = cfg_flat[old_param]
-            log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param,new_param))
+        old_val = functools.reduce(lambda d, k: d.get(k, {}), old_param, result)
+        new_val = functools.reduce(lambda d, k: d.get(k, {}), new_param, result)
 
-    # mappings in the current (top-level) config override any mappings from included configs
-    result.update(cfg_flat)
-    return unflatten_dict(result)
+        if old_val != {} and new_val == {}:
+            _update_config(result, functools.reduce(lambda d, k: {k: d}, new_param[::-1], old_val))
+            log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param, new_param))
+
+    return result
