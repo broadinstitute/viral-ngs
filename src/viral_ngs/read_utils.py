@@ -22,6 +22,7 @@ import util.file
 import util.misc
 from util.file import mkstempfname
 import tools.bwa
+import tools.cdhit
 import tools.picard
 import tools.samtools
 import tools.mvicuna
@@ -658,6 +659,67 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     os.unlink(outFastq2)
 
 
+def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
+    ''' Remove duplicate reads from BAM file using cd-hit-dup.
+    '''
+    max_mismatches = max_mismatches or 4
+    tmp_dir = tempfile.mkdtemp()
+
+    tools.picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
+
+    s2fq_tool = tools.picard.SamToFastqTool()
+    cdhit = tools.cdhit.CdHit()
+    out_bams = []
+    for f in os.listdir(tmp_dir):
+        out_bam = mkstempfname('.bam')
+        out_bams.append(out_bam)
+        library_sam = os.path.join(tmp_dir, f)
+
+        in_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
+
+        s2fq_tool.execute(library_sam, in_fastqs[0], in_fastqs[1])
+        if not os.path.getsize(in_fastqs[0]) > 0 and not os.path.getsize(in_fastqs[1]) > 0:
+            continue
+
+        out_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
+        options = {
+            '-e': max_mismatches,
+        }
+        if in_fastqs[1] is not None and os.path.getsize(in_fastqs[1]) > 10:
+            options['-i2'] = in_fastqs[1]
+            options['-o2'] = out_fastqs[1]
+
+        log.info("executing cd-hit-est on library " + library_sam)
+        # cd-hit-dup cannot operate on piped fastq input because it reads twice
+        cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=True)
+
+        tools.picard.FastqToSamTool().execute(out_fastqs[0], out_fastqs[1], f, out_bam, JVMmemory=jvm_memory)
+        for fn in in_fastqs:
+            os.unlink(fn)
+
+    with util.file.fifo(name='merged.sam') as merged_bam:
+        merge_opts = ['SORT_ORDER=queryname']
+        tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=jvm_memory, background=True)
+        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, inBam, outBam, JVMmemory=jvm_memory)
+
+
+def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)',
+        dest='jvm_memory'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_cdhit_bam, split_args=True)
+    return parser
+
+
+__commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
+
+
 def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using M-Vicuna. The
         primary advantage to this approach over Picard's MarkDuplicates tool
@@ -909,7 +971,7 @@ def main_gatk_realign(args):
     tools.gatk.GATKTool(path=args.GATK_PATH).local_realign(
         args.inBam, args.refFasta,
         args.outBam, JVMmemory=args.JVMmemory,
-        threads=args.threads, 
+        threads=args.threads,
     )
     return 0
 
@@ -945,7 +1007,7 @@ def align_and_fix(
     shutil.copyfile(refFasta, refFastaCopy)
 
     tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)    
+    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
         if aligner=="novoalign":
@@ -955,7 +1017,7 @@ def align_and_fix(
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
-        
+
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(refFastaCopy)
 
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
@@ -1003,21 +1065,21 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         '--outBamAll',
         default=None,
         help='''Aligned, sorted, and indexed reads.  Unmapped and duplicate reads are
-                retained. By default, duplicate reads are marked. If "--skipMarkDupes" 
+                retained. By default, duplicate reads are marked. If "--skipMarkDupes"
                 is specified duplicate reads are included in outout without being marked.'''
     )
     parser.add_argument(
         '--outBamFiltered',
         default=None,
-        help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file, 
-                as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided, 
+        help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file,
+                as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided,
                 duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
-    parser.add_argument('--skipMarkDupes', 
+    parser.add_argument('--skipMarkDupes',
                         help='If specified, duplicate reads will not be marked in the resulting output file.',
                         dest="skip_mark_dupes",
                         action='store_true')
