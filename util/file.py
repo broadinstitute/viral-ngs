@@ -3,12 +3,12 @@ tab-text files and gzipped files.
 '''
 
 __author__ = "dpark@broadinstitute.org"
-__version__ = "PLACEHOLDER"
-__date__ = "PLACEHOLDER"
 
+import codecs
 import contextlib
-import os, os.path
+import os
 import gzip
+import io
 import tempfile
 import shutil
 import errno
@@ -18,6 +18,10 @@ import util.cmd
 import util.misc
 import sys
 import io
+
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -94,7 +98,7 @@ def check_paths(read=(), write=(), read_and_write=()):
     assert not (set(read) & set(write))
     assert not (set(read) & set(read_and_write))
     assert not (set(write) & set(read_and_write))
-    
+
     for fname in read+read_and_write:
         with open(fname):
             pass
@@ -671,3 +675,26 @@ def find_broken_symlinks(rootdir, followlinks=False):
                     broken_links_to_remove.append(fpath.rstrip("/"))
 
     return broken_links_to_remove
+
+
+def join_interleaved_fastq(input_fastq_f, output_format='fastq', num_n=None):
+    '''Join interleaved fastq into single reads connected by Ns'''
+    assert output_format in ('fastq', 'fasta')
+    num_n = num_n or 31
+
+    # In case input is a stdout pipe (always binary encoded)
+    input_fastq_f = codecs.getreader('ascii')(input_fastq_f)
+    for r1, r2 in util.misc.batch_iterator(SeqIO.parse(input_fastq_f, 'fastq'), 2):
+        if r1.id.endswith('/1'):
+            rid = r1.id[:-2]
+        else:
+            rid = r1.id
+        jseq = Seq(str(r1.seq) + 'N' * num_n + str(r2.seq))
+        labbrevs = None
+        if output_format == 'fastq':
+            # Illumina quality score of 2 indicates unreliable base
+            labbrevs = {
+                'phred_quality': r1.letter_annotations['phred_quality'] + [2] * num_n + r2.letter_annotations['phred_quality']
+            }
+        rec = SeqRecord(jseq, id=rid, description='', letter_annotations=labbrevs)
+        yield rec

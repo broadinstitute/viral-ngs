@@ -1,5 +1,4 @@
 #!/bin/bash
-#set -e
 
 UNIT_TESTS_ALWAYS=1
 

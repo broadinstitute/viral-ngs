@@ -7,6 +7,7 @@ import logging
 import os, os.path
 import re
 import subprocess
+import threading
 import multiprocessing
 import sys
 import copy
@@ -318,6 +319,21 @@ def run_and_save(args, stdout=None, stdin=None,
         raise subprocess.CalledProcessError(sp.returncode, str(args[0]))
 
     return sp
+
+
+def bind_pipes(input_pipe, output_pipe, f, *args, **kwargs):
+    '''Bind input pipe to output pipe via function f in background thread.'''
+    def wrapf():
+        try:
+            f(input_pipe, output_pipe, *args, **kwargs)
+        finally:
+            try:
+                output_pipe.close()
+            finally:
+                input_pipe.close()
+    t = threading.Thread(target=wrapf)
+    t.daemon = True # die if the program exits
+    t.start()
 
 
 class FeatureSorter(object):
