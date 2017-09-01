@@ -166,11 +166,11 @@ def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
 @pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
-    out_lca = util.file.mkstempfname('.lca.tsv')
-    cmd = [input_bam, diamond_db, taxonomy_db, out_report, '--outLca', out_lca]
+    out_reads = util.file.mkstempfname('.lca.tsv')
+    cmd = [input_bam, diamond_db, taxonomy_db, out_report, '--outReads', out_reads]
     parser = metagenomics.parser_diamond(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
 
     assert os.path.getsize(out_report) > 0
-    assert os.path.getsize(out_lca) > 0
+    assert os.path.getsize(out_reads) > 0

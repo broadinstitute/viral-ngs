@@ -48,7 +48,7 @@ class PicardTools(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, picardOptions=None, JVMmemory=None, background=False):    # pylint: disable=W0221
+    def execute(self, command, picardOptions=None, JVMmemory=None, background=False, **kwargs):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if JVMmemory is None:
@@ -62,9 +62,9 @@ class PicardTools(tools.Tool):
         env = os.environ.copy()
         env.pop('JAVA_HOME', None)
         if background:
-            subprocess.Popen(tool_cmd, env=env)
+            return subprocess.Popen(tool_cmd, env=env, **kwargs)
         else:
-            subprocess.check_call(tool_cmd, env=env)
+            return subprocess.check_call(tool_cmd, env=env, **kwargs)
 
     @staticmethod
     def dict_to_picard_opts(options):
@@ -158,9 +158,9 @@ class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq1, outFastq2, outFastq0=None,
-                illuminaClipping=False,
-                picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
+    def execute(self, inBam, outFastq1, outFastq2=None, outFastq0=None,
+                illuminaClipping=False, interleave=False,
+                picardOptions=None, JVMmemory=None, background=None, **kwargs):    # pylint: disable=W0221
         '''Write paired reads from `inBam` to `outFastq1` and `outFastq1`.  If `outFastq0` is given, write
         any unpaired reads from `inBam` there, else ignore them.  If `illuminaClipping` is True,
         trim reads at the clipping position specified by the Illumina clipping attribute
@@ -169,11 +169,17 @@ class SamToFastqTool(PicardTools):
         picardOptions = picardOptions or []
 
         opts = [
-            'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
+            'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT', 'FASTQ=' + outFastq1,
         ]
+        if outFastq2:
+            opts.append('SECOND_END_FASTQ=' + outFastq2)
+        else:
+            if interleave:
+                opts.append('INTERLEAVE=true')
+
         if outFastq0:
             assert outFastq2, "outFastq0 option only applies in paired-end output mode"
-            opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
+            opts.append('UNPAIRED_FASTQ=' + outFastq0)
 
         if illuminaClipping:
             opts += PicardTools.dict_to_picard_opts({
@@ -181,7 +187,8 @@ class SamToFastqTool(PicardTools):
                 'CLIPPING_ACTION': 'X'
             })
 
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory, background=background)
+        return PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory,
+                                   background=background, **kwargs)
 
     @contextlib.contextmanager
     def execute_tmp(self, inBam, sfx='', includeUnpaired=False, **kwargs):
