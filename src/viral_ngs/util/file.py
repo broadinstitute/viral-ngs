@@ -189,15 +189,26 @@ def destroy_tmp_dir(tempdir=None):
 
 
 @contextlib.contextmanager
-def fifo(num_pipes=1):
+def fifo(num_pipes=1, names=None, name=None):
     pipe_dir = tempfile.mkdtemp()
     pipe_paths = []
+    if name is not None:
+        names = [name]
+    if names:
+        num_pipes = len(names)
     for i in range(num_pipes):
-        pipe_path = os.path.join(pipe_dir, '{}.pipe'.format(i))
+        if names is not None:
+            fn = names[i]
+        else:
+            fn = '{}.pipe'.format(i)
+        pipe_path = os.path.join(pipe_dir, fn)
         os.mkfifo(pipe_path)
         pipe_paths.append(pipe_path)
 
-    yield pipe_paths
+    if num_pipes == 1:
+        yield pipe_paths[0]
+    else:
+        yield pipe_paths
     shutil.rmtree(pipe_dir)
 
 
