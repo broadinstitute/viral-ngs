@@ -82,6 +82,28 @@ def get_resources():
         resources = json.load(inf)
     return resources
 
+def check_paths(read=(), write=(), read_and_write=()):
+    '''Check that we can read and write the specified files, throw an exception if not.  Useful for checking
+    error conditions early in the execution of a command.  Each arg can be a filename or iterable of filenames.
+    '''
+    read, write, read_and_write = map(util.misc.make_seq, (read, write, read_and_write))
+    assert not (set(read) & set(write))
+    assert not (set(read) & set(read_and_write))
+    assert not (set(write) & set(read_and_write))
+    
+    for fname in read+read_and_write:
+        with open(fname):
+            pass
+
+    for fname in write+read_and_write:
+        if not os.path.exists(fname):
+            with open(fname, 'w'):
+                pass
+            os.unlink(fname)
+        else:
+            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+                raise PermissionError('Cannot write ' + fname)
+
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
         filename only.  This calls mkstemp, which does what we want, except
@@ -127,6 +149,16 @@ def tmp_dir(*args, **kwargs):
             log.debug('keeping tempdir ' + name)
         else:
             shutil.rmtree(name)
+
+@contextlib.contextmanager
+def pushd_popd(target_dir):
+    '''Temporary change to the specified directory, restoring current directory on context exit.'''
+    save_cwd = os.getcwd()
+    try:
+        os.chdir(target_dir)
+        yield target_dir
+    finally:
+        os.chdir(save_cwd)
 
 def keep_tmp():
     """Whether to preserve temporary directories and files (useful during debugging).
