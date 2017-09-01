@@ -193,6 +193,30 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         )
         self.assertEqual(samtools.count(output_bam), 0)
 
+    def test_cdhit_canned_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+
+        input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
+        expected_bam = os.path.join(util.file.get_test_input_path(self), 'expected.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_cdhit_bam(
+            input_bam,
+            output_bam
+        )
+
+        self.assertEqual(samtools.count(output_bam), 1772)
+
+    def test_cdhit_empty_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_cdhit_bam(
+            empty_bam,
+            output_bam
+        )
+        self.assertEqual(samtools.count(output_bam), 0)
+
+
 class TestMvicuna(TestCaseWithTmp):
     """
     Input consists of 3 read pairs.
