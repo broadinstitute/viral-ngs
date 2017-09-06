@@ -70,6 +70,10 @@ def test_check_paths(tmpdir):
     util.file.make_empty(join(writable_dir, 'myempty.dat'))
     check_paths(read_and_write=join(writable_dir, 'myempty.dat'))
 
-        
+
+def test_hash_file():
+    '''Test util.file.hash_file()'''
+    assert util.file.hash_file(os.path.join(util.file.get_test_input_path(), 
+                                            'G5012.3.mini.bam'), 'sha1')=='582fc7212b4ac1a3fa5dedd331225886056b30f7'
 
 

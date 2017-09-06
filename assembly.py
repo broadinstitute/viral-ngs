@@ -31,6 +31,7 @@ import util.cmd
 import util.file
 import util.misc
 import util.vcf
+from util.provenance import FileArg
 import read_utils
 import tools
 import tools.picard

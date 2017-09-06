@@ -7,6 +7,7 @@ __author__ = "dpark@broadinstitute.org"
 import codecs
 import contextlib
 import os
+import os.path
 import gzip
 import io
 import tempfile
@@ -15,10 +16,10 @@ import shutil
 import errno
 import logging
 import json
+import hashlib
 import util.cmd
 import util.misc
 import sys
-import io
 import csv
 
 from Bio import SeqIO
@@ -750,7 +751,6 @@ def find_broken_symlinks(rootdir, followlinks=False):
 
     return broken_links_to_remove
 
-
 def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
     '''Join paired/interleaved fastq(s) into single reads connected by Ns'''
     assert output_format in ('fastq', 'fasta')
@@ -778,3 +778,20 @@ def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
             }
         rec = SeqRecord(jseq, id=rid, description='', letter_annotations=labbrevs)
         yield rec
+
+def hash_file(fname, hash_algorithm, buf_size=io.DEFAULT_BUFFER_SIZE):
+    '''Compute the hashsum of a file.
+
+    Args:
+        fname: name of the file
+        hash_algorithm: string name of the hashing algorithm (md5, sha1 etc)
+    '''
+    assert not hasattr(hashlib, 'algorithms_available') or hash_algorithm in hashlib.algorithms_available
+    hasher = getattr(hashlib, hash_algorithm)()
+    with open(fname, 'rb') as f:
+        while True:
+            data = f.read(buf_size)
+            if data:
+                hasher.update(data)
+            else:
+                return hasher.hexdigest()

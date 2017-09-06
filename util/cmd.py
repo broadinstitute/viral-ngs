@@ -13,6 +13,7 @@ import logging
 import argparse
 import util.version
 import util.file
+import util.provenance
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
@@ -110,6 +111,7 @@ def attach_main(parser, cmd_main, split_args=False):
     '''
     if split_args:
         cmd_main = main_command(cmd_main)
+    cmd_main = util.provenance.add_provenance_tracking(parser, cmd_main)
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=cmd_main)
     return parser
