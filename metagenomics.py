@@ -701,6 +701,11 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=No
         no_rank=noRank
     )
 
+    if inTsv.endswith('.gz'):
+        # Cleanup tmp .tsv files
+        for tmp_tsv in to_import:
+            os.unlink(tmp_tsv)
+
 
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inTsv', help='Input tab delimited file.')
