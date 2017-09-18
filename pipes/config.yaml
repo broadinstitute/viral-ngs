@@ -205,6 +205,9 @@ vphaser_max_bins: 10
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
 
+# Random seed, for non-deterministic steps.  0 means use current time.
+random_seed: 23923937
+
 #    |----------------------- Data storage locations ---------------------------
 
 # The parent directory containing data sub-directories.
