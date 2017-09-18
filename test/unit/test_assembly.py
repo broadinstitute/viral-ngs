@@ -353,7 +353,7 @@ class TestGap2Seq(TestCaseWithTmp):
         in_scaffold = join(inDir, 'TestOrderAndOrient', 'expected.ebov.doublehit.fasta')
         with util.file.tempfname(suffix='.filled.fasta') as filled:
             assembly.gapfill_gap2seq(in_scaffold=in_scaffold,
-                                     in_bam=join(inDir, 'G5012.3.testreads.bam'), out_scaffold=filled)
+                                     in_bam=join(inDir, 'G5012.3.testreads.bam'), out_scaffold=filled, threads=1, random_seed=23923937)
             self.assertEqualContents(filled, join(inDir, 'TestGap2Seq', 'expected.ebov.doublehit.gapfill.fasta'))
 
 

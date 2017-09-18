@@ -340,22 +340,34 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
-def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, gap2seq_opts='', threads=1, mem_limit_gb=4):
+def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=1, mem_limit_gb=4, time_soft_limit_minutes=60.0,
+                    random_seed=0, gap2seq_opts='', mask_errors=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
-    tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
-                                        mem_limit_gb=mem_limit_gb)
+    try:
+        tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+                                            mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
+                                            random_seed=random_seed)
+    except Exception as e:
+        if not mask_errors:
+            raise
+        log.warning('Gap-filling failed (%s); ignoring error, emulating successful run where simply no gaps were filled.')
+        shutil.copyfile(in_scaffold, out_scaffold)
 
 def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
-    parser.add_argument('inScaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
+    parser.add_argument('in_scaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('outScaffold', help='Output assembly.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_scaffold', help='Output assembly.')
     parser.add_argument('--threads', default=0, type=int, help='Number of threads (default: %(default)s); 0 means use all available cores')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
+    parser.add_argument('--maskErrors', dest='mask_errors', default=False, action='store_true',
+                        help='In case of any error, just copy in_scaffold to out_scaffold, emulating a successful run that simply could not '
+                        'fill any gaps.')
     parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
+    parser.add_argument('--randomSeed', dest='random_seed', default=0, help='Random seed; 0 means use current time')
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
