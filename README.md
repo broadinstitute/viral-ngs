@@ -15,3 +15,4 @@ More detailed documentation can be found at http://viral-ngs.readthedocs.org/
 This includes installation instructions,
 usage instructions for the command line tools,
 and usage of the pipeline infrastructure.
+
