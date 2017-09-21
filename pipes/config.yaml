@@ -206,7 +206,7 @@ vphaser_max_bins: 10
 vcf_merge_naive_filter: false
 
 # Random seed, for non-deterministic steps.  0 means use current time.
-random_seed: 23923937
+random_seed: 0
 
 #    |----------------------- Data storage locations ---------------------------
 
