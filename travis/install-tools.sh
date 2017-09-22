@@ -41,7 +41,7 @@ for i in $(seq 3); do
   sleep 5
 done
 
-while read requirement; do conda install --yes $requirement; done < requirements-conda-tests.txt
+while read requirement; do conda install --quiet -y -m -c broad-viral -c r -c bioconda -c conda-forge -c defaults -p tools/conda-tools/default $requirement; done < requirements-conda-tests.txt
 
 conda list
 
