@@ -486,14 +486,14 @@ def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
     '''
     metadata = {}
 
-    with open(biosampleFile, 'rU') as inf:
+    with util.file.open_or_gzopen(biosampleFile, 'rU') as inf:
         header = inf.readline()
         for line in inf:
             row = line.rstrip('\n\r').split('\t')
             metadata.setdefault(row[0], {})
             metadata[row[0]]['biosample_accession'] = row[1]
 
-    with open(md5_fname, 'rU') as inf:
+    with util.file.open_or_gzopen(md5_fname, 'rU') as inf:
         for line in inf:
             row = line.rstrip('\n\r').split()
             s = os.path.basename(row[1])

@@ -16,6 +16,7 @@ import logging
 import json
 import util.cmd
 import util.misc
+import sys
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -224,18 +225,25 @@ def mkdir_p(dirpath):
             raise
 
 
-def open_or_gzopen(fname, *opts):
-    return fname.endswith('.gz') and gzip.open(fname, *opts) or open(fname, *opts)
+def open_or_gzopen(fname, *opts, **kwopts):
+    # 'U' mode is deprecated in py3 and may be unsupported in future versions, 
+    # so use newline=None when 'U' is specified
+    for opt in opts:
+        if type(opt) == str and 'U' in opt and sys.version_info[0] == 3:
+            if 'newline' not in kwopts:
+                kwopts['newline'] = None
+            break
+    return fname.endswith('.gz') and gzip.open(fname, *opts, **kwopts) or open(fname, *opts, **kwopts)
 
 
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
-    with open_or_gzopen(inFile, 'rt') as inf:
+    with open_or_gzopen(inFile, 'rU') as inf:
         header = None
         for line in inf:
-            row = [item.strip() for item in line.rstrip('\n').split('\t')]
+            row = [item.strip() for item in line.rstrip('\n').rstrip('\r').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = [item for item in row if len(item)]
@@ -255,10 +263,10 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rt') as inf:
+    with open_or_gzopen(inFile, 'rU') as inf:
         for line in inf:
             if not line.startswith('#'):
-                yield list(item.strip() for item in line.rstrip('\n').split('\t'))
+                yield list(item.strip() for item in line.rstrip('\n').rstrip('\r').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
