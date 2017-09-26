@@ -56,7 +56,7 @@ class Gap2SeqTool(tools.Tool):
             with util.file.pushd_popd(gap2seq_run_dir):
                 self.execute(file_args+args+more_args)
 
-    def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
+    def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
                 min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=0, time_soft_limit_minutes=60.0, random_seed=0):
         """Try to fill the gaps in the given scaffold, using the reads.
 
