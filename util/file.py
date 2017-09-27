@@ -268,7 +268,7 @@ def read_tabfile_dict(inFile):
     with open_or_gzopen(inFile, 'rU') as inf:
         header = None
         for line in inf:
-            row = [item.strip() for item in line.rstrip('\n').rstrip('\r').split('\t')]
+            row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = [item for item in row if len(item)]
