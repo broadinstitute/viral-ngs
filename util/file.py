@@ -250,7 +250,7 @@ def open_or_gzopen(fname, *opts, **kwargs):
                 # gzip.open() under py2 does not support universal newlines
                 # so we need to wrap it with something that does
                 # By ignoring errors in BufferedReader, errors should be handled by TextIoWrapper
-                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname), encoding='utf8', errors='ignore'))
+                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname)))
 
         # if 't' for text mode is not explicitly included,
         # replace "U" with "t" since under gzip "rb" is the
