@@ -56,6 +56,30 @@ rule assemble_trinity:
             subdir=config["subdirs"]["assembly"]))
         shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
 
+rule assemble_spades:
+    ''' This step runs the SPAdes assembler.
+    '''
+    input:  subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta',
+            contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            n_reads=str(config["trinity_n_reads"]),
+            logid="{sample}",
+            clipDb=config["trim_clip_db"],
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            numThreads=str(config.get("number_of_threads", 1))
+    run:
+            makedirs(expand("{dir}/{subdir}",
+                dir=[config["data_dir"],config["tmp_dir"]],
+                subdir=config["subdirs"]["assembly"]))
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.subsamp_bam} {output.contigs_spades} --previously_assembled_contigs {input.contigs_trinity} --threads {params.numThreads}")
+            shell("cat {input.contigs_trinity} {output.contigs_spades} > {output.contigs_trinity_spades}")
+
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
         order_and_orient (MUMmer): take the de novo assembly,
@@ -77,7 +101,7 @@ rule orient_and_impute:
             which will be captured in this output.
     '''
     input:  
-        fasta      = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        fasta      = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta',
         ref_genome = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )),
         cleaned_reads = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: 
