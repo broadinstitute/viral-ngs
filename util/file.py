@@ -227,13 +227,14 @@ def mkdir_p(dirpath):
 
 
 def open_or_gzopen(fname, *opts, **kwargs):
+    mode = 'r'
     open_opts = list(opts)
-    mode = open_opts[0]
     assert type(mode) == str, "open mode must be of type str"
 
     # 'U' mode is deprecated in py3 and may be unsupported in future versions, 
     # so use newline=None when 'U' is specified
-    if len(open_opts) > 0:    
+    if len(open_opts) > 0:  
+        mode = open_opts[0]  
         if sys.version_info[0] == 3:
             if 'U' in mode:
                 if 'newline' not in kwargs:
