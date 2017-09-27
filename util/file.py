@@ -17,6 +17,7 @@ import json
 import util.cmd
 import util.misc
 import sys
+import io
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -225,16 +226,40 @@ def mkdir_p(dirpath):
             raise
 
 
-def open_or_gzopen(fname, *opts, **kwopts):
+def open_or_gzopen(fname, *opts, **kwargs):
+    open_opts = list(opts)
+    mode = open_opts[0]
+    assert type(mode) == str, "open mode must be of type str"
+
     # 'U' mode is deprecated in py3 and may be unsupported in future versions, 
     # so use newline=None when 'U' is specified
-    for opt in opts:
-        if type(opt) == str and 'U' in opt and sys.version_info[0] == 3:
-            if 'newline' not in kwopts:
-                kwopts['newline'] = None
-            break
-    return fname.endswith('.gz') and gzip.open(fname, *opts, **kwopts) or open(fname, *opts, **kwopts)
+    if len(open_opts) > 0:    
+        if sys.version_info[0] == 3:
+            if 'U' in mode:
+                if 'newline' not in kwargs:
+                    kwargs['newline'] = None
+                open_opts[0] = mode.replace("U","")
 
+    # if this is a gzip file 
+    if fname.endswith('.gz'):
+        # if text read mode is desired (by spec or default)
+        if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
+            # if python 2
+            if sys.version_info[0] == 2:
+                # gzip.open() under py2 does not support universal newlines
+                # so we need to wrap it with something that does
+                # By ignoring errors in BufferedReader, errors should be handled by TextIoWrapper
+                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname), encoding='utf8', errors='ignore'))
+
+        # if 't' for text mode is not explicitly included,
+        # replace "U" with "t" since under gzip "rb" is the
+        # default and "U" depends on "rt"
+        gz_mode = str(mode).replace("U","" if "t" in mode else "t")
+        gz_opts = [gz_mode]+list(opts)[1:]
+        return gzip.open(fname, *gz_opts, **kwargs)
+    else:
+        return open(fname, *open_opts, **kwargs)
+            
 
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an

@@ -552,7 +552,7 @@ class SampleSheet(object):
         self._detect_and_load_sheet(infile)
 
     def _detect_and_load_sheet(self, infile):
-        if infile.endswith('.csv'):
+        if infile.endswith(('.csv','.csv.gz')):
             # one of a few possible CSV formats (watch out for line endings from other OSes)
             with util.file.open_or_gzopen(infile, 'rU') as inf:
                 header = None
@@ -645,7 +645,7 @@ class SampleSheet(object):
             for row in self.rows:
                 if 'sample_name' in row:
                     del row['sample_name']
-        elif infile.endswith('.txt'):
+        elif infile.endswith(('.txt','.txt.gz')):
             # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
             self.rows = []
             row_num = 0

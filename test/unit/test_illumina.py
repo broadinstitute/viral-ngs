@@ -70,6 +70,12 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
+    def test_gz_tabfile_win_endings(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_win-endings.txt.gz'))
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(len(samples.get_rows()), 24)
+
     def test_tabfile_macos9_endings(self):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_macos9-endings.txt'))
