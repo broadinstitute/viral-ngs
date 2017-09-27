@@ -378,46 +378,58 @@ __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
 def assemble_spades(
-    inBam,
-    outFasta,
+    in_bam,
+    out_fasta,
     spades_opts='',
-    previously_assembled_contigs=None,
-    mem_limit_gb=4,
+    contigs_trusted=None, contigs_untrusted=None,
+    filter_contigs=False,
+    kmer_sizes=(55,65),
+    mask_errors=False,
+    max_kmer_sizes=1,
+    mem_limit_gb=8,
     threads=0,
 ):
     ''' De novo RNA-seq assembly with the SPAdes assembler.
 
     Inputs:
         inBam - reads to assemble.  May include both paired and unpaired reads.
-        previously_assembled_contigs - (optional) already-assembled contigs from the same sample.
+        trusted_contigs, untrusted_contigs - (optional) already-assembled contigs from the same sample.  trusted contigs must be
+          high-quality, untrusted_contigs may have some errors.
 
     Outputs:
         outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
             several contigs representing different variants of that region.
 
     Params:
+        filter_contigs - drop lesser-quality contigs from output
         mem_limit_gb - max memory to use
         threads - number of threads to use (0 means use all available CPUs)
         spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
-
     '''
 
-    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True,
+    with tools.picard.SamToFastqTool().execute_tmp(in_bam, includeUnpaired=True,
                                                    JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                               contigs_untrusted=previously_assembled_contigs,
-                                               contigs_out=outFasta, spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                               contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
+                                               contigs_out=out_fasta, filter_contigs=filter_contigs,
+                                               kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
+                                               spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
         except subprocess.CalledProcessError as e:
             raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('outFasta', help='Output assembly.')
-    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assembled from the same sample')
-    parser.add_argument('--spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
-    parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_fasta', help='Output assembly.')
+    parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
+                        help='Contigs of high quality previously assembled from the same sample')
+    parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
+                        help='Contigs of high medium quality previously assembled from the same sample')
+    parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
+                        help='only output contigs SPAdes is sure of')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)

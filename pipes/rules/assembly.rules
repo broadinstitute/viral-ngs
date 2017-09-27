@@ -57,7 +57,8 @@ rule assemble_trinity:
 rule assemble_spades:
     ''' This step runs the SPAdes assembler.
     '''
-    input:  subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
             contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta',
             contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
@@ -75,7 +76,7 @@ rule assemble_spades:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.subsamp_bam} {output.contigs_spades} --previously_assembled_contigs {input.contigs_trinity} --threads {params.numThreads}")
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {output.contigs_spades}")
             shell("cat {input.contigs_trinity} {output.contigs_spades} > {output.contigs_trinity_spades}")
 
 rule orient_and_impute:
