@@ -120,7 +120,7 @@ class SnakemakeRunner(object):
     def run(self, rules=None):
         """Run snakemake with extra verbosity. """
         # --resources (with nargs) cannot be the last option before targets
-        cmd = ['snakemake', '--resources', 'mem=2', 'numThreads={}'.format(_CPUS),
+        cmd = ['snakemake', '--resources', 'mem=2', 'threads={}'.format(_CPUS),
                '--verbose', '--reason', '--printshellcmds']
         if rules:
             cmd.extend(rules)
