@@ -8,6 +8,7 @@ import os
 import re
 import unittest
 import hashlib
+import logging
 
 # intra-project
 import util.file
@@ -16,6 +17,9 @@ from tools.samtools import SamtoolsTool
 
 # third-party
 import moto
+
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
 
 
 if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
