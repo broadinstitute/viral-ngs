@@ -3,3 +3,4 @@ snakemake>=4.1.0
 google-cloud-storage
 pysftp>=0.2.8
 boto3
+moto

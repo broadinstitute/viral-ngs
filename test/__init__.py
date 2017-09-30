@@ -14,6 +14,9 @@ import util.file
 from util.misc import available_cpu_count
 from tools.samtools import SamtoolsTool
 
+# third-party
+import moto
+
 
 if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
     _CPUS = 1
