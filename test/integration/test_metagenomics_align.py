@@ -127,15 +127,15 @@ def test_pipes(tmpdir_function, bwa_db, taxonomy_db, input_bam):
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     report_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.report'])
     )
 
     bam_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.bam'])
     )
 
-    runner.run(["--resources", "mem=1", report_out])
-    assert os.path.getsize(report_out) > 0
-    assert os.path.getsize(bam_out) > 0
+    runner.run([report_out])
+    assert os.path.getsize(os.path.join(runner.workdir, report_out)) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, bam_out)) > 0

@@ -125,4 +125,6 @@ class SnakemakeRunner(object):
         if rules:
             cmd.extend(rules)
 
-        res = subprocess.check_call(cmd, cwd=self.workdir)
+        # run the snakemake command within the runner's workdir
+        with util.file.pushd_popd(self.workdir):
+            res = subprocess.check_call(cmd)

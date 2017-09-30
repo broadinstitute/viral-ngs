@@ -82,7 +82,7 @@ def krona_db(request, tmpdir_module, krona, db_type):
     krona.create_db(db)
     return db
 
-
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary not currently supported due to RAM demands")
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
@@ -109,7 +109,7 @@ def test_kraken(kraken_db, input_bam):
         assert zaire_found
         assert not tai_found
 
-
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary not currently supported due to RAM demands")
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, kraken_db, krona_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=tmpdir_function)
@@ -123,21 +123,21 @@ def test_pipes(tmpdir_function, kraken_db, krona_db, input_bam):
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     kraken_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'kraken.report'])
     )
 
     krona_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'kraken.krona.html'])
     )
 
     # runner.run(['all_metagenomics'])
     runner.run([kraken_out, krona_out])
-    assert os.path.getsize(kraken_out) > 0
-    assert os.path.getsize(krona_out) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, kraken_out)) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, krona_out)) > 0
 
-
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary not currently supported due to RAM demands")
 def test_kraken_krona(kraken_db, krona_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
@@ -154,7 +154,7 @@ def test_kraken_krona(kraken_db, krona_db, input_bam):
 
 
 
-@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary does not yet exist on bioconda")
+@pytest.mark.skipif(tools.is_osx(), reason="kraken osx binary not currently supported due to RAM demands")
 def test_kraken_on_empty(kraken_db, input_bam):
     if 'TestMetagenomicsViralMix' not in kraken_db:
         return
