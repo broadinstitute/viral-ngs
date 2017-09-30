@@ -135,11 +135,11 @@ def objectify_remote(file_address, *args, **kwargs):
             except:
                 try:
                     # for boto2:
-                    remote_provider = snakemake.remote.S3.RemoteProvider(anon=True)
+                    #remote_provider = snakemake.remote.S3.RemoteProvider(anon=True)
                     # when snakemake switches to boto3, something like this:
-                    # from botocore.config import Config
-                    # import botocore
-                    # remote_provider = snakemake.remote.S3.RemoteProvider(config=Config(signature_version=botocore.UNSIGNED))
+                    from botocore.config import Config
+                    import botocore
+                    remote_provider = snakemake.remote.S3.RemoteProvider(config=Config(signature_version=botocore.UNSIGNED))
                     # # or...
                     # from botocore.handlers import disable_signing
                     # remote_provider.remote_interface().s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
