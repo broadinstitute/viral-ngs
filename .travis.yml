@@ -35,6 +35,7 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
   - PYTHONIOENCODING=UTF8
+  - BOTO_CONFIG=/tmp/nowhere # bogus value to override config on travis
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
   # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel) 
