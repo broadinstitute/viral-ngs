@@ -118,9 +118,6 @@ def strip_protocol(uri, relative=False):
     else:
         return uri
 
-import snakemake.remote.S3
-import snakemake.remote.GS
-import snakemake.remote.SFTP
 def objectify_remote(file_address, *args, **kwargs):
     if file_address is None:
         raise IOError("%s is None" % file_address)
@@ -130,6 +127,7 @@ def objectify_remote(file_address, *args, **kwargs):
 
     for index, uri in enumerate(file_list):
         if uri.lower().startswith('s3://'):
+            import snakemake.remote.S3
             try:
                 remote_provider = snakemake.remote.S3.RemoteProvider()
             except:
@@ -147,9 +145,11 @@ def objectify_remote(file_address, *args, **kwargs):
                     raise
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('gs://'):
+            import snakemake.remote.GS
             remote_provider = snakemake.remote.GS.RemoteProvider()
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('sftp://'):
+            import snakemake.remote.SFTP
             remote_provider = snakemake.remote.SFTP.RemoteProvider()
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
 
