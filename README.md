@@ -1,4 +1,4 @@
-[![bioconda-badge](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat-square)](https://bioconda.github.io/recipes/viral-ngs/README.html)
+[![broad-viral-badge](https://img.shields.io/badge/install%20from-broad--viral-green.svg?style=flat-square)](https://anaconda.org/broad-viral/viral-ngs)
 [![Build Status](https://travis-ci.org/broadinstitute/viral-ngs.svg?branch=master)](https://travis-ci.org/broadinstitute/viral-ngs)
 [![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
 [![Code Health](https://landscape.io/github/broadinstitute/viral-ngs/master/landscape.svg?style=flat)](https://landscape.io/github/broadinstitute/viral-ngs)
