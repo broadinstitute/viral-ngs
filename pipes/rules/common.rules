@@ -88,23 +88,6 @@ def webfile_readlines(uriToGet):
         if len(cleanedLine) > 0:
             yield cleanedLine
 
-# monkeypatch until boto fixes its config reader under py3
-# see: https://github.com/boto/boto/issues/2617
-# try:
-#     from boto.pyami.config import Config, ConfigParser
-
-#     def get(self, section, name, default=None, **kw):
-#         try:
-#             val = ConfigParser.get(self, section, name, **kw)
-#         except:
-#             val = default
-#         return val
-
-#     Config.get = get
-
-# except ImportError:
-#     pass
-
 def strip_protocol(uri, relative=False):
 
     def parse_address(text):
