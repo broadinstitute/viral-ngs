@@ -128,21 +128,16 @@ def objectify_remote(file_address, *args, **kwargs):
     for index, uri in enumerate(file_list):
         if uri.lower().startswith('s3://'):
             import snakemake.remote.S3
-            try:
+            import botocore, botocore.session
+
+            # if botocore cannot find credentials, try connecting unsigned.
+            # This should work for anonymous S3 resources
+            # and testing on Travis where no credentials are set.
+            if botocore.session.get_session().get_credentials():
                 remote_provider = snakemake.remote.S3.RemoteProvider()
-            except:
-                try:
-                    # for boto2:
-                    #remote_provider = snakemake.remote.S3.RemoteProvider(anon=True)
-                    # when snakemake switches to boto3, something like this:
-                    from botocore.config import Config
-                    import botocore
-                    remote_provider = snakemake.remote.S3.RemoteProvider(config=Config(signature_version=botocore.UNSIGNED))
-                    # # or...
-                    # from botocore.handlers import disable_signing
-                    # remote_provider.remote_interface().s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
-                except:
-                    raise
+            else:
+                 remote_provider = snakemake.remote.S3.RemoteProvider(config=botocore.client.Config(signature_version=botocore.UNSIGNED))
+
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('gs://'):
             import snakemake.remote.GS
