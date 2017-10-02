@@ -55,7 +55,7 @@ rule build_lastal_db:
         expand('{lastal_ref_db_dir}/lastal.suf', lastal_ref_db_dir=config["lastal_ref_db_dir"]),
         expand('{lastal_ref_db_dir}/lastal.tis', lastal_ref_db_dir=config["lastal_ref_db_dir"])
     params:
-        UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+        UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
         emailAddress=config["email_point_of_contact_for_ncbi"]
     run:
         shell("{config[bin_dir]}/taxon_filter.py lastal_build_db {input[0]} {config[lastal_ref_db_dir]}")
@@ -78,7 +78,7 @@ rule annot_transfer:
                 #config["data_dir"]+'/'+config["subdirs"]["annot"]   +'/{sample}.fasta'
     resources:  mem=4
     params:     LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-                UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+                UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
                 #logid="{samp}",
                 refGenome=expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
                 refAnnot=" ".join(expand( '{refDir}/'+'{feature_tbl_name}.tbl', refDir=config["ref_genome_dir"], feature_tbl_name=config["accessions_for_ref_genome_build"] )),
@@ -102,7 +102,7 @@ rule prepare_genbank:
                 config["data_dir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
                 LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-                UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+                UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
                 fasta_files=" ".join(expand("{dir}/{subdir}/{sample}.fasta",
                     dir=[config["data_dir"]], subdir=[config["subdirs"]["assembly"]],
                     sample=list(read_samples_file(config["samples_assembly"])))),

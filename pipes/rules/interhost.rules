@@ -42,7 +42,7 @@ rule ref_guided_consensus:
             mem=4,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             novoalign_options=config.get("ref_guided_consensus_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
             min_coverage="3",
@@ -60,7 +60,7 @@ rule ref_guided_consensus_aligned_with_dups:
             mem=8,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
             logid="{sample}"
     shell: "samtools view -b -F 4 -o {output} {input}"
 
@@ -77,7 +77,7 @@ rule ref_guided_diversity:
             os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             inFastas = expand("{data_dir}/{subdir}/{sample}.fasta",
@@ -118,7 +118,7 @@ rule multi_align_mafft:
             mem=multi_align_mafft_memory,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             samples=list(read_samples_file(config["samples_assembly"])),

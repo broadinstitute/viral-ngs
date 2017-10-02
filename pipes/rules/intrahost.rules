@@ -21,7 +21,7 @@ rule isnvs_per_sample:
             mem=7,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             numThreads=str(config.get("number_of_threads", 1)),
             minReadsPerStrand="--minReadsEach {}".format(config['vphaser_min_reads_each']) if 'vphaser_min_reads_each' in config else "",
@@ -50,7 +50,7 @@ rule isnvs_vcf:
             config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.annot.vcf.gz.tbi'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=" ".join(config["accessions_for_ref_genome_build"]),
@@ -84,7 +84,7 @@ rule isnvs_vcf_filtered:
             config["data_dir"]+'/'+config["subdirs"]["intrahost"] +'/isnvs.filtered.annot.txt.gz'
     resources: mem=4
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="all",
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             snpEff_ref=" ".join(config["accessions_for_ref_genome_build"]),

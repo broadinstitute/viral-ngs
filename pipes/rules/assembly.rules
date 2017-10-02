@@ -42,7 +42,7 @@ rule assemble_trinity:
             mem=7,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             n_reads=str(config["trinity_n_reads"]),
             logid="{sample}",
             clipDb=config["trim_clip_db"],
@@ -80,7 +80,7 @@ rule orient_and_impute:
     output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=12
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
             # length should be defined as a fraction/percentage cutoff, relative to 
             # reference length for a given sequence. float is in the config.yaml file
@@ -125,7 +125,7 @@ rule refine_assembly_1:
             mem=7,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             novoalign_options = config.get("refine_assembly_1_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
             min_coverage = "2",
@@ -149,7 +149,7 @@ rule refine_assembly_2:
             mem=7,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             novoalign_options = config.get("refine_assembly_2_novoalign_params", "-r Random -l 40 -g 40 -x 20 -t 100"),
             min_coverage = "3",
@@ -171,7 +171,7 @@ rule map_reads_to_self:
             mem=4,
             cores=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             aligner_options = config.get('map_reads_to_self_novoalign_params', "-r Random -l 40 -g 40 -x 20 -t 100 -k") if config.get('map_reads_to_self_aligner', "novoalign")=="novoalign" else "",
             aligner = config.get('map_reads_to_self_aligner', "novoalign"),

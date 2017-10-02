@@ -272,5 +272,5 @@ LSF_queues:
 
 # Broad-specific UGER cluster scheduler parameters
 UGER_queues:
-  short: "-q short"
-  long: "-q long"
+  short: "-l h_rt 04:00:00"
+  long: "-l h_rt 36:00:00"

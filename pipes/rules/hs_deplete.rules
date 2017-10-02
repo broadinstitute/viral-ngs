@@ -29,7 +29,7 @@ rule depletion:
             config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: mem=15
     params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
             bmtaggerDbs = " ".join(expand("{db}", db=config["bmtagger_dbs_remove"])),
             blastDbs = " ".join(expand("{db}", db=config["blast_db_remove"])),
             revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
@@ -59,7 +59,7 @@ rule filter_to_taxon:
     output: config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: mem=8
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
+            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
             lastalDb=os.path.join(config["lastal_ref_db_dir"], "lastal"),
             logid="{sample}"
     shell:  "{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input[0]} {params.lastalDb} {output}"
@@ -96,11 +96,11 @@ def merge_one_per_sample_queue(_, input):
     total_size = 0
     for fn in input:
         if not os.path.exists(fn):
-            return config.get('UGER_queues', {}).get('short', '-q short')
+            return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
         total_size += os.stat(fn).st_size
     if total_size > 1500000000:
-        return config.get('UGER_queues', {}).get('long', '-q long')
-    return config.get('UGER_queues', {}).get('short', '-q short')
+        return config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
+    return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
 
 
 rule merge_one_per_sample:
