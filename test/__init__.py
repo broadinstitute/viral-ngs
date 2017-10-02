@@ -15,9 +15,6 @@ import util.file
 from util.misc import available_cpu_count
 from tools.samtools import SamtoolsTool
 
-# third-party
-import moto
-
 logging.getLogger('botocore').setLevel(logging.WARNING)
 logging.getLogger('boto3').setLevel(logging.WARNING)
 

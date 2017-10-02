@@ -118,6 +118,9 @@ def strip_protocol(uri, relative=False):
     else:
         return uri
 
+
+import botocore
+
 def objectify_remote(file_address, *args, **kwargs):
     if file_address is None:
         raise IOError("%s is None" % file_address)
@@ -128,15 +131,15 @@ def objectify_remote(file_address, *args, **kwargs):
     for index, uri in enumerate(file_list):
         if uri.lower().startswith('s3://'):
             import snakemake.remote.S3
-            import botocore, botocore.session
 
             # if botocore cannot find credentials, try connecting unsigned.
             # This should work for anonymous S3 resources
             # and testing on Travis where no credentials are set.
+            # This can be removed if/when Snakemake does the same check itself
             if botocore.session.get_session().get_credentials():
                 remote_provider = snakemake.remote.S3.RemoteProvider()
             else:
-                 remote_provider = snakemake.remote.S3.RemoteProvider(config=botocore.client.Config(signature_version=botocore.UNSIGNED))
+                remote_provider = snakemake.remote.S3.RemoteProvider(config=botocore.client.Config(signature_version=botocore.UNSIGNED))
 
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
         elif uri.lower().startswith('gs://'):
