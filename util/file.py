@@ -27,6 +27,8 @@ try:
 except ImportError:
     from urllib2 import urlopen
 
+import pysam
+
 log = logging.getLogger(__name__)
 
 
@@ -400,6 +402,15 @@ def makeFastaFile(seqs, outFasta):
             outf.write(line)
 
     return outFasta
+
+
+def bam_is_sorted(bam_file_path):
+    # Should perhaps be in samtools.py once it moves to pysam
+    samfile = pysam.AlignmentFile(bam_file_path, "rb")
+    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
+        return samfile.header["HD"]["SO"] in ("coordinate") # also: "queryname"
+    else:
+        raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 
 def concat(inputFilePaths, outputFilePath):

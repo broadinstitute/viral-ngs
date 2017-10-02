@@ -86,16 +86,21 @@ class Bwa(tools.Tool):
                 )
                 if os.path.getsize(tmp_bam) > 0:
                     align_bams.append(tmp_bam)
+                else:
+                    log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
 
-            # Merge BAMs, sort, and index
-            tools.picard.MergeSamFilesTool().execute(
-                align_bams,
-                outBam,
-                picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
-                JVMmemory=JVMmemory
-            )
-            for bam in align_bams:
-                os.unlink(bam)
+            if len(align_bams) == 0:
+                util.file.touch(outBam)
+            else:
+                # Merge BAMs, sort, and index
+                tools.picard.MergeSamFilesTool().execute(
+                    align_bams,
+                    outBam,
+                    picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
+                    JVMmemory=JVMmemory
+                )
+                for bam in align_bams:
+                    os.unlink(bam)
 
 
     def align_mem_one_rg(self, inBam, refDb, outBam, rgid=None, options=None,
@@ -136,6 +141,7 @@ class Bwa(tools.Tool):
             samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
             # special exit if this file is empty
             if samtools.count(tmp_bam) == 0:
+                log.warning("No reads present for RG %s in file: %s", rgid, inBam)
                 return
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))

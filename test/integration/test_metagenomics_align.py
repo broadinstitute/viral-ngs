@@ -3,6 +3,7 @@
 from builtins import super
 import argparse
 import fnmatch
+from os import listdir
 import os.path
 from os.path import join
 import sys
@@ -81,7 +82,7 @@ def bwa_db(request, tmpdir_module, bwa, db_type):
     db_dir = join(data_dir, 'db')
 
     index_fa = os.path.join(tmpdir_module, db_type + '.bwa_index.fa')
-    db = os.path.join(tmpdir_module, db_type + '.bwa')
+    db = os.path.join(tmpdir_module, db_type + '')
 
     with open(index_fa, "w") as f_out:
         for fname in find_files(join(db_dir, 'library'), '*.fna'):
@@ -113,7 +114,7 @@ def test_meta_bwa(bwa_db, taxonomy_db, input_bam):
     assert os.path.getsize(out_bam) > 0
 
 
-@pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, bwa_db, taxonomy_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
@@ -126,15 +127,15 @@ def test_pipes(tmpdir_function, bwa_db, taxonomy_db, input_bam):
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
     report_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.report'])
     )
 
     bam_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw.rna_bwa.bam'])
     )
 
     runner.run([report_out])
-    assert os.path.getsize(report_out) > 0
-    assert os.path.getsize(bam_out) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, report_out)) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, bam_out)) > 0
