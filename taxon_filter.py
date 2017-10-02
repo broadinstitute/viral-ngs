@@ -74,7 +74,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=None
     )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument('--srprismMemory', type=int, default=7168, help='Memory for srprism.')
+    parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -116,13 +116,16 @@ def main_deplete_human(args):
                 log.warning("An output was specified for 'revertBam', but the input is unaligned, so RevertSam was not needed. Touching the output.")
                 util.file.touch(revertBamOut)
                 # TODO: error out? run RevertSam anyway?
+
+    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+
     multi_db_deplete_bam(
         bamToDeplete,
         args.bmtaggerDbs,
-        deplete_bmtagger_bam,
+        bmtagger_wrapper,
         args.bmtaggerBam,
         threads=args.threads,
-        srprismMemory=args.srprismMemory,
         JVMmemory=args.JVMmemory
     )
 
@@ -352,7 +355,7 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 # ==============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprismMemory=7168, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprism_memory=7168, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -361,7 +364,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprismMemory=7168, JV
         db.bitmask created by bmtool, and
         db.srprism.idx, db.srprism.map, etc. created by srprism mkindex
     outBam: the output BAM files to hold the unmatched reads.
-    srprismMemory: srprism memory in megabytes.
+    srprism_memory: srprism memory in megabytes.
     """
     bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
 
@@ -382,7 +385,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprismMemory=7168, JV
     bmtaggerConf = mkstempfname('.bmtagger.conf')
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
-        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {} --paired false"'.format(srprismMemory), file=f)
+        print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
     tempDir = tempfile.mkdtemp()
     matchesFile = mkstempfname('.txt')
     cmdline = [
@@ -409,7 +412,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('outBam', help='Output BAM file.')
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument('--srprismMemory', type=int, default=7168, help='Memory for srprism.')
+    parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -421,13 +424,16 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
+
+    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+
     multi_db_deplete_bam(
         args.inBam,
         args.refDbs,
-        deplete_bmtagger_bam,
+        bmtagger_wrapper,
         args.outBam,
         threads=args.threads,
-        srprismMemory=args.srprismMemory,
         JVMmemory=args.JVMmemory
     )
 

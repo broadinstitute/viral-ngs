@@ -530,7 +530,7 @@ def plot_coverage(
     num_mapped_reads = samtools.count(in_bam, opts=["-F", "4"])
     if num_mapped_reads == 0:
         raise Exception(
-            """The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if you don't mind a simple bwa alignment. \n File: %s"""
+            """The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if the plot input bam file contains reads and you don't mind a simple bwa alignment. \n File: %s"""
             % in_bam
         )
 
@@ -547,9 +547,12 @@ def plot_coverage(
     else:
         bam_dupe_processed = in_bam
 
-    # call samtools sort
+    # only sort if not sorted
     bam_sorted = util.file.mkstempfname('.sorted.bam')
-    samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+    if not util.file.bam_is_sorted(bam_dupe_processed):
+        samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+    else:
+        bam_sorted = bam_dupe_processed
 
     if plot_only_non_duplicates:
         os.unlink(bam_dupe_processed)
@@ -730,7 +733,7 @@ def align_and_plot_coverage(
         if aligner=="novoalign":
             aligner_options = '-r Random -l 40 -g 40 -x 20 -t 100 -k'
         elif aligner=='bwa':
-            aligner_options = '' # use defaults
+            aligner_options = '-1' # hidden option to work around kernel/cpu bug; disables multithreaded file read: https://github.com/lh3/bwa/issues/102
 
     samtools = tools.samtools.SamtoolsTool()
 

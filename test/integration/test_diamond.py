@@ -113,13 +113,14 @@ def diamond_db(request, tmpdir_module, diamond, db_type):
                     seq_record.seq = seq_record.seq.translate()
                     SeqIO.write(seq_record, f_out, 'fasta')
     diamond.build(db, [translated])
-    return db
+    return os.path.splitext(db)[0]
 
 
 TAXONOMY_FILES = ('gi_taxid_nucl.dmp',
                   'gi_taxid_prot.dmp',
                   'names.dmp',
-                  'nodes.dmp',)
+                  'nodes.dmp',
+                  'merged.dmp')
 
 
 @pytest.fixture(scope='module')
@@ -136,8 +137,8 @@ def krona_db(request, tmpdir_module, krona, db_type):
     krona.create_db(db)
     return db
 
-
-@pytest.mark.skipif(sys.version_info < (3, 2), reason="Python version is too old for snakemake.")
+@pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
     runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
@@ -150,18 +151,19 @@ def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
     runner.link_samples([input_bam], destination='per_sample', link_transform=snake.rename_raw_bam)
     runner.create_sample_files(sample_files=['samples_metagenomics'])
 
-    krona_out = join(runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+    krona_out = join(runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
                          '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'diamond.krona.html']))
 
     diamond_out = join(
-        runner.workdir, runner.data_dir, runner.config['subdirs']['metagenomics'],
+        runner.config['data_dir'], runner.config['subdirs']['metagenomics'],
         '.'.join([os.path.splitext(os.path.basename(input_bam))[0], 'raw', 'diamond.report'])
     )
     runner.run([krona_out])
-    assert os.path.getsize(diamond_out) > 0
-    assert os.path.getsize(krona_out) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, diamond_out)) > 0
+    assert os.path.getsize(os.path.join(runner.workdir, krona_out)) > 0
 
 
+@pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")
 def test_diamond(diamond_db, taxonomy_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_lca = util.file.mkstempfname('.lca.tsv')

@@ -1120,6 +1120,10 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
     samtools = tools.samtools.SamtoolsTool()
     bwa = tools.bwa.Bwa()
 
+    ref_indexed = util.file.mkstempfname('.reference.fasta')
+    shutil.copyfile(refFasta, ref_indexed)
+    bwa.index(ref_indexed)
+
     bwa_opts = [] if aligner_options is None else aligner_options.split()
     bwa.mem(inBam, refFasta, bam_aligned, options=bwa_opts,
             min_score_to_filter=min_score_to_filter)

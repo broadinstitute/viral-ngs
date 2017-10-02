@@ -38,11 +38,11 @@ cmdline += "-o {logdir} -j y ".format(logdir=LOGDIR)
 
 # pass memory resource request to cluster
 mem = props.get('resources', {}).get('mem')
-cores = props.get('resources', {}).get('cores')
-cores = cores or 1
+threads = props.get('resources', {}).get('threads')
+threads = threads or 1
 if mem:
     # on UGER, memory requests are per-core (according to BITS as of Sept. 6, 2016)
-    mem_per_core = round((int(mem)*1024)/int(cores), 2)
+    mem_per_core = round((int(mem)*1024)/int(threads), 2)
     if blacklisted_nodes:
         # Pass h= as the hostname parameter; it accepts a regex, so
         # invert the match to blacklist hostnames
@@ -52,15 +52,15 @@ if mem:
     else:
         cmdline += " -l h_vmem={}M,h_rss={}M ".format(
             mem_per_core, round(1.2 * mem_per_core, 2))
-    if mem >= 15 or (cores and cores >= 4):
+    if mem >= 15 or (threads and threads >= 4):
         cmdline += ' -R y '
 elif blacklisted_nodes:
     # Pass h= as the hostname parameter; it accepts a regex, so
     # invert the match to blacklist hostnames
     cmdline += " -l h='!({})' ".format('|'.join(blacklisted_nodes))
 
-if cores:
-    cmdline += ' -pe smp {} -binding linear:{} '.format(int(cores), int(cores))
+if threads:
+    cmdline += ' -pe smp {} -binding linear:{} '.format(int(threads), int(threads))
 
 # rule-specific UGER parameters (e.g. queue)
 cmdline += props["params"].get("UGER", "") + " "
