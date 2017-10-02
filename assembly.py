@@ -340,22 +340,34 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
-def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, gap2seq_opts='', threads=1, mem_limit_gb=4):
+def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=1, mem_limit_gb=4, time_soft_limit_minutes=60.0,
+                    random_seed=0, gap2seq_opts='', mask_errors=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
-    tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
-                                        mem_limit_gb=mem_limit_gb)
+    try:
+        tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+                                            mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
+                                            random_seed=random_seed)
+    except Exception as e:
+        if not mask_errors:
+            raise
+        log.warning('Gap-filling failed (%s); ignoring error, emulating successful run where simply no gaps were filled.')
+        shutil.copyfile(in_scaffold, out_scaffold)
 
 def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
-    parser.add_argument('inScaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
+    parser.add_argument('in_scaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('outScaffold', help='Output assembly.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_scaffold', help='Output assembly.')
     parser.add_argument('--threads', default=0, type=int, help='Number of threads (default: %(default)s); 0 means use all available cores')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
+    parser.add_argument('--maskErrors', dest='mask_errors', default=False, action='store_true',
+                        help='In case of any error, just copy in_scaffold to out_scaffold, emulating a successful run that simply could not '
+                        'fill any gaps.')
     parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
+    parser.add_argument('--randomSeed', dest='random_seed', default=0, help='Random seed; 0 means use current time')
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
@@ -366,46 +378,58 @@ __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
 def assemble_spades(
-    inBam,
-    outFasta,
+    in_bam,
+    out_fasta,
     spades_opts='',
-    previously_assembled_contigs=None,
-    mem_limit_gb=4,
+    contigs_trusted=None, contigs_untrusted=None,
+    filter_contigs=False,
+    kmer_sizes=(55,65),
+    mask_errors=False,
+    max_kmer_sizes=1,
+    mem_limit_gb=8,
     threads=0,
 ):
     ''' De novo RNA-seq assembly with the SPAdes assembler.
 
     Inputs:
         inBam - reads to assemble.  May include both paired and unpaired reads.
-        previously_assembled_contigs - (optional) already-assembled contigs from the same sample.
+        trusted_contigs, untrusted_contigs - (optional) already-assembled contigs from the same sample.  trusted contigs must be
+          high-quality, untrusted_contigs may have some errors.
 
     Outputs:
         outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
             several contigs representing different variants of that region.
 
     Params:
+        filter_contigs - drop lesser-quality contigs from output
         mem_limit_gb - max memory to use
         threads - number of threads to use (0 means use all available CPUs)
         spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
-
     '''
 
-    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True,
+    with tools.picard.SamToFastqTool().execute_tmp(in_bam, includeUnpaired=True,
                                                    JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
         try:
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                               contigs_untrusted=previously_assembled_contigs,
-                                               contigs_out=outFasta, spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                               contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
+                                               contigs_out=out_fasta, filter_contigs=filter_contigs,
+                                               kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
+                                               spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
         except subprocess.CalledProcessError as e:
             raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('outFasta', help='Output assembly.')
-    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assembled from the same sample')
-    parser.add_argument('--spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
-    parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_fasta', help='Output assembly.')
+    parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
+                        help='Contigs of high quality previously assembled from the same sample')
+    parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
+                        help='Contigs of high medium quality previously assembled from the same sample')
+    parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
+                        help='only output contigs SPAdes is sure of')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)

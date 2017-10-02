@@ -9,7 +9,7 @@ kraken-all=0.10.6_fork2
 krona=2.7
 last=719
 fastqc=0.11.5
-gap2seq=2.1
+gap2seq=2.1=boost1.64_1
 mafft=7.221
 mummer=3.23 
 muscle=3.8.1551 
@@ -19,7 +19,7 @@ picard=2.9.0
 prinseq=0.20.4
 samtools=1.3.1
 snpeff=4.1l
-spades=3.10.1
+spades=3.11.0
 tbl2asn=25.3
 trimmomatic=0.36
 trinity=date.2011_11_26

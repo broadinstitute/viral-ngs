@@ -153,28 +153,27 @@ class TestAssembleSpades(TestCaseWithTmp):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
+            assembly.assemble_spades(in_bam=inBam, out_fasta=outFasta, threads=1)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
-            self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 247, 294, 328, 348, 430])
+            self.assertEqual(contig_lens, [168, 177, 180, 184, 187, 190, 191, 195, 197, 211, 243, 244, 247, 294, 328, 348, 430])
 
-    @pytest.mark.skip(reason="takes too long")
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         previously_assembled_contigs = os.path.join(inDir, 'trinity_contigs.fasta')
         with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(inBam=inBam, previously_assembled_contigs=previously_assembled_contigs,
-                                     outFasta=outFasta, threads=4)
+            assembly.assemble_spades(in_bam=inBam, contigs_untrusted=previously_assembled_contigs,
+                                     out_fasta=outFasta, filter_contigs=True, threads=2)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
-            self.assertEqual(contig_lens, [111, 140, 184, 211, 243, 244, 294, 321, 328, 348, 430])
+            self.assertEqual(contig_lens, [211, 243, 244, 294, 321, 328, 348, 430])
 
     def test_empty_input_succeed(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
         with util.file.tempfname('fasta') as outFasta:
-            assembly.assemble_spades(inBam=inBam, outFasta=outFasta, threads=4)
+            assembly.assemble_spades(in_bam=inBam, out_fasta=outFasta)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
@@ -353,7 +352,7 @@ class TestGap2Seq(TestCaseWithTmp):
         in_scaffold = join(inDir, 'TestOrderAndOrient', 'expected.ebov.doublehit.fasta')
         with util.file.tempfname(suffix='.filled.fasta') as filled:
             assembly.gapfill_gap2seq(in_scaffold=in_scaffold,
-                                     in_bam=join(inDir, 'G5012.3.testreads.bam'), out_scaffold=filled)
+                                     in_bam=join(inDir, 'G5012.3.testreads.bam'), out_scaffold=filled, threads=1, random_seed=23923937)
             self.assertEqualContents(filled, join(inDir, 'TestGap2Seq', 'expected.ebov.doublehit.gapfill.fasta'))
 
 

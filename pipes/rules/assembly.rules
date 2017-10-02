@@ -37,7 +37,31 @@ rule assemble_trinity:
         and random subsample to no more than 100k reads.
     '''
     input:  config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
-    output: config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: contigs=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
+    resources: 
+            mem=7,
+            cores=int(config.get("number_of_threads", 1))
+    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
+            n_reads=str(config["trinity_n_reads"]),
+            logid="{sample}",
+            clipDb=config["trim_clip_db"],
+            numThreads=str(config.get("number_of_threads", 1))
+    run:
+            makedirs(expand("{dir}/{subdir}",
+                dir=[config["data_dir"],config["tmp_dir"]],
+                subdir=config["subdirs"]["assembly"]))
+            shell("{config[bin_dir]}/assembly.py assemble_trinity {input} {params.clipDb} {output.contigs} --n_reads={params.n_reads} --outReads {output.subsamp_bam} --threads {params.numThreads} --JVMmemory 5g")
+
+rule assemble_spades:
+    ''' This step runs the SPAdes assembler.
+    '''
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta',
+            contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
     resources: 
             mem=7,
             cores=int(config.get("number_of_threads", 1))
@@ -52,7 +76,8 @@ rule assemble_trinity:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["data_dir"],config["tmp_dir"]],
                 subdir=config["subdirs"]["assembly"]))
-            shell("{config[bin_dir]}/assembly.py assemble_trinity {input} {params.clipDb} {output} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {params.numThreads} --JVMmemory 5g")
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {output.contigs_spades}")
+            shell("cat {input.contigs_trinity} {output.contigs_spades} > {output.contigs_trinity_spades}")
 
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
@@ -75,8 +100,9 @@ rule orient_and_impute:
             which will be captured in this output.
     '''
     input:  
-        config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
+        config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta',
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
+        taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam'
     output: config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: mem=12
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -90,6 +116,7 @@ rule orient_and_impute:
             replace_length=str(config.get("assembly_replace_length", 55)),
             logid="{sample}",
             scaffolded_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffolded.fasta',
+            gapfilled_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-gapfilled.fasta',
             alternate_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-alternate_sequences.fasta'
     run:
             ono_extra = []
@@ -103,7 +130,8 @@ rule orient_and_impute:
                 ono_extra.extend(["--min_pct_contig_aligned", str(config["scaffold_min_pct_contig_aligned"])])
             ono_extra = " ".join(ono_extra)
             shell("{config[bin_dir]}/assembly.py order_and_orient {input[0]} {params.refGenome} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta}")
-            shell("{config[bin_dir]}/assembly.py impute_from_reference {params.scaffolded_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
+            shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.taxfilt_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]}")
+            shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {params.refGenome} {output} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the scaffolded assembly,
