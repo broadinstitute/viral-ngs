@@ -70,3 +70,5 @@ easy-deploy-virtualized/data/viral-ngs/
 tools/build/
 tools/conda-cache/
 tools/conda-tools/
+
+*.snakemake/

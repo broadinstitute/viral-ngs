@@ -1,2 +1,5 @@
-boto==2.38.0
-snakemake==3.9.0
+filechunkio>=1.8
+snakemake>=4.1.0
+google-cloud-storage
+pysftp>=0.2.8
+boto3

@@ -15,9 +15,8 @@ import util.cmd
 import util.file
 from test import TestCaseWithTmp
 
-if sys.version_info >= (3, 2):
+if sys.version_info >= (3, 5):
     import snakemake
-
 
 def add_to_sample_list(workdir, sample_list_name, sample_names):
     with open(os.path.join(workdir, 'samples-{}.txt'.format(sample_list_name)), 'a') as outf:
@@ -53,7 +52,7 @@ def setup_dummy_simple(sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G3680-1_4'
     return workdir
 
 
-@unittest.skipIf(sys.version_info < (3, 2), "python version is too old for snakemake")
+@unittest.skipIf(sys.version_info < (3, 5), "python version is too old for snakemake")
 class TestSimpleDryRuns(TestCaseWithTmp):
 
     def setUp(self):

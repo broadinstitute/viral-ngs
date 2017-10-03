@@ -27,69 +27,72 @@ def update_timestamps(files):
 
 rule all_ref_guided:
     input:
-            os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
-            os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
+        os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
+        os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
 
 rule ref_guided_consensus:
     input:  
-            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
-            expand( '{refDir}/'+'{ref_name}.nix', refDir=config["ref_genome_dir"], ref_name="reference" ),
-            config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
-    output: config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
-            config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
-            config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
+        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ),
+        expand( '{refDir}/'+'{ref_name}.nix', refDir=config["ref_genome_dir"], ref_name="reference" ),
+        config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.raw.bam'
+    output: 
+        config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam',
+        config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
+        config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
     resources: 
             mem=4,
-            cores=int(config.get("number_of_threads", 1))
+            threads=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
             logid="{sample}",
             novoalign_options=config.get("ref_guided_consensus_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
-            min_coverage="3",
-            numThreads=str(config.get("number_of_threads", 1))
+            min_coverage="3"
     run:
             makedirs(expand("{dir}/{subdir}",
                 dir=[config["data_dir"]],
                 subdir=[config["subdirs"]["align_ref"], config["subdirs"]["interhost"]]))
-            shell("{config[bin_dir]}/assembly.py refine_assembly {input[0]} {input[2]} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads --chr_names " + " ".join(["{wildcards.sample}-" + str(i+1) for i in range(len(config["accessions_for_ref_genome_build"]))]) +" --threads {params.numThreads}")
+            shell("{config[bin_dir]}/assembly.py refine_assembly {input[0]} {input[2]} {output[2]} --outBam {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --keep_all_reads --chr_names " + " ".join(["{wildcards.sample}-" + str(i+1) for i in range(len(config["accessions_for_ref_genome_build"]))]) +" --threads {resources.threads}")
 
 rule ref_guided_consensus_aligned_with_dups:
-    input: config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
-    output: config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.only_aligned.bam'
+    input: 
+        config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.bam'
+    output: 
+        config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.only_aligned.bam'
     resources:
-            mem=8,
-            cores=int(config.get("number_of_threads", 1))
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
-            logid="{sample}"
+        mem     = 8,
+        threads = int(config.get("number_of_threads", 1))
+    params: 
+        LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER  = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        logid = "{sample}"
     shell: "samtools view -b -F 4 -o {output} {input}"
 
 rule ref_guided_diversity:
     input:  
-            expand("{data_dir}/{subdir}/{sample}.{ext}",
-                data_dir=config["data_dir"],
-                subdir=config["subdirs"]["align_ref"],
-                ext = ['fasta', 'vcf.gz'],
-                sample=read_samples_file(config["samples_assembly"])),
-            expand( '{refDir}/'+'{ref_name}.{ext}', refDir=config["ref_genome_dir"], ref_name="reference", ext=['fasta', 'fasta.fai', 'dict'])
+        in_fastas        = expand("{data_dir}/{subdir}/{sample}.{ext}",
+                                    data_dir=config["data_dir"],
+                                    subdir=config["subdirs"]["align_ref"],
+                                    ext = ['fasta'],
+                                    sample=read_samples_file(config["samples_assembly"])),
+        in_vcfs          = expand("{data_dir}/{subdir}/{sample}.{ext}",
+                                    data_dir=config["data_dir"],
+                                    subdir=config["subdirs"]["align_ref"],
+                                    ext = ['vcf.gz'],
+                                    sample=read_samples_file(config["samples_assembly"])),
+        ref_genome_files = objectify_remote(expand( '{refDir}/'+'{ref_name}.{ext}', refDir=config["ref_genome_dir"], ref_name="reference", ext=['nix', 'fasta', 'fasta.fai', 'dict']))
     output: 
-            os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
-            os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
-    resources: mem=8
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
-            logid="all",
-            refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
-            inFastas = expand("{data_dir}/{subdir}/{sample}.fasta",
-                data_dir=config["data_dir"], subdir=config["subdirs"]["align_ref"],
-                sample=list(read_samples_file(config["samples_assembly"]))),
-            inVcfs = expand("{data_dir}/{subdir}/{sample}.vcf.gz",
-                data_dir=config["data_dir"], subdir=config["subdirs"]["align_ref"],
-                sample=list(read_samples_file(config["samples_assembly"])))
+        os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
+        os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
+    resources: 
+        mem=8
+    params: 
+        LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        logid = "all"
     run:
             update_timestamps(input)
-            shell("cat " + " ".join(params.inFastas) + " > {output[0]}")
-            merge_vcfs(params.inVcfs, params.refGenome, output[1])
+            shell("cat " + " ".join(input.in_fastas) + " > {output[0]}")
+            merge_vcfs(input.in_vcfs, os.path.splitext(input.ref_genome_files[0])[0]+".fasta", output[1])
 
 def multi_align_mafft_memory(_, input):
     sample_count = len(list(read_samples_file(config["samples_assembly"])))
@@ -103,40 +106,38 @@ def multi_align_mafft_memory(_, input):
 
 rule multi_align_mafft:
     input:
-        expand("{data_dir}/{subdir}/{sample}.fasta",
-                data_dir=config["data_dir"],
-                subdir=config["subdirs"]["assembly"],
-                sample=read_samples_file(config["samples_assembly"])),
-        expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
+        fastas     = expand("{data_dir}/{subdir}/{sample}.fasta",
+                        data_dir=config["data_dir"],
+                        subdir=config["subdirs"]["assembly"],
+                        sample=read_samples_file(config["samples_assembly"])),
+        ref_genome = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ))
     output:
-        config["data_dir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt",
-        expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
-                data_dir=config["data_dir"],
-                subdir=config["subdirs"]["multialign_ref"],
-                chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))        
+        sample_names_list = config["data_dir"]+'/'+config["subdirs"]["multialign_ref"] + "/sampleNameList.txt",
+        multiple_alignment_fastas = expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
+                                        data_dir=config["data_dir"],
+                                        subdir=config["subdirs"]["multialign_ref"],
+                                        chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))        
     resources: 
             mem=multi_align_mafft_memory,
-            cores=int(config.get("number_of_threads", 1))
+            threads=int(config.get("number_of_threads", 1))
     params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
             logid="all",
-            refGenome=os.path.join(config["ref_genome_dir"],"reference"+".fasta"),
-            samples=list(read_samples_file(config["samples_assembly"])),
             ep=str(config["mafft_ep"]),
-            maxiters=str(config["mafft_maxiters"]),
-            numThreads=str(config.get("number_of_threads", 1))
+            maxiters=str(config["mafft_maxiters"])
     run:
-        shell("{config[bin_dir]}/interhost.py multichr_mafft {params.refGenome} "
-                + " ".join(["{config[data_dir]}/{config[subdirs][assembly]}/" + s + ".fasta" for s in params.samples])
-                + " {config[data_dir]}/{config[subdirs][multialign_ref]}"
+        output_path_prefix = os.path.dirname(output.multiple_alignment_fastas[0])
+        shell("{config[bin_dir]}/interhost.py multichr_mafft {input.ref_genome} "
+                + " ".join(input.fastas)
+                + " " + output_path_prefix
                 + " --ep {params.ep} --maxiters {params.maxiters} --preservecase"
-                + " --localpair --outFilePrefix aligned --sampleNameListFile {output[0]} --threads {params.numThreads}")
+                + " --localpair --outFilePrefix aligned --sampleNameListFile {output.sample_names_list} --threads {resources.threads}")
 
 rule index_ref:
     input:
-            expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )
+            objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ))
     output:
-            expand( '{refDir}/'+'{ref_name}.{ext}', refDir=config["ref_genome_dir"], ref_name="reference", ext=['nix', 'fasta.fai', 'dict'])
+            objectify_remote(expand( '{refDir}/'+'{ref_name}.{ext}', refDir=config["ref_genome_dir"], ref_name="reference", ext=['nix', 'fasta.fai', 'dict']))
     run:
         shell("{config[bin_dir]}/read_utils.py novoindex {input}")
         shell("{config[bin_dir]}/read_utils.py index_fasta_samtools {input}")

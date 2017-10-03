@@ -8,11 +8,15 @@ import os
 import re
 import unittest
 import hashlib
+import logging
 
 # intra-project
 import util.file
 from util.misc import available_cpu_count
 from tools.samtools import SamtoolsTool
+
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
 
 
 if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:

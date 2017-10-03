@@ -117,7 +117,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
         raise Exception('minReadsEach must be at least 0.')
 
     sorted_bam_file = inBam
-    if not bam_is_sorted(inBam):
+    if not util.file.bam_is_sorted(inBam):
         sorted_bam_file = util.file.mkstempfname('.mapped-sorted.bam')
         sorted_bam_file_tmp = util.file.mkstempfname('.mapped-sorted.bam')
         samtoolsTool.sort(args=['-T', sorted_bam_file_tmp], inFile=inBam, outFile=sorted_bam_file)
@@ -220,7 +220,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
                 libBam = rgBams[0]
             samtoolsTool.index(libBam)
             n_reads = samtoolsTool.count(libBam)
-            log.debug("LB:%s has %s reads in %s read groups (%s)", lib, n_reads, len(rgs), ', '.join(rgs))
+            log.debug("LB:%s has %s reads in %s read group(s) (%s)", lib, n_reads, len(rgs), ', '.join(rgs))
             libBams.append(libBam)
 
     for row in isnvs:
@@ -1125,14 +1125,6 @@ __commands__.append(('iSNP_per_patient', parser_iSNP_per_patient))
 
 #  ===============[ Utility functions ]================
 
-
-def bam_is_sorted(bam_file_path):
-    # Should perhaps be in samtools.py once it moves to pysam
-    samfile = pysam.AlignmentFile(bam_file_path, "rb")
-    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
-        return samfile.header["HD"]["SO"] in ("coordinate") # also: "queryname"
-    else:
-        raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 def sampleIDMatch(inputString):
     """
