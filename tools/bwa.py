@@ -172,7 +172,7 @@ class Bwa(tools.Tool):
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
         self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R',
-                 readgroup_line.rstrip("\n").rstrip("\r")],
+                 readgroup_line.rstrip("\r\n")],
                  min_score_to_filter=min_score_to_filter, threads=threads)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified

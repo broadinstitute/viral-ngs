@@ -10,7 +10,7 @@ except ImportError:
 
 # Ensure that Snakemake rules can import viral-ngs python code
 sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
-import util, util.misc
+import util, util.misc, util.file
 
 shell.executable("/bin/bash")
 
@@ -28,7 +28,7 @@ def set_env_vars():
             os.environ[k] = v
 
 def read_tab_file(fname):
-    with open(fname, 'rt') as inf:
+    with util.file.open_or_gzopen(fname, 'rU') as inf:
         header = [item.strip() for item in inf.readline().strip().rstrip('\n').split('\t')]
         for line in inf:
             row = [item.strip() for item in line.rstrip('\n').split('\t')]
@@ -42,7 +42,7 @@ def read_tab_file(fname):
 def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
     if fname==None:
         return []
-    with open(fname, 'rt') as inf:
+    with util.file.open_or_gzopen(fname, 'rU') as inf:
         for line in inf:
             if not append_chrom_num:
                 yield line.strip()
@@ -54,7 +54,7 @@ def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
 def read_accessions_file(fname):
     if fname==None:
         return []
-    with open(fname, 'rt') as inf:
+    with util.file.open_or_gzopen(fname, 'rU') as inf:
         for line in inf:
             yield line.strip()
 
