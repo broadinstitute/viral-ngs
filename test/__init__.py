@@ -5,12 +5,25 @@ __author__ = "irwin@broadinstitute.org"
 # built-ins
 import filecmp
 import os
+import re
 import unittest
 import hashlib
+import logging
 
 # intra-project
 import util.file
+from util.misc import available_cpu_count
 from tools.samtools import SamtoolsTool
+
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
+
+
+if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
+    _CPUS = 1
+else:
+    _CPUS = available_cpu_count()
+
 
 def assert_equal_contents(testCase, filename1, filename2):
     'Assert contents of two files are equal for a unittest.TestCase'
@@ -43,8 +56,8 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
             if os.path.exists(fname):
                 os.unlink(fname)
 
-def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file):
-    ''' Compare the checksum of a test file with the expected checksum 
+def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file, msg=None):
+    ''' Compare the checksum of a test file with the expected checksum
         stored in a second file
           compare md5(test_output.bam) with expected_output.bam.md5:1
     '''
@@ -62,7 +75,7 @@ def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file):
 
     assert len(expected_checksum) > 0
 
-    testCase.assertEqual(hash_md5.hexdigest(), expected_checksum)
+    testCase.assertEqual(hash_md5.hexdigest(), expected_checksum, msg=msg)
 
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'

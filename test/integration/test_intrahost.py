@@ -16,7 +16,6 @@ import util.file
 import test
 import tools
 
-#@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
@@ -24,6 +23,7 @@ class TestPerSample(test.TestCaseWithTmp):
         strand-bias filtering and adds library-bias statistics.
     '''
 
+    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_indels(self):
         # Files here were created as follows:
         # ref.indels.fasta is Seed-stock-137_S2_L001_001.fasta
@@ -39,7 +39,7 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.indels.bam')
         refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=0)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_indels_expected.txt')
         self.assertEqualContents(outTab, expected)
 
@@ -55,9 +55,10 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.oneunmapped.bam')
         refFasta = os.path.join(myInputDir, 'ref.indels.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=0, removeDoublyMappedReads=True)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=0, removeDoublyMappedReads=True)
         assert os.path.getsize(outTab) == 0
 
+    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_2libs(self):
         # in.2libs.bam was created by "manually" editing in.bam and moving about
         # 1/3 of the reads to ReadGroup2.
@@ -65,10 +66,11 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.2libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
+    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_3libs_and_chi2(self):
         # In addition to testing that we can handle 3 libraries, this is testing
         #    the chi2_contingency approximation to fisher_exact. The 4th, 5th,
@@ -81,6 +83,6 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.3libs.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = util.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=4, minReadsEach=6, maxBias=3)
+        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)

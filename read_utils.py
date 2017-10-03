@@ -22,6 +22,7 @@ import util.file
 import util.misc
 from util.file import mkstempfname
 import tools.bwa
+import tools.cdhit
 import tools.picard
 import tools.samtools
 import tools.mvicuna
@@ -658,6 +659,67 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     os.unlink(outFastq2)
 
 
+def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
+    ''' Remove duplicate reads from BAM file using cd-hit-dup.
+    '''
+    max_mismatches = max_mismatches or 4
+    tmp_dir = tempfile.mkdtemp()
+
+    tools.picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
+
+    s2fq_tool = tools.picard.SamToFastqTool()
+    cdhit = tools.cdhit.CdHit()
+    out_bams = []
+    for f in os.listdir(tmp_dir):
+        out_bam = mkstempfname('.bam')
+        out_bams.append(out_bam)
+        library_sam = os.path.join(tmp_dir, f)
+
+        in_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
+
+        s2fq_tool.execute(library_sam, in_fastqs[0], in_fastqs[1])
+        if not os.path.getsize(in_fastqs[0]) > 0 and not os.path.getsize(in_fastqs[1]) > 0:
+            continue
+
+        out_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
+        options = {
+            '-e': max_mismatches,
+        }
+        if in_fastqs[1] is not None and os.path.getsize(in_fastqs[1]) > 10:
+            options['-i2'] = in_fastqs[1]
+            options['-o2'] = out_fastqs[1]
+
+        log.info("executing cd-hit-est on library " + library_sam)
+        # cd-hit-dup cannot operate on piped fastq input because it reads twice
+        cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=True)
+
+        tools.picard.FastqToSamTool().execute(out_fastqs[0], out_fastqs[1], f, out_bam, JVMmemory=jvm_memory)
+        for fn in in_fastqs:
+            os.unlink(fn)
+
+    with util.file.fifo(name='merged.sam') as merged_bam:
+        merge_opts = ['SORT_ORDER=queryname']
+        tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=jvm_memory, background=True)
+        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, inBam, outBam, JVMmemory=jvm_memory)
+
+
+def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)',
+        dest='jvm_memory'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_cdhit_bam, split_args=True)
+    return parser
+
+
+__commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
+
+
 def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using M-Vicuna. The
         primary advantage to this approach over Picard's MarkDuplicates tool
@@ -909,7 +971,7 @@ def main_gatk_realign(args):
     tools.gatk.GATKTool(path=args.GATK_PATH).local_realign(
         args.inBam, args.refFasta,
         args.outBam, JVMmemory=args.JVMmemory,
-        threads=args.threads, 
+        threads=args.threads,
     )
     return 0
 
@@ -945,17 +1007,17 @@ def align_and_fix(
     shutil.copyfile(refFasta, refFastaCopy)
 
     tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)    
+    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
         if aligner=="novoalign":
             aligner_options = '-r Random'
         elif aligner=='bwa':
-            aligner_options = '-T 30' # quality threshold
+            aligner_options = '' # use defaults
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
-        
+
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(refFastaCopy)
 
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
@@ -969,14 +1031,7 @@ def align_and_fix(
 
         opts = aligner_options.split()
 
-        # get the quality threshold from the opts
-        # for downstream filtering
-        bwa_map_threshold = 30
-        if '-T' in opts:
-            if opts.index("-T")+1 <= len(opts):
-                bwa_map_threshold = int(opts[opts.index("-T")+1])
-
-        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts, min_qual=bwa_map_threshold)
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts)
 
     if skip_mark_dupes:
         bam_marked = bam_aligned
@@ -1010,21 +1065,21 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         '--outBamAll',
         default=None,
         help='''Aligned, sorted, and indexed reads.  Unmapped and duplicate reads are
-                retained. By default, duplicate reads are marked. If "--skipMarkDupes" 
+                retained. By default, duplicate reads are marked. If "--skipMarkDupes"
                 is specified duplicate reads are included in outout without being marked.'''
     )
     parser.add_argument(
         '--outBamFiltered',
         default=None,
-        help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file, 
-                as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided, 
+        help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file,
+                as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided,
                 duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
-    parser.add_argument('--skipMarkDupes', 
+    parser.add_argument('--skipMarkDupes',
                         help='If specified, duplicate reads will not be marked in the resulting output file.',
                         dest="skip_mark_dupes",
                         action='store_true')
@@ -1050,7 +1105,8 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 # =========================
 
 
-def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
+def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
+        min_score_to_filter=None, aligner_options=None):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
     '''
 
@@ -1064,7 +1120,13 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None):
     samtools = tools.samtools.SamtoolsTool()
     bwa = tools.bwa.Bwa()
 
-    bwa.mem(inBam, refFasta, bam_aligned)
+    ref_indexed = util.file.mkstempfname('.reference.fasta')
+    shutil.copyfile(refFasta, ref_indexed)
+    bwa.index(ref_indexed)
+
+    bwa_opts = [] if aligner_options is None else aligner_options.split()
+    bwa.mem(inBam, refFasta, bam_aligned, options=bwa_opts,
+            min_score_to_filter=min_score_to_filter)
 
     if outStats is not None:
         samtools.idxstats(bam_aligned, outStats)
@@ -1078,6 +1140,26 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
     parser.add_argument('--outStats', help='Output idxstats file', default=None)
+    parser.add_argument(
+        '--minScoreToFilter',
+        dest="min_score_to_filter",
+        type=int,
+        help=("Filter bwa alignments using this value as the minimum allowed "
+              "alignment score. Specifically, sum the alignment scores across "
+              "all alignments for each query (including reads in a pair, "
+              "supplementary and secondary alignments) and then only include, "
+              "in the output, queries whose summed alignment score is at least "
+              "this value. This is only applied when the aligner is 'bwa'. "
+              "The filtering on a summed alignment score is sensible for reads "
+              "in a pair and supplementary alignments, but may not be "
+              "reasonable if bwa outputs secondary alignments (i.e., if '-a' "
+              "is in the aligner options). (default: not set - i.e., do not "
+              "filter bwa's output)")
+    )
+    parser.add_argument(
+        '--alignerOptions',
+        dest="aligner_options",
+        help="bwa options (default: bwa defaults)")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser

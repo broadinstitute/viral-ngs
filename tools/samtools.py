@@ -22,6 +22,7 @@ import re
 import os.path
 import subprocess
 import tempfile
+import contextlib
 from collections import OrderedDict
 from decimal import *
 
@@ -40,9 +41,17 @@ log = logging.getLogger(__name__)
 class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
-        if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
-        tools.Tool.__init__(self, install_methods=install_methods)
+        self.installed_method = True
+
+    def install(self):
+        pass
+
+    def is_installed(self):
+        return True
+
+    def install_and_get_path(self):
+        # the conda version wraps the jar file with a shell script
+        return 'samtools'
 
     def version(self):
         return TOOL_VERSION
@@ -72,6 +81,26 @@ class SamtoolsTool(tools.Tool):
             self.execute('bam2fq', ['-n', inBam], stdout=outFq1)
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
+
+    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
+        args=['-1', outFa1]
+        if outFa2: args += ['-2', outFa2]
+        if outFa0: args += ['-0', outFa0]
+        args += [inBam]
+
+        self.execute('fasta', args)
+
+    @contextlib.contextmanager
+    def bam2fq_tmp(self, inBam):
+        with util.file.tempfnames(('.1.fq', '.2.fq')) as (reads1, reads2):
+            self.bam2fq(inBam, reads1, reads2)
+            yield reads1, reads2
+
+    @contextlib.contextmanager
+    def bam2fa_tmp(self, inBam):
+        with util.file.tempfnames(('.1.fa', '.2.fa')) as (reads1, reads2):
+            self.bam2fa(inBam, reads1, reads2)
+            yield reads1, reads2
 
     def sort(self, inFile, outFile, args=None, threads=None):
         # inFile can be .sam, .bam, .cram

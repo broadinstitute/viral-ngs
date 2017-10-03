@@ -3,6 +3,8 @@
 [run]
 branch = True
 omit = tools/conda-tools/*
+disable_warnings =
+    module-not-imported
 
 [report]
 

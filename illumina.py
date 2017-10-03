@@ -105,6 +105,47 @@ def main_illumina_demux(args):
     else:
         samples = illumina.get_SampleSheet(only_lane=args.lane)
 
+
+    link_locs=False
+    # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
+    # called with LINK_LOCS=true, symlinks with absolute paths
+    # may be created, pointing from tile-specific *.locs to the 
+    # single s.locs file in the Intensities directory.
+    # These links may break if the run directory is moved.
+    # We should begin by removing broken links, if present,
+    # and call CheckIlluminaDirectory ourselves if a 's.locs'
+    # file is present, but only if the directory check fails
+    # since link_locs=true tries to create symlinks even if they 
+    # (or the files) already exist
+    try:
+        tools.picard.CheckIlluminaDirectoryTool().execute(
+            illumina.get_BCLdir(),
+            args.lane,
+            illumina.get_RunInfo().get_read_structure(),
+            link_locs=link_locs
+        )
+    except subprocess.CalledProcessError as e:
+        log.warning("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
+        if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
+            # recurse to remove broken links in directory
+            log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
+            broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
+            if len(broken_links):
+                for lpath in broken_links:
+                    log.info("Removing broken symlink: %s", lpath)
+                    os.unlink(lpath)
+
+            # call CheckIlluminaDirectory with LINK_LOCS=true
+            link_locs=True
+
+            log.info("Checking run directory with Picard...")
+            tools.picard.CheckIlluminaDirectoryTool().execute(
+                illumina.get_BCLdir(),
+                args.lane,
+                illumina.get_RunInfo().get_read_structure(),
+                link_locs=link_locs
+            )
+
     # Picard ExtractIlluminaBarcodes
     extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
     barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
@@ -417,8 +458,12 @@ class IlluminaDirectory(object):
             self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'), only_lane=only_lane)
         return self.samplesheet
 
+    def get_intensities_dir(self):
+        return os.path.join(self.path, 'Data', 'Intensities')
+
     def get_BCLdir(self):
-        return os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')
+        return os.path.join(self.get_intensities_dir(), 'BaseCalls')
+
 
 # ==================
 # ***  RunInfo   ***
@@ -507,7 +552,7 @@ class SampleSheet(object):
         self._detect_and_load_sheet(infile)
 
     def _detect_and_load_sheet(self, infile):
-        if infile.endswith('.csv'):
+        if infile.endswith(('.csv','.csv.gz')):
             # one of a few possible CSV formats (watch out for line endings from other OSes)
             with util.file.open_or_gzopen(infile, 'rU') as inf:
                 header = None
@@ -515,7 +560,7 @@ class SampleSheet(object):
                 row_num = 0
                 for line in inf:
                     # if this is a blank line, skip parsing and continue to the next line...
-                    if len(line.rstrip('\n').rstrip('\r').strip()) == 0:
+                    if len(line.rstrip('\r\n').strip()) == 0:
                         continue
                     csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
                     row = next(csv.reader([line.strip().rstrip('\n')], dialect="samplesheet"))
@@ -600,7 +645,7 @@ class SampleSheet(object):
             for row in self.rows:
                 if 'sample_name' in row:
                     del row['sample_name']
-        elif infile.endswith('.txt'):
+        elif infile.endswith(('.txt','.txt.gz')):
             # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
             self.rows = []
             row_num = 0

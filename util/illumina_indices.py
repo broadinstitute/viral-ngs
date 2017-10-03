@@ -511,7 +511,8 @@ class IlluminaIndexReference(object):
                             matches = re.match("(?P<index>"+index_name+")", index)
                             if matches:
                                 for barcode_meta in index_value:
-                                    possible_seqs |= set([barcode_meta["seq"]])
+                                    if not instrument or instrument in barcode_meta["instruments"]:
+                                        possible_seqs |= set([barcode_meta["seq"]])
         return sorted(list(possible_seqs))
 
     def guess_index(self, seq, distance=1, kit=None, instrument=None):

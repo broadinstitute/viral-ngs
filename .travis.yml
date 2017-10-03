@@ -1,13 +1,12 @@
 language: python
-sudo: false
+sudo: required 
+dist: trusty
 
 matrix:
     fast_finish: true
     include:
         - os: linux
           python: 2.7
-        - os: linux
-          python: 3.4
         - os: linux
           python: 3.5
         - os: osx
@@ -17,10 +16,15 @@ matrix:
             - TRAVIS_PYTHON_VERSION=3.5.1
 
 cache:
- directories:
-  - $HOME/misc_cache
-  - $HOME/virtualenv
-  - $HOME/miniconda
+  directories:
+    - $HOME/misc_cache
+    - $HOME/miniconda
+  timeout: 480
+before_cache:
+  # Remove since we're caching the extracted directories
+  - conda clean --tarballs --yes
+  # Conda's repodata cache
+  - rm -rf tools/conda-cache/.pkgs/cache
 
 env:
   global:
@@ -29,6 +33,8 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
   - PYTHONIOENCODING=UTF8
+  - BOTO_CONFIG=/dev/null # bogus value to override config on travis
+  - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
   # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel) 
@@ -48,8 +54,8 @@ install:
   - travis/install-pip.sh
 
 script:
-  - travis/tests-unit.sh
   - travis/tests-long.sh
+  - travis/tests-unit.sh
 
 after_success:
   - coveralls

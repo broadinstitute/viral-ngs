@@ -455,6 +455,22 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         help="The title displayed on the coverage plot (default: '%(default)s')"
     )
     parser.add_argument(
+        '--plotXLimits',
+        dest="plot_x_limits",
+        nargs=2,
+        default=None,
+        type=int,
+        help="Limits on the x-axis of the coverage plot; args are '<min> <max>'"
+    )
+    parser.add_argument(
+        '--plotYLimits',
+        dest="plot_y_limits",
+        nargs=2,
+        default=None,
+        type=int,
+        help="Limits on the y-axis of the coverage plot; args are '<min> <max>'"
+    )
+    parser.add_argument(
         '-q', dest="base_q_threshold",
         default=None, type=int,
         help="The minimum base quality threshold"
@@ -492,6 +508,8 @@ def plot_coverage(
     plot_height,
     plot_dpi,
     plot_title,
+    plot_x_limits,
+    plot_y_limits,
     base_q_threshold,
     mapping_q_threshold,
     max_coverage_depth,
@@ -512,7 +530,7 @@ def plot_coverage(
     num_mapped_reads = samtools.count(in_bam, opts=["-F", "4"])
     if num_mapped_reads == 0:
         raise Exception(
-            """The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if you don't mind a simple bwa alignment. \n File: %s"""
+            """The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if the plot input bam file contains reads and you don't mind a simple bwa alignment. \n File: %s"""
             % in_bam
         )
 
@@ -529,9 +547,12 @@ def plot_coverage(
     else:
         bam_dupe_processed = in_bam
 
-    # call samtools sort
+    # only sort if not sorted
     bam_sorted = util.file.mkstempfname('.sorted.bam')
-    samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+    if not util.file.bam_is_sorted(bam_dupe_processed):
+        samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+    else:
+        bam_sorted = bam_dupe_processed
 
     if plot_only_non_duplicates:
         os.unlink(bam_dupe_processed)
@@ -584,7 +605,7 @@ def plot_coverage(
     domain_max = 0
     with open(coverage_tsv_file, "r") as tabfile:
         for row in csv.reader(tabfile, delimiter='\t'):
-            segment_depths.setdefault(row[0], []).append(int(row[2]))
+            segment_depths.setdefault(row[0], []).append(float(row[2]))
             domain_max += 1
 
     domain_max = 0
@@ -631,6 +652,13 @@ def plot_coverage(
         plt.xlabel("bp", fontsize=font_size * 1.1)
         plt.ylabel("read depth", fontsize=font_size * 1.1)
 
+        if plot_x_limits is not None:
+            x_min, x_max = plot_x_limits
+            plt.xlim(x_min, x_max)
+        if plot_y_limits is not None:
+            y_min, y_max = plot_y_limits
+            plt.ylim(y_min, y_max)
+
         # to squash a backend renderer error on OSX related to tight layout
         if plt.get_backend().lower() in ['agg', 'macosx']:
             fig.set_tight_layout(True)
@@ -669,6 +697,8 @@ def align_and_plot_coverage(
     plot_height,
     plot_dpi,
     plot_title,
+    plot_x_limits,
+    plot_y_limits,
     base_q_threshold,
     mapping_q_threshold,
     max_coverage_depth,
@@ -681,7 +711,7 @@ def align_and_plot_coverage(
     excludeDuplicates=False,
     JVMmemory=None,
     picardOptions=None,
-    min_score_to_output=None,
+    min_score_to_filter=None,
     aligner="bwa",
     aligner_options='',
     novoalign_license_path=None
@@ -703,7 +733,7 @@ def align_and_plot_coverage(
         if aligner=="novoalign":
             aligner_options = '-r Random -l 40 -g 40 -x 20 -t 100 -k'
         elif aligner=='bwa':
-            aligner_options = '-T 30' # quality threshold
+            aligner_options = '-1' # hidden option to work around kernel/cpu bug; disables multithreaded file read: https://github.com/lh3/bwa/issues/102
 
     samtools = tools.samtools.SamtoolsTool()
 
@@ -719,16 +749,10 @@ def align_and_plot_coverage(
 
         bwa_opts = aligner_options.split()
         if sensitive:
-            bwa_opts + "-k 12 -A 1 -B 1 -O 1 -E 1".split()
+            bwa_opts += "-k 12 -A 1 -B 1 -O 1 -E 1".split()
 
-        # get the quality threshold from the opts
-        # for downstream filtering
-        bwa_map_threshold = min_score_to_output or 30
-        if '-T' in bwa_opts:
-            if bwa_opts.index("-T")+1 <= len(bwa_opts):
-                bwa_map_threshold = int(bwa_opts[bwa_opts.index("-T")+1])
-
-        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts, min_qual=bwa_map_threshold)
+        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts,
+                          min_score_to_filter=min_score_to_filter)
     elif aligner=="novoalign":
         
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(ref_indexed)
@@ -762,7 +786,8 @@ def align_and_plot_coverage(
     # -- call plot function --
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
-        base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold, excludeDuplicates, out_summary
+        plot_x_limits, plot_y_limits, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold,
+        excludeDuplicates, out_summary
     )
 
     # remove the output bam, unless it is needed
@@ -806,14 +831,23 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
         help='Optional arguments to Picard\'s MarkDuplicates, OPTIONNAME=value ...'
     )
     parser.add_argument(
-        '-T',
-        dest="min_score_to_output",
-        default=30,
+        '--minScoreToFilter',
+        dest="min_score_to_filter",
         type=int,
-        help="The min score to output during alignment (default: %(default)s)"
+        help=("Filter bwa alignments using this value as the minimum allowed "
+              "alignment score. Specifically, sum the alignment scores across "
+              "all alignments for each query (including reads in a pair, "
+              "supplementary and secondary alignments) and then only include, "
+              "in the output, queries whose summed alignment score is at least "
+              "this value. This is only applied when the aligner is 'bwa'. "
+              "The filtering on a summed alignment score is sensible for reads "
+              "in a pair and supplementary alignments, but may not be "
+              "reasonable if bwa outputs secondary alignments (i.e., if '-a' "
+              "is in the aligner options). (default: not set - i.e., do not "
+              "filter bwa's output)")
     )
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='bwa', help='aligner (default: %(default)s)')
-    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: "-T 30"')
+    parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: bwa defaults')
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
         default=None,

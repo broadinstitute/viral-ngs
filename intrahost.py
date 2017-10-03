@@ -43,6 +43,7 @@ class AlleleFieldParser(object):
     of the fields in the allele columns of vphaser_one_sample output
     (corresponding to the SNP_or_LP_Profile columns in the V-Phaser 2 output).
     """
+    __slots__ = ('_allele', '_strandCounts', '_libBiasPval', '_libCounts')
 
     def __init__(self, field=None, allele=None, fcount=None, rcount=None, libBiasPval=None, libCounts=None):
         """ Input is either the string stored in one of the allele columns.
@@ -116,7 +117,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
         raise Exception('minReadsEach must be at least 0.')
 
     sorted_bam_file = inBam
-    if not bam_is_sorted(inBam):
+    if not util.file.bam_is_sorted(inBam):
         sorted_bam_file = util.file.mkstempfname('.mapped-sorted.bam')
         sorted_bam_file_tmp = util.file.mkstempfname('.mapped-sorted.bam')
         samtoolsTool.sort(args=['-T', sorted_bam_file_tmp], inFile=inBam, outFile=sorted_bam_file)
@@ -219,14 +220,14 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
                 libBam = rgBams[0]
             samtoolsTool.index(libBam)
             n_reads = samtoolsTool.count(libBam)
-            log.debug("LB:%s has %s reads in %s read groups (%s)", lib, n_reads, len(rgs), ', '.join(rgs))
+            log.debug("LB:%s has %s reads in %s read group(s) (%s)", lib, n_reads, len(rgs), ', '.join(rgs))
             libBams.append(libBam)
 
     for row in isnvs:
         consensusAllele = row[3]
         pos = int(row[1]) if consensusAllele != 'i' else int(row[1]) - 1
         chrom = row[0]
-        libCounts = [get_mpileup_allele_counts(libBamItem, chrom, pos, inConsFasta) for libBamItem in libBams]
+        libCounts = [get_mpileup_allele_counts(libBamItem, chrom, pos, inConsFasta, samtools=samtoolsTool) for libBamItem in libBams]
         numAlleles = len(row) - alleleCol
         countsMatrix = [[0] * numAlleles for lib in libBams]
         libCountsByAllele = []
@@ -293,7 +294,7 @@ def parse_alleles_string(allelesStr):
     return alleleCounts
 
 
-def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta):
+def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta, samtools=None):
     """ Return {allele : [forwardCount, reverseCount], ...}
         allele is:
             Iins for insertions where ins represents the inserted bases
@@ -301,8 +302,9 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta):
             base itself for non-indels
             'i' or 'd', in which case report count for consensus.
     """
+    samtools = samtools or SamtoolsTool()
     pileupFileName = util.file.mkstempfname('.txt')
-    SamtoolsTool().mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
+    samtools.mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
                                                    '-L', '50000', '-Q', '0', '-f', inConsFasta])
     with open(pileupFileName) as pileupFile:
         words = pileupFile.readline().split('\t')
@@ -1123,14 +1125,6 @@ __commands__.append(('iSNP_per_patient', parser_iSNP_per_patient))
 
 #  ===============[ Utility functions ]================
 
-
-def bam_is_sorted(bam_file_path):
-    # Should perhaps be in samtools.py once it moves to pysam
-    samfile = pysam.AlignmentFile(bam_file_path, "rb")
-    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
-        return samfile.header["HD"]["SO"] in ("coordinate") # also: "queryname"
-    else:
-        raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 def sampleIDMatch(inputString):
     """

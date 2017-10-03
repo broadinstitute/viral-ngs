@@ -20,10 +20,11 @@ Configure Conda
 
 The viral-ngs software and its dependencies are distributed through the bioconda channel for the conda package manager. It is necessary to add this channel to the conda config::
 
-  conda config --add channels broad-viral
-  conda config --add channels bioconda
   conda config --add channels r
-  conda config --add channels conda-forge
+  conda config --add channels defaults 
+  conda config --add channels conda-forge 
+  conda config --add channels bioconda
+  conda config --add channels broad-viral
 
 Make a conda environment and install viral-ngs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,7 +40,7 @@ In order to finish installing viral-ngs, you will need to activate its conda env
 
   source activate viral-ngs-env
 
-Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://www.broadinstitute.org/gatk/download/>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
+Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://software.broadinstitute.org/gatk/download/archive>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
 
   # (download licensed copy of GATK)
   gatk-register /path/to/GenomeAnalysisTK.jar

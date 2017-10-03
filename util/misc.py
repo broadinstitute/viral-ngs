@@ -1,19 +1,31 @@
 '''A few miscellaneous tools. '''
 from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
-import itertools
+import contextlib
+import itertools, functools, operator
 import logging
-import os
+import os, os.path
 import re
 import subprocess
 import multiprocessing
 import sys
+import copy
+import yaml, json
 
 import util.file
 
 log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
+
+import time
+@contextlib.contextmanager
+def timer(prefix):
+    start = time.time()
+    yield
+    finish = time.time()
+    elapsed = '{:.2f}'.format(finish - start)
+    print(prefix + ' - ' + elapsed, file=sys.stderr)
 
 
 def unique(items):
@@ -125,7 +137,7 @@ except ImportError:
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
     def run(args, stdin=None, stdout=None, stderr=None, shell=False,
-            env=None, cwd=None, timeout=None, check=False):
+            env=None, cwd=None, timeout=None, check=False, executable=None):
         '''A poor man's substitute of python 3.5's subprocess.run().
 
         Should only be used for capturing stdout. If stdout is unneeded, a
@@ -142,7 +154,7 @@ except ImportError:
             try:
                 output = subprocess.check_output(
                     args, stdin=stdin, stderr=stderr, shell=shell,
-                    env=env, cwd=cwd)
+                    env=env, cwd=cwd, executable=executable)
                 return CompletedProcess(args, 0, output, b'')
             # Py3.4 doesn't have stderr attribute
             except subprocess.CalledProcessError as e:
@@ -163,7 +175,8 @@ except ImportError:
         try:
             returncode = subprocess.call(
                 args, stdin=stdin, stdout=stdout,
-                stderr=stderr, shell=shell, env=env, cwd=cwd)
+                stderr=stderr, shell=shell, env=env, cwd=cwd,
+                executable=executable)
             if stdout_pipe:
                 stdout.close()
                 with open(stdout_fn, 'rb') as f:
@@ -306,6 +319,7 @@ def run_and_save(args, stdout=None, stdin=None,
 
     return sp
 
+
 class FeatureSorter(object):
     ''' This class helps sort genomic features. It's not terribly optimized
         for speed or anything. Slightly inspired by calhoun's MultiSequenceRangeMap.
@@ -400,9 +414,9 @@ def available_cpu_count():
 
 def which(application_binary_name):
     """
-        Similar to the *nix "which" command, 
+        Similar to the *nix "which" command,
         this function finds the first executable binary present
-        in the system PATH for the binary specified. 
+        in the system PATH for the binary specified.
         It differs in that it resolves symlinks.
     """
     path=os.getenv('PATH')
@@ -411,3 +425,127 @@ def which(application_binary_name):
         if os.path.exists(full_path) and os.access(full_path, os.X_OK):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
+
+def is_nonstr_iterable(x):
+    '''Tests whether `x` is an Iterable other than a string'''
+    return isinstance(x, collections.Iterable) and not isinstance(x,str)
+
+def make_seq(x):
+    '''Return a tuple containing the items in `x`, or containing just `x` if `x` is a non-string iterable.  Convenient
+    for uniformly writing iterations over parameters that may be passed in as either an item or a tuple/list of items.
+    Note that if `x` is an iterator, it will be concretized.
+    '''
+    return tuple(x) if is_nonstr_iterable(x) else (x,)
+
+def load_yaml_or_json(fname):
+    '''Load a dictionary from either a yaml or a json file'''
+    with open(fname) as f:
+        if fname.upper().endswith('.YAML'): return yaml.safe_load(f) or {}
+        if fname.upper().endswith('.JSON'): return json.load(f) or {}
+        raise TypeError('Unsupported dict file format: ' + fname)
+
+
+def load_config(cfg, include_directive='include', std_includes=(), param_renamings=None):
+    '''Load a configuration, with support for some extra functionality that lets project configurations evolve
+    without breaking backwards compatibility.
+
+    The configuration `cfg` is either a dict (possibly including nested dicts) or a yaml/json file containing one.
+    A configuration parameter or config param is a sequence of one or more keys; the value of the corresponding
+    parameter is accessed as "cfg[k1][k2]...[kN]".  Note, by "parameter" we denote the entire sequence of keys.
+
+    This function implements extensions to the standard way of specifying configuration parameters via (possibly nested)
+    dictionaries.  These extensions make it easier to add or rename config params without breaking backwards
+    compatibility.
+
+    One extension lets config files include other config files, and lets you specify "standard" config file(s) to
+    be included before all others.  If the "default" config file from the project distribution is made a standard
+    include, new parameters can be added to it (and referenced from project code) without breaking compatibility
+    with old config files that omit these parameters.
+
+    Another extension lets you, when loading a config file, recognize parameters specified under old or legacy names.
+    This lets you change parameter names in new program versions while still accepting legacy config files that
+    use older names.
+
+    Args:
+       cfg: either a config mapping, or the name of a file containing one (in yaml or json format).
+         A config mapping is just a dict, possibly including nested dicts, specifying config params.
+         The mapping can include an entry pointing to other config files to include.
+         The key of the entry is `include_directive`, and the value is a filename or list of filenames of config files.
+         Relative filenames are interpreted relative to the directory containing `cfg`, if `cfg` is a filename,
+         else relative to the current directory.  Any files from `std_includes` are prepended to the list of
+         included config files.  Parameter values from `cfg` override ones from any included files, and parameter values
+         from included files listed later in the include list override parameter values from included files listed
+         earlier.
+
+       include_directive: key used to specify included config files
+       std_includes: config file(s) implicitly included before all others and before `cfg`
+       param_renamings: optional map of old/legacy config param names to new ones.  'Param names' here are
+         either keys or sequences of keys.  Example value: {'trinity_kmer_size': ('de_novo_assembly', 'kmer_size')};
+         new code can access the parameter as cfg["de_novo_assembly"]["kmer_size"] while legacy users can keep
+         specifying it as "trinity_kmer_size: 31".
+    '''
+
+    param_renamings = param_renamings or {}
+
+    result = dict()
+
+    base_dir_for_includes = None
+    if isinstance(cfg, str):
+        cfg_fname = os.path.realpath(cfg)
+        base_dir_for_includes = os.path.dirname(cfg_fname)
+        cfg = load_yaml_or_json(cfg_fname)
+
+    def _update_config(config, overwrite_config):
+        """Recursively update dictionary config with overwrite_config.
+
+        Adapted from snakemake.utils.
+        See
+        http://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+        for details.
+
+        Args:
+          config (dict): dictionary to update
+          overwrite_config (dict): dictionary whose items will overwrite those in config
+
+        """
+
+        def _update(d, u):
+            def fix_None(v): return {} if v is None else v
+            for (key, value) in u.items():
+                if (isinstance(value, collections.Mapping)):
+                    d[key] = _update(fix_None(d.get(key, {})), value)
+                else:
+                    d[key] = fix_None(value)
+            return d
+
+        _update(config, overwrite_config)
+
+
+    includes = make_seq(std_includes) + make_seq(cfg.get(include_directive, []))
+    for included_cfg_fname in includes:
+        if (not os.path.isabs(included_cfg_fname)) and base_dir_for_includes:
+            included_cfg_fname = os.path.join(base_dir_for_includes, included_cfg_fname)
+        _update_config(result, load_config(cfg=included_cfg_fname, 
+                                           include_directive=include_directive,
+                                           param_renamings=param_renamings))
+
+    # mappings in the current (top-level) config override any mappings from included configs
+    _update_config(result, cfg)
+
+    # load any params specified under legacy names, for backwards compatibility
+    param_renamings_seq = dict(map(lambda kv: map(make_seq, kv), param_renamings.items()))
+
+    for old_param, new_param in param_renamings_seq.items():
+
+        # handle chains of param renamings
+        while new_param in param_renamings_seq:
+            new_param = param_renamings_seq[new_param]
+
+        old_val = functools.reduce(lambda d, k: d.get(k, {}), old_param, result)
+        new_val = functools.reduce(lambda d, k: d.get(k, {}), new_param, result)
+
+        if old_val != {} and new_val == {}:
+            _update_config(result, functools.reduce(lambda d, k: {k: d}, new_param[::-1], old_val))
+            log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param, new_param))
+
+    return result

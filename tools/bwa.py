@@ -3,6 +3,7 @@
 
 '''
 
+from collections import defaultdict
 import logging
 import os
 import os.path
@@ -50,7 +51,8 @@ class Bwa(tools.Tool):
         cmd.append(inFasta)
         self.execute('index', cmd)
 
-    def align_mem_bam(self, inBam, refDb, outBam, options=None, min_qual=30, threads=None, JVMmemory=None):
+    def align_mem_bam(self, inBam, refDb, outBam, options=None,
+                      min_score_to_filter=None, threads=None, JVMmemory=None):
         options = options or []
 
         samtools = tools.samtools.SamtoolsTool()
@@ -64,7 +66,9 @@ class Bwa(tools.Tool):
 
         elif len(rgs) == 1:
             # Only one RG, keep it simple
-            self.align_mem_one_rg(inBam, refDb, outBam, options=options, min_qual=min_qual, threads=threads)
+            self.align_mem_one_rg(inBam, refDb, outBam, options=options,
+                                  min_score_to_filter=min_score_to_filter,
+                                  threads=threads)
 
         else:
             # Multiple RGs, align one at a time and merge
@@ -77,24 +81,30 @@ class Bwa(tools.Tool):
                     tmp_bam,
                     rgid=rg,
                     options=options,
-                    min_qual=min_qual,
+                    min_score_to_filter=min_score_to_filter,
                     threads=threads
                 )
                 if os.path.getsize(tmp_bam) > 0:
                     align_bams.append(tmp_bam)
+                else:
+                    log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
 
-            # Merge BAMs, sort, and index
-            tools.picard.MergeSamFilesTool().execute(
-                align_bams,
-                outBam,
-                picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
-                JVMmemory=JVMmemory
-            )
-            for bam in align_bams:
-                os.unlink(bam)
+            if len(align_bams) == 0:
+                util.file.touch(outBam)
+            else:
+                # Merge BAMs, sort, and index
+                tools.picard.MergeSamFilesTool().execute(
+                    align_bams,
+                    outBam,
+                    picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
+                    JVMmemory=JVMmemory
+                )
+                for bam in align_bams:
+                    os.unlink(bam)
 
 
-    def align_mem_one_rg(self, inBam, refDb, outBam, rgid=None, options=None, min_qual=30, threads=None, JVMmemory=None):
+    def align_mem_one_rg(self, inBam, refDb, outBam, rgid=None, options=None,
+                         min_score_to_filter=None, threads=None, JVMmemory=None):
         """
             Performs an alignment of one read group in a bam file to a reference fasta file
 
@@ -131,6 +141,7 @@ class Bwa(tools.Tool):
             samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
             # special exit if this file is empty
             if samtools.count(tmp_bam) == 0:
+                log.warning("No reads present for RG %s in file: %s", rgid, inBam)
                 return
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
@@ -156,28 +167,19 @@ class Bwa(tools.Tool):
                     readgroup_line = line
 
         assert len(readgroup_line) > 0
-        
-        aln_bam_prefilter = util.file.mkstempfname('.prefiltered.bam')
+
+        tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
-        self.mem(one_rg_inBam, refDb, aln_bam_prefilter, options=options+['-R', readgroup_line.rstrip("\n").rstrip("\r")], min_qual=min_qual, threads=threads)
+        self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R',
+                 readgroup_line.rstrip("\r\n")],
+                 min_score_to_filter=min_score_to_filter, threads=threads)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
         # if there was only one RG in the input, we used it directly and should not delete it
         if removeInput:
             os.unlink(one_rg_inBam)
-
-        # @haydenm says: 
-        # For some reason (particularly when the --sensitive option is on), bwa
-        # doesn't listen to its '-T' flag and outputs alignments with score less
-        # than the '-T 30' threshold. So filter these:
-        if min_qual > 0:
-            tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
-            tools.samtools.SamtoolsTool().view(["-b", "-h", "-q", str(min_qual)], aln_bam_prefilter, tmp_bam_aligned)
-            os.unlink(aln_bam_prefilter)
-        else:
-            shutil.move(aln_bam_prefilter, tmp_bam_aligned)
 
         # if the aligned bam file contains no reads after filtering
         # just create an empty file
@@ -203,7 +205,8 @@ class Bwa(tools.Tool):
             )
             #os.unlink(reheadered_bam)
 
-    def mem(self, inReads, refDb, outAlign, options=None, min_qual=None, threads=None):
+    def mem(self, inReads, refDb, outAlign, options=None, min_score_to_filter=None,
+            threads=None):
         options = [] if not options else options
 
         threads = threads or util.misc.available_cpu_count()
@@ -217,16 +220,90 @@ class Bwa(tools.Tool):
             threads = threads or utils.misc.available_cpu_count()
             options.extend(('-t', str(threads)))
 
-        if '-T' not in options:
-            min_qual = min_qual or 30
-            options.extend(('-T', str(min_qual)))
-
         self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
-
         os.unlink(fq1)
         os.unlink(fq2)
-        samtools.sort(aln_sam, outAlign, threads=threads)
+
+        if min_score_to_filter:
+            # Filter reads in the alignment based on on their alignment score
+            aln_sam_filtered = util.file.mkstempfname('.sam')
+            self.filter_sam_on_alignment_score(aln_sam, aln_sam_filtered,
+                                               min_score_to_filter, options)
+        else:
+            aln_sam_filtered = aln_sam
+
+        samtools.sort(aln_sam_filtered, outAlign, threads=threads)
         os.unlink(aln_sam)
         # cannot index sam files; only do so if a bam/cram is desired
         if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
             samtools.index(outAlign)
+
+    def filter_sam_on_alignment_score(self, in_sam, out_sam, min_score_to_filter,
+                                      bwa_options):
+        """Filter reads in an alignment based on their alignment score.
+
+        This is useful because bwa mem ignores its -T option on paired-end
+        data (https://github.com/lh3/bwa/issues/133); -T normally specifies
+        the threshold on score below which alignments are not output.
+
+        This sums the alignment score across all alignments for each
+        query name in the aligned SAM. This has the effect of summing
+        the score across both reads in a pair (their query name is the same)
+        as well as supplementary alignments (SAM flag 2048) and secondary
+        alignments (SAM flag 256). The use of a summed score is reasonable for
+        supplementary alignments, which bwa mem outputs. bwa mem normally
+        does not output secondary alignments, but if it does then the
+        use of a summed score might not be reasonable.
+        """
+        if '-a' in bwa_options:
+            log.warning(("'bwa mem -a' will output secondary alignments, "
+                         "and the filter on alignment score will use "
+                         "a score that is summed across the primary and "
+                         "secondary alignments for each read; this might "
+                         "not be desired"))
+
+        # Determine an alignment score for each query name
+        qname_alignment_scores = defaultdict(int)
+        with open(in_sam) as in_sam_f:
+            for line in in_sam_f:
+                line = line.rstrip()
+                if line.startswith('@'):
+                    # Skip headers
+                    continue
+                ls = line.split('\t')
+
+                # bwa's output should have optional fields for all
+                # alignments
+                assert len(ls) >= 12
+
+                qname = ls[0]
+                aln_score = None
+                for opt_field in ls[11:]:
+                    opt_field_tag, opt_field_type, opt_field_val = opt_field.split(':')
+                    if opt_field_tag == 'AS':
+                        # The alignment score output by bwa should be a
+                        # signed integer
+                        assert opt_field_type == 'i'
+                        aln_score = int(opt_field_val)
+                        break
+                if aln_score is None:
+                    raise Exception(("Unknown alignment score for query "
+                                    "name %s") % qname)
+                qname_alignment_scores[qname] += aln_score
+
+        # Write a SAM file that only includes reads whose query has a
+        # sufficient alignment score summed across its alignments
+        with open(out_sam, 'w') as out_sam_f:
+            with open(in_sam) as in_sam_f:
+                for line in in_sam_f:
+                    line = line.rstrip()
+                    if line.startswith('@'):
+                        # Rewrite all headers
+                        out_sam_f.write(line + '\n')
+                        continue
+                    ls = line.split('\t')
+
+                    qname = ls[0]
+                    if qname_alignment_scores[qname] >= min_score_to_filter:
+                        # Write this query name
+                        out_sam_f.write(line + '\n')

@@ -7,7 +7,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import contextlib
-import os
+import os, os.path
 import gzip
 import tempfile
 import shutil
@@ -16,6 +16,8 @@ import logging
 import json
 import util.cmd
 import util.misc
+import sys
+import io
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -24,6 +26,8 @@ try:
     from urllib.request import urlopen # pylint: disable=E0611
 except ImportError:
     from urllib2 import urlopen
+
+import pysam
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +86,27 @@ def get_resources():
         resources = json.load(inf)
     return resources
 
+def check_paths(read=(), write=(), read_and_write=()):
+    '''Check that we can read and write the specified files, throw an exception if not.  Useful for checking
+    error conditions early in the execution of a command.  Each arg can be a filename or iterable of filenames.
+    '''
+    read, write, read_and_write = map(util.misc.make_seq, (read, write, read_and_write))
+    assert not (set(read) & set(write))
+    assert not (set(read) & set(read_and_write))
+    assert not (set(write) & set(read_and_write))
+    
+    for fname in read+read_and_write:
+        with open(fname):
+            pass
+
+    for fname in write+read_and_write:
+        if not os.path.exists(fname):
+            with open(fname, 'w'):
+                pass
+            os.unlink(fname)
+        else:
+            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+                raise PermissionError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
@@ -94,6 +119,57 @@ def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     return fn
 
 
+@contextlib.contextmanager
+def tempfname(*args, **kwargs):
+    '''Create a tempfile name on context entry, delete the file (if it exists) on context exit.'''
+    fn = mkstempfname(*args, **kwargs)
+    try:
+        yield fn
+    finally:
+        if os.path.isfile(fn): os.unlink(fn)
+
+
+@contextlib.contextmanager
+def tempfnames(suffixes, *args, **kwargs):
+    '''Create a set of tempfile names on context entry, delete the files (if they exist) on context exit.'''
+    fns = [mkstempfname(sfx, *args, **kwargs) for sfx in suffixes]
+    try:
+        yield fns
+    finally:
+        if  not keep_tmp():
+            for fn in fns:
+                if os.path.isfile(fn):
+                    os.unlink(fn)
+
+@contextlib.contextmanager
+def tmp_dir(*args, **kwargs):
+    """Create and return a temporary directory, which is cleaned up on context exit
+    unless keep_tmp() is True."""
+    try:
+        name = tempfile.mkdtemp(*args, **kwargs)
+        yield name
+    finally:
+        if keep_tmp():
+            log.debug('keeping tempdir ' + name)
+        else:
+            shutil.rmtree(name)
+
+@contextlib.contextmanager
+def pushd_popd(target_dir):
+    '''Temporary change to the specified directory, restoring current directory on context exit.'''
+    save_cwd = os.getcwd()
+    try:
+        os.chdir(target_dir)
+        yield target_dir
+    finally:
+        os.chdir(save_cwd)
+
+def keep_tmp():
+    """Whether to preserve temporary directories and files (useful during debugging).
+    Return True if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    """
+    return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
+
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
     if name:
@@ -103,15 +179,41 @@ def set_tmp_dir(name):
             proposed_prefix.append(os.environ[e])
             break
     tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
+    os.environ['TMPDIR'] = tempfile.tempdir
     return tempfile.tempdir
 
 
 def destroy_tmp_dir(tempdir=None):
-    if tempdir:
-        shutil.rmtree(tempdir)
-    elif tempfile.tempdir:
-        shutil.rmtree(tempfile.tempdir)
+    if not keep_tmp():
+        if tempdir:
+            shutil.rmtree(tempdir)
+        elif tempfile.tempdir:
+            shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
+
+
+@contextlib.contextmanager
+def fifo(num_pipes=1, names=None, name=None):
+    pipe_dir = tempfile.mkdtemp()
+    pipe_paths = []
+    if name is not None:
+        names = [name]
+    if names:
+        num_pipes = len(names)
+    for i in range(num_pipes):
+        if names is not None:
+            fn = names[i]
+        else:
+            fn = '{}.pipe'.format(i)
+        pipe_path = os.path.join(pipe_dir, fn)
+        os.mkfifo(pipe_path)
+        pipe_paths.append(pipe_path)
+
+    if num_pipes == 1:
+        yield pipe_paths[0]
+    else:
+        yield pipe_paths
+    shutil.rmtree(pipe_dir)
 
 
 def mkdir_p(dirpath):
@@ -126,18 +228,50 @@ def mkdir_p(dirpath):
             raise
 
 
-def open_or_gzopen(fname, *opts):
-    return fname.endswith('.gz') and gzip.open(fname, *opts) or open(fname, *opts)
+def open_or_gzopen(fname, *opts, **kwargs):
+    mode = 'r'
+    open_opts = list(opts)
+    assert type(mode) == str, "open mode must be of type str"
 
+    # 'U' mode is deprecated in py3 and may be unsupported in future versions, 
+    # so use newline=None when 'U' is specified
+    if len(open_opts) > 0:  
+        mode = open_opts[0]  
+        if sys.version_info[0] == 3:
+            if 'U' in mode:
+                if 'newline' not in kwargs:
+                    kwargs['newline'] = None
+                open_opts[0] = mode.replace("U","")
+
+    # if this is a gzip file 
+    if fname.endswith('.gz'):
+        # if text read mode is desired (by spec or default)
+        if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
+            # if python 2
+            if sys.version_info[0] == 2:
+                # gzip.open() under py2 does not support universal newlines
+                # so we need to wrap it with something that does
+                # By ignoring errors in BufferedReader, errors should be handled by TextIoWrapper
+                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname)))
+
+        # if 't' for text mode is not explicitly included,
+        # replace "U" with "t" since under gzip "rb" is the
+        # default and "U" depends on "rt"
+        gz_mode = str(mode).replace("U","" if "t" in mode else "t")
+        gz_opts = [gz_mode]+list(opts)[1:]
+        return gzip.open(fname, *gz_opts, **kwargs)
+    else:
+        return open(fname, *open_opts, **kwargs)
+            
 
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
-    with open_or_gzopen(inFile, 'rt') as inf:
+    with open_or_gzopen(inFile, 'rU') as inf:
         header = None
         for line in inf:
-            row = [item.strip() for item in line.rstrip('\n').split('\t')]
+            row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
             if line.startswith('#'):
                 row[0] = row[0][1:]
                 header = [item for item in row if len(item)]
@@ -146,7 +280,7 @@ def read_tabfile_dict(inFile):
             else:
                 # if a row is longer than the header
                 if len(row) > len(header):
-                    # truncate the row to the header length, and only include extra items if they are not spaces 
+                    # truncate the row to the header length, and only include extra items if they are not spaces
                     # (takes care of the case where the user may enter an extra space at the end of a row)
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row)
@@ -157,10 +291,10 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rt') as inf:
+    with open_or_gzopen(inFile, 'rU') as inf:
         for line in inf:
             if not line.startswith('#'):
-                yield list(item.strip() for item in line.rstrip('\n').split('\t'))
+                yield list(item.strip() for item in line.rstrip('\r\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
@@ -268,6 +402,15 @@ def makeFastaFile(seqs, outFasta):
             outf.write(line)
 
     return outFasta
+
+
+def bam_is_sorted(bam_file_path):
+    # Should perhaps be in samtools.py once it moves to pysam
+    samfile = pysam.AlignmentFile(bam_file_path, "rb")
+    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
+        return samfile.header["HD"]["SO"] in ("coordinate") # also: "queryname"
+    else:
+        raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 
 def concat(inputFilePaths, outputFilePath):
@@ -473,3 +616,58 @@ def line_count(infname):
 def touch(fname, times=None):
     with open(fname, 'a'):
         os.utime(fname, times)
+
+def make_empty(fname):
+    '''Make `fname` a zero-length file with the current timestamp.'''
+    with open(fname, 'w'):
+        pass
+
+def dump_file(fname, value):
+    """store string in file"""
+    with open(fname, 'w')  as out:
+        out.write(str(value))
+
+def slurp_file(fname, maxSizeMb=50):
+    """Read entire file into one string.  If file is gzipped, uncompress it on-the-fly.  If file is larger
+    than `maxSizeMb` megabytes, throw an error; this is to encourage proper use of iterators for reading
+    large files.  If `maxSizeMb` is None or 0, file size is unlimited."""
+    fileSize = os.path.getsize(fname)
+    if maxSizeMb  and  fileSize > maxSizeMb*1024*1024:
+        raise RuntimeError('Tried to slurp large file {} (size={}); are you sure?  Increase `maxSizeMb` param if yes'.
+                           format(fname, fileSize))
+    with open_or_gzopen(fname) as f:
+        return f.read()
+
+def is_broken_link(filename):
+    # isfile() returns True if a file, or a working link
+    if os.path.isfile(filename) or os.path.isdir(filename):
+        return False
+    # otherwise if this is a link
+    if os.path.islink(filename):
+        # os.path.exists() returns false in the case of broken symlinks
+        return not os.path.exists(filename)
+    return False
+
+
+def find_broken_symlinks(rootdir, followlinks=False):
+    """
+        This function removes broken symlinks within a directory,
+        doing the same in each child directory as well (though not following
+        functional symlinks, unless they're directories and followlinks=True).
+        @param followlinks: only applies to directory links as per os.walk
+    """
+
+    broken_links_to_remove = []
+
+    # first check to see if the input is itself a broken link
+    if is_broken_link(rootdir):
+        broken_links_to_remove.append(rootdir.rstrip("/"))
+    else:
+        # otherwise traverse the directory hierarchy
+        for rootpath, subfolders, files in os.walk(rootdir, followlinks=followlinks):
+            for filename in files:
+                fpath = os.path.join(rootpath, filename)
+                if is_broken_link(fpath):
+                    broken_links_to_remove.append(fpath.rstrip("/"))
+
+    return broken_links_to_remove

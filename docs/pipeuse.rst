@@ -6,52 +6,18 @@ commands called in isolation, it is possible to execute them as a
 complete automated pipeline, from processing raw sequencer output to
 creating files suitable for GenBank submission. This utilizes Snakemake,
 which is documented at:
-https://bitbucket.org/snakemake/snakemake/wiki/Home
+https://snakemake.readthedocs.io/en/stable/
 
 Here is an overview of the Snakemake rule graph:
 
 .. image:: rulegraph.png
 
-Setting up the Python 3 virtual environment
+Installation instructions
 -------------------------------------------
 
-Note that Python 3.4 is required to use these tools with Snakemake. It
-is recommended to create a virtual environment within which all of the
-viral-ngs dependencies can be installed:
+It is recommended to install the viral-ngs conda package from the ``broad-viral`` channel, as detailed in the installation section of this documentation.
 
-::
-
-    pyvenv-3.4 venv-viral-ngs
-    cd venv-viral-ngs
-    source bin/activate
-
-Once the virtual environment has been created and activated, the
-viral-ngs dependencies can be installed via ``pip``:
-
-::
-
-    pip install -r requirements.txt
-    pip install -r requirements-pipes.txt
-
-Note: To resume normal use of the system installation of python, call
-the “deactivate” command in your shell. See the `official venv
-documentation <https://docs.python.org/3/library/venv.html>`__ for more
-information on Python3 virtual environments.
-
-In addition to the dependencies installed via ``pip``, the pipline needs
-the standard dependencies described in the main viral-ngs installation
-section.
-
-*Note:* If running on the Broad Institute UGER cluster environment,
-import the following dotkits prior to activating the virtualenv:
-
-::
-
-    use .python-3.4.3
-    use .oracle-java-jdk-1.7.0-51-x86-64
-    use .bzip2-1.0.6
-    use .zlib-1.2.6
-    use .gcc-4.5.3
+The script ``easy-deploy-viral-ngs.sh`` can be used to install conda and the viral-ngs package on a standard Linux system, as well as to create new project analysis directories. Project directories can also be created manually as described below.
 
 Setting up an analysis directory
 --------------------------------
@@ -243,7 +209,7 @@ contaminents from reads:
 
 Pre-built databases for Trimmomatic:
 
--  `contaminants.fasta.tar.gz <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.tar.gz>`__ (`*.lz4 <https://console.cloud.google.com/m/cloudstorage/b/sabeti-public/o/depletion_dbs/contaminants.fasta.lz4>`__)
+-  `contaminants.fasta.tar.gz <https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.tar.gz>`__ (`*.lz4 <https://storage.googleapis.com/sabeti-public/depletion_dbs/contaminants.fasta.lz4>`__)
 
 A FASTA file containing spike-ins to be reported:
 

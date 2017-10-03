@@ -14,7 +14,7 @@ import util.file
 import tools.last
 import tools.bmtagger
 import tools.blast
-from test import assert_equal_bam_reads, TestCaseWithTmp
+from test import assert_equal_bam_reads, TestCaseWithTmp, _CPUS
 
 
 class TestDepleteHuman(TestCaseWithTmp):
@@ -29,6 +29,8 @@ class TestDepleteHuman(TestCaseWithTmp):
 
     def setUp(self):
         TestCaseWithTmp.setUp(self)
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         self.tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
@@ -49,6 +51,8 @@ class TestDepleteHuman(TestCaseWithTmp):
         self.lastdb_path = tools.last.Lastdb().build_database(polio_fasta, os.path.join(self.tempDir, 'polio'))
 
     def test_deplete_human(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
@@ -64,7 +68,8 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--threads", "4"
+                "--srprismMemory", '1500',
+                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)
@@ -78,6 +83,8 @@ class TestDepleteHuman(TestCaseWithTmp):
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
     def test_deplete_human_aligned_input(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
@@ -94,7 +101,8 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--threads", "4"
+                "--srprismMemory", '1500',
+                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)
@@ -108,6 +116,8 @@ class TestDepleteHuman(TestCaseWithTmp):
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
 
     def test_deplete_empty(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
 
         # Run deplete_human
@@ -123,7 +133,8 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--lastDb", self.lastdb_path,
-                "--threads", "4"
+                "--srprismMemory", '1500',
+                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)

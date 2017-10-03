@@ -83,6 +83,8 @@ class TestBmtagger(TestCaseWithTmp):
 
     def setUp(self):
         TestCaseWithTmp.setUp(self)
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         self.tempDir = tempfile.mkdtemp()
         myInputDir = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman')
         ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
@@ -91,28 +93,34 @@ class TestBmtagger(TestCaseWithTmp):
         self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
 
     def test_deplete_bmtagger_bam(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
         outBam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            inBam, self.database_prefix_path, outBam])
+            inBam, self.database_prefix_path, outBam, '--srprismMemory', '1500'])
         args.func_main(args)
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
 
     def test_bmtagger_empty_input(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         out_bam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            empty_bam, self.database_prefix_path, out_bam])
+            empty_bam, self.database_prefix_path, out_bam, '--srprismMemory', '1500'])
         args.func_main(args)
         assert_equal_bam_reads(self, out_bam, empty_bam)
 
     def test_bmtagger_empty_output(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
         out_bam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
-            in_bam, self.database_prefix_path, out_bam])
+            in_bam, self.database_prefix_path, out_bam, '--srprismMemory', '1500'])
         args.func_main(args)
         assert_equal_bam_reads(self, out_bam, empty_bam)
 
@@ -151,6 +159,8 @@ class TestBlastnDbBuild(TestCaseWithTmp):
 class TestBmtaggerDbBuild(TestCaseWithTmp):
 
     def test_bmtagger_db_build(self):
+        os.environ.pop('TMPDIR', None)
+        util.file.set_tmp_dir(None)
         commonInputDir = util.file.get_test_input_path()
         refFasta = os.path.join(commonInputDir, 'ebola.fasta')
 
@@ -166,21 +176,21 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 # output directory
                 tempDir,
                 "--outputFilePrefix",
-                output_prefix
+                output_prefix,
             ]
         )
         args.func_main(args)
 
         for ext in [
-            ".bitmask", ".srprism.amp", ".srprism.idx", ".srprism.imp", ".srprism.pmp", ".srprism.rmp",
-            ".srprism.ss", ".srprism.ssa", ".srprism.ssd"
+            ".bitmask", ".srprism.amp", ".srprism.imp", ".srprism.pmp", ".srprism.rmp",
+            ".srprism.ssa", ".srprism.ssd"
         ]:
             assert_equal_contents(
                 self, os.path.join(tempDir, output_prefix + ext),
                 os.path.join(myInputDir, "expected", output_prefix + ext)
             )
 
-        for ext in [".srprism.map"]:
+        for ext in [".srprism.map", ".srprism.idx", ".srprism.ss"]:
             assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
 
 
@@ -207,12 +217,14 @@ class TestLastalDbBuild(TestCaseWithTmp):
         )
         args.func_main(args)
 
-        for ext in [".bck", ".des", ".prj", ".sds", ".ssp", ".suf", ".tis"]:
+        for ext in [".bck", ".des", ".prj", ".sds", ".ssp", ".tis"]:
             assert_equal_contents(
                 self, os.path.join(tempDir, output_prefix + ext),
                 os.path.join(myInputDir, "expected", output_prefix + ext)
             )
 
+        for ext in [".suf"]:
+            assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
 
 class TestDepleteBlastnBam(TestCaseWithTmp):
     '''
@@ -328,4 +340,3 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
             out_bam
         )
         assert_equal_bam_reads(self, out_bam, empty_bam)
-

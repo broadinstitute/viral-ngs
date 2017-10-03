@@ -8,6 +8,7 @@ import os.path
 import tempfile
 import shutil
 import subprocess
+import contextlib
 from decimal import *
 
 import pysam
@@ -30,21 +31,24 @@ class PicardTools(tools.Tool):
     """Base class for tools in the picard suite."""
     jvmMemDefault = '2g'
 
+    def install(self):
+        pass
+
+    def is_installed(self):
+        return True
+
+    def install_and_get_path(self):
+        # the conda version wraps the jar file with a shell script
+        return 'picard'
+
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
-
-        if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
-
-            target_rel_path = 'picard-tools-{}/picard.jar'.format(TOOL_VERSION)
-            install_methods.append(tools.DownloadPackage(TOOL_URL, target_rel_path, require_executability=False))
-        tools.Tool.__init__(self, install_methods=install_methods)
+        self.installed_method = True
 
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, command, picardOptions=None, JVMmemory=None, background=False):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         if JVMmemory is None:
@@ -52,17 +56,15 @@ class PicardTools(tools.Tool):
 
         # the conda version wraps the jar file with a shell script
         path = self.install_and_get_path()
-        if path.endswith(".jar"):
-            tool_cmd = [
-                'java', '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', path, command
-            ] + picardOptions
-        else:
-            env = os.environ.copy()
-            env.pop('JAVA_HOME', None)
-            tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
+        tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
         _log.debug(' '.join(tool_cmd))
 
-        subprocess.check_call(tool_cmd, env=env)
+        env = os.environ.copy()
+        env.pop('JAVA_HOME', None)
+        if background:
+            subprocess.Popen(tool_cmd, env=env)
+        else:
+            subprocess.check_call(tool_cmd, env=env)
 
     @staticmethod
     def dict_to_picard_opts(options):
@@ -81,6 +83,45 @@ class RevertSamTool(PicardTools):
             PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
+class CheckIlluminaDirectoryTool(PicardTools):
+    subtoolName = 'CheckIlluminaDirectory'
+
+    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=False, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        picardOptions = picardOptions or []
+        opts = [
+            'BASECALLS_DIR=' + basecalls_dir,
+            'READ_STRUCTURE=' + read_structure
+        ]
+
+        if fake_files:
+            opts += ['FAKE_FILES=true']
+
+        if tile_numbers is not None:
+            if type(tile_numbers)==int:
+                tile_numbers = [tile_numbers]
+            for tile_number in set(tile_numbers):
+                 opts += ['TILE_NUMBERS=' + str(tile_number)]
+
+        if data_types is not None:
+            if isinstance(arg, str):
+                data_types = [data_types]
+            for data_type in set(data_types):
+                opts += ['DATA_TYPES=' + data_type]
+
+        # if lanes is a single int, cast it to a list
+        if type(lanes)==int:
+            lanes = [lanes]
+
+        assert type(lanes)==list, "Lanes must be a list specifying the lanes"
+        for lane in set(lanes):
+             opts += ['LANES=' + str(lane)]
+
+        if link_locs:
+            opts += ['LINK_LOCS=true']
+
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+
+
 class MarkDuplicatesTool(PicardTools):
     subtoolName = 'MarkDuplicates'
 
@@ -97,23 +138,65 @@ class MarkDuplicatesTool(PicardTools):
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
+class SplitSamByLibraryTool(PicardTools):
+    subtoolName = 'SplitSamByLibrary'
+
+    def execute(
+        self, in_bam, out_dir, picardOptions=None, JVMmemory=None
+    ):    # pylint: disable=W0221
+
+        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+            # Picard SplitSamByLibrary cannot deal with an empty input BAM file
+            shutil.copyfile(in_bam, os.path.join(out_dir, 'output.bam'))
+            return
+
+        opts = ['INPUT=' + in_bam, 'OUTPUT=' + out_dir]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory=JVMmemory)
+
+
 class SamToFastqTool(PicardTools):
     subtoolName = 'SamToFastq'
     illumina_clipping_attribute = 'XT'
 
-    def execute(self, inBam, outFastq1, outFastq2, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
-        if tools.samtools.SamtoolsTool().isEmpty(inBam):
-            # Picard SamToFastq cannot deal with an empty input BAM file
-            with open(outFastq1, 'wt') as outf:
-                pass
-            with open(outFastq2, 'wt') as outf:
-                pass
+    def execute(self, inBam, outFastq1, outFastq2, outFastq0=None,
+                illuminaClipping=False,
+                picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
+        '''Write paired reads from `inBam` to `outFastq1` and `outFastq1`.  If `outFastq0` is given, write
+        any unpaired reads from `inBam` there, else ignore them.  If `illuminaClipping` is True,
+        trim reads at the clipping position specified by the Illumina clipping attribute
+        (which is defined by the class variable SamToFastqTool.illumina_clipping_attribute).'''
+
+        picardOptions = picardOptions or []
+
+        opts = [
+            'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
+        ]
+        if outFastq0:
+            assert outFastq2, "outFastq0 option only applies in paired-end output mode"
+            opts += [ 'UNPAIRED_FASTQ=' + outFastq0 ]
+
+        if illuminaClipping:
+            opts += PicardTools.dict_to_picard_opts({
+                'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                'CLIPPING_ACTION': 'X'
+            })
+
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory, background=background)
+
+    @contextlib.contextmanager
+    def execute_tmp(self, inBam, sfx='', includeUnpaired=False, **kwargs):
+        '''Output reads from `inBam` to temp fastq files, and yield their filenames as a tuple.
+        If `includeUnpaired` is True, output unpaired reads to a third temp fastq file and yield it as a third
+        element of the tuple.
+        '''
+        if not includeUnpaired:
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq')) as (outFastq1, outFastq2):
+                self.execute(inBam, outFastq1, outFastq2, **kwargs)
+                yield outFastq1, outFastq2
         else:
-            picardOptions = picardOptions or []
-            opts = [
-                'FASTQ=' + outFastq1, 'SECOND_END_FASTQ=' + outFastq2, 'INPUT=' + inBam, 'VALIDATION_STRINGENCY=SILENT'
-            ]
-            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+            with util.file.tempfnames((sfx+'.1.fq', sfx+'.2.fq', sfx+'.0.fq')) as (outFastq1, outFastq2, outFastq0):
+                self.execute(inBam, outFastq1, outFastq2, outFastq0=outFastq0, **kwargs)
+                yield outFastq1, outFastq2, outFastq0
 
     def per_read_group(self, inBam, outDir, picardOptions=None, JVMmemory=None):
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
@@ -204,7 +287,7 @@ class DownsampleSamTool(PicardTools):
             opts.extend(['RANDOM_SEED=' + str(random_seed)])
 
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
-        
+
 
     def downsample_to_approx_count(
         self, inBam, outBam, read_count, picardOptions=None,
@@ -227,7 +310,7 @@ class DownsampleSamTool(PicardTools):
             # per the Picard docs, HighAccuracy is recommended for read counts <50k
             strategy = "HighAccuracy" if total_read_count < 50000 else "Chained"
             _log.info("Setting downsample accuracy to %s based on read count of %s" % (strategy, total_read_count))
-            
+
             self.execute(inBam, outBam, probability, strategy=strategy, accuracy=0.00001, picardOptions=picardOptions, JVMmemory=JVMmemory)
         else:
             _log.info("Requested downsample count exceeds number of reads. Including all reads in output.")
@@ -237,11 +320,22 @@ class DownsampleSamTool(PicardTools):
 class MergeSamFilesTool(PicardTools):
     subtoolName = 'MergeSamFiles'
 
-    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory=JVMmemory, background=background)
+
+
+class ReplaceSamHeaderTool(PicardTools):
+    subtoolName = 'ReplaceSamHeader'
+
+    def execute(self, inBam, headerBam, outBam, picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
+
+        opts = ['INPUT=' + inBam,
+                'HEADER=' + headerBam,
+                'OUTPUT=' + outBam]
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory=JVMmemory, background=background)
 
 
 class FilterSamReadsTool(PicardTools):
@@ -345,7 +439,7 @@ class CollectIlluminaLaneMetricsTool(PicardTools):
                         opts.append('='.join((k.upper(), str(x))))
                 else:
                     opts.append('='.join((k.upper(), str(v))))
-                    
+
         opts += ['RUN_DIRECTORY=' + run_dir]
         opts += ['OUTPUT_DIRECTORY=' + output_dir]
         opts += ['OUTPUT_PREFIX=' + output_prefix]

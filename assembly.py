@@ -32,11 +32,13 @@ import tools.picard
 import tools.samtools
 import tools.gatk
 import tools.novoalign
+import tools.spades
 import tools.trimmomatic
 import tools.trinity
 import tools.mafft
 import tools.mummer
 import tools.muscle
+import tools.gap2seq
 
 # third-party
 import Bio.AlignIO
@@ -46,14 +48,13 @@ import Bio.Data.IUPACData
 log = logging.getLogger(__name__)
 
 
-class DenovoAssemblyError(Exception):
+class DenovoAssemblyError(RuntimeError):
 
-    def __init__(self, n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp):
-        super(DenovoAssemblyError, self).__init__(
-            'denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. {} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(
-                n_start, n_trimmed, n_rmdup, n_output, n_subsamp, n_unpaired_subsamp
-            )
-        )
+    '''Indicates a failure of the de novo assembly step.  Can indicate an internal error in the assembler, but also
+    insufficient input data (for assemblers which cannot report that condition separately).'''
+
+    def __init__(self, reason):
+        super(DenovoAssemblyError, self).__init__(reason)
 
 
 def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
@@ -296,9 +297,10 @@ def assemble_trinity(
     except subprocess.CalledProcessError as e:
         if always_succeed:
             log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
-            util.file.touch(outFasta)
+            util.file.make_empty(outFasta)
         else:
-            raise DenovoAssemblyError(*read_stats)
+            raise DenovoAssemblyError('denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. '
+                                      '{} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(*read_stats))
     os.unlink(subsampfq[0])
     os.unlink(subsampfq[1])
 
@@ -337,6 +339,80 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
+
+def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, gap2seq_opts='', threads=1, mem_limit_gb=4):
+    ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
+    '''
+    tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+                                        mem_limit_gb=mem_limit_gb)
+
+def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
+    parser.add_argument('inScaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
+                        'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('outScaffold', help='Output assembly.')
+    parser.add_argument('--threads', default=0, type=int, help='Number of threads (default: %(default)s); 0 means use all available cores')
+    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
+    parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
+                        help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
+    parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
+
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
+    return parser
+
+
+__commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
+
+
+def assemble_spades(
+    inBam,
+    outFasta,
+    spades_opts='',
+    previously_assembled_contigs=None,
+    mem_limit_gb=4,
+    threads=0,
+):
+    ''' De novo RNA-seq assembly with the SPAdes assembler.
+
+    Inputs:
+        inBam - reads to assemble.  May include both paired and unpaired reads.
+        previously_assembled_contigs - (optional) already-assembled contigs from the same sample.
+
+    Outputs:
+        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
+            several contigs representing different variants of that region.
+
+    Params:
+        mem_limit_gb - max memory to use
+        threads - number of threads to use (0 means use all available CPUs)
+        spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
+
+    '''
+
+    with tools.picard.SamToFastqTool().execute_tmp(inBam, includeUnpaired=True,
+                                                   JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
+        try:
+            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+                                               contigs_untrusted=previously_assembled_contigs,
+                                               contigs_out=outFasta, spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                               threads=threads)
+        except subprocess.CalledProcessError as e:
+            raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
+
+def parser_assemble_spades(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('outFasta', help='Output assembly.')
+    parser.add_argument('--previously_assembled_contigs', help='Contigs previously assembled from the same sample')
+    parser.add_argument('--spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
+    parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, assemble_spades, split_args=True)
+    return parser
+
+
+__commands__.append(('assemble_spades', parser_assemble_spades))
 
 
 def order_and_orient(inFasta, inReference, outFasta,
@@ -478,10 +554,10 @@ __commands__.append(('order_and_orient', parser_order_and_orient))
 
 class PoorAssemblyError(Exception):
 
-    def __init__(self, chr_idx, seq_len, non_n_count):
+    def __init__(self, chr_idx, seq_len, non_n_count, min_length, segment_length):
         super(PoorAssemblyError, self).__init__(
-            'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}'.format(
-                chr_idx, seq_len, non_n_count
+            'Error: poor assembly quality, chr {}: contig length {}, unambiguous bases {}; bases required of reference segment length: {}/{} ({:.0%})'.format(
+                chr_idx, seq_len, non_n_count, min_length, int(segment_length), float(min_length)/float(segment_length)
             )
         )
 
@@ -529,7 +605,7 @@ def impute_from_reference(
             for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
                 # our zip fails if one file has more seqs than the other
                 if not refSeqObj or not asmSeqObj:
-                    raise KeyError("inFasta and inReference do not have the same number of sequences.")
+                    raise KeyError("inFasta and inReference do not have the same number of sequences. This could be because the de novo assembly process was unable to create contigs for all segments.")
 
                 # error if PoorAssembly
                 minLength = len(refSeqObj) * minLengthFraction
@@ -548,7 +624,7 @@ def impute_from_reference(
                     )
                 )
                 if seq_len < minLength or non_n_count < seq_len * minUnambig:
-                    raise PoorAssemblyError(idx + 1, seq_len, non_n_count)
+                    raise PoorAssemblyError(idx + 1, seq_len, non_n_count, minLength, len(refSeqObj))
 
                 # prepare temp input and output files
                 tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
@@ -605,8 +681,8 @@ def impute_from_reference(
 
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     if index:
-        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
         tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(outFasta)
 
     return 0

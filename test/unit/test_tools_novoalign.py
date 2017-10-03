@@ -9,7 +9,7 @@ import util.file
 import tools.novoalign
 import tools.samtools
 import pysam
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
 
 class TestToolNovoalign(TestCaseWithTmp):
@@ -26,6 +26,7 @@ class TestToolNovoalign(TestCaseWithTmp):
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
         outfile = inRef[:-6] + '.nix'
+
         self.assertTrue(os.path.isfile(outfile))
         self.assertTrue(os.path.getsize(outfile))
 
