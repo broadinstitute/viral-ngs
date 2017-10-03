@@ -58,14 +58,16 @@ rule all_demux_basecalls:
                 dir = os.path.join(config['tmp_dir'], config['subdirs']['demux'], 'bams_per_lane'),
                 flowlane = get_all_lanes(config.get('seqruns_demux','')),
                 lib = 'Unmatched')
-    params: LSF="-N"
+    params: 
+        LSF="-N"
 
 rule all_demux:
     input:
-            expand("{dir}/{run}.bam",
-                dir = os.path.join(config['data_dir'], config['subdirs']['source']),
-                run=get_all_runs(config.get('seqruns_demux','')))
-    params: LSF="-N"
+        expand("{dir}/{run}.bam",
+            dir = os.path.join(config['data_dir'], config['subdirs']['source']),
+            run=get_all_runs(config.get('seqruns_demux','')))
+    params: 
+        LSF="-N"
 
 
 def illumina_demux_inputs(wildcards):
@@ -74,25 +76,29 @@ def illumina_demux_inputs(wildcards):
     lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
     return [objectify_remote(x) for x in [lane['bustard_dir'], lane['barcode_file']]]
 rule illumina_demux:
-    input:  illumina_demux_inputs
-    output: config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
-            config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt',
-            config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt'
-    resources: mem=60
-    params: LSF=config.get('LSF_queues', {}).get('bigmem', '-q flower'),
-            UGER=config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
-            logid="{flowcell}.{lane}",
-            center=config['seq_center']
+    input:  
+        illumina_demux_inputs
+    output: 
+        config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
+        config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt',
+        config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt'
+    resources: 
+        mem = 60
+    params: 
+        LSF    = config.get('LSF_queues', {}).get('bigmem', '-q flower'),
+        UGER   = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        logid  = "{flowcell}.{lane}",
+        center = config['seq_center']
     run:
-            outdir = os.path.dirname(output[0])
-            shutil.rmtree(outdir, ignore_errors=True)
-            makedirs(set(map(os.path.dirname, output)))
-            lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
-            opts = ''
-            for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
-                if lane.get(opt):
-                    opts += ' --%s=%s' % (opt, lane[opt])
-            shell("{config[bin_dir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --commonBarcodes={output[2]} --flowcell={wildcards.flowcell} {opts}")
+        outdir = os.path.dirname(output[0])
+        shutil.rmtree(outdir, ignore_errors=True)
+        makedirs(set(map(os.path.dirname, output)))
+        lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
+        opts = ''
+        for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
+            if lane.get(opt):
+                opts += ' --%s=%s' % (opt, lane[opt])
+        shell("{config[bin_dir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --commonBarcodes={output[2]} --flowcell={wildcards.flowcell} {opts}")
 
 
 def demux_move_bams_inputs(wildcards):
@@ -102,26 +108,32 @@ def demux_move_bams_inputs(wildcards):
             return get_bam_path(lane, well)
     return "unreachable-{}-{}-{}-{}".format(wildcards.sample, wildcards.library, wildcards.flowcell, wildcards.lane)
 rule move_bams_demux:
-    input:  demux_move_bams_inputs
-    output: config['data_dir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
-    params: logid="{sample}.l{library}.{flowcell}.{lane}"
+    input:  
+        demux_move_bams_inputs
+    output: 
+        config['data_dir']+'/'+config['subdirs']['source']+'/{sample}.l{library}.{flowcell}.{lane}.bam'
+    params: 
+        logid = "{sample}.l{library}.{flowcell}.{lane}"
     run:
-            makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
-            shutil.move(input[0], output[0])
+        makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
+        shutil.move(input[0], output[0])
 
 rule bams_from_fastq:
-    input:  os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R1_001.fastq.gz'),
-            os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz'),
-            os.path.join(config['data_dir'],config['subdirs']['source'],'SampleSheet.csv'),
-            os.path.join(config['data_dir'],config['subdirs']['source'],'RunInfo.xml')
-    output: os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}.bam')
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
-            logid="{sample}",
-            center=config["seq_center"]
+    input:  
+        os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R1_001.fastq.gz'),
+        os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}_L001_R2_001.fastq.gz'),
+        os.path.join(config['data_dir'],config['subdirs']['source'],'SampleSheet.csv'),
+        os.path.join(config['data_dir'],config['subdirs']['source'],'RunInfo.xml')
+    output: 
+        os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}.bam')
+    params: 
+        LSF    = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER   = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        logid  = "{sample}",
+        center = config["seq_center"]
     run:
-            makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
-            shell("{config[bin_dir]}/illumina.py miseq_fastq_to_bam {output} {input[2]} {input[0]} --inFastq2 {input[1]} --runInfo {input[3]} --sequencing_center {params.center}")
+        makedirs(os.path.join(config['data_dir'], config['subdirs']['source']))
+        shell("{config[bin_dir]}/illumina.py miseq_fastq_to_bam {output} {input[2]} {input[0]} --inFastq2 {input[1]} --runInfo {input[3]} --sequencing_center {params.center}")
 
 ruleorder: move_bams_demux > bams_from_fastq
 
