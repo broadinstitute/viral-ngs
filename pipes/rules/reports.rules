@@ -43,41 +43,51 @@ def fastqc_report_inputs(wildcards):
         return "unreachable-{}-{}".format(wildcards.sample, wildcards.adjective)
 
 rule fastqc_report:
-    input:  fastqc_report_inputs
-    output: config["reports_dir"]+'/fastqc/{sample}/{adjective}'
-    resources: mem=3
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-            logid="{sample}-{adjective}"
+    input:  
+        fastqc_report_inputs
+    output: 
+        config["reports_dir"]+'/fastqc/{sample}/{adjective}'
+    resources: 
+        mem = 3
+    params: 
+        LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        logid = "{sample}-{adjective}"
     run:
-            makedirs(config["reports_dir"])
-            shutil.rmtree(output[0], ignore_errors=True)
-            makedirs(os.path.join(config["reports_dir"], 'fastqc'))
-            shell("fastqc -f bam {input} -o {config[reports_dir]}/fastqc/{wildcards.sample}")
-            fastqc_out = os.path.basename(input[0])[:-len('.bam')] + '_fastqc'
-            shell("unzip {config[reports_dir]}/fastqc/{wildcards.sample}/" + fastqc_out + ".zip -d {config[reports_dir]}/fastqc/{wildcards.sample}")
-            shutil.move(os.path.join(config["reports_dir"], 'fastqc', wildcards.sample, fastqc_out),
-                        os.path.join(config["reports_dir"], 'fastqc', wildcards.sample, wildcards.adjective))
-            os.unlink(os.path.join(config["reports_dir"], 'fastqc',
-                                   wildcards.sample, fastqc_out + '.zip'))
-            os.unlink(os.path.join(config["reports_dir"], 'fastqc',
-                                   wildcards.sample, fastqc_out + '.html'))
+        makedirs(config["reports_dir"])
+        shutil.rmtree(output[0], ignore_errors=True)
+        makedirs(os.path.join(config["reports_dir"], 'fastqc'))
+        shell("fastqc -f bam {input} -o {config[reports_dir]}/fastqc/{wildcards.sample}")
+        fastqc_out = os.path.basename(input[0])[:-len('.bam')] + '_fastqc'
+        shell("unzip {config[reports_dir]}/fastqc/{wildcards.sample}/" + fastqc_out + ".zip -d {config[reports_dir]}/fastqc/{wildcards.sample}")
+        shutil.move(os.path.join(config["reports_dir"], 'fastqc', wildcards.sample, fastqc_out),
+                    os.path.join(config["reports_dir"], 'fastqc', wildcards.sample, wildcards.adjective))
+        os.unlink(os.path.join(config["reports_dir"], 'fastqc',
+                               wildcards.sample, fastqc_out + '.zip'))
+        os.unlink(os.path.join(config["reports_dir"], 'fastqc',
+                               wildcards.sample, fastqc_out + '.html'))
 
 rule consolidate_fastqc_on_all_runs:
     input:
-            expand("{{dir}}/fastqc/{sample}/{{adjective}}",
-                sample=read_samples_file(config["samples_per_run"]))
-    output: '{dir}/summary.fastqc.{adjective,raw|cleaned|taxfilt}.txt'
-    params: logid="all"
-    shell:  "{config[bin_dir]}/reports.py consolidate_fastqc {input} {output}"
+        expand("{{dir}}/fastqc/{sample}/{{adjective}}",
+            sample=read_samples_file(config["samples_per_run"]))
+    output: 
+        '{dir}/summary.fastqc.{adjective,raw|cleaned|taxfilt}.txt'
+    params: 
+        logid="all"
+    shell:  
+        "{config[bin_dir]}/reports.py consolidate_fastqc {input} {output}"
 
 rule consolidate_fastqc_on_all_assemblies:
     input:
-            expand("{{dir}}/fastqc/{sample}/{{adjective}}",
-                sample=read_samples_file(config["samples_assembly"]))
-    output: '{dir}/summary.fastqc.{adjective,align_to_self|align_to_ref}.txt'
-    params: logid="all"
-    shell:  "{config[bin_dir]}/reports.py consolidate_fastqc {input} {output}"
+        expand("{{dir}}/fastqc/{sample}/{{adjective}}",
+            sample=read_samples_file(config["samples_assembly"]))
+    output: 
+        '{dir}/summary.fastqc.{adjective,align_to_self|align_to_ref}.txt'
+    params: 
+        logid = "all"
+    shell:  
+        "{config[bin_dir]}/reports.py consolidate_fastqc {input} {output}"
 
 #-----------SPIKE-INS------------------
 
@@ -86,19 +96,24 @@ if config.get("spikeins_db"):
         input:  
             input_bam   = config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
             spikeins_db = objectify_remote(config["spikeins_db"])
-        output: config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
-        resources: mem=3
-        params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-                UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-                logid="{sample}"
+        output: 
+            config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
+        resources: 
+            mem = 3
+        params: 
+            LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+            UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+            logid = "{sample}"
         run:
-                makedirs(os.path.join(config["reports_dir"], 'spike_count'))
-                makedirs(os.path.join(config["tmp_dir"], config["subdirs"]["depletion"]))
-                shell("{config[bin_dir]}/read_utils.py bwamem_idxstats {input.input_bam} {input.spikeins_db} --outStats {output} --minScoreToFilter 60")
+            makedirs(os.path.join(config["reports_dir"], 'spike_count'))
+            makedirs(os.path.join(config["tmp_dir"], config["subdirs"]["depletion"]))
+            shell("{config[bin_dir]}/read_utils.py bwamem_idxstats {input.input_bam} {input.spikeins_db} --outStats {output} --minScoreToFilter 60")
 
     rule consolidate_spike_count:
-        input:  expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
-                    sample=read_samples_file(config["samples_per_run"]))
-        output: '{dir}/summary.spike_count.txt'
-        params: logid="all"
-        shell:  "{config[bin_dir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
+        input:  
+            expand("{{dir}}/spike_count/{sample}.spike_count.txt", \
+                sample=read_samples_file(config["samples_per_run"]))
+        output: 
+            '{dir}/summary.spike_count.txt'
+        shell:  
+            "{config[bin_dir]}/reports.py consolidate_spike_count {wildcards.dir}/spike_count {output}"
