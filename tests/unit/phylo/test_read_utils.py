@@ -96,9 +96,7 @@ class TestFastqToFasta(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
         inFastq = os.path.join(myInputDir, 'in.fastq')
         outFasta = util.file.mkstempfname('.fasta')
-        parser = read_utils.parser_fastq_to_fasta(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq, outFasta])
-        args.func_main(args)
+        read_utils.fastq_to_fasta(inFastq, outFasta)
 
         # Check that results match expected
         expectedFasta = os.path.join(myInputDir, 'expected.fasta')
