@@ -7,12 +7,14 @@ import subprocess
 
 # within this module
 import util.file
+import util.misc
 import tools
+import tools.samtools
 
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
-TOOL_VERSION = "719"
+TOOL_VERSION = "876"
 
 
 class LastTools(tools.Tool):
@@ -34,6 +36,47 @@ class Lastal(LastTools):
     """ wrapper for lastal subtool """
     subtool_name = 'lastal'
     subtool_name_on_broad = 'lastal'
+
+    def lastal_get_hits(self, inBam, db, outList,
+            max_gapless_alignments_per_position=1,
+            min_length_for_initial_matches=5,
+            max_length_for_initial_matches=50,
+            max_initial_matches_per_position=100
+        ):
+
+        # convert BAM to paired FASTQ
+        inFastq = util.file.mkstempfname('.all.fastq')
+        tools.samtools.SamtoolsTool().bam2fq(inBam, inFastq)
+
+        # run lastal and save output to lastal_out
+        # -P 0 = use threads = core count
+        # -N 1 = report at most one alignment per query sequence
+        # -i 1G = perform work in batches of at most 1GB of query sequence at a time
+        # -f tab = write output in tab format instead of maf format
+        lastal_out = util.file.mkstempfname('.lastal')
+        with open(lastal_out, 'wt') as outf:
+            cmd = [self.install_and_get_path(),
+                '-n', max_gapless_alignments_per_position,
+                '-l', min_length_for_initial_matches,
+                '-L', max_length_for_initial_matches,
+                '-m', max_initial_matches_per_position,
+                '-Q', '1', '-P', '0', '-N', '1', '-i', '1G', '-f', 'tab',
+                db,
+                inFastq,
+            ]
+            cmd = [str(x) for x in cmd]
+            _log.debug(' '.join(cmd) + ' > ' + lastal_out)
+            util.misc.run_and_save(cmd, outf=outf)
+
+        # strip tab output to just query read ID names
+        with open(outList, 'wt') as outf:
+            with open(lastal_out, 'rt') as inf:
+                for row in util.file.read_tabfile(lastal_out):
+                    read_id = row[6]
+                    if read_id.endswith('/1') or read_id.endswith('/2'):
+                        read_id = read_id[:-2]
+                    outf.write(read_id + '\n')
+        os.unlink(lastal_out)
 
 
 class MafSort(LastTools):
