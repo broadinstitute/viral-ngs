@@ -82,6 +82,12 @@ class SamtoolsTool(tools.Tool):
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
 
+    def bam2fq_pipe(self, inBam):
+        tool_cmd = [self.install_and_get_path(), 'bam2fq', '-n', inBam]
+        log.debug(' '.join(tool_cmd) + ' |')
+        p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
+        return p.stdout
+
     def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
         args=['-1', outFa1]
         if outFa2: args += ['-2', outFa2]
