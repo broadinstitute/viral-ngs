@@ -120,23 +120,17 @@ class Lastdb(LastTools):
         if not os.path.exists(outputDirectory):
             os.makedirs(outputDirectory)
 
-        # store the cwd because we will be changing it to the file destination
-        cwd_before_lastdb = os.getcwd()
-
         # append the prefix given to files created by lastdb
         tool_cmd.append(outputFilePrefix)
 
         # append the input filepath
         tool_cmd.append(os.path.realpath(inputFasta))
 
+        # execute the lastdb command
         # lastdb writes files to the current working directory, so we need to set
         # it to the desired output location
-        os.chdir(os.path.realpath(outputDirectory))
+        with util.file.pushd_popd(os.path.realpath(outputDirectory)):
+            _log.debug(" ".join(tool_cmd))
+            subprocess.check_call(tool_cmd)
 
-        # execute the lastdb command
-        _log.debug(" ".join(tool_cmd))
-        subprocess.check_call(tool_cmd)
-
-        # restore cwd
-        os.chdir(cwd_before_lastdb)
 
