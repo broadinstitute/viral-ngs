@@ -170,17 +170,21 @@ def filter_lastal_bam(
         reference database using LASTAL.
     '''
 
-    # look for hits in BAM
-    hitList = mkstempfname('.hits')
-    tools.last.Lastal().lastal_get_hits(
-        inBam, db, hitList,
-        max_gapless_alignments_per_position, min_length_for_initial_matches,
-        max_length_for_initial_matches, max_initial_matches_per_position
-    )
+    with util.file.tempfname('.read_ids.txt') as hitList:
 
-    # filter original BAM file against keep list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
-    os.unlink(hitList)
+        # look for lastal hits in BAM and write to temp file
+        with open(hitList, 'wt') as outf:
+            for read_id in tools.last.Lastal().get_hits(
+                    inBam, db,
+                    max_gapless_alignments_per_position,
+                    min_length_for_initial_matches,
+                    max_length_for_initial_matches,
+                    max_initial_matches_per_position
+                ):
+                outf.write(read_id + '\n')
+
+        # filter original BAM file against keep list
+        tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
 
 
 def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
