@@ -70,29 +70,6 @@ def parser_purge_unmated(parser=argparse.ArgumentParser()):
 
 __commands__.append(('purge_unmated', parser_purge_unmated))
 
-# =========================
-# ***  fastq_to_fasta   ***
-# =========================
-
-
-def fastq_to_fasta(inFastq, outFasta):
-    ''' Convert from fastq format to fasta format.
-        Warning: output reads might be split onto multiple lines.
-
-        Note: this is only used by read_utils.deplete_blastn_bam currently.
-    '''
-
-    # Do this with biopython rather than prinseq, because if the latter fails
-    #    it doesn't return an error. (On the other hand, prinseq
-    #    can guarantee that output lines are not split...)
-    inFile = util.file.open_or_gzopen(inFastq)
-    outFile = util.file.open_or_gzopen(outFasta, 'w')
-    for rec in SeqIO.parse(inFile, 'fastq'):
-        SeqIO.write([rec], outFile, 'fasta')
-    inFile.close()
-    outFile.close()
-    return 0
-
 
 # ===============================
 # ***  index_fasta_samtools   ***
