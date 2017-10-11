@@ -479,7 +479,7 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
+    parser.add_argument("--chunkSize", type=int, default=0, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
