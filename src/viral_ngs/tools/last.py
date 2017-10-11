@@ -37,7 +37,7 @@ class Lastal(LastTools):
     subtool_name = 'lastal'
     subtool_name_on_broad = 'lastal'
 
-    def lastal_get_hits(self, inBam, db, outList,
+    def get_hits(self, inBam, db,
             max_gapless_alignments_per_position=1,
             min_length_for_initial_matches=5,
             max_length_for_initial_matches=50,
@@ -47,7 +47,7 @@ class Lastal(LastTools):
             # convert BAM to interleaved FASTQ
             fastq_pipe = tools.samtools.SamtoolsTool().bam2fq_pipe(inBam)
 
-            # run lastal and save output to lastal_out
+            # run lastal and emit list of read IDs
             # -P 0 = use threads = core count
             # -N 1 = report at most one alignment per query sequence
             # -i 1G = perform work in batches of at most 1GB of query sequence at a time
@@ -64,15 +64,14 @@ class Lastal(LastTools):
             _log.debug('| ' + ' '.join(cmd) + ' |')
             lastal_pipe = subprocess.Popen(cmd, stdin=fastq_pipe, stdout=subprocess.PIPE)
 
-            # strip tab output to just query read ID names
-            with open(outList, 'wt') as outf:
-                for line in lastal_pipe.stdout:
-                    line = line.decode('UTF-8').rstrip('\n\r')
-                    if not line.startswith('#'):
-                        read_id = line.split('\t')[6]
-                        if read_id.endswith('/1') or read_id.endswith('/2'):
-                            read_id = read_id[:-2]
-                        outf.write(read_id + '\n')
+            # strip tab output to just query read ID names and emit
+            for line in lastal_pipe.stdout:
+                line = line.decode('UTF-8').rstrip('\n\r')
+                if not line.startswith('#'):
+                    read_id = line.split('\t')[6]
+                    if read_id.endswith('/1') or read_id.endswith('/2'):
+                        read_id = read_id[:-2]
+                    yield read_id
 
 
 class Lastdb(LastTools):
