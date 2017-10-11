@@ -44,7 +44,7 @@ class Lastal(LastTools):
             max_initial_matches_per_position=100
         ):
 
-            # convert BAM to interleaved FASTQ
+            # convert BAM to interleaved FASTQ with no /1 /2 appended to the read IDs
             fastq_pipe = tools.samtools.SamtoolsTool().bam2fq_pipe(inBam)
 
             # run lastal and emit list of read IDs
@@ -65,13 +65,15 @@ class Lastal(LastTools):
             lastal_pipe = subprocess.Popen(cmd, stdin=fastq_pipe, stdout=subprocess.PIPE)
 
             # strip tab output to just query read ID names and emit
+            last_read_id = None
             for line in lastal_pipe.stdout:
                 line = line.decode('UTF-8').rstrip('\n\r')
                 if not line.startswith('#'):
                     read_id = line.split('\t')[6]
-                    if read_id.endswith('/1') or read_id.endswith('/2'):
-                        read_id = read_id[:-2]
-                    yield read_id
+                    # only emit if it is not a duplicate of the previous read ID
+                    if read_id != last_read_id:
+                        last_read_id = read_id
+                        yield read_id
 
 
 class Lastdb(LastTools):

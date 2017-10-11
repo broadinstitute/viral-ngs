@@ -93,7 +93,6 @@ class SamtoolsTool(tools.Tool):
         if outFa2: args += ['-2', outFa2]
         if outFa0: args += ['-0', outFa0]
         args += [inBam]
-
         self.execute('fasta', args)
 
     @contextlib.contextmanager
