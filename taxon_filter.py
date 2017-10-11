@@ -344,7 +344,7 @@ def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
     chunk_hits = mkstempfname('.hits.txt')
     blastnCmd = [
         blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt',
-        '6', '-max_target_seqs', '2', '-query', input_fasta, '-out', chunk_hits
+        '6', '-max_target_seqs', '1', '-query', input_fasta, '-out', chunk_hits
     ]
     log.debug(' '.join(blastnCmd))
     util.misc.run_and_print(blastnCmd, check=True)
@@ -436,32 +436,38 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     return hits_files
 
 
-def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
+#def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
-    fastq1 = mkstempfname('.1.fastq')
-    fasta = mkstempfname('.1.fasta')
     blast_hits = mkstempfname('.blast_hits.txt')
-    blastOutFile = mkstempfname('.hits.txt')
 
-    # Initial BAM -> FASTQ pair
-    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1)
+    if chunkSize:
+        ## chunk up input and perform blastn in several parallel threads
 
-    # Find BLAST hits
-    read_utils.fastq_to_fasta(fastq1, fasta)
-    os.unlink(fastq1)
-    log.info("running blastn on %s against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-    with open(blast_hits, 'wt') as outf:
-        for blastOutFile in blastOutFiles:
-            with open(blastOutFile, 'rt') as inf:
-                for line in inf:
-                    idVal = line.split('\t')[0].strip()
-                    if idVal.endswith('/1') or idVal.endswith('/2'):
-                        idVal = idVal[:-2]
-                    outf.write(idVal + '\n')
-            os.unlink(blastOutFile)
-    os.unlink(fasta)
+        fasta = mkstempfname('.1.fasta')
+        blastOutFile = mkstempfname('.hits.txt')
+
+        # Initial BAM -> FASTA sequences
+        tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
+
+        # Find BLAST hits
+        log.info("running blastn on %s against %s", inBam, db)
+        blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
+        with open(blast_hits, 'wt') as outf:
+            for blastOutFile in blastOutFiles:
+                with open(blastOutFile, 'rt') as inf:
+                    for line in inf:
+                        idVal = line.split('\t')[0].strip()
+                        outf.write(idVal + '\n')
+                os.unlink(blastOutFile)
+        os.unlink(fasta)
+
+    else:
+        ## pipe tools together and run blastn multithreaded
+        with open(blast_hits, 'wt') as outf:
+            for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
+                outf.write(read_id + '\n')
 
     # Deplete BAM of hits
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
