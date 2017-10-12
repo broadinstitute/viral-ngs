@@ -75,6 +75,9 @@ class Lastal(LastTools):
                         last_read_id = read_id
                         yield read_id
 
+            if lastal_pipe.poll():
+                raise CalledProcessError()
+
 
 class Lastdb(LastTools):
     """ wrapper for lastdb subtool """
