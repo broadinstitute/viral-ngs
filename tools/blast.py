@@ -59,7 +59,7 @@ class BlastnTool(BlastTools):
 
         # strip tab output to just query read ID names and emit
         last_read_id = None
-        for line in blast_pipe.stdout:
+        for line in iter(blast_pipe.stdout.readline, ""):
             line = line.decode('UTF-8').rstrip('\n\r')
             read_id = line.split('\t')[0]
             # only emit if it is not a duplicate of the previous read ID
