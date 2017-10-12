@@ -46,18 +46,6 @@ rule download_lastal_sources:
         shell("{config[bin_dir]}/ncbi.py fetch_fastas {email_address} "+fasta_path_prefix+" {accessions_list} --combinedFilePrefix "+fasta_file_prefix+" --removeSeparateFiles --forceOverwrite --chunkSize 300")
 
 
-rule build_lastal_db:
-    input:
-        fasta = objectify_remote(expand('{lastal_ref_db_dir}/'+'lastal.fasta', lastal_ref_db_dir=config["lastal_ref_db_dir"]))
-    output:
-        lastalDb = objectify_remote(expand('{lastal_ref_db_dir}/lastal.{ext}', lastal_ref_db_dir=config["lastal_ref_db_dir"], ext=["bck","des","prj","sds","ssp","suf","tis"]))
-    params:
-        UGER         = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
-        emailAddress = config["email_point_of_contact_for_ncbi"]
-    run:
-        lastal_db_path_prefix=os.path.dirname(output.lastalDb[0])
-        shell("{config[bin_dir]}/taxon_filter.py lastal_build_db {input.fasta} "+lastal_db_path_prefix)
-
 rule annot_transfer:
     input:      
         multiple_alignment_fastas = expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
