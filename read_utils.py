@@ -78,6 +78,8 @@ __commands__.append(('purge_unmated', parser_purge_unmated))
 def fastq_to_fasta(inFastq, outFasta):
     ''' Convert from fastq format to fasta format.
         Warning: output reads might be split onto multiple lines.
+
+        Note: this is only used by read_utils.deplete_blastn_bam currently.
     '''
 
     # Do this with biopython rather than prinseq, because if the latter fails
@@ -91,16 +93,6 @@ def fastq_to_fasta(inFastq, outFasta):
     outFile.close()
     return 0
 
-
-def parser_fastq_to_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq', help='Input fastq file.')
-    parser.add_argument('outFasta', help='Output fasta file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, fastq_to_fasta, split_args=True)
-    return parser
-
-
-__commands__.append(('fastq_to_fasta', parser_fastq_to_fasta))
 
 # ===============================
 # ***  index_fasta_samtools   ***
