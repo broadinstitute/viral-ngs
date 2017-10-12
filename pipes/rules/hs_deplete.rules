@@ -55,18 +55,17 @@ rule filter_to_taxon:
     '''
     input:  
         input_bam = config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
-        lastalDb  = objectify_remote(expand('{lastal_ref_db_dir}/lastal.{ext}', lastal_ref_db_dir=config["lastal_ref_db_dir"], ext=['bck','des','prj','sds','ssp','suf','tis'])),
+        lastalDb  = objectify_remote(expand('{lastal_ref_db_dir}/lastal.fasta', lastal_ref_db_dir=config["lastal_ref_db_dir"])),
     output: 
         config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
     resources: 
-        mem = 8
+        mem = 7
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER  = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 2:00:00'),
         logid = "{sample}"
     run: 
-        lastal_db_path_prefix=os.path.splitext(input.lastalDb[0])[0]
-        shell("{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input.input_bam} "+lastal_db_path_prefix+" {output}")
+        shell("{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input.input_bam} {input.lastalDb} {output}")
 
 
 class MergeInputException(Exception):

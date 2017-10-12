@@ -79,37 +79,38 @@ class Lastdb(LastTools):
     subtool_name = 'lastdb'
     subtool_name_on_broad = 'lastdb'
 
-    def build_database(self, fasta_files, database_prefix_path): # pylint: disable=W0221
-        output_file_prefix = os.path.basename(database_prefix_path)
-        output_directory = os.path.dirname(database_prefix_path)
+    def is_indexed(self, db_prefix):
+        return all(os.path.exists(db_prefix + x)
+            for x in ('.bck', '.des', '.prj', '.sds', '.ssp', '.suf', '.tis'))
 
-
-        input_fasta = ""
+    def build_database(self, fasta_files, database_prefix_path=None): # pylint: disable=W0221
+        if database_prefix_path is None:
+            output_file_prefix = "lastdb"
+            output_directory = tempfile.mkdtemp()
+        else:
+            output_file_prefix = os.path.basename(os.path.abspath(database_prefix_path))
+            output_directory = os.path.dirname(os.path.abspath(database_prefix_path))
 
         # we can pass in a string containing a fasta file path
         # or a list of strings
-        if 'basestring' not in globals():
-           basestring = str
-        if isinstance(fasta_files, basestring):
+        if isinstance(fasta_files, str):
             fasta_files = [fasta_files]
-        elif isinstance(fasta_files, list):
+        elif isinstance(fasta_files, list) and fasta_files:
             pass
         else:
             raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
 
         # if more than one fasta file is specified, join them
         # otherwise if only one is specified, just use it
-        if len(fasta_files) > 1:
-            input_fasta = util.file.mkstempfname("fasta")
-            util.file.cat(input_fasta, fasta_files)
-        elif len(fasta_files) == 1:
+        if len(fasta_files) == 1 and not fasta_files[0].endswith('.gz'):
             input_fasta = fasta_files[0]
         else:
-            raise IOError("No fasta file provided")
+            input_fasta = util.file.mkstempfname(".fasta")
+            util.file.cat(input_fasta, fasta_files) # automatically decompresses gz inputs
 
         self.execute(input_fasta, output_directory, output_file_prefix)    
 
-        return database_prefix_path
+        return os.path.join(output_directory, output_file_prefix)
 
 
     def execute(self, inputFasta, outputDirectory, outputFilePrefix):    # pylint: disable=W0221
