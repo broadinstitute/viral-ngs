@@ -156,115 +156,47 @@ __commands__.append(('deplete_human', parser_deplete_human))
 # =======================
 
 
-def lastal_chunked_fastq(
-    inFastq,
+def filter_lastal_bam(
+    inBam,
     db,
-    outFastq,
+    outBam,
     max_gapless_alignments_per_position=1,
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
-    chunk_size=100000
+    JVMmemory=None
 ):
+    ''' Restrict input reads to those that align to the given
+        reference database using LASTAL.
+    '''
 
-    lastal_path = tools.last.Lastal().install_and_get_path()
-    mafsort_path = tools.last.MafSort().install_and_get_path()
-    mafconvert_path = tools.last.MafConvert().install_and_get_path()
-    no_blast_like_hits_path = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
+    with util.file.tmp_dir('-lastal_db') as tmp_db_dir:
+        # auto build db if needed
+        if not all(os.path.exists(db + x)
+            for x in ('.bck', '.des', '.prj', '.sds', '.ssp', '.suf', '.tis')):
+            db = tools.last.Lastdb().build_database(db, os.path.join(os.path.abspath(tmp_db_dir), 'lastal_db'))
 
-    filtered_fastq_files = []
-    with open(inFastq, "rt") as fastqFile:
-        record_iter = SeqIO.parse(fastqFile, "fastq")
-        for batch in util.misc.batch_iterator(record_iter, chunk_size):
+        with util.file.tempfname('.read_ids.txt') as hitList:
 
-            chunk_fastq = mkstempfname('.fastq')
-            with open(chunk_fastq, "wt") as handle:
-                SeqIO.write(batch, handle, "fastq")
-            batch = None
+            # look for lastal hits in BAM and write to temp file
+            with open(hitList, 'wt') as outf:
+                for read_id in tools.last.Lastal().get_hits(
+                        inBam, db,
+                        max_gapless_alignments_per_position,
+                        min_length_for_initial_matches,
+                        max_length_for_initial_matches,
+                        max_initial_matches_per_position
+                    ):
+                    outf.write(read_id + '\n')
 
-            lastal_out = mkstempfname('.lastal')
-            with open(lastal_out, 'wt') as outf:
-                cmd = [lastal_path, '-Q1', '-P0']
-                cmd.extend(
-                    [
-                        '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
-                        max_length_for_initial_matches, '-m', max_initial_matches_per_position
-                    ]
-                )
-                cmd = [str(x) for x in cmd]
-                cmd.extend([db, chunk_fastq])
-                log.debug(' '.join(cmd) + ' > ' + lastal_out)
-                util.misc.run_and_save(cmd, outf=outf)
-            # everything below this point in this method should be replaced with
-            # our own code that just reads lastal output and makes a list of read names
-
-            mafsort_out = mkstempfname('.mafsort')
-            with open(mafsort_out, 'wt') as outf:
-                with open(lastal_out, 'rt') as inf:
-                    cmd = [mafsort_path, '-n2']
-                    log.debug('cat ' + lastal_out + ' | ' + ' '.join(cmd) + ' > ' + mafsort_out)
-                    subprocess.check_call(cmd, stdin=inf, stdout=outf)
-            os.unlink(lastal_out)
-
-            mafconvert_out = mkstempfname('.mafconvert')
-            with open(mafconvert_out, 'wt') as outf:
-                cmd = ["python", mafconvert_path, 'tab', mafsort_out]
-                log.debug(' '.join(cmd) + ' > ' + mafconvert_out)
-                subprocess.check_call(cmd, stdout=outf)
-            os.unlink(mafsort_out)
-
-            filtered_fastq_chunk = mkstempfname('.filtered.fastq')
-            with open(filtered_fastq_chunk, 'wt') as outf:
-                cmd = [no_blast_like_hits_path, '-b', mafconvert_out, '-r', chunk_fastq, '-m', 'hit']
-                log.debug(' '.join(cmd) + ' > ' + filtered_fastq_chunk)
-                subprocess.check_call(cmd, stdout=outf)
-                filtered_fastq_files.append(filtered_fastq_chunk)
-            os.unlink(mafconvert_out)
-
-    # concatenate filtered fastq files to outFastq
-    util.file.concat(filtered_fastq_files, outFastq)
-
-    # remove temp fastq files
-    for tempfastq in filtered_fastq_files:
-        os.unlink(tempfastq)
+            # filter original BAM file against keep list
+            tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
 
 
-def lastal_get_hits(
-    inFastq,
-    db,
-    outList,
-    max_gapless_alignments_per_position=1,
-    min_length_for_initial_matches=5,
-    max_length_for_initial_matches=50,
-    max_initial_matches_per_position=100
-):
-    filteredFastq = mkstempfname('.filtered.fastq')
-    lastal_chunked_fastq(
-        inFastq,
-        db,
-        filteredFastq,
-        max_gapless_alignments_per_position=max_gapless_alignments_per_position,
-        min_length_for_initial_matches=min_length_for_initial_matches,
-        max_length_for_initial_matches=max_length_for_initial_matches,
-        max_initial_matches_per_position=max_initial_matches_per_position
-    )
-
-    with open(outList, 'wt') as outf:
-        with open(filteredFastq, 'rt') as inf:
-            line_num = 0
-            for line in inf:
-                if (line_num % 4) == 0:
-                    seq_id = line.rstrip('\n\r')[1:]
-                    if seq_id.endswith('/1') or seq_id.endswith('/2'):
-                        seq_id = seq_id[:-2]
-                    outf.write(seq_id + '\n')
-                line_num += 1
-
-    os.unlink(filteredFastq)
-
-
-def parser_lastal_generic(parser=argparse.ArgumentParser()):
-    # max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position
+def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument("inBam", help="Input reads")
+    parser.add_argument("db", help="Database of taxa we keep")
+    parser.add_argument("outBam", help="Output reads, filtered to refDb")
     parser.add_argument(
         '-n',
         dest="max_gapless_alignments_per_position",
@@ -293,50 +225,6 @@ def parser_lastal_generic(parser=argparse.ArgumentParser()):
         type=int,
         default=100
     )
-    return parser
-
-
-def filter_lastal_bam(
-    inBam,
-    db,
-    outBam,
-    max_gapless_alignments_per_position=1,
-    min_length_for_initial_matches=5,
-    max_length_for_initial_matches=50,
-    max_initial_matches_per_position=100,
-    JVMmemory=None
-):
-    ''' Restrict input reads to those that align to the given
-        reference database using LASTAL.
-    '''
-    # convert BAM to paired FASTQ
-    inReads = mkstempfname('.all.fastq')
-    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads)
-
-    # look for hits in FASTQ
-    hitList1 = mkstempfname('.hits')
-    lastal_get_hits(
-        inReads, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches,
-        max_length_for_initial_matches, max_initial_matches_per_position
-    )
-    os.unlink(inReads)
-
-    # merge & uniqify hits
-    hitList = mkstempfname('.hits')
-    with open(hitList, 'wt') as outf:
-        subprocess.check_call(['sort', '-u', hitList1], stdout=outf)
-    os.unlink(hitList1)
-
-    # filter original BAM file against keep list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
-    os.unlink(hitList)
-
-
-def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
-    parser = parser_lastal_generic(parser)
-    parser.add_argument("inBam", help="Input reads")
-    parser.add_argument("db", help="Database of taxa we keep")
-    parser.add_argument("outBam", help="Output reads, filtered to refDb")
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,

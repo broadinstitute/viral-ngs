@@ -1,4 +1,4 @@
-version=719
+version=876
 alphabet=ACGT
 numofsequences=20
 numofletters=378200
@@ -7,6 +7,7 @@ maxunsortedinterval=0
 keeplowercase=1
 masklowercase=0
 numofindexes=1
+integersize=32
 totallength=378222
 specialcharacters=22
 prefixlength=13
