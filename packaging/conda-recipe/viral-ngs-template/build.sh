@@ -5,8 +5,6 @@ PACKAGE_HOME=$PREFIX/opt/$PKG_NAME-$PKG_VERSION
 
 cd $SRC_DIR
 
-# remove files duplicated by conda packages
-rm tools/binaries/V-Phaser-2.0/MacOSX/libgomp.1.dylib
 #chmod +x tools/scripts/*
 
 find tools/scripts/ -name "*.py" -exec chmod +x {} \;
