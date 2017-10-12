@@ -18,8 +18,8 @@ import util.file
 import util.misc
 from builtins import super
 
-TOOL_NAME = 'kraken-all'
-TOOL_VERSION = '0.10.6_fork2'
+TOOL_NAME = 'kraken'
+TOOL_VERSION = '0.10.6_fork3'
 
 log = logging.getLogger(__name__)
 
