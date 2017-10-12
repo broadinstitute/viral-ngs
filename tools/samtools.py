@@ -92,8 +92,9 @@ class SamtoolsTool(tools.Tool):
         if outFa2 is None:
             args = ['-n']
         else:
-            args += ['-1', outFa1, '-2', outFa2]
-        if outFa0: args += ['-0', outFa0]
+            args = ['-1', outFa1, '-2', outFa2]
+        if outFa0:
+            args += ['-0', outFa0]
         args += [inBam]
         if outFa2 is None:
             self.execute('fasta', args, stdout=outFa1)
