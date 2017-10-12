@@ -43,7 +43,7 @@ if [ ! -z "$ANACONDA_TOKEN" ]; then
     # Render recipe from template and dependency files, setting the tag as the current version
     conda config --set anaconda_upload yes
     python packaging/conda-recipe/render-recipe.py "$PKG_VERSION" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
-        conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs && \
+        CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs && \
         ./travis/trigger-tests-in-other-repo.sh
         # check the exit code of conda build, and if successful,
         # trigger the viral-ngs-deploy repository to test/build the docker container
