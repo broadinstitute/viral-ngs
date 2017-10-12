@@ -170,14 +170,13 @@ def filter_lastal_bam(
         reference database using LASTAL.
     '''
 
-    with util.file.tmp_dir('-lastal_db') as tmp_db_dir:
-        # auto build db if needed
-        if not all(os.path.exists(db + x)
-            for x in ('.bck', '.des', '.prj', '.sds', '.ssp', '.suf', '.tis')):
-            db = tools.last.Lastdb().build_database(db, os.path.join(os.path.abspath(tmp_db_dir), 'lastal_db'))
+    with util.file.tmp_dir('-lastdb') as tmp_db_dir:
+        # index db if necessary
+        lastdb = tools.last.Lastdb()
+        if not lastdb.is_indexed(db):
+            db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
         with util.file.tempfname('.read_ids.txt') as hitList:
-
             # look for lastal hits in BAM and write to temp file
             with open(hitList, 'wt') as outf:
                 for read_id in tools.last.Lastal().get_hits(
