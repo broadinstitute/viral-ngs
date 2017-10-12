@@ -90,18 +90,6 @@ class TestBwamemIdxstats(TestCaseWithTmp):
             actual_count = int(inf.readline().strip().split('\t')[2])
         self.assertGreater(actual_count, 18000)
 
-class TestFastqToFasta(TestCaseWithTmp):
-
-    def test_fastq_to_fasta(self):
-        myInputDir = util.file.get_test_input_path(self)
-        inFastq = os.path.join(myInputDir, 'in.fastq')
-        outFasta = util.file.mkstempfname('.fasta')
-        read_utils.fastq_to_fasta(inFastq, outFasta)
-
-        # Check that results match expected
-        expectedFasta = os.path.join(myInputDir, 'expected.fasta')
-        self.assertEqualContents(outFasta, expectedFasta)
-
 
 class TestFastqBam(TestCaseWithTmp):
     'Class for testing fastq <-> bam conversions'

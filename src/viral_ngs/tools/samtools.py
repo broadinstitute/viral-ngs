@@ -89,12 +89,23 @@ class SamtoolsTool(tools.Tool):
         return p.stdout
 
     def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
-        args=['-1', outFa1]
-        if outFa2: args += ['-2', outFa2]
-        if outFa0: args += ['-0', outFa0]
+        if outFa2 is None:
+            args = ['-n']
+        else:
+            args = ['-1', outFa1, '-2', outFa2]
+        if outFa0:
+            args += ['-0', outFa0]
         args += [inBam]
+        if outFa2 is None:
+            self.execute('fasta', args, stdout=outFa1)
+        else:
+            self.execute('fasta', args)
 
-        self.execute('fasta', args)
+    def bam2fa_pipe(self, inBam):
+        tool_cmd = [self.install_and_get_path(), 'fasta', '-n', inBam]
+        log.debug(' '.join(tool_cmd) + ' |')
+        p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
+        return p.stdout
 
     @contextlib.contextmanager
     def bam2fq_tmp(self, inBam):
