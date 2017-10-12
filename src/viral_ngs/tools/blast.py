@@ -67,6 +67,8 @@ class BlastnTool(BlastTools):
                 last_read_id = read_id
                 yield read_id
 
+        if blast_pipe.poll():
+            raise CalledProcessError()
 
 
 class MakeblastdbTool(BlastTools):

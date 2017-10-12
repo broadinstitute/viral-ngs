@@ -272,6 +272,48 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.bam')
         outBam = os.path.join(tempDir, 'out.bam')
         args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
+            [inBam] + self.blastdbs_multi + [outBam, "--chunkSize", "0"]
+        )
+        args.func_main(args)
+
+        # samtools view for out.sam and compare to expected
+        outSam = os.path.join(tempDir, 'out.sam')
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.view(['-h'], outBam, outSam)
+
+        #with open(outSam, "r") as outSamFile:
+        #    for line in outSamFile.readlines():
+        #        print(line)
+
+        # the header field ordering may be different with Java 1.8
+        self.assertTrue(
+            filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
+                shallow=False
+            )
+        )
+
+    def test_deplete_blastn_bam_chunked(self):
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+
+        # Run deplete_blastn_bam
+        inBam = os.path.join(myInputDir, 'in.bam')
+        outBam = os.path.join(tempDir, 'out.bam')
+        args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
             [inBam] + self.blastdbs_multi + [outBam, "--chunkSize", "1"]
         )
         args.func_main(args)
