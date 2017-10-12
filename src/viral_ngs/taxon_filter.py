@@ -346,15 +346,30 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMme
 
 def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
     """ run blastn on the input fasta file. this is intended to be run in parallel """
-    chunk_hits = mkstempfname('.hits.txt')
+    chunk_hits = mkstempfname('.hits.txt.gz')
+
     blastnCmd = [
         blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt',
-        '6', '-max_target_seqs', '1', '-query', input_fasta, '-out', chunk_hits
+        '6', '-max_target_seqs', '1', '-query', input_fasta,
     ]
     log.debug(' '.join(blastnCmd))
-    util.misc.run_and_print(blastnCmd, check=True)
+    blast_pipe = subprocess.Popen(blastnCmd, stdout=subprocess.PIPE)
 
+    with util.file.open_or_gzopen(chunk_hits, 'wt') as outf:
+        # strip tab output to just query read ID names and emit
+        last_read_id = None
+        for line in blast_pipe.stdout:
+            line = line.decode('UTF-8').rstrip('\n\r')
+            read_id = line.split('\t')[0]
+            # only emit if it is not a duplicate of the previous read ID
+            if read_id != last_read_id:
+                last_read_id = read_id
+                outf.write(read_id + '\n')
+
+    if blast_pipe.poll():
+        raise CalledProcessError()
     os.unlink(input_fasta)
+
     return chunk_hits
 
 
@@ -441,8 +456,8 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     return hits_files
 
 
-#def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
-def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
+#def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
     blast_hits = mkstempfname('.blast_hits.txt')
@@ -450,22 +465,14 @@ def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
     if chunkSize:
         ## chunk up input and perform blastn in several parallel threads
 
-        fasta = mkstempfname('.1.fasta')
-        blastOutFile = mkstempfname('.hits.txt')
-
         # Initial BAM -> FASTA sequences
+        fasta = mkstempfname('.fasta')
         tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
 
         # Find BLAST hits
         log.info("running blastn on %s against %s", inBam, db)
         blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-        with open(blast_hits, 'wt') as outf:
-            for blastOutFile in blastOutFiles:
-                with open(blastOutFile, 'rt') as inf:
-                    for line in inf:
-                        idVal = line.split('\t')[0].strip()
-                        outf.write(idVal + '\n')
-                os.unlink(blastOutFile)
+        util.file.cat(blast_hits, blastOutFiles)
         os.unlink(fasta)
 
     else:
@@ -484,7 +491,7 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
-    parser.add_argument("--chunkSize", type=int, default=0, help='FASTA chunk size (default: %(default)s)')
+    parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
