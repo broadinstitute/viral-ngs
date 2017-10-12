@@ -256,46 +256,23 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         # create blast db
         self.blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
 
+        # create multiple dbs
+        self.blastdbs_multi = []
+        for db in ['humanChr1Subset.fa', 'humanChr9Subset.fa']:
+            dbPath = tools.blast.MakeblastdbTool().build_database(
+                os.path.join(util.file.get_test_input_path(self), db),
+                os.path.join(self.tempDir, db[:-3]))
+            self.blastdbs_multi.append(dbPath)
+
     def test_deplete_blastn_bam(self):
         tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
 
-        # Make blast databases
-        makeblastdbPath = tools.blast.MakeblastdbTool().install_and_get_path()
-        dbnames = ['humanChr1Subset.fa', 'humanChr9Subset.fa']
-        refDbs = []
-        for dbname in dbnames:
-            refDb = os.path.join(tempDir, dbname)
-            os.symlink(os.path.join(myInputDir, dbname), refDb)
-            refDbs.append(refDb)
-            util.misc.run_and_print([makeblastdbPath, '-dbtype', 'nucl', '-in', refDb], check=True)
-
-        # convert the input fastq's to a bam
-        inFastq1 = os.path.join(myInputDir, "in1.fastq")
-        inFastq2 = os.path.join(myInputDir, "in2.fastq")
-        inBam = os.path.join(tempDir, 'in.bam')
-        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
-        args = parser.parse_args(
-            [
-                inFastq1,
-                inFastq2,
-                inBam,
-                '--sampleName',
-                'FreeSample',
-                '--JVMmemory',
-                '1g',
-                '--picardOptions',
-                'LIBRARY_NAME=Alexandria',
-                'PLATFORM=9.75',
-                'SEQUENCING_CENTER=KareemAbdul-Jabbar',
-            ]
-        )
-        args.func_main(args)
-
         # Run deplete_blastn_bam
+        inBam = os.path.join(myInputDir, 'in.bam')
         outBam = os.path.join(tempDir, 'out.bam')
         args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
-            [inBam, refDbs[0], refDbs[1], outBam, "--chunkSize", "1"]
+            [inBam] + self.blastdbs_multi + [outBam, "--chunkSize", "0"]
         )
         args.func_main(args)
 
@@ -304,9 +281,51 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         samtools = tools.samtools.SamtoolsTool()
         samtools.view(['-h'], outBam, outSam)
 
-        with open(outSam, "r") as outSamFile:
-            for line in outSamFile.readlines():
-                print(line)
+        #with open(outSam, "r") as outSamFile:
+        #    for line in outSamFile.readlines():
+        #        print(line)
+
+        # the header field ordering may be different with Java 1.8
+        self.assertTrue(
+            filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
+                shallow=False
+            ) or filecmp.cmp(
+                outSam,
+                os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
+                shallow=False
+            )
+        )
+
+    def test_deplete_blastn_bam_chunked(self):
+        tempDir = tempfile.mkdtemp()
+        myInputDir = util.file.get_test_input_path(self)
+
+        # Run deplete_blastn_bam
+        inBam = os.path.join(myInputDir, 'in.bam')
+        outBam = os.path.join(tempDir, 'out.bam')
+        args = taxon_filter.parser_deplete_blastn_bam(argparse.ArgumentParser()).parse_args(
+            [inBam] + self.blastdbs_multi + [outBam, "--chunkSize", "1"]
+        )
+        args.func_main(args)
+
+        # samtools view for out.sam and compare to expected
+        outSam = os.path.join(tempDir, 'out.sam')
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.view(['-h'], outBam, outSam)
+
+        #with open(outSam, "r") as outSamFile:
+        #    for line in outSamFile.readlines():
+        #        print(line)
 
         # the header field ordering may be different with Java 1.8
         self.assertTrue(
