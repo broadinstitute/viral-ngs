@@ -28,7 +28,6 @@ requirements:
     # C lib or compilation-related
     - gcc   # [not osx]
     - llvm  # [osx]
-    - boost 1.61* # needed for diamond, among other packages
 
   run:
     - python
@@ -51,7 +50,6 @@ requirements:
     {%- endfor %}
     # C lib-related
     - libgcc # [not osx]
-    - boost 1.61* # needed for diamond, among other packages
 
 test:
   requires:
