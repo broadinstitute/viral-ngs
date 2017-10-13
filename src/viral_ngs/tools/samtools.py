@@ -26,7 +26,7 @@ import contextlib
 from collections import OrderedDict
 from decimal import *
 
-#import pysam
+import pysam
 
 import tools
 import util.file
@@ -193,45 +193,20 @@ class SamtoolsTool(tools.Tool):
               '^((?:[0-9]+[ID]){1}(?:[0-9]+[MNIDSHPX=])+)|((?:[0-9]+[MNIDSHPX=])+(?:[0-9]+[ID]){1})$'
 
         '''
-        in_args = [self.install_and_get_path(), 'view', '-h', inBam]
-
         regex = re.compile(regexToMatchForRemoval)
-
-        # an input samtools process to read a bam file
-        # bufsize 0=unbuffered, 1=linebuffered, -1=system buffered (usually fully)
-        in_process = subprocess.Popen(in_args, bufsize=1, stdout=subprocess.PIPE,
-                                    universal_newlines=True)
-
-        # an output samtools process to write filtered output via stdin
-        out_args = [self.install_and_get_path(), 'view', '-h', '-o', outBam]
-        out_process = subprocess.Popen(out_args, stdin=subprocess.PIPE)
-
-        # process the lines individually and write them or not, depending on 
-        # whether they match regexToMatchForRemoval
-        # Use while and readline() instead of "for line in in_process.stdout"
-        # to avoid Python readahead bug: https://bugs.python.org/issue3907
-        while True:
-            line = in_process.stdout.readline()
-            if not line or line=='':
-                break
-            # always write header lines, so skip the cigar string check
-            if not line.startswith('@'):
-                # cigar strings are in column 6
-                cigar_string = line.split('\t')[5]
-
-                # perform a regex match
-                matches = regex.search(cigar_string)
-                # if the regex was found (or not, if inverted)
-                if (not invertResult and matches) or (invertResult and not matches):
-                    # continue to the next read (don't write out this one)
-                    continue
-
-            # otherwise write out the line to samtools' stdin
-            out_process.stdin.write(line.encode("utf-8"))
-
-        # close stdin stream of the output process so it can terminate
-        out_process.stdin.close()
-        #out_process.wait()
+        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                # process the lines individually and write them or not, depending on 
+                # whether they match regexToMatchForRemoval
+                for read in inb:
+                    # perform a regex match
+                    matches = regex.search(read.cigarstring)
+                    # if the regex was found (or not, if inverted)
+                    if (not invertResult and matches) or (invertResult and not matches):
+                        # continue to the next read (don't write out this one)
+                        continue
+                    # otherwise write out the line
+                    outf.write(read)
 
 
     def downsample(self, inBam, outBam, probability):
