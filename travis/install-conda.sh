@@ -17,15 +17,15 @@ else # if it does not exist, we need to install miniconda
 
     if [[ "$TRAVIS_PYTHON_VERSION" == 2* ]]; then
         if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            wget --quiet https://repo.continuum.io/miniconda/Miniconda-latest-MacOSX-x86_64.sh -O miniconda.sh;
+            curl -S https://repo.continuum.io/miniconda/Miniconda2-latest-MacOSX-x86_64.sh > miniconda.sh;
         else
-            wget --quiet https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+            curl -S https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh > miniconda.sh;
         fi
      else
         if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh;
+            curl -S https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > miniconda.sh;
         else
-            wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+            curl -S https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh > miniconda.sh;
         fi
     fi
 
