@@ -7,9 +7,11 @@ from __future__ import division
 __author__ = "yesimon@broadinstitute.org"
 
 import argparse
+import codecs
 import collections
 import csv
 import gzip
+import io
 import itertools
 import logging
 import os.path
@@ -19,9 +21,12 @@ import queue
 import re
 import shutil
 import sys
+import subprocess
 import tempfile
 
 from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 import pysam
 
 import util.cmd
@@ -150,7 +155,7 @@ class TaxonomyDb(object):
 BlastRecord = collections.namedtuple(
     'BlastRecord', [
         'query_id', 'subject_id', 'percent_identity', 'aln_length', 'mismatch_count', 'gap_open_count', 'query_start',
-        'query_end', 'subject_start', 'subject_end', 'e_val', 'bit_score'
+        'query_end', 'subject_start', 'subject_end', 'e_val', 'bit_score', 'extra'
     ]
 )
 
@@ -165,7 +170,11 @@ def blast_records(f):
             parts[field] = int(parts[field])
         for field in (2, 10, 11):
             parts[field] = float(parts[field])
-        yield BlastRecord(*parts)
+        args = parts[:12]
+        extra = parts[12:]
+        args.append(extra)
+
+        yield BlastRecord(*args)
 
 
 def paired_query_id(record):
@@ -186,6 +195,10 @@ def translate_gi_to_tax_id(db, record):
     rec_list = list(record)
     rec_list[1] = tax_id
     return BlastRecord(*rec_list)
+
+
+def blast_m8_taxids(record):
+    return [int(record.subject_id)]
 
 
 def extract_tax_id(sam1):
@@ -300,18 +313,19 @@ def process_sam_hits(db, sam_hits, top_percent):
     return coverage_lca(tax_ids, db.parents)
 
 
-def process_blast_hits(db, blast_hits, top_percent):
+def process_blast_hits(db, hits, top_percent):
     '''Filter groups of blast hits and perform lca.
 
     Args:
       db: (TaxonomyDb) Taxonomy db.
-      blast_hits: []BlastRecord groups of hits.
+      hits: []BlastRecord groups of hits.
       top_percent: (float) Only consider hits within this percent of top bit score.
 
     Return:
       (int) Tax id of LCA.
     '''
-    hits = (translate_gi_to_tax_id(db, hit) for hit in blast_hits)
+    hits = (translate_gi_to_tax_id(db, hit) for hit in hits)
+
     hits = [hit for hit in hits if hit.subject_id != 0]
     if len(hits) == 0:
         return
@@ -323,7 +337,7 @@ def process_blast_hits(db, blast_hits, top_percent):
     # Sort requires realized list
     valid_hits.sort(key=operator.attrgetter('bit_score'), reverse=True)
     if valid_hits:
-        tax_ids = [hit.subject_id for hit in valid_hits]
+        tax_ids = tuple(itertools.chain(*(blast_m8_taxids(hit) for hit in valid_hits)))
         return coverage_lca(tax_ids, db.parents)
 
 
@@ -554,7 +568,7 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
 
     if not skipAccession:
         if stripVersion:
-            accessions = set(x.strip('.', 1)[0] for x in file_lines(whitelistAccessionFile))
+            accessions = set(x.strip().split('.', 1)[0] for x in file_lines(whitelistAccessionFile))
             accession_column_i = 0
         else:
             accessions = set(file_lines(whitelistAccessionFile))
@@ -602,11 +616,11 @@ def rank_code(rank):
         return "-"
 
 
-def taxa_hits_from_tsv(f, tax_id_column=3):
+def taxa_hits_from_tsv(f, taxid_column=2):
     '''Return a counter of hits from tsv.'''
     c = collections.Counter()
     for row in csv.reader(f, delimiter='\t'):
-        tax_id = int(row[tax_id_column - 1])
+        tax_id = int(row[taxid_column - 1])
         c[tax_id] += 1
     return c
 
@@ -624,10 +638,14 @@ def kraken_dfs_report(db, taxa_hits):
 
     db.children = parents_to_children(db.parents)
     total_hits = sum(taxa_hits.values())
+    if total_hits == 0:
+        return ['\t'.join(['100.00', '0', '0', 'U', '0', 'unclassified'])]
+
     lines = []
     kraken_dfs(db, lines, taxa_hits, total_hits, 1, 0)
     unclassified_hits = taxa_hits.get(0, 0)
     unclassified_hits += taxa_hits.get(-1, 0)
+
     if unclassified_hits > 0:
         percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
         lines.append(
@@ -721,54 +739,62 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, taxDb, outReport, outM8=None, outLca=None, numThreads=1):
+def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=1):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
-    tmp_fastq = util.file.mkstempfname('.fastq')
-    tmp_fastq2 = util.file.mkstempfname('.fastq')
     # do not convert this to samtools bam2fq unless we can figure out how to replicate
     # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
-    picard_opts = {
-        'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-        'CLIPPING_ACTION': 'X'
-    }
-    picard.execute(
+    s2fq = picard.execute(
         inBam,
-        tmp_fastq,
-        tmp_fastq2,
-        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-        JVMmemory=picard.jvmMemDefault
+        '/dev/stdout',
+        interleave=True,
+        illuminaClipping=True,
+        JVMmemory=picard.jvmMemDefault,
+        background=True,
+        stdout=subprocess.PIPE,
     )
 
     diamond_tool = tools.diamond.Diamond()
     diamond_tool.install()
-    tmp_alignment = util.file.mkstempfname('.daa')
-    tmp_m8 = util.file.mkstempfname('.diamond.m8')
-    diamond_tool.blastx(db, [tmp_fastq, tmp_fastq2], tmp_alignment, options={'--threads': numThreads})
-    diamond_tool.view(tmp_alignment, tmp_m8, options={'--threads': numThreads})
+    taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
+    taxonnodes = join(taxDb, 'nodes.dmp')
 
-    if outM8:
-        with open(tmp_m8, 'rb') as f_in:
-            with gzip.open(outM8, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+    cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
+    if numThreads is not None:
+        cmd += ' --threads {threads}'.format(threads=numThreads)
+    cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
+        threads=numThreads,
+        db=db,
+        taxonmap=taxonmap,
+        taxonnodes=taxonnodes)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True, load_gis=True)
-    tmp_lca_tsv = util.file.mkstempfname('.tsv')
-    with open(tmp_m8) as m8, open(tmp_lca_tsv, 'w') as lca:
-        blast_lca(tax_db, m8, lca, paired=True, min_bit_score=50)
+    if outReads is not None:
+        # Interstitial save of stdout to output file
+        cmd += ' | tee >(gzip > {out})'.format(out=outReads)
 
-    if outLca:
-        with open(tmp_lca_tsv, 'rb') as f_in:
-            with gzip.open(outLca, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+    diamond_ps = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, executable='/bin/bash')
 
-    with open(tmp_lca_tsv) as f:
-        hits = taxa_hits_from_tsv(f)
+    def f(input_pipe, output_pipe):
+        output_pipe = codecs.getwriter('ascii')(output_pipe)
+        SeqIO.write(util.file.join_interleaved_fastq(input_pipe, output_format='fasta', num_n=16),
+                    output_pipe, 'fasta')
+
+    util.misc.bind_pipes(s2fq.stdout, diamond_ps.stdin, f)
+
+    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
+
+    lca_p = codecs.getreader('ascii')(diamond_ps.stdout)
+
+    hits = taxa_hits_from_tsv(lca_p)
     with open(outReport, 'w') as f:
         for line in kraken_dfs_report(tax_db, hits):
             print(line, file=f)
+
+    s2fq.wait()
+    diamond_ps.wait()
 
 
 def parser_diamond(parser=argparse.ArgumentParser()):
@@ -776,8 +802,7 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Diamond database directory.')
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
-    parser.add_argument('--outM8', help='Blast m8 formatted output file.')
-    parser.add_argument('--outLca', help='Output LCA assignments for each read.')
+    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
@@ -791,8 +816,8 @@ def align_rna_metagenomics(
     outReport,
     dupeReport=None,
     outBam=None,
-    dupeLca=None,
-    outLca=None,
+    dupeReads=None,
+    outReads=None,
     sensitive=None,
     JVMmemory=None,
     numThreads=None,
@@ -831,7 +856,7 @@ def align_rna_metagenomics(
     if dupeReport:
         aln_bam_sorted = util.file.mkstempfname('.align_namesorted.bam')
         samtools.sort(aln_bam, aln_bam_sorted, args=['-n'], threads=numThreads)
-        sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outLca=dupeLca, unique_only=False)
+        sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outReads=dupeReads, unique_only=False)
         os.unlink(aln_bam_sorted)
 
     aln_bam_deduped = outBam if outBam else util.file.mkstempfname('.align_deduped.bam')
@@ -844,17 +869,16 @@ def align_rna_metagenomics(
     os.unlink(aln_bam)
     aln_bam_dd_sorted = util.file.mkstempfname('.bam')
     samtools.sort(aln_bam_deduped, aln_bam_dd_sorted, args=['-n'], threads=numThreads)
-    sam_lca_report(tax_db, aln_bam_dd_sorted, outReport=outReport, outLca=outLca)
+    sam_lca_report(tax_db, aln_bam_dd_sorted, outReport=outReport, outReads=outReads)
 
     if not outBam:
         os.unlink(aln_bam_deduped)
 
 
-def sam_lca_report(tax_db, bam_aligned, outReport, outLca=None, unique_only=None):
-    lca_tsv = outLca
+def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=None):
 
-    if outLca:
-        lca_tsv = outLca
+    if outReads:
+        lca_tsv = outReads
     else:
         lca_tsv = util.file.mkstempfname('.tsv')
 
@@ -880,8 +904,8 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
         help='Use sensitive instead of default BWA mem options.'
     )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
-    parser.add_argument('--outLca', help='Output LCA assignments for each read.')
-    parser.add_argument('--dupeLca', help='Output LCA assignments for each read including duplicates.')
+    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
+    parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
