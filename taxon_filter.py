@@ -358,7 +358,7 @@ def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
     with util.file.open_or_gzopen(chunk_hits, 'wt') as outf:
         # strip tab output to just query read ID names and emit
         last_read_id = None
-        for line in iter(blast_pipe.stdout.readline, ""):
+        for line in blast_pipe.stdout:
             line = line.decode('UTF-8').rstrip('\n\r')
             read_id = line.split('\t')[0]
             # only emit if it is not a duplicate of the previous read ID
