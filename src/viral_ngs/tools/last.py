@@ -66,7 +66,7 @@ class Lastal(LastTools):
 
             # strip tab output to just query read ID names and emit
             last_read_id = None
-            for line in iter(lastal_pipe.stdout.readline, ""):
+            for line in lastal_pipe.stdout:
                 line = line.decode('UTF-8').rstrip('\n\r')
                 if not line.startswith('#'):
                     read_id = line.split('\t')[6]
