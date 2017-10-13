@@ -55,7 +55,7 @@ if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_
             echo "ANACONDA_TOKEN is not defined. Conda package upload is only supported for branches on the original repository."
         fi
     else
-        python packaging/conda-recipe/render-recipe.py "`git rev-parse --short HEAD`" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
+        python packaging/conda-recipe/render-recipe.py "0.0.0" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
         CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --no-anaconda-upload packaging/conda-recipe/viral-ngs
     fi
 fi  
