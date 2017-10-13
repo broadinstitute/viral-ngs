@@ -19,7 +19,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'spades'
-TOOL_VERSION = '3.10.1'
+TOOL_VERSION = '3.11.1'
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class SpadesTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='spades.py',
-                                                  verifycmd='echo spades.py --help', env='spades_env')]
+                                                  verifycmd='spades.py --version')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -64,21 +64,28 @@ class SpadesTool(tools.Tool):
 
         if not threads: threads = util.misc.available_cpu_count()
 
-        if os.path.getsize(reads_fwd) == 0:
+        if (reads_fwd and reads_bwd
+            and os.path.getsize(reads_fwd) > 0 and os.path.getsize(reads_bwd) > 0
+            or reads_unpaired and os.path.getsize(reads_unpaired) > 0):
+
+            with util.file.tmp_dir('_spades') as spades_dir:
+                log.debug('spades_dir=' + spades_dir)
+                args = []
+                if reads_fwd and reads_bwd and os.path.getsize(reads_fwd) > 0 and os.path.getsize(reads_bwd) > 0:
+                    args += ['-1', reads_fwd, '-2', reads_bwd ]
+                if reads_unpaired and os.path.getsize(reads_unpaired) > 0:
+                    args += [ '--s1', reads_unpaired ]
+                if contigs_trusted: args += [ '--trusted-contigs', contigs_trusted ]
+                if contigs_untrusted: args += [ '--untrusted-contigs', contigs_untrusted ]
+                if spades_opts: args += shlex.split(spades_opts)
+                args += [ '--rna', '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
+
+                self.execute(args=args)
+
+                shutil.copyfile(src=os.path.join(spades_dir, 'transcripts.fasta'), dst=contigs_out)
+
+        else:
             # spades crashes on empty input, so just return empty output
             util.file.make_empty(contigs_out)
             return
-
-        with util.file.tmp_dir('_spades') as spades_dir:
-            log.debug('spades_dir=' + spades_dir)
-            args = ['-1', reads_fwd, '-2', reads_bwd ]
-            if reads_unpaired: args += [ '--s1', reads_unpaired ]
-            if contigs_trusted: args += [ '--trusted-contigs', contigs_trusted ]
-            if contigs_untrusted: args += [ '--untrusted-contigs', contigs_untrusted ]
-            if spades_opts: args += shlex.split(spades_opts)
-            args += [ '--rna', '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
-
-            self.execute(args=args)
-
-            shutil.copyfile(src=os.path.join(spades_dir, 'transcripts.fasta'), dst=contigs_out)
 

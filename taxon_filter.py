@@ -50,11 +50,6 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
     )
     parser.add_argument(
-        '--taxfiltBam',
-        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
-        default=None
-    )
-    parser.add_argument(
         '--bmtaggerDbs',
         nargs='+',
         required=True,
@@ -68,13 +63,9 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         required=True,
         help='One or more reference databases for blast to deplete from input.'
     )
-    parser.add_argument(
-        '--lastDb',
-        help='One reference database for last (required if --taxfiltBam is specified).',
-        default=None
-    )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
+    parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -139,13 +130,11 @@ def main_deplete_human(args):
         args.blastDbs,
         deplete_blastn_bam,
         args.blastnBam,
+        chunkSize=args.chunkSize,
         threads=args.threads,
         JVMmemory=args.JVMmemory
     )
-    if args.taxfiltBam and args.lastDb:
-        filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
-
 
 __commands__.append(('deplete_human', parser_deplete_human))
 
@@ -327,13 +316,13 @@ def main_deplete_bam_bmtagger(args):
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None, **kwargs):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
     samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
         if not samtools.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
-            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory, **kwargs)
+            deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
                 os.unlink(tmpBamIn)
             tmpBamIn = tmpBamOut
@@ -388,8 +377,8 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     # get the blastn path here so we don't run conda install checks multiple times
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
-    # clamp threadcount to number of CPUs minus one
-    threads = max(min(util.misc.available_cpu_count() - 1, threads), 1)
+    # clamp threadcount to number of CPUs
+    threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)
@@ -456,11 +445,15 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     return hits_files
 
 
-def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMmemory=None):
 #def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
     blast_hits = mkstempfname('.blast_hits.txt')
+    if threads is None:
+        threads=util.misc.available_cpu_count()
+    else:
+        threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
     if chunkSize:
         ## chunk up input and perform blastn in several parallel threads
