@@ -59,15 +59,16 @@ script:
 
 after_success:
   - coveralls
+  - travis/build-and-deploy.sh $TRAVIS_TAG
 
 before_deploy:
   - source travis/install-conda.sh
   - conda install -y jinja2 # needed to render conda recipe
 
-deploy:
-  provider: script
-  skip_cleanup: true # retain build artifacts, including dependencies
-  script: travis/deploy.sh $TRAVIS_TAG
-  on:
-    tags: true
-    #all_branches: true
+# deploy:
+#   provider: script
+#   skip_cleanup: true # retain build artifacts, including dependencies
+#   script: travis/build-and-deploy.sh $TRAVIS_TAG
+#   on:
+#     tags: true
+#     all_branches: true
