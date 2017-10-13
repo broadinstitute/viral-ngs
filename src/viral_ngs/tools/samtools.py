@@ -231,7 +231,7 @@ class SamtoolsTool(tools.Tool):
 
         # close stdin stream of the output process so it can terminate
         out_process.stdin.close()
-        out_process.wait()
+        #out_process.wait()
 
 
     def downsample(self, inBam, outBam, probability):
