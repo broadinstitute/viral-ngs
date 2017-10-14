@@ -218,7 +218,7 @@ if __name__ == "__main__":
     # store two separate version strings, one to use for the conda package and one
     # that should match github tagged releases
     recipe_variables["PKG_VERSION"] = str(args_dict.pop("version"))
-    if "src_download_filename" in args_dict:
+    if "src_download_filename" in args_dict and args_dict["src_download_filename"] is not None:
         recipe_variables["PKG_VERSION"] = str(args_dict.pop("src_download_filename"))
 
     # strip "v" prefix from versions that look like v1.14.0
