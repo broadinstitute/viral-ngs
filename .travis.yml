@@ -12,8 +12,8 @@ matrix:
 #        - os: osx
 #          language: generic
 #          env:
-#              - TRAVIS_OSX_PYTHON_VERSION=py35
-#              - TRAVIS_PYTHON_VERSION=3.5.1
+#              - TRAVIS_OSX_PYTHON_VERSION=py36
+#              - TRAVIS_PYTHON_VERSION=3.6
 
 cache:
   directories:
@@ -64,6 +64,10 @@ after_success:
 before_deploy:
   - source travis/install-conda.sh
   - conda install -y jinja2 # needed to render conda recipe
+
+after_script:
+  # correct post-build failure on OSX due to non-zero exit code
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then set +e; fi
 
 # deploy:
 #   provider: script
