@@ -156,6 +156,7 @@ def url_md5(url):
     while True:
         try:
             print("Downloading source package for hash calculation...")
+            print(url)
             response = urlopen(url)
             for chunk in iter(lambda: response.read(CHUNK_SIZE), b""):
                 hash_md5.update(chunk)
@@ -197,6 +198,10 @@ if __name__ == "__main__":
     parser.add_argument('--test-reqs', nargs='*', dest='test_requirements',
                         type=argparse.FileType('r'),
                         help='test-time requirements file')
+    parser.add_argument('--download-filename', dest='src_download_filename',
+                        type=str,
+                        help='An argument to override the usual filename to download; '
+                        'useful for specifying a branch name.')
 
     try:
        args = parser.parse_args()
@@ -213,6 +218,8 @@ if __name__ == "__main__":
     # store two separate version strings, one to use for the conda package and one
     # that should match github tagged releases
     recipe_variables["PKG_VERSION"] = str(args_dict.pop("version"))
+    if "src_download_filename" in args_dict and args_dict["src_download_filename"] is not None:
+        recipe_variables["PKG_VERSION"] = str(args_dict.pop("src_download_filename"))
 
     # strip "v" prefix from versions that look like v1.14.0
     if recipe_variables["PKG_VERSION"].startswith("v"):

@@ -26,14 +26,14 @@ import contextlib
 from collections import OrderedDict
 from decimal import *
 
-#import pysam
+import pysam
 
 import tools
 import util.file
 import util.misc
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.3.1'
+TOOL_VERSION = '1.5'
 
 log = logging.getLogger(__name__)
 
@@ -82,13 +82,30 @@ class SamtoolsTool(tools.Tool):
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
 
-    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
-        args=['-1', outFa1]
-        if outFa2: args += ['-2', outFa2]
-        if outFa0: args += ['-0', outFa0]
-        args += [inBam]
+    def bam2fq_pipe(self, inBam):
+        tool_cmd = [self.install_and_get_path(), 'bam2fq', '-n', inBam]
+        log.debug(' '.join(tool_cmd) + ' |')
+        p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
+        return p.stdout
 
-        self.execute('fasta', args)
+    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
+        if outFa2 is None:
+            args = ['-n']
+        else:
+            args = ['-1', outFa1, '-2', outFa2]
+        if outFa0:
+            args += ['-0', outFa0]
+        args += [inBam]
+        if outFa2 is None:
+            self.execute('fasta', args, stdout=outFa1)
+        else:
+            self.execute('fasta', args)
+
+    def bam2fa_pipe(self, inBam):
+        tool_cmd = [self.install_and_get_path(), 'fasta', '-n', inBam]
+        log.debug(' '.join(tool_cmd) + ' |')
+        p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
+        return p.stdout
 
     @contextlib.contextmanager
     def bam2fq_tmp(self, inBam):
@@ -176,44 +193,20 @@ class SamtoolsTool(tools.Tool):
               '^((?:[0-9]+[ID]){1}(?:[0-9]+[MNIDSHPX=])+)|((?:[0-9]+[MNIDSHPX=])+(?:[0-9]+[ID]){1})$'
 
         '''
-        in_args = [self.install_and_get_path(), 'view', '-h', inBam]
-
         regex = re.compile(regexToMatchForRemoval)
-
-        # an input samtools process to read a bam file
-        # bufsize 0=unbuffered, 1=linebuffered, -1=system buffered (usually fully)
-        in_process = subprocess.Popen(in_args, bufsize=1, stdout=subprocess.PIPE,
-                                    universal_newlines=True)
-
-        # an output samtools process to write filtered output via stdin
-        out_args = [self.install_and_get_path(), 'view', '-h', '-o', outBam]
-        out_process = subprocess.Popen(out_args, stdin=subprocess.PIPE)
-
-        # process the lines individually and write them or not, depending on 
-        # whether they match regexToMatchForRemoval
-        # Use while and readline() instead of "for line in in_process.stdout"
-        # to avoid Python readahead bug: https://bugs.python.org/issue3907
-        while True:
-            line = in_process.stdout.readline()
-            if not line or line=='':
-                break
-            # always write header lines, so skip the cigar string check
-            if not line.startswith('@'):
-                # cigar strings are in column 6
-                cigar_string = line.split('\t')[5]
-
-                # perform a regex match
-                matches = regex.search(cigar_string)
-                # if the regex was found (or not, if inverted)
-                if (not invertResult and matches) or (invertResult and not matches):
-                    # continue to the next read (don't write out this one)
-                    continue
-
-            # otherwise write out the line to samtools' stdin
-            out_process.stdin.write(line.encode("utf-8"))
-
-        # close stdin stream of the output process so it can terminate
-        out_process.stdin.close()
+        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                # process the lines individually and write them or not, depending on 
+                # whether they match regexToMatchForRemoval
+                for read in inb:
+                    # perform a regex match
+                    matches = regex.search(read.cigarstring)
+                    # if the regex was found (or not, if inverted)
+                    if (not invertResult and matches) or (invertResult and not matches):
+                        # continue to the next read (don't write out this one)
+                        continue
+                    # otherwise write out the line
+                    outf.write(read)
 
 
     def downsample(self, inBam, outBam, probability):

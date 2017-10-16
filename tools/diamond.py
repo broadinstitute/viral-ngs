@@ -12,7 +12,7 @@ import subprocess
 import tools
 import util.file
 
-TOOL_VERSION = '0.8.36'
+TOOL_VERSION = '0.9.10'
 
 log = logging.getLogger(__name__)
 
@@ -46,23 +46,6 @@ class Diamond(tools.Tool):
             options['--db'] = db
 
             self.execute('makedb', options=options, option_string=option_string)
-
-    def blastx(self, db, query_files, diamond_alignment, options=None, option_string=None):
-        '''Perform a blastx-like search from query file to database.
-
-        Args:
-          db: Diamond database file.
-          query_files: List of input fastq files.
-          diamond_alignment: Diamond alignment output file. Must end in .daa
-        '''
-        assert diamond_alignment.endswith('.daa'), 'Output must end in .daa'
-        options = options or {}
-        temp_file = util.file.temp_catted_files(query_files, prefix='diamond_', suffix='.fastq')
-        with temp_file as query:
-            options['--db'] = db
-            options['--query'] = query
-            options['--daa'] = diamond_alignment
-            self.execute('blastx', options=options, option_string=option_string)
 
     def view(self, diamond_alignment, output_file, output_format='tab', options=None, option_string=None):
         '''Perform translation between diamond output and blast tab/sam output.

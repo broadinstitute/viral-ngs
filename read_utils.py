@@ -70,37 +70,6 @@ def parser_purge_unmated(parser=argparse.ArgumentParser()):
 
 __commands__.append(('purge_unmated', parser_purge_unmated))
 
-# =========================
-# ***  fastq_to_fasta   ***
-# =========================
-
-
-def fastq_to_fasta(inFastq, outFasta):
-    ''' Convert from fastq format to fasta format.
-        Warning: output reads might be split onto multiple lines.
-    '''
-
-    # Do this with biopython rather than prinseq, because if the latter fails
-    #    it doesn't return an error. (On the other hand, prinseq
-    #    can guarantee that output lines are not split...)
-    inFile = util.file.open_or_gzopen(inFastq)
-    outFile = util.file.open_or_gzopen(outFasta, 'w')
-    for rec in SeqIO.parse(inFile, 'fastq'):
-        SeqIO.write([rec], outFile, 'fasta')
-    inFile.close()
-    outFile.close()
-    return 0
-
-
-def parser_fastq_to_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq', help='Input fastq file.')
-    parser.add_argument('outFasta', help='Output fasta file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, fastq_to_fasta, split_args=True)
-    return parser
-
-
-__commands__.append(('fastq_to_fasta', parser_fastq_to_fasta))
 
 # ===============================
 # ***  index_fasta_samtools   ***

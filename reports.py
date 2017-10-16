@@ -551,11 +551,10 @@ def plot_coverage(
     bam_sorted = util.file.mkstempfname('.sorted.bam')
     if not util.file.bam_is_sorted(bam_dupe_processed):
         samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+        if plot_only_non_duplicates:
+            os.unlink(bam_dupe_processed)
     else:
         bam_sorted = bam_dupe_processed
-
-    if plot_only_non_duplicates:
-        os.unlink(bam_dupe_processed)
 
     # call samtools index
     samtools.index(bam_sorted)

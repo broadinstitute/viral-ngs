@@ -164,7 +164,7 @@ echo "Travis API request body:\n$body"
 echo "Making request to start tests in other repository..."
 
 # It does not work to put / in place of %2F in the URL below. 
-curl -s -X POST \
+curl -S -X POST \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -H "Travis-API-Version: 3" \

@@ -8,12 +8,12 @@ matrix:
         - os: linux
           python: 2.7
         - os: linux
-          python: 3.5
-        # - os: osx
-        #   language: generic
-        #   env:
-        #     - TRAVIS_OSX_PYTHON_VERSION=py35
-        #     - TRAVIS_PYTHON_VERSION=3.5.1
+          python: 3.6
+#        - os: osx
+#          language: generic
+#          env:
+#              - TRAVIS_OSX_PYTHON_VERSION=py36
+#              - TRAVIS_PYTHON_VERSION=3.6
 
 cache:
   directories:
@@ -59,6 +59,7 @@ script:
 
 after_success:
   - coveralls
+  - travis/build-and-deploy.sh $TRAVIS_TAG
 
 before_deploy:
   - source travis/install-conda.sh
@@ -68,10 +69,10 @@ after_script:
   # correct post-build failure on OSX due to non-zero exit code
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then set +e; fi
 
-deploy:
-  provider: script
-  skip_cleanup: true # retain build artifacts, including dependencies
-  script: travis/deploy.sh $TRAVIS_TAG
-  on:
-    tags: true
-    #all_branches: true
+# deploy:
+#   provider: script
+#   skip_cleanup: true # retain build artifacts, including dependencies
+#   script: travis/build-and-deploy.sh $TRAVIS_TAG
+#   on:
+#     tags: true
+#     all_branches: true

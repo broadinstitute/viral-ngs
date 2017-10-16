@@ -50,11 +50,6 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
     )
     parser.add_argument(
-        '--taxfiltBam',
-        help='Output BAM: blastnBam run through taxonomic selection via LASTAL.',
-        default=None
-    )
-    parser.add_argument(
         '--bmtaggerDbs',
         nargs='+',
         required=True,
@@ -68,13 +63,9 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         required=True,
         help='One or more reference databases for blast to deplete from input.'
     )
-    parser.add_argument(
-        '--lastDb',
-        help='One reference database for last (required if --taxfiltBam is specified).',
-        default=None
-    )
     parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
+    parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -139,13 +130,11 @@ def main_deplete_human(args):
         args.blastDbs,
         deplete_blastn_bam,
         args.blastnBam,
+        chunkSize=args.chunkSize,
         threads=args.threads,
         JVMmemory=args.JVMmemory
     )
-    if args.taxfiltBam and args.lastDb:
-        filter_lastal_bam(args.blastnBam, args.lastDb, args.taxfiltBam, JVMmemory=args.JVMmemory)
     return 0
-
 
 __commands__.append(('deplete_human', parser_deplete_human))
 
@@ -156,115 +145,46 @@ __commands__.append(('deplete_human', parser_deplete_human))
 # =======================
 
 
-def lastal_chunked_fastq(
-    inFastq,
+def filter_lastal_bam(
+    inBam,
     db,
-    outFastq,
+    outBam,
     max_gapless_alignments_per_position=1,
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
-    chunk_size=100000
+    JVMmemory=None
 ):
+    ''' Restrict input reads to those that align to the given
+        reference database using LASTAL.
+    '''
 
-    lastal_path = tools.last.Lastal().install_and_get_path()
-    mafsort_path = tools.last.MafSort().install_and_get_path()
-    mafconvert_path = tools.last.MafConvert().install_and_get_path()
-    no_blast_like_hits_path = os.path.join(util.file.get_scripts_path(), 'noBlastLikeHits.py')
+    with util.file.tmp_dir('-lastdb') as tmp_db_dir:
+        # index db if necessary
+        lastdb = tools.last.Lastdb()
+        if not lastdb.is_indexed(db):
+            db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
-    filtered_fastq_files = []
-    with open(inFastq, "rt") as fastqFile:
-        record_iter = SeqIO.parse(fastqFile, "fastq")
-        for batch in util.misc.batch_iterator(record_iter, chunk_size):
+        with util.file.tempfname('.read_ids.txt') as hitList:
+            # look for lastal hits in BAM and write to temp file
+            with open(hitList, 'wt') as outf:
+                for read_id in tools.last.Lastal().get_hits(
+                        inBam, db,
+                        max_gapless_alignments_per_position,
+                        min_length_for_initial_matches,
+                        max_length_for_initial_matches,
+                        max_initial_matches_per_position
+                    ):
+                    outf.write(read_id + '\n')
 
-            chunk_fastq = mkstempfname('.fastq')
-            with open(chunk_fastq, "wt") as handle:
-                SeqIO.write(batch, handle, "fastq")
-            batch = None
-
-            lastal_out = mkstempfname('.lastal')
-            with open(lastal_out, 'wt') as outf:
-                cmd = [lastal_path, '-Q1', '-P0']
-                cmd.extend(
-                    [
-                        '-n', max_gapless_alignments_per_position, '-l', min_length_for_initial_matches, '-L',
-                        max_length_for_initial_matches, '-m', max_initial_matches_per_position
-                    ]
-                )
-                cmd = [str(x) for x in cmd]
-                cmd.extend([db, chunk_fastq])
-                log.debug(' '.join(cmd) + ' > ' + lastal_out)
-                util.misc.run_and_save(cmd, outf=outf)
-            # everything below this point in this method should be replaced with
-            # our own code that just reads lastal output and makes a list of read names
-
-            mafsort_out = mkstempfname('.mafsort')
-            with open(mafsort_out, 'wt') as outf:
-                with open(lastal_out, 'rt') as inf:
-                    cmd = [mafsort_path, '-n2']
-                    log.debug('cat ' + lastal_out + ' | ' + ' '.join(cmd) + ' > ' + mafsort_out)
-                    subprocess.check_call(cmd, stdin=inf, stdout=outf)
-            os.unlink(lastal_out)
-
-            mafconvert_out = mkstempfname('.mafconvert')
-            with open(mafconvert_out, 'wt') as outf:
-                cmd = ["python", mafconvert_path, 'tab', mafsort_out]
-                log.debug(' '.join(cmd) + ' > ' + mafconvert_out)
-                subprocess.check_call(cmd, stdout=outf)
-            os.unlink(mafsort_out)
-
-            filtered_fastq_chunk = mkstempfname('.filtered.fastq')
-            with open(filtered_fastq_chunk, 'wt') as outf:
-                cmd = [no_blast_like_hits_path, '-b', mafconvert_out, '-r', chunk_fastq, '-m', 'hit']
-                log.debug(' '.join(cmd) + ' > ' + filtered_fastq_chunk)
-                subprocess.check_call(cmd, stdout=outf)
-                filtered_fastq_files.append(filtered_fastq_chunk)
-            os.unlink(mafconvert_out)
-
-    # concatenate filtered fastq files to outFastq
-    util.file.concat(filtered_fastq_files, outFastq)
-
-    # remove temp fastq files
-    for tempfastq in filtered_fastq_files:
-        os.unlink(tempfastq)
+            # filter original BAM file against keep list
+            tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
 
 
-def lastal_get_hits(
-    inFastq,
-    db,
-    outList,
-    max_gapless_alignments_per_position=1,
-    min_length_for_initial_matches=5,
-    max_length_for_initial_matches=50,
-    max_initial_matches_per_position=100
-):
-    filteredFastq = mkstempfname('.filtered.fastq')
-    lastal_chunked_fastq(
-        inFastq,
-        db,
-        filteredFastq,
-        max_gapless_alignments_per_position=max_gapless_alignments_per_position,
-        min_length_for_initial_matches=min_length_for_initial_matches,
-        max_length_for_initial_matches=max_length_for_initial_matches,
-        max_initial_matches_per_position=max_initial_matches_per_position
-    )
-
-    with open(outList, 'wt') as outf:
-        with open(filteredFastq, 'rt') as inf:
-            line_num = 0
-            for line in inf:
-                if (line_num % 4) == 0:
-                    seq_id = line.rstrip('\n\r')[1:]
-                    if seq_id.endswith('/1') or seq_id.endswith('/2'):
-                        seq_id = seq_id[:-2]
-                    outf.write(seq_id + '\n')
-                line_num += 1
-
-    os.unlink(filteredFastq)
-
-
-def parser_lastal_generic(parser=argparse.ArgumentParser()):
-    # max_gapless_alignments_per_position, min_length_for_initial_matches, max_length_for_initial_matches, max_initial_matches_per_position
+def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument("inBam", help="Input reads")
+    parser.add_argument("db", help="Database of taxa we keep")
+    parser.add_argument("outBam", help="Output reads, filtered to refDb")
     parser.add_argument(
         '-n',
         dest="max_gapless_alignments_per_position",
@@ -293,50 +213,6 @@ def parser_lastal_generic(parser=argparse.ArgumentParser()):
         type=int,
         default=100
     )
-    return parser
-
-
-def filter_lastal_bam(
-    inBam,
-    db,
-    outBam,
-    max_gapless_alignments_per_position=1,
-    min_length_for_initial_matches=5,
-    max_length_for_initial_matches=50,
-    max_initial_matches_per_position=100,
-    JVMmemory=None
-):
-    ''' Restrict input reads to those that align to the given
-        reference database using LASTAL.
-    '''
-    # convert BAM to paired FASTQ
-    inReads = mkstempfname('.all.fastq')
-    tools.samtools.SamtoolsTool().bam2fq(inBam, inReads)
-
-    # look for hits in FASTQ
-    hitList1 = mkstempfname('.hits')
-    lastal_get_hits(
-        inReads, db, hitList1, max_gapless_alignments_per_position, min_length_for_initial_matches,
-        max_length_for_initial_matches, max_initial_matches_per_position
-    )
-    os.unlink(inReads)
-
-    # merge & uniqify hits
-    hitList = mkstempfname('.hits')
-    with open(hitList, 'wt') as outf:
-        subprocess.check_call(['sort', '-u', hitList1], stdout=outf)
-    os.unlink(hitList1)
-
-    # filter original BAM file against keep list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
-    os.unlink(hitList)
-
-
-def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
-    parser = parser_lastal_generic(parser)
-    parser.add_argument("inBam", help="Input reads")
-    parser.add_argument("db", help="Database of taxa we keep")
-    parser.add_argument("outBam", help="Output reads, filtered to refDb")
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -440,13 +316,13 @@ def main_deplete_bam_bmtagger(args):
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
-def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMmemory=None, **kwargs):
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
     samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
         if not samtools.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
-            deplete_method(tmpBamIn, db, tmpBamOut, threads=threads, JVMmemory=JVMmemory, **kwargs)
+            deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
                 os.unlink(tmpBamIn)
             tmpBamIn = tmpBamOut
@@ -459,15 +335,30 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, threads=1, JVMme
 
 def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
     """ run blastn on the input fasta file. this is intended to be run in parallel """
-    chunk_hits = mkstempfname('.hits.txt')
+    chunk_hits = mkstempfname('.hits.txt.gz')
+
     blastnCmd = [
         blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt',
-        '6', '-max_target_seqs', '2', '-query', input_fasta, '-out', chunk_hits
+        '6', '-max_target_seqs', '1', '-query', input_fasta,
     ]
     log.debug(' '.join(blastnCmd))
-    util.misc.run_and_print(blastnCmd, check=True)
+    blast_pipe = subprocess.Popen(blastnCmd, stdout=subprocess.PIPE)
 
+    with util.file.open_or_gzopen(chunk_hits, 'wt') as outf:
+        # strip tab output to just query read ID names and emit
+        last_read_id = None
+        for line in blast_pipe.stdout:
+            line = line.decode('UTF-8').rstrip('\n\r')
+            read_id = line.split('\t')[0]
+            # only emit if it is not a duplicate of the previous read ID
+            if read_id != last_read_id:
+                last_read_id = read_id
+                outf.write(read_id + '\n')
+
+    if blast_pipe.poll():
+        raise CalledProcessError()
     os.unlink(input_fasta)
+
     return chunk_hits
 
 
@@ -486,8 +377,8 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     # get the blastn path here so we don't run conda install checks multiple times
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
-    # clamp threadcount to number of CPUs minus one
-    threads = max(min(util.misc.available_cpu_count() - 1, threads), 1)
+    # clamp threadcount to number of CPUs
+    threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)
@@ -554,32 +445,34 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     return hits_files
 
 
-def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=1000000, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMmemory=None):
+#def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
-    fastq1 = mkstempfname('.1.fastq')
-    fasta = mkstempfname('.1.fasta')
     blast_hits = mkstempfname('.blast_hits.txt')
-    blastOutFile = mkstempfname('.hits.txt')
+    if threads is None:
+        threads=util.misc.available_cpu_count()
+    else:
+        threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
-    # Initial BAM -> FASTQ pair
-    tools.samtools.SamtoolsTool().bam2fq(inBam, fastq1)
+    if chunkSize:
+        ## chunk up input and perform blastn in several parallel threads
 
-    # Find BLAST hits
-    read_utils.fastq_to_fasta(fastq1, fasta)
-    os.unlink(fastq1)
-    log.info("running blastn on %s against %s", inBam, db)
-    blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-    with open(blast_hits, 'wt') as outf:
-        for blastOutFile in blastOutFiles:
-            with open(blastOutFile, 'rt') as inf:
-                for line in inf:
-                    idVal = line.split('\t')[0].strip()
-                    if idVal.endswith('/1') or idVal.endswith('/2'):
-                        idVal = idVal[:-2]
-                    outf.write(idVal + '\n')
-            os.unlink(blastOutFile)
-    os.unlink(fasta)
+        # Initial BAM -> FASTA sequences
+        fasta = mkstempfname('.fasta')
+        tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
+
+        # Find BLAST hits
+        log.info("running blastn on %s against %s", inBam, db)
+        blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
+        util.file.cat(blast_hits, blastOutFiles)
+        os.unlink(fasta)
+
+    else:
+        ## pipe tools together and run blastn multithreaded
+        with open(blast_hits, 'wt') as outf:
+            for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
+                outf.write(read_id + '\n')
 
     # Deplete BAM of hits
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)

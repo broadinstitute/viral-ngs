@@ -24,27 +24,30 @@ rule depletion:
     ''' Runs a full human read depletion pipeline and removes PCR duplicates
     '''
     input:  
-            input_bam    = config["data_dir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam',
-            bmtagger_dbs = objectify_remote(expand("{db}.{ext}", db=config["bmtagger_dbs_remove"], ext=['bitmask','srprism.ssa','srprism.imp','srprism.idx','srprism.map','srprism.ss','srprism.amp','srprism.rmp','srprism.pmp','srprism.ssd'])),
-            blast_dbs    = objectify_remote(expand("{db}.{ext}", db=config["blast_db_remove"], ext=['nhr','nsq','nin'])) # ['nhr','nix','nsq','dict','fai','nin']
-    output: config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
-            config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
-            config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
-    resources: mem=15
-    params: LSF=config.get('LSF_queues', {}).get('long', '-q forest'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
-            revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
-            logid="{sample}",
-            threads=int(config.get("number_of_threads", 1))
+        input_bam    = config["data_dir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam',
+        bmtagger_dbs = objectify_remote(expand("{db}.{ext}", db=config["bmtagger_dbs_remove"], ext=['bitmask','srprism.ssa','srprism.imp','srprism.idx','srprism.map','srprism.ss','srprism.amp','srprism.rmp','srprism.pmp','srprism.ssd'])),
+        blast_dbs    = objectify_remote(expand("{db}.{ext}", db=config["blast_db_remove"], ext=['nhr','nsq','nin'])) # ['nhr','nix','nsq','dict','fai','nin']
+    output: 
+        config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
+        config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
+        config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
+    resources: 
+        mem     = 15,
+        threads = int(config.get("number_of_threads", 1))
+    params: 
+        LSF        = config.get('LSF_queues', {}).get('long', '-q forest'),
+        UGER       = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
+        logid      = "{sample}"
     run:
-            makedirs(expand("{dir}/{subdir}",
-                dir=[config["data_dir"],config["tmp_dir"]],
-                subdir=config["subdirs"]["depletion"]))
-            mem_mb = int((resources.mem * 1000) * 0.95)
-            blast_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["blast_db_remove"]]))
-            bmtagger_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["bmtagger_dbs_remove"]]))
-            shell("{config[bin_dir]}/taxon_filter.py deplete_human {input.input_bam} {params.revert_bam} {output} --bmtaggerDbs {bmtagger_db_prefixes} --blastDbs {blast_db_prefixes} --threads {params.threads} --srprismMemory {mem_mb} --JVMmemory 15g")
-            os.unlink(params.revert_bam)
+        makedirs(expand("{dir}/{subdir}",
+            dir=[config["data_dir"],config["tmp_dir"]],
+            subdir=config["subdirs"]["depletion"]))
+        mem_mb = int((resources.mem * 1000) * 0.95)
+        blast_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["blast_db_remove"]]))
+        bmtagger_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["bmtagger_dbs_remove"]]))
+        shell("{config[bin_dir]}/taxon_filter.py deplete_human {input.input_bam} {params.revert_bam} {output} --bmtaggerDbs {bmtagger_db_prefixes} --blastDbs {blast_db_prefixes} --threads {resources.threads} --srprismMemory {mem_mb} --JVMmemory 15g")
+        os.unlink(params.revert_bam)
 
 rule filter_to_taxon:
     ''' This step reduces the read set to a specific taxon (usually the genus
@@ -52,15 +55,17 @@ rule filter_to_taxon:
     '''
     input:  
         input_bam = config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
-        lastalDb  = objectify_remote(expand('{lastal_ref_db_dir}/lastal.{ext}', lastal_ref_db_dir=config["lastal_ref_db_dir"], ext=['bck','des','prj','sds','ssp','suf','tis'])),
-    output: config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
-    resources: mem=8
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('long', '-q long'),
-            logid="{sample}"
+        lastalDb  = objectify_remote(expand('{lastal_ref_db_dir}/lastal.fasta', lastal_ref_db_dir=config["lastal_ref_db_dir"])),
+    output: 
+        config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.taxfilt.bam'
+    resources: 
+        mem = 7
+    params: 
+        LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 2:00:00'),
+        logid = "{sample}"
     run: 
-        lastal_db_path_prefix=os.path.splitext(input.lastalDb[0])[0]
-        shell("{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input.input_bam} "+lastal_db_path_prefix+" {output}")
+        shell("{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input.input_bam} {input.lastalDb} {output}")
 
 
 class MergeInputException(Exception):
@@ -94,11 +99,11 @@ def merge_one_per_sample_queue(_, input):
     total_size = 0
     for fn in input:
         if not os.path.exists(fn):
-            return config.get('UGER_queues', {}).get('short', '-q short')
+            return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
         total_size += os.stat(fn).st_size
     if total_size > 1500000000:
-        return config.get('UGER_queues', {}).get('long', '-q long')
-    return config.get('UGER_queues', {}).get('short', '-q short')
+        return config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
+    return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
 
 
 rule merge_one_per_sample:
@@ -109,17 +114,21 @@ rule merge_one_per_sample:
         analysis steps require.  For cleaned and taxfilt outputs, we re-run
         the rmdup step on a per-library basis after merging.
     '''
-    input:  merge_one_per_sample_inputs
-    output: config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
-    resources: mem=10
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=merge_one_per_sample_queue,
-            logid="{sample}-{adjective}",
-            tmpf_bam=config["tmp_dir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
+    input:  
+        merge_one_per_sample_inputs
+    output: 
+        config["data_dir"]+'/'+config["subdirs"]["per_sample"] +'/{sample}.{adjective,raw|cleaned|taxfilt}.bam'
+    resources: 
+        mem = 10
+    params: 
+        LSF      = config.get('LSF_queues', {}).get('short', '-W 4:00'),
+        UGER     = merge_one_per_sample_queue,
+        logid    = "{sample}-{adjective}",
+        tmpf_bam = config["tmp_dir"]+'/'+config["subdirs"]["depletion"] +'/{sample}.{adjective}.bam'
     run:
-            makedirs(config["data_dir"]+'/'+config["subdirs"]["per_sample"])
-            if wildcards.adjective == 'raw':
-                shell("{config[bin_dir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
-            else:
-                shell("{config[bin_dir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
-                shell("{config[bin_dir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory 8g")
+        makedirs(config["data_dir"]+'/'+config["subdirs"]["per_sample"])
+        if wildcards.adjective == 'raw':
+            shell("{config[bin_dir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
+        else:
+            shell("{config[bin_dir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
+            shell("{config[bin_dir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory 8g")
