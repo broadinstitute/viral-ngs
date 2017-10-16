@@ -40,7 +40,8 @@ rule assemble_trinity:
         bam    = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
         clipDb = objectify_remote(config["trim_clip_db"])
     output:
-        fasta = config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+        fasta = config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        subsamp_bam = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     resources:
         mem     = 7,
         threads = int(config.get("number_of_threads", 1))
@@ -49,12 +50,11 @@ rule assemble_trinity:
         UGER        = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
         n_reads     = str(config["trinity_n_reads"]),
         logid       = "{sample}",
-        subsamp_bam = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
         makedirs(expand("{dir}/{subdir}",
             dir=[config["data_dir"],config["tmp_dir"]],
             subdir=config["subdirs"]["assembly"]))
-        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
+        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {output.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
 
 rule assemble_spades:
     ''' This step runs the SPAdes assembler.
