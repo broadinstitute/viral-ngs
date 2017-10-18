@@ -32,7 +32,9 @@ class TrimmomaticTool(tools.Tool):
         trailing_q_cutoff=15,
         minlength_to_keep=30,
         sliding_window_size=4,
-        sliding_window_q_cutoff=25
+        sliding_window_q_cutoff=25,
+        maxinfo_target_length=None,
+        maxinfo_strictness=None
     ):
         '''Trim read sequences with Trimmomatic.'''
         trimmomaticPath = self.install_and_get_path()
@@ -62,6 +64,10 @@ class TrimmomaticTool(tools.Tool):
                 'SLIDINGWINDOW:{sliding_window_size}:{sliding_window_q_cutoff}'.format(
                     sliding_window_size=sliding_window_size,
                     sliding_window_q_cutoff=sliding_window_q_cutoff,
+                ) if not maxinfo_target_length else \
+                'MAXINFO:{maxinfo_target_length}:{maxinfo_strictness}'.format(
+                    maxinfo_target_length=maxinfo_target_length,
+                    maxinfo_strictness=maxinfo_strictness,
                 ), 
                 'MINLEN:{minlength_to_keep}'.format(minlength_to_keep=minlength_to_keep),
                 'ILLUMINACLIP:{clipFasta}:2:30:12'.format(clipFasta=clipFasta)
