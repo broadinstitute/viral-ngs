@@ -57,7 +57,7 @@ class DenovoAssemblyError(RuntimeError):
         super(DenovoAssemblyError, self).__init__(reason)
 
 
-def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
+def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, always_include_unpaired=False, trim_opts=None):
     ''' Take reads through Trimmomatic, Prinseq, and subsampling.
         This should probably move over to read_utils.
     '''
@@ -87,7 +87,8 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
             trimfq[1],
             clipDb,
             unpairedOutFastq1=trimfq_unpaired[0],
-            unpairedOutFastq2=trimfq_unpaired[1]
+            unpairedOutFastq2=trimfq_unpaired[1],
+            **(trim_opts or {})
         )
 
     n_trim = max(map(util.file.count_fastq_reads, trimfq))    # count is pairs
@@ -135,7 +136,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     # --- subsampling ---
 
     # if we have too few paired reads after trimming and de-duplication, we can incorporate unpaired reads to reach the desired count
-    if n_rmdup_paired * 2 < n_reads:
+    if always_include_unpaired or (n_rmdup_paired * 2 < n_reads):
         # the unpaired reads from the trim operation, and the singletons from Prinseq
         unpaired_concat = util.file.mkstempfname('.unpaired.fastq')
 
@@ -211,7 +212,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
             if n_rmdup_unpaired > 0 else ""
         )
     )
-    if did_include_subsampled_unpaired_reads:
+    if not always_include_unpaired and did_include_subsampled_unpaired_reads:
         log.info(
             "   Too few individual reads ({}*2={}) from paired reads to reach desired threshold ({}), so including subsampled unpaired reads".format(
                 n_rmdup_paired, n_rmdup_paired * 2, n_reads
@@ -229,7 +230,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000):
     )
     log.info("    {} individual reads".format(n_final_individual_reads))
 
-    if did_include_subsampled_unpaired_reads:
+    if not always_include_unpaired and did_include_subsampled_unpaired_reads:
         if n_final_individual_reads < n_reads:
             log.warning(
                 "NOTE: Even with unpaired reads included, there are fewer unique trimmed reads than requested for Trinity input."
@@ -340,6 +341,75 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assemble_trinity', parser_assemble_trinity))
 
+def assemble_spades(
+    in_bam,
+    clip_db,
+    out_fasta,
+    spades_opts='',
+    contigs_trusted=None, contigs_untrusted=None,
+    filter_contigs=False,
+    kmer_sizes=(55,65),
+    mask_errors=False,
+    max_kmer_sizes=1,
+    mem_limit_gb=8,
+    threads=0,
+):
+    ''' De novo RNA-seq assembly with the SPAdes assembler.
+
+    Inputs:
+        inBam - reads to assemble.  May include both paired and unpaired reads.
+        clip_db - Trimmomatic clip DB
+        trusted_contigs, untrusted_contigs - (optional) already-assembled contigs from the same sample.  trusted contigs must be
+          high-quality, untrusted_contigs may have some errors.
+
+    Outputs:
+        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
+            several contigs representing different variants of that region.
+
+    Params:
+        filter_contigs - drop lesser-quality contigs from output
+        mem_limit_gb - max memory to use
+        threads - number of threads to use (0 means use all available CPUs)
+        spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
+    '''
+
+    with util.file.tempfname(suffix='.bam', prefix='trim_rmdup_for_spades') as trim_rmdup_bam:
+        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=10000000, trim_opts=dict(maxinfo_target_length=35, 
+                                                                                                   maxinfo_strictness=.2))
+
+        with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True,
+                                                       JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
+            try:
+                tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+                                                   contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
+                                                   contigs_out=out_fasta, filter_contigs=filter_contigs,
+                                                   kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
+                                                   spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                                   threads=threads)
+            except subprocess.CalledProcessError as e:
+                raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
+
+def parser_assemble_spades(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('clip_db', help='Trimmomatic clip db')
+    parser.add_argument('out_fasta', help='Output assembly.')
+    parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
+                        help='Contigs of high quality previously assembled from the same sample')
+    parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
+                        help='Contigs of high medium quality previously assembled from the same sample')
+    parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
+                        help='only output contigs SPAdes is sure of')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
+    parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, assemble_spades, split_args=True)
+    return parser
+
+
+__commands__.append(('assemble_spades', parser_assemble_spades))
+
+
 def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=1, mem_limit_gb=4, time_soft_limit_minutes=60.0,
                     random_seed=0, gap2seq_opts='', mask_errors=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
@@ -375,68 +445,6 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
 
 
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
-
-
-def assemble_spades(
-    in_bam,
-    out_fasta,
-    spades_opts='',
-    contigs_trusted=None, contigs_untrusted=None,
-    filter_contigs=False,
-    kmer_sizes=(55,65),
-    mask_errors=False,
-    max_kmer_sizes=1,
-    mem_limit_gb=8,
-    threads=0,
-):
-    ''' De novo RNA-seq assembly with the SPAdes assembler.
-
-    Inputs:
-        inBam - reads to assemble.  May include both paired and unpaired reads.
-        trusted_contigs, untrusted_contigs - (optional) already-assembled contigs from the same sample.  trusted contigs must be
-          high-quality, untrusted_contigs may have some errors.
-
-    Outputs:
-        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
-            several contigs representing different variants of that region.
-
-    Params:
-        filter_contigs - drop lesser-quality contigs from output
-        mem_limit_gb - max memory to use
-        threads - number of threads to use (0 means use all available CPUs)
-        spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
-    '''
-
-    with tools.picard.SamToFastqTool().execute_tmp(in_bam, includeUnpaired=True,
-                                                   JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
-        try:
-            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                               contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
-                                               contigs_out=out_fasta, filter_contigs=filter_contigs,
-                                               kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
-                                               spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
-                                               threads=threads)
-        except subprocess.CalledProcessError as e:
-            raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
-
-def parser_assemble_spades(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('out_fasta', help='Output assembly.')
-    parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
-                        help='Contigs of high quality previously assembled from the same sample')
-    parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
-                        help='Contigs of high medium quality previously assembled from the same sample')
-    parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
-                        help='only output contigs SPAdes is sure of')
-    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
-    parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
-    parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, assemble_spades, split_args=True)
-    return parser
-
-
-__commands__.append(('assemble_spades', parser_assemble_spades))
 
 
 def order_and_orient(inFasta, inReference, outFasta,

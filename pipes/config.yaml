@@ -140,6 +140,9 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
+# De novo assembler to use.  Current options are "trinity" and "spades".
+assembly_assembler: "trinity"
+
 # The minimum length an assembled sequence must have
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
