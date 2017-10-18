@@ -212,16 +212,17 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, always_inclu
             if n_rmdup_unpaired > 0 else ""
         )
     )
-    if not always_include_unpaired and did_include_subsampled_unpaired_reads:
-        log.info(
-            "   Too few individual reads ({}*2={}) from paired reads to reach desired threshold ({}), so including subsampled unpaired reads".format(
-                n_rmdup_paired, n_rmdup_paired * 2, n_reads
+    if not always_include_unpaired:
+        if did_include_subsampled_unpaired_reads:
+            log.info(
+                "   Too few individual reads ({}*2={}) from paired reads to reach desired threshold ({}), so including subsampled "
+                "unpaired reads".format(n_rmdup_paired, n_rmdup_paired * 2, n_reads)
             )
-        )
-    else:
-        log.info("  Paired read count sufficient to reach threshold ({})".format(n_reads))
+        else:
+            log.info("  Paired read count sufficient to reach threshold ({})".format(n_reads))
+
     log.info(
-        "    {} individual reads for trinity ({}{})".format(
+        "    {} individual reads for de novo assembly ({}{})".format(
             n_output, "paired subsampled {} -> {}".format(n_rmdup_paired, n_paired_subsamp)
             if not did_include_subsampled_unpaired_reads else "{} read pairs".format(n_rmdup_paired),
             " + unpaired subsampled {} -> {}".format(n_rmdup_unpaired, n_unpaired_subsamp)
@@ -374,8 +375,8 @@ def assemble_spades(
     '''
 
     with util.file.tempfname(suffix='.bam', prefix='trim_rmdup_for_spades') as trim_rmdup_bam:
-        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=10000000, trim_opts=dict(maxinfo_target_length=35, 
-                                                                                                   maxinfo_strictness=.2))
+        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=10000000, always_include_unpaired=True,
+                                 trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
 
         with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True,
                                                        JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):

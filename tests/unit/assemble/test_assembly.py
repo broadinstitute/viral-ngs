@@ -152,30 +152,33 @@ class TestAssembleSpades(TestCaseWithTmp):
     def test_assembly(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
         with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, out_fasta=outFasta, threads=1)
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta, threads=1)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             print('test_assembly_contigs_lens:', contig_lens)
-            self.assertEqual(contig_lens, [168, 177, 180, 184, 187, 190, 191, 195, 197, 211, 243, 244, 247, 294, 328, 348, 430])
+            self.assertEqual(contig_lens, [168, 170, 177, 180, 184, 187, 190, 191, 195, 197, 211, 243, 244, 247, 328, 348, 430])
 
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
         previously_assembled_contigs = os.path.join(inDir, 'trinity_contigs.fasta')
         with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, contigs_untrusted=previously_assembled_contigs,
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, contigs_untrusted=previously_assembled_contigs,
                                      out_fasta=outFasta, threads=1, mem_limit_gb=1)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             print('test_assembly_with_previously_assembled_contigs_contigs_lens:', contig_lens)
-            self.assertEqual(contig_lens, [168, 177, 180, 184, 187, 190, 191, 195, 197, 211, 243, 244, 294, 321, 328, 348, 430])
+            self.assertEqual(contig_lens, [168, 170, 177, 180, 184, 187, 190, 191, 195, 197, 211, 243, 244, 321, 328, 348, 430])
 
     def test_empty_input_succeed(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
         with util.file.tempfname('fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, out_fasta=outFasta)
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
