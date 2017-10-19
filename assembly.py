@@ -448,6 +448,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
+
 def order_and_orient(inFasta, inReference, outFasta,
         outAlternateContigs=None,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
