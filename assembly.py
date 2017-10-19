@@ -349,32 +349,34 @@ def assemble_spades(
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
     kmer_sizes=(55,65),
+    n_reads=10000000,
     mask_errors=False,
     max_kmer_sizes=1,
     mem_limit_gb=8,
     threads=0,
 ):
-    ''' De novo RNA-seq assembly with the SPAdes assembler.
+    '''De novo RNA-seq assembly with the SPAdes assembler.
 
     Inputs:
-        inBam - reads to assemble.  May include both paired and unpaired reads.
-        clip_db - Trimmomatic clip DB
-        trusted_contigs, untrusted_contigs - (optional) already-assembled contigs from the same sample.  trusted contigs must be
+        inBam: reads to assemble.  May include both paired and unpaired reads.
+        clip_db: Trimmomatic clip DB
+        trusted_contigs, untrusted_contigs: (optional) already-assembled contigs from the same sample.  trusted contigs must be
           high-quality, untrusted_contigs may have some errors.
 
     Outputs:
-        outFasta - the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
+        outFasta: the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
             several contigs representing different variants of that region.
 
     Params:
-        filter_contigs - drop lesser-quality contigs from output
-        mem_limit_gb - max memory to use
-        threads - number of threads to use (0 means use all available CPUs)
-        spades_opts - (advanced) custom command-line options to pass to the SPAdes assembler
+        n_reads: before assembly, subsample the reads to at most this many
+        filter_contigs: drop lesser-quality contigs from output
+        mem_limit_gb: max memory to use
+        threads:  number of threads to use (0 means use all available CPUs)
+        spades_opts: (advanced) custom command-line options to pass to the SPAdes assembler
     '''
 
     with util.file.tempfname(suffix='.bam', prefix='trim_rmdup_for_spades') as trim_rmdup_bam:
-        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=10000000,
+        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
                                  trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
 
         with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True,
@@ -397,6 +399,8 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='Contigs of high quality previously assembled from the same sample')
     parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
                         help='Contigs of high medium quality previously assembled from the same sample')
+    parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
+                        help='Before assembly, subsample the reads to at most this many')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')

@@ -140,7 +140,8 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
-# De novo assembler to use.  Current options are "trinity" and "spades".
+# De novo assembler to use.  Current options are "trinity", "spades" and "trinity-spades"
+# (the "trinity-spades" option gives contigs produced by Trinity as auxiliary input to SPAdes).
 assembly_assembler: "trinity"
 
 # The minimum length an assembled sequence must have
@@ -194,6 +195,10 @@ mafft_maxiters: 1000
 # Roughly, ~1/2 hour to 1 hour required per million reads.
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
 trinity_n_reads: 250000
+
+# The number of reads to be subsampled from input bam files
+# and used as input to assembly via SPAdes
+spades_n_reads: 250000
 
 # Minimum number of reads on each strand
 vphaser_min_reads_each: 5

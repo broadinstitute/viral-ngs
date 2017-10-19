@@ -65,15 +65,44 @@ rule assemble_spades:
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
     resources: 
             mem=12,
-            cores=int(config.get("number_of_threads", 1))
-    params: LSF=config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER=config.get('UGER_queues', {}).get('short', '-q short'),
-            n_reads=str(config["trinity_n_reads"]),
-            logid="{sample}",
-            numThreads=str(config.get("number_of_threads", 1))
+            threads=int(config.get("number_of_threads", 1))
+    params: n_reads=str(config["spades_n_reads"]),
+            logid="{sample}"
     run:
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --contigsUntrusted {input.contigs_trinity}")
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
 
+            
+rule assemble_spades:
+    ''' This step runs the SPAdes assembler.
+    '''
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            clipDb = objectify_remote(config["trim_clip_db"])
+    output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
+    resources: 
+            mem=12,
+            threads=int(config.get("number_of_threads", 1))
+    params: n_reads=str(config["spades_n_reads"]),
+            logid="{sample}"
+    run:
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+
+
+rule assemble_trinity_spades:
+    ''' This step runs the Trinity assembler then the SPAdes assembler.
+    '''
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            clipDb = objectify_remote(config["trim_clip_db"]),
+            contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
+    resources: 
+            mem=12,
+            threads=int(config.get("number_of_threads", 1))
+    params: n_reads=str(config["spades_n_reads"]),
+            logid="{sample}"
+    run:
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_trinity_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+
+            
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
         order_and_orient (MUMmer): take the de novo assembly,
