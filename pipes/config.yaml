@@ -198,7 +198,7 @@ trinity_n_reads: 250000
 
 # The number of reads to be subsampled from input bam files
 # and used as input to assembly via SPAdes
-spades_n_reads: 250000
+spades_n_reads: 10000000
 
 # Minimum number of reads on each strand
 vphaser_min_reads_each: 5
