@@ -40,7 +40,8 @@ rule assemble_trinity:
         bam    = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
         clipDb = objectify_remote(config["trim_clip_db"])
     output:
-        fasta = config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+        fasta = config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
+        subsamp_bam = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     resources:
         mem     = 7,
         threads = int(config.get("number_of_threads", 1))
@@ -49,13 +50,43 @@ rule assemble_trinity:
         UGER        = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
         n_reads     = str(config["trinity_n_reads"]),
         logid       = "{sample}",
-        subsamp_bam = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam'
     run:
         makedirs(expand("{dir}/{subdir}",
             dir=[config["data_dir"],config["tmp_dir"]],
             subdir=config["subdirs"]["assembly"]))
-        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {params.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
+        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {output.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
 
+rule assemble_spades:
+    ''' This step runs the SPAdes assembler.
+    '''
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            clipDb = objectify_remote(config["trim_clip_db"])
+    output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
+    resources: 
+            mem=12,
+            threads=int(config.get("number_of_threads", 1))
+    params: n_reads=str(config["spades_n_reads"]),
+            logid="{sample}"
+    run:
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+
+
+rule assemble_trinity_spades:
+    ''' This step runs the Trinity assembler then the SPAdes assembler.
+    '''
+    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
+            clipDb = objectify_remote(config["trim_clip_db"]),
+            contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
+    output: contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
+    resources: 
+            mem=12,
+            threads=int(config.get("number_of_threads", 1))
+    params: n_reads=str(config["spades_n_reads"]),
+            logid="{sample}"
+    run:
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_trinity_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+
+            
 rule orient_and_impute:
     ''' This step cleans up the Trinity assembly with a known reference genome.
         order_and_orient (MUMmer): take the de novo assembly,
@@ -77,8 +108,9 @@ rule orient_and_impute:
             which will be captured in this output.
     '''
     input:  
-        fasta      = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta',
-        ref_genome = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" ))
+        fasta      = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-'+config["assembly_assembler"]+'.fasta',
+        ref_genome = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )),
+        cleaned_reads = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
     output: 
         fasta = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: 
@@ -94,6 +126,7 @@ rule orient_and_impute:
         replace_length   = str(config.get("assembly_replace_length", 55)),
         logid            = "{sample}",
         scaffolded_fasta = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffolded.fasta',
+        gapfilled_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-gapfilled.fasta',
         alternate_fasta  = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-alternate_sequences.fasta'
     run:
         ono_extra = []
@@ -107,7 +140,8 @@ rule orient_and_impute:
             ono_extra.extend(["--min_pct_contig_aligned", str(config["scaffold_min_pct_contig_aligned"])])
         ono_extra = " ".join(ono_extra)
         shell("{config[bin_dir]}/assembly.py order_and_orient {input.fasta} {input.ref_genome} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta}")
-        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.scaffolded_fasta} {input.ref_genome} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
+        shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.cleaned_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]}")        
+        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {input.ref_genome} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the scaffolded assembly,

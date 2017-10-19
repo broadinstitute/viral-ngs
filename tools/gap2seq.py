@@ -56,8 +56,8 @@ class Gap2SeqTool(tools.Tool):
             with util.file.pushd_popd(gap2seq_run_dir):
                 self.execute(file_args+args+more_args)
 
-    def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,2), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
-                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=0, time_soft_limit_minutes=60.0):
+    def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
+                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=0, time_soft_limit_minutes=60.0, random_seed=0):
         """Try to fill the gaps in the given scaffold, using the reads.
 
         Inputs:
@@ -80,6 +80,7 @@ class Gap2SeqTool(tools.Tool):
             mem_limit_gb: max memory to use, in gigabytes
             threads: number of threads to use; 0 or None means use all available cores.
             time_soft_limit_minutes: stop trying to close more gaps after this many minutes (currently this is a soft/advisory limit)
+            random_seed: random seed for choosing random paths (0 to use current time)
         
         """
         solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
@@ -93,18 +94,18 @@ class Gap2SeqTool(tools.Tool):
             prev_scaffold = in_scaffold
             for solid_kmer_threshold, kmer_size in itertools.product(solid_kmer_thresholds, kmer_sizes):
 
-                filled_scaffold = os.path.join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
-                self._run_gap2seq(reads, prev_scaffold, filled_scaffold,
-                                  *(['-all-upper', '-verbose']+shlex.split(gap2seq_opts)),
-                                  solid=solid_kmer_threshold, k=kmer_size, nb_cores=threads, max_mem=mem_limit_gb)
-
-                prev_scaffold = filled_scaffold
-
-                if not any('N'*min_gap_to_close in str(rec.seq) for rec in Bio.SeqIO.parse(filled_scaffold, 'fasta')):
+                if not any('N'*min_gap_to_close in str(rec.seq) for rec in Bio.SeqIO.parse(prev_scaffold, 'fasta')):
                     log.info('no gaps left, quittting gap2seq early')
                     break
                 if time.time() > stop_time:
                     log.info('Time limit for gap closing reached')
                     break
+
+                filled_scaffold = os.path.join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
+                self._run_gap2seq(reads, prev_scaffold, filled_scaffold,
+                                  *(['-all-upper', '-verbose']+shlex.split(gap2seq_opts)),
+                                  solid=solid_kmer_threshold, k=kmer_size, nb_cores=threads, max_mem=mem_limit_gb, randseed=random_seed)
+
+                prev_scaffold = filled_scaffold
 
             shutil.copyfile(src=prev_scaffold, dst=out_scaffold)

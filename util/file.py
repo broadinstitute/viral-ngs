@@ -417,14 +417,15 @@ def bam_is_sorted(bam_file_path):
         raise KeyError("Could not locate the SO field in the SAM/BAM file header.")
 
 
-def concat(inputFilePaths, outputFilePath):
+def concat(inputFilePaths, outputFilePath, append=False):
     '''
         This function creates an output file containing the
-        lines present in the input files, in the order specified
-        by the inputFilePaths list.
+        lines present in the input file(s), in the order specified
+        by the inputFilePaths list.  If `append` is True,
+        appends to the output file instead of overwriting it.
     '''
-    with open(outputFilePath, 'w') as outfile:
-        for filePath in inputFilePaths:
+    with open(outputFilePath, 'a' if append else 'w') as outfile:
+        for filePath in util.misc.make_seq(inputFilePaths):
             with open(filePath) as infile:
                 for line in infile:
                     outfile.write(line)

@@ -140,6 +140,10 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
+# De novo assembler to use.  Current options are "trinity", "spades" and "trinity-spades"
+# (the "trinity-spades" option gives contigs produced by Trinity as auxiliary input to SPAdes).
+assembly_assembler: "trinity"
+
 # The minimum length an assembled sequence must have
 # to be considered acceptible quality, specified as
 # a fraction of the length of the reference sequene.
@@ -192,6 +196,10 @@ mafft_maxiters: 1000
 # See: https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-FAQ#ques_why_so_many_transcripts
 trinity_n_reads: 250000
 
+# The number of reads to be subsampled from input bam files
+# and used as input to assembly via SPAdes
+spades_n_reads: 10000000
+
 # Minimum number of reads on each strand
 vphaser_min_reads_each: 5
 
@@ -204,6 +212,9 @@ vphaser_max_bins: 10
 # independent libraries of support and 
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
+
+# Random seed, for non-deterministic steps.  0 means use current time.
+random_seed: 0
 
 #    |----------------------- Data storage locations ---------------------------
 
