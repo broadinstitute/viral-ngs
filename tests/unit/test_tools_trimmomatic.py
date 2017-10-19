@@ -26,6 +26,23 @@ class TestTrimmomatic(TestCaseWithTmp):
         assert_equal_contents(self, pairedOutFastq1, expected1Fastq)
         assert_equal_contents(self, pairedOutFastq2, expected2Fastq)
 
+
+    def test_trimmomatic_paired_maxinfo(self):
+        myInputDir = util.file.get_test_input_path(self)
+        inFastq1 = os.path.join(myInputDir, 'in1.fastq')
+        inFastq2 = os.path.join(myInputDir, 'in2.fastq')
+        clipFasta = os.path.join(myInputDir, 'clip.fasta')
+        with util.file.tempfnames(('.out1.fastq', '.out2.fastq')) as (pairedOutFastq1, pairedOutFastq2):
+            tools.trimmomatic.TrimmomaticTool().execute(inFastq1, inFastq2, pairedOutFastq1, pairedOutFastq2, clipFasta,
+                                                        maxinfo_target_length=30, maxinfo_strictness=.3)
+
+            # Check that results match expected
+            expected1Fastq = os.path.join(myInputDir, 'expected1.maxinfo.fastq')
+            expected2Fastq = os.path.join(myInputDir, 'expected2.maxinfo.fastq')
+            assert_equal_contents(self, pairedOutFastq1, expected1Fastq)
+            assert_equal_contents(self, pairedOutFastq2, expected2Fastq)
+
+
     def test_trimmomatic_single(self):
         myInputDir = util.file.get_test_input_path(self)
         inFastq1 = os.path.join(myInputDir, 'in1.fastq')
