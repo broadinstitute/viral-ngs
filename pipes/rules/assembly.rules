@@ -60,22 +60,6 @@ rule assemble_spades:
     ''' This step runs the SPAdes assembler.
     '''
     input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
-            clipDb = objectify_remote(config["trim_clip_db"]),
-            contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
-    output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
-    resources: 
-            mem=12,
-            threads=int(config.get("number_of_threads", 1))
-    params: n_reads=str(config["spades_n_reads"]),
-            logid="{sample}"
-    run:
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
-
-            
-rule assemble_spades:
-    ''' This step runs the SPAdes assembler.
-    '''
-    input:  taxfilt_reads=config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.taxfilt.bam',
             clipDb = objectify_remote(config["trim_clip_db"])
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
     resources: 
