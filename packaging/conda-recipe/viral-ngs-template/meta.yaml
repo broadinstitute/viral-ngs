@@ -8,8 +8,8 @@ about:
   summary: A set of scripts and tools for the analysis of viral NGS data
 
 source:
-  fn: viral-ngs-{{PKG_VERSION}}.zip
-  url: https://github.com/broadinstitute/viral-ngs/archive/{{PKG_VERSION}}.zip
+  fn: viral-ngs-{{SRC_FILE_PREFIX}}.zip
+  url: https://github.com/broadinstitute/viral-ngs/archive/{{SRC_FILE_PREFIX}}.zip
 
 build:
     number: 0

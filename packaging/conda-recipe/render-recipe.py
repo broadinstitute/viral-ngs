@@ -222,7 +222,10 @@ if __name__ == "__main__":
     # that should match github tagged releases
     recipe_variables["PKG_VERSION"] = str(args_dict.pop("version"))
     if "src_download_filename" in args_dict and args_dict["src_download_filename"] is not None:
-        recipe_variables["PKG_VERSION"] = str(args_dict.pop("src_download_filename"))
+        recipe_variables["SRC_FILE_PREFIX"] = str(args_dict.pop("src_download_filename"))
+    else:
+        # otherwise use the "tag"
+        recipe_variables["SRC_FILE_PREFIX"] = recipe_variables["PKG_VERSION"]
 
     if "package_name" in args_dict and args_dict["package_name"] is not None:
         recipe_variables["PKG_NAME"] = str(args_dict.pop("package_name"))

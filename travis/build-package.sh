@@ -39,6 +39,8 @@ CONDA_PACKAGE_OUTDIR=packacking/conda-packages
 echo "Python binary: $(which python)"
 echo "Python version: $(python --version)"
 
+conda config --set anaconda_upload yes
+
 if [ $BUILD_PACKAGE = "true" ]; then
     # If this is a PR, on the master branch, or is a tag, render and build the conda package. If it is a tag, also upload to anaconda.org
     if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_BRANCH = "master" || -n "$TRAVIS_TAG" ]]; then
@@ -48,7 +50,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
         if [ -n "$TRAVIS_TAG" ]; then
              # if the ANACONDA_TOKEN is defined (not on an external branch)
             if [ ! -z "$ANACONDA_TOKEN" ]; then
-                conda config --set anaconda_upload yes
+                
                 python packaging/conda-recipe/render-recipe.py "$PKG_VERSION" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
                 CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs && \
                 
@@ -84,7 +86,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
             python packaging/conda-recipe/render-recipe.py "0.0.0$package_suffix" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_BRANCH" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
             #CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --no-anaconda-upload --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
-            cp $CONDA_PACKAGE_OUTDIR/*.tar.bz2 ./docker/
+            cp $CONDA_PACKAGE_OUTDIR/*/*.tar.bz2 ./docker/
             # build the docker image, and try to run it
             rc="$?"
             if [[ "$rc" == "0" ]]; then
