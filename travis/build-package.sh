@@ -43,7 +43,7 @@ conda config --set anaconda_upload yes
 
 if [ $BUILD_PACKAGE = "true" ]; then
     # If this is a PR, on the master branch, or is a tag, render and build the conda package. If it is a tag, also upload to anaconda.org
-    if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_BRANCH = "master" || -n "$TRAVIS_TAG" ]]; then
+    #if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_BRANCH = "master" || -n "$TRAVIS_TAG" ]]; then
         echo "Rendering and building conda package..."
         # Render recipe from template and dependency files, setting the tag as the current version
         # if this is a tag build+upload, otherwise just test building
@@ -115,7 +115,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 fi
             fi
         fi
-    fi  
+    #fi  
 else
     echo "Not building a package for this slot in the build matrix."
 fi
