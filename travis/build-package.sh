@@ -88,7 +88,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
             fi
 
-            described_version="$(./assembly.py --version | perl -lape 's/-/_/g')_$(echo $BRANCH_NAME | perl -lape 's/-/_/g')"
+            described_version="$(git describe --tags --always --dirty | perl -lape 's/-/_/g')_$(echo $BRANCH_NAME | perl -lape 's/-/_/g')"
             package_suffix="+$described_version"
 
             # render and build the conda package
