@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e -x -o pipefail
 
 # This script performs various packing and deployment operations.
 # It assumes it will be caused as a deploy hook of TravisCI; ex.:
