@@ -44,16 +44,32 @@ ENV PATH $PATH:/opt/google-cloud-sdk/bin
 ENV LANG="en_US.UTF-8" LANGUAGE="en_US:en" LC_ALL="en_US.UTF-8"
 
 # grab gosu for easy step-down from root
-ENV GOSU_VERSION 1.7
-RUN set -x \
-    && wget -q -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture)" \
-    && wget -q -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" \
-    && export GNUPGHOME="$(mktemp -d)" \
-    && gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
-    && gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
-    && rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc \
-    && chmod +x /usr/local/bin/gosu \
-    && gosu nobody true
+ENV GOSU_VERSION 1.10
+RUN set -ex; \
+    \
+    fetchDeps=' \
+        ca-certificates \
+        wget \
+    '; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends $fetchDeps; \
+    rm -rf /var/lib/apt/lists/*; \
+    \
+    dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
+    wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+    \
+# verify the signature
+    export GNUPGHOME="$(mktemp -d)"; \
+    gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+    rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+    \
+    chmod +x /usr/local/bin/gosu; \
+# verify that the binary works
+    gosu nobody true; \
+    \
+    apt-get purge -y --auto-remove $fetchDeps
 
 ##############################
 # Prepare user and installation directory
@@ -79,7 +95,7 @@ RUN chmod -R +x $INSTALL_DIR/env_wrapper.sh
 # download and use the viral-ngs easy deploy script to install viral-ngs
 #RUN curl -LO https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh
 # Docker does not support conditional copies, but we can get around it by copying a file we know to exist and then wildcarded files
-COPY Dockerfile viral-ngs-*.tar.bz2 $INSTALL_DIR
+COPY Dockerfile viral-ngs-*.tar.bz2 $INSTALL_DIR/
 ADD ./easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_DIR/easy-deploy-viral-ngs.sh
 RUN chmod +x $INSTALL_DIR/easy-deploy-viral-ngs.sh
 WORKDIR $INSTALL_DIR
