@@ -1,5 +1,5 @@
 package:
-  name: viral-ngs
+  name: {{PKG_NAME|default("viral-ngs")}}
   version: {{PKG_VERSION_CONDA}}
 
 about:

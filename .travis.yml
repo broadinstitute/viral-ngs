@@ -7,8 +7,13 @@ matrix:
     include:
         - os: linux
           python: 2.7
+          env: PERFORM_TESTING=true
         - os: linux
           python: 3.6
+          env: PERFORM_TESTING=true
+        - os: linux
+          python: 3.6
+          env: BUILD_PACKAGE=true
 #        - os: osx
 #          language: generic
 #          env:
@@ -41,6 +46,12 @@ env:
   - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
   # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
   - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
+  # DOCKER_USER
+  - secure: k13pEBbvO3I48lJZ09ptwqpsVzuLEy3UZ9Xqud7X52ogSL4/y1UscZoQhnfdr81HJI0RiP3TG3OVHz3PyV0bADfxDev55FASsVJzsvLcqKqVZUW6vTyIhf7ASGNgGLaq4Qaej2ZBhGPnN/wQMs+sccD3wbqCEzSnRVp76SRLWvE=
+  # DOCKER_PASS
+  - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+  # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
+  - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
 
 git:
   depth: 3
@@ -56,11 +67,11 @@ install:
 script:
   - travis/tests-long.sh
   - travis/tests-unit.sh
+  - travis/build-package.sh $TRAVIS_TAG
 
 after_success:
   - coveralls
-  - travis/build-and-deploy.sh $TRAVIS_TAG
-
+  
 before_deploy:
   - source travis/install-conda.sh
   - conda install -y jinja2 # needed to render conda recipe
