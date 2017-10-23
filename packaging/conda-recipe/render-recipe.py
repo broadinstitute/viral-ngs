@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument('version',
                         type=VersionString,
                         help='the version number of the package')
-    parser.add_argument('--package_name',
+    parser.add_argument('--package-name', dest="package_name",
                         type=str,
                         help='override the default name of the package described in the recipe')
     parser.add_argument('--build-reqs', nargs='*', dest='build_requirements',
@@ -223,6 +223,9 @@ if __name__ == "__main__":
     recipe_variables["PKG_VERSION"] = str(args_dict.pop("version"))
     if "src_download_filename" in args_dict and args_dict["src_download_filename"] is not None:
         recipe_variables["PKG_VERSION"] = str(args_dict.pop("src_download_filename"))
+
+    if "package_name" in args_dict and args_dict["package_name"] is not None:
+        recipe_variables["PKG_NAME"] = str(args_dict.pop("package_name"))
 
     # strip "v" prefix from versions that look like v1.14.0
     if recipe_variables["PKG_VERSION"].startswith("v"):
