@@ -80,10 +80,19 @@ if [ $BUILD_PACKAGE = "true" ]; then
         else
             # make a directory to hold the built conda package
             mkdir -p CONDA_PACKAGE_OUTDIR
-            # build the conda package
-            described_version="$(./assembly.py --version)"
+            
+            if [ -z "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
+                # if a commit is being pushed, TRAVIS_PULL_REQUEST_BRANCH is empty
+                BRANCH_NAME="$TRAVIS_BRANCH"
+            else
+                BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
+            fi
+
+            described_version="$(./assembly.py --version | perl -lape 's/-/_/g')_$(echo $BRANCH_NAME | perl -lape 's/-/_/g')"
             package_suffix="+$described_version"
-            python packaging/conda-recipe/render-recipe.py "0.0.0$package_suffix" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_BRANCH" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
+
+            # render and build the conda package
+            python packaging/conda-recipe/render-recipe.py "0.0.0$package_suffix" --package-name "viral-ngs-dev" --download-filename "$BRANCH_NAME" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
             #CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --no-anaconda-upload --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             cp $CONDA_PACKAGE_OUTDIR/*/*.tar.bz2 ./docker/
