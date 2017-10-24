@@ -24,6 +24,9 @@ ENV DEBIAN_FRONTEND noninteractive
 ##############################
 # System packages, Google Cloud SDK, and locale
 ##############################
+# ca-certificates and wget needed for gosu
+# bzip2, liblz4-toolk, and pigz are useful for packaging and archival
+# google-cloud-sdk needed when using this in GCE, xenial is what phusion/baseimage is based on
 # removing /var/lib/apt/lists/* frees some space
 # 
 RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk-xenial main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
@@ -41,15 +44,6 @@ ENV LANG="en_US.UTF-8" LANGUAGE="en_US:en" LC_ALL="en_US.UTF-8"
 # grab gosu for easy step-down from root
 ENV GOSU_VERSION 1.10
 RUN set -ex; \
-    \
-    fetchDeps=' \
-        ca-certificates \
-        wget \
-    '; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends $fetchDeps; \
-    rm -rf /var/lib/apt/lists/*; \
-    \
     dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
     wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
     wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
@@ -64,7 +58,6 @@ RUN set -ex; \
 # verify that the binary works
     gosu nobody true; \
     \
-    apt-get purge -y --auto-remove $fetchDeps
 
 ##############################
 # Prepare user and installation directory

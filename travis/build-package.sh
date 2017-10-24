@@ -99,13 +99,10 @@ if [ $BUILD_PACKAGE = "true" ]; then
             # build the docker image, and try to run it
             rc="$?"
             if [[ "$rc" == "0" ]]; then
-                pushd ./docker
-
                 REPO=broadinstitute/viral-ngs-dev
                 TAG=$described_version
+                tar -czh -C docker . | docker build --rm - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
-                tar -czh . | docker build --rm - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
-                popd
                 if [[ ! -z $build_image ]]; then
                     echo "build_image: $build_image"
                     docker run --rm $build_image illumina.py || exit $?
