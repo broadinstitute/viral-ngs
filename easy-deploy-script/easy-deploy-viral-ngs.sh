@@ -44,7 +44,7 @@ PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
 
-SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
+SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
 CONDA_CHANNEL_STRING="-c broad-viral -c bioconda -c conda-forge -c defaults -c r"
 
