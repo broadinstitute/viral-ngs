@@ -29,8 +29,8 @@ ENV DEBIAN_FRONTEND noninteractive
 # google-cloud-sdk needed when using this in GCE, xenial is what phusion/baseimage is based on
 # removing /var/lib/apt/lists/* frees some space
 # 
-RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk-xenial main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
-    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - \
+RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk-xenial main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
     && apt-get update \
     && apt-get install -y -qq --no-install-recommends ca-certificates wget rsync curl bzip2 python less nano vim locales google-cloud-sdk liblz4-tool pigz \
     && apt-get upgrade -y \
