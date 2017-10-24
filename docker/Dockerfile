@@ -56,8 +56,7 @@ RUN set -ex; \
     \
     chmod +x /usr/local/bin/gosu; \
 # verify that the binary works
-    gosu nobody true; \
-    \
+    gosu nobody true
 
 ##############################
 # Prepare user and installation directory
