@@ -89,10 +89,9 @@ if [ $BUILD_PACKAGE = "true" ]; then
             fi
 
             described_version="$(git describe --tags --always | perl -lape 's/-/_/g')_$(echo $BRANCH_NAME | perl -lape 's/-/_/g')"
-            package_suffix="+$described_version"
 
             # render and build the conda package
-            python packaging/conda-recipe/render-recipe.py "0.0.0$package_suffix" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
+            python packaging/conda-recipe/render-recipe.py "$described_version" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
             #CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --no-anaconda-upload --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             cp $CONDA_PACKAGE_OUTDIR/*/*.tar.bz2 ./docker/

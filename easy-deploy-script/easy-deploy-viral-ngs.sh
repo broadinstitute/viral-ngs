@@ -44,7 +44,7 @@ PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
 
-SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
+SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
 CONDA_CHANNEL_STRING="-c broad-viral -c bioconda -c conda-forge -c defaults -c r"
 
@@ -197,7 +197,7 @@ function install_miniconda(){
         else
             miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         fi
-        wget -q $miniconda_url -O "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
+        curl -sSL $miniconda_url > "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         chmod +x "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         "$INSTALL_PATH/Miniconda3-latest-x86_64.sh" -b -f -p "$MINICONDA_PATH"
 

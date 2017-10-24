@@ -47,11 +47,13 @@ RUN set -ex; \
     dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
     wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
     wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+    \
 # verify the signature
     export GNUPGHOME="$(mktemp -d)"; \
     gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
     gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
     rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+    \
     chmod +x /usr/local/bin/gosu; \
 # verify that the binary works
     gosu nobody true
@@ -80,7 +82,7 @@ RUN chmod -R +x $INSTALL_DIR/env_wrapper.sh
 # download and use the viral-ngs easy deploy script to install viral-ngs
 #RUN curl -LO https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh
 # Docker does not support conditional copies, but we can get around it by copying a file we know to exist and then wildcarded files
-COPY Dockerfile viral-ngs-*.tar.bz2 $INSTALL_DIR/
+COPY Dockerfile viral-ngs*.tar.bz2 $INSTALL_DIR/
 ADD ./easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_DIR/easy-deploy-viral-ngs.sh
 RUN chmod +x $INSTALL_DIR/easy-deploy-viral-ngs.sh
 WORKDIR $INSTALL_DIR
@@ -88,8 +90,8 @@ WORKDIR $INSTALL_DIR
 ENV VIRAL_NGS_VERSION $VIRAL_NGS_VERSION
 # if a *.tar.bz2 file exists in the INSTALL_DIR, assume it is a viral-ngs package and install it
 RUN echo "Running easy install with viral-ngs version $VIRAL_NGS_VERSION $(ls -1 ./*.tar.bz2 2> /dev/null | head -1)"
-RUN bash -c 'echo $(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup $(ls -1 ./*.tar.bz2 2> /dev/null | head -1)"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
-RUN bash -c '$(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup $(ls -1 ./*.tar.bz2 2> /dev/null | head -1)"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
+RUN bash -c 'echo $(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup `ls -1 ./*.tar.bz2 2> /dev/null | head -1`"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
+RUN bash -c '$(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup `ls -1 ./*.tar.bz2 2> /dev/null | head -1`"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
 
 ENV DEBIAN_FRONTEND teletype
 
