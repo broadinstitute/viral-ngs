@@ -93,16 +93,16 @@ class VersionString(object):
 
             # Post-release
             if self.version_re.match(self.v).group("post") is not None:
-                parts.append(".post{0}".format(self.version_re.match(self.v).group("post")))
+                parts.append("{0}".format(self.version_re.match(self.v).group("post")))
 
             # Development release
             if self.version_re.match(self.v).group("dev") is not None:
-                parts.append(".dev{0}".format(self.version_re.match(self.v).group("dev")))
+                parts.append("{0}".format(self.version_re.match(self.v).group("dev")))
 
             # Local version segment
             if self.version_re.match(self.v).group("local") is not None:
                 parts.append(
-                    "+{0}".format(".".join(str(x) for x in self.version_re.match(self.v).group("local")))
+                    "+{0}".format("".join(str(x) for x in self.version_re.match(self.v).group("local")))
                 )
         except:
             raise argparse.ArgumentTypeError("String '%s' does not match required PEP440 format"%(self.v,))
@@ -177,6 +177,9 @@ if __name__ == "__main__":
     parser.add_argument('version',
                         type=VersionString,
                         help='the version number of the package')
+    parser.add_argument('--package-name', dest="package_name",
+                        type=str,
+                        help='override the default name of the package described in the recipe')
     parser.add_argument('--build-reqs', nargs='*', dest='build_requirements',
                         type=argparse.FileType('r'),
                         help='build-time requirements file')
@@ -219,7 +222,13 @@ if __name__ == "__main__":
     # that should match github tagged releases
     recipe_variables["PKG_VERSION"] = str(args_dict.pop("version"))
     if "src_download_filename" in args_dict and args_dict["src_download_filename"] is not None:
-        recipe_variables["PKG_VERSION"] = str(args_dict.pop("src_download_filename"))
+        recipe_variables["SRC_FILE_PREFIX"] = str(args_dict.pop("src_download_filename"))
+    else:
+        # otherwise use the "tag"
+        recipe_variables["SRC_FILE_PREFIX"] = recipe_variables["PKG_VERSION"]
+
+    if "package_name" in args_dict and args_dict["package_name"] is not None:
+        recipe_variables["PKG_NAME"] = str(args_dict.pop("package_name"))
 
     # strip "v" prefix from versions that look like v1.14.0
     if recipe_variables["PKG_VERSION"].startswith("v"):
