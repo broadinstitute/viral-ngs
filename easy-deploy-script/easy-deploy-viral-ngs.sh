@@ -197,7 +197,7 @@ function install_miniconda(){
         else
             miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         fi
-        wget -q $miniconda_url -O "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
+        curl -sSL $miniconda_url > "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         chmod +x "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         "$INSTALL_PATH/Miniconda3-latest-x86_64.sh" -b -f -p "$MINICONDA_PATH"
 
