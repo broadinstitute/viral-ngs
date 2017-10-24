@@ -88,10 +88,12 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
             fi
 
-            described_version="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/-g/-dev+g/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/-g/-dev+g/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/')_$(echo $BRANCH_NAME) | sed 's/-/_/g'"
+            echo "Building conda package version $pkg_version_conda and docker image version $pkg_version_docker"
 
             # render and build the conda package
-            python packaging/conda-recipe/render-recipe.py "$described_version" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
+            python packaging/conda-recipe/render-recipe.py "$pkg_version_conda" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
             #CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --no-anaconda-upload --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
             cp $CONDA_PACKAGE_OUTDIR/*/*.tar.bz2 ./docker/
@@ -99,7 +101,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
             rc="$?"
             if [[ "$rc" == "0" ]]; then
                 REPO=broadinstitute/viral-ngs-dev
-                TAG=$described_version
+                TAG=$pkg_version_docker
                 tar -czh -C docker . | docker build --rm - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
                 if [[ ! -z $build_image ]]; then
