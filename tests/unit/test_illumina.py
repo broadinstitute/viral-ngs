@@ -153,6 +153,12 @@ class TestIlluminaDir(TestCaseWithTmp):
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
 
+    def test_tarball_deep_dir_tree(self):
+        inDir = util.file.get_test_input_path(self)
+        with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-both-broad_full_path.tar.gz')) as idir:
+            self.assertTrue(os.path.isdir(idir.get_BCLdir()))
+            self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
+
     def test_zip_archive(self):
         inDir = util.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-both-2.zip')) as idir:
