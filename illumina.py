@@ -410,17 +410,21 @@ class IlluminaDirectory(object):
 
     def _fix_path(self):
         assert self.path is not None
-        if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
-            # this is not the correct root-level directory
-            # sometimes this points to one level up
-            subdirs = list(os.path.join(self.path, x) for x in os.listdir(self.path)
-                           if os.path.isdir(os.path.join(self.path, x)))
-            if len(subdirs) != 1:
-                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (subdirectories: %s)' %
-                                (self.uri, str(subdirs)))
-            self.path = subdirs[0]
-            if not os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
-                raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
+        # this is not the correct root-level directory
+        # sometimes this points to one level up
+        while True:
+            if os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
+                # found it! self.path is correct
+                break
+            else:
+                subdirs = list(os.path.join(self.path, x) for x in os.listdir(self.path)
+                               if os.path.isdir(os.path.join(self.path, x)))
+                if len(subdirs) == 1:
+                    # follow the rabbit hole
+                    self.path = subdirs[0]
+                else:
+                    # don't know where to go now!
+                    raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
 
     def _extract_tarball(self, tarfile):
         if not os.path.isfile(tarfile):
