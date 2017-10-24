@@ -54,7 +54,7 @@ env:
   - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
 
 git:
-  depth: 3
+  depth: 20
 
 before_install:
   - travis/before_install.sh
