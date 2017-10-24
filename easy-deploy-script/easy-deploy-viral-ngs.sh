@@ -407,7 +407,7 @@ function symlink_viral_ngs(){
     # and assume it's the first one to show up
     if [ ! -L "$VIRAL_NGS_PATH" ]; then
         echo "Linking to current viral-ngs install..."
-        EXPECTED_VIRAL_NGS_VERSION=$(conda list viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')
+        EXPECTED_VIRAL_NGS_VERSION=$(conda list viral-ngs.* | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')
         VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep "$EXPECTED_VIRAL_NGS_VERSION" | grep -m 1 "viral-ngs")
 
         if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
@@ -609,7 +609,7 @@ else
                         fi
                     fi
 
-                    if [ ! -z "$(conda list viral-ngs | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')" ]; then
+                    if [ ! -z "$(conda list viral-ngs.* | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')" ]; then
                         if [ -L "$VIRAL_NGS_PATH" ]; then
                             rm $VIRAL_NGS_PATH # remove symlink
                         fi
