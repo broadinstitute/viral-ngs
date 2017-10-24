@@ -88,7 +88,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
             fi
 
-            described_version="$(git describe --tags --always | sed 's/-/_/g' | sed 's/^v//')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            described_version="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/-g/-dev+g/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
 
             # render and build the conda package
             python packaging/conda-recipe/render-recipe.py "$described_version" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt && \
