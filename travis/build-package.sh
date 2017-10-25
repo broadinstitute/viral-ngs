@@ -88,7 +88,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
             fi
 
-            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/-g/-dev+g/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
             pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
             echo "Building conda package version $pkg_version_conda and docker image version $pkg_version_docker"
 
