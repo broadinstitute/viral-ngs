@@ -1,7 +1,7 @@
 #!/bin/bash
 # This script primarily enables or disables the Travis dependency
 # cache depending on whether we're on the master branch or not.
-set -e
+set -e -o pipefail
 
 # Only sometimes cache the tools/build directory
 if [ -z "$TRAVIS_TAG" ]; then
@@ -25,4 +25,10 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # Under OSX, some versions of ruby seem to cause this error.
     # See: https://github.com/travis-ci/travis-ci/issues/6307
     rvm get head
+fi
+
+if [ ! -z "$BUILD_PACKAGE" ]; then
+    sudo apt-get update
+    sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+    docker --version
 fi
