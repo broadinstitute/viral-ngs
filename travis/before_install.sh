@@ -28,7 +28,10 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
 fi
 
 if [ ! -z "$BUILD_PACKAGE" ]; then
+    # upgrade docker (Travis's is old) and log in
     sudo apt-get update
     sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
     docker --version
+    echo "Docker username: $DOCKER_USER"
+    echo "$DOCKER_PASS" | docker login --password-stdin --username "$DOCKER_USER"
 fi

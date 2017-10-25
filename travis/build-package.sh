@@ -45,9 +45,6 @@ if [ $BUILD_PACKAGE = "true" ]; then
     # If this is a PR, on the master branch, or is a tag, render and build the conda package. If it is a tag, also upload to anaconda.org
     #if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_BRANCH = "master" || -n "$TRAVIS_TAG" ]]; then
 
-        # sort out any docker login issues now before we go through all this
-        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-
         echo "Rendering and building conda package..."
         # Render recipe from template and dependency files, setting the tag as the current version
         # if this is a tag build+upload, otherwise just test building
