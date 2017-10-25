@@ -44,6 +44,12 @@ conda config --set anaconda_upload yes
 if [ $BUILD_PACKAGE = "true" ]; then
     # If this is a PR, on the master branch, or is a tag, render and build the conda package. If it is a tag, also upload to anaconda.org
     #if [[ ( -n $TRAVIS_PULL_REQUEST && $TRAVIS_PULL_REQUEST != "false" ) || $TRAVIS_BRANCH = "master" || -n "$TRAVIS_TAG" ]]; then
+
+        # sort out any docker login issues now before we go through all this
+        docker --version
+        docker login --help
+        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin 
+
         echo "Rendering and building conda package..."
         # Render recipe from template and dependency files, setting the tag as the current version
         # if this is a tag build+upload, otherwise just test building
@@ -69,7 +75,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                     #echo "FROM $REPO:$VIRAL_NGS_VERSION-run-precursor"'
                     #      ENTRYPOINT ["/opt/viral-ngs/env_wrapper.sh"]' | docker build -t "$REPO:$VIRAL_NGS_VERSION" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
-                    docker run --rm $build_image illumina.py && echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin && docker push "$REPO:$VIRAL_NGS_VERSION"
+                    docker run --rm $build_image illumina.py && docker push "$REPO:$VIRAL_NGS_VERSION"
                 else
                     echo "Docker build failed."
                     exit 1
@@ -88,8 +94,9 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
             fi
 
-            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
-            pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            sanitized_branch_name="$(echo $BRANCH_NAME | sed 's/-/_/g')"
+            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$sanitized_branch_name"
+            pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$sanitized_branch_name"
             echo "Building conda package version $pkg_version_conda and docker image version $pkg_version_docker"
 
             # render and build the conda package
@@ -103,12 +110,12 @@ if [ $BUILD_PACKAGE = "true" ]; then
             if [[ "$rc" == "0" ]]; then
                 REPO=broadinstitute/viral-ngs-dev
                 TAG=$pkg_version_docker
-                tar -czh -C docker . | docker build --build-arg VIRAL_NGS_PACKAGE=viral-ngs-dev --build-arg VIRAL_NGS_VERSION=$pkg_version_conda --rm -t "$REPO:$TAG" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
+                tar -czh -C docker . | docker build --build-arg VIRAL_NGS_PACKAGE=viral-ngs-dev --build-arg VIRAL_NGS_VERSION=$pkg_version_conda --rm -t "$REPO:$TAG" -t "$REPO:$sanitized_branch_name" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
                 if [[ ! -z $build_image ]]; then
                     echo "build_image: $build_image, docker user $DOCKER_USER"
                     docker run --rm $build_image illumina.py || exit $?
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin && docker push "$REPO:$TAG"
+                    docker push "$REPO:$TAG"
                 else
                     echo "Docker build failed."
                     exit 1
