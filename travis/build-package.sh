@@ -90,8 +90,8 @@ if [ $BUILD_PACKAGE = "true" ]; then
             fi
 
             sanitized_branch_name="$(echo $BRANCH_NAME | sed 's/-/_/g')"
-            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$sanitized_branch_name"
-            pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$sanitized_branch_name"
+            pkg_version_docker="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$(echo $sanitized_branch_name)"
+            pkg_version_conda="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$(echo $sanitized_branch_name)"
             echo "Building conda package version $pkg_version_conda and docker image version $pkg_version_docker"
 
             # render and build the conda package
