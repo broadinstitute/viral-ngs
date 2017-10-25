@@ -103,11 +103,12 @@ if [ $BUILD_PACKAGE = "true" ]; then
             if [[ "$rc" == "0" ]]; then
                 REPO=broadinstitute/viral-ngs-dev
                 TAG=$pkg_version_docker
-                tar -czh -C docker . | docker build --build-arg VIRAL_NGS_PACKAGE=viral-ngs-dev --build-arg VIRAL_NGS_VERSION=$pkg_version_conda --rm - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
+                tar -czh -C docker . | docker build --build-arg VIRAL_NGS_PACKAGE=viral-ngs-dev --build-arg VIRAL_NGS_VERSION=$pkg_version_conda --rm -t "$REPO:$TAG" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
                 if [[ ! -z $build_image ]]; then
                     echo "build_image: $build_image"
                     docker run --rm $build_image illumina.py || exit $?
+                    docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && docker push "$REPO:$TAG"
                 else
                     echo "Docker build failed."
                     exit 1
