@@ -47,8 +47,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
 
         # sort out any docker login issues now before we go through all this
         docker --version
-        docker login --help
-        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin 
+        docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
 
         echo "Rendering and building conda package..."
         # Render recipe from template and dependency files, setting the tag as the current version
