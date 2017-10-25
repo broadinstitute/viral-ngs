@@ -13,7 +13,18 @@ matrix:
           env: PERFORM_TESTING=true
         - os: linux
           python: 3.6
-          env: BUILD_PACKAGE=true
+          env:
+            - BUILD_PACKAGE=true
+            # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+            - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+            # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
+            - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
+            # DOCKER_USER
+            - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
+            # DOCKER_PASS
+            - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+            # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
+            - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
 #        - os: osx
 #          language: generic
 #          env:
@@ -43,16 +54,6 @@ env:
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-  # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel) 
-  - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-  # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
-  - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
-  # DOCKER_USER
-  - secure: OoYMnZMFX5s0zeWp/nbSQj3dxYXgTdxNsMsVJzfJy3Q6uY1GeRxtKiGERWeH0IOVN8RxJVz9OC1eH9N6blhNxkJc4D24Jei/1eKD3jz2DmEuAJCD4khVVjv3/wLxR2nO4nt6ra+GDDY/MFXFl28WiDLMiAZkJR5/3dXnD8KnoZk=
-  # DOCKER_PASS
-  - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
-  # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
-  - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
 
 git:
   depth: 20
