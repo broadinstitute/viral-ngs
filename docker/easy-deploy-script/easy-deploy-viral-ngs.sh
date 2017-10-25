@@ -44,9 +44,13 @@ PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
 MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
 
-SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
+SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
 CONDA_CHANNEL_STRING="-c broad-viral -c bioconda -c conda-forge -c defaults -c r"
+
+if [ -z "$VIRAL_NGS_PACKAGE" ]; then
+    VIRAL_NGS_PACKAGE="viral-ngs"
+fi
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -197,7 +201,7 @@ function install_miniconda(){
         else
             miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
         fi
-        wget -q $miniconda_url -O "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
+        curl -sSL $miniconda_url > "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         chmod +x "$INSTALL_PATH/Miniconda3-latest-x86_64.sh"
         "$INSTALL_PATH/Miniconda3-latest-x86_64.sh" -b -f -p "$MINICONDA_PATH"
 
@@ -221,7 +225,7 @@ function install_viral_ngs_conda(){
     # provide an avenue to specify a package path, or to use a previously-built local package
     if [ $# -eq 2 ]; then
         if [ "$2" == "--use-local" ]; then
-            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" --use-local viral-ngs || exit 1
+            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" --use-local $VIRAL_NGS_PACKAGE || exit 1
             echo "using local...."
             exit 0
         else
@@ -230,12 +234,12 @@ function install_viral_ngs_conda(){
 
     elif [ $# -eq 3 ]; then
         if [ "$2" == "--viral-ngs-version" ]; then
-            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" viral-ngs=$3 || exit 1
+            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE=$3 || exit 1
         else
             echo "--viral-ngs-version specified but no version given"
         fi
     elif [ $# -eq 1 ]; then
-        conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" viral-ngs || exit 1
+        conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE || exit 1
     fi
 }
 
@@ -407,7 +411,7 @@ function symlink_viral_ngs(){
     # and assume it's the first one to show up
     if [ ! -L "$VIRAL_NGS_PATH" ]; then
         echo "Linking to current viral-ngs install..."
-        EXPECTED_VIRAL_NGS_VERSION=$(conda list viral-ngs.* | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')
+        EXPECTED_VIRAL_NGS_VERSION=$(conda list $VIRAL_NGS_PACKAGE | grep $VIRAL_NGS_PACKAGE | grep -v packages | awk -F" " '{print $2}')
         VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep "$EXPECTED_VIRAL_NGS_VERSION" | grep -m 1 "viral-ngs")
 
         if [ -d "$VIRAL_NGS_CONDA_PATH" ]; then
@@ -609,7 +613,7 @@ else
                         fi
                     fi
 
-                    if [ ! -z "$(conda list viral-ngs.* | grep viral-ngs | grep -v packages | awk -F" " '{print $2}')" ]; then
+                    if [ ! -z "$(conda list $VIRAL_NGS_PACKAGE | grep $VIRAL_NGS_PACKAGE | grep -v packages | awk -F" " '{print $2}')" ]; then
                         if [ -L "$VIRAL_NGS_PATH" ]; then
                             rm $VIRAL_NGS_PATH # remove symlink
                         fi
