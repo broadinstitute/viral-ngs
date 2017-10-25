@@ -15,6 +15,8 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
+# These are used to determine which conda package name and version to pull from anaconda.org
+ARG VIRAL_NGS_PACKAGE
 ARG VIRAL_NGS_VERSION
 
 # Silence some warnings about Readline. Checkout more over here:
@@ -85,11 +87,10 @@ ADD ./easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_DIR/easy-deploy-viral
 RUN chmod +x $INSTALL_DIR/easy-deploy-viral-ngs.sh
 WORKDIR $INSTALL_DIR
 
+ENV VIRAL_NGS_PACKAGE $VIRAL_NGS_PACKAGE
 ENV VIRAL_NGS_VERSION $VIRAL_NGS_VERSION
-# if a *.tar.bz2 file exists in the INSTALL_DIR, assume it is a viral-ngs package and install it
-RUN echo "Running easy install with viral-ngs version $VIRAL_NGS_VERSION $(ls -1 ./*.tar.bz2 2> /dev/null | head -1)"
-RUN bash -c 'echo $(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup `ls -1 ./*.tar.bz2 2> /dev/null | head -1`"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
-RUN bash -c '$(if [ "$VIRAL_NGS_VERSION" == "" ]; then echo "./easy-deploy-viral-ngs.sh setup `ls -1 ./*.tar.bz2 2> /dev/null | head -1`"; else echo "./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION"; fi)'
+RUN echo "Running easy install from conda: $VIRAL_NGS_PACKAGE=$VIRAL_NGS_VERSION"
+RUN ./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION
 
 ENV DEBIAN_FRONTEND teletype
 
