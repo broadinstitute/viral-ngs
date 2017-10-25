@@ -69,7 +69,7 @@ if [ $BUILD_PACKAGE = "true" ]; then
                     #echo "FROM $REPO:$VIRAL_NGS_VERSION-run-precursor"'
                     #      ENTRYPOINT ["/opt/viral-ngs/env_wrapper.sh"]' | docker build -t "$REPO:$VIRAL_NGS_VERSION" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
-                    docker run --rm $build_image illumina.py && docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && docker push "$REPO:$VIRAL_NGS_VERSION"
+                    docker run --rm $build_image illumina.py && echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin && docker push "$REPO:$VIRAL_NGS_VERSION"
                 else
                     echo "Docker build failed."
                     exit 1
@@ -106,9 +106,9 @@ if [ $BUILD_PACKAGE = "true" ]; then
                 tar -czh -C docker . | docker build --build-arg VIRAL_NGS_PACKAGE=viral-ngs-dev --build-arg VIRAL_NGS_VERSION=$pkg_version_conda --rm -t "$REPO:$TAG" - | tee >(grep "Successfully built" | perl -lape 's/^Successfully built ([a-f0-9]{12})$/$1/g' > build_id) | grep ".*" && build_image=$(head -n 1 build_id) && rm build_id
 
                 if [[ ! -z $build_image ]]; then
-                    echo "build_image: $build_image"
+                    echo "build_image: $build_image, docker user $DOCKER_USER"
                     docker run --rm $build_image illumina.py || exit $?
-                    docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" && docker push "$REPO:$TAG"
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin && docker push "$REPO:$TAG"
                 else
                     echo "Docker build failed."
                     exit 1
