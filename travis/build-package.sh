@@ -56,5 +56,5 @@ fi
 # eventually separate off this bottom section after converting docker build to something based on setup-git
 
 # build & test docker image
-tar -czh -C docker . | docker build $DOCKER_BUILD_ARGS --rm -t local/viral-ngs:build -
+docker build $DOCKER_BUILD_ARGS --rm -t local/viral-ngs:build ./docker
 docker run --rm local/viral-ngs:build illumina.py
