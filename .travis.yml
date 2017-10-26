@@ -39,7 +39,7 @@ cache:
   timeout: 480
 before_cache:
   # Remove since we're caching the extracted directories
-  - conda clean --tarballs --yes
+  - if [ -n "$BUILD_PACKAGE" ]; then mv miniconda no_cache_miniconda; else conda clean --tarballs --yes; fi
   # Conda's repodata cache
   - rm -rf tools/conda-cache/.pkgs/cache
 
