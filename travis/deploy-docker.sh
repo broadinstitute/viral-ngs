@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [ -n "$BUILD_PACKAGE" && -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]; then
+if [[ -n "$BUILD_PACKAGE" && -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]]; then
 	echo "Deploying docker images to DockerHub"
 
     # deploy docker image to DockerHub

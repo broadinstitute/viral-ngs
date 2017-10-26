@@ -69,11 +69,11 @@ install:
 script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
-  - if [ -n "$BUILD_PACKAGE" ]; then travis/build-package.sh $TRAVIS_TAG; fi
+  - if [ -n "$BUILD_PACKAGE" ]; then travis/build-package.sh; fi
+  - if [ -n "$BUILD_PACKAGE" ]; then travis/deploy-docker.sh; fi
 
 after_success:
   - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
-  - if [ -n "$BUILD_PACKAGE" ]; then travis/deploy-docker.sh; fi
   
 after_script:
   # correct post-build failure on OSX due to non-zero exit code
