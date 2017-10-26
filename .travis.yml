@@ -39,7 +39,7 @@ cache:
   timeout: 480
 before_cache:
   # Remove since we're caching the extracted directories
-  - if [ -n "$BUILD_PACKAGE" ]; then mv miniconda no_cache_miniconda; else conda clean --tarballs --yes; fi
+  - if [ -n "$BUILD_PACKAGE" ]; then mv $HOME/miniconda $HOME/no_cache_miniconda; else conda clean --tarballs --yes; fi
   # Conda's repodata cache
   - rm -rf tools/conda-cache/.pkgs/cache
 
@@ -56,7 +56,7 @@ env:
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
 
 git:
-  depth: 50
+  depth: 60
 
 before_install:
   - travis/before_install.sh
