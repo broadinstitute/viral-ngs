@@ -7,13 +7,30 @@ matrix:
     include:
         - os: linux
           python: 2.7
+          env: PERFORM_TESTING=true
         - os: linux
           python: 3.6
+          env: PERFORM_TESTING=true
+        - os: linux
+          python: 3.6
+          env:
+            - BUILD_PACKAGE=true
+            # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+            - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+            # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
+            - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
+            # DOCKER_USER
+            - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
+            # DOCKER_PASS
+            - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+            # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
+            - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
 #        - os: osx
 #          language: generic
 #          env:
 #              - TRAVIS_OSX_PYTHON_VERSION=py36
 #              - TRAVIS_PYTHON_VERSION=3.6
+#              - PERFORM_TESTING=true
 
 cache:
   directories:
@@ -22,7 +39,7 @@ cache:
   timeout: 480
 before_cache:
   # Remove since we're caching the extracted directories
-  - conda clean --tarballs --yes
+  - if [ -n "$BUILD_PACKAGE" ]; then mv $HOME/miniconda $HOME/no_cache_miniconda; else conda clean --tarballs --yes; fi
   # Conda's repodata cache
   - rm -rf tools/conda-cache/.pkgs/cache
 
@@ -37,42 +54,27 @@ env:
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-  # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel) 
-  - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-  # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
-  - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
 
 git:
-  depth: 3
+  depth: 60
 
 before_install:
   - travis/before_install.sh
 
 install:
   - source travis/install-conda.sh
-  - source travis/install-tools.sh
-  - travis/install-pip.sh
+  - if [ -n "$PERFORM_TESTING" ]; then source travis/install-tools.sh; fi
+  - if [ -n "$PERFORM_TESTING" ]; then travis/install-pip.sh; fi
 
 script:
-  - travis/tests-long.sh
-  - travis/tests-unit.sh
+  - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
+  - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
+  - if [ -n "$BUILD_PACKAGE" ]; then travis/build-package.sh; fi
+  - if [ -n "$BUILD_PACKAGE" ]; then travis/deploy-docker.sh; fi
 
 after_success:
-  - coveralls
-  - travis/build-and-deploy.sh $TRAVIS_TAG
-
-before_deploy:
-  - source travis/install-conda.sh
-  - conda install -y jinja2 # needed to render conda recipe
-
+  - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
+  
 after_script:
   # correct post-build failure on OSX due to non-zero exit code
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then set +e; fi
-
-# deploy:
-#   provider: script
-#   skip_cleanup: true # retain build artifacts, including dependencies
-#   script: travis/build-and-deploy.sh $TRAVIS_TAG
-#   on:
-#     tags: true
-#     all_branches: true
