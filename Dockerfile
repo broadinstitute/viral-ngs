@@ -1,4 +1,4 @@
-FROM broadinstitute/viral-baseimage:0.1
+FROM broadinstitute/viral-baseimage:0.1.1
 
 LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 
