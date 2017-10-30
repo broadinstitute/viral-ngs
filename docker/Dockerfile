@@ -22,6 +22,11 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 # https://github.com/phusion/baseimage-docker/issues/58
 ENV DEBIAN_FRONTEND noninteractive
 
+# copy basic files
+COPY docker/env_wrapper.sh docker/install-skeleton.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
+RUN chmod a+x /opt/docker/*.sh
+
+
 ##############################
 # Prepare viral-ngs user and installation directory
 ##############################
