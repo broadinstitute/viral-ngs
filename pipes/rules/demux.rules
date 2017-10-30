@@ -74,7 +74,7 @@ def illumina_demux_inputs(wildcards):
     if not config.get('seqruns_demux'):
         return "unreachable-{}-{}".format(wildcards.flowcell, wildcards.lane)
     lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
-    return [objectify_remote(x) for x in [lane['bustard_dir'], lane['barcode_file']]]
+    return objectify_remote([lane['bustard_dir'], lane['barcode_file']])
 rule illumina_demux:
     input:  
         illumina_demux_inputs
