@@ -42,7 +42,9 @@ INSTALL_PATH=$(absolute_path "$INSTALL_PATH")
 VIRAL_CONDA_ENV_PATH="$INSTALL_PATH/$CONDA_ENV_BASENAME"
 PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
-MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
+if [ -z "$MINICONDA_PATH" ]; then
+    MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
+fi
 
 SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
