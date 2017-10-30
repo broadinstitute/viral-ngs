@@ -14,11 +14,15 @@ matrix:
         - os: linux
           python: 3.6
           env:
-            - BUILD_PACKAGE=true
+            - BUILD_PACKAGE=conda
             # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
             - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
             # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
             - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
+        - os: linux
+          python: 3.5
+          env:
+            - BUILD_PACKAGE=docker
             # DOCKER_USER
             - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
             # DOCKER_PASS
@@ -56,21 +60,22 @@ env:
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
 
 git:
-  depth: 60
+  depth: 50
 
 before_install:
   - travis/before_install.sh
 
 install:
-  - source travis/install-conda.sh
+  - if [[ "$BUILD_PACKAGE" != "docker" ]]; then source travis/install-conda.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then source travis/install-tools.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/install-pip.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "conda" ]]; then conda install quiet -y conda-build==3.0.25 anaconda-client; fi
 
 script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
-  - if [ -n "$BUILD_PACKAGE" ]; then travis/build-package.sh; fi
-  - if [ -n "$BUILD_PACKAGE" ]; then travis/deploy-docker.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis/build-conda.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker build --build-arg VERSION=$(git describe --tags --always) --rm -t local/viral-ngs:build ./docker; docker run --rm local/viral-ngs:build illumina.py; travis/deploy-docker.sh; fi
 
 after_success:
   - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi

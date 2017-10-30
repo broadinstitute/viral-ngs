@@ -244,7 +244,7 @@ function install_viral_ngs_conda(){
 }
 
 function install_viral_ngs_git(){
-    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+    if [ ! -d "$VIRAL_NGS_PATH" ]; then
         # First optional argument specifies non-master branch
         if [[ $# -eq 1 ]]; then
             git clone https://github.com/broadinstitute/viral-ngs.git --branch $1 "$VIRAL_NGS_PATH"
@@ -265,7 +265,6 @@ function install_viral_ngs_conda_dependencies() {
 
 function install_tools(){
     # install tools
-    #pytest $VIRAL_NGS_PATH/test/unit/test_tools.py
 
     # get the version of gatk expected based on the installed conda package
     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
@@ -401,7 +400,7 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2|setup-git,upgrade|upgrade-deps,update-easy-deploy}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2|setup-git|setup-git-local,upgrade|upgrade-deps,update-easy-deploy}"
 }
 
 function symlink_viral_ngs(){
@@ -409,7 +408,7 @@ function symlink_viral_ngs(){
     # opt/ directory of the conda environment, but it contains
     # a version number, so we'll ls and grep for the name
     # and assume it's the first one to show up
-    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+    if [ ! -d "$VIRAL_NGS_PATH" ]; then
         echo "Linking to current viral-ngs install..."
         EXPECTED_VIRAL_NGS_VERSION=$(conda list $VIRAL_NGS_PACKAGE | grep $VIRAL_NGS_PACKAGE | grep -v packages | awk -F" " '{print $2}')
         VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep "$EXPECTED_VIRAL_NGS_VERSION" | grep -m 1 "viral-ngs")
@@ -508,7 +507,7 @@ if [ $# -eq 0 ]; then
     fi
 else
     case "$1" in
-       "setup"|"setup-py2"|"setup-git")
+       "setup"|"setup-py2"|"setup-git|setup-git-local")
            if ! [ $# -eq 1 -o $# -eq 2 -o $# -eq 3 ]; then
 
                echo "Usage: $(basename $SCRIPT) setup"
@@ -540,7 +539,7 @@ else
                     conda create -q $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" python=3.6 || exit 1
                 fi
 
-                if [[ "$1" == "setup-git" ]]; then
+                if [[ "$1" == "setup-git" || "$1" == "setup-git-local" ]]; then
                     install_viral_ngs_git $2
                     install_viral_ngs_conda_dependencies
                 else
@@ -558,7 +557,9 @@ else
                 symlink_viral_ngs
             fi
 
+            #if [[ "$1" != "setup-git-local" ]]; then
             install_tools
+            #fi
 
             echo "Setup complete. Do you want to start a project? Run:"
             echo "$0 create-project <project_name> [/containing/path]"

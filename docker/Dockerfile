@@ -1,9 +1,9 @@
-FROM phusion/baseimage:0.9.22
+FROM broadinstitute/viral-baseimage:0.1
 
 LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 
 # to build:
-#   docker build --rm .
+#   docker build --build-arg VERSION=`git describe --tags --always` --rm .
 # to run:
 #   Download licensed copies of GATK and Novoalign to the host machine (for Linux-64)
 #   export GATK_PATH=/path/to/gatk/
@@ -15,84 +15,33 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
-# These are used to determine which conda package name and version to pull from anaconda.org
-ARG VIRAL_NGS_PACKAGE
-ARG VIRAL_NGS_VERSION
+# This is used to lock in the version string.
+#ARG VERSION
 
 # Silence some warnings about Readline. Checkout more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
 ENV DEBIAN_FRONTEND noninteractive
 
 ##############################
-# System packages, Google Cloud SDK, and locale
+# Prepare viral-ngs user and installation directory
 ##############################
-# ca-certificates and wget needed for gosu
-# bzip2, liblz4-toolk, and pigz are useful for packaging and archival
-# google-cloud-sdk needed when using this in GCE, xenial is what phusion/baseimage is based on
-# removing /var/lib/apt/lists/* frees some space
-# 
-RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk-xenial main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
-    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
-    && apt-get update \
-    && apt-get install -y -qq --no-install-recommends ca-certificates wget rsync curl bzip2 python less nano vim locales google-cloud-sdk liblz4-tool pigz \
-    && apt-get upgrade -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && locale-gen en_US.UTF-8
+ENV INSTALL_PATH="/opt/viral-ngs"
+ENV VIRAL_NGS_PATH="/opt/viral-ngs/source"
+RUN mkdir -p $VIRAL_NGS_PATH
+COPY *.py tools util pipes requirements* test .git $VIRAL_NGS_PATH/
+WORKDIR $INSTALL_PATH
+RUN /opt/docker/install-skeleton.sh
 
-# Set default locale to en_US.UTF-8
-ENV LANG="en_US.UTF-8" LANGUAGE="en_US:en" LC_ALL="en_US.UTF-8"
 
-# grab gosu for easy step-down from root
-# verify the signature
-# verify that the binary works
-ENV GOSU_VERSION 1.10
-RUN set -ex; \
-    dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
-    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
-    wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
-    export GNUPGHOME="$(mktemp -d)"; \
-    gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
-    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
-    rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc; \
-    chmod +x /usr/local/bin/gosu; \
-    gosu nobody true
-
-##############################
-# Prepare user and installation directory
-##############################
-ENV INSTALL_DIR="/opt/viral-ngs"
-RUN  mkdir -p $INSTALL_DIR
-
-##############################
-# Volume setup
-##############################
-# make external tools and data available within the container
+# Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
 ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
-# It's a wrapper script to load the viral-ngs environment via the easy-deploy script
-# and then run any commands desired
-# Put this up here to avoid long waiting time after heavier build layer below
-ADD ./env_wrapper.sh $INSTALL_DIR/env_wrapper.sh
-RUN chmod -R +x $INSTALL_DIR/env_wrapper.sh
 
-##############################
-# Setup viral-ngs
-##############################
-# download and use the viral-ngs easy deploy script to install viral-ngs
-#RUN curl -LO https://raw.githubusercontent.com/broadinstitute/viral-ngs-deploy/master/easy-deploy-script/easy-deploy-viral-ngs.sh
-# Docker does not support conditional copies, but we can get around it by copying a file we know to exist and then wildcarded files
-COPY Dockerfile viral-ngs*.tar.bz2 $INSTALL_DIR/
-ADD ./easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_DIR/easy-deploy-viral-ngs.sh
-RUN chmod +x $INSTALL_DIR/easy-deploy-viral-ngs.sh
-WORKDIR $INSTALL_DIR
-
-ENV VIRAL_NGS_PACKAGE $VIRAL_NGS_PACKAGE
-ENV VIRAL_NGS_VERSION $VIRAL_NGS_VERSION
-RUN echo "Running easy install from conda: $VIRAL_NGS_PACKAGE=$VIRAL_NGS_VERSION"
-RUN ./easy-deploy-viral-ngs.sh setup --viral-ngs-version $VIRAL_NGS_VERSION
-
+# Silence some warnings about Readline. Checkout more over here:
+# https://github.com/phusion/baseimage-docker/issues/58
 ENV DEBIAN_FRONTEND teletype
 
-ENTRYPOINT ["/opt/viral-ngs/env_wrapper.sh"]
+# It's a wrapper script to load the viral-ngs environment via the easy-deploy script
+# and then run any commands desired
+ENTRYPOINT ["/opt/docker/env_wrapper.sh"]
 CMD ["/bin/bash"]
