@@ -34,7 +34,7 @@ export PATH="$MINICONDADIR/bin:$PATH"
 source activate "$CONDAENVDIR"
 
 ARGS=""
-[[ $IMMEDIATE_SUBMIT -eq 1 ]] && ARGS+=" --immediate-submit "
+[[ $IMMEDIATE_SUBMIT -eq 1 ]] && ARGS+=" --immediate-submit --notemp "
 # invoke Snakemake in cluster mode with custom wrapper scripts
 snakemake --timestamp --rerun-incomplete --keep-going --nolock \
           $ARGS \
