@@ -64,7 +64,7 @@ rule annot_transfer:
         mem = 4
     params:     
         LSF  = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
+        UGER = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00')
     run:
         output_path_prefix = os.path.dirname(output.feature_tables)
         for alignmentFile in expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
@@ -88,7 +88,7 @@ rule prepare_genbank:
         config["data_dir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
         LSF                  = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER                 = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER                 = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         genbank_template     = config.get('genbank',{}).get('author_template', ''),
         genbank_source_table = config.get('genbank',{}).get('source_modifier_table', ''),
         biosample_map        = config.get('genbank',{}).get('biosample_map', ''),
