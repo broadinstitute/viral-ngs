@@ -507,7 +507,7 @@ if [ $# -eq 0 ]; then
     fi
 else
     case "$1" in
-       "setup"|"setup-py2"|"setup-git|setup-git-local")
+       "setup"|"setup-py2"|"setup-git"|"setup-git-local")
            if ! [ $# -eq 1 -o $# -eq 2 -o $# -eq 3 ]; then
 
                echo "Usage: $(basename $SCRIPT) setup"
