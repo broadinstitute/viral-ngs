@@ -44,7 +44,7 @@ rule ref_guided_consensus:
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF               = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER              = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER              = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid             = "{sample}",
         novoalign_options = config.get("ref_guided_consensus_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
         min_coverage      = "3"
@@ -64,7 +64,7 @@ rule ref_guided_consensus_aligned_with_dups:
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER  = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        UGER  = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
         logid = "{sample}"
     shell: "samtools view -b -F 4 -o {output} {input}"
 
@@ -88,7 +88,7 @@ rule ref_guided_diversity:
         mem=8
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid = "all"
     run:
         update_timestamps(input)
@@ -123,7 +123,7 @@ rule multi_align_mafft:
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF      = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER     = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        UGER     = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
         logid    = "all",
         ep       = str(config["mafft_ep"]),
         maxiters = str(config["mafft_maxiters"])

@@ -51,7 +51,7 @@ rule fastqc_report:
         mem = 3
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid = "{sample}-{adjective}"
     run:
         makedirs(config["reports_dir"])
@@ -102,7 +102,7 @@ if config.get("spikeins_db"):
             mem = 3
         params: 
             LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-            UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+            UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
             logid = "{sample}"
         run:
             makedirs(os.path.join(config["reports_dir"], 'spike_count'))
