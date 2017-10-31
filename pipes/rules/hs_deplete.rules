@@ -36,7 +36,7 @@ rule depletion:
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF        = config.get('LSF_queues', {}).get('long', '-q forest'),
-        UGER       = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        UGER       = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
         revert_bam = config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.raw.bam',
         logid      = "{sample}"
     run:
@@ -62,7 +62,7 @@ rule filter_to_taxon:
         mem = 7
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt 2:00:00'),
+        UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=2:00:00'),
         logid = "{sample}"
     run: 
         shell("{config[bin_dir]}/taxon_filter.py filter_lastal_bam {input.input_bam} {input.lastalDb} {output}")
@@ -99,11 +99,11 @@ def merge_one_per_sample_queue(_, input):
     total_size = 0
     for fn in input:
         if not os.path.exists(fn):
-            return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
+            return config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00')
         total_size += os.stat(fn).st_size
     if total_size > 1500000000:
-        return config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
-    return config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00')
+        return config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
+    return config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00')
 
 
 rule merge_one_per_sample:
