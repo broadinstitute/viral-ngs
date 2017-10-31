@@ -36,7 +36,7 @@ All of the command line functions in viral-ngs are accessible from the docker im
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets)::
 
   dsub --project broad-sabeti-lab --zones "us-east1-*" \
-    --image broadinstitute/viral-ngs:1.18.1 \
+    --image broadinstitute/viral-ngs:1.18.2 \
     --name illumina_demux-test \
     --logging gs://sabeti-temp-30d/dpark/test-demux/logs \
     --input FC_TGZ=gs://sabeti-sequencing/flowcells/broad-walkup/160907_M04004_0066_000000000-AJH8U.tar.gz \
