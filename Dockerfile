@@ -20,7 +20,7 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # copy basic files
-COPY docker/env_wrapper.sh docker/install-viral-ngs.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
+COPY docker/env_wrapper.sh docker/install-viral-ngs.sh easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
 RUN chmod a+x /opt/docker/*.sh
 
 # Prepare viral-ngs user and installation directory

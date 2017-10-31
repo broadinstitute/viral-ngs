@@ -39,10 +39,14 @@ MINICONDA_DIR="mc3"
 INSTALL_PATH="${VIRAL_NGS_INSTALL_PATH:-$SCRIPTPATH/$CONTAINING_DIR}"
 INSTALL_PATH=$(absolute_path "$INSTALL_PATH")
 
-VIRAL_CONDA_ENV_PATH="$INSTALL_PATH/$CONDA_ENV_BASENAME"
+if [ -z "$VIRAL_CONDA_ENV_PATH" ]; then
+    VIRAL_CONDA_ENV_PATH="$INSTALL_PATH/$CONDA_ENV_BASENAME"
+fi
 PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
-MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
+if [ -z "$MINICONDA_PATH" ]; then
+    MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
+fi
 
 SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
@@ -244,7 +248,7 @@ function install_viral_ngs_conda(){
 }
 
 function install_viral_ngs_git(){
-    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+    if [ ! -d "$VIRAL_NGS_PATH" ]; then
         # First optional argument specifies non-master branch
         if [[ $# -eq 1 ]]; then
             git clone https://github.com/broadinstitute/viral-ngs.git --branch $1 "$VIRAL_NGS_PATH"
@@ -257,15 +261,12 @@ function install_viral_ngs_git(){
 }
 
 function install_viral_ngs_conda_dependencies() {
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" || exit 1
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-py3.txt" || exit 1
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    conda install -q $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
 }
 
 
 function install_tools(){
     # install tools
-    #pytest $VIRAL_NGS_PATH/test/unit/test_tools.py
 
     # get the version of gatk expected based on the installed conda package
     EXPECTED_GATK_VERSION=$(conda list | grep gatk | awk -F" " '{print $2}')
@@ -289,9 +290,9 @@ function install_tools(){
     fi
 
     echo ""
-    if [ ! -z "$NOVOALIGN_PATH" ]; then
+    if [ -n "$NOVOALIGN_PATH" ]; then
         novoalign-license-register "$NOVOALIGN_PATH/novoalign.lic"
-    elif [ ! -z "$NOVOALIGN_LICENSE_PATH" ]; then
+    elif [ -n "$NOVOALIGN_LICENSE_PATH" ]; then
         novoalign-license-register "$NOVOALIGN_LICENSE_PATH"
     else
         echo "No Novoalign license found via NOVOALIGN_PATH or NOVOALIGN_LICENSE_PATH"
@@ -372,10 +373,12 @@ function activate_env(){
             echo "Activating viral-ngs environment..."
             prepend_miniconda
 
-            source activate $VIRAL_CONDA_ENV_PATH
+            if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
+                source activate $VIRAL_CONDA_ENV_PATH
+            fi
 
             # unset JAVA_HOME if set, so we can use the conda-supplied version
-            if [ ! -z "$JAVA_HOME" ]; then
+            if [ -n "$JAVA_HOME" ]; then
                 unset JAVA_HOME
             fi
 
@@ -401,7 +404,7 @@ function activate_env(){
 }
 
 function print_usage(){
-    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2|setup-git,upgrade|upgrade-deps,update-easy-deploy}"
+    echo "Usage: $(basename $SCRIPT) {load,create-project,setup|setup-py2|setup-git|setup-git-local,upgrade|upgrade-deps,update-easy-deploy}"
 }
 
 function symlink_viral_ngs(){
@@ -409,7 +412,7 @@ function symlink_viral_ngs(){
     # opt/ directory of the conda environment, but it contains
     # a version number, so we'll ls and grep for the name
     # and assume it's the first one to show up
-    if [ ! -L "$VIRAL_NGS_PATH" ]; then
+    if [ ! -d "$VIRAL_NGS_PATH" ]; then
         echo "Linking to current viral-ngs install..."
         EXPECTED_VIRAL_NGS_VERSION=$(conda list $VIRAL_NGS_PACKAGE | grep $VIRAL_NGS_PACKAGE | grep -v packages | awk -F" " '{print $2}')
         VIRAL_NGS_CONDA_PATH="$VIRAL_CONDA_ENV_PATH/opt/"$(ls -1 "$VIRAL_CONDA_ENV_PATH/opt/" | grep "$EXPECTED_VIRAL_NGS_VERSION" | grep -m 1 "viral-ngs")
@@ -427,29 +430,31 @@ function symlink_viral_ngs(){
 }
 
 function check_viral_ngs_version(){
-    if [ -d "$VIRAL_NGS_PATH/.git" ]; then
-        pushd "$VIRAL_NGS_PATH" > /dev/null
-        git remote update
-        git status -uno
-        popd > /dev/null
-    elif [ -z "$SKIP_VERSION_CHECK" ]; then
-        # this must be run within an active conda environment
-        # so, after a call to "activate_env"
-        echo "Checking viral-ngs version..."
-        CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F' ' '{print $2}')"
-        # perhaps a better way...
-        AVAILABLE_VER="$(conda search --override-channels -f  $CONDA_CHANNEL_STRING --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
-        if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
-            echo ""
-            echo "============================================================================================================"
-            echo "Your copy of viral-ngs appears to be outdated ($CURRENT_VER). A newer version is available ($AVAILABLE_VER)."
-            echo "Check the release notes and consider upgrading:"
-            echo "https://github.com/broadinstitute/viral-ngs/releases"
-            echo "To upgrade: $(basename $SCRIPT) upgrade"
-            echo "============================================================================================================"
-            echo ""
+    if [ -z "$SKIP_VERSION_CHECK" ]; then
+        if [ -d "$VIRAL_NGS_PATH/.git" ]; then
+            pushd "$VIRAL_NGS_PATH" > /dev/null
+            git remote update
+            git status -uno
+            popd > /dev/null
         else
-            echo "viral-ngs is up to date ($CURRENT_VER)"
+            # this must be run within an active conda environment
+            # so, after a call to "activate_env"
+            echo "Checking viral-ngs version..."
+            CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F' ' '{print $2}')"
+            # perhaps a better way...
+            AVAILABLE_VER="$(conda search --override-channels -f  $CONDA_CHANNEL_STRING --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
+            if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
+                echo ""
+                echo "============================================================================================================"
+                echo "Your copy of viral-ngs appears to be outdated ($CURRENT_VER). A newer version is available ($AVAILABLE_VER)."
+                echo "Check the release notes and consider upgrading:"
+                echo "https://github.com/broadinstitute/viral-ngs/releases"
+                echo "To upgrade: $(basename $SCRIPT) upgrade"
+                echo "============================================================================================================"
+                echo ""
+            else
+                echo "viral-ngs is up to date ($CURRENT_VER)"
+            fi
         fi
     fi
 }
@@ -508,7 +513,7 @@ if [ $# -eq 0 ]; then
     fi
 else
     case "$1" in
-       "setup"|"setup-py2"|"setup-git")
+       "setup"|"setup-py2"|"setup-git"|"setup-git-local")
            if ! [ $# -eq 1 -o $# -eq 2 -o $# -eq 3 ]; then
 
                echo "Usage: $(basename $SCRIPT) setup"
@@ -540,7 +545,7 @@ else
                     conda create -q $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" python=3.6 || exit 1
                 fi
 
-                if [[ "$1" == "setup-git" ]]; then
+                if [[ "$1" == "setup-git" || "$1" == "setup-git-local" ]]; then
                     install_viral_ngs_git $2
                     install_viral_ngs_conda_dependencies
                 else
@@ -548,6 +553,9 @@ else
                 fi
             else
                 echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping conda env setup."
+                if [[ "$1" == "setup-git-local" ]]; then
+                    install_viral_ngs_conda_dependencies
+                fi
             fi
 
             conda clean -y --all
@@ -558,7 +566,9 @@ else
                 symlink_viral_ngs
             fi
 
+            #if [[ "$1" != "setup-git-local" ]]; then
             install_tools
+            #fi
 
             echo "Setup complete. Do you want to start a project? Run:"
             echo "$0 create-project <project_name> [/containing/path]"
