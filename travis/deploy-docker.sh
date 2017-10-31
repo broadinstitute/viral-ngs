@@ -12,7 +12,7 @@ if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]]; then
 		# this is an official tagged release
 		DOCKER_REPO="broadinstitute/viral-ngs"
 		DOCKER_SHORT_TAG="latest"
-		DOCKER_LONG_TAG="$TRAVIS_TAG"
+		DOCKER_LONG_TAG="$(echo $TRAVIS_TAG | sed 's/^v//')"
 	else
 		DOCKER_REPO="broadinstitute/viral-ngs-dev"
 		if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then

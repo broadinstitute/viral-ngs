@@ -3,7 +3,7 @@ FROM broadinstitute/viral-baseimage:0.1.2
 LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 
 # to build:
-#   docker build --build-arg VERSION=`git describe --tags --always` --rm .
+#   docker build --rm .
 # to run:
 #   Download licensed copies of GATK and Novoalign to the host machine (for Linux-64)
 #   export GATK_PATH=/path/to/gatk/
@@ -20,14 +20,14 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # copy basic files
-COPY docker/env_wrapper.sh docker/install-skeleton.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
+COPY docker/env_wrapper.sh docker/install-viral-ngs.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
 RUN chmod a+x /opt/docker/*.sh
 
 # Prepare viral-ngs user and installation directory
 ENV INSTALL_PATH="/opt/viral-ngs" VIRAL_NGS_PATH="/opt/viral-ngs/source"
 COPY . $VIRAL_NGS_PATH/
 WORKDIR $INSTALL_PATH
-RUN /opt/docker/install-skeleton.sh
+RUN /opt/docker/install-viral-ngs.sh
 
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
