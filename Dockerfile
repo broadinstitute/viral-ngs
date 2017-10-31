@@ -15,11 +15,6 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
-# This build arg will reduce the verbosity of the build
-# (typically to deal with Travis's log limit)
-ARG QUIET=false
-ENV QUIET=$QUIET
-
 # Silence some warnings about Readline. Checkout more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
 ENV DEBIAN_FRONTEND=noninteractive

@@ -56,10 +56,6 @@ if [ -z "$VIRAL_NGS_PACKAGE" ]; then
     VIRAL_NGS_PACKAGE="viral-ngs"
 fi
 
-# Travis has a log file limit
-QUIETNESS=""
-if [[ "$QUIET" == "true" ]]; then QUIETNESS="-q"; fi
-if [ -n "$TRAVIS" ]; then QUIETNESS="-q"; fi
 
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
@@ -266,7 +262,7 @@ function install_viral_ngs_git(){
 }
 
 function install_viral_ngs_conda_dependencies() {
-    conda install $QUIETNESS $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    conda install -q $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
 }
 
 
@@ -378,10 +374,12 @@ function activate_env(){
             echo "Activating viral-ngs environment..."
             prepend_miniconda
 
-            source activate $VIRAL_CONDA_ENV_PATH
+            if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
+                source activate $VIRAL_CONDA_ENV_PATH
+            fi
 
             # unset JAVA_HOME if set, so we can use the conda-supplied version
-            if [ ! -z "$JAVA_HOME" ]; then
+            if [ -n "$JAVA_HOME" ]; then
                 unset JAVA_HOME
             fi
 
