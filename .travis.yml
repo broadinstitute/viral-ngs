@@ -78,10 +78,11 @@ script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis_wait travis/build-conda.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis_wait docker build --rm -t local/viral-ngs:build .; docker run --rm local/viral-ngs:build assembly.py --version; travis/deploy-docker.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis_wait docker build --rm -t local/viral-ngs:build --build-arg QUIET=true .; docker run --rm local/viral-ngs:build assembly.py --version; fi
 
 after_success:
   - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/deploy-docker.sh; fi
   
 after_script:
   # correct post-build failure on OSX due to non-zero exit code

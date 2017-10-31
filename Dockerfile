@@ -15,18 +15,21 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
+# This build arg will reduce the verbosity of the build
+# (typically to deal with Travis's log limit)
+ARG QUIET=false
+ENV QUIET=$QUIET
+
 # Silence some warnings about Readline. Checkout more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # copy basic files
 COPY docker/env_wrapper.sh docker/install-skeleton.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
 RUN chmod a+x /opt/docker/*.sh
 
 # Prepare viral-ngs user and installation directory
-ENV INSTALL_PATH="/opt/viral-ngs"
-ENV VIRAL_NGS_PATH="/opt/viral-ngs/source"
-RUN mkdir -p $VIRAL_NGS_PATH
+ENV INSTALL_PATH="/opt/viral-ngs" VIRAL_NGS_PATH="/opt/viral-ngs/source"
 COPY . $VIRAL_NGS_PATH/
 WORKDIR $INSTALL_PATH
 RUN /opt/docker/install-skeleton.sh
@@ -37,7 +40,7 @@ ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/u
 
 # Silence some warnings about Readline. Checkout more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
-ENV DEBIAN_FRONTEND teletype
+ENV DEBIAN_FRONTEND=teletype
 
 # It's a wrapper script to load the viral-ngs environment via the easy-deploy script
 # and then run any commands desired

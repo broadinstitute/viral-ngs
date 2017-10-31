@@ -58,6 +58,7 @@ fi
 
 # Travis has a log file limit
 QUIETNESS=""
+if [[ "$QUIET" == "true" ]]; then QUIETNESS="-q"; fi
 if [ -n "$TRAVIS" ]; then QUIETNESS="-q"; fi
 
 # determine if this script has been sourced
