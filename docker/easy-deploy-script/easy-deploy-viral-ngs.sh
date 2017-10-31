@@ -39,12 +39,12 @@ MINICONDA_DIR="mc3"
 INSTALL_PATH="${VIRAL_NGS_INSTALL_PATH:-$SCRIPTPATH/$CONTAINING_DIR}"
 INSTALL_PATH=$(absolute_path "$INSTALL_PATH")
 
-if [[ -z "VIRAL_CONDA_ENV_PATH" ]]; then
+if [ -z "$VIRAL_CONDA_ENV_PATH" ]; then
     VIRAL_CONDA_ENV_PATH="$INSTALL_PATH/$CONDA_ENV_BASENAME"
 fi
 PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
-if [[ -z "$MINICONDA_PATH" ]]; then
+if [ -z "$MINICONDA_PATH" ]; then
     MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
 fi
 
@@ -428,29 +428,31 @@ function symlink_viral_ngs(){
 }
 
 function check_viral_ngs_version(){
-    if [ -d "$VIRAL_NGS_PATH/.git" ]; then
-        pushd "$VIRAL_NGS_PATH" > /dev/null
-        git remote update
-        git status -uno
-        popd > /dev/null
-    elif [ -z "$SKIP_VERSION_CHECK" ]; then
-        # this must be run within an active conda environment
-        # so, after a call to "activate_env"
-        echo "Checking viral-ngs version..."
-        CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F' ' '{print $2}')"
-        # perhaps a better way...
-        AVAILABLE_VER="$(conda search --override-channels -f  $CONDA_CHANNEL_STRING --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
-        if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
-            echo ""
-            echo "============================================================================================================"
-            echo "Your copy of viral-ngs appears to be outdated ($CURRENT_VER). A newer version is available ($AVAILABLE_VER)."
-            echo "Check the release notes and consider upgrading:"
-            echo "https://github.com/broadinstitute/viral-ngs/releases"
-            echo "To upgrade: $(basename $SCRIPT) upgrade"
-            echo "============================================================================================================"
-            echo ""
+    if [ -z "$SKIP_VERSION_CHECK" ]; then
+        if [ -d "$VIRAL_NGS_PATH/.git" ]; then
+            pushd "$VIRAL_NGS_PATH" > /dev/null
+            git remote update
+            git status -uno
+            popd > /dev/null
         else
-            echo "viral-ngs is up to date ($CURRENT_VER)"
+            # this must be run within an active conda environment
+            # so, after a call to "activate_env"
+            echo "Checking viral-ngs version..."
+            CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F' ' '{print $2}')"
+            # perhaps a better way...
+            AVAILABLE_VER="$(conda search --override-channels -f  $CONDA_CHANNEL_STRING --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
+            if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
+                echo ""
+                echo "============================================================================================================"
+                echo "Your copy of viral-ngs appears to be outdated ($CURRENT_VER). A newer version is available ($AVAILABLE_VER)."
+                echo "Check the release notes and consider upgrading:"
+                echo "https://github.com/broadinstitute/viral-ngs/releases"
+                echo "To upgrade: $(basename $SCRIPT) upgrade"
+                echo "============================================================================================================"
+                echo ""
+            else
+                echo "viral-ngs is up to date ($CURRENT_VER)"
+            fi
         fi
     fi
 }
