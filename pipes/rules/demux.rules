@@ -86,7 +86,7 @@ rule illumina_demux:
         mem = 60
     params: 
         LSF    = config.get('LSF_queues', {}).get('bigmem', '-q flower'),
-        UGER   = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00'),
+        UGER   = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
         logid  = "{flowcell}.{lane}",
         center = config['seq_center']
     run:
@@ -128,7 +128,7 @@ rule bams_from_fastq:
         os.path.join(config['data_dir'],config['subdirs']['source'],'{sample}.bam')
     params: 
         LSF    = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER   = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER   = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid  = "{sample}",
         center = config["seq_center"]
     run:
