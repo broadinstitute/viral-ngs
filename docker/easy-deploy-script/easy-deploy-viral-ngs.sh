@@ -551,6 +551,9 @@ else
                 fi
             else
                 echo "$VIRAL_CONDA_ENV_PATH/ already exists. Skipping conda env setup."
+                if [[ "$1" == "setup-git-local" ]]; then
+                    install_viral_ngs_conda_dependencies
+                fi
             fi
 
             conda clean -y --all
