@@ -68,7 +68,7 @@ install:
   - if [[ "$BUILD_PACKAGE" != "docker" ]]; then source travis/install-conda.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then source travis/install-tools.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/install-pip.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "conda" ]]; then conda install -q -y -p tools/conda-tools/default --file requirements-conda-build.txt; fi
+  - if [[ "$BUILD_PACKAGE" == "conda" ]]; then conda create -m -q -y -p tools/conda-tools/default --file requirements-conda-build.txt; fi
 
 script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
