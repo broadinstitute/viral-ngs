@@ -23,23 +23,13 @@ ENV DEBIAN_FRONTEND noninteractive
 COPY docker/env_wrapper.sh docker/install-skeleton.sh docker/easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
 RUN chmod a+x /opt/docker/*.sh
 
-
-##############################
 # Prepare viral-ngs user and installation directory
-##############################
 ENV INSTALL_PATH="/opt/viral-ngs"
 ENV VIRAL_NGS_PATH="/opt/viral-ngs/source"
 RUN mkdir -p $VIRAL_NGS_PATH
 COPY . $VIRAL_NGS_PATH/
-#COPY *.py requirements* $VIRAL_NGS_PATH/
-#COPY tools/ $VIRAL_NGS_PATH/tools/
-#COPY util/ $VIRAL_NGS_PATH/util/
-#COPY pipes/ $VIRAL_NGS_PATH/pipes/
-#COPY test/ $VIRAL_NGS_PATH/test/
-#COPY .git/ $VIRAL_NGS_PATH/.git/
 WORKDIR $INSTALL_PATH
 RUN /opt/docker/install-skeleton.sh
-
 
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]

@@ -10,6 +10,7 @@ ln /opt/docker/easy-deploy-viral-ngs.sh /opt/viral-ngs
 ln /opt/docker/env_wrapper.sh /opt/viral-ngs
 
 # setup/install viral-ngs
+sync
 /opt/viral-ngs/easy-deploy-viral-ngs.sh setup-git-local
 
 # this not only prints the current version string, but it also saves it to the
