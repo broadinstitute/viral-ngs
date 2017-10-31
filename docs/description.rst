@@ -37,9 +37,10 @@ Viral genome assembly
 ~~~~~~~~~~~~~~~~~~~~~
 
 The filtered and trimmed reads are subsampled to at most 100,000 pairs.
-*de novo* assemby is performed using Trinity_.
+*de novo* assemby is performed using Trinity_. SPAdes_ is also offered as
+an alternative *de novo* assembler.
 Reference-assisted assembly improvements follow (contig scaffolding, orienting, etc.)
-with MUMMER_ and MAFFT_.
+with MUMMER_ and MUSCLE_ or MAFFT_. Gap2Seq_ is used to seal gaps between scaffolded *de novo* contigs with sequencing reads.
 
 Each sample's reads are aligned to its *de novo* assembly using Novoalign_
 and any remaining duplicates were removed using Picard_ MarkDuplicates.
@@ -51,8 +52,11 @@ reads were changed to N.
 This align-call-refine cycle is iterated twice, to minimize reference bias in the assembly.
  
 .. _Trinity: http://trinityrnaseq.github.io/
+.. _SPAdes: http://bioinf.spbau.ru/en/spades
 .. _MUMMER: http://mummer.sourceforge.net/
+.. _MUSCLE: https://www.drive5.com/muscle/
 .. _MAFFT: http://mafft.cbrc.jp/alignment/software/
+.. _Gap2Seq: https://www.cs.helsinki.fi/u/lmsalmel/Gap2Seq/
 .. _Novoalign: http://www.novocraft.com/products/novoalign/
 .. _Picard: http://broadinstitute.github.io/picard
 .. _GATK: https://www.broadinstitute.org/gatk/
@@ -82,16 +86,9 @@ assembly. Annotations are computed with snpEff_.
 Taxonomic read identification
 -----------------------------
 
-Nothing here at the moment. That comes later, but we will later
-integrate it when it's ready.
+Metagenomic classifiers include Kraken_ and Diamond_. In each case, results are
+visualized with Krona_.
 
-
-Cloud compute implementation
-----------------------------
-
-This assembly pipeline is also available via the DNAnexus cloud
-platform. RNA paired-end reads from either HiSeq or MiSeq instruments
-can be securely uploaded in FASTQ or BAM format and processed through
-the pipeline using graphical and command-line interfaces. Instructions
-for the cloud analysis pipeline are available at
-https://github.com/dnanexus/viral-ngs/wiki
+.. _Kraken: https://ccb.jhu.edu/software/kraken/
+.. _Diamond: https://ab.inf.uni-tuebingen.de/software/diamond
+.. _Krona: https://github.com/marbl/Krona/wiki
