@@ -14,6 +14,7 @@ ln /opt/docker/env_wrapper.sh /opt/viral-ngs
 
 # this not only prints the current version string, but it also saves it to the
 # VERSION file for later use
+PATH=/opt/miniconda/bin:$PATH
 source activate /opt/miniconda
 echo -n "viral-ngs version: "
 /opt/viral-ngs/source/assembly.py --version
