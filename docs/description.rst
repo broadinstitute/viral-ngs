@@ -104,14 +104,15 @@ https://github.com/dnanexus/viral-ngs/wiki
 Google Cloud Platform: dsub
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All of the command line functions in viral-ngs are accessible from the `docker image`_ and can be invoked directly using dsub_.
+All of the command line functions in viral-ngs are accessible from the docker image_ and can be invoked directly using dsub_.
 
-.. _`docker image`: https://hub.docker.com/r/broadinstitute/viral-ngs/
 .. _dsub: https://cloud.google.com/genomics/v1alpha2/dsub
+.. _image: https://hub.docker.com/r/broadinstitute/viral-ngs/
 
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets):
 
-.. code-block::
+::
+
 	dsub --project broad-sabeti-lab --zones "us-east1-*" \
 	  --image broadinstitute/viral-ngs:1.18.1 \
 	  --name illumina_demux-test \
