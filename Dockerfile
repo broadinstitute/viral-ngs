@@ -15,9 +15,6 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
-# This is used to lock in the version string.
-#ARG VERSION
-
 # Silence some warnings about Readline. Checkout more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
 ENV DEBIAN_FRONTEND noninteractive
@@ -33,12 +30,13 @@ RUN chmod a+x /opt/docker/*.sh
 ENV INSTALL_PATH="/opt/viral-ngs"
 ENV VIRAL_NGS_PATH="/opt/viral-ngs/source"
 RUN mkdir -p $VIRAL_NGS_PATH
-COPY *.py requirements* $VIRAL_NGS_PATH/
-COPY tools/ $VIRAL_NGS_PATH/tools/
-COPY util/ $VIRAL_NGS_PATH/util/
-COPY pipes/ $VIRAL_NGS_PATH/pipes/
-COPY test/ $VIRAL_NGS_PATH/test/
-COPY .git/ $VIRAL_NGS_PATH/.git/
+COPY . $VIRAL_NGS_PATH/
+#COPY *.py requirements* $VIRAL_NGS_PATH/
+#COPY tools/ $VIRAL_NGS_PATH/tools/
+#COPY util/ $VIRAL_NGS_PATH/util/
+#COPY pipes/ $VIRAL_NGS_PATH/pipes/
+#COPY test/ $VIRAL_NGS_PATH/test/
+#COPY .git/ $VIRAL_NGS_PATH/.git/
 WORKDIR $INSTALL_PATH
 RUN /opt/docker/install-skeleton.sh
 
