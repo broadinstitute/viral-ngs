@@ -39,12 +39,12 @@ MINICONDA_DIR="mc3"
 INSTALL_PATH="${VIRAL_NGS_INSTALL_PATH:-$SCRIPTPATH/$CONTAINING_DIR}"
 INSTALL_PATH=$(absolute_path "$INSTALL_PATH")
 
-if [ -z "VIRAL_CONDA_ENV_PATH" ]; then
+if [[ -z "VIRAL_CONDA_ENV_PATH" ]]; then
     VIRAL_CONDA_ENV_PATH="$INSTALL_PATH/$CONDA_ENV_BASENAME"
 fi
 PROJECTS_PATH="$INSTALL_PATH/$PROJECTS_DIR"
 VIRAL_NGS_PATH="$INSTALL_PATH/$VIRAL_NGS_DIR"
-if [ -z "$MINICONDA_PATH" ]; then
+if [[ -z "$MINICONDA_PATH" ]]; then
     MINICONDA_PATH="$INSTALL_PATH/$MINICONDA_DIR"
 fi
 
@@ -261,9 +261,7 @@ function install_viral_ngs_git(){
 }
 
 function install_viral_ngs_conda_dependencies() {
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" || exit 1
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-py3.txt" || exit 1
-    conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    conda install $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
 }
 
 
