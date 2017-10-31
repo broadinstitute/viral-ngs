@@ -51,8 +51,6 @@ method_props = {
 }
 
 taxfiles = [
-                'gi_taxid_nucl.dmp',
-                'gi_taxid_prot.dmp',
                 'names.dmp',
                 'nodes.dmp',
                 'merged.dmp'
@@ -64,9 +62,7 @@ taxfiles_kraken = [
 ]
 
 taxfiles_krona = [
-                'gi_taxid_prot.dmp', 
                 'taxonomy.tab', 
-                'gi_taxid_nucl.dmp'
 ]
 
 krakenfiles = ["database.idx","database.kdb"]
@@ -85,7 +81,7 @@ rule diamond:
         threads = int(config.get("number_of_threads", 1)),
         mem     = 120
     params: 
-        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
+        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
     run:
         diamond_db_prefix  = os.path.splitext(strip_protocol(config["diamond_db"], relative=True))[0]
         taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
@@ -103,7 +99,7 @@ rule kraken:
         threads = int(config.get("number_of_threads", 1)),
         mem     = 120
     params: 
-        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
+        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
     run:
         kraken_db_prefix = strip_protocol(config["kraken_db"], relative=True)
         shell("{config[bin_dir]}/metagenomics.py kraken {input.bam} "+kraken_db_prefix+" --outReads {output.reads} --outReport {output.report} --numThreads {resources.threads}")
@@ -123,7 +119,7 @@ rule align_rna:
         threads = int(config.get("number_of_threads", 1)),
         mem     = 36
     params: 
-        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt 36:00:00')
+        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
     run:
         rna_bwa_path_prefix = strip_protocol(config["align_rna_db"], relative=True)
         taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)

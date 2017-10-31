@@ -23,7 +23,7 @@ rule isnvs_per_sample:
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF               = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER              = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER              = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid             = "{sample}",
         minReadsPerStrand = "--minReadsEach {}".format(config['vphaser_min_reads_each']) if 'vphaser_min_reads_each' in config else "",
         maxBias           = "--maxBias {}".format(config['vphaser_max_bins']) if 'vphaser_max_bins' in config else ""
@@ -53,7 +53,7 @@ rule isnvs_vcf:
         mem=4
     params: 
         LSF           = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER          = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER          = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid         = "all",
         snpEff_ref    = " ".join(config["accessions_for_ref_genome_build"]),
         email_address = config["email_point_of_contact_for_ncbi"]
@@ -89,7 +89,7 @@ rule isnvs_vcf_filtered:
         mem=4
     params: 
         LSF          = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER         = config.get('UGER_queues', {}).get('short', '-l h_rt 04:00:00'),
+        UGER         = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid        = "all",
         snpEff_ref   = " ".join(config["accessions_for_ref_genome_build"]),
         emailAddress = config["email_point_of_contact_for_ncbi"],
