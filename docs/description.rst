@@ -86,8 +86,12 @@ Nothing here at the moment. That comes later, but we will later
 integrate it when it's ready.
 
 
-Cloud compute implementation
-----------------------------
+Cloud compute implementations
+-----------------------------
+
+
+DNAnexus
+~~~~~~~~
 
 This assembly pipeline is also available via the DNAnexus cloud
 platform. RNA paired-end reads from either HiSeq or MiSeq instruments
@@ -95,3 +99,27 @@ can be securely uploaded in FASTQ or BAM format and processed through
 the pipeline using graphical and command-line interfaces. Instructions
 for the cloud analysis pipeline are available at
 https://github.com/dnanexus/viral-ngs/wiki
+
+
+Google Cloud Platform: dsub
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All of the command line functions in viral-ngs are accessible from the `docker image`_ and can be invoked directly using dsub_.
+
+.. _`docker image`: https://hub.docker.com/r/broadinstitute/viral-ngs/
+.. _dsub: https://cloud.google.com/genomics/v1alpha2/dsub
+
+Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets):
+
+``
+dsub --project broad-sabeti-lab --zones "us-east1-*" \
+  --image broadinstitute/viral-ngs:1.18.1 \
+  --name illumina_demux-test \
+  --logging gs://sabeti-temp-30d/dpark/test-demux/logs \
+  --input FC_TGZ=gs://sabeti-sequencing/flowcells/broad-walkup/160907_M04004_0066_000000000-AJH8U.tar.gz \
+  --output-recursive OUTDIR=gs://sabeti-temp-30d/dpark/test-demux \
+  --command 'illumina.py illumina_demux ${FC_TGZ} 1 ${OUTDIR}' \
+  --min-ram 30 \
+  --min-cores 8 \
+  --disk-size 100
+``

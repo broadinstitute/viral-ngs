@@ -2,6 +2,12 @@ Installation
 ============
 
 
+Docker Images
+-------------
+
+To facilitate cloud compute deployments, we have published a complete Docker image with associated dependencies at `DockerHub <https://hub.docker.com/r/broadinstitute/viral-ngs/>`_. Simply ``docker pull broadinstitute/viral-ngs:``\ *version_number*.
+
+
 Manual Installation
 -------------------
 
