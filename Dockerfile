@@ -33,7 +33,7 @@ RUN chmod a+x /opt/docker/*.sh
 ENV INSTALL_PATH="/opt/viral-ngs"
 ENV VIRAL_NGS_PATH="/opt/viral-ngs/source"
 RUN mkdir -p $VIRAL_NGS_PATH
-COPY *.py tools util pipes requirements* test .git $VIRAL_NGS_PATH/
+COPY *.py tools/ util/ pipes/ requirements* test/ .git/ $VIRAL_NGS_PATH/
 WORKDIR $INSTALL_PATH
 RUN /opt/docker/install-skeleton.sh
 
