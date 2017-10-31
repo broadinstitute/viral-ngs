@@ -111,7 +111,7 @@ All of the command line functions in viral-ngs are accessible from the docker im
 
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets):
 
-::
+.. code-block::
 
 	dsub --project broad-sabeti-lab --zones "us-east1-*" \
 	  --image broadinstitute/viral-ngs:1.18.1 \
