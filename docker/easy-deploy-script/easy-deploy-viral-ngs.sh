@@ -56,6 +56,10 @@ if [ -z "$VIRAL_NGS_PACKAGE" ]; then
     VIRAL_NGS_PACKAGE="viral-ngs"
 fi
 
+# Travis has a log file limit
+QUIETNESS=""
+if [ -n "$TRAVIS" ]; then QUIETNESS="-q"; fi
+
 # determine if this script has been sourced
 # via: http://stackoverflow.com/a/28776166/2328433
 ([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] ||
@@ -261,7 +265,7 @@ function install_viral_ngs_git(){
 }
 
 function install_viral_ngs_conda_dependencies() {
-    conda install $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    conda install $QUIETNESS $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
 }
 
 
