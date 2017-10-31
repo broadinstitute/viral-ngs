@@ -8,7 +8,10 @@ Cloud compute implementations
 Docker Images
 ~~~~~~~~~~~~~
 
-To facilitate cloud compute deployments, we have published a complete Docker image with associated dependencies at `DockerHub <https://hub.docker.com/r/broadinstitute/viral-ngs/>`_. Simply ``docker pull broadinstitute/viral-ngs:``\ *version_number*.
+To facilitate cloud compute deployments, we have published a complete Docker
+image with associated dependencies at
+`DockerHub <https://hub.docker.com/r/broadinstitute/viral-ngs/>`_.
+Simply ``docker pull broadinstitute/viral-ngs:1.18.2`` (or some other tagged version).
 
 
 DNAnexus
@@ -30,9 +33,7 @@ All of the command line functions in viral-ngs are accessible from the docker im
 .. _dsub: https://cloud.google.com/genomics/v1alpha2/dsub
 .. _image: https://hub.docker.com/r/broadinstitute/viral-ngs/
 
-Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets):
-
-.. code-block::
+Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets)::
 
   dsub --project broad-sabeti-lab --zones "us-east1-*" \
     --image broadinstitute/viral-ngs:1.18.1 \
