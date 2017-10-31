@@ -39,5 +39,5 @@ ENV DEBIAN_FRONTEND=teletype
 
 # It's a wrapper script to load the viral-ngs environment via the easy-deploy script
 # and then run any commands desired
-ENTRYPOINT ["/opt/docker/env_wrapper.sh"]
+ENTRYPOINT ["/opt/viral-ngs/env_wrapper.sh"]
 CMD ["/bin/bash"]
