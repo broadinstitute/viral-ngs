@@ -1,21 +1,22 @@
 #!/bin/bash
+#
+# This script requires INSTALL_PATH (typically /opt/viral-ngs)
+# and VIRAL_NGS_PATH (typically /opt/viral-ngs/source) to be set.
 
 set -e -o pipefail
 
-mkdir -p /opt/viral-ngs/viral-ngs-etc
-ln -s /opt/viral-ngs/source /opt/viral-ngs/viral-ngs-etc/viral-ngs
-ln -s /opt/miniconda /opt/viral-ngs/viral-ngs-etc/conda-env
 export VIRAL_CONDA_ENV_PATH=/opt/miniconda
-mv /opt/docker/easy-deploy-viral-ngs.sh /opt/viral-ngs
-mv /opt/docker/env_wrapper.sh /opt/viral-ngs
+
+mkdir -p $INSTALL_PATH/viral-ngs-etc
+ln -s $VIRAL_NGS_PATH $INSTALL_PATH/viral-ngs-etc/viral-ngs
+ln -s VIRAL_CONDA_ENV_PATH $INSTALL_PATH/viral-ngs-etc/conda-env
 
 # setup/install viral-ngs
 sync
-/opt/viral-ngs/easy-deploy-viral-ngs.sh setup-git-local
+$INSTALL_PATH/easy-deploy-viral-ngs.sh setup-git-local
 
 # this not only prints the current version string, but it also saves it to the
 # VERSION file for later use
-PATH=/opt/miniconda/bin:$PATH
-source activate /opt/miniconda
+PATH=$VIRAL_CONDA_ENV_PATH/bin:$PATH
 echo -n "viral-ngs version: "
-/opt/viral-ngs/source/assembly.py --version
+$VIRAL_NGS_PATH/assembly.py --version

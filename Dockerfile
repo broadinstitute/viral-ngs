@@ -15,27 +15,24 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker rmi $(docker images -q)
 #   docker volume rm $(docker volume ls -qf dangling=true)
 
-# Silence some warnings about Readline. Checkout more over here:
+# DEBIAN_FRONTEND: Silence some warnings about Readline. Read more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive INSTALL_PATH="/opt/viral-ngs" VIRAL_NGS_PATH="/opt/viral-ngs/source"
 
 # copy basic files
-COPY docker/env_wrapper.sh docker/install-viral-ngs.sh easy-deploy-script/easy-deploy-viral-ngs.sh /opt/docker/
-RUN chmod a+x /opt/docker/*.sh
+COPY docker/env_wrapper.sh docker/install-viral-ngs.sh easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_PATH/
+RUN chmod a+x $INSTALL_PATH/*.sh
 
 # Prepare viral-ngs user and installation directory
-ENV INSTALL_PATH="/opt/viral-ngs" VIRAL_NGS_PATH="/opt/viral-ngs/source"
 COPY . $VIRAL_NGS_PATH/
 WORKDIR $INSTALL_PATH
-RUN /opt/docker/install-viral-ngs.sh
+RUN ./install-viral-ngs.sh
 
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
-ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
-
-# Silence some warnings about Readline. Checkout more over here:
+# DEBIAN_FRONTEND: Silence some warnings about Readline. Read more over here:
 # https://github.com/phusion/baseimage-docker/issues/58
-ENV DEBIAN_FRONTEND=teletype
+ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data" DEBIAN_FRONTEND=teletype
 
 # It's a wrapper script to load the viral-ngs environment via the easy-deploy script
 # and then run any commands desired
