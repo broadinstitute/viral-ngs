@@ -1,0 +1,4 @@
+*.pyc
+__pycache__
+tools/conda-cache
+tools/conda-tools

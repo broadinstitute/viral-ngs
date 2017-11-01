@@ -40,7 +40,6 @@ else # if it does not exist, we need to install miniconda
     fi
     hash -r
     conda config --set always_yes yes --set changeps1 no
-    conda config --set anaconda_upload yes # for uploading packages after successful build
     conda config --add channels r
     conda config --add channels defaults
     conda config --add channels conda-forge
@@ -49,9 +48,6 @@ else # if it does not exist, we need to install miniconda
     conda install --quiet -y conda #conda=4.2 # pin to 4.2.* until this is fixed: https://github.com/conda/conda-build/issues/1666
     conda config --set auto_update_conda false
     conda install --quiet -y java-jdk==8.0.112
-    conda install --quiet -y conda-build==3.0.25 # needed to build recipe
-    conda install --quiet -y anaconda-client # needed to upload build package to anaconda.org
-    #conda install --quiet -y -c conda-forge -f curl # the bioconda curl is broken as of 21 Feb 2017
 fi
 
 conda info -a # for debugging
