@@ -374,12 +374,10 @@ function activate_env(){
 
     if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
         if [ -z "$CONDA_DEFAULT_ENV" ]; then
+            echo "Activating viral-ngs environment..."
             prepend_miniconda
 
-            if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
-                echo "Activating viral-ngs environment..."
-                source activate $VIRAL_CONDA_ENV_PATH
-            fi
+            source activate $(absolute_path "$VIRAL_CONDA_ENV_PATH")
 
             # unset JAVA_HOME if set, so we can use the conda-supplied version
             if [ -n "$JAVA_HOME" ]; then
