@@ -26,10 +26,3 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # See: https://github.com/travis-ci/travis-ci/issues/6307
     rvm get head
 fi
-
-if [ ! -z "$BUILD_PACKAGE" ]; then
-    # upgrade docker (Travis's is old)
-    sudo apt-get update
-    sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
-    docker --version
-fi
