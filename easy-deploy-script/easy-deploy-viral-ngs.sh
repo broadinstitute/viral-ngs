@@ -370,10 +370,10 @@ function activate_env(){
 
     if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
         if [ -z "$CONDA_DEFAULT_ENV" ]; then
-            echo "Activating viral-ngs environment..."
             prepend_miniconda
 
             if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
+                echo "Activating viral-ngs environment..."
                 source activate $VIRAL_CONDA_ENV_PATH
             fi
 
