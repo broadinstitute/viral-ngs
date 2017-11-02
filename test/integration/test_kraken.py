@@ -13,6 +13,7 @@ import tools.kraken
 import tools.krona
 import tools.picard
 from test.integration import snake
+from test import _CPUS
 
 
 @pytest.fixture()
@@ -53,6 +54,7 @@ def kraken_db(request, tmpdir_module, kraken, db_type):
            '--taxonomy', join(db_dir, 'taxonomy'),
            '--subsetTaxonomy',
            '--minimizerLen', '10',
+           '--threads', str(_CPUS),
            '--clean']
 
     parser.parse_args(cmd)
@@ -85,7 +87,7 @@ def krona_db(request, tmpdir_module, krona, db_type):
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
-    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads, '--threads', str(_CPUS)]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
@@ -155,7 +157,7 @@ def test_kraken_on_empty(kraken_db, input_bam):
     input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
-    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads, '--threads', str(_CPUS)]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
