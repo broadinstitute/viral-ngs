@@ -97,7 +97,7 @@ def test_kraken(kraken_db, input_bam):
 
     assert os.path.getsize(out_report) > 0
 
-    if 'TestMetaegenomicsSimple' in kraken_db:
+    if 'TestMetagenomicsSimple' in kraken_db:
         zaire_found = False
         tai_found = False
         for line in report_lines:

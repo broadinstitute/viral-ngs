@@ -75,7 +75,7 @@ class Kraken(tools.Tool):
             if not numThreads:
                 numThreads = 10000000
             opts = {
-                '--threads': min(int(numThreads), util.misc.available_cpu_count()),
+                '--threads': min(numThreads, util.misc.available_cpu_count()),
             }
 
             kraken_bin = os.path.join(self.libexec, 'kraken')
@@ -102,6 +102,7 @@ class Kraken(tools.Tool):
                 cmd += '| {kraken_report} > {outReport}'.format(
                     kraken_report=kraken_report_bin,
                     outReport=outReport)
+            log.debug('Calling: ' + cmd)
             subprocess.check_call(cmd, shell=True, executable='/bin/bash')
 
 
