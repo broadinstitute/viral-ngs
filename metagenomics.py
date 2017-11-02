@@ -669,14 +669,14 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
     return cum_hits
 
 
-def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, numThreads=None):
+def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, threads=None):
     '''
         Classify reads by taxon using Kraken
     '''
 
     assert outReads or outReport, ('Either --outReads or --outReport must be specified.')
     kraken_tool = tools.kraken.Kraken()
-    kraken_tool.pipeline(inBam, db, outReport=outReport, outReads=outReads, filterThreshold=filterThreshold, numThreads=numThreads)
+    kraken_tool.pipeline(inBam, db, outReport=outReport, outReads=outReads, filterThreshold=filterThreshold, numThreads=threads)
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
@@ -687,7 +687,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
     )
-    parser.add_argument('--numThreads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
     return parser
@@ -739,7 +739,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=None):
+def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
@@ -762,9 +762,9 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=None):
     taxonnodes = join(taxDb, 'nodes.dmp')
 
     cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
-    if not numThreads:
-        numThreads = 10000000
-    cmd += ' --threads {threads}'.format(threads=min(int(numThreads), util.misc.available_cpu_count()))
+    if not threads:
+        threads = 10000000
+    cmd += ' --threads {threads}'.format(threads=min(threads, util.misc.available_cpu_count()))
     cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
         db=db,
         taxonmap=taxonmap,
@@ -803,7 +803,7 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
-    parser.add_argument('--numThreads', default=None, help='Number of threads (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
@@ -820,7 +820,7 @@ def align_rna_metagenomics(
     outReads=None,
     sensitive=None,
     JVMmemory=None,
-    numThreads=None,
+    threads=None,
     picardOptions=None,
 ):
     '''
@@ -855,7 +855,7 @@ def align_rna_metagenomics(
 
     if dupeReport:
         aln_bam_sorted = util.file.mkstempfname('.align_namesorted.bam')
-        samtools.sort(aln_bam, aln_bam_sorted, args=['-n'], threads=numThreads)
+        samtools.sort(aln_bam, aln_bam_sorted, args=['-n'], threads=threads)
         sam_lca_report(tax_db, aln_bam_sorted, outReport=dupeReport, outReads=dupeReads, unique_only=False)
         os.unlink(aln_bam_sorted)
 
@@ -868,7 +868,7 @@ def align_rna_metagenomics(
 
     os.unlink(aln_bam)
     aln_bam_dd_sorted = util.file.mkstempfname('.bam')
-    samtools.sort(aln_bam_deduped, aln_bam_dd_sorted, args=['-n'], threads=numThreads)
+    samtools.sort(aln_bam_deduped, aln_bam_dd_sorted, args=['-n'], threads=threads)
     sam_lca_report(tax_db, aln_bam_dd_sorted, outReport=outReport, outReads=outReads)
 
     if not outBam:
@@ -906,7 +906,7 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
-    parser.add_argument('--numThreads', default=None, help='Number of threads (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.PicardTools.jvmMemDefault,
@@ -1078,7 +1078,7 @@ class KrakenBuildError(Exception):
     '''Error while building kraken database.'''
 
 
-def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, numThreads=None, minimizerLen=None, kmerLen=None,
+def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, threads=None, minimizerLen=None, kmerLen=None,
                  maxDbSize=None, clean=None):
     '''
     Builds a kraken database from library directory of fastas and taxonomy db
@@ -1146,8 +1146,8 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, numThreads=Non
 
     kraken_tool = tools.kraken.Kraken()
     options = {'--build': None}
-    if numThreads:
-        options['--threads'] = numThreads
+    if threads:
+        options['--threads'] = threads
     if minimizerLen:
         options['--minimizer-len'] = minimizerLen
     if kmerLen:
@@ -1172,7 +1172,7 @@ def parser_kraken_build(parser=argparse.ArgumentParser()):
     parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
     parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
     parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
-    parser.add_argument('--numThreads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken_build, split_args=True)
     return parser

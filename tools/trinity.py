@@ -16,6 +16,7 @@ import tempfile
 import shutil
 import sys
 import tools
+import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"

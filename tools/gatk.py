@@ -110,18 +110,13 @@ class GATKTool(tools.Tool):
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=None):
-        intervals = util.file.mkstempfname('.intervals')
-        opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
         if not threads:
             threads = 10000000
         threads = min(threads, util.misc.available_cpu_count())
         _log.debug("Running local realign with %s threads", threads)
+        intervals = util.file.mkstempfname('.intervals')
+        opts = ['-I', inBam, '-R', refFasta, '-o', intervals, '--num_threads', threads]
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
-        opts = ['-I', inBam,
-                '-R', refFasta,
-                '-targetIntervals', intervals,
-                '--num_threads', threads,
-                '-o', outBam,
-               ]
+        opts = ['-I', inBam, '-R', refFasta, '-targetIntervals', intervals, '-o', outBam]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)

@@ -333,7 +333,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
         default=tools.trinity.TrinityTool.jvm_mem_default,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
@@ -936,7 +936,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
-    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
+    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser

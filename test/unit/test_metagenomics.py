@@ -70,9 +70,11 @@ class TestDiamondCalls(TestCaseWithTmp):
 
     def test_num_threads(self, mock_dfs):
         out_report = util.file.mkstempfname('report.txt')
-        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, numThreads=11)
+        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, threads=11)
+        expected_threads = min(11, util.misc.available_cpu_count())
+        expected_threads = '--threads {}'.format(expected_threads)
         cmd = self.mock_popen.call_args[0][0]
-        self.assertIn('--threads 11', cmd)
+        self.assertIn(expected_threads, cmd)
 
 
 class TestKronaCalls(TestCaseWithTmp):
