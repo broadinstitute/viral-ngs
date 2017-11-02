@@ -10,6 +10,7 @@ export VIRAL_CONDA_ENV_PATH=/opt/miniconda
 mkdir -p $INSTALL_PATH/viral-ngs-etc
 ln -s $VIRAL_NGS_PATH $INSTALL_PATH/viral-ngs-etc/viral-ngs
 ln -s $VIRAL_CONDA_ENV_PATH $INSTALL_PATH/viral-ngs-etc/conda-env
+ln $VIRAL_NGS_PATH/easy-deploy-script/easy-deploy-viral-ngs.sh $INSTALL_PATH
 
 # setup/install viral-ngs
 sync
