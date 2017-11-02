@@ -1078,8 +1078,9 @@ class KrakenBuildError(Exception):
     '''Error while building kraken database.'''
 
 
-def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, threads=None, minimizerLen=None, kmerLen=None,
-                 maxDbSize=None, clean=None):
+def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
+                threads=None, workOnDisk=False,
+                minimizerLen=None, kmerLen=None, maxDbSize=None, clean=False):
     '''
     Builds a kraken database from library directory of fastas and taxonomy db
     directory. The --subsetTaxonomy option allows shrinking the taxonomy to only
