@@ -261,7 +261,11 @@ function install_viral_ngs_git(){
 }
 
 function install_viral_ngs_conda_dependencies() {
-    conda install -q $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    if [[ $(absolute_path "$VIRAL_CONDA_ENV_PATH") == $(absolute_path "$MINICONDA_PATH") ]]; then
+        conda install -q $CONDA_CHANNEL_STRING --override-channels -y --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    else
+        conda install -q $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+    fi
 }
 
 
@@ -373,9 +377,7 @@ function activate_env(){
             echo "Activating viral-ngs environment..."
             prepend_miniconda
 
-            if [[ "$CONDA_DEFAULT_ENV" != "$VIRAL_CONDA_ENV_PATH" ]]; then
-                source activate $VIRAL_CONDA_ENV_PATH
-            fi
+            source activate $(absolute_path "$VIRAL_CONDA_ENV_PATH")
 
             # unset JAVA_HOME if set, so we can use the conda-supplied version
             if [ -n "$JAVA_HOME" ]; then
