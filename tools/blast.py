@@ -39,12 +39,15 @@ class BlastnTool(BlastTools):
     """ Tool wrapper for blastn """
     subtool_name = 'blastn'
 
-    def get_hits(self, inBam, db, threads=1):
+    def get_hits(self, inBam, db, threads=None):
 
         # Initial BAM -> FASTA sequences
         fasta_pipe = tools.samtools.SamtoolsTool().bam2fa_pipe(inBam)
 
         # run blastn and emit list of read IDs
+        if not threads:
+            threads = 1000000
+        threads = min(threads, util.misc.available_cpu_count())
         cmd = [self.install_and_get_path(),
             '-db', db,
             '-word_size', 16,

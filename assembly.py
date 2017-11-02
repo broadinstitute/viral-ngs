@@ -274,7 +274,7 @@ def assemble_trinity(
     outReads=None,
     always_succeed=False,
     JVMmemory=None,
-    threads=1
+    threads=None
 ):
     ''' This step runs the Trinity assembler.
         First trim reads with trimmomatic, rmdup with prinseq,
@@ -333,7 +333,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
         default=tools.trinity.TrinityTool.jvm_mem_default,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
@@ -353,26 +353,9 @@ def assemble_spades(
     mask_errors=False,
     max_kmer_sizes=1,
     mem_limit_gb=8,
-    threads=0,
+    threads=None,
 ):
     '''De novo RNA-seq assembly with the SPAdes assembler.
-
-    Inputs:
-        inBam: reads to assemble.  May include both paired and unpaired reads.
-        clip_db: Trimmomatic clip DB
-        trusted_contigs, untrusted_contigs: (optional) already-assembled contigs from the same sample.  trusted contigs must be
-          high-quality, untrusted_contigs may have some errors.
-
-    Outputs:
-        outFasta: the assembled contigs.  Note that, since this is RNA-seq assembly, for each assembled genomic region there may be
-            several contigs representing different variants of that region.
-
-    Params:
-        n_reads: before assembly, subsample the reads to at most this many
-        filter_contigs: drop lesser-quality contigs from output
-        mem_limit_gb: max memory to use
-        threads:  number of threads to use (0 means use all available CPUs)
-        spades_opts: (advanced) custom command-line options to pass to the SPAdes assembler
     '''
 
     with util.file.tempfname(suffix='.bam', prefix='trim_rmdup_for_spades') as trim_rmdup_bam:
@@ -392,20 +375,20 @@ def assemble_spades(
                 raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format. May include both paired and unpaired reads.')
     parser.add_argument('clip_db', help='Trimmomatic clip db')
-    parser.add_argument('out_fasta', help='Output assembly.')
+    parser.add_argument('out_fasta', help='Output assembled contigs. Note that, since this is RNA-seq assembly, for each assembled genomic region there may be several contigs representing different variants of that region.')
     parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
-                        help='Contigs of high quality previously assembled from the same sample')
+                        help='Optional input contigs of high quality, previously assembled from the same sample')
     parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
-                        help='Contigs of high medium quality previously assembled from the same sample')
+                        help='Optional input contigs of high medium quality, previously assembled from the same sample')
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
-                        help='only output contigs SPAdes is sure of')
+                        help='only output contigs SPAdes is sure of (dorp lesser-quality contigs from output)')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
-    parser.add_argument('--threads', default=0, type=int, help='Number of threads, or 0 to use all CPUs (default: %(default)s)')
+    parser.add_argument('--threads', default=None, type=int, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
     return parser
@@ -414,7 +397,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_spades', parser_assemble_spades))
 
 
-def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=1, mem_limit_gb=4, time_soft_limit_minutes=60.0,
+def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_gb=4, time_soft_limit_minutes=60.0,
                     random_seed=0, gap2seq_opts='', mask_errors=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
@@ -433,7 +416,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('out_scaffold', help='Output assembly.')
-    parser.add_argument('--threads', default=0, type=int, help='Number of threads (default: %(default)s); 0 means use all available cores')
+    parser.add_argument('--threads', default=None, type=int, help='Number of threads (default: all available cores)')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
@@ -607,8 +590,7 @@ def impute_from_reference(
     replaceLength,
     newName=None,
     aligner='muscle',
-    index=False,
-    novoalign_license_path=None
+    index=False
 ):
     '''
         This takes a de novo assembly, aligns against a reference genome, and
@@ -719,7 +701,7 @@ def impute_from_reference(
     if index:
         tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
         tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
-        tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(outFasta)
+        tools.novoalign.NovoalignTool().index_fasta(outFasta)
 
     return 0
 
@@ -765,12 +747,6 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="index"
     )
-    parser.add_argument(
-        '--NOVOALIGN_LICENSE_PATH',
-        default=None,
-        dest="novoalign_license_path",
-        help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
-    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
@@ -792,7 +768,7 @@ def refine_assembly(
     keep_all_reads=False,
     already_realigned_bam=None,
     JVMmemory=None,
-    threads=1,
+    threads=None,
     gatk_path=None,
     novoalign_license_path=None
 ):
@@ -960,7 +936,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser

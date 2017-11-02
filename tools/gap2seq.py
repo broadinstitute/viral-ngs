@@ -57,7 +57,7 @@ class Gap2SeqTool(tools.Tool):
                 self.execute(file_args+args+more_args)
 
     def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
-                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=0, time_soft_limit_minutes=60.0, random_seed=0):
+                min_gap_to_close=4, gap2seq_opts='', mem_limit_gb=4.0, threads=None, time_soft_limit_minutes=60.0, random_seed=0):
         """Try to fill the gaps in the given scaffold, using the reads.
 
         Inputs:
@@ -86,6 +86,9 @@ class Gap2SeqTool(tools.Tool):
         solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
         kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
         stop_time = time.time() + 60*time_soft_limit_minutes
+        if not threads:
+            threads = 10000000
+        threads = min(threads, util.misc.available_cpu_count())
         with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads, util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
 
             # We call Gap2Seq for a range of parameter combinations.  Output of each call is input to the next call, so

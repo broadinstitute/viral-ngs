@@ -480,7 +480,7 @@ def split_bam(inBam, outBams):
 
     # dump to bigsam
     bigsam = mkstempfname('.sam')
-    samtools.view([], inBam, bigsam)
+    samtools.view(['-@', '3'], inBam, bigsam)
 
     # split bigsam into little ones
     with util.file.open_or_gzopen(bigsam, 'rt') as inf:
@@ -931,7 +931,7 @@ def parser_gatk_realign(parser=argparse.ArgumentParser()):
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_gatk_realign)
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
     return parser
 
 
@@ -957,7 +957,7 @@ def align_and_fix(
     aligner_options='',
     aligner="novoalign",
     JVMmemory=None,
-    threads=1,
+    threads=None,
     skip_mark_dupes=False,
     gatk_path=None,
     novoalign_license_path=None
@@ -1047,7 +1047,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
-    parser.add_argument('--threads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--threads', default=None, help='Number of threads (default: all available cores)')
     parser.add_argument('--skipMarkDupes',
                         help='If specified, duplicate reads will not be marked in the resulting output file.',
                         dest="skip_mark_dupes",

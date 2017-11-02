@@ -51,6 +51,9 @@ class Kraken(tools.Tool):
             taxonomy/ subdirectories to build from.
           *args: List of input filenames to process.
         '''
+        if not options.get('--threads'):
+            options['--threads'] = 10000000
+        options['--threads'] = min(options['--threads'], util.misc.available_cpu_count())
         self.execute('kraken-build', db, db, options=options,
                      option_string=option_string)
 
@@ -69,7 +72,7 @@ class Kraken(tools.Tool):
                            JVMmemory=picard.jvmMemDefault,
                            background=True)
 
-            if numThreads is None:
+            if not numThreads:
                 numThreads = 10000000
             opts = {
                 '--threads': min(int(numThreads), util.misc.available_cpu_count()),
@@ -128,7 +131,7 @@ class Kraken(tools.Tool):
                        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
                        JVMmemory=picard.jvmMemDefault)
 
-        if numThreads is None:
+        if not numThreads:
             numThreads = 10000000
         opts = {
             '--threads': min(int(numThreads), util.misc.available_cpu_count()),

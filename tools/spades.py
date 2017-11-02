@@ -41,7 +41,7 @@ class SpadesTool(tools.Tool):
 
     def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None,
                  contigs_untrusted=None, kmer_sizes=(55,65), mask_errors=False, max_kmer_sizes=1, 
-                 filter_contigs=False, mem_limit_gb=8, threads=0, spades_opts=''):
+                 filter_contigs=False, mem_limit_gb=8, threads=None, spades_opts=''):
         '''Assemble contigs from RNA-seq reads and (optionally) pre-existing contigs.
 
         Inputs:
@@ -69,7 +69,8 @@ class SpadesTool(tools.Tool):
                 http://cab.spbu.ru/files/release3.11.1/rnaspades_manual.html#sec2.4 .
         '''
 
-        if not threads: threads = util.misc.available_cpu_count()
+        if not threads: threads = 10000000
+        threads = min(threads, util.misc.available_cpu_count())
 
         util.file.make_empty(contigs_out)
 

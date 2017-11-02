@@ -384,7 +384,7 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
                 Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.""")
     parser.add_argument(
         '--threads',
-        default=-1,
+        default=--1,
         type=int,
         help='Number of processing threads (default: %(default)s, where -1 indicates use of all available cores).')
     return parser

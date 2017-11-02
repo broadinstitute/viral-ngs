@@ -669,7 +669,7 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
     return cum_hits
 
 
-def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, numThreads=1):
+def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, numThreads=None):
     '''
         Classify reads by taxon using Kraken
     '''
@@ -687,7 +687,7 @@ def parser_kraken(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
     )
-    parser.add_argument('--numThreads', type=int, default=1, help='Number of threads to run. (default %(default)s)')
+    parser.add_argument('--numThreads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
     return parser
@@ -739,7 +739,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     return parser
 
 
-def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=1):
+def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=None):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
@@ -762,10 +762,10 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, numThreads=1):
     taxonnodes = join(taxDb, 'nodes.dmp')
 
     cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
-    if numThreads is not None:
-        cmd += ' --threads {threads}'.format(threads=numThreads)
+    if not numThreads:
+        numThreads = 10000000
+    cmd += ' --threads {threads}'.format(threads=min(int(numThreads), util.misc.available_cpu_count()))
     cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
-        threads=numThreads,
         db=db,
         taxonmap=taxonmap,
         taxonnodes=taxonnodes)
@@ -803,7 +803,7 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
-    parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--numThreads', default=None, help='Number of threads (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
@@ -906,7 +906,7 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
-    parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
+    parser.add_argument('--numThreads', default=None, help='Number of threads (default: all available cores)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.PicardTools.jvmMemDefault,
@@ -1146,10 +1146,16 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, numThreads=Non
 
     kraken_tool = tools.kraken.Kraken()
     options = {'--build': None}
+    if numThreads:
+        options['--threads'] = numThreads
     if minimizerLen:
         options['--minimizer-len'] = minimizerLen
     if kmerLen:
         options['--kmer-len'] = kmerLen
+    if maxDbSize:
+        options['--max-db-size'] = maxDbSize
+    if workOnDisk:
+        options['--work-on-disk'] = None
     kraken_tool.build(db, options=options)
 
     if clean:
@@ -1157,15 +1163,16 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None, numThreads=Non
 
 
 def parser_kraken_build(parser=argparse.ArgumentParser()):
-    parser.add_argument('db', help='Kraken database directory.')
-    parser.add_argument('--library', help='Library directory of fasta files.')
-    parser.add_argument('--taxonomy', help='Taxonomy db directory.')
+    parser.add_argument('db', help='Kraken database output directory.')
+    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
+    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
     parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
-    parser.add_argument('--minimizerLen', type=int, help='Minimizer length')
-    parser.add_argument('--kmerLen', type=int, help='Kmer length')
-    parser.add_argument('--maxDbSize', type=int, help='Maximum db size (will shrink if too big)')
+    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken default: 15)')
+    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken default: 31)')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
     parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
-    parser.add_argument('--numThreads', type=int, default=1, help='Number of threads to run. (default %(default)s)')
+    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
+    parser.add_argument('--numThreads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken_build, split_args=True)
     return parser

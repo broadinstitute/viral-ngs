@@ -62,12 +62,13 @@ class TrinityTool(tools.Tool):
                 outFasta,
                 min_contig_length=300,
                 JVMmemory=None,
-                threads=1):    # pylint: disable=W0221
+                threads=None):    # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvm_mem_default
         outdir = tempfile.mkdtemp(prefix='trinity-')
-        if int(threads) < 1:
-            threads = 1
+        if not threads:
+            threads = 10000000
+        threads = min(threads, util.misc.available_cpu_count())
         cmd = [
             self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
             '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right', inFastq2,

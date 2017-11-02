@@ -63,7 +63,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         required=True,
         help='One or more reference databases for blast to deplete from input.'
     )
-    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
+    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
@@ -108,15 +108,14 @@ def main_deplete_human(args):
                 util.file.touch(revertBamOut)
                 # TODO: error out? run RevertSam anyway?
 
-    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         bamToDeplete,
         args.bmtaggerDbs,
         bmtagger_wrapper,
         args.bmtaggerBam,
-        threads=args.threads,
         JVMmemory=args.JVMmemory
     )
 
@@ -231,7 +230,7 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 # ==============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, threads=None, srprism_memory=7168, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -287,7 +286,6 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument('outBam', help='Output BAM file.')
-    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',
@@ -301,15 +299,14 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
 
-    def bmtagger_wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, threads=threads, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam, JVMmemory=None):
+        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
     multi_db_deplete_bam(
         args.inBam,
         args.refDbs,
         bmtagger_wrapper,
         args.outBam,
-        threads=args.threads,
         JVMmemory=args.JVMmemory
     )
 
@@ -334,7 +331,9 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
 
 
 def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
-    """ run blastn on the input fasta file. this is intended to be run in parallel """
+    """ run blastn on the input fasta file. this is intended to be run in parallel
+        by blastn_chunked_fasta
+    """
     chunk_hits = mkstempfname('.hits.txt.gz')
 
     blastnCmd = [
@@ -362,7 +361,7 @@ def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
     return chunk_hits
 
 
-def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
+def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=None):
     """
     Helper function: blastn a fasta file, overcoming apparent memory leaks on
     an input with many query sequences, by splitting it into multiple chunks
@@ -378,6 +377,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=1):
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
     # clamp threadcount to number of CPUs
+    if not threads: threads = 10000000
     threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
     # determine size of input data; records in fasta file
@@ -450,10 +450,6 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
     'Use blastn to remove reads that match at least one of the databases.'
 
     blast_hits = mkstempfname('.blast_hits.txt')
-    if threads is None:
-        threads=util.misc.available_cpu_count()
-    else:
-        threads = max(min(util.misc.available_cpu_count(), threads), 1)
 
     if chunkSize:
         ## chunk up input and perform blastn in several parallel threads
@@ -483,7 +479,7 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
-    parser.add_argument('--threads', type=int, default=4, help='The number of threads to use in running blastn.')
+    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
