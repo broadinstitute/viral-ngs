@@ -68,7 +68,7 @@ before_install:
   - travis/before_install.sh
 
 install:
-  - if [[ "$BUILD_PACKAGE" != "docker" ]]; then source travis/install-conda.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "conda" || -n "$PERFORM_TESTING" ]]; then source travis/install-conda.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then source travis/install-tools.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/install-pip.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis/install-conda-build.sh; fi
