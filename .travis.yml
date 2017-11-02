@@ -12,7 +12,7 @@ matrix:
           python: 3.6
           env: PERFORM_TESTING=true
         - os: linux
-          python: 3.6
+          python: 3.5
           env: BUILD_DOCS=true
         - os: linux
           python: 3.6
@@ -45,7 +45,7 @@ cache:
   timeout: 480
 before_cache:
   # Remove since we're caching the extracted directories
-  - if [ -n "$BUILD_PACKAGE" ]; then mv $HOME/miniconda $HOME/no_cache_miniconda; else conda clean --tarballs --yes; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" || "$BUILD_DOCS" == "true" ]]; then mv $HOME/miniconda $HOME/no_cache_miniconda; else conda clean --tarballs --yes; fi
   # Conda's repodata cache
   - rm -rf tools/conda-cache/.pkgs/cache
 
