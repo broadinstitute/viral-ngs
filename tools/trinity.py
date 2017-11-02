@@ -67,11 +67,9 @@ class TrinityTool(tools.Tool):
         if JVMmemory is None:
             JVMmemory = self.jvm_mem_default
         outdir = tempfile.mkdtemp(prefix='trinity-')
-        if not threads:
-            threads = 10000000
-        threads = min(threads, util.misc.available_cpu_count())
+        util.misc.sanitize_thread_count(threads)
         cmd = [
-            self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
+            self.install_and_get_path(), '--CPU', '{}'.format(util.misc.sanitize_thread_count(threads)), '--bflyHeapSpace', JVMmemory.upper(),
             '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right', inFastq2,
             '--output', outdir
         ]

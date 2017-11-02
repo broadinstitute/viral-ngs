@@ -14,7 +14,7 @@ import util.file
 import tools.last
 import tools.bmtagger
 import tools.blast
-from test import assert_equal_bam_reads, TestCaseWithTmp, _CPUS
+from test import assert_equal_bam_reads, TestCaseWithTmp
 
 
 class TestDepleteHuman(TestCaseWithTmp):
@@ -61,7 +61,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--chunkSize", "0",
                 "--srprismMemory", '1500',
-                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)
@@ -92,7 +91,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--srprismMemory", '1500',
-                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)
@@ -121,7 +119,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--srprismMemory", '1500',
-                "--threads", str(_CPUS)
             ]
         )
         args.func_main(args)

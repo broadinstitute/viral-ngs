@@ -762,9 +762,7 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     taxonnodes = join(taxDb, 'nodes.dmp')
 
     cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
-    if not threads:
-        threads = 10000000
-    cmd += ' --threads {threads}'.format(threads=min(threads, util.misc.available_cpu_count()))
+    cmd += ' --threads {threads}'.format(threads=util.misc.sanitize_thread_count(threads))
     cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
         db=db,
         taxonmap=taxonmap,

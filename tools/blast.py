@@ -45,9 +45,7 @@ class BlastnTool(BlastTools):
         fasta_pipe = tools.samtools.SamtoolsTool().bam2fa_pipe(inBam)
 
         # run blastn and emit list of read IDs
-        if not threads:
-            threads = 1000000
-        threads = min(threads, util.misc.available_cpu_count())
+        threads = util.misc.sanitize_thread_count(threads)
         cmd = [self.install_and_get_path(),
             '-db', db,
             '-word_size', 16,

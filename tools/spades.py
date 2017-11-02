@@ -58,7 +58,7 @@ class SpadesTool(tools.Tool):
             max_kmer_sizes: if this many kmer sizes succeed, do not try further ones
             filter_contigs: if True, outputs only "long and reliable transcripts with rather high expression" (per SPAdes docs)
             mem_limit_gb: max memory to use, in gigabytes
-            threads: number of threads to use (0 means use all available CPUs)
+            threads: number of threads to use
             spades_opts: additional options to pass to spades
         Outputs:
             contigs_out: assembled contigs in fasta format.  Note that, since we use the
@@ -69,8 +69,7 @@ class SpadesTool(tools.Tool):
                 http://cab.spbu.ru/files/release3.11.1/rnaspades_manual.html#sec2.4 .
         '''
 
-        if not threads: threads = 10000000
-        threads = min(threads, util.misc.available_cpu_count())
+        threads = util.misc.sanitize_thread_count(threads)
 
         util.file.make_empty(contigs_out)
 

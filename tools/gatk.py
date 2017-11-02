@@ -90,9 +90,7 @@ class GATKTool(tools.Tool):
     def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=None):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
 
-        if not threads:
-            threads = 10000000
-        threads = min(threads, util.misc.available_cpu_count())
+        threads = util.misc.sanitize_thread_count(threads)
         opts = [
             '-I', inBam,
             '-R', refFasta,
@@ -110,9 +108,7 @@ class GATKTool(tools.Tool):
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=None):
-        if not threads:
-            threads = 10000000
-        threads = min(threads, util.misc.available_cpu_count())
+        threads = util.misc.sanitize_thread_count(threads)
         _log.debug("Running local realign with %s threads", threads)
         intervals = util.file.mkstempfname('.intervals')
         opts = ['-I', inBam, '-R', refFasta, '-o', intervals, '--num_threads', threads]

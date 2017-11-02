@@ -123,9 +123,8 @@ class SamtoolsTool(tools.Tool):
         # inFile can be .sam, .bam, .cram
         # outFile can be .sam, .bam, .cram
         args = args or []
-        threads = threads or util.misc.available_cpu_count()
         if '-@' not in args:
-            args.extend(('-@', str(threads)))
+            args.extend(('-@', util.misc.sanitize_thread_count(threads)))
         if '-T' not in args and os.path.isdir(tempfile.tempdir):
             args.extend(('-T', tempfile.tempdir))
 
