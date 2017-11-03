@@ -6,6 +6,7 @@ import pytest
 import util.file
 import util.misc
 import tools.kraken
+from test import _CPUS
 
 
 @pytest.fixture
@@ -49,7 +50,7 @@ def test_kraken_classify(mocks, kraken, db, in_bam):
     assert 'kraken' == os.path.basename(args[0])
     assert util.misc.list_contains(['--db', db], args)
     assert util.misc.list_contains(['--output', out_reads], args)
-    assert util.misc.list_contains(['--threads', str(util.misc.available_cpu_count())], args)
+    assert util.misc.list_contains(['--threads', str(_CPUS)], args)
 
 
 def test_kraken_filter(mocks, kraken, db):
@@ -80,10 +81,10 @@ def test_classify_num_threads(mocks, kraken, db, in_bam):
     assert 'kraken' == os.path.basename(args[0])
     assert '--threads' in args
     actual = args[args.index('--threads')+1]
-    assert actual == str(util.misc.available_cpu_count())
+    assert actual == str(_CPUS)
 
     for requested in (1,2,3,8,11,20):
-        expected = min(util.misc.available_cpu_count(), requested)
+        expected = min(_CPUS, requested)
         kraken.classify(in_bam, db, out_reads, numThreads=requested)
         args = mocks['check_call'].call_args[0][0]
         assert 'kraken' == os.path.basename(args[0])
