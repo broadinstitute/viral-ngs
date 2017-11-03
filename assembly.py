@@ -385,7 +385,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
-                        help='only output contigs SPAdes is sure of (dorp lesser-quality contigs from output)')
+                        help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     parser.add_argument('--threads', default=None, type=int, help='Number of threads (default: all available cores)')
