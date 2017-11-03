@@ -45,7 +45,7 @@ class TestToolDiamond(test.TestCaseWithTmp):
         db = os.path.join(tempfile.tempdir, 'fake.dmnd')
 
         # To be replaced with recursive glob in Python 3.5.
-        protein_fastas = glob.glob('{}/library/*/*/*.ffn'.format(self.db_dir))
+        protein_fastas = glob.glob('{}/library/*/*/*.faa'.format(self.db_dir))
 
         self.diamond.build(db, protein_fastas)
         args = self.mock_run.call_args[0][0]
