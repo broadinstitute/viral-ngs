@@ -87,51 +87,32 @@ class GATKTool(tools.Tool):
 
         self.tool_version = util.misc.run_and_print(cmd, buffered=False, silent=True).stdout.decode("utf-8").strip()
 
-    def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=1):
+    def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=None):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
 
-        if int(threads) < 1:
-            threads = 1
+        threads = util.misc.sanitize_thread_count(threads)
         opts = [
-            '-I',
-            inBam,
-            '-R',
-            refFasta,
-            '-o',
-            outVcf,
-            '-glm',
-            'BOTH',
-            '--baq',
-            'OFF',
+            '-I', inBam,
+            '-R', refFasta,
+            '-o', outVcf,
+            '-glm', 'BOTH',
+            '--baq', 'OFF',
             '--useOriginalQualities',
-            '-out_mode',
-            'EMIT_ALL_SITES',
-            '-dt',
-            'NONE',
-            '--num_threads',
-            threads,
-            '-stand_call_conf',
-            0,
-            '-stand_emit_conf',
-            0,
-            '-A',
-            'AlleleBalance',
+            '-out_mode', 'EMIT_ALL_SITES',
+            '-dt', 'NONE',
+            '--num_threads', threads,
+            '-stand_call_conf', 0,
+            '-stand_emit_conf', 0,
+            '-A', 'AlleleBalance',
         ]
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
-    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=1):
-        intervals = util.file.mkstempfname('.intervals')
-        opts = ['-I', inBam, '-R', refFasta, '-o', intervals]
+    def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=None):
+        threads = util.misc.sanitize_thread_count(threads)
         _log.debug("Running local realign with %s threads", threads)
+        intervals = util.file.mkstempfname('.intervals')
+        opts = ['-I', inBam, '-R', refFasta, '-o', intervals, '--num_threads', threads]
         self.execute('RealignerTargetCreator', opts, JVMmemory=JVMmemory)
-        opts = ['-I',
-                inBam,
-                '-R',
-                refFasta,
-                '-targetIntervals',
-                intervals,
-                '-o',
-                outBam,    #'--num_threads', threads,
-               ]
+        opts = ['-I', inBam, '-R', refFasta, '-targetIntervals', intervals, '-o', outBam]
         self.execute('IndelRealigner', opts, JVMmemory=JVMmemory)
         os.unlink(intervals)

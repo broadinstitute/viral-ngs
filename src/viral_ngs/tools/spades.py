@@ -41,7 +41,7 @@ class SpadesTool(tools.Tool):
 
     def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None,
                  contigs_untrusted=None, kmer_sizes=(55,65), mask_errors=False, max_kmer_sizes=1, 
-                 filter_contigs=False, mem_limit_gb=8, threads=0, spades_opts=''):
+                 filter_contigs=False, mem_limit_gb=8, threads=None, spades_opts=''):
         '''Assemble contigs from RNA-seq reads and (optionally) pre-existing contigs.
 
         Inputs:
@@ -58,7 +58,7 @@ class SpadesTool(tools.Tool):
             max_kmer_sizes: if this many kmer sizes succeed, do not try further ones
             filter_contigs: if True, outputs only "long and reliable transcripts with rather high expression" (per SPAdes docs)
             mem_limit_gb: max memory to use, in gigabytes
-            threads: number of threads to use (0 means use all available CPUs)
+            threads: number of threads to use
             spades_opts: additional options to pass to spades
         Outputs:
             contigs_out: assembled contigs in fasta format.  Note that, since we use the
@@ -69,7 +69,7 @@ class SpadesTool(tools.Tool):
                 http://cab.spbu.ru/files/release3.11.1/rnaspades_manual.html#sec2.4 .
         '''
 
-        if not threads: threads = util.misc.available_cpu_count()
+        threads = util.misc.sanitize_thread_count(threads)
 
         util.file.make_empty(contigs_out)
 

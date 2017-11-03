@@ -16,6 +16,7 @@ import tempfile
 import shutil
 import sys
 import tools
+import util.misc
 
 TOOL_NAME = "trinity"
 TOOL_VERSION = "2011-11-26"
@@ -62,14 +63,13 @@ class TrinityTool(tools.Tool):
                 outFasta,
                 min_contig_length=300,
                 JVMmemory=None,
-                threads=1):    # pylint: disable=W0221
+                threads=None):    # pylint: disable=W0221
         if JVMmemory is None:
             JVMmemory = self.jvm_mem_default
         outdir = tempfile.mkdtemp(prefix='trinity-')
-        if int(threads) < 1:
-            threads = 1
+        util.misc.sanitize_thread_count(threads)
         cmd = [
-            self.install_and_get_path(), '--CPU', '{}'.format(int(threads)), '--bflyHeapSpace', JVMmemory.upper(),
+            self.install_and_get_path(), '--CPU', '{}'.format(util.misc.sanitize_thread_count(threads)), '--bflyHeapSpace', JVMmemory.upper(),
             '--min_contig_length', str(min_contig_length), '--seqType', 'fq', '--left', inFastq1, '--right', inFastq2,
             '--output', outdir
         ]
