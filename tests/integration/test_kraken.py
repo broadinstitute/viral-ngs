@@ -78,14 +78,15 @@ def krona_db(request, tmpdir_module, krona, db_type):
     for d in TAXONOMY_FILES:
         src = join(db_dir, 'taxonomy', d)
         dest = join(db, d)
-        os.symlink(src, dest)
+        if os.path.isfile(src):
+            os.symlink(src, dest)
     krona.create_db(db)
     return db
 
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
-    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [kraken_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
@@ -142,7 +143,7 @@ def test_kraken_krona(kraken_db, krona_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
 
-    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [kraken_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
@@ -158,7 +159,7 @@ def test_kraken_on_empty(kraken_db, input_bam):
     input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
-    cmd = [input_bam, kraken_db, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [kraken_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)

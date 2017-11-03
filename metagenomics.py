@@ -669,21 +669,23 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
     return cum_hits
 
 
-def kraken(inBam, db, outReport=None, outReads=None, filterThreshold=None, threads=None):
+def kraken(db, inBams, outReports=None, outReads=None, lockMemory=None, filterThreshold=None, threads=1):
     '''
         Classify reads by taxon using Kraken
     '''
 
-    assert outReads or outReport, ('Either --outReads or --outReport must be specified.')
+    assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
     kraken_tool = tools.kraken.Kraken()
-    kraken_tool.pipeline(inBam, db, outReport=outReport, outReads=outReads, filterThreshold=filterThreshold, numThreads=threads)
+    kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
+                         filterThreshold=filterThreshold, numThreads=threads)
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('db', help='Kraken database directory.')
-    parser.add_argument('--outReport', help='Kraken report output file.')
-    parser.add_argument('--outReads', help='Kraken per read output file.')
+    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format. Multiple filenames comma separated.')
+    parser.add_argument('--outReports', nargs='+', help='Kraken report output file. Multiple filenames comma separated.')
+    parser.add_argument('--outReads', nargs='+', help='Kraken per read output file. Multiple filenames comma separated.')
+    parser.add_argument('--lockMemory', action='store_true', help='Lock kraken database in RAM. Requires high ulimit -l.')
     parser.add_argument(
         '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
     )
@@ -770,7 +772,7 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
 
     if outReads is not None:
         # Interstitial save of stdout to output file
-        cmd += ' | tee >(gzip > {out})'.format(out=outReads)
+        cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
 
     diamond_ps = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE, executable='/bin/bash')
@@ -1068,7 +1070,7 @@ def kraken_library_ids(library):
                 mo = re.search('([A-Z]+\d+\.\d+)', name)
                 if mo:
                     accession = mo.group(1)
-                    library_accessions.add(gi)
+                    library_accessions.add(accession)
     return library_taxids, library_gis, library_accessions
 
 
@@ -1137,6 +1139,12 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
             shutil.move(taxonomy_tmp, taxonomy_dir)
         else:
             os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
+        for fn in os.listdir(os.path.join(taxonomy_dir, 'accession2taxid')):
+            if not fn.endswith('accession2taxid'):
+                continue
+
+            os.symlink(os.path.join(taxonomy_dir, 'accession2taxid', fn),
+                       os.path.join(taxonomy_dir, fn))
     else:
         if not taxonomy_exists:
             raise FileNotFoundError('Taxonomy directory {} not found'.format(taxonomy_dir))

@@ -213,6 +213,11 @@ vphaser_max_bins: 10
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
 
+# Strategy for kraken classification for multiple inputs. 'single' results in 1 kraken process for
+# each input bam, while 'multiple' coalesces multiple input classifications into a single kraken
+# run.
+kraken_execution: multiple
+
 # Random seed, for non-deterministic steps.  0 means use current time.
 random_seed: 0
 
