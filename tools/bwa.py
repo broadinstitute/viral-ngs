@@ -217,7 +217,6 @@ class Bwa(tools.Tool):
         samtools.bam2fq(inReads, fq1, fq2)
 
         if '-t' not in options:
-            threads = threads or utils.misc.available_cpu_count()
             options.extend(('-t', str(threads)))
 
         self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)

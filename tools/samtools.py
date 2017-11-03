@@ -123,9 +123,8 @@ class SamtoolsTool(tools.Tool):
         # inFile can be .sam, .bam, .cram
         # outFile can be .sam, .bam, .cram
         args = args or []
-        threads = threads or util.misc.available_cpu_count()
         if '-@' not in args:
-            args.extend(('-@', str(threads)))
+            args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
         if '-T' not in args and os.path.isdir(tempfile.tempdir):
             args.extend(('-T', tempfile.tempdir))
 
@@ -179,7 +178,7 @@ class SamtoolsTool(tools.Tool):
 
     def removeDoublyMappedReads(self, inBam, outBam):
         #opts = ['-b', '-f 2']
-        opts = ['-b', '-F' '1028', '-f', '2']
+        opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
     def filterByCigarString(self, inBam, outBam, 
@@ -216,7 +215,7 @@ class SamtoolsTool(tools.Tool):
         if float(probability) <= 0 or float(probability) > 1:
             raise Exception("Probability must be in range (0,1]. This value was given: %s" % probability)
 
-        opts = ['-s', str(1) + '.' + str(probability).split('.')[1]]    # -s subsamples: seed.fraction
+        opts = ['-s', str(1) + '.' + str(probability).split('.')[1], '-@', '3']    # -s subsamples: seed.fraction
         self.view(opts, inBam, outBam)
 
     def downsample_to_approx_count(self, inBam, outBam, read_count):
