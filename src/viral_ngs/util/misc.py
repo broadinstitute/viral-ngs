@@ -428,6 +428,39 @@ def available_cpu_count():
 
     return multiprocessing.cpu_count()
 
+def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
+    ''' Given a user specified thread count, this function will:
+        - ensure that 1 <= threads <= available_cpu_count()
+        - interpret None values to mean max available cpus
+            unless PYTEST_XDIST_WORKER_COUNT is defined as an environment
+            variable, in which case we always return 1
+        - allow for various, tool-specific ways of specifying
+            max available cores (tool_max_value)
+        tool_max_cores_value can be one of:
+            available_cpu_count - this function will return available_cpu_count()
+            any other value - this function will return that value.
+            some commonly used values for tools are -1, 0, and None.
+    '''
+    if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
+        threads = 1
+
+    max_cores = available_cpu_count()
+
+    if threads is None:
+        threads = max_cores
+
+    assert type(threads) == int
+
+    if threads >= max_cores:
+        if tool_max_cores_value == available_cpu_count:
+            threads = max_cores
+        else:
+            threads = tool_max_cores_value
+    else:
+        if threads < 1:
+            threads = 1
+    return threads
+
 def which(application_binary_name):
     """
         Similar to the *nix "which" command,

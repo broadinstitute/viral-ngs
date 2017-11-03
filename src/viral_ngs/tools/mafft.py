@@ -58,7 +58,7 @@ class MafftTool(tools.Tool):
         maxiters,
         gapOpeningPenalty=None,
         offset=None,
-        threads=-1,
+        threads=None,
         verbose=True,
         retree=None
     ):
@@ -106,10 +106,7 @@ class MafftTool(tools.Tool):
 
         if not (retree or localpair or globalpair):
             tool_cmd.append("--auto")
-        if threads >= 1 or threads == -1:
-            tool_cmd.extend(["--thread", "{}".format(threads)])
-        else:
-            raise Exception("invalid value for threads: {}".format(threads))
+        tool_cmd.extend(["--thread", "{}".format(util.misc.sanitize_thread_count(threads, tool_max_cores_value=-1))])
 
         if localpair and globalpair:
             raise Exception("Alignment type must be either local or global, not both.")
