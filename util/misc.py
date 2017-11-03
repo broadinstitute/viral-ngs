@@ -449,7 +449,7 @@ def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count
     if threads is None:
         threads = max_cores
 
-    assert type(threads) == int:
+    assert type(threads) == int
 
     if threads >= max_cores:
         if tool_max_cores_value == available_cpu_count:
