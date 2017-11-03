@@ -79,7 +79,9 @@ script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis_wait travis/build-conda.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker pull broadinstitute/viral-ngs:latest; travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .; docker run --rm local/viral-ngs:build assembly.py --help; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker pull broadinstitute/viral-ngs:latest fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest . fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker run --rm local/viral-ngs:build assembly.py --help; fi
   - if [ -n "$BUILD_DOCS" ]; then travis/build-docs.sh; fi
 
 after_success:
