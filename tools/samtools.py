@@ -124,7 +124,7 @@ class SamtoolsTool(tools.Tool):
         # outFile can be .sam, .bam, .cram
         args = args or []
         if '-@' not in args:
-            args.extend(('-@', util.misc.sanitize_thread_count(threads)))
+            args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
         if '-T' not in args and os.path.isdir(tempfile.tempdir):
             args.extend(('-T', tempfile.tempdir))
 
