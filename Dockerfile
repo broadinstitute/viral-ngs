@@ -36,7 +36,7 @@ COPY . $VIRAL_NGS_PATH/
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
 # verifies that conda-installed python libraries are working.
-RUN echo "viral-ngs version: $($VIRAL_NGS_PATH/assembly.py --version)"
+RUN /bin/bash -c "set -e; source /opt/miniconda/bin/activate /opt/miniconda; echo -n 'viral-ngs version: '; $VIRAL_NGS_PATH/assembly.py --version"
 
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
