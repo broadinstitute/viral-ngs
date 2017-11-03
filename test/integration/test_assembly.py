@@ -65,8 +65,7 @@ class TestRefineAssembly(TestCaseWithTmp):
             refine1Fasta,
             # normally -r Random, but for unit tests, we want deterministic behavior
             novo_params='-r None -l 30 -x 20 -t 502',
-            min_coverage=2,
-            threads=_CPUS)
+            min_coverage=2)
         actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
         expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
@@ -85,8 +84,7 @@ class TestRefineAssembly(TestCaseWithTmp):
             refine2Fasta,
             # normally -r Random, but for unit tests, we want deterministic behavior
             novo_params='-r None -l 40 -x 20 -t 100',
-            min_coverage=3,
-            threads=_CPUS)
+            min_coverage=3)
         actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
         expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)

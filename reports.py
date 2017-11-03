@@ -543,7 +543,7 @@ def plot_coverage(
     if plot_only_non_duplicates:
         # TODO: this is probably not necessary since "samtools depth" does not count marked duplicates
         # write a new bam file; exclude reads with the 1024 flag set (PCR or optical duplicates)
-        samtools.view(["-F", "1024"], in_bam, bam_dupe_processed)
+        samtools.view(["-F", "1024", '-@', '3'], in_bam, bam_dupe_processed)
     else:
         bam_dupe_processed = in_bam
 
