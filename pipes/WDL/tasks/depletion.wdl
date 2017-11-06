@@ -9,30 +9,31 @@ task deplete {
   Array[File] bmtaggerDbPaths
   Array[File] blastDbPaths
 
-  Int? threads
-  Int? JVMmemory
+  Int? threads = 8
+  Int? JVMmemory = 15
   
   command {
     taxon_filter.py deplete_human \
       "${inputBam}" \
-      "${sample}.raw.bam" \
-      "${sample}.bmtagger_depleted.bam" \
-      "${sample}.rmdup.bam" \
+      "tmpfile-${sample}.raw.bam" \
+      "tmpfile-${sample}.bmtagger_depleted.bam" \
+      "tmpfile-${sample}.rmdup.bam" \
       "${sample}.cleaned.bam" \
       --bmtaggerDbs "${sep=' ' bmtaggerDbPaths+}" \
       --blastDbs "${sep=' ' blastDbPaths+}" \
+      --chunkSize=0 \
       "${'--threads' + threads}" \
-      "${'--JVMmemory' + JVMmemory}"
+      "${'--JVMmemory' + JVMmemory + 'g'}"
   }
   output {
-    File bmtaggerDepleted = "${sample}.bmtagger_depleted.bam"
-    File rmdup            = "${sample}.rmdup.bam"
     File cleaned          = "${sample}.cleaned.bam"
-    File revertBam        = "${sample}.raw.bam"
   }
   runtime {
-    memory: "15GB"
     docker: "broadinstitute/viral-ngs"
+    memory: "15GB"
+    cpu: "8"
+    zones: "us-east1-b us-east1-c us-east1-d"
+    disks: "local-disk 375 LOCAL"
   }
 }
 
@@ -59,8 +60,11 @@ task filterToTaxon {
     File taxfiltBam = "${sample}.taxfilt.bam"
   }
   runtime {
-    memory: "8GB"
     docker: "broadinstitute/viral-ngs"
+    memory: "7GB"
+    cpu: "8"
+    zones: "us-east1-b us-east1-c us-east1-d"
+    disks: "local-disk 375 LOCAL"
   }
 }
 

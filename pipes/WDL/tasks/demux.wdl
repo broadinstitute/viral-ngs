@@ -1,48 +1,51 @@
+
 task illumina_demux {
 
-  File inDir
+  File flowcell_tgz
   Int lane
   File samplesheet
   String sequencingCenter
 
-  String flowcell
-
+  String? flowcell
   Int? minimumBaseQuality
-  Int? maxMismatches
+  Int? maxMismatches = 1
   Int? minMismatchDelta
   Int? maxNoCalls
   String? readStructure
-  Int? minimumQuality
+  Int? minimumQuality = 10
   String? runStartDate
 
   command {
     illumina.py illumina_demux \
-    "${inDir}" \
+    "${flowcell_tgz}" \
     "${lane}" \
-    "${flowcell}.${lane}" \
-
+    /mnt/output \
     --sampleSheet="${samplesheet}" \
     --sequencing_center="${sequencingCenter}" \
     --outMetrics="metrics.txt" \
     --commonBarcodes="barcodes.txt" \
     "${'--flowcell' + flowcell}" \
-
     "${'--minimum_base_quality' + minimumBaseQuality}" \
     "${'--max_mismatches' + maxMismatches}" \
     "${'--min_mismatch_delta' + minMismatchDelta}" \
     "${'--max_no_calls' + maxNoCalls}" \
     "${'--read_structure' + readStructure}" \
     "${'--minimum_quality' + minimumQuality}" \
-    "${'--run_start_date' + runStartDate}"
+    "${'--run_start_date' + runStartDate}" \
+    --tmp_dir=/mnt/tmp
   }
 
   output {
     File metrics = "metrics.txt"
     File commonBarcodes = "barcodes.txt"
-    Array[File] outputBams = glob("${flowcell}.${lane}/*.bam")
+    Array[File] outputBams = glob("/mnt/output/*.bam")
   }
+
   runtime {
-    memory: "60GB"
-    docker: "broadinstitute/viral-ngs"
+    docker: "broadinstitute/viral-ngs:latest"
+    memory: "52GB"
+    cpu: "8"
+    zones: "us-east1-b us-east1-c us-east1-d"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
   }
 }
