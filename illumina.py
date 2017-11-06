@@ -62,7 +62,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                                 nargs='*',
                                 help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
                                 default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
-        elif opt == 'read_structure':
+        elif opt in ('read_structure', 'num_processors'):
             pass
         else:
             parser.add_argument('--' + opt,
@@ -72,7 +72,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', tools.picard.IlluminaBasecallsToSamTool.defaults['num_processors']), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
@@ -173,6 +173,8 @@ def main_illumina_demux(args):
                       if hasattr(args, opt) and getattr(args, opt) != None)
     picardOpts['run_start_date'] = run_date
     picardOpts['read_structure'] = read_structure
+    if args.threads:
+        picardOpts['num_processors'] = args.threads
     if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
         picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
     tools.picard.IlluminaBasecallsToSamTool().execute(
