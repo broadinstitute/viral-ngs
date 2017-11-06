@@ -5,12 +5,10 @@
 task deplete {
   String sample
 
-  File inputBam
+  File raw_reads_unmapped_bam
   Array[File] bmtaggerDbs
   Array[File] blastDbs
 
-  Int? JVMmemory = 14
-  
   command <<<
     set -ex -o pipefail
 
@@ -39,8 +37,7 @@ task deplete {
       --bmtaggerDbs $(ls -1 $TMP_DIR/bmtagger_db | xargs -i -n 1 printf " $TMP_DIR/bmtagger_db/%s/%s " {} {}) \
       --blastDbs $(ls -1 $TMP_DIR/blastndb | xargs -i -n 1 printf " $TMP_DIR/blastndb/%s/%s " {} {})
       --chunkSize=0 \
-      --threads $(nproc) \
-      "${'--JVMmemory' + JVMmemory + 'g'}"
+      --JVMmemory=14g
 
     samtools view -c "${reads_unmapped_bam}" | tee depletion_read_count_pre
     samtools view -c "${sample_name}.cleaned.bam" | tee depletion_read_count_post
@@ -63,15 +60,15 @@ task deplete {
 
 
 # ======================================================================
-# filterToTaxon: 
+# filter_to_taxon: 
 #   This step reduces the read set to a specific taxon (usually the genus
 #   level or greater for the virus of interest)
 # ======================================================================
-task filterToTaxon {
+task filter_to_taxon {
   String sample_name
 
-  File reads
-  File lastal_db_tgz
+  File reads # unmapped bam
+  File lastal_db # fasta
 
   command <<<
     set -ex -o pipefail
@@ -79,7 +76,8 @@ task filterToTaxon {
     taxon_filter.py filter_lastal_bam \
       "${inputBam}" \
       "${lastalDbPath}" \
-      "${sample_name}.taxfilt.bam"
+      "${sample_name}.taxfilt.bam" \
+      --JVMmemory=7g
 
     samtools view -c "${sample_name}.taxfilt.bam" | tee filter_read_count_post
   >>>

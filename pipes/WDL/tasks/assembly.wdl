@@ -6,13 +6,14 @@
 # ======================================================================
 
 task assemble_denovo {
+  # TO DO: update this to be able to perform trinity, spades or trinity+spades
+
   String sample
 
   File inputBam
   File trim_clip_db #fasta
 
   Int? trinity_n_reads=200000
-  Int? threads
 
   command {
     assembly.py assemble_trinity \
@@ -20,7 +21,6 @@ task assemble_denovo {
       "${trim_clip_db}" \
       "${sample}.assembly1-trinity.fasta" \
       "${'--n_reads' + trinity_n_reads}" \
-      --threads $(nproc) \
       --JVMmemory 7g \
       --outReads="${sample}.subsamp.bam"
   }
@@ -73,7 +73,6 @@ task scaffold {
       "${reads_bam}" \
       "${sample_name}.intermediate_gapfill.fasta" \
       --memLimitGb 12 \
-      --threads $(nproc) \
       --maskErrors
 
     assembly.py impute_from_reference \
@@ -126,9 +125,14 @@ task refine {
     tar jxf "${gatk_tar_bz2}" -C gatk/
     mv "${assembly_fasta}" assembly.fasta
     novoindex assembly.nix assembly.fasta
-    assembly.py refine_assembly assembly.fasta "${reads_unmapped_bam}" "${sample_name}.refined_assembly.fasta" \
-      --outVcf "${sample_name}.sites.vcf.gz" --min_coverage ${min_coverage} --major_cutoff ${major_cutoff} \
-      --threads $(nproc) --GATK_PATH gatk/ \
+    assembly.py refine_assembly \
+      assembly.fasta \
+      "${reads_unmapped_bam}" \
+      "${sample_name}.refined_assembly.fasta" \
+      --outVcf "${sample_name}.sites.vcf.gz" \
+      --min_coverage ${min_coverage} \
+      --major_cutoff ${major_cutoff} \
+      --GATK_PATH gatk/ \
       --novo_params '${default="-r Random -l 40 -g 40 -x 20 -t 100" novoalign_options}' $NOVO_LICENSE
   >>>
 
@@ -142,41 +146,6 @@ task refine {
     memory: "15GB"
     cpu: "8"
     preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
-    disks: "local-disk 375 LOCAL"
-  }
-}
-
-task map_reads_to_self {
-  String sample
-
-  File inputAssembly
-  File cleanedBam
-
-  Int? threads
-  String? aligner
-  String? alignerOptions
-
-  command {
-    read_utils.py align_and_fix \
-      "${inputAssembly}" \
-      --outBamAll "${sample}.bam" \
-      --outBamFiltered "${sample}.mapped.bam" \
-      "${'--aligner' + aligner || 'novoalign'}" \
-      # set aligner options. The default, if novoalign, should be '-r Random -l 40 -g 40 -x 20 -t 100 -k'
-      "${'--aligner_options' + alignerOptions}" \
-      "${'--threads' + threads}" \
-  }
-
-  output {
-    File outBam = "${sample}.bam"
-    File outBamFiltered = "${sample}.mapped.bam"
-  }
-
-  runtime {
-    docker: "broadinstitute/viral-ngs"
-    memory: "7GB"
-    cpu: "8"
     zones: "us-east1-b us-east1-c us-east1-d"
     disks: "local-disk 375 LOCAL"
   }
