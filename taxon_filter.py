@@ -63,7 +63,6 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         required=True,
         help='One or more reference databases for blast to deplete from input.'
     )
-    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
@@ -71,7 +70,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
 
@@ -478,14 +477,13 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
-    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
 
