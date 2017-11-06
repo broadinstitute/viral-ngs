@@ -151,7 +151,7 @@ def filter_lastal_bam(
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
-    JVMmemory=None
+    JVMmemory=None, threads=None
 ):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
@@ -171,7 +171,8 @@ def filter_lastal_bam(
                         max_gapless_alignments_per_position,
                         min_length_for_initial_matches,
                         max_length_for_initial_matches,
-                        max_initial_matches_per_position
+                        max_initial_matches_per_position,
+                        threads=threads
                     ):
                     outf.write(read_id + '\n')
 
@@ -216,7 +217,7 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
 
