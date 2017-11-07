@@ -1,9 +1,9 @@
-import "../../tasks/demux.wdl" as demux
+import "tasks/demux.wdl" as tasks_demux
 
-workflow all_demux {
-  call demux.illumina_demux as illumina_demux
+workflow demux_only {
+  call tasks_demux.illumina_demux as illumina_demux
 
   output {
-    illumina_demux.outputBams
+    Array[File] raw_reads_unaligned_bams = illumina_demux.raw_reads_unaligned_bams
   }
 }

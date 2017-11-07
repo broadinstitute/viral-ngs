@@ -9,10 +9,8 @@ task deplete {
   Array[File] bmtaggerDbs
   Array[File] blastDbs
 
-  command <<<
+  command {
     set -ex -o pipefail
-
-    TMP_DIR=/tmp
 
     # stage the databases for BMTagger and BLAST
     # assumptions: each database is stored in a tarball. If the database name
@@ -29,22 +27,23 @@ task deplete {
     export -f stage_db
 
     taxon_filter.py deplete_human \
-      "${inputBam}" \
-      "tmpfile-${sample}.raw.bam" \
-      "tmpfile-${sample}.bmtagger_depleted.bam" \
-      "tmpfile-${sample}.rmdup.bam" \
-      "${sample}.cleaned.bam" \
+      ${inputBam} \
+      /mnt/tmp/tmpfile-${sample}.raw.bam \
+      /mnt/tmp/tmpfile-${sample}.bmtagger_depleted.bam \
+      /mnt/tmp/tmpfile-${sample}.rmdup.bam \
+      /mnt/output/${sample}.cleaned.bam \
       --bmtaggerDbs $(ls -1 $TMP_DIR/bmtagger_db | xargs -i -n 1 printf " $TMP_DIR/bmtagger_db/%s/%s " {} {}) \
       --blastDbs $(ls -1 $TMP_DIR/blastndb | xargs -i -n 1 printf " $TMP_DIR/blastndb/%s/%s " {} {})
       --chunkSize=0 \
-      --JVMmemory=14g
+      --JVMmemory=14g \
+      --tmp_dir=/mnt/tmp
 
     samtools view -c "${reads_unmapped_bam}" | tee depletion_read_count_pre
     samtools view -c "${sample_name}.cleaned.bam" | tee depletion_read_count_post
-  >>>
+  }
 
   output {
-    File cleaned_bam          = "${sample}.cleaned.bam"
+    File cleaned_bam          = "/mnt/output/${sample}.cleaned.bam"
     Int depletion_read_count_pre = read_int("depletion_read_count_pre")
     Int depletion_read_count_post = read_int("depletion_read_count_post")
   }
@@ -52,9 +51,7 @@ task deplete {
     docker: "broadinstitute/viral-ngs"
     memory: "14GB"
     cpu: "8"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
-    disks: "local-disk 375 LOCAL"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
   }
 }
 
@@ -70,17 +67,18 @@ task filter_to_taxon {
   File reads # unmapped bam
   File lastal_db # fasta
 
-  command <<<
+  command {
     set -ex -o pipefail
 
     taxon_filter.py filter_lastal_bam \
       "${inputBam}" \
       "${lastalDbPath}" \
       "${sample_name}.taxfilt.bam" \
-      --JVMmemory=7g
+      --JVMmemory=7g \
+      tmp_dir=/mnt/tmp
 
     samtools view -c "${sample_name}.taxfilt.bam" | tee filter_read_count_post
-  >>>
+  }
 
   output {
     File taxfilt_bam = "${sample_name}.taxfilt.bam"
@@ -90,9 +88,7 @@ task filter_to_taxon {
     docker: "broadinstitute/viral-ngs"
     memory: "7GB"
     cpu: "8"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
-    disks: "local-disk 375 LOCAL"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
 
@@ -108,53 +104,57 @@ task filter_to_taxon {
 # ======================================================================
 
 task merge_one_per_sample {
-  String sample
-  String adjective
-
+  String out_bam_name
   Array[File] inputBams
 
   command {
     read_utils.py merge_bams \
       "${sep=' ' inputBams+}" \
-      "${sample}.${adjective}.bam" \
-      --picardOptions SORT_ORDER=queryname
+      ${out_bam_name}.bam \
+      --picardOptions SORT_ORDER=queryname \
+      --JVMmemory 7g \
+      --tmp_dir=/mnt/tmp
   }
 
   output {
-    File mergedBam = "${sample}.${adjective}.bam"
+    File mergedBam = ${out_bam_name}.bam
   }
 
   runtime{
-    memory: "10GB"
+    memory: "7GB"
+    cpu: "4"
     docker: "broadinstitute/viral-ngs"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
 
 task merge_one_per_sample_rmdup {
-  String sample
-  String adjective
-
+  String out_bam_name
   Array[File] inputBams
-
-  Int? JVMmemory
 
   command {
     read_utils.py merge_bams \
       "${sep=' ' inputBams+}" \
-      "temp_merged_${sample}.bam" \
-      --picardOptions SORT_ORDER=queryname;
+      /mnt/tmp/temp_merged-${out_bam_name}.bam \
+      --picardOptions SORT_ORDER=queryname \
+      --JVMmemory 7g \
+      --tmp_dir=/mnt/tmp
+
     read_utils.py rmdup_mvicuna_bam \
-      "temp_merged_${sample}.bam" \
-      "${sample}.${adjective}.bam" \
-      "${'--JVMmemory' + JVMmemory || '8g'}"
+      /mnt/tmp/temp_merged-${out_bam_name}.bam \
+      ${sample}.${adjective}.bam \
+      --JVMmemory 7g \
+      --tmp_dir=/mnt/tmp
   }
 
   output {
-    File mergedBam = "${sample}.${adjective}.bam"
+    File mergedBam = ${out_bam_name}.bam
   }
 
   runtime{
-    memory: "10GB"
+    memory: "7GB"
+    cpu: "4"
     docker: "broadinstitute/viral-ngs"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }

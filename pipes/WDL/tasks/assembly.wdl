@@ -34,8 +34,6 @@ task assemble_denovo {
     docker: "broadinstitute/viral-ngs"
     memory: "7GB"
     cpu: "4"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
     disks: "local-disk 375 LOCAL"
   }
 
@@ -95,8 +93,6 @@ task scaffold {
     docker: "broadinstitute/viral-ngs"
     memory: "12GB"
     cpu: "4"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
     disks: "local-disk 375 LOCAL"
   }
 }
@@ -145,8 +141,6 @@ task refine {
     docker: "broadinstitute/viral-ngs"
     memory: "15GB"
     cpu: "8"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
     disks: "local-disk 375 LOCAL"
   }
 }
@@ -211,8 +205,6 @@ task analysis {
     docker: "broadinstitute/viral-ngs"
     memory: "7GB"
     cpu: "4"
-    preemptible: 1
-    zones: "us-east1-b us-east1-c us-east1-d"
     disks: "local-disk 375 LOCAL"
   }
 }
