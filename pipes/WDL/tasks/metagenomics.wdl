@@ -26,14 +26,14 @@ task kraken_single {
   }
 
   output {
-    File kraken_classified_reads = /mnt/output/kraken-reads.txt.gz
-    File kraken_summary_report = /mnt/output/kraken-report.txt
+    File kraken_classified_reads = "/mnt/output/kraken-reads.txt.gz"
+    File kraken_summary_report = "/mnt/output/kraken-report.txt"
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "200GB"
-    cpu: "32"
+    cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/output 375 LOCAL, /mnt/db 375 LOCAL"
   }
 }
@@ -67,14 +67,14 @@ task krona {
   }
 
   output {
-    File krona_report_html = krona_out/krona-report.html
-    File krona_report_tgz = krona-report.tar.gz
+    File krona_report_html = "krona_out/krona-report.html"
+    File krona_report_tgz = "krona-report.tar.gz"
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "3GB"
-    cpu: "2"
+    cpu: 2
     disks: "local-disk 375 LOCAL"
   }
 }

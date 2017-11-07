@@ -8,9 +8,9 @@
 task assemble_denovo {
   # TO DO: update this to be able to perform trinity, spades or trinity+spades
 
-  String sample
+  String sample_name
 
-  File inputBam
+  File reads_unmapped_bam
   File trim_clip_db #fasta
 
   Int? trinity_n_reads=200000
@@ -19,26 +19,26 @@ task assemble_denovo {
     set -ex -o pipefail
 
     assembly.py assemble_trinity \
-      ${inputBam} \
+      ${reads_unmapped_bam} \
       ${trim_clip_db} \
-      ${sample}.assembly1-trinity.fasta \
+      ${sample_name}.assembly1-trinity.fasta \
       ${'--n_reads' + trinity_n_reads} \
       --JVMmemory 7g \
-      --outReads=${sample}.subsamp.bam
+      --outReads=${sample_name}.subsamp.bam
 
-    samtools view -c ${sample}.subsamp.bam | tee subsample_read_count
+    samtools view -c ${sample_name}.subsamp.bam | tee subsample_read_count
   }
 
   output {
-    File trinityAssembly = ${sample}.assembly1-trinity.fasta
-    File subsampBam = ${sample}.subsamp.bam
+    File contigs_fasta = "${sample_name}.assembly1-trinity.fasta"
+    File subsampBam = "${sample_name}.subsamp.bam"
     Int subsample_read_count = read_int("subsample_read_count")
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "7GB"
-    cpu: "4"
+    cpu: 4
     disks: "local-disk 375 LOCAL"
   }
 
@@ -50,7 +50,7 @@ task scaffold {
   File reads_bam
   File reference_genome_fasta
 
-  String? aligner=muscle
+  String? aligner="muscle"
   Float? min_length_fraction=0.5
   Float? min_unambig=0.5
   Int? replace_length=55
@@ -91,15 +91,15 @@ task scaffold {
   }
 
   output {
-    File scaffold_fasta = ${sample_name}.scaffold.fasta
-    File intermediate_scaffold_fasta = ${sample_name}.intermediate_scaffold.fasta
-    File intermediate_gapfill_fasta = ${sample_name}.intermediate_gapfill.fasta
+    File scaffold_fasta = "${sample_name}".scaffold.fasta
+    File intermediate_scaffold_fasta = "${sample_name}".intermediate_scaffold.fasta
+    File intermediate_gapfill_fasta = "${sample_name}".intermediate_gapfill.fasta
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "12GB"
-    cpu: "4"
+    cpu: 4
     disks: "local-disk 375 LOCAL"
   }
 }
@@ -141,14 +141,14 @@ task refine {
   }
 
   output {
-    File refined_assembly_fasta = ${sample_name}.refined_assembly.fasta
-    File sites_vcf_gz = ${sample_name}.sites.vcf.gz
+    File refined_assembly_fasta = "${sample_name}".refined_assembly.fasta
+    File sites_vcf_gz = "${sample_name}".sites.vcf.gz
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "15GB"
-    cpu: "8"
+    cpu: 8
     disks: "local-disk 375 LOCAL"
   }
 }
@@ -196,15 +196,15 @@ task analysis {
     grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
     samtools view -c "${sample_name}.mapped.bam" | tee reads_aligned
     samtools flagstat "${sample_name}.bam" | tee "${sample_name}.bam.flagstat.txt"
-    grep properly "${sample_name}.bam.flagstat.txt" | awk '{print $1}' | tee read_pairs_aligned
+    grep properly "${sample_name}.bam.flagstat.txt" | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view "${sample_name}.mapped.bam" | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     expr $(cat bases_aligned) / $(cat assembly_length) | tee mean_coverage
   }
 
   output {
-    File reads_bam = ${sample_name}.bam
-    File reads_bam_flagstat = ${sample_name}.bam.flagstat.txt
-    File coverage_plot = ${sample_name}.coverage_plot.pdf
+    File reads_bam = "${sample_name}".bam
+    File reads_bam_flagstat = "${sample_name}".bam.flagstat.txt
+    File coverage_plot = "${sample_name}".coverage_plot.pdf
     Int assembly_length = read_int("assembly_length")
     Int assembly_length_unambiguous = read_int("assembly_length_unambiguous")
     Int reads_aligned = read_int("reads_aligned")
@@ -216,7 +216,7 @@ task analysis {
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "7GB"
-    cpu: "4"
+    cpu: 4
     disks: "local-disk 375 LOCAL"
   }
 }

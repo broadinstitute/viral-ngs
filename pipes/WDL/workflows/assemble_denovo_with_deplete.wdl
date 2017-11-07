@@ -39,8 +39,8 @@ workflow assemble_denovo_with_deplete {
   call assembly.scaffold {
     input:
       sample_name = sample_name,
-      trinity_contigs_fasta = assemble_denovo.contigs_fasta,
-      trinity_reads_unmapped_bam = filter_to_taxon.taxfilt_bam
+      contigs_fasta = assemble_denovo.contigs_fasta,
+      reads_bam = filter_to_taxon.taxfilt_bam
   }
 
   call assembly.refine as refine1 {
