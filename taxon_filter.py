@@ -9,6 +9,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
 __commands__ = []
 
 import argparse
+import glob
 import logging
 import subprocess
 import os
@@ -373,7 +374,7 @@ def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
                 outf.write(read_id + '\n')
 
     if blast_pipe.poll():
-        raise CalledProcessError()
+        raise subprocess.CalledProcessError(blast_pipe.returncode, blastnCmd)
     os.unlink(input_fasta)
 
     return chunk_hits
@@ -468,7 +469,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
     blast_hits = mkstempfname('.blast_hits.txt')
 
-    with util.file.tmp_dir('blastn-') as tempDbDir:
+    with util.file.tmp_dir('-blastn_db_unpack') as tempDbDir:
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a file, treat it like a tarball
@@ -494,14 +495,14 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
             # Find BLAST hits
             log.info("running blastn on %s against %s", inBam, db)
-            blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
+            blastOutFiles = blastn_chunked_fasta(fasta, db_prefix, chunkSize, threads)
             util.file.cat(blast_hits, blastOutFiles)
             os.unlink(fasta)
 
         else:
             ## pipe tools together and run blastn multithreaded
             with open(blast_hits, 'wt') as outf:
-                for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
+                for read_id in tools.blast.BlastnTool().get_hits(inBam, db_prefix, threads=threads):
                     outf.write(read_id + '\n')
 
     # Deplete BAM of hits

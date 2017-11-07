@@ -8,6 +8,7 @@ gatk=3.6
 kraken=0.10.6_fork3
 krona=2.7
 last=876
+lz4-bin=131
 fastqc=0.11.5
 gap2seq=2.1
 mafft=7.221

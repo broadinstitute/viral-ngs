@@ -103,6 +103,7 @@ class TestBmtagger(TestCaseWithTmp):
         self.bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, self.database_prefix_path + ".bitmask")
         self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
 
+    @unittest.skip('functionally equivalent to test_Deplete_bmtagger_tar_db + test_bmtagger_empty_output')
     def test_deplete_bmtagger_bam(self):
         os.environ.pop('TMPDIR', None)
         util.file.set_tmp_dir(None)
@@ -113,6 +114,19 @@ class TestBmtagger(TestCaseWithTmp):
         args.func_main(args)
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
+
+    def test_deplete_bmtagger_tar_db(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        outBam = util.file.mkstempfname('-out.bam')
+        tar_db_tgz = util.file.mkstempfname('.db.tar.gz')
+        cmd = ['tar', '-C', os.path.dirname(self.database_prefix_path), '-cvzf', tar_db_tgz, '.']
+        subprocess.check_call(cmd)
+        args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
+            inBam, tar_db_tgz, outBam, '--srprismMemory', '1500'])
+        args.func_main(args)
+        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
+        assert_equal_bam_reads(self, outBam, expectedOut)
+        os.unlink(tar_db_tgz)
 
     def test_bmtagger_empty_input(self):
         os.environ.pop('TMPDIR', None)
@@ -263,6 +277,16 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
                 os.path.join(util.file.get_test_input_path(self), db),
                 os.path.join(self.tempDir, db[:-3]))
             self.blastdbs_multi.append(dbPath)
+
+        # tar one db, but not the other
+        tar_db_tgz = util.file.mkstempfname('-humanChr9Subset.blastn.db.tar.gz')
+        cmd = ['tar', '-C', self.tempDir, '-cvzf', tar_db_tgz]
+        for ext in ('nhr', 'nin', 'nsq'):
+            cmd.append('humanChr9Subset.'+ext)
+        subprocess.check_call(cmd)
+        self.blastdbs_multi[1] = tar_db_tgz
+        for ext in ('nhr', 'nin', 'nsq'):
+            os.unlink(os.path.join(self.tempDir, 'humanChr9Subset.'+ext))
 
     def test_deplete_blastn_bam(self):
         tempDir = tempfile.mkdtemp()

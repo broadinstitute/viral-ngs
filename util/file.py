@@ -10,6 +10,7 @@ import os
 import gzip
 import io
 import tempfile
+import subprocess
 import shutil
 import errno
 import logging
@@ -197,27 +198,42 @@ def destroy_tmp_dir(tempdir=None):
 
 
 def extract_tarball(tarfile, out_dir=None):
-    # TO DO: add lz4 decompression support
-    # TO DO: convert gzip decompression to pigz -dc if available
     if not os.path.isfile(tarfile):
         raise Exception('file does not exist: %s' % tarfile)
     if out_dir is None:
         out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
-    if tarfile.lower().endswith('.zip'):
-        untar_cmd = ['unzip', '-q', tarfile, '-d', out_dir]
+    lower_fname = os.path.basename(tarfile).lower()
+    if lower_fname.endswith('.zip') or lower_fname.endswith('.tar'):
+        if lower_fname.endswith('.zip'):
+            cmd = ['unzip', '-q', tarfile, '-d', out_dir]
+        else:
+            cmd = ['tar', '-C', out_dir, '-xf', tarfile]
+        log.debug(' '.join(cmd))
+        with open(os.devnull, 'w') as fnull:
+            subprocess.check_call(cmd, stderr=fnull)
     else:
         if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
-            compression_option = 'z'
+            if shutil.which('pigz'):
+                decompressor=['pigz', '-dc']
+            else:
+                decompressor=['gzip', '-dc']
         elif tarfile.lower().endswith('.tar.bz2'):
-            compression_option = 'j'
-        elif tarfile.lower().endswith('.tar'):
-            compression_option = ''
+            decompressor=['bzip2', '-dc']
+        elif tarfile.lower().endswith('.tar.lz4'):
+            decompressor=['lz4', '-d']
         else:
             raise Exception("unsupported file type: %s" % tarfile)
-        untar_cmd = ['tar', '-C', out_dir, '-x{}pf'.format(compression_option), tarfile]
-    log.debug(' '.join(untar_cmd))
-    with open(os.devnull, 'w') as fnull:
-        subprocess.check_call(untar_cmd, stderr=fnull)
+        untar_cmd = ['tar', '-C', out_dir, '-x']
+        log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
+        with open(tarfile, 'rb') as in_tar, open(os.devnull, 'w') as fnull:
+            decompress_proc = subprocess.Popen(decompressor,
+                stdin=in_tar, stdout=subprocess.PIPE)
+            untar_proc = subprocess.Popen(untar_cmd,
+                stdin=decompress_proc.stdout, stderr=fnull)
+            if untar_proc.wait():
+                raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
+        log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
+
     return out_dir
 
 
