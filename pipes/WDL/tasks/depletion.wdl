@@ -64,8 +64,8 @@ task deplete {
 task filter_to_taxon {
   String sample_name
 
-  File reads # unmapped bam
-  File lastal_db # fasta
+  File reads_unmapped_bam
+  File lastal_db_fasta
 
   command {
     set -ex -o pipefail

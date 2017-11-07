@@ -10,7 +10,7 @@ workflow assemble_denovo_with_deplete {
   File? novocraft_license
 
   File trim_clip_db # fasta
-  File lastal_db  # fasta
+  File lastal_db_fasta
   Array[File] bmtaggerDbs  # tar.gz pre-built/indexed
   Array[File] blastDbs  # tar.gz pre-built/indexed
 
@@ -25,8 +25,8 @@ workflow assemble_denovo_with_deplete {
   call depletion.filter_to_taxon {
     input:
       sample_name = sample_name,
-      reads = deplete.cleaned_bam,
-      lastal_db = lastal_db
+      reads_unmapped_bam = deplete.cleaned_bam,
+      lastal_db_fasta = lastal_db_fasta
   }
 
   call assembly.assemble_denovo {

@@ -1,120 +1,81 @@
-task isnvs_vcf {
-  Array[File] vphaser2Calls # vphaser output; ex. vphaser2.${sample}.txt.gz
-  Array[File] perSegmentMultiAlignments # aligned_##.fasta, where ## is segment number
-  File referenceGenome #fasta
-  File sampleNameList
 
-  Array[String] snpEffRef # list of accessions to build/find snpEff database
-  Array[String] sampleNames # list of sample names
-  String emailAddress # email address passed to NCBI if we need to download reference sequences
+
+task kraken_single {
+  File reads_unmapped_bam
+  File kraken_db_tar_lz4
 
   command {
-    intrahost.py merge_to_vcf \
-        "${referenceGenome}" \
-        "isnvs.vcf.gz" \
-        --samples "${sampleNameList}" \
-        --isnvs "${sep=' ' vphaser2Calls}" \
-        --alignments "${sep=' ' perSegmentMultiAlignments}" \
-        --strip_chr_version \
-        --parse_accession
+    set -ex -o pipefail
 
-    interhost.py snpEff \
-        "isnvs.vcf.gz" \
-        "${sep=' ' snpEffRef}" \
-        "isnvs.annot.vcf.gz" \
-        "${emailAddress}"
+    # decompress DB to /mnt/db
+    date
+    echo "decompressing $kraken_db_tar_lz4"
+    decompressor="pigz -dc"
+    if [[ "$kraken_db_tar_lz4" == *.lz4 ]]; then
+      decompressor="lz4 -d"
+    elif [[ "$kraken_db_tar_lz4" == *.bz2 ]]; then
+      decompressor="bzcat -d"
+    fi
+    time cat $kraken_db_tar_lz4 | $decompressor | tar -C /mnt/db -xvf -
 
-    intrahost.py iSNV_table \
-        "isnvs.annot.vcf.gz" \
-        "isnvs.annot.txt.gz"        
+    time metagenomics.py kraken \
+      ${reads_unmapped_bam} \
+      /mnt/db \
+      --outReads=/mnt/output/kraken-reads.txt.gz \
+      --outReport=/mnt/output/kraken-report.txt
   }
 
   output {
-    Array[File] = ["isnvs.vcf.gz", "isnvs.vcf.gz.tbi", "isnvs.annot.vcf.gz", "isnvs.annot.txt.gz", "isnvs.annot.vcf.gz.tbi"]
-  }
-  runtime {
-    docker: "broadinstitute/viral-ngs"
-  }
-}
-
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# old ===============================
-
-task diamond {
-  String sample
-
-  File inputBam
-
-  command {
-    metagenomics.py diamond
-  }
-
-  output {
-    File report = "${sample}.diamond.report"
-    File lca    = "${sample}.diamond.lca.gz"
+    File kraken_classified_reads = /mnt/output/kraken-reads.txt.gz
+    File kraken_summary_report = /mnt/output/kraken-report.txt
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-  }
-}
-
-task kraken {
-  String sample
-
-  File inputBam
-
-  command {
-    metagenomics.py kraken
-  }
-
-  output {
-    File report = "${sample}.kraken.report"
-    File reads  = "${sample}.kraken.reads.gz"
-  }
-
-  runtime {
-    docker: "broadinstitute/viral-ngs"
-  }
-}
-
-task align_rna {
-  String sample
-
-  File inputBam
-
-  command {
-    metagenomics.py align_rna
-  }
-
-  output {
-    File report      = "{sample}.{adjective,raw|cleaned}.rna_bwa.report"
-    File dupe_report = "{sample}.{adjective,raw|cleaned}.rna_bwa.dupes.report"
-    File bam         = "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"
-    File lca         = "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"
-    File dupes_lca   = "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_dupes.gz"
-  }
-
-  runtime {
-    docker: "broadinstitute/viral-ngs"
+    memory: "200GB"
+    cpu: "32"
+    disks: "local-disk 375 LOCAL, /mnt/output 375 LOCAL, /mnt/db 375 LOCAL"
   }
 }
 
 task krona {
-  String sample
-
-  # input...
+  File classified_reads_txt_gz
+  File krona_taxonomy_db_tgz
 
   command {
-    metagenomics.py krona 
-      
+    set -ex -o pipefail
+
+    # decompress DB to /mnt/db
+    date
+    echo "decompressing $krona_taxonomy_db_tgz"
+    decompressor="pigz -dc"
+    if [[ "$krona_taxonomy_db_tgz" == *.lz4 ]]; then
+      decompressor="lz4 -d"
+    elif [[ "$krona_taxonomy_db_tgz" == *.bz2 ]]; then
+      decompressor="bzcat -d"
+    fi
+    mkdir -p krona_db krona_out
+    cat $krona_taxonomy_db_tgz | $decompressor | tar -C krona_db -xvf -
+
+    metagenomics.py krona \
+      ${classified_reads_txt_gz} \
+      krona_db \
+      krona_out/krona-report.html \
+      --noRank --noHits
+
+    tar czf krona-report.tar.gz -C krona_out .
   }
 
   output {
-
+    File krona_report_html = krona_out/krona-report.html
+    File krona_report_tgz = krona-report.tar.gz
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
+    memory: "3GB"
+    cpu: "2"
+    disks: "local-disk 375 LOCAL"
   }
 }
+

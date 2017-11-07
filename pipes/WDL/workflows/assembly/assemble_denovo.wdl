@@ -10,13 +10,13 @@ workflow assemble_denovo {
   File? novocraft_license
 
   File trim_clip_db # fasta
-  File lastal_db  # fasta
+  File lastal_db_fasta
 
   call depletion.filter_to_taxon {
     input:
       sample_name = sample_name,
-      reads = reads_unmapped_bam,
-      lastal_db = lastal_db
+      reads_unmapped_bam = reads_unmapped_bam,
+      lastal_db_fasta = lastal_db_fasta
   }
 
   call assembly.assemble_denovo {
