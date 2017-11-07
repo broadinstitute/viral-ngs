@@ -261,14 +261,32 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
         print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
-    tempDir = tempfile.mkdtemp()
-    matchesFile = mkstempfname('.txt')
-    cmdline = [
-        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf, '-x', db + '.srprism', '-T', tempDir, '-q1',
-        '-1', inReads1, '-o', matchesFile
-    ]
-    log.debug(' '.join(cmdline))
-    util.misc.run_and_print(cmdline, check=True)
+
+    with util.file.tmp_dir('bmtagger-') as tempDir:
+        if os.path.exists(db):
+            if os.path.isfile(db):
+                # this is a file, treat it like a tarball
+                db_dir = util.file.extract_tarball(db, tempfile.mkdtemp(prefix=os.path.basename(db), dir=tempDir))
+            else:
+                # this is a directory
+                db_dir = db
+            # this directory should have a .bitmask and .srprism.* files in it somewhere
+            hits = list(glob.glob(os.path.join(db_dir, '*.bitmask')))
+            if len(hits) != 1:
+                raise Exception()
+            db_prefix = hits[0][:-8]  # remove the '.bitmask'
+        else:
+            # this is simply a prefix to a bunch of files, not an actual file
+            db_prefix = db
+
+        matchesFile = mkstempfname('.txt')
+        cmdline = [
+            bmtaggerPath, '-b', db_prefix + '.bitmask', '-C', bmtaggerConf, '-x', db_prefix + '.srprism', '-T', tempDir, '-q1',
+            '-1', inReads1, '-o', matchesFile
+        ]
+        log.debug(' '.join(cmdline))
+        util.misc.run_and_print(cmdline, check=True)
+
     os.unlink(inReads1)
     os.unlink(bmtaggerConf)
 
@@ -450,24 +468,41 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
     blast_hits = mkstempfname('.blast_hits.txt')
 
-    if chunkSize:
-        ## chunk up input and perform blastn in several parallel threads
+    with util.file.tmp_dir('blastn-') as tempDbDir:
+        if os.path.exists(db):
+            if os.path.isfile(db):
+                # this is a file, treat it like a tarball
+                db_dir = util.file.extract_tarball(db, tempDbDir)
+            else:
+                # this is a directory
+                db_dir = db
+            # this directory should have a .bitmask and a .srprism file in it somewhere
+            hits = list(glob.glob(os.path.join(db_dir, '*.nin')))
+            if len(hits) != 1:
+                raise Exception()
+            db_prefix = hits[0][:-4]  # remove the '.nin'
+        else:
+            # this is simply a prefix to a bunch of files, not an actual file
+            db_prefix = db
 
-        # Initial BAM -> FASTA sequences
-        fasta = mkstempfname('.fasta')
-        tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
+        if chunkSize:
+            ## chunk up input and perform blastn in several parallel threads
 
-        # Find BLAST hits
-        log.info("running blastn on %s against %s", inBam, db)
-        blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-        util.file.cat(blast_hits, blastOutFiles)
-        os.unlink(fasta)
+            # Initial BAM -> FASTA sequences
+            fasta = mkstempfname('.fasta')
+            tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
 
-    else:
-        ## pipe tools together and run blastn multithreaded
-        with open(blast_hits, 'wt') as outf:
-            for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
-                outf.write(read_id + '\n')
+            # Find BLAST hits
+            log.info("running blastn on %s against %s", inBam, db)
+            blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
+            util.file.cat(blast_hits, blastOutFiles)
+            os.unlink(fasta)
+
+        else:
+            ## pipe tools together and run blastn multithreaded
+            with open(blast_hits, 'wt') as outf:
+                for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
+                    outf.write(read_id + '\n')
 
     # Deplete BAM of hits
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)

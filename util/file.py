@@ -196,6 +196,31 @@ def destroy_tmp_dir(tempdir=None):
     tempfile.tempdir = None
 
 
+def extract_tarball(tarfile, out_dir=None):
+    # TO DO: add lz4 decompression support
+    # TO DO: convert gzip decompression to pigz -dc if available
+    if not os.path.isfile(tarfile):
+        raise Exception('file does not exist: %s' % tarfile)
+    if out_dir is None:
+        out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
+    if tarfile.lower().endswith('.zip'):
+        untar_cmd = ['unzip', '-q', tarfile, '-d', out_dir]
+    else:
+        if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
+            compression_option = 'z'
+        elif tarfile.lower().endswith('.tar.bz2'):
+            compression_option = 'j'
+        elif tarfile.lower().endswith('.tar'):
+            compression_option = ''
+        else:
+            raise Exception("unsupported file type: %s" % tarfile)
+        untar_cmd = ['tar', '-C', out_dir, '-x{}pf'.format(compression_option), tarfile]
+    log.debug(' '.join(untar_cmd))
+    with open(os.devnull, 'w') as fnull:
+        subprocess.check_call(untar_cmd, stderr=fnull)
+    return out_dir
+
+
 @contextlib.contextmanager
 def fifo(num_pipes=1, names=None, name=None):
     pipe_dir = tempfile.mkdtemp()
