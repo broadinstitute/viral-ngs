@@ -6,26 +6,11 @@ task deplete {
   String sample_name
 
   File raw_reads_unmapped_bam
-  Array[File] bmtaggerDbs
-  Array[File] blastDbs
+  Array[File] bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, or .tar.lz4
+  Array[File] blastDbs  # .tar.gz, .tgz, .tar.bz2, or .tar.lz4
 
-  command <<<
+  command {
     set -ex -o pipefail
-
-    # stage the databases for BMTagger and BLAST
-    # assumptions: each database is stored in a tarball. If the database name
-    # is X then the tarball is named X.bmtagger_db.tar.gz or X.blastndb.tar.gz.
-    # The tarball contains the database files in the root (NOT in subdirectory
-    # X/). The individual database files have X as their base name, e.g.
-    # X.srprism.amp, X.nin
-    TMP_DIR=/mnt/tmp
-    stage_db() {
-        local dbname=$(basename "$2" .$1.tar.gz)
-        mkdir -p "$TMP_DIR/$1/$dbname"
-        cat "$2" | gzip -dc | tar xv -C "$TMP_DIR/$1/$dbname"
-        rm "$2"
-    }
-    export -f stage_db
 
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
@@ -33,15 +18,15 @@ task deplete {
       /mnt/tmp/tmpfile-${sample_name}.bmtagger_depleted.bam \
       /mnt/tmp/tmpfile-${sample_name}.rmdup.bam \
       /mnt/output/${sample_name}.cleaned.bam \
-      --bmtaggerDbs $(ls -1 $TMP_DIR/bmtagger_db | xargs -i -n 1 printf " $TMP_DIR/bmtagger_db/%s/%s " {} {}) \
-      --blastDbs $(ls -1 $TMP_DIR/blastndb | xargs -i -n 1 printf " $TMP_DIR/blastndb/%s/%s " {} {})
+      --bmtaggerDbs `cat ${write_lines(bmtaggerDbs)}` \
+      --blastDbs `cat ${write_lines(blastDbs)}` \
       --chunkSize=0 \
       --JVMmemory=14g \
       --tmp_dir=/mnt/tmp
 
     samtools view -c "${raw_reads_unmapped_bam}" | tee depletion_read_count_pre
     samtools view -c /mnt/output/"${sample_name}".cleaned.bam | tee depletion_read_count_post
-  >>>
+  }
 
   output {
     File cleaned_bam          = "/mnt/output/${sample_name}.cleaned.bam"
@@ -49,7 +34,7 @@ task deplete {
     Int depletion_read_count_post = read_int("depletion_read_count_post")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "broadinstitute/viral-ngs-dev:dp-wdl"
     memory: "14GB"
     cpu: 8
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
