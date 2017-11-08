@@ -164,7 +164,11 @@ def main_illumina_demux(args):
         JVMmemory=args.JVMmemory)
 
     if args.commonBarcodes:
-        count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+        # this step can take > 2 hours on a large high-output flowcell
+        # so kick it to the background while we demux
+        #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+        executor = concurrent.futures.ProcessPoolExecutor()
+        executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
 
     # Picard IlluminaBasecallsToSam
     basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
@@ -187,6 +191,8 @@ def main_illumina_demux(args):
         JVMmemory=args.JVMmemory)
 
     # clean up
+    if args.commonBarcodes:
+        executor.shutdown(wait=True)
     os.unlink(extract_input)
     os.unlink(basecalls_input)
     shutil.rmtree(barcodes_tmpdir)
