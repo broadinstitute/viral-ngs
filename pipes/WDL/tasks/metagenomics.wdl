@@ -1,4 +1,8 @@
 
+# TO DO:
+# kraken_multi (Array[File] bam inputs and reads/reports outputs)
+# kraken_build (input & output tarballs)
+# diamond, bwa, etc
 
 task kraken_single {
   File reads_unmapped_bam
