@@ -34,7 +34,7 @@ task deplete {
     Int depletion_read_count_post = read_int("depletion_read_count_post")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs-dev:dp-wdl"
+    docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     memory: "14GB"
     cpu: 8
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
