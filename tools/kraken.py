@@ -70,16 +70,12 @@ class Kraken(tools.Tool):
                            JVMmemory=picard.jvmMemDefault,
                            background=True)
 
-            opts = {
-                '--threads': util.misc.sanitize_thread_count(numThreads),
-            }
-
             kraken_bin = os.path.join(self.libexec, 'kraken')
-            cmd = '''export KRAKEN_DEFAULT_DB={kraken_db}; {{ {kraken} --paired --fastq-input --threads {threads} {fastq1} {fastq2} 2>&1 1>&3 3>&- | sed '/Processed [0-9]* sequences/d'; }} \
+            cmd = '''set -ex -o pipefail; export KRAKEN_DEFAULT_DB={kraken_db}; {{ {kraken} --paired --fastq-input --threads {threads} {fastq1} {fastq2} 2>&1 1>&3 3>&- | sed '/Processed [0-9]* sequences/d'; }} \
             3>&1 1>&2'''.format(
                 kraken_db=db,
                 kraken=kraken_bin,
-                threads=numThreads,
+                threads=util.misc.sanitize_thread_count(numThreads),
                 fastq1=fastq1_pipe,
                 fastq2=fastq2_pipe)
 
