@@ -22,7 +22,7 @@ task assemble_denovo {
       ${reads_unmapped_bam} \
       ${trim_clip_db} \
       ${sample_name}.assembly1-trinity.fasta \
-      ${'--n_reads' + trinity_n_reads} \
+      ${'--n_reads=' + trinity_n_reads} \
       --JVMmemory 7g \
       --outReads=${sample_name}.subsamp.bam
 
