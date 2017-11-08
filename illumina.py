@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree
 from collections import defaultdict
+import concurrent.futures
 
 import util.cmd
 import util.file
