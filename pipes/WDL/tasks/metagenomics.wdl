@@ -8,7 +8,7 @@ task kraken_single {
   File reads_unmapped_bam
   File kraken_db_tar_lz4
 
-  command <<<
+  command {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
@@ -26,20 +26,20 @@ task kraken_single {
     time metagenomics.py kraken \
       ${reads_unmapped_bam} \
       /mnt/db \
-      --outReads=/mnt/output/kraken-reads.txt.gz \
-      --outReport=/mnt/output/kraken-report.txt
-  >>>
+      --outReads=kraken-reads.txt.gz \
+      --outReport=kraken-report.txt
+  }
 
   output {
-    File kraken_classified_reads = "/mnt/output/kraken-reads.txt.gz"
-    File kraken_summary_report = "/mnt/output/kraken-report.txt"
+    File kraken_classified_reads = "kraken-reads.txt.gz"
+    File kraken_summary_report = "kraken-report.txt"
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     memory: "200GB"
     cpu: 32
-    disks: "local-disk 375 LOCAL, /mnt/output 375 LOCAL, /mnt/db 375 LOCAL"
+    disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
   }
 }
 
@@ -52,15 +52,15 @@ task krona {
 
     # decompress DB to /mnt/db
     date
-    echo "decompressing $krona_taxonomy_db_tgz"
+    echo "decompressing ${krona_taxonomy_db_tgz}"
     decompressor="pigz -dc"
-    if [[ "$krona_taxonomy_db_tgz" == *.lz4 ]]; then
+    if [[ "${krona_taxonomy_db_tgz}" == *.lz4 ]]; then
       decompressor="lz4 -d"
-    elif [[ "$krona_taxonomy_db_tgz" == *.bz2 ]]; then
+    elif [[ "${krona_taxonomy_db_tgz}" == *.bz2 ]]; then
       decompressor="bzcat -d"
     fi
     mkdir -p krona_db krona_out
-    cat $krona_taxonomy_db_tgz | $decompressor | tar -C krona_db -xvf -
+    cat ${krona_taxonomy_db_tgz} | $decompressor | tar -C krona_db -xv
 
     metagenomics.py krona \
       ${classified_reads_txt_gz} \
@@ -69,10 +69,11 @@ task krona {
       --noRank --noHits
 
     tar czf krona-report.tar.gz -C krona_out .
+    mv krona_out/krona_report.html .
   }
 
   output {
-    File krona_report_html = "krona_out/krona-report.html"
+    File krona_report_html = "krona-report.html"
     File krona_report_tgz = "krona-report.tar.gz"
   }
 
