@@ -180,6 +180,49 @@ class TestBlastnDbBuild(TestCaseWithTmp):
                 os.path.join(myInputDir, "expected", output_prefix + ext)
             )
 
+    def test_blastn_db_build_gz(self):
+        commonInputDir = util.file.get_test_input_path()
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta.gz')
+
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+
+        output_prefix = self.__class__.__name__
+
+        args = taxon_filter.parser_blastn_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix
+            ]
+        )
+        args.func_main(args)
+
+        # nhr=header. nin=index, nsq=sequence
+        for ext in [".nhr", ".nsq"]: # ".nin" can change
+            assert_equal_contents(
+                self, os.path.join(tempDir, output_prefix + ext),
+                os.path.join(myInputDir, "expected", output_prefix + ext)
+            )
+
+        commonInputDir = util.file.get_test_input_path()
+
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta.lz4')
+        args = taxon_filter.parser_blastn_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix
+            ]
+        )
+        args.func_main(args)
+
 
 class TestBmtaggerDbBuild(TestCaseWithTmp):
 
@@ -217,6 +260,36 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
 
         for ext in [".srprism.map", ".srprism.idx", ".srprism.ss"]:
             assert_md5_equal_to_line_in_file(self, os.path.join(tempDir, output_prefix + ext), os.path.join(myInputDir, "expected", output_prefix + ext+".md5"))
+
+    def test_bmtagger_db_build_gz(self):
+        commonInputDir = util.file.get_test_input_path()
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta.gz')
+        myInputDir = util.file.get_test_input_path(self)
+        tempDir = tempfile.mkdtemp()
+        output_prefix = self.__class__.__name__
+        args = taxon_filter.parser_bmtagger_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix,
+            ]
+        )
+        args.func_main(args)
+        refFasta = os.path.join(commonInputDir, 'ebola.fasta.lz4')
+        args = taxon_filter.parser_bmtagger_build_db(argparse.ArgumentParser()).parse_args(
+            [
+                # input fasta
+                refFasta,
+                # output directory
+                tempDir,
+                "--outputFilePrefix",
+                output_prefix,
+            ]
+        )
+        args.func_main(args)
 
 
 class TestLastalDbBuild(TestCaseWithTmp):

@@ -266,8 +266,14 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
     with util.file.tmp_dir('bmtagger-') as tempDir:
         if os.path.exists(db):
             if os.path.isfile(db):
-                # this is a file, treat it like a tarball
-                db_dir = util.file.extract_tarball(db, tempfile.mkdtemp(prefix=os.path.basename(db), dir=tempDir))
+                # this is a single file
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                    # this is an unindexed fasta file, we will need to index it
+                    bmtagger_build_db(db, tempDir, 'bmtagger_db')
+                    db_dir = tempDir
+                else:
+                    # this is a tarball with prebuilt indexes
+                    db_dir = util.file.extract_tarball(db, tempfile.mkdtemp(prefix=os.path.basename(db), dir=tempDir))
             else:
                 # this is a directory
                 db_dir = db
@@ -472,8 +478,14 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
     with util.file.tmp_dir('-blastn_db_unpack') as tempDbDir:
         if os.path.exists(db):
             if os.path.isfile(db):
-                # this is a file, treat it like a tarball
-                db_dir = util.file.extract_tarball(db, tempDbDir)
+                # this is a single file
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                    # this is an unindexed fasta file, we will need to index it
+                    blastn_build_db(db, tempDbDir, 'blastn_db')
+                    db_dir = tempDbDir
+                else:
+                    # this is a tarball with prebuilt indexes
+                    db_dir = util.file.extract_tarball(db, tempDbDir)
             else:
                 # this is a directory
                 db_dir = db
@@ -577,6 +589,17 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with blastn from an input reference FASTA file
     """
 
+    new_fasta = None
+    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
+        if inputFasta.endswith('.gz'):
+            decompressor = ['gzip', '-dc']
+        else:
+            decompressor = ['lz4', '-d']
+        new_fasta = util.file.mkstempfname('.fasta')
+        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
+            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        inputFasta = new_fasta
+
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -585,6 +608,9 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
         outPrefix = fileNameSansExtension
 
     blastdb_path = tools.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+
+    if new_fasta is not None:
+        os.unlink(new_fasta)
 
 
 def parser_blastn_build_db(parser=argparse.ArgumentParser()):
@@ -609,6 +635,18 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with Bmtagger from an input FASTA file.
     """
+
+    new_fasta = None
+    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
+        if inputFasta.endswith('.gz'):
+            decompressor = ['gzip', '-dc']
+        else:
+            decompressor = ['lz4', '-d']
+        new_fasta = util.file.mkstempfname('.fasta')
+        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
+            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        inputFasta = new_fasta
+
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -622,6 +660,9 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
     srprismdb_path = tools.bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
     )
+
+    if new_fasta is not None:
+        os.unlink(new_fasta)
 
 
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
