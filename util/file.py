@@ -213,7 +213,8 @@ def extract_tarball(tarfile, out_dir=None):
             subprocess.check_call(cmd, stderr=fnull)
     else:
         if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
-            if shutil.which('pigz'):
+            #if shutil.which('pigz'):
+            if not subprocess.call(['which', 'pigz']):
                 decompressor=['pigz', '-dc']
             else:
                 decompressor=['gzip', '-dc']
