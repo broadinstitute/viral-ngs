@@ -8,26 +8,27 @@ task kraken_single {
   File reads_unmapped_bam
   File kraken_db_tar_lz4
 
-  command {
+  command <<<
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
     date
-    echo "decompressing $kraken_db_tar_lz4"
+    echo "decompressing ${kraken_db_tar_lz4}"
     decompressor="pigz -dc"
-    if [[ "$kraken_db_tar_lz4" == *.lz4 ]]; then
+    if [[ "${kraken_db_tar_lz4}" == *.lz4 ]]; then
       decompressor="lz4 -d"
-    elif [[ "$kraken_db_tar_lz4" == *.bz2 ]]; then
+    elif [[ "${kraken_db_tar_lz4}" == *.bz2 ]]; then
       decompressor="bzcat -d"
     fi
-    time cat $kraken_db_tar_lz4 | $decompressor | tar -C /mnt/db -xvf -
+    cat ${kraken_db_tar_lz4} | $decompressor | tar -C /mnt/db -xv
+    date
 
     time metagenomics.py kraken \
       ${reads_unmapped_bam} \
       /mnt/db \
       --outReads=/mnt/output/kraken-reads.txt.gz \
       --outReport=/mnt/output/kraken-report.txt
-  }
+  >>>
 
   output {
     File kraken_classified_reads = "/mnt/output/kraken-reads.txt.gz"
@@ -35,7 +36,7 @@ task kraken_single {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     memory: "200GB"
     cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/output 375 LOCAL, /mnt/db 375 LOCAL"

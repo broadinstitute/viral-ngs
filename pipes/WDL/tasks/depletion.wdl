@@ -34,7 +34,7 @@ task deplete {
     Int depletion_read_count_post = read_int("depletion_read_count_post")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     memory: "14GB"
     cpu: 8
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
@@ -60,8 +60,8 @@ task filter_to_taxon {
       ${reads_unmapped_bam} \
       ${lastal_db_fasta} \
       ${sample_name}.taxfilt.bam \
-      --JVMmemory=7g \
-      tmp_dir=/mnt/tmp
+      --JVMmemory=14g \
+      --tmp_dir=/mnt/tmp
 
     samtools view -c "${sample_name}.taxfilt.bam" | tee filter_read_count_post
   }
@@ -72,8 +72,8 @@ task filter_to_taxon {
   }
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "7GB"
-    cpu: 8
+    memory: "14GB"
+    cpu: 16
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
