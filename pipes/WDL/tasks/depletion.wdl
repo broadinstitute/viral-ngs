@@ -17,7 +17,7 @@ task deplete {
       /mnt/tmp/tmpfile-${sample_name}.raw.bam \
       /mnt/tmp/tmpfile-${sample_name}.bmtagger_depleted.bam \
       /mnt/tmp/tmpfile-${sample_name}.rmdup.bam \
-      /mnt/output/${sample_name}.cleaned.bam \
+      ${sample_name}.cleaned.bam \
       --bmtaggerDbs `cat ${write_lines(bmtaggerDbs)}` \
       --blastDbs `cat ${write_lines(blastDbs)}` \
       --chunkSize=0 \
@@ -25,19 +25,19 @@ task deplete {
       --tmp_dir=/mnt/tmp
 
     samtools view -c "${raw_reads_unmapped_bam}" | tee depletion_read_count_pre
-    samtools view -c /mnt/output/"${sample_name}".cleaned.bam | tee depletion_read_count_post
+    samtools view -c "${sample_name}".cleaned.bam | tee depletion_read_count_post
   }
 
   output {
-    File cleaned_bam          = "/mnt/output/${sample_name}.cleaned.bam"
-    Int depletion_read_count_pre = read_int("depletion_read_count_pre")
-    Int depletion_read_count_post = read_int("depletion_read_count_post")
+    File cleaned_bam               = "${sample_name}.cleaned.bam"
+    Int  depletion_read_count_pre  = read_int("depletion_read_count_pre")
+    Int  depletion_read_count_post = read_int("depletion_read_count_post")
   }
   runtime {
     docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     memory: "14GB"
     cpu: 8
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
 
@@ -67,8 +67,8 @@ task filter_to_taxon {
   }
 
   output {
-    File taxfilt_bam = "${sample_name}.taxfilt.bam"
-    Int filter_read_count_post = read_int("filter_read_count_post")
+    File taxfilt_bam            = "${sample_name}.taxfilt.bam"
+    Int  filter_read_count_post = read_int("filter_read_count_post")
   }
   runtime {
     docker: "broadinstitute/viral-ngs"

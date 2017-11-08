@@ -32,8 +32,10 @@ task illumina_demux {
     ${'--read_structure=' + readStructure} \
     ${'--minimum_quality=' + minimumQuality} \
     ${'--run_start_date=' + runStartDate} \
-    --JVMmemory=29g \
-    --threads=16 \
+    --JVMmemory=15g \
+    --threads=32 \
+    --compression_level=5 \
+    --max_records_in_ram=1000000 \
     --tmp_dir=/mnt/tmp
   }
 
@@ -47,7 +49,7 @@ task illumina_demux {
     docker: "broadinstitute/viral-ngs-dev:dp_wdl"
     #memory: "52GB"
     #cpu: 8
-    memory: "30GB"
+    memory: "14GB"
     cpu: 16
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"

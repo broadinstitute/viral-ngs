@@ -91,15 +91,15 @@ task scaffold {
   }
 
   output {
-    File scaffold_fasta = "${sample_name}".scaffold.fasta
-    File intermediate_scaffold_fasta = "${sample_name}".intermediate_scaffold.fasta
-    File intermediate_gapfill_fasta = "${sample_name}".intermediate_gapfill.fasta
+    File scaffold_fasta = "${sample_name}.scaffold.fasta"
+    File intermediate_scaffold_fasta = "${sample_name}.intermediate_scaffold.fasta"
+    File intermediate_gapfill_fasta = "${sample_name}.intermediate_gapfill.fasta"
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
     memory: "12GB"
-    cpu: 4
+    cpu: 2
     disks: "local-disk 375 LOCAL"
   }
 }
@@ -112,7 +112,7 @@ task refine {
   File gatk_tar_bz2
   File? novocraft_license
 
-  String? novoalign_options
+  String? novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100"
   Float? major_cutoff=0.5
   Int? min_coverage=1
 
@@ -136,18 +136,18 @@ task refine {
       --min_coverage ${min_coverage} \
       --major_cutoff ${major_cutoff} \
       --GATK_PATH gatk/ \
-      --novo_params '${default="-r Random -l 40 -g 40 -x 20 -t 100" novoalign_options}' \
+      ${'--novo_params=' + novoalign_options} \
       --JVMmemory 7g
   }
 
   output {
-    File refined_assembly_fasta = "${sample_name}".refined_assembly.fasta
-    File sites_vcf_gz = "${sample_name}".sites.vcf.gz
+    File refined_assembly_fasta = "${sample_name}.refined_assembly.fasta"
+    File sites_vcf_gz = "${sample_name}.sites.vcf.gz"
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "15GB"
+    memory: "7GB"
     cpu: 8
     disks: "local-disk 375 LOCAL"
   }
@@ -202,9 +202,9 @@ task analysis {
   }
 
   output {
-    File reads_bam = "${sample_name}".bam
-    File reads_bam_flagstat = "${sample_name}".bam.flagstat.txt
-    File coverage_plot = "${sample_name}".coverage_plot.pdf
+    File reads_bam = "${sample_name}.bam"
+    File reads_bam_flagstat = "${sample_name}.bam.flagstat.txt"
+    File coverage_plot = "${sample_name}.coverage_plot.pdf"
     Int assembly_length = read_int("assembly_length")
     Int assembly_length_unambiguous = read_int("assembly_length_unambiguous")
     Int reads_aligned = read_int("reads_aligned")
