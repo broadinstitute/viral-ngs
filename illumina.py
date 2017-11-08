@@ -193,11 +193,13 @@ def main_illumina_demux(args):
 
     # clean up
     if args.commonBarcodes:
+        log.info("waiting for commonBarcodes output to finish...")
         executor.shutdown(wait=True)
     os.unlink(extract_input)
     os.unlink(basecalls_input)
     shutil.rmtree(barcodes_tmpdir)
     illumina.close()
+    log.info("illumina_demux complete")
     return 0
 
 
@@ -355,6 +357,7 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
     tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
 
     # count all of the barcodes present in the tile files
+    log.info("reading barcodes in all tile files")
     barcode_counts = defaultdict(lambda: 0)
     for filePath in tile_barcode_files:
         with open(filePath) as infile:
@@ -366,10 +369,12 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
                     barcode_counts[row[0]] += 1
 
     # sort the counts, descending. Truncate the result if desired
+    log.info("sorting counts")
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
     sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
 
     # write the barcodes and their corresponding counts
+    log.info("writing output")
     with open(outSummary, 'w') as tsvfile:
         writer = csv.writer(tsvfile, delimiter='\t')
         # write the header unless the user has specified not to do so
@@ -377,6 +382,8 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
             writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
         for barcode_count_tuple in sorted_counts:
             writer.writerow(barcode_count_tuple)
+
+    log.info("done")
 
 # ============================
 # ***  IlluminaDirectory   ***
