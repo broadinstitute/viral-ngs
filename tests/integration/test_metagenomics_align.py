@@ -67,11 +67,11 @@ def db_type(request):
 
 
 FNA_TAXIDS = {
-    'NC_014373.fna': '565995',    # Bundibugyo_ebolavirus_uid51245
-    'NC_004161.fna': '186539',    # Reston_ebolavirus_uid15006
-    'NC_006432.fna': '186540',    # Sudan_ebolavirus_uid15012
-    'NC_014372.fna': '186541',    # Tai_Forest_ebolavirus_uid51257
-    'NC_002549.fna': '186538',    # Zaire_ebolavirus_uid14703
+    'GCF_000889155.1_ViralProj51245_genomic.fna': '565995',    # Bundibugyo_ebolavirus
+    'GCF_000854085.1_ViralProj15006_genomic.fna': '186539',    # Reston_ebolavirus
+    'GCF_000855585.1_ViralProj15012_genomic.fna': '186540',    # Sudan_ebolavirus
+    'GCF_000888475.1_ViralProj51257_genomic.fna': '186541',    # Tai_Forest_ebolavirus
+    'GCF_000848505.1_ViralProj14703_genomic.fna': '186538',    # Zaire_ebolavirus
 }
 
 
