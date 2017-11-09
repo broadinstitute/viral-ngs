@@ -18,7 +18,7 @@ mvicuna=1.0
 novoalign=3.07.00
 picard=2.9.0
 prinseq=0.20.4
-samtools=1.5
+samtools=1.6
 snpeff=4.1l
 spades=3.11.1
 tbl2asn=25.3
@@ -31,7 +31,7 @@ bedtools=2.26.0
 biopython=1.68
 future==0.16.0
 matplotlib=1.5.3
-pysam=0.12.0.1
+pysam=0.13.0
 pybedtools=0.7.10
 PyYAML=3.11
 six=1.10.0
