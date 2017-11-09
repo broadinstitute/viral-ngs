@@ -45,8 +45,4 @@ done
 
 conda list
 
-echo 'Sourcing default environment'
-source activate tools/conda-tools/default
-conda info -a # for debugging
-
-# yes | conda clean --all --yes # clean temp/cache files to reduce Travis cache size
+conda clean --all --yes # clean temp/cache files to reduce Travis cache size
