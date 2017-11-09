@@ -1,8 +1,6 @@
-import "tasks/depletion.wdl" as depletion
 import "tasks/assembly.wdl" as assembly
 
-
-workflow assemble_denovo_with_deplete {
+workflow assemble_refbased {
   String sample_name
   File raw_reads_unmapped_bam
 

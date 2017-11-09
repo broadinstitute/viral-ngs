@@ -24,7 +24,8 @@ task assemble_denovo {
       ${sample_name}.assembly1-trinity.fasta \
       ${'--n_reads=' + trinity_n_reads} \
       --JVMmemory 7g \
-      --outReads=${sample_name}.subsamp.bam
+      --outReads=${sample_name}.subsamp.bam \
+      --loglevel=DEBUG
 
     samtools view -c ${sample_name}.subsamp.bam | tee subsample_read_count
   }
@@ -70,14 +71,16 @@ task scaffold {
       ${'--maxgap=' + assembly_nucmer_max_gap} \
       ${'--minmatch=' + assembly_nucmer_min_match} \
       ${'--mincluster=' + assembly_nucmer_min_cluster} \
-      ${'--min_pct_contig_aligned=' + scaffold_min_pct_contig_aligned}
+      ${'--min_pct_contig_aligned=' + scaffold_min_pct_contig_aligned} \
+      --loglevel=DEBUG
 
     assembly.py gapfill_gap2seq \
       ${sample_name}.intermediate_scaffold.fasta \
       ${reads_bam} \
       ${sample_name}.intermediate_gapfill.fasta \
       --memLimitGb 12 \
-      --maskErrors
+      --maskErrors \
+      --loglevel=DEBUG
 
     assembly.py impute_from_reference \
       ${sample_name}.intermediate_gapfill.fasta \
@@ -87,7 +90,8 @@ task scaffold {
       --replaceLength ${replace_length} \
       --minLengthFraction ${min_length_fraction} \
       --minUnambig ${min_unambig} \
-      --aligner ${aligner}
+      --aligner ${aligner} \
+      --loglevel=DEBUG
   }
 
   output {
@@ -137,7 +141,8 @@ task refine {
       --major_cutoff ${major_cutoff} \
       --GATK_PATH gatk/ \
       ${'--novo_params=' + novoalign_options} \
-      --JVMmemory 7g
+      --JVMmemory 7g \
+      --loglevel=DEBUG
   }
 
   output {
@@ -176,9 +181,9 @@ task analysis {
     fi
     mv ${assembly_fasta} assembly.fasta
 
-    read_utils.py novoindex assembly.fasta
-    read_utils.py index_fasta_picard assembly.fasta
-    read_utils.py index_fasta_samtools assembly.fasta
+    read_utils.py novoindex assembly.fasta --loglevel=DEBUG
+    read_utils.py index_fasta_picard assembly.fasta --loglevel=DEBUG
+    read_utils.py index_fasta_samtools assembly.fasta --loglevel=DEBUG
 
     read_utils.py align_and_fix \
       ${reads_unmapped_bam} \
@@ -186,10 +191,19 @@ task analysis {
       --outBamAll ${sample_name}.bam \
       --outBamFiltered ${sample_name}.mapped.bam \
       --GATK_PATH gatk/ \
-      --aligner_options "$novoalign_options"
+      --aligner_options "$novoalign_options" \
+      --loglevel=DEBUG
+
     samtools index ${sample_name}.mapped.bam
 
-    reports.py plot_coverage ${sample_name}.mapped.bam ${sample_name}.coverage_plot.pdf --plotFormat pdf --plotWidth 1100 --plotHeight 850 --plotDPI 100
+    reports.py plot_coverage \
+      ${sample_name}.mapped.bam \
+      ${sample_name}.coverage_plot.pdf \
+      --plotFormat pdf \
+      --plotWidth 1100 \
+      --plotHeight 850 \
+      --plotDPI 100 \
+      --loglevel=DEBUG
 
     # collect figures of merit
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length

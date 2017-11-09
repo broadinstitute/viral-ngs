@@ -2,7 +2,7 @@
 # deplete: 
 #   Runs a full human read depletion pipeline and removes PCR duplicates
 # ======================================================================
-task deplete {
+task deplete_taxa {
   String sample_name
 
   File raw_reads_unmapped_bam
@@ -22,7 +22,8 @@ task deplete {
       --blastDbs `cat ${write_lines(blastDbs)}` \
       --chunkSize=0 \
       --JVMmemory=14g \
-      --tmp_dir=/mnt/tmp
+      --tmp_dir=/mnt/tmp \
+      --loglevel=DEBUG
 
     samtools view -c "${raw_reads_unmapped_bam}" | tee depletion_read_count_pre
     samtools view -c "${sample_name}".cleaned.bam | tee depletion_read_count_post
@@ -61,7 +62,8 @@ task filter_to_taxon {
       ${lastal_db_fasta} \
       ${sample_name}.taxfilt.bam \
       --JVMmemory=14g \
-      --tmp_dir=/mnt/tmp
+      --tmp_dir=/mnt/tmp \
+      --loglevel=DEBUG
 
     samtools view -c "${sample_name}.taxfilt.bam" | tee filter_read_count_post
   }
@@ -99,7 +101,8 @@ task merge_one_per_sample {
       ${out_bam_name}.bam \
       --picardOptions SORT_ORDER=queryname \
       --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp
+      --tmp_dir=/mnt/tmp \
+      --loglevel=DEBUG
   }
 
   output {
@@ -124,13 +127,15 @@ task merge_one_per_sample_rmdup {
       /mnt/tmp/temp_merged-${out_bam_name}.bam \
       --picardOptions SORT_ORDER=queryname \
       --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp
+      --tmp_dir=/mnt/tmp \
+      --loglevel=DEBUG
 
     read_utils.py rmdup_mvicuna_bam \
       /mnt/tmp/temp_merged-${out_bam_name}.bam \
       ${out_bam_name}.bam \
       --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp
+      --tmp_dir=/mnt/tmp \
+      --loglevel=DEBUG
   }
 
   output {

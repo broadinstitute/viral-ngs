@@ -37,7 +37,7 @@ class TestFilterLastal(TestCaseWithTmp):
         TestCaseWithTmp.setUp(self)
         self.polio_fasta = os.path.join(
             util.file.get_test_input_path(),
-            'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Poliovirus_uid15288', 'NC_002058.ffn'
+            'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Enterovirus_C', 'GCF_000861165.1_ViralProj15288_genomic.fna'
         )
         dbDir = tempfile.mkdtemp()
         self.lastdb_path = tools.last.Lastdb().build_database(self.polio_fasta, os.path.join(dbDir, 'NC_002058'))

@@ -24,10 +24,11 @@ task kraken_single {
     date >&2
 
     time metagenomics.py kraken \
-      ${reads_unmapped_bam} \
       /mnt/db \
+      ${reads_unmapped_bam} \
       --outReads=kraken-reads.txt.gz \
-      --outReport=kraken-report.txt
+      --outReport=kraken-report.txt \
+      --loglevel=DEBUG
   }
 
   output {
@@ -65,7 +66,8 @@ task krona {
       ${classified_reads_txt_gz} \
       taxonomy \
       krona-report.html \
-      --noRank --noHits
+      --noRank --noHits \
+      --loglevel=DEBUG
 
     tar czf krona-report.tar.gz krona-report.html*
   }

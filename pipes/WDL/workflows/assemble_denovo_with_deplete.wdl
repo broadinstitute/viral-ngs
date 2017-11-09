@@ -1,4 +1,4 @@
-import "tasks/depletion.wdl" as depletion
+import "tasks/taxon_filter.wdl" as taxon_filter
 import "tasks/assembly.wdl" as assembly
 
 
@@ -14,7 +14,7 @@ workflow assemble_denovo_with_deplete {
   Array[File] bmtaggerDbs  # tar.gz pre-built/indexed
   Array[File] blastDbs  # tar.gz pre-built/indexed
 
-  call depletion.deplete {
+  call taxon_filter.deplete_taxa {
     input:
       sample_name = sample_name,
       raw_reads_unmapped_bam = raw_reads_unmapped_bam,
@@ -22,10 +22,10 @@ workflow assemble_denovo_with_deplete {
       blastDbs = blastDbs
   }
 
-  call depletion.filter_to_taxon {
+  call taxon_filter.filter_to_taxon {
     input:
       sample_name = sample_name,
-      reads_unmapped_bam = deplete.cleaned_bam,
+      reads_unmapped_bam = deplete_taxa.cleaned_bam,
       lastal_db_fasta = lastal_db_fasta
   }
 
@@ -47,7 +47,7 @@ workflow assemble_denovo_with_deplete {
     input:
       sample_name = sample_name,
       assembly_fasta = scaffold.scaffold_fasta,
-      reads_unmapped_bam = deplete.cleaned_bam,
+      reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_tar_bz2 = gatk_tar_bz2,
       novoalign_options = "-r Random -l 30 -g 40 -x 20 -t 502",
       novocraft_license = novocrat_license,
@@ -58,7 +58,7 @@ workflow assemble_denovo_with_deplete {
     input:
       sample_name = sample_name,
       assembly_fasta = refine1.refined_assembly_fasta,
-      reads_unmapped_bam = deplete.cleaned_bam,
+      reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_tar_bz2 = gatk_tar_bz2,
       novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100",
       novocraft_license = novocrat_license,
@@ -69,7 +69,7 @@ workflow assemble_denovo_with_deplete {
     input:
       sample_name = sample_name,
       assembly_fasta = refine2.refined_assembly_fasta,
-      reads_unmapped_bam = deplete.cleaned_bam,
+      reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_tar_bz2 = gatk_tar_bz2,
       novoalign_options = "-r Random -l 40 -g 40 -x 20 -t 100 -k",
       novocraft_license = novocrat_license,

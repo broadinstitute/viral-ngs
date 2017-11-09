@@ -1,4 +1,4 @@
-import "tasks/depletion.wdl" as depletion
+import "tasks/taxon_filter.wdl" as taxon_filter
 import "tasks/assembly.wdl" as assembly
 
 
@@ -12,7 +12,7 @@ workflow assemble_denovo {
   File trim_clip_db # fasta
   File lastal_db_fasta
 
-  call depletion.filter_to_taxon {
+  call taxon_filter.filter_to_taxon {
     input:
       sample_name = sample_name,
       reads_unmapped_bam = reads_unmapped_bam,

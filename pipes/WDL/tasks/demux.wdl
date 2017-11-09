@@ -17,26 +17,27 @@ task illumina_demux {
 
   command {
     illumina.py illumina_demux \
-    ${flowcell_tgz} \
-    ${lane} \
-    /mnt/output \
-    ${'--sampleSheet=' + samplesheet} \
-    ${'--sequencing_center=' + sequencingCenter} \
-    --outMetrics="metrics.txt" \
-    --commonBarcodes="barcodes.txt" \
-    ${'--flowcell=' + flowcell} \
-    ${'--minimum_base_quality=' + minimumBaseQuality} \
-    ${'--max_mismatches=' + maxMismatches} \
-    ${'--min_mismatch_delta=' + minMismatchDelta} \
-    ${'--max_no_calls=' + maxNoCalls} \
-    ${'--read_structure=' + readStructure} \
-    ${'--minimum_quality=' + minimumQuality} \
-    ${'--run_start_date=' + runStartDate} \
-    --JVMmemory=15g \
-    --threads=32 \
-    --compression_level=5 \
-    --max_records_in_ram=1000000 \
-    --tmp_dir=/mnt/tmp
+      ${flowcell_tgz} \
+      ${lane} \
+      /mnt/output \
+      ${'--sampleSheet=' + samplesheet} \
+      ${'--sequencing_center=' + sequencingCenter} \
+      --outMetrics="metrics.txt" \
+      --commonBarcodes="barcodes.txt" \
+      ${'--flowcell=' + flowcell} \
+      ${'--minimum_base_quality=' + minimumBaseQuality} \
+      ${'--max_mismatches=' + maxMismatches} \
+      ${'--min_mismatch_delta=' + minMismatchDelta} \
+      ${'--max_no_calls=' + maxNoCalls} \
+      ${'--read_structure=' + readStructure} \
+      ${'--minimum_quality=' + minimumQuality} \
+      ${'--run_start_date=' + runStartDate} \
+      --JVMmemory=15g \
+      --threads=32 \
+      --compression_level=5 \
+      --max_records_in_ram=1000000 \
+      --loglevel=DEBUG \
+      --tmp_dir=/mnt/tmp
   }
 
   output {

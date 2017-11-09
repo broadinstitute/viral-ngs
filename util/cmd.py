@@ -51,7 +51,7 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
     for k, v in arglist:
         if k == 'loglevel':
             if not v:
-                v = 'DEBUG'
+                v = 'INFO'
             parser.add_argument("--loglevel",
                                 dest="loglevel",
                                 help="Verboseness of output.  [default: %(default)s]",
