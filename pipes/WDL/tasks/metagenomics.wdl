@@ -79,9 +79,8 @@ task krona {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "3GB"
-    cpu: 2
-    disks: "local-disk 375 LOCAL"
+    memory: "2GB"
+    cpu: 1
   }
 }
 
