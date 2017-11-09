@@ -1133,8 +1133,27 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser
 
-
 __commands__.append(('bwamem_idxstats', parser_bwamem_idxstats))
+
+
+def parser_extract_tarball(parser=argparse.ArgumentParser()):
+    parser.add_argument('tarfile', help='Input tar file. May be "-" for stdin.')
+    parser.add_argument('out_dir', help='Output directory')
+    parser.add_argument('--compression',
+        help='Compression type (default: %(default)s). Auto-detect is incompatible with stdin input.',
+        choices=('gz', 'bz2', 'lz4', 'zip', 'none', 'auto'),
+        default='auto')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_extract_tarball, split_args=True)
+    return parser
+def main_extract_tarball(tarfile, out_dir=None, compression=None, threads=None):
+    ''' Extract an input .tar, .tgz, .tar.gz, .tar.bz2, .tar.lz4, or .zip file
+        to a given directory (or we will choose one on our own). Emit the
+        resulting directory path to stdout.
+    '''
+    print(util.file.extract_tarball(tarfile, out_dir=out_dir, threads=threads, compression=compression))
+__commands__.append(('extract_tarball', parser_extract_tarball))
+
 
 # =========================
 

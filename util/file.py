@@ -197,38 +197,60 @@ def destroy_tmp_dir(tempdir=None):
     tempfile.tempdir = None
 
 
-def extract_tarball(tarfile, out_dir=None):
-    if not os.path.isfile(tarfile):
+def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto'):
+    if tarfile != '-' and not os.path.isfile(tarfile):
         raise Exception('file does not exist: %s' % tarfile)
     if out_dir is None:
         out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
-    lower_fname = os.path.basename(tarfile).lower()
-    if lower_fname.endswith('.zip') or lower_fname.endswith('.tar'):
-        if lower_fname.endswith('.zip'):
-            cmd = ['unzip', '-q', tarfile, '-d', out_dir]
+    else:
+        util.file.mkdir_p(out_dir)
+    assert compression in ('gz', 'bz2', 'lz4', 'zip', 'none', 'auto')
+    if compression is 'auto':
+        assert tarfile != '-', "cannot autodetect on stdin input"
+        # auto-detect compression type based on file name
+        lower_fname = os.path.basename(tarfile).lower()
+        if lower_fname.endswith('.tar'):
+            compression = 'none'
+        elif lower_fname.endswith('.zip'):
+            compression = 'zip'
+        elif lower_fname.endswith('.tgz') or lower_fname.endswith('.tar.gz'):
+            compression = 'gz'
+        elif lower_fname.endswith('.tar.lz4'):
+            compression = 'lz4'
+        elif lower_fname.endswith('.tar.bz2'):
+            compression = 'bz2'
         else:
-            cmd = ['tar', '-C', out_dir, '-xf', tarfile]
-        log.debug(' '.join(cmd))
+            raise Exception("unsupported file type: %s" % tarfile)
+
+    if compression == 'zip':
+        assert tarfile != '-'
+        cmd = ['unzip', '-q', tarfile, '-d', out_dir]
         with open(os.devnull, 'w') as fnull:
             subprocess.check_call(cmd, stderr=fnull)
     else:
-        if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
-            decompressor=['pigz', '-dc']
-        elif tarfile.lower().endswith('.tar.bz2'):
-            decompressor=['lbzip2', '-dc', '-n', str(util.misc.available_cpu_count())]
-        elif tarfile.lower().endswith('.tar.lz4'):
-            decompressor=['lz4', '-d']
-        else:
-            raise Exception("unsupported file type: %s" % tarfile)
+        if compression == 'gz':
+            decompressor = ['pigz', '-dc', '-p', str(util.misc.sanitize_thread_count(threads))]
+        elif compression == 'bz2':
+            decompressor = ['lbzip2', '-dc', '-n', str(util.misc.sanitize_thread_count(threads))]
+        elif compression == 'lz4':
+            decompressor = ['lz4', '-d']
+        elif compression == 'none':
+            decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
-        with open(tarfile, 'rb') as in_tar, open(os.devnull, 'w') as fnull:
+        with open(os.devnull, 'w') as fnull:
+            if tarfile == '-':
+                in_tar = None
+            else:
+                in_tar = open(tarfile, 'rb')
             decompress_proc = subprocess.Popen(decompressor,
                 stdin=in_tar, stdout=subprocess.PIPE)
             untar_proc = subprocess.Popen(untar_cmd,
                 stdin=decompress_proc.stdout, stderr=fnull)
             if untar_proc.wait():
                 raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
+            if in_tar is not None:
+                in_tar.close()
         log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
 
     return out_dir

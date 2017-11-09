@@ -18,12 +18,7 @@ task plot_coverage {
   command {
     set -ex -o pipefail
 
-    mkdir gatk/
-    tar jxf ${gatk_tar_bz2} -C gatk/
-    if [ -n "${novocraft_license}" ]; then
-      cp ${novocraft_license} /tmp/novocraft.lic
-      export NOVOALIGN_LICENSE_PATH=/tmp/novocraft.lic
-    fi
+    read_utils.py extract_tarball ${gatk_tar_bz2} gatk
     cp ${assembly_fasta} assembly.fasta
 
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG

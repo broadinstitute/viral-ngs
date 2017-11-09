@@ -9,7 +9,6 @@ workflow assemble_denovo {
   File gatk_tar_bz2
   File? novocraft_license
 
-  File trim_clip_db # fasta
   File lastal_db_fasta
 
   call taxon_filter.filter_to_taxon {
@@ -22,8 +21,7 @@ workflow assemble_denovo {
   call assembly.assemble_denovo {
     input:
       sample_name = sample_name,
-      reads_unmapped_bam = filter_to_taxon.taxfilt_bam,
-      trim_clip_db = trim_clip_db
+      reads_unmapped_bam = filter_to_taxon.taxfilt_bam
   }
 
   call assembly.scaffold {

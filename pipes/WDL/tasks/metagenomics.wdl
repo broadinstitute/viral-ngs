@@ -12,15 +12,7 @@ task kraken_single {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
-    date >&2
-    echo "decompressing ${kraken_db_tar_lz4}"
-    decompressor="pigz -dc"
-    if [[ "${kraken_db_tar_lz4}" == *.lz4 ]]; then
-      decompressor="lz4 -d"
-    elif [[ "${kraken_db_tar_lz4}" == *.bz2 ]]; then
-      decompressor="bzcat -d"
-    fi
-    cat ${kraken_db_tar_lz4} | $decompressor | tar -C /mnt/db -xv >&2
+    read_utils.py extract_tarball ${kraken_db_tar_lz4} /mnt/db
     date >&2
 
     time metagenomics.py kraken \
@@ -46,21 +38,13 @@ task kraken_single {
 
 task krona {
   File classified_reads_txt_gz
-  File krona_taxonomy_db_tgz
+  File? krona_taxonomy_db_tgz = "gs://sabeti-public-dbs/krona/krona_taxonomy_20160502.tar.lz4"
 
   command {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
-    date >&2
-    echo "decompressing ${krona_taxonomy_db_tgz}" >&2
-    decompressor="pigz -dc"
-    if [[ "${krona_taxonomy_db_tgz}" == *.lz4 ]]; then
-      decompressor="lz4 -d"
-    elif [[ "${krona_taxonomy_db_tgz}" == *.bz2 ]]; then
-      decompressor="bzcat -d"
-    fi
-    cat ${krona_taxonomy_db_tgz} | $decompressor | tar -xv >&2
+    read_utils.py extract_tarball ${krona_taxonomy_db_tgz} .
 
     metagenomics.py krona \
       ${classified_reads_txt_gz} \

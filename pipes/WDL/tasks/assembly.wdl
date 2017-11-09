@@ -11,7 +11,7 @@ task assemble_denovo {
   String sample_name
 
   File reads_unmapped_bam
-  File trim_clip_db #fasta
+  File? trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
 
   Int? trinity_n_reads=200000
 
@@ -56,9 +56,9 @@ task scaffold {
   Float? min_unambig=0.5
   Int? replace_length=55
 
-  Int? assembly_nucmer_max_gap
-  Int? assembly_nucmer_min_match
-  Int? assembly_nucmer_min_cluster
+  Int? nucmer_max_gap
+  Int? nucmer_min_match
+  Int? nucmer_min_cluster
   Int? scaffold_min_pct_contig_aligned
 
   command {
@@ -68,9 +68,9 @@ task scaffold {
       ${contigs_fasta} \
       ${reference_genome_fasta} \
       ${sample_name}.intermediate_scaffold.fasta \
-      ${'--maxgap=' + assembly_nucmer_max_gap} \
-      ${'--minmatch=' + assembly_nucmer_min_match} \
-      ${'--mincluster=' + assembly_nucmer_min_cluster} \
+      ${'--maxgap=' + nucmer_max_gap} \
+      ${'--minmatch=' + nucmer_min_match} \
+      ${'--mincluster=' + nucmer_min_cluster} \
       ${'--min_pct_contig_aligned=' + scaffold_min_pct_contig_aligned} \
       --loglevel=DEBUG
 
@@ -123,12 +123,7 @@ task refine {
   command {
     set -ex -o pipefail
 
-    mkdir gatk/
-    tar jxf ${gatk_tar_bz2} -C gatk/
-    if [ -n "${novocraft_license}" ]; then
-      cp ${novocraft_license} /tmp/novocraft.lic
-      export NOVOALIGN_LICENSE_PATH=/tmp/novocraft.lic
-    fi
+    read_utils.py extract_tarball ${gatk_tar_bz2} gatk
     cp ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta
 
