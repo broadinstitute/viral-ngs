@@ -47,7 +47,7 @@ task illumina_demux {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs-dev:dp_wdl"
+    docker: "broadinstitute/viral-ngs"
     #memory: "52GB"
     #cpu: 8
     memory: "14GB"

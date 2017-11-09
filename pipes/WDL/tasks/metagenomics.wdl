@@ -37,7 +37,7 @@ task kraken_single {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs-dev:dp_wdl"
+    docker: "broadinstitute/viral-ngs"
     memory: "200GB"
     cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
