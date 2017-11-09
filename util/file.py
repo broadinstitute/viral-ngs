@@ -213,13 +213,9 @@ def extract_tarball(tarfile, out_dir=None):
             subprocess.check_call(cmd, stderr=fnull)
     else:
         if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
-            #if shutil.which('pigz'):
-            if not subprocess.call(['which', 'pigz']):
-                decompressor=['pigz', '-dc']
-            else:
-                decompressor=['gzip', '-dc']
+            decompressor=['pigz', '-dc']
         elif tarfile.lower().endswith('.tar.bz2'):
-            decompressor=['bzip2', '-dc']
+            decompressor=['lbzip2', '-dc', '-n', util.misc.available_cpu_count()]
         elif tarfile.lower().endswith('.tar.lz4'):
             decompressor=['lz4', '-d']
         else:

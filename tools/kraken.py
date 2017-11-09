@@ -62,7 +62,7 @@ class Kraken(tools.Tool):
         def s3_psub(path):
             cmd = 'aws s3 cp {} -'.format(path)
             if path.endswith('.bz2'):
-                cmd += ' | bzip2 -n {threads} -d'.format(threads=threads)
+                cmd += ' | lbzip2 -n {threads} -d'.format(threads=threads)
             elif path.endswith('.gz'):
                 cmd += ' | pigz -p {threads} -d'.format(threads=threads)
             elif path.endswith('.lz4'):
