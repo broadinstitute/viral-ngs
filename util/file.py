@@ -215,7 +215,7 @@ def extract_tarball(tarfile, out_dir=None):
         if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
             decompressor=['pigz', '-dc']
         elif tarfile.lower().endswith('.tar.bz2'):
-            decompressor=['lbzip2', '-dc', '-n', util.misc.available_cpu_count()]
+            decompressor=['lbzip2', '-dc', '-n', str(util.misc.available_cpu_count())]
         elif tarfile.lower().endswith('.tar.lz4'):
             decompressor=['lz4', '-d']
         else:
