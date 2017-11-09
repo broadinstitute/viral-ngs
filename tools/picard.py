@@ -497,7 +497,7 @@ class IlluminaBasecallsToSamTool(PicardTools):
         'read_structure': '101T8B8B101T',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
         'max_reads_in_ram_per_tile': 200000,
-        'max_records_in_ram': 200000,
+        'max_records_in_ram': 1000000,
         'num_processors': 0,
         'force_gc': False,
         'include_non_pf_reads': False,

@@ -129,7 +129,7 @@ task refine {
       cp ${novocraft_license} /tmp/novocraft.lic
       export NOVOALIGN_LICENSE_PATH=/tmp/novocraft.lic
     fi
-    mv ${assembly_fasta} assembly.fasta
+    cp ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta
 
     assembly.py refine_assembly \

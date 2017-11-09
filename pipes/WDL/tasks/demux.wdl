@@ -32,10 +32,9 @@ task illumina_demux {
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
-      --JVMmemory=15g \
-      --threads=32 \
+      --JVMmemory=7g \
+      --threads=32 \ # yes, we are overloading this on purpose, seems to speed things up
       --compression_level=5 \
-      --max_records_in_ram=1000000 \
       --loglevel=DEBUG \
       --tmp_dir=/mnt/tmp
   }
@@ -48,9 +47,7 @@ task illumina_demux {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    #memory: "52GB"
-    #cpu: 8
-    memory: "14GB"
+    memory: "8GB"
     cpu: 16
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"

@@ -24,7 +24,7 @@ task plot_coverage {
       cp ${novocraft_license} /tmp/novocraft.lic
       export NOVOALIGN_LICENSE_PATH=/tmp/novocraft.lic
     fi
-    mv ${assembly_fasta} assembly.fasta
+    cp ${assembly_fasta} assembly.fasta
 
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
     read_utils.py index_fasta_picard assembly.fasta --loglevel=DEBUG

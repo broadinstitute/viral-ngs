@@ -83,8 +83,8 @@ rule illumina_demux:
         config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt',
         config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt'
     resources: 
-        mem = 52,
-        threads = 8
+        mem = 8,
+        threads = 16
     params: 
         LSF    = config.get('LSF_queues', {}).get('bigmem', '-q flower'),
         UGER   = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
