@@ -1140,18 +1140,21 @@ def parser_extract_tarball(parser=argparse.ArgumentParser()):
     parser.add_argument('tarfile', help='Input tar file. May be "-" for stdin.')
     parser.add_argument('out_dir', help='Output directory')
     parser.add_argument('--compression',
-        help='Compression type (default: %(default)s). Auto-detect is incompatible with stdin input.',
+        help='Compression type (default: %(default)s). Auto-detect is incompatible with stdin input unless pipe_hint is specified.',
         choices=('gz', 'bz2', 'lz4', 'zip', 'none', 'auto'),
         default='auto')
+    parser.add_argument('--pipe_hint',
+        help='If tarfile is stdin, you can provide a file-like URI string for pipe_hint which ends with a common compression file extension if you want to use compression=auto.',
+        default=None)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_extract_tarball, split_args=True)
     return parser
-def main_extract_tarball(tarfile, out_dir=None, compression=None, threads=None):
+def main_extract_tarball(*args, **kwargs):
     ''' Extract an input .tar, .tgz, .tar.gz, .tar.bz2, .tar.lz4, or .zip file
         to a given directory (or we will choose one on our own). Emit the
         resulting directory path to stdout.
     '''
-    print(util.file.extract_tarball(tarfile, out_dir=out_dir, threads=threads, compression=compression))
+    print(util.file.extract_tarball(*args, **kwargs))
 __commands__.append(('extract_tarball', parser_extract_tarball))
 
 

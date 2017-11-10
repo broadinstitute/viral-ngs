@@ -492,7 +492,7 @@ class ExtractIlluminaBarcodesTool(PicardTools):
 
 class IlluminaBasecallsToSamTool(PicardTools):
     subtoolName = 'IlluminaBasecallsToSam'
-    jvmMemDefault = '50g'
+    jvmMemDefault = '7g'
     defaults = {
         'read_structure': '101T8B8B101T',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),

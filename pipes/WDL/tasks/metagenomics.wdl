@@ -6,14 +6,17 @@
 
 task kraken_single {
   File reads_unmapped_bam
-  File kraken_db_tar_lz4
+  File kraken_db_tar_lz4 # pipeable
 
   command {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
-    read_utils.py extract_tarball ${kraken_db_tar_lz4} /mnt/db
-    date >&2
+    cat ${kraken_db_tar_lz4} |
+      read_utils.py extract_tarball \
+        - /mnt/db \
+        --pipe_hint=${kraken_db_tar_lz4} \
+        --loglevel=DEBUG
 
     time metagenomics.py kraken \
       /mnt/db \
@@ -38,13 +41,17 @@ task kraken_single {
 
 task krona {
   File classified_reads_txt_gz
-  File? krona_taxonomy_db_tgz = "gs://sabeti-public-dbs/krona/krona_taxonomy_20160502.tar.lz4"
+  File? krona_taxonomy_db_tgz = "gs://sabeti-public-dbs/krona/krona_taxonomy_20160502.tar.lz4" # pipeable
 
   command {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
-    read_utils.py extract_tarball ${krona_taxonomy_db_tgz} .
+    cat ${krona_taxonomy_db_tgz} |
+      read_utils.py extract_tarball \
+        - . \
+        --pipe_hint=${krona_taxonomy_db_tgz} \
+        --loglevel=DEBUG
 
     metagenomics.py krona \
       ${classified_reads_txt_gz} \

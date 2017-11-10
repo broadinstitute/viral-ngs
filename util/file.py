@@ -197,7 +197,7 @@ def destroy_tmp_dir(tempdir=None):
     tempfile.tempdir = None
 
 
-def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto'):
+def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
     if tarfile != '-' and not os.path.isfile(tarfile):
         raise Exception('file does not exist: %s' % tarfile)
     if out_dir is None:
@@ -206,9 +206,12 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto'):
         util.file.mkdir_p(out_dir)
     assert compression in ('gz', 'bz2', 'lz4', 'zip', 'none', 'auto')
     if compression is 'auto':
-        assert tarfile != '-', "cannot autodetect on stdin input"
+        assert tarfile != '-' or pipe_hint, "cannot autodetect on stdin input unless pipe_hint provided"
         # auto-detect compression type based on file name
-        lower_fname = os.path.basename(tarfile).lower()
+        if tarfile=='-':
+            lower_fname = pipe_hint
+        else:
+            lower_fname = os.path.basename(tarfile).lower()
         if lower_fname.endswith('.tar'):
             compression = 'none'
         elif lower_fname.endswith('.zip'):
@@ -240,17 +243,17 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto'):
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
         with open(os.devnull, 'w') as fnull:
             if tarfile == '-':
-                in_tar = None
+                inf = None
             else:
-                in_tar = open(tarfile, 'rb')
+                inf = open(tarfile, 'rb')
             decompress_proc = subprocess.Popen(decompressor,
-                stdin=in_tar, stdout=subprocess.PIPE)
+                stdin=inf, stdout=subprocess.PIPE)
             untar_proc = subprocess.Popen(untar_cmd,
                 stdin=decompress_proc.stdout, stderr=fnull)
             if untar_proc.wait():
                 raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
-            if in_tar is not None:
-                in_tar.close()
+            if inf is not None:
+                inf.close()
         log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
 
     return out_dir

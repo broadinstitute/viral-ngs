@@ -1,7 +1,7 @@
 
 task illumina_demux {
 
-  File flowcell_tgz
+  File flowcell_tgz # pipeable
   Int lane
   File? samplesheet
   String? sequencingCenter
@@ -16,10 +16,18 @@ task illumina_demux {
   String? runStartDate
 
   command {
+    set -ex -o pipefail
+
+    cat ${flowcell_tgz} |
+      read_utils.py extract_tarball \
+        - /mnt/tmp/flowcell \
+        --pipe_hint=${flowcell_tgz} \
+        --loglevel=DEBUG
+
     illumina.py illumina_demux \
-      ${flowcell_tgz} \
+      /mnt/tmp/flowcell \
       ${lane} \
-      /mnt/output \
+      . \
       ${'--sampleSheet=' + samplesheet} \
       ${'--sequencing_center=' + sequencingCenter} \
       --outMetrics="metrics.txt" \
@@ -42,7 +50,7 @@ task illumina_demux {
   output {
     File metrics = "metrics.txt"
     File commonBarcodes = "barcodes.txt"
-    Array[File] raw_reads_unaligned_bams = glob("/mnt/output/*.bam")
+    Array[File] raw_reads_unaligned_bams = glob("*.bam")
   }
 
   runtime {
@@ -50,6 +58,6 @@ task illumina_demux {
     memory: "8GB"
     cpu: 16
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL, /mnt/output 375 LOCAL"
+    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
