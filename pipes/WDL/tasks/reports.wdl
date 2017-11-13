@@ -82,11 +82,20 @@ task fastqc {
   File reads_bam
 
   command {
+    set -ex -o pipefail
 
+    IN_BAM="$(basename ${reads_bam})"
+    BASE_OUT="$(basename ${reads_bam} .bam)_fastqc"
+    echo "$BASE_OUT.html" > fname-out_html.txt
+    echo "$BASE_OUT.tar.gz" > fname-out_zip.txt
+
+    cp "${reads_bam}" $IN_BAM
+    fastqc -t `nproc` $IN_BAM
   }
 
   output {
-
+    File fastqc_html = read_string("fname-out_html.txt")
+    File fastqc_zip  = read_string("fname-out_zip.txt")
   }
   runtime {
     memory: "2GB"
@@ -97,18 +106,29 @@ task fastqc {
 
 
 task spikein_report {
-  File reads_bam
+  File  reads_bam
+  File? spikein_db = "gs://sabeti-public-dbs-gz/spikeins/ercc_spike-ins.fasta"
+  Int?  minScoreToFilter = 60
 
   command {
+    set -ex -o pipefail
 
+    echo "$(basename ${reads_bam} .bam).spike_count.txt" > fname-out.txt
+
+    read_utils.py bwamem_idxstats \
+      "${reads_bam}" \
+      "${spikein_db}" \
+      --outStats `cat fname-out.txt` \
+      --minScoreToFilter="${minScoreToFilter}" \
+      --loglevel=DEBUG
   }
 
   output {
-
+    File report = read_string("fname-out.txt")
   }
   runtime {
-    memory: "4GB"
-    cpu: 4
+    memory: "3GB"
+    cpu: 2
     docker: "broadinstitute/viral-ngs"
   }
 }

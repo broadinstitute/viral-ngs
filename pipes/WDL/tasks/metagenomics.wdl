@@ -45,6 +45,7 @@ task kraken {
     memory: "200GB"
     cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
+    preemptible: 0
   }
 }
 
@@ -79,8 +80,8 @@ task krona {
   }
 
   output {
-    File krona_report_html = read_string("fname-out_html.txt")
-    File krona_report_tgz  = read_string("fname-out_tgz.txt")
+    File krona_report_html = select_first(glob(read_string("fname-out_html.txt")))
+    File krona_report_tgz  = "$(cat fname-out_tgz.txt)"
   }
 
   runtime {

@@ -14,7 +14,7 @@ workflow classify_kraken_single {
 
   call metagenomics.krona as krona {
     input:
-      classified_reads_txt_gz = kraken.kraken_classified_reads[0],
+      classified_reads_txt_gz = select_first(kraken.kraken_classified_reads),
       krona_taxonomy_db_tgz = krona_db_tarball
   }
 }
