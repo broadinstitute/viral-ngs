@@ -15,7 +15,6 @@ workflow assemble_denovo_with_deplete {
 
   call taxon_filter.deplete_taxa {
     input:
-      sample_name = sample_name,
       raw_reads_unmapped_bam = raw_reads_unmapped_bam,
       bmtaggerDbs = bmtaggerDbs,
       blastDbs = blastDbs
@@ -23,7 +22,6 @@ workflow assemble_denovo_with_deplete {
 
   call taxon_filter.filter_to_taxon {
     input:
-      sample_name = sample_name,
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
       lastal_db_fasta = lastal_db_fasta
   }

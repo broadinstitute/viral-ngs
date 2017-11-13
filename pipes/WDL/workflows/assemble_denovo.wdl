@@ -13,7 +13,6 @@ workflow assemble_denovo {
 
   call taxon_filter.filter_to_taxon {
     input:
-      sample_name = sample_name,
       reads_unmapped_bam = reads_unmapped_bam,
       lastal_db_fasta = lastal_db_fasta
   }

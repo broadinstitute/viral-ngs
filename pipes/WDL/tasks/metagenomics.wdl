@@ -4,8 +4,8 @@
 # kraken_build (input & output tarballs)
 # diamond, bwa, etc
 
-task kraken_single {
-  File reads_unmapped_bam
+task kraken {
+  Array[File]+ reads_unmapped_bam
   File kraken_db_tar_lz4 # pipeable
 
   command {
@@ -18,17 +18,26 @@ task kraken_single {
         --pipe_hint=${kraken_db_tar_lz4} \
         --loglevel=DEBUG
 
+    # prep input and output file names
+    IN_BAMS=${write_lines(reads_unmapped_bam)}
+    OUT_READS=fnames_outreads.txt
+    OUT_REPORTS=fnames_outreports.txt
+    for bam in `cat $IN_BAMS`; do
+      echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
+      echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
+    done
+
     time metagenomics.py kraken \
       /mnt/db \
-      ${reads_unmapped_bam} \
-      --outReads=kraken-reads.txt.gz \
-      --outReport=kraken-report.txt \
+      `cat $IN_BAMS` \
+      --outReads=`cat $OUT_READS` \
+      --outReport=`cat $OUT_REPORTS` \
       --loglevel=DEBUG
   }
 
   output {
-    File kraken_classified_reads = "kraken-reads.txt.gz"
-    File kraken_summary_report = "kraken-report.txt"
+    Array[File] kraken_classified_reads = read_lines("fnames_outreads.txt")
+    Array[File] kraken_summary_report   = read_lines("fnames_outreports.txt")
   }
 
   runtime {
@@ -53,19 +62,25 @@ task krona {
         --pipe_hint=${krona_taxonomy_db_tgz} \
         --loglevel=DEBUG
 
+    # prep output file names
+    OUT_HTML="fname-out_html.txt"
+    OUT_TGZ="fname-out_tgz.txt"
+    echo "$(basename ${classified_reads_txt_gz} .txt.gz).html" > $OUT_HTML
+    echo "$(basename ${classified_reads_txt_gz} .txt.gz).krona.tar.gz" > $OUT_TGZ
+
     metagenomics.py krona \
       ${classified_reads_txt_gz} \
       taxonomy \
-      krona-report.html \
+      `cat $OUT_HTML` \
       --noRank --noHits \
       --loglevel=DEBUG
 
-    tar czf krona-report.tar.gz krona-report.html*
+    tar czf `cat $OUT_TGZ` `cat $OUT_HTML`*
   }
 
   output {
-    File krona_report_html = "krona-report.html"
-    File krona_report_tgz = "krona-report.tar.gz"
+    File krona_report_html = read_string("fname-out_html.txt")
+    File krona_report_tgz  = read_string("fname-out_tgz.txt")
   }
 
   runtime {
