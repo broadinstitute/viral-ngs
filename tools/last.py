@@ -41,7 +41,8 @@ class Lastal(LastTools):
             max_gapless_alignments_per_position=1,
             min_length_for_initial_matches=5,
             max_length_for_initial_matches=50,
-            max_initial_matches_per_position=100
+            max_initial_matches_per_position=100,
+            threads=None
         ):
 
             # convert BAM to interleaved FASTQ with no /1 /2 appended to the read IDs
@@ -57,7 +58,9 @@ class Lastal(LastTools):
                 '-l', min_length_for_initial_matches,
                 '-L', max_length_for_initial_matches,
                 '-m', max_initial_matches_per_position,
-                '-Q', '1', '-P', '0', '-N', '1', '-i', '1G', '-f', 'tab',
+                '-Q', '1',
+                '-P', str(util.misc.sanitize_thread_count(threads, tool_max_cores_value=0)),
+                '-N', '1', '-i', '1G', '-f', 'tab',
                 db,
             ]
             cmd = [str(x) for x in cmd]

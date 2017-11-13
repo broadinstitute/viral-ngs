@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree
 from collections import defaultdict
+import concurrent.futures
 
 import util.cmd
 import util.file
@@ -62,7 +63,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                                 nargs='*',
                                 help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
                                 default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
-        elif opt == 'read_structure':
+        elif opt in ('read_structure', 'num_processors'):
             pass
         else:
             parser.add_argument('--' + opt,
@@ -72,7 +73,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', tools.picard.IlluminaBasecallsToSamTool.defaults['num_processors']), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
@@ -164,7 +165,11 @@ def main_illumina_demux(args):
         JVMmemory=args.JVMmemory)
 
     if args.commonBarcodes:
-        count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+        # this step can take > 2 hours on a large high-output flowcell
+        # so kick it to the background while we demux
+        #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+        executor = concurrent.futures.ProcessPoolExecutor()
+        executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
 
     # Picard IlluminaBasecallsToSam
     basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
@@ -173,6 +178,8 @@ def main_illumina_demux(args):
                       if hasattr(args, opt) and getattr(args, opt) != None)
     picardOpts['run_start_date'] = run_date
     picardOpts['read_structure'] = read_structure
+    if args.threads:
+        picardOpts['num_processors'] = args.threads
     if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
         picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
     tools.picard.IlluminaBasecallsToSamTool().execute(
@@ -185,10 +192,14 @@ def main_illumina_demux(args):
         JVMmemory=args.JVMmemory)
 
     # clean up
+    if args.commonBarcodes:
+        log.info("waiting for commonBarcodes output to finish...")
+        executor.shutdown(wait=True)
     os.unlink(extract_input)
     os.unlink(basecalls_input)
     shutil.rmtree(barcodes_tmpdir)
     illumina.close()
+    log.info("illumina_demux complete")
     return 0
 
 
@@ -346,6 +357,7 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
     tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
 
     # count all of the barcodes present in the tile files
+    log.info("reading barcodes in all tile files")
     barcode_counts = defaultdict(lambda: 0)
     for filePath in tile_barcode_files:
         with open(filePath) as infile:
@@ -357,10 +369,12 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
                     barcode_counts[row[0]] += 1
 
     # sort the counts, descending. Truncate the result if desired
+    log.info("sorting counts")
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
     sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
 
     # write the barcodes and their corresponding counts
+    log.info("writing output")
     with open(outSummary, 'w') as tsvfile:
         writer = csv.writer(tsvfile, delimiter='\t')
         # write the header unless the user has specified not to do so
@@ -368,6 +382,8 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
             writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
         for barcode_count_tuple in sorted_counts:
             writer.writerow(barcode_count_tuple)
+
+    log.info("done")
 
 # ============================
 # ***  IlluminaDirectory   ***
@@ -427,25 +443,9 @@ class IlluminaDirectory(object):
                     raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
 
     def _extract_tarball(self, tarfile):
-        if not os.path.isfile(tarfile):
-            raise Exception('file does not exist: %s' % tarfile)
         self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
-        if tarfile.lower().endswith('.zip'):
-            untar_cmd = ['unzip', '-q', tarfile, '-d', self.tempDir]
-        else:
-            if tarfile.lower().endswith('.tar.gz') or tarfile.lower().endswith('.tgz'):
-                compression_option = 'z'
-            elif tarfile.lower().endswith('.tar.bz2'):
-                compression_option = 'j'
-            elif tarfile.lower().endswith('.tar'):
-                compression_option = ''
-            else:
-                raise Exception("unsupported file type: %s" % tarfile)
-            untar_cmd = ['tar', '-C', self.tempDir, '-x{}pf'.format(compression_option), tarfile]
-        log.debug(' '.join(untar_cmd))
-        with open(os.devnull, 'w') as fnull:
-            subprocess.check_call(untar_cmd, stderr=fnull)
         self.path = self.tempDir
+        util.file.extract_tarball(tarfile, self.tempDir)
 
     def close(self):
         if self.tempDir:

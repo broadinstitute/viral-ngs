@@ -55,8 +55,7 @@ class Kraken(tools.Tool):
         self.execute('kraken-build', db, db, options=options,
                      option_string=option_string)
 
-
-    def db_opts(self, db, threads):
+    def _db_opts(self, db, threads):
         '''Determine kraken command line options based on db string'''
 
         env = os.environ.copy()
@@ -106,7 +105,10 @@ class Kraken(tools.Tool):
         n_bams = len(inBams)
         # 2n for paired fastq, 1n for kraken output
         n_pipes = n_bams * 3
-
+        if outReports and len(outReports) != n_bams:
+            raise Exception("--outReports specified with {} output files, which does not match the number of input bams ({})".format(len(outReports), n_bams))
+        if outReads and len(outReads) != n_bams:
+            raise Exception("--outReads specified with {} output files, which does not match the number of input bams ({})".format(len(outReads), n_bams))
         threads = util.misc.sanitize_thread_count(numThreads)
 
         with util.file.fifo(n_pipes) as pipes:
@@ -118,10 +120,10 @@ class Kraken(tools.Tool):
             if lockMemory:
                 opts += ' --lock-memory'
 
-            db_opts, env, tax_filter_opts, tax_report_opts = self.db_opts(db, threads)
+            db_opts, env, tax_filter_opts, tax_report_opts = self._db_opts(db, threads)
             opts += db_opts
 
-            cmd = '''{kraken}{opts} --paired --fastq-input --threads {threads} {outputs} {fastqs}'''.format(
+            cmd = '''set -ex -o pipefail; {kraken}{opts} --paired --fastq-input --threads {threads} {outputs} {fastqs}'''.format(
                 kraken=kraken_bin,
                 opts=opts,
                 threads=threads,

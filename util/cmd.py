@@ -51,7 +51,7 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
     for k, v in arglist:
         if k == 'loglevel':
             if not v:
-                v = 'WARNING'
+                v = 'INFO'
             parser.add_argument("--loglevel",
                                 dest="loglevel",
                                 help="Verboseness of output.  [default: %(default)s]",
@@ -71,6 +71,16 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
                     running. Default is to delete all temp files at
                     the end, even if there's a failure.""",
                                 default=False)
+        elif k == 'threads':
+            if v is None:
+                text_default = "all available cores"
+            else:
+                text_default = v
+            parser.add_argument('--threads',
+                                dest="threads",
+                                type=int,
+                                help="Number of threads (default: {})".format(text_default),
+                                default=v)
         elif k == 'version':
             if not v:
                 v = __version__

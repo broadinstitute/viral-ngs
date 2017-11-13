@@ -10,6 +10,7 @@ import os
 import gzip
 import io
 import tempfile
+import subprocess
 import shutil
 import errno
 import logging
@@ -194,6 +195,68 @@ def destroy_tmp_dir(tempdir=None):
         elif tempfile.tempdir:
             shutil.rmtree(tempfile.tempdir)
     tempfile.tempdir = None
+
+
+def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
+    if tarfile != '-' and not os.path.isfile(tarfile):
+        raise Exception('file does not exist: %s' % tarfile)
+    if out_dir is None:
+        out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
+    else:
+        util.file.mkdir_p(out_dir)
+    assert compression in ('gz', 'bz2', 'lz4', 'zip', 'none', 'auto')
+    if compression is 'auto':
+        assert tarfile != '-' or pipe_hint, "cannot autodetect on stdin input unless pipe_hint provided"
+        # auto-detect compression type based on file name
+        if tarfile=='-':
+            lower_fname = pipe_hint
+        else:
+            lower_fname = os.path.basename(tarfile).lower()
+        if lower_fname.endswith('.tar'):
+            compression = 'none'
+        elif lower_fname.endswith('.zip'):
+            compression = 'zip'
+        elif lower_fname.endswith('.tgz') or lower_fname.endswith('.tar.gz'):
+            compression = 'gz'
+        elif lower_fname.endswith('.tar.lz4'):
+            compression = 'lz4'
+        elif lower_fname.endswith('.tar.bz2'):
+            compression = 'bz2'
+        else:
+            raise Exception("unsupported file type: %s" % tarfile)
+
+    if compression == 'zip':
+        assert tarfile != '-'
+        cmd = ['unzip', '-q', tarfile, '-d', out_dir]
+        with open(os.devnull, 'w') as fnull:
+            subprocess.check_call(cmd, stderr=fnull)
+    else:
+        if compression == 'gz':
+            decompressor = ['pigz', '-dc', '-p', str(util.misc.sanitize_thread_count(threads))]
+        elif compression == 'bz2':
+            decompressor = ['lbzip2', '-dc', '-n', str(util.misc.sanitize_thread_count(threads))]
+        elif compression == 'lz4':
+            decompressor = ['lz4', '-d']
+        elif compression == 'none':
+            decompressor = ['cat']
+        untar_cmd = ['tar', '-C', out_dir, '-x']
+        log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
+        with open(os.devnull, 'w') as fnull:
+            if tarfile == '-':
+                inf = None
+            else:
+                inf = open(tarfile, 'rb')
+            decompress_proc = subprocess.Popen(decompressor,
+                stdin=inf, stdout=subprocess.PIPE)
+            untar_proc = subprocess.Popen(untar_cmd,
+                stdin=decompress_proc.stdout, stderr=fnull)
+            if untar_proc.wait():
+                raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
+            if inf is not None:
+                inf.close()
+        log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
+
+    return out_dir
 
 
 @contextlib.contextmanager
