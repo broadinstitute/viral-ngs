@@ -17,18 +17,19 @@ if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]]; then
 		# this is a PR build (TRAVIS_BRANCH=master, TRAVIS_PULL_REQUEST_BRANCH=source of PR)
 		DOCKER_REPO="broadinstitute/viral-ngs-dev"
 		BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
-		DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-beta-/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
+		DOCKER_SHORT_TAG="$(echo $BRANCH_NAME | sed 's/-/_/g')-pull_request"
+		#DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\S+)-(\d+)-g\S+/$1-beta-$2/')_$(echo $BRANCH_NAME | sed 's/-/_/g')"
 	elif [[ "$TRAVIS_BRANCH" == "master" ]]; then
 		# this is a master branch commit (e.g. merged pull request)
 		DOCKER_REPO="broadinstitute/viral-ngs"
 		DOCKER_SHORT_TAG="latest"
-		DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-rc-/')"
+		DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\S+)-(\d+)-g\S+/$1-rc$2/')"
 	else
 		# this is an normal non-master branch commit
 		DOCKER_REPO="broadinstitute/viral-ngs-dev"
 		BRANCH_NAME="$TRAVIS_BRANCH"
 		DOCKER_SHORT_TAG="$(echo $BRANCH_NAME | sed 's/-/_/g')"
-		DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$(echo $DOCKER_SHORT_TAG)"
+		#DOCKER_LONG_TAG="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1-dev-/')_$(echo $DOCKER_SHORT_TAG)"
 	fi
 
 	# tag and deploy
