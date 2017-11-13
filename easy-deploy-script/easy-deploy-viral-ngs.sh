@@ -171,9 +171,9 @@ fi
 
 function prepend_miniconda(){
     if [ -d "$MINICONDA_PATH/bin" ]; then
-        echo "Miniconda installed."
+        echo "Miniconda installed." >&2
 
-        echo "Prepending miniconda to PATH..."
+        echo "Prepending miniconda to PATH..." >&2
         PATH="$MINICONDA_PATH/bin:$PATH"
         export PATH=$(puniq $PATH)
         hash -r
@@ -185,7 +185,7 @@ function prepend_miniconda(){
         #    conda update -y conda
         #fi
     else
-        echo "Miniconda directory not found."
+        echo "Miniconda directory not found." >&2
         if [[ $sourced -eq 0 ]]; then
             exit 1
         else
@@ -357,7 +357,7 @@ function create_project(){
 
 function activate_env(){
     if [ -d "$INSTALL_PATH" ]; then
-        echo "viral-ngs parent directory found"
+        echo "viral-ngs parent directory found" >&2
     else
         echo "viral-ngs parent directory not found: $INSTALL_PATH not found."
         echo "Have you run the setup?"
@@ -374,7 +374,7 @@ function activate_env(){
 
     if [ -d "$VIRAL_CONDA_ENV_PATH" ]; then
         if [ -z "$CONDA_DEFAULT_ENV" ]; then
-            echo "Activating viral-ngs environment..."
+            echo "Activating viral-ngs environment..." >&2
             prepend_miniconda
 
             source activate $(absolute_path "$VIRAL_CONDA_ENV_PATH")
