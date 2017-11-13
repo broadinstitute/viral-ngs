@@ -45,6 +45,8 @@ task illumina_demux {
       --compression_level=5 \
       --loglevel=DEBUG \
       --tmp_dir=/mnt/tmp
+
+    rm -f Unmatched.bam
   }
 
   output {

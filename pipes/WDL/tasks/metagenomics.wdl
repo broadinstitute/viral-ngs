@@ -33,6 +33,8 @@ task kraken {
       --outReads=`cat $OUT_READS` \
       --outReport=`cat $OUT_REPORTS` \
       --loglevel=DEBUG
+
+    ls -alF `cat $OUT_READS $OUT_REPORTS`
   }
 
   output {
