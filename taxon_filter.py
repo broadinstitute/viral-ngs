@@ -9,6 +9,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
 __commands__ = []
 
 import argparse
+import glob
 import logging
 import subprocess
 import os
@@ -63,7 +64,6 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         required=True,
         help='One or more reference databases for blast to deplete from input.'
     )
-    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
@@ -71,7 +71,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
 
@@ -152,7 +152,7 @@ def filter_lastal_bam(
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
-    JVMmemory=None
+    JVMmemory=None, threads=None
 ):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
@@ -172,7 +172,8 @@ def filter_lastal_bam(
                         max_gapless_alignments_per_position,
                         min_length_for_initial_matches,
                         max_length_for_initial_matches,
-                        max_initial_matches_per_position
+                        max_initial_matches_per_position,
+                        threads=threads
                     ):
                     outf.write(read_id + '\n')
 
@@ -217,7 +218,7 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
 
@@ -261,14 +262,38 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
     with open(bmtaggerConf, 'w') as f:
         # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
         print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
-    tempDir = tempfile.mkdtemp()
-    matchesFile = mkstempfname('.txt')
-    cmdline = [
-        bmtaggerPath, '-b', db + '.bitmask', '-C', bmtaggerConf, '-x', db + '.srprism', '-T', tempDir, '-q1',
-        '-1', inReads1, '-o', matchesFile
-    ]
-    log.debug(' '.join(cmdline))
-    util.misc.run_and_print(cmdline, check=True)
+
+    with util.file.tmp_dir('bmtagger-') as tempDir:
+        if os.path.exists(db):
+            if os.path.isfile(db):
+                # this is a single file
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                    # this is an unindexed fasta file, we will need to index it
+                    bmtagger_build_db(db, tempDir, 'bmtagger_db')
+                    db_dir = tempDir
+                else:
+                    # this is a tarball with prebuilt indexes
+                    db_dir = util.file.extract_tarball(db, tempfile.mkdtemp(prefix=os.path.basename(db), dir=tempDir))
+            else:
+                # this is a directory
+                db_dir = db
+            # this directory should have a .bitmask and .srprism.* files in it somewhere
+            hits = list(glob.glob(os.path.join(db_dir, '*.bitmask')))
+            if len(hits) != 1:
+                raise Exception()
+            db_prefix = hits[0][:-8]  # remove the '.bitmask'
+        else:
+            # this is simply a prefix to a bunch of files, not an actual file
+            db_prefix = db
+
+        matchesFile = mkstempfname('.txt')
+        cmdline = [
+            bmtaggerPath, '-b', db_prefix + '.bitmask', '-C', bmtaggerConf, '-x', db_prefix + '.srprism', '-T', tempDir, '-q1',
+            '-1', inReads1, '-o', matchesFile
+        ]
+        log.debug(' '.join(cmdline))
+        util.misc.run_and_print(cmdline, check=True)
+
     os.unlink(inReads1)
     os.unlink(bmtaggerConf)
 
@@ -355,7 +380,7 @@ def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
                 outf.write(read_id + '\n')
 
     if blast_pipe.poll():
-        raise CalledProcessError()
+        raise subprocess.CalledProcessError(blast_pipe.returncode, blastnCmd)
     os.unlink(input_fasta)
 
     return chunk_hits
@@ -450,24 +475,47 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
     blast_hits = mkstempfname('.blast_hits.txt')
 
-    if chunkSize:
-        ## chunk up input and perform blastn in several parallel threads
+    with util.file.tmp_dir('-blastn_db_unpack') as tempDbDir:
+        if os.path.exists(db):
+            if os.path.isfile(db):
+                # this is a single file
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                    # this is an unindexed fasta file, we will need to index it
+                    blastn_build_db(db, tempDbDir, 'blastn_db')
+                    db_dir = tempDbDir
+                else:
+                    # this is a tarball with prebuilt indexes
+                    db_dir = util.file.extract_tarball(db, tempDbDir)
+            else:
+                # this is a directory
+                db_dir = db
+            # this directory should have a .bitmask and a .srprism file in it somewhere
+            hits = list(glob.glob(os.path.join(db_dir, '*.nin')))
+            if len(hits) != 1:
+                raise Exception()
+            db_prefix = hits[0][:-4]  # remove the '.nin'
+        else:
+            # this is simply a prefix to a bunch of files, not an actual file
+            db_prefix = db
 
-        # Initial BAM -> FASTA sequences
-        fasta = mkstempfname('.fasta')
-        tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
+        if chunkSize:
+            ## chunk up input and perform blastn in several parallel threads
 
-        # Find BLAST hits
-        log.info("running blastn on %s against %s", inBam, db)
-        blastOutFiles = blastn_chunked_fasta(fasta, db, chunkSize, threads)
-        util.file.cat(blast_hits, blastOutFiles)
-        os.unlink(fasta)
+            # Initial BAM -> FASTA sequences
+            fasta = mkstempfname('.fasta')
+            tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
 
-    else:
-        ## pipe tools together and run blastn multithreaded
-        with open(blast_hits, 'wt') as outf:
-            for read_id in tools.blast.BlastnTool().get_hits(inBam, db, threads=threads):
-                outf.write(read_id + '\n')
+            # Find BLAST hits
+            log.info("running blastn on %s against %s", inBam, db)
+            blastOutFiles = blastn_chunked_fasta(fasta, db_prefix, chunkSize, threads)
+            util.file.cat(blast_hits, blastOutFiles)
+            os.unlink(fasta)
+
+        else:
+            ## pipe tools together and run blastn multithreaded
+            with open(blast_hits, 'wt') as outf:
+                for read_id in tools.blast.BlastnTool().get_hits(inBam, db_prefix, threads=threads):
+                    outf.write(read_id + '\n')
 
     # Deplete BAM of hits
     tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
@@ -478,14 +526,13 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
-    parser.add_argument('--threads', type=int, default=None, help='The number of threads to use in running blastn (default: all available cores).')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
 
@@ -542,6 +589,17 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with blastn from an input reference FASTA file
     """
 
+    new_fasta = None
+    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
+        if inputFasta.endswith('.gz'):
+            decompressor = ['gzip', '-dc']
+        else:
+            decompressor = ['lz4', '-d']
+        new_fasta = util.file.mkstempfname('.fasta')
+        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
+            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        inputFasta = new_fasta
+
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -550,6 +608,9 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
         outPrefix = fileNameSansExtension
 
     blastdb_path = tools.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+
+    if new_fasta is not None:
+        os.unlink(new_fasta)
 
 
 def parser_blastn_build_db(parser=argparse.ArgumentParser()):
@@ -574,6 +635,18 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """ Create a database for use with Bmtagger from an input FASTA file.
     """
+
+    new_fasta = None
+    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
+        if inputFasta.endswith('.gz'):
+            decompressor = ['gzip', '-dc']
+        else:
+            decompressor = ['lz4', '-d']
+        new_fasta = util.file.mkstempfname('.fasta')
+        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
+            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        inputFasta = new_fasta
+
     if outputFilePrefix:
         outPrefix = outputFilePrefix
     else:
@@ -587,6 +660,9 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
     srprismdb_path = tools.bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
     )
+
+    if new_fasta is not None:
+        os.unlink(new_fasta)
 
 
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):

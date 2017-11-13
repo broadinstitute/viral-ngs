@@ -132,6 +132,8 @@ class TestIlluminaDir(TestCaseWithTmp):
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tar.bz2')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
+        with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tar.lz4')) as idir:
+            self.assertTrue(os.path.isdir(idir.get_BCLdir()))
 
     def test_tarball_indented(self):
         inDir = util.file.get_test_input_path(self)

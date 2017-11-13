@@ -382,11 +382,6 @@ def parser_general_mafft(parser=argparse.ArgumentParser()):
         type=int,
         help="""Maximum number of refinement iterations (default: %(default)s).
                 Note: if "--localpair" or "--globalpair" is specified this defaults to 1000.""")
-    parser.add_argument(
-        '--threads',
-        default=None,
-        type=int,
-        help='Number of processing threads (default: all available cores).')
     return parser
 
 
@@ -395,7 +390,7 @@ def parser_align_mafft(parser):
 
     parser.add_argument('outFile', help='Output file containing alignment result (default format: FASTA)')
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_align_mafft)
     return parser
 
@@ -446,7 +441,7 @@ def parser_multichr_mafft(parser):
         sample names in the order of their sequence
         positions in the output.""")
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, multichr_mafft)
     return parser
 

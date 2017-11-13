@@ -333,8 +333,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
         default=tools.trinity.TrinityTool.jvm_mem_default,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_trinity, split_args=True)
     return parser
 
@@ -388,8 +387,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
-    parser.add_argument('--threads', default=None, type=int, help='Number of threads (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
     return parser
 
@@ -416,7 +414,6 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('out_scaffold', help='Output assembly.')
-    parser.add_argument('--threads', default=None, type=int, help='Number of threads (default: all available cores)')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
@@ -425,8 +422,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
                         'fill any gaps.')
     parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
     parser.add_argument('--randomSeed', dest='random_seed', default=0, help='Random seed; 0 means use current time')
-
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
     return parser
 
@@ -936,8 +932,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
 

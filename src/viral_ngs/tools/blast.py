@@ -69,7 +69,7 @@ class BlastnTool(BlastTools):
                 yield read_id
 
         if blast_pipe.poll():
-            raise CalledProcessError()
+            raise subprocess.CalledProcessError(blast_pipe.returncode, cmd)
 
 
 class MakeblastdbTool(BlastTools):

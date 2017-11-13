@@ -669,7 +669,7 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
     return cum_hits
 
 
-def kraken(db, inBams, outReports=None, outReads=None, lockMemory=None, filterThreshold=None, threads=1):
+def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
     '''
         Classify reads by taxon using Kraken
     '''
@@ -682,15 +682,14 @@ def kraken(db, inBams, outReports=None, outReads=None, lockMemory=None, filterTh
 
 def parser_kraken(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
-    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format. Multiple filenames comma separated.')
-    parser.add_argument('--outReports', nargs='+', help='Kraken report output file. Multiple filenames comma separated.')
-    parser.add_argument('--outReads', nargs='+', help='Kraken per read output file. Multiple filenames comma separated.')
-    parser.add_argument('--lockMemory', action='store_true', help='Lock kraken database in RAM. Requires high ulimit -l.')
+    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--outReports', nargs='+', help='Kraken summary report output file. Multiple filenames space separated.')
+    parser.add_argument('--outReads', nargs='+', help='Kraken per read classification output file. Multiple filenames space separated.')
+    parser.add_argument('--lockMemory', action='store_true', default=False, help='Lock kraken database in RAM. Requires high ulimit -l.')
     parser.add_argument(
         '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
     )
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
     return parser
 
@@ -803,8 +802,7 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outReport', help='Output taxonomy report.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
 
@@ -906,13 +904,12 @@ def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
     parser.add_argument('--outReads', help='Output LCA assignments for each read.')
     parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.PicardTools.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)
     return parser
 
@@ -1179,8 +1176,7 @@ def parser_kraken_build(parser=argparse.ArgumentParser()):
     parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
     parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
     parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads to run. (default: all available cores)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken_build, split_args=True)
     return parser
 
