@@ -1,44 +1,75 @@
-# ======================================================================
-# assemble_trinity: 
-#   Run the Trinity assembler.
-#   First trim reads with trimmomatic, rmdup with prinseq, and
-#   random subsample to no more than 100k reads
-# ======================================================================
 
 task assemble_denovo {
-  # TO DO: update this to be able to perform trinity, spades or trinity+spades
 
   String sample_name
 
   File reads_unmapped_bam
   File? trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
 
-  Int? trinity_n_reads=200000
+  Int? trinity_n_reads=250000
+  Int? spades_n_reads=10000000
+
+  String? assembler="trinity"  # trinity, spades, or trinity-spades
 
   command {
     set -ex -o pipefail
 
-    assembly.py assemble_trinity \
-      ${reads_unmapped_bam} \
-      ${trim_clip_db} \
-      ${sample_name}.assembly1-trinity.fasta \
-      ${'--n_reads=' + trinity_n_reads} \
-      --JVMmemory 7g \
-      --outReads=${sample_name}.subsamp.bam \
-      --loglevel=DEBUG
+    if [[ "${assembler}" == "trinity" ]]; then
+      assembly.py assemble_trinity \
+        ${reads_unmapped_bam} \
+        ${trim_clip_db} \
+        ${sample_name}.assembly1-trinity.fasta \
+        ${'--n_reads=' + trinity_n_reads} \
+        --JVMmemory 14g \
+        --outReads=${sample_name}.subsamp.bam \
+        --loglevel=DEBUG
 
-    samtools view -c ${sample_name}.subsamp.bam | tee subsample_read_count
+    elif [[ "${assembler}" == "spades" ]]; then
+      assembly.py assemble_spades \
+        ${reads_unmapped_bam} \
+        ${trim_clip_db} \
+        ${sample_name}.assembly1-spades.fasta \
+        ${'--nReads=' + spades_n_reads} \
+        --memLimitGb 14 \
+        --outReads=${sample_name}.subsamp.bam \
+        --loglevel=DEBUG
+      ln ${reads_unmapped_bam} ${sample_name}.subsamp.bam
+
+    elif [[ "${assembler}" == "trinity-spades" ]]; then
+      assembly.py assemble_trinity \
+        ${reads_unmapped_bam} \
+        ${trim_clip_db} \
+        ${sample_name}.assembly1-trinity.fasta \
+        ${'--n_reads=' + trinity_n_reads} \
+        --JVMmemory 14g \
+        --outReads=${sample_name}.subsamp.bam \
+        --loglevel=DEBUG
+      assembly.py assemble_spades \
+        ${reads_unmapped_bam} \
+        ${trim_clip_db} \
+        ${sample_name}.assembly1-spades.fasta \
+        --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
+        ${'--nReads=' + spades_n_reads} \
+        --memLimitGb 14 \
+        --loglevel=DEBUG
+
+    else
+      echo "unrecognized assembler ${assembler}" >&2
+      exit 1
+    fi
+
+    samtools view -c ${sample_name}.subsamp.bam | tee subsample_read_count >&2
   }
 
   output {
-    File contigs_fasta = "${sample_name}.assembly1-trinity.fasta"
+    File contigs_fasta = "${sample_name}.assembly1-${assembler}.fasta"
     File subsampBam = "${sample_name}.subsamp.bam"
     Int subsample_read_count = read_int("subsample_read_count")
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "7GB"
+    memory: "15GB"
     cpu: 4
     disks: "local-disk 375 LOCAL"
   }

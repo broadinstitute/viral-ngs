@@ -1,12 +1,15 @@
 
 # TO DO:
-# kraken_multi (Array[File] bam inputs and reads/reports outputs)
 # kraken_build (input & output tarballs)
 # diamond, bwa, etc
 
 task kraken {
   Array[File]+ reads_unmapped_bam
-  File kraken_db_tar_lz4 # pipeable
+  File kraken_db_tar_lz4
+
+  parameter_meta {
+    kraken_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
+  }
 
   command {
     set -ex -o pipefail
@@ -19,17 +22,16 @@ task kraken {
         --loglevel=DEBUG
 
     # prep input and output file names
-    IN_BAMS=${write_lines(reads_unmapped_bam)}
     OUT_READS=fnames_outreads.txt
     OUT_REPORTS=fnames_outreports.txt
-    for bam in `cat $IN_BAMS`; do
+    for bam in "${sep=' ' reads_unmapped_bam}"; do
       echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
       echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
     done
 
     time metagenomics.py kraken \
       /mnt/db \
-      `cat $IN_BAMS` \
+      "${sep=' ' reads_unmapped_bam}" \
       --outReads=`cat $OUT_READS` \
       --outReport=`cat $OUT_REPORTS` \
       --loglevel=DEBUG
@@ -38,8 +40,8 @@ task kraken {
   }
 
   output {
-    Array[File] kraken_classified_reads = read_lines("fnames_outreads.txt")
-    Array[File] kraken_summary_report   = read_lines("fnames_outreports.txt")
+    Array[File] kraken_classified_reads = glob("kraken-reads-*.txt.gz")
+    Array[File] kraken_summary_report   = glob("kraken-report-*.txt")
   }
 
   runtime {
@@ -54,6 +56,10 @@ task kraken {
 task krona {
   File classified_reads_txt_gz
   File? krona_taxonomy_db_tgz = "gs://sabeti-public-dbs/krona/krona_taxonomy_20160502.tar.lz4" # pipeable
+
+  parameter_meta {
+    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  }
 
   command {
     set -ex -o pipefail
@@ -82,8 +88,10 @@ task krona {
   }
 
   output {
-    File krona_report_html = select_first(glob(read_string("fname-out_html.txt")))
-    File krona_report_tgz  = "$(cat fname-out_tgz.txt)"
+#    File krona_report_html = "${base_outfname}.html"
+#    File krona_report_tgz  = "${base_outfname}.krona.tar.gz"
+    File krona_report_html = select_first(glob("*.html"))
+    File krona_report_tgz  = select_first(glob("*.krona.tar.gz"))
   }
 
   runtime {

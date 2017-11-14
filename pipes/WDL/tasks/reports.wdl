@@ -87,15 +87,17 @@ task fastqc {
     IN_BAM="$(basename ${reads_bam})"
     BASE_OUT="$(basename ${reads_bam} .bam)_fastqc"
     echo "$BASE_OUT.html" > fname-out_html.txt
-    echo "$BASE_OUT.tar.gz" > fname-out_zip.txt
+    echo "$BASE_OUT.zip" > fname-out_zip.txt
 
     cp "${reads_bam}" $IN_BAM
     fastqc -t `nproc` $IN_BAM
   }
 
   output {
-    File fastqc_html = read_string("fname-out_html.txt")
-    File fastqc_zip  = read_string("fname-out_zip.txt")
+#    File fastqc_html = read_string("fname-out_html.txt")
+#    File fastqc_zip  = read_string("fname-out_zip.txt")
+    File fastqc_html = select_first(glob("*_fastqc.html"))
+    File fastqc_zip  = select_first(glob("*_fastqc.zip"))
   }
   runtime {
     memory: "2GB"
@@ -124,7 +126,8 @@ task spikein_report {
   }
 
   output {
-    File report = read_string("fname-out.txt")
+#    File report = read_string("fname-out.txt")
+    File report = select_first(glob("*.spike_count.txt"))
   }
   runtime {
     memory: "3GB"

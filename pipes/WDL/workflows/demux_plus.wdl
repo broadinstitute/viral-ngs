@@ -1,6 +1,7 @@
 import "tasks/demux.wdl" as demux
 import "tasks/metagenomics.wdl" as metagenomics
 import "tasks/taxon_filter.wdl" as taxon_filter
+import "tasks/assembly.wdl" as assembly
 import "tasks/reports.wdl" as reports
 
 workflow demux_plus {
@@ -20,6 +21,12 @@ workflow demux_plus {
       input:
         raw_reads_unmapped_bam = raw_reads
     }
+    call assembly.assemble_denovo as spades {
+      input:
+        assembler = "spades",
+        reads_unmapped_bam = deplete.cleaned_bam,
+        sample_name = basename(raw_reads, ".bam")
+    }
   }
 
   call metagenomics.kraken as kraken {
@@ -30,7 +37,7 @@ workflow demux_plus {
   scatter(classified_reads in kraken.kraken_classified_reads) {
     call metagenomics.krona as krona {
       input:
-        classified_reads_txt_gz = classified_reads,
+        classified_reads_txt_gz = classified_reads
     }
   }
 

@@ -1,7 +1,7 @@
 
 task illumina_demux {
 
-  File flowcell_tgz # pipeable
+  File flowcell_tgz
   Int lane
   File? samplesheet
   String? sequencingCenter
@@ -15,6 +15,10 @@ task illumina_demux {
   Int? minimumQuality = 10
   String? runStartDate
 
+  parameter_meta {
+    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  }
+
   command {
     set -ex -o pipefail
 
@@ -24,6 +28,8 @@ task illumina_demux {
         --pipe_hint=${flowcell_tgz} \
         --loglevel=DEBUG
 
+    # note that we are intentionally setting --threads to about 2x the core
+    # count. seems to still provide speed benefit (over 1x) when doing so.
     illumina.py illumina_demux \
       /mnt/tmp/flowcell \
       ${lane} \
@@ -41,8 +47,8 @@ task illumina_demux {
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
       --JVMmemory=7g \
-      --threads=32 \ # yes, we are overloading this on purpose, seems to speed things up
-      --compression_level=5 \
+      --threads=32 \
+      --compression_level=7 \
       --loglevel=DEBUG \
       --tmp_dir=/mnt/tmp
 
@@ -59,6 +65,7 @@ task illumina_demux {
     docker: "broadinstitute/viral-ngs"
     memory: "8GB"
     cpu: 16
+    dx_instance_type: "mem1_ssd2_x16"
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }

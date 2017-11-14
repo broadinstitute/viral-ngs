@@ -6,6 +6,7 @@ task deplete_taxa {
   File raw_reads_unmapped_bam
   Array[File] bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File] blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Int? query_chunk_size=0
 
   command {
     set -ex -o pipefail
@@ -19,9 +20,9 @@ task deplete_taxa {
       /mnt/tmp/tmpfile.bmtagger_depleted.bam \
       /mnt/tmp/tmpfile.rmdup.bam \
       `cat fname-out-cleaned.txt` \
-      --bmtaggerDbs `cat ${write_lines(bmtaggerDbs)}` \
-      --blastDbs `cat ${write_lines(blastDbs)}` \
-      --chunkSize=0 \
+      --bmtaggerDbs "${sep=' ' bmtaggerDbs}" \
+      --blastDbs "${sep=' ' blastDbs}" \
+      --chunkSize="${query_chunk_size}" \
       --JVMmemory=14g \
       --tmp_dir=/mnt/tmp \
       --loglevel=DEBUG
@@ -31,7 +32,8 @@ task deplete_taxa {
   }
 
   output {
-    File cleaned_bam               = read_string("fname-out-cleaned.txt")
+#    File cleaned_bam               = read_string("fname-out-cleaned.txt")
+    File cleaned_bam               = select_first(glob("*.cleaned.bam"))
     Int  depletion_read_count_pre  = read_int("depletion_read_count_pre")
     Int  depletion_read_count_post = read_int("depletion_read_count_post")
   }
@@ -73,7 +75,8 @@ task filter_to_taxon {
   }
 
   output {
-    File taxfilt_bam            = read_string("fname-out-taxfilt.txt")
+    #File taxfilt_bam            = read_string("fname-out-taxfilt.txt")
+    File taxfilt_bam            = select_first(glob("*.taxfilt.bam"))
     Int  filter_read_count_post = read_int("filter_read_count_post")
   }
   runtime {
@@ -85,61 +88,31 @@ task filter_to_taxon {
 }
 
 
-# ======================================================================
-# merge_one_per_sample:
-#   All of the above depletion steps are run once per flowcell per lane per
-#   multiplexed sample.  This reduces recomputation on the same data when
-#   additional sequencing runs are performed on the same samples.  This
-#   step merges reads down to one-per-sample, which all downstream
-#   analysis steps require.  For cleaned and taxfilt outputs, we re-run
-#   the rmdup step on a per-library basis after merging.
-# ======================================================================
-
 task merge_one_per_sample {
-  String out_bam_name
-  Array[File] inputBams
+  String       out_bam_name
+  Array[File]+ inputBams
+  Boolean?     rmdup=false
 
   command {
+    set -ex -o pipefail
+
     read_utils.py merge_bams \
-      "${sep=' ' inputBams+}" \
-      ${out_bam_name}.bam \
-      --picardOptions SORT_ORDER=queryname \
-      --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp \
-      --loglevel=DEBUG
-  }
-
-  output {
-    File mergedBam = "${out_bam_name}.bam"
-  }
-
-  runtime{
-    memory: "7GB"
-    cpu: 4
-    docker: "broadinstitute/viral-ngs"
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
-  }
-}
-
-task merge_one_per_sample_rmdup {
-  String out_bam_name
-  Array[File] inputBams
-
-  command {
-    read_utils.py merge_bams \
-      "${sep=' ' inputBams+}" \
-      /mnt/tmp/temp_merged-${out_bam_name}.bam \
+      "${sep=' ' inputBams}" \
+      "${out_bam_name}.bam" \
       --picardOptions SORT_ORDER=queryname \
       --JVMmemory 7g \
       --tmp_dir=/mnt/tmp \
       --loglevel=DEBUG
 
-    read_utils.py rmdup_mvicuna_bam \
-      /mnt/tmp/temp_merged-${out_bam_name}.bam \
-      ${out_bam_name}.bam \
-      --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp \
-      --loglevel=DEBUG
+    if [[ "${rmdup}" == "true" ]]; then
+      mv "${out_bam_name}.bam" tmp.bam
+      read_utils.py rmdup_mvicuna_bam \
+        tmp.bam \
+        ${out_bam_name}.bam \
+        --JVMmemory 7g \
+        --tmp_dir=/mnt/tmp \
+        --loglevel=DEBUG
+    fi
   }
 
   output {
