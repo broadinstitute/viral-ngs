@@ -359,19 +359,27 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
     # count all of the barcodes present in the tile files
     log.info("reading barcodes in all tile files")
     barcode_counts = defaultdict(lambda: 0)
-    for filePath in tile_barcode_files:
-        with open(filePath) as infile:
-            for line in infile:
-                # split the barcode file by tabs using the Python csv module
-                row = next(csv.reader([line.rstrip('\n')], delimiter='\t'))
-                # add the barcode for the current line to the count
-                if "." not in row[0] or includeNoise:
-                    barcode_counts[row[0]] += 1
+
+    def sum_reducer(accumulator, element):
+        for key, value in element.items():
+            accumulator[key] = accumulator.get(key, 0) + value
+        return accumulator
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(tile_barcode_files)) as executor:
+        futures = [executor.submit(util.file.count_occurrences_in_tsv, filePath, include_noise=includeNoise) for filePath in tile_barcode_files]
+        for future in concurrent.futures.as_completed(futures):
+            barcode_counts = sum_reducer(barcode_counts, future.result())
 
     # sort the counts, descending. Truncate the result if desired
     log.info("sorting counts")
+    illumina_reference = IlluminaIndexReference()
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
-    sorted_counts = list((k[:8], ",".join([x for x in IlluminaIndexReference().guess_index(k[:8], distance=1)] or ["Unknown"]), k[8:], ",".join([x for x in IlluminaIndexReference().guess_index(k[8:], distance=1)] or ["Unknown"]), barcode_counts[k]) for k in sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write])
+    barcode_pairs_sorted_by_count = sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write]
+
+    mapped_counts = (   (k[:8], ",".join([x for x in illumina_reference.guess_index(k[:8], distance=1)] or ["Unknown"]), 
+                        k[8:], ",".join([x for x in illumina_reference.guess_index(k[8:], distance=1)] or ["Unknown"]), 
+                        barcode_counts[k]) 
+                    for k in barcode_pairs_sorted_by_count)
 
     # write the barcodes and their corresponding counts
     log.info("writing output")
@@ -380,8 +388,7 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
         # write the header unless the user has specified not to do so
         if not omitHeader:
             writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
-        for barcode_count_tuple in sorted_counts:
-            writer.writerow(barcode_count_tuple)
+        writer.writerows(mapped_counts)
 
     log.info("done")
 

@@ -8,7 +8,18 @@
         https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/LICENSE
 """
 
-import re
+import re, functools
+
+def memoize(obj):
+    cache = obj.cache = {}
+
+    @functools.wraps(obj)
+    def memoizer(*args, **kwargs):
+        key = "".join([str(args),str(kwargs)])
+        if key not in cache:
+            cache[key] = obj(*args, **kwargs)
+        return cache[key]
+    return memoizer
 
 class IlluminaIndexReference(object):
 
@@ -431,6 +442,7 @@ class IlluminaIndexReference(object):
     }
 
     @classmethod
+    @memoize
     def neighbors(cls, seq, distance=1):
         ''' Returns a list Hamming-distance of 1 from the input seq'''
         neighbor_list = []
@@ -457,6 +469,7 @@ class IlluminaIndexReference(object):
         return bytearray(seq.encode("UTF8")).translate(table)[::-1].decode("UTF8")
 
     @property
+    @memoize
     def _barcodes_meta_all(self):
         barcodes = []
         for kit_name,kit_value in self._kits.items():
@@ -469,6 +482,7 @@ class IlluminaIndexReference(object):
         return barcodes
 
     @classmethod
+    @memoize
     def kits(cls):
         return sorted(list(cls._kits.keys()))
 
@@ -482,7 +496,7 @@ class IlluminaIndexReference(object):
                 instruments |= set(ins_for_barcode)
         return sorted(list(instruments))
 
-
+    @memoize
     def index_for_seq(self, seq, kit=None, instrument=None):
         # use kit/instrument passed in if present
         # value forinstrument, if present, if neither return list of options
@@ -498,7 +512,7 @@ class IlluminaIndexReference(object):
                                         possible_indices |= set([index_name])
         return sorted(list(possible_indices))
 
-
+    @memoize
     def seq_for_index(self, index, kit=None, instrument=None):
         # use kit/instrument passed in if present
         # value forinstrument, if present, if neither return list of options
@@ -515,6 +529,7 @@ class IlluminaIndexReference(object):
                                         possible_seqs |= set([barcode_meta["seq"]])
         return sorted(list(possible_seqs))
 
+    @memoize
     def guess_index(self, seq, distance=1, kit=None, instrument=None):
         # using neighbors()...
         # use kit/instrument if present
