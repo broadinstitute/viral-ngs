@@ -73,7 +73,6 @@ task plot_coverage {
     docker: "broadinstitute/viral-ngs"
     memory: "3500MB"
     cpu: 4
-    disks: "local-disk 375 LOCAL"
   }
 }
 

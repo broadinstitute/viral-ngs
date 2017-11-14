@@ -63,7 +63,7 @@ task illumina_demux {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "8GB"
+    memory: "8 GB"
     cpu: 16
     dx_instance_type: "mem1_ssd2_x16"
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably

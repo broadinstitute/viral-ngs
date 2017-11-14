@@ -47,7 +47,7 @@ task kraken {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "200GB"
+    memory: "200 GB"
     cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
     preemptible: 0
@@ -97,7 +97,7 @@ task krona {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "2GB"
+    memory: "2 GB"
     cpu: 1
   }
 }

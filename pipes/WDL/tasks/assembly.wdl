@@ -70,9 +70,8 @@ task assemble_denovo {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "15GB"
+    memory: "15 GB"
     cpu: 4
-    disks: "local-disk 375 LOCAL"
   }
 
 }
@@ -134,9 +133,8 @@ task scaffold {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "12GB"
+    memory: "12 GB"
     cpu: 2
-    disks: "local-disk 375 LOCAL"
   }
 }
 
@@ -179,9 +177,8 @@ task refine {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "7GB"
+    memory: "7 GB"
     cpu: 8
-    disks: "local-disk 375 LOCAL"
   }
 }
 

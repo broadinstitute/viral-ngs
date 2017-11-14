@@ -39,7 +39,7 @@ task deplete_taxa {
   }
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "14GB"
+    memory: "14 GB"
     cpu: 8
     preemptible: 1
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
@@ -82,7 +82,7 @@ task filter_to_taxon {
   }
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "14GB"
+    memory: "14 GB"
     cpu: 16
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
@@ -121,7 +121,7 @@ task merge_one_per_sample {
   }
 
   runtime{
-    memory: "7GB"
+    memory: "7 GB"
     cpu: 4
     docker: "broadinstitute/viral-ngs"
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
