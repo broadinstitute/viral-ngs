@@ -24,7 +24,7 @@ task kraken {
     # prep input and output file names
     OUT_READS=fnames_outreads.txt
     OUT_REPORTS=fnames_outreports.txt
-    for bam in "${sep=' ' reads_unmapped_bam}"; do
+    for bam in ${sep=' ' reads_unmapped_bam}; do
       echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
       echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
     done

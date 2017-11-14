@@ -20,8 +20,8 @@ task deplete_taxa {
       /mnt/tmp/tmpfile.bmtagger_depleted.bam \
       /mnt/tmp/tmpfile.rmdup.bam \
       `cat fname-out-cleaned.txt` \
-      --bmtaggerDbs "${sep=' ' bmtaggerDbs}" \
-      --blastDbs "${sep=' ' blastDbs}" \
+      --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
+      --blastDbs ${sep=' ' blastDbs} \
       --chunkSize="${query_chunk_size}" \
       --JVMmemory=14g \
       --tmp_dir=/mnt/tmp \
