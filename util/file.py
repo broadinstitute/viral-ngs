@@ -19,6 +19,7 @@ import util.cmd
 import util.misc
 import sys
 import io
+import csv
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -639,6 +640,15 @@ def grep_count(file_path, to_match, additional_flags=None, fixed_mode=True, star
 
     number_of_seqs = util.misc.run_and_print(cmd, silent=False, check=True, env=env)
     return int(number_of_seqs.stdout.decode("utf-8").rstrip(os.linesep))
+
+# used by count_and_sort_barcodes
+def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+    file_occurrence_counts = {}
+    with open(filePath) as infile:
+        for row in csv.reader(infile, delimiter=delimiter):
+            if noise_chr not in row[col] or include_noise:
+                file_occurrence_counts[row[col]] = file_occurrence_counts.get(row[col], 0) + 1
+    return file_occurrence_counts
 
 def count_str_in_file(in_file, query_str, starts_with=False):
     if not os.path.isfile(in_file) or os.path.getsize(in_file)==0:
