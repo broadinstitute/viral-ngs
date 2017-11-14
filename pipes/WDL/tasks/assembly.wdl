@@ -10,6 +10,7 @@ task assemble_denovo {
   Int? spades_n_reads=10000000
 
   String? assembler="trinity"  # trinity, spades, or trinity-spades
+  String cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
 
   command {
     set -ex -o pipefail
@@ -62,7 +63,7 @@ task assemble_denovo {
   }
 
   output {
-    File contigs_fasta = "${sample_name}.assembly1-${assembler}.fasta"
+    File contigs_fasta = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
     File subsampBam = "${sample_name}.subsamp.bam"
     Int subsample_read_count = read_int("subsample_read_count")
   }

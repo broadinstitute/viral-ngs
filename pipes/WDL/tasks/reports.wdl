@@ -31,7 +31,7 @@ task plot_coverage {
       --outBamAll ${sample_name}.bam \
       --outBamFiltered ${sample_name}.mapped.bam \
       --GATK_PATH gatk/ \
-      --aligner= "${aligner}" \
+      --aligner ${aligner} \
       --aligner_options "${aligner_options}" \
       --JVMmemory=3g \
       --loglevel=DEBUG

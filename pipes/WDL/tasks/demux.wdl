@@ -48,7 +48,7 @@ task illumina_demux {
       ${'--run_start_date=' + runStartDate} \
       --JVMmemory=7g \
       --threads=32 \
-      --compression_level=7 \
+      --compression_level=5 \
       --loglevel=DEBUG \
       --tmp_dir=/mnt/tmp
 

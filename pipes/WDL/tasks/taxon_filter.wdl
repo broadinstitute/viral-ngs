@@ -41,6 +41,7 @@ task deplete_taxa {
     docker: "broadinstitute/viral-ngs"
     memory: "14GB"
     cpu: 8
+    preemptible: 1
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }

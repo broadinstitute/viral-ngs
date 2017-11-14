@@ -8,7 +8,8 @@ task kraken {
   File kraken_db_tar_lz4
 
   parameter_meta {
-    kraken_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
+    kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
@@ -29,11 +30,11 @@ task kraken {
       echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
     done
 
-    time metagenomics.py kraken \
+    metagenomics.py kraken \
       /mnt/db \
-      "${sep=' ' reads_unmapped_bam}" \
-      --outReads=`cat $OUT_READS` \
-      --outReport=`cat $OUT_REPORTS` \
+      ${sep=' ' reads_unmapped_bam} \
+      --outReads `cat $OUT_READS` \
+      --outReport `cat $OUT_REPORTS` \
       --loglevel=DEBUG
 
     ls -alF `cat $OUT_READS $OUT_REPORTS`
