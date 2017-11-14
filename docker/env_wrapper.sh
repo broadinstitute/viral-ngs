@@ -11,7 +11,7 @@ GROUP_ID=${RUN_GROUP_ID:-$USER_ID}
 USER_NAME=user
 GROUP_NAME=viral-ngs
 
-echo "Starting with UID : $USER_ID, GID : $GROUP_ID"
+echo "Starting with UID : $USER_ID, GID : $GROUP_ID" >&2
 groupadd --gid $GROUP_ID $GROUP_NAME
 useradd --shell /bin/bash --uid $USER_ID --gid $GROUP_ID -o -c "" -m $USER_NAME
 
