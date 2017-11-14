@@ -36,8 +36,8 @@ task illumina_demux {
       . \
       ${'--sampleSheet=' + samplesheet} \
       ${'--sequencing_center=' + sequencingCenter} \
-      --outMetrics="metrics.txt" \
-      --commonBarcodes="barcodes.txt" \
+      --outMetrics=metrics.txt \
+      --commonBarcodes=barcodes.txt \
       ${'--flowcell=' + flowcell} \
       ${'--minimum_base_quality=' + minimumBaseQuality} \
       ${'--max_mismatches=' + maxMismatches} \

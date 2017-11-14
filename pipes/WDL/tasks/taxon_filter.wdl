@@ -16,15 +16,14 @@ task deplete_taxa {
 
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
-      /mnt/tmp/tmpfile.raw.bam \
-      /mnt/tmp/tmpfile.bmtagger_depleted.bam \
-      /mnt/tmp/tmpfile.rmdup.bam \
+      tmpfile.raw.bam \
+      tmpfile.bmtagger_depleted.bam \
+      tmpfile.rmdup.bam \
       `cat fname-out-cleaned.txt` \
       --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
       --blastDbs ${sep=' ' blastDbs} \
       --chunkSize="${query_chunk_size}" \
       --JVMmemory=14g \
-      --tmp_dir=/mnt/tmp \
       --loglevel=DEBUG
 
     samtools view -c "${raw_reads_unmapped_bam}" | tee depletion_read_count_pre
@@ -42,7 +41,6 @@ task deplete_taxa {
     memory: "14 GB"
     cpu: 8
     preemptible: 1
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
 
@@ -69,7 +67,6 @@ task filter_to_taxon {
       ${lastal_db_fasta} \
       `cat fname-out-taxfilt.txt` \
       --JVMmemory=14g \
-      --tmp_dir=/mnt/tmp \
       --loglevel=DEBUG
 
     samtools view -c `cat fname-out-taxfilt.txt` | tee filter_read_count_post
@@ -84,7 +81,6 @@ task filter_to_taxon {
     docker: "broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 16
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }
 
@@ -102,7 +98,6 @@ task merge_one_per_sample {
       "${out_bam_name}.bam" \
       --picardOptions SORT_ORDER=queryname \
       --JVMmemory 7g \
-      --tmp_dir=/mnt/tmp \
       --loglevel=DEBUG
 
     if [[ "${rmdup}" == "true" ]]; then
@@ -111,7 +106,6 @@ task merge_one_per_sample {
         tmp.bam \
         ${out_bam_name}.bam \
         --JVMmemory 7g \
-        --tmp_dir=/mnt/tmp \
         --loglevel=DEBUG
     fi
   }
@@ -124,6 +118,5 @@ task merge_one_per_sample {
     memory: "7 GB"
     cpu: 4
     docker: "broadinstitute/viral-ngs"
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }

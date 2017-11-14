@@ -139,9 +139,9 @@ task scaffold {
 }
 
 task refine {
-  String sample_name
   File assembly_fasta
   File reads_unmapped_bam
+  String assembly_basename=basename(assembly_fasta, ".fasta")
 
   File gatk_tar_bz2
   File? novocraft_license
@@ -150,29 +150,33 @@ task refine {
   Float? major_cutoff=0.5
   Int? min_coverage=1
 
+  parameter_meta {
+    gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
+  }
+
   command {
     set -ex -o pipefail
 
-    read_utils.py extract_tarball ${gatk_tar_bz2} gatk
+    read_utils.py extract_tarball ${gatk_tar_bz2} gatk --loglevel=DEBUG
     cp ${assembly_fasta} assembly.fasta
-    read_utils.py novoindex assembly.fasta
+    read_utils.py novoindex assembly.fasta --loglevel=DEBUG
 
     assembly.py refine_assembly \
       assembly.fasta \
       ${reads_unmapped_bam} \
-      ${sample_name}.refined_assembly.fasta \
-      --outVcf ${sample_name}.sites.vcf.gz \
+      ${assembly_basename}.refined.fasta \
+      --outVcf ${assembly_basename}.sites.vcf.gz \
       --min_coverage ${min_coverage} \
       --major_cutoff ${major_cutoff} \
       --GATK_PATH gatk/ \
-      ${'--novo_params=' + novoalign_options} \
+      --novo_params="${novoalign_options}" \
       --JVMmemory 7g \
       --loglevel=DEBUG
   }
 
   output {
-    File refined_assembly_fasta = "${sample_name}.refined_assembly.fasta"
-    File sites_vcf_gz = "${sample_name}.sites.vcf.gz"
+    File refined_assembly_fasta = "${assembly_basename}.refined.fasta"
+    File sites_vcf_gz = "${assembly_basename}.sites.vcf.gz"
   }
 
   runtime {
