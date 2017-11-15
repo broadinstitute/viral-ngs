@@ -41,7 +41,7 @@ task kraken {
     for bam in ${sep=' ' reads_unmapped_bam}; do
       metagenomics.py kraken \
         /mnt/db \
-        $bam
+        $bam \
         --outReads kraken-reads-$(basename $bam .bam).txt.gz \
         --outReport kraken-report-$(basename $bam .bam).txt \
         --loglevel=DEBUG
