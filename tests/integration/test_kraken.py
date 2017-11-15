@@ -7,6 +7,7 @@ from os.path import join
 import sys
 import pytest
 import metagenomics
+import unittest
 import util.file
 import tools
 import tools.kraken
