@@ -87,8 +87,8 @@ task fastqc {
 
   command {
     set -ex -o pipefail
-    cp ${reads_bam} ${reads_basename}.bam
-    fastqc -t `nproc` $IN_BAM
+    ln -s ${reads_bam} ${reads_basename}.bam
+    fastqc -t `nproc` ${reads_bam}
   }
 
   output {
@@ -113,8 +113,9 @@ task spikein_report {
 
   command {
     set -ex -o pipefail
+    ln -s ${reads_bam} ${reads_basename}.bam
     read_utils.py bwamem_idxstats \
-      ${reads_bam} \
+      ${reads_basename}.bam \
       ${spikein_db} \
       --outStats ${reads_basename}.spike_count.txt \
       --minScoreToFilter=${minScoreToFilter} \
