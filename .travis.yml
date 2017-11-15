@@ -15,7 +15,7 @@ matrix:
           os: linux
           python: 3.5
           env: BUILD_DOCS=true
-        - stage: conda
+        - stage: deployment
           os: linux
           python: 3.6
           env:
@@ -24,8 +24,7 @@ matrix:
             - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
             # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
             - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
-        - stage: docker
-          os: linux
+        - os: linux
           env:
             - BUILD_PACKAGE=docker
             # DOCKER_USER
@@ -44,8 +43,7 @@ matrix:
 stages:
   - test # the default stage
   - docs
-  - conda
-  - docker
+  - deployment
 
 cache:
   directories:
