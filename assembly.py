@@ -537,10 +537,10 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument(
         'inReference', nargs='+',
-        help='Reference genome for ordering, orienting, and merging contigs, FASTA format.  Multiple filenames may be listed, each
-        containing one reference genome. Alternattely, multiple references may be given by specifying a single filename,
-        and giving the number of reference segments with the nGenomeSegments parameter.  If multiple references are given,
-        they must all contain the same number of segments listed in the same order.'
+        help=('Reference genome for ordering, orienting, and merging contigs, FASTA format.  Multiple filenames may be listed, each '
+              'containing one reference genome. Alternattely, multiple references may be given by specifying a single filename, '
+              'and giving the number of reference segments with the nGenomeSegments parameter.  If multiple references are given, '
+              'they must all contain the same number of segments listed in the same order.')
     )
     parser.add_argument(
         'outFasta',
