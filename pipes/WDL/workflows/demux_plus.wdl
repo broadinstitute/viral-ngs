@@ -21,11 +21,10 @@ workflow demux_plus {
       input:
         raw_reads_unmapped_bam = raw_reads
     }
-    call assembly.assemble_denovo as spades {
+    call assembly.assemble as spades {
       input:
         assembler = "spades",
-        reads_unmapped_bam = deplete.cleaned_bam,
-        sample_name = basename(raw_reads, ".bam")
+        reads_unmapped_bam = deplete.cleaned_bam
     }
   }
 

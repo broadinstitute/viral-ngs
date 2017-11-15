@@ -3,38 +3,23 @@ import "tasks/assembly.wdl" as assembly
 import "tasks/reports.wdl" as reports
 
 workflow assemble_denovo_with_deplete {
-  String sample_name
-  File raw_reads_unmapped_bam
-
   File gatk_tar_bz2
   File? novocraft_license
 
-  File lastal_db_fasta
-  Array[File] bmtaggerDbs  # tar.gz pre-built/indexed
-  Array[File] blastDbs  # tar.gz pre-built/indexed
-
-  call taxon_filter.deplete_taxa {
-    input:
-      raw_reads_unmapped_bam = raw_reads_unmapped_bam,
-      bmtaggerDbs = bmtaggerDbs,
-      blastDbs = blastDbs
-  }
+  call taxon_filter.deplete_taxa
 
   call taxon_filter.filter_to_taxon {
     input:
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
-      lastal_db_fasta = lastal_db_fasta
   }
 
   call assembly.assemble {
     input:
-      sample_name = sample_name,
       reads_unmapped_bam = filter_to_taxon.taxfilt_bam
   }
 
   call assembly.scaffold {
     input:
-      sample_name = sample_name,
       contigs_fasta = assemble.contigs_fasta,
       reads_bam = filter_to_taxon.taxfilt_bam
   }
@@ -61,7 +46,6 @@ workflow assemble_denovo_with_deplete {
 
   call reports.plot_coverage {
     input:
-      sample_name = sample_name,
       assembly_fasta = refine2.refined_assembly_fasta,
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_tar_bz2 = gatk_tar_bz2,

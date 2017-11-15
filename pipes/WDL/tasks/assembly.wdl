@@ -1,8 +1,6 @@
 
 task assemble {
 
-  String  sample_name
-
   File    reads_unmapped_bam
   File?   trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
 
@@ -11,6 +9,8 @@ task assemble {
 
   String? assembler="trinity"  # trinity, spades, or trinity-spades
   String  cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
+
+  String  sample_name = basename(reads_unmapped_bam, ".bam")
 
   command {
     set -ex -o pipefail
@@ -77,7 +77,6 @@ task assemble {
 }
 
 task scaffold {
-  String  sample_name
   File    contigs_fasta
   File    reads_bam
   File    reference_genome_fasta
@@ -91,6 +90,8 @@ task scaffold {
   Int?    nucmer_min_match
   Int?    nucmer_min_cluster
   Int?    scaffold_min_pct_contig_aligned
+
+  String  sample_name = basename(contigs_fasta, ".fasta")
 
   command {
     set -ex -o pipefail
