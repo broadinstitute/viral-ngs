@@ -38,6 +38,7 @@ task plot_coverage {
 
     samtools index ${sample_name}.mapped.bam
 
+    ln ${sample_name}.mapped.bam backup.mapped.bam
     reports.py plot_coverage \
       ${sample_name}.mapped.bam \
       ${sample_name}.coverage_plot.pdf \
@@ -46,6 +47,7 @@ task plot_coverage {
       --plotHeight 850 \
       --plotDPI 100 \
       --loglevel=DEBUG
+    mv backup.mapped.bam ${sample_name}.mapped.bam # plot_coverage is deleting this file!
 
     # collect figures of merit
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
@@ -81,24 +83,19 @@ task plot_coverage {
 task fastqc {
   File reads_bam
 
+  String reads_basename=basename(reads_bam, ".bam")
+
   command {
     set -ex -o pipefail
-
-    IN_BAM="$(basename ${reads_bam})"
-    BASE_OUT="$(basename ${reads_bam} .bam)_fastqc"
-    echo "$BASE_OUT.html" > fname-out_html.txt
-    echo "$BASE_OUT.zip" > fname-out_zip.txt
-
-    cp "${reads_bam}" $IN_BAM
+    cp ${reads_bam} ${reads_basename}.bam
     fastqc -t `nproc` $IN_BAM
   }
 
   output {
-#    File fastqc_html = read_string("fname-out_html.txt")
-#    File fastqc_zip  = read_string("fname-out_zip.txt")
-    File fastqc_html = select_first(glob("*_fastqc.html"))
-    File fastqc_zip  = select_first(glob("*_fastqc.zip"))
+    File fastqc_html = "${reads_basename}_fastqc.html"
+    File fastqc_zip  = "${reads_basename}_fastqc.zip"
   }
+
   runtime {
     memory: "2 GB"
     cpu: 1
@@ -112,23 +109,22 @@ task spikein_report {
   File? spikein_db = "gs://sabeti-public-dbs-gz/spikeins/ercc_spike-ins.fasta"
   Int?  minScoreToFilter = 60
 
+  String reads_basename=basename(reads_bam, ".bam")
+
   command {
     set -ex -o pipefail
-
-    echo "$(basename ${reads_bam} .bam).spike_count.txt" > fname-out.txt
-
     read_utils.py bwamem_idxstats \
-      "${reads_bam}" \
-      "${spikein_db}" \
-      --outStats `cat fname-out.txt` \
-      --minScoreToFilter="${minScoreToFilter}" \
+      ${reads_bam} \
+      ${spikein_db} \
+      --outStats ${reads_basename}.spike_count.txt \
+      --minScoreToFilter=${minScoreToFilter} \
       --loglevel=DEBUG
   }
 
   output {
-#    File report = read_string("fname-out.txt")
-    File report = select_first(glob("*.spike_count.txt"))
+    File report = "${reads_basename}.spike_count.txt"
   }
+
   runtime {
     memory: "3 GB"
     cpu: 2

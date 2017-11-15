@@ -3,10 +3,12 @@
 #   Runs a full human read depletion pipeline and removes PCR duplicates
 # ======================================================================
 task deplete_taxa {
-  File raw_reads_unmapped_bam
+  File        raw_reads_unmapped_bam
   Array[File] bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File] blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
-  Int? query_chunk_size=0
+  Int?        query_chunk_size=0
+
+  String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
   command {
     set -ex -o pipefail
@@ -19,6 +21,7 @@ task deplete_taxa {
       tmpfile.raw.bam \
       tmpfile.bmtagger_depleted.bam \
       tmpfile.rmdup.bam \
+      ${bam_basename}.cleaned.bam
       `cat fname-out-cleaned.txt` \
       --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
       --blastDbs ${sep=' ' blastDbs} \
@@ -26,13 +29,12 @@ task deplete_taxa {
       --JVMmemory=14g \
       --loglevel=DEBUG
 
-    samtools view -c "${raw_reads_unmapped_bam}" | tee depletion_read_count_pre
-    samtools view -c `cat fname-out-cleaned.txt` | tee depletion_read_count_post
+    samtools view -c ${raw_reads_unmapped_bam} | tee depletion_read_count_pre
+    samtools view -c ${bam_basename}.cleaned.bam | tee depletion_read_count_post
   }
 
   output {
-#    File cleaned_bam               = read_string("fname-out-cleaned.txt")
-    File cleaned_bam               = select_first(glob("*.cleaned.bam"))
+    File cleaned_bam               = "${bam_basename}.cleaned.bam"
     Int  depletion_read_count_pre  = read_int("depletion_read_count_pre")
     Int  depletion_read_count_post = read_int("depletion_read_count_post")
   }
@@ -54,27 +56,24 @@ task filter_to_taxon {
   File reads_unmapped_bam
   File lastal_db_fasta
 
+  # do this in two steps in case the input doesn't actually have "cleaned" in the name
+  String bam_basename = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
+
   command {
     set -ex -o pipefail
-
-    # set inputs/outputs
-    # do this in two steps in case the input doesn't actually have "cleaned" in the name
-    BASE_NAME="$(basename ${reads_unmapped_bam} .bam)"
-    echo "$(basename $BASE_NAME .cleaned).taxfilt.bam" > fname-out-taxfilt.txt
 
     taxon_filter.py filter_lastal_bam \
       ${reads_unmapped_bam} \
       ${lastal_db_fasta} \
-      `cat fname-out-taxfilt.txt` \
+      ${bam_basename}.taxfilt.bam \
       --JVMmemory=14g \
       --loglevel=DEBUG
 
-    samtools view -c `cat fname-out-taxfilt.txt` | tee filter_read_count_post
+    samtools view -c ${bam_basename}.taxfilt.bam | tee filter_read_count_post
   }
 
   output {
-    #File taxfilt_bam            = read_string("fname-out-taxfilt.txt")
-    File taxfilt_bam            = select_first(glob("*.taxfilt.bam"))
+    File taxfilt_bam            = "${bam_basename}.taxfilt.bam"
     Int  filter_read_count_post = read_int("filter_read_count_post")
   }
   runtime {
@@ -86,7 +85,7 @@ task filter_to_taxon {
 
 
 task merge_one_per_sample {
-  String       out_bam_name
+  String       out_bam_basename
   Array[File]+ inputBams
   Boolean?     rmdup=false
 
@@ -95,23 +94,23 @@ task merge_one_per_sample {
 
     read_utils.py merge_bams \
       "${sep=' ' inputBams}" \
-      "${out_bam_name}.bam" \
+      "${out_bam_basename}.bam" \
       --picardOptions SORT_ORDER=queryname \
       --JVMmemory 7g \
       --loglevel=DEBUG
 
     if [[ "${rmdup}" == "true" ]]; then
-      mv "${out_bam_name}.bam" tmp.bam
+      mv "${out_bam_basename}.bam" tmp.bam
       read_utils.py rmdup_mvicuna_bam \
         tmp.bam \
-        ${out_bam_name}.bam \
+        ${out_bam_basename}.bam \
         --JVMmemory 7g \
         --loglevel=DEBUG
     fi
   }
 
   output {
-    File mergedBam = "${out_bam_name}.bam"
+    File mergedBam = "${out_bam_basename}.bam"
   }
 
   runtime{

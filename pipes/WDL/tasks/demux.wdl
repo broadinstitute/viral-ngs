@@ -1,18 +1,18 @@
 
 task illumina_demux {
 
-  File flowcell_tgz
-  Int lane
-  File? samplesheet
+  File    flowcell_tgz
+  Int     lane
+  File?   samplesheet
   String? sequencingCenter
 
   String? flowcell
-  Int? minimumBaseQuality
-  Int? maxMismatches = 1
-  Int? minMismatchDelta
-  Int? maxNoCalls
+  Int?    minimumBaseQuality
+  Int?    maxMismatches = 1
+  Int?    minMismatchDelta
+  Int?    maxNoCalls
   String? readStructure
-  Int? minimumQuality = 10
+  Int?    minimumQuality = 10
   String? runStartDate
 
   parameter_meta {
@@ -46,9 +46,9 @@ task illumina_demux {
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
-      --JVMmemory=7g \
-      --threads=32 \
-      --compression_level=5 \
+      --JVMmemory=14g \
+      --threads=64 \
+      --compression_level=9 \
       --loglevel=DEBUG \
       --tmp_dir=/mnt/tmp
 
@@ -56,16 +56,16 @@ task illumina_demux {
   }
 
   output {
-    File metrics = "metrics.txt"
-    File commonBarcodes = "barcodes.txt"
+    File        metrics                  = "metrics.txt"
+    File        commonBarcodes           = "barcodes.txt"
     Array[File] raw_reads_unaligned_bams = glob("*.bam")
   }
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "8 GB"
-    cpu: 16
-    dx_instance_type: "mem1_ssd2_x16"
+    memory: "16 GB"
+    cpu: 32
+    dx_instance_type: "mem1_ssd2_x36"
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
     disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }

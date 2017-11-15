@@ -1,16 +1,16 @@
 
 task assemble_denovo {
 
-  String sample_name
+  String  sample_name
 
-  File reads_unmapped_bam
-  File? trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
+  File    reads_unmapped_bam
+  File?   trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
 
-  Int? trinity_n_reads=250000
-  Int? spades_n_reads=10000000
+  Int?    trinity_n_reads=250000
+  Int?    spades_n_reads=10000000
 
   String? assembler="trinity"  # trinity, spades, or trinity-spades
-  String cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
+  String  cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
 
   command {
     set -ex -o pipefail
@@ -63,9 +63,9 @@ task assemble_denovo {
   }
 
   output {
-    File contigs_fasta = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
-    File subsampBam = "${sample_name}.subsamp.bam"
-    Int subsample_read_count = read_int("subsample_read_count")
+    File contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
+    File subsampBam           = "${sample_name}.subsamp.bam"
+    Int  subsample_read_count = read_int("subsample_read_count")
   }
 
   runtime {
@@ -77,20 +77,20 @@ task assemble_denovo {
 }
 
 task scaffold {
-  String sample_name
-  File contigs_fasta
-  File reads_bam
-  File reference_genome_fasta
+  String  sample_name
+  File    contigs_fasta
+  File    reads_bam
+  File    reference_genome_fasta
 
   String? aligner="muscle"
-  Float? min_length_fraction=0.5
-  Float? min_unambig=0.5
-  Int? replace_length=55
+  Float?  min_length_fraction=0.5
+  Float?  min_unambig=0.5
+  Int?    replace_length=55
 
-  Int? nucmer_max_gap
-  Int? nucmer_min_match
-  Int? nucmer_min_cluster
-  Int? scaffold_min_pct_contig_aligned
+  Int?    nucmer_max_gap
+  Int?    nucmer_min_match
+  Int?    nucmer_min_cluster
+  Int?    scaffold_min_pct_contig_aligned
 
   command {
     set -ex -o pipefail
@@ -126,9 +126,9 @@ task scaffold {
   }
 
   output {
-    File scaffold_fasta = "${sample_name}.scaffold.fasta"
+    File scaffold_fasta              = "${sample_name}.scaffold.fasta"
     File intermediate_scaffold_fasta = "${sample_name}.intermediate_scaffold.fasta"
-    File intermediate_gapfill_fasta = "${sample_name}.intermediate_gapfill.fasta"
+    File intermediate_gapfill_fasta  = "${sample_name}.intermediate_gapfill.fasta"
   }
 
   runtime {
@@ -139,16 +139,17 @@ task scaffold {
 }
 
 task refine {
-  File assembly_fasta
-  File reads_unmapped_bam
-  String assembly_basename=basename(assembly_fasta, ".fasta")
+  File    assembly_fasta
+  File    reads_unmapped_bam
 
-  File gatk_tar_bz2
-  File? novocraft_license
+  File    gatk_tar_bz2
+  File?   novocraft_license
 
   String? novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100"
-  Float? major_cutoff=0.5
-  Int? min_coverage=1
+  Float?  major_cutoff=0.5
+  Int?    min_coverage=1
+
+  String  assembly_basename=basename(assembly_fasta, ".fasta")
 
   parameter_meta {
     gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
@@ -176,7 +177,7 @@ task refine {
 
   output {
     File refined_assembly_fasta = "${assembly_basename}.refined.fasta"
-    File sites_vcf_gz = "${assembly_basename}.sites.vcf.gz"
+    File sites_vcf_gz           = "${assembly_basename}.sites.vcf.gz"
   }
 
   runtime {
@@ -185,4 +186,3 @@ task refine {
     cpu: 8
   }
 }
-
