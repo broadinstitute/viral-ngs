@@ -46,6 +46,19 @@ rule download_lastal_sources:
         shell("{config[bin_dir]}/ncbi.py fetch_fastas {email_address} "+fasta_path_prefix+" {accessions_list} --combinedFilePrefix "+fasta_file_prefix+" --removeSeparateFiles --forceOverwrite --chunkSize 300")
 
 
+rule download_refsel_sources:
+    output:
+        fasta = expand( '{refselDb}/'+'refsel.fasta', refselDb=config["refsel_ref_db_dir"] )
+    run:
+        makedirs( expand( "{dir}", dir=[config["refsel_ref_db_dir"]] ) )
+        fasta_path_prefix = os.path.dirname(output.fasta[0])
+        fasta_file_prefix = os.path.splitext(os.path.basename(output.fasta[0]))[0]
+        accessions_list   = " ".join(read_accessions_file(config["accessions_file_for_refsel_db_build"]) if "accessions_file_for_refsel_db_build" in config and len(config["accessions_file_for_refsel_db_build"])>0 else config["accessions_for_ref_genome_build"])
+        email_address     = config["email_point_of_contact_for_ncbi"]
+        shell("{config[bin_dir]}/ncbi.py fetch_fastas {email_address} "+fasta_path_prefix+" {accessions_list} --combinedFilePrefix "+fasta_file_prefix+" --removeSeparateFiles --forceOverwrite --chunkSize 300")
+
+
+        
 rule annot_transfer:
     input:      
         multiple_alignment_fastas = expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",

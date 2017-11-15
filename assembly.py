@@ -11,10 +11,14 @@ __commands__ = []
 import argparse
 import logging
 import random
+import numpy
 import os
 import os.path
 import shutil
 import subprocess
+import functools
+import operator
+import concurrent.futures
 
 try:
     from itertools import zip_longest    # pylint: disable=E0611
@@ -394,7 +398,6 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assemble_spades', parser_assemble_spades))
 
-
 def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_gb=4, time_soft_limit_minutes=60.0,
                     random_seed=0, gap2seq_opts='', mask_errors=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
@@ -430,7 +433,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
-def order_and_orient(inFasta, inReference, outFasta,
+def _order_and_orient_orig(inFasta, inReference, outFasta,
         outAlternateContigs=None,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
@@ -471,12 +474,73 @@ def order_and_orient(inFasta, inReference, outFasta,
     #    os.unlink(trimmed)
     return 0
 
+def _call_order_and_orient_orig(inReference, outFasta, outAlternateContigs, **kwargs):
+    _order_and_orient_orig(inReference=inReference, outFasta=outFasta, outAlternateContigs=outAlternateContigs, **kwargs)
+
+def order_and_orient(inFasta, inReference, outFasta,
+        outAlternateContigs=None, outReference=None,
+        breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
+        maxgap=200, minmatch=10, mincluster=None,
+        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3, n_genome_segments=0, threads=0):
+    ''' This step cleans up the de novo assembly with a known reference genome.
+        Uses MUMmer (nucmer or promer) to create a reference-based consensus
+        sequence of aligned contigs (with runs of N's in between the de novo
+        contigs).
+    '''
+
+    chk = util.cmd.check_input
+
+    ref_segments_all = [tuple(Bio.SeqIO.parse(inRef, 'fasta')) for inRef in util.misc.make_seq(inReference)]
+    chk(ref_segments_all, 'No references given')
+    chk(len(set(map(len, ref_segments_all))) == 1, 'All references must have the same number of segments')
+    if n_genome_segments:
+        if len(ref_segments_all) == 1:
+            chk((len(ref_segments_all[0]) % n_genome_segments) == 0,
+                'Number of reference sequences in must be a multiple of the number of genome segments')
+        else:
+            chk(len(ref_segments_all[0]) == n_genome_segments,
+                'Number of reference segments must match the n_genome_segments parameter')
+    else:
+        n_genome_segments = len(ref_segments_all[0])
+    ref_segments_all = functools.reduce(operator.concat, ref_segments_all, ())
+
+    n_refs = len(ref_segments_all) // n_genome_segments
+    log.info('n_genome_segments={} n_refs={}'.format(n_genome_segments, n_refs))
+
+    with util.file.tempfnames(suffixes=[ '.{}.ref.fasta'.format(ref_num) for ref_num in range(n_refs)]) as refs_fasta, \
+         util.file.tempfnames(suffixes=[ '.{}.scaffold.fasta'.format(ref_num) for ref_num in range(n_refs)]) as scaffolds_fasta, \
+         util.file.tempfnames(suffixes=[ '.{}.altcontig.fasta'.format(ref_num) for ref_num in range(n_refs)]) as alt_contigs_fasta:
+
+         for ref_num in range(n_refs):
+             Bio.SeqIO.write(ref_segments_all[ref_num*n_genome_segments : (ref_num+1)*n_genome_segments], refs_fasta[ref_num], 'fasta')
+
+         with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+             executor.map(functools.partial(_call_order_and_orient_orig, inFasta=inFasta,
+                                            breaklen=breaklen, maxgap=maxgap, minmatch=minmatch, mincluster=mincluster, min_pct_id=min_pct_id,
+                                            min_contig_len=min_contig_len, min_pct_contig_aligned=min_pct_contig_aligned),
+                                            refs_fasta, scaffolds_fasta, alt_contigs_fasta)
+
+         assert all(len(tuple(Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')))==n_genome_segments for ref_num in range(n_refs)), \
+             'Some computed scaffold does not have the number of segments that the reference genome has ({}))'.format(n_genome_segments)
+         
+         base_counts = [sum([len(rec.seq.ungap('N')) for rec in Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')])
+                        for ref_num in range(n_refs)]
+         best_ref_num = numpy.argmax(base_counts)
+         log.info('base_counts={} best_ref_num={}'.format(base_counts, best_ref_num))
+         shutil.copyfile(scaffolds_fasta[best_ref_num], outFasta)
+         if outAlternateContigs:
+             shutil.copyfile(alt_contigs_fasta[best_ref_num], outAlternateContigs)
+         if outReference:
+             shutil.copyfile(refs_fasta[best_ref_num], outReference)
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument(
-        'inReference',
-        help='Reference genome for ordering, orienting, and merging contigs, FASTA format.'
+        'inReference', nargs='+',
+        help='Reference genome for ordering, orienting, and merging contigs, FASTA format.  Multiple filenames may be listed, each
+        containing one reference genome. Alternattely, multiple references may be given by specifying a single filename,
+        and giving the number of reference segments with the nGenomeSegments parameter.  If multiple references are given,
+        they must all contain the same number of segments listed in the same order.'
     )
     parser.add_argument(
         'outFasta',
@@ -489,6 +553,14 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                 but were not chosen for the final output.""",
         default=None
     )
+
+    parser.add_argument('--nGenomeSegments', dest='n_genome_segments', type=int, default=0,
+                        help="""Number of genome segments.  If 0 (the default), the `inReference` parameter is treated as one genome.
+                        If positive, the `inReference` parameter is treated as a list of genomes of nGenomeSegments each.""")
+
+    parser.add_argument('--threads', type=int, default=0, help='Number of threads to use (0 for all cpus)')
+
+    parser.add_argument('--outReference', help='Output the reference chosen for scaffolding to this file')
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
     #                    choices=['nucmer', 'promer'],
