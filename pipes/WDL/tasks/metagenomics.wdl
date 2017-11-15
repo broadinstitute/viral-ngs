@@ -58,6 +58,7 @@ task kraken {
     memory: "200 GB"
     cpu: 32
     disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
+    dx_instance_type: "mem3_ssd1_x32"
     preemptible: 0
   }
 }

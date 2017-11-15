@@ -1,5 +1,5 @@
 
-task assemble_denovo {
+task assemble {
 
   String  sample_name
 

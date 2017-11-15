@@ -26,7 +26,7 @@ workflow assemble_denovo_with_deplete {
       lastal_db_fasta = lastal_db_fasta
   }
 
-  call assembly.assemble_denovo {
+  call assembly.assemble {
     input:
       sample_name = sample_name,
       reads_unmapped_bam = filter_to_taxon.taxfilt_bam
@@ -35,7 +35,7 @@ workflow assemble_denovo_with_deplete {
   call assembly.scaffold {
     input:
       sample_name = sample_name,
-      contigs_fasta = assemble_denovo.contigs_fasta,
+      contigs_fasta = assemble.contigs_fasta,
       reads_bam = filter_to_taxon.taxfilt_bam
   }
 
