@@ -85,7 +85,7 @@ task krona {
     metagenomics.py krona \
       ${classified_reads_txt_gz} \
       taxonomy \
-      ${input_basename}.html
+      ${input_basename}.html \
       --noRank --noHits \
       --loglevel=DEBUG
 

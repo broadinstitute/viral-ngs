@@ -13,16 +13,12 @@ task deplete_taxa {
   command {
     set -ex -o pipefail
 
-    # set inputs/outputs
-    echo "$(basename ${raw_reads_unmapped_bam} .bam).cleaned.bam" > fname-out-cleaned.txt
-
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
       tmpfile.raw.bam \
       tmpfile.bmtagger_depleted.bam \
       tmpfile.rmdup.bam \
-      ${bam_basename}.cleaned.bam
-      `cat fname-out-cleaned.txt` \
+      ${bam_basename}.cleaned.bam \
       --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
       --blastDbs ${sep=' ' blastDbs} \
       --chunkSize="${query_chunk_size}" \
