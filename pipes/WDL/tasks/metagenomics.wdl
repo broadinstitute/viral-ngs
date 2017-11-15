@@ -9,7 +9,7 @@ task kraken {
 
   parameter_meta {
     kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+    #reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
