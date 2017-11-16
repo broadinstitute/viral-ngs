@@ -4,8 +4,8 @@
 # diamond, bwa, etc
 
 task kraken {
-  Array[File]+ reads_unmapped_bam
-  File kraken_db_tar_lz4
+  Array[File] reads_unmapped_bam
+  File        kraken_db_tar_lz4
 
   parameter_meta {
     kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
