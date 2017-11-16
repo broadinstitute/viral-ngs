@@ -19,8 +19,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
   workflow_name=`basename $workflow .wdl`
   echo Building $workflow to DNAnexus
   # TO DO: incorporate default file values once we figure out how
-  dx_id = `java -jar dxWDL-0.51.jar compile $workflow -destination /build/$VERSION/$workflow_name`
-  echo Succeeded: $workflow_name = $dx_id
+  dx_id=`java -jar dxWDL-0.51.jar compile $workflow -destination /build/$VERSION/$workflow_name`
+  echo "Succeeded: $workflow_name = $dx_id"
 done
 
 # TO DO: trigger test executions on DNAnexus
