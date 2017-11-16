@@ -27,6 +27,7 @@ workflow assemble_refbased {
 
   call reports.plot_coverage {
     input:
+      sample_name = basename(reads_unmapped_bam, ".bam"),
       assembly_fasta = refine2.refined_assembly_fasta,
       reads_unmapped_bam = reads_unmapped_bam,
       gatk_tar_bz2 = gatk_tar_bz2,

@@ -46,6 +46,7 @@ workflow assemble_denovo_with_deplete {
 
   call reports.plot_coverage {
     input:
+      sample_name = basename(deplete_taxa.cleaned_bam, ".cleaned.bam"),
       assembly_fasta = refine2.refined_assembly_fasta,
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_tar_bz2 = gatk_tar_bz2,
