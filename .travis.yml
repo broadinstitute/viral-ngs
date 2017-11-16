@@ -84,14 +84,14 @@ script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis_wait travis/build-conda.sh; fi
   - if [[ "$BUILD_PACKAGE" == "docker" ]]; then
-      set -e
-      docker pull broadinstitute/viral-ngs:latest
-      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .
-      docker run --rm local/viral-ngs:build assembly.py --version
-      travis/version-wdl-runtimes.sh
-      travis/validate-wdl.sh
-      travis/build-dx.sh
-      travis/tests-cromwell.sh
+      set -e;
+      docker pull broadinstitute/viral-ngs:latest;
+      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .;
+      docker run --rm local/viral-ngs:build assembly.py --version;
+      travis/version-wdl-runtimes.sh;
+      travis/validate-wdl.sh;
+      travis/build-dx.sh;
+      travis/tests-cromwell.sh;
     fi
   - if [ -n "$BUILD_DOCS" ]; then travis/build-docs.sh; fi
 
