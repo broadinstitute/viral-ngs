@@ -22,16 +22,21 @@ task illumina_demux {
   command {
     set -ex -o pipefail
 
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+    FLOWCELL_DIR=$(mktemp -d)
+
     cat ${flowcell_tgz} |
       read_utils.py extract_tarball \
-        - /mnt/tmp/flowcell \
+        - $FLOWCELL_DIR \
         --pipe_hint=${flowcell_tgz} \
         --loglevel=DEBUG
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
     illumina.py illumina_demux \
-      /mnt/tmp/flowcell \
+      $FLOWCELL_DIR \
       ${lane} \
       . \
       ${'--sampleSheet=' + samplesheet} \
@@ -50,7 +55,6 @@ task illumina_demux {
       --threads=64 \
       --compression_level=5 \
       --loglevel=DEBUG \
-      --tmp_dir=/mnt/tmp
 
     rm -f Unmatched.bam
   }
@@ -67,6 +71,5 @@ task illumina_demux {
     cpu: 32
     dx_instance_type: "mem1_ssd2_x36"
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
-    disks: "local-disk 375 LOCAL, /mnt/tmp 375 LOCAL"
   }
 }

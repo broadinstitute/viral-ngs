@@ -15,10 +15,15 @@ task kraken {
   command {
     set -ex -o pipefail
 
-    # decompress DB to /mnt/db
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+    DB_DIR=$(mktemp -d)
+
+    # decompress DB to $DB_DIR
     cat ${kraken_db_tar_lz4} |
       read_utils.py extract_tarball \
-        - /mnt/db \
+        - $DB_DIR \
         --pipe_hint=${kraken_db_tar_lz4} \
         --loglevel=DEBUG
 
@@ -31,7 +36,7 @@ task kraken {
     #done
     #
     #metagenomics.py kraken \
-    #  /mnt/db \
+    #  $DB_DIR \
     #  ${sep=' ' reads_unmapped_bam} \
     #  --outReads `cat $OUT_READS` \
     #  --outReport `cat $OUT_REPORTS` \
@@ -40,7 +45,7 @@ task kraken {
     # execute on each bam sequentially
     for bam in ${sep=' ' reads_unmapped_bam}; do
       metagenomics.py kraken \
-        /mnt/db \
+        $DB_DIR \
         $bam \
         --outReads kraken-reads-$(basename $bam .bam).txt.gz \
         --outReport kraken-report-$(basename $bam .bam).txt \
@@ -57,7 +62,6 @@ task kraken {
     docker: "broadinstitute/viral-ngs"
     memory: "200 GB"
     cpu: 32
-    disks: "local-disk 375 LOCAL, /mnt/db 375 LOCAL"
     dx_instance_type: "mem3_ssd1_x32"
     preemptible: 0
   }

@@ -13,6 +13,10 @@ task deplete_taxa {
   command {
     set -ex -o pipefail
 
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
       tmpfile.raw.bam \
