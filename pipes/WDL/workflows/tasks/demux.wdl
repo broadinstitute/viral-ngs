@@ -54,7 +54,7 @@ task illumina_demux {
       --JVMmemory=14g \
       --threads=64 \
       --compression_level=5 \
-      --loglevel=DEBUG \
+      --loglevel=DEBUG
 
     rm -f Unmatched.bam
   }
