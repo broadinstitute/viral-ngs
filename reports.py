@@ -549,12 +549,16 @@ def plot_coverage(
 
     # only sort if not sorted
     bam_sorted = util.file.mkstempfname('.sorted.bam')
+    should_remove_sorted = True
     if not util.file.bam_is_sorted(bam_dupe_processed):
         samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
         if plot_only_non_duplicates:
             os.unlink(bam_dupe_processed)
     else:
         bam_sorted = bam_dupe_processed
+        if not plot_only_non_duplicates:
+            # in this case we are passing through the original in_bam directly
+            should_remove_sorted = False
 
     # call samtools index
     samtools.index(bam_sorted)
@@ -596,7 +600,11 @@ def plot_coverage(
         bt.genome_coverage(d=True).saveas(coverage_tsv_file)
     else:
         samtools.depth(bam_sorted, coverage_tsv_file, opts)
-    os.unlink(bam_sorted)
+
+    # only remove the sorted bam if it is not the original input bam
+    # which we use directly in some casess 
+    if should_remove_sorted:
+        os.unlink(bam_sorted)
 
     # ---- create plot based on coverage_tsv_file ----
 
