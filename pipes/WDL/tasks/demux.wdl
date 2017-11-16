@@ -2,7 +2,7 @@
 task illumina_demux {
 
   File    flowcell_tgz
-  Int     lane
+  Int?    lane=1
   File?   samplesheet
   String? sequencingCenter
 

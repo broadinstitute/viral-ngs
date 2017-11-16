@@ -38,7 +38,6 @@ task plot_coverage {
 
     samtools index ${sample_name}.mapped.bam
 
-    ln ${sample_name}.mapped.bam backup.mapped.bam
     reports.py plot_coverage \
       ${sample_name}.mapped.bam \
       ${sample_name}.coverage_plot.pdf \
@@ -47,7 +46,6 @@ task plot_coverage {
       --plotHeight 850 \
       --plotDPI 100 \
       --loglevel=DEBUG
-    mv backup.mapped.bam ${sample_name}.mapped.bam # plot_coverage is deleting this file!
 
     # collect figures of merit
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
