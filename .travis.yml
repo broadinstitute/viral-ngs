@@ -23,7 +23,8 @@ matrix:
             # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
             - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
         - os: linux
-          language: oraclejdk8
+          language: java
+          jdk: oraclejdk8
           env:
             - BUILD_PACKAGE=docker
             # DOCKER_USER
