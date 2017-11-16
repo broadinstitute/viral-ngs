@@ -12,7 +12,7 @@ elif [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 	DOCKER_REPO="broadinstitute/viral-ngs-dev"
 	BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
 	DOCKER_SHORT_TAG="$BRANCH_NAME-pull_request"
-	DOCKER_LONG_TAG="$(git describe --tags --always | sed /^v//)-$(echo $DOCKER_SHORT_TAG)"
+	DOCKER_LONG_TAG="$(git describe --tags --always | sed s/^v//)-$(echo $DOCKER_SHORT_TAG)"
 	#DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g(\S+)/$1-beta$2-g$3/')-$(echo $BRANCH_NAME | sed 's/-/_/g')"
 elif [[ "$TRAVIS_BRANCH" == "master" ]]; then
 	# this is a master branch commit (e.g. merged pull request)
@@ -24,7 +24,7 @@ else
 	DOCKER_REPO="broadinstitute/viral-ngs-dev"
 	BRANCH_NAME="$TRAVIS_BRANCH"
 	DOCKER_SHORT_TAG="$BRANCH_NAME"
-	DOCKER_LONG_TAG="$(git describe --tags --always | sed /^v//)-$(echo $DOCKER_SHORT_TAG)"
+	DOCKER_LONG_TAG="$(git describe --tags --always | sed s/^v//)-$(echo $DOCKER_SHORT_TAG)"
 	#DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g(\S+)/$1-dev$2-g$3/')-$(echo $DOCKER_SHORT_TAG)"
 fi
 

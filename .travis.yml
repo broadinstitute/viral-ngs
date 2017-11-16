@@ -88,6 +88,7 @@ script:
       docker pull broadinstitute/viral-ngs:latest;
       travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .;
       docker run --rm local/viral-ngs:build assembly.py --version;
+      travis/deploy-docker.sh;
       travis/version-wdl-runtimes.sh;
       travis/validate-wdl.sh;
       travis/build-dx.sh;
@@ -97,7 +98,6 @@ script:
 
 after_success:
   - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/deploy-docker.sh; fi
   
 after_script:
   # correct post-build failure on OSX due to non-zero exit code
