@@ -2,11 +2,10 @@
 set -e -o pipefail
 
 NEW_TAG=`travis/list-docker-tags.sh | tail -1`
-OLD_STRING='docker: "broadinstitute/viral-ngs"'
-NEW_STRING='docker: "'$NEW_TAG'"'
+OLD_TAG="broadinstitute/viral-ngs"
 
 echo Replacing $OLD_STRING with $NEW_STRING in all task WDL files
-sed -i -- "s/$OLD_STRING/$NEW_STRING/g" pipes/workflows/tasks/*.wdl
+sed -i -- s\|$OLD_TAG\|$NEW_TAG\|g pipes/workflows/tasks/*.wdl
 
 echo "DEBUG: here are the modified runtime lines:"
-grep "docker:" pipes/workflows/tasks/*.wdl
+grep \'$NEW_TAG\' pipes/workflows/tasks/*.wdl
