@@ -19,7 +19,7 @@ import util.misc
 from builtins import super
 
 TOOL_NAME = 'kraken'
-TOOL_VERSION = '1.0.0_fork2'
+TOOL_VERSION = '1.0.0_fork3'
 
 log = logging.getLogger(__name__)
 
@@ -133,13 +133,15 @@ class Kraken(tools.Tool):
             subprocess.Popen(cmd, shell=True, executable='/bin/bash', env=env)
 
             for i, in_bam in enumerate(inBams):
-                cmd = 'cat {kraken_output}'
+                cmd = 'cat {kraken_output}'.format(kraken_output=kraken_output_pipes[i])
 
                 if outReads:
-                    cmd += ' | tee >(gzip --best > {kraken_reads})'
+                    if outReports:
+                        cmd += ' | tee >(gzip --best > {kraken_reads})'
+                    else:
+                        cmd += ' | gzip --best > {kraken_reads}'
 
-                cmd = cmd.format(kraken_reads=outReads[i] if outReads else None,
-                                 kraken_output=kraken_output_pipes[i])
+                    cmd = cmd.format(kraken_reads=outReads[i])
 
                 if outReports:
                     if filterThreshold is not None:

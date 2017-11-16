@@ -7,6 +7,7 @@ from os.path import join
 import sys
 import pytest
 import metagenomics
+import unittest
 import util.file
 import tools
 import tools.kraken
@@ -86,7 +87,7 @@ def krona_db(request, tmpdir_module, krona, db_type):
 def test_kraken(kraken_db, input_bam):
     out_report = util.file.mkstempfname('.report')
     out_reads = util.file.mkstempfname('.reads.gz')
-    cmd = [kraken_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
+    cmd = [kraken_db, input_bam, '--outReports', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
@@ -111,6 +112,54 @@ def test_kraken(kraken_db, input_bam):
         assert zaire_found
         assert not tai_found
     '''
+
+def test_kraken_multi(kraken_db):
+    in_bams = list(os.path.join(util.file.get_test_input_path(), d, 'test-reads.bam') for d in ('TestMetagenomicsSimple', 'TestMetagenomicsViralMix'))
+    out_reports = list(util.file.mkstempfname('.out_{}.report.txt'.format(i)) for i in (1,2))
+    out_reads = list(util.file.mkstempfname('.out_{}.reads.txt.gz'.format(i)) for i in (1,2))
+    cmd = [kraken_db] + in_bams \
+        + ['--outReports'] + out_reports \
+        + ['--outReads'] + out_reads
+    parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+    args = parser.parse_args(cmd)
+    args.func_main(args)
+
+    # just check for non-empty outputs
+    for outfile in out_reads:
+        with util.file.open_or_gzopen(outfile, 'r') as inf:
+            assert len(inf.read()) > 0
+    for outfile in out_reports:
+        with util.file.open_or_gzopen(outfile) as inf:
+            assert len(inf.read()) > 0
+
+@unittest.skip("not sure if this works anyway")
+def test_kraken_fifo(kraken_db):
+    in_bams = list(os.path.join(util.file.get_test_input_path(), d, 'test-reads.bam') for d in ('TestMetagenomicsSimple', 'TestMetagenomicsViralMix'))
+    out_reports = list(util.file.mkstempfname('.out_{}.report.txt'.format(i)) for i in (1,2))
+    out_reads = list(util.file.mkstempfname('.out_{}.reads.txt.gz'.format(i)) for i in (1,2))
+    with util.file.fifo(names=('inbam1.bam', 'inbam2.bam')) as (inbam1, inbam2):
+        with open(inbam1, 'wb') as b1, open(inbam2, 'wb') as b2:
+            p1 = subprocess.Popen(['cat', in_bams[0]], stdout=b1)
+            p2 = subprocess.Popen(['cat', in_bams[1]], stdout=b2)
+            cmd = [kraken_db, inbam1, inbam2] \
+                + ['--outReports'] + out_reports \
+                + ['--outReads'] + out_reads
+            parser = metagenomics.parser_kraken(argparse.ArgumentParser())
+            args = parser.parse_args(cmd)
+            args.func_main(args)
+            print("waiting for kraken to drain fifo for first bam file")
+            p1.wait()
+            print("waiting for kraken to drain fifo for second bam file")
+            p2.wait()
+
+    # just check for non-empty outputs
+    for outfile in out_reads:
+        with util.file.open_or_gzopen(outfile, 'r') as inf:
+            assert len(inf.read()) > 0
+    for outfile in out_reports:
+        with util.file.open_or_gzopen(outfile) as inf:
+            assert len(inf.read()) > 0
+
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, kraken_db, krona_db, input_bam):
