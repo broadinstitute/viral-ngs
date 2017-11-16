@@ -2,7 +2,7 @@ import "tasks/metagenomics.wdl" as metagenomics
 
 
 workflow classify_kraken_combined {
-  Array[File]+ reads_unmapped_bam
+  Array[File] reads_unmapped_bam
   File kraken_db_tarball
   File krona_db_tarball
 
