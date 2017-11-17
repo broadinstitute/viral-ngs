@@ -15,16 +15,32 @@ dx login --token "$DX_API_TOKEN" --noprojects
 dx select $DX_PROJECT
 
 # compile with dxWDL
+COMPILE_SUCCESS="dxWDL-compile_all-success.csv"
+touch $COMPILE_SUCCESS
 for workflow in pipes/WDL/workflows/*.wdl; do
   if [ -n "$(grep DX_SKIP_WORKFLOW $workflow)" ]; then
     echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
   else
     workflow_name=`basename $workflow .wdl`
-	echo "Building $workflow to DNAnexus"
-	# TO DO: incorporate default file values once we figure out how
-	dx_id=`java -jar dxWDL-0.51.jar compile $workflow -destination /build/$VERSION/$workflow_name`
-	echo "Succeeded: $workflow_name = $dx_id"
+	  echo "Building $workflow to DNAnexus"
+	  # TO DO: incorporate default file values once we figure out how
+	  dx_id=`java -jar dxWDL-0.51.jar compile $workflow -destination /build/$VERSION/$workflow_name`
+	  echo "Succeeded: $workflow_name = $dx_id"
+    echo "$workflow_name,$dx_id" >> $COMPILE_SUCCESS
   fi
 done
+# the presence of this file in the project denotes successful build
+dx upload --no-progress --destination /build/$VERSION/ $COMPILE_SUCCESS
 
-# TO DO: trigger test executions on DNAnexus
+
+## TO DO: trigger test executions on DNAnexus
+#TEST_SUCCESS_ALL="dxWDL-execute_all-success.txt"
+#for workflow in pipes/WDL/workflows/*.wdl; do
+#  if [ -n "$(grep DX_SKIP_WORKFLOW $workflow)" ]; then
+#    echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
+#  else
+#    # launch simple test cases on DNAnexus CI project
+#  fi
+#done
+## the presence of this file in the project denotes all tests pass
+#dx upload --no-progress --destination /build/$VERSION/ $TEST_SUCCESS_ALL
