@@ -21,36 +21,35 @@ task kraken {
     DB_DIR=$(mktemp -d)
 
     # decompress DB to $DB_DIR
-    cat ${kraken_db_tar_lz4} |
-      read_utils.py extract_tarball \
-        - $DB_DIR \
-        --pipe_hint=${kraken_db_tar_lz4} \
-        --loglevel=DEBUG
+    read_utils.py extract_tarball \
+      ${kraken_db_tar_lz4} $DB_DIR \
+      --loglevel=DEBUG
 
-    ## prep input and output file names
-    #OUT_READS=fnames_outreads.txt
-    #OUT_REPORTS=fnames_outreports.txt
-    #for bam in ${sep=' ' reads_unmapped_bam}; do
-    #  echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
-    #  echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
-    #done
-    #
-    #metagenomics.py kraken \
-    #  $DB_DIR \
-    #  ${sep=' ' reads_unmapped_bam} \
-    #  --outReads `cat $OUT_READS` \
-    #  --outReport `cat $OUT_REPORTS` \
-    #  --loglevel=DEBUG
-
-    # execute on each bam sequentially
+    # prep input and output file names
+    OUT_READS=fnames_outreads.txt
+    OUT_REPORTS=fnames_outreports.txt
     for bam in ${sep=' ' reads_unmapped_bam}; do
-      metagenomics.py kraken \
-        $DB_DIR \
-        $bam \
-        --outReads kraken-reads-$(basename $bam .bam).txt.gz \
-        --outReport kraken-report-$(basename $bam .bam).txt \
-        --loglevel=DEBUG
+      echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
+      echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
     done
+
+    # execute on all inputs and outputs at once
+    metagenomics.py kraken \
+      $DB_DIR \
+      ${sep=' ' reads_unmapped_bam} \
+      --outReads `cat $OUT_READS` \
+      --outReport `cat $OUT_REPORTS` \
+      --loglevel=DEBUG
+
+    ## execute on each bam sequentially
+    #for bam in ${sep=' ' reads_unmapped_bam}; do
+    #  metagenomics.py kraken \
+    #    $DB_DIR \
+    #    $bam \
+    #    --outReads kraken-reads-$(basename $bam .bam).txt.gz \
+    #    --outReport kraken-report-$(basename $bam .bam).txt \
+    #    --loglevel=DEBUG
+    #done
   }
 
   output {
