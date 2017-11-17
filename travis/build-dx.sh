@@ -12,7 +12,7 @@ VERSION=`travis/list-docker-tags.sh | tail -1 | sed 's/:/\//'`
 # log in to DNAnexus
 source dx-toolkit/environment
 dx login --token "$DX_API_TOKEN" --noprojects
-dx select project-F856jv809y3VkzyFGkKqX367
+dx select $DX_PROJECT
 
 # compile with dxWDL
 for workflow in pipes/WDL/workflows/*.wdl; do

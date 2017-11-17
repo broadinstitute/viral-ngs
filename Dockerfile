@@ -42,7 +42,9 @@ RUN /bin/bash -c "set -e; source /opt/miniconda/bin/activate /opt/miniconda; ech
 VOLUME ["/gatk", "/novoalign", "/user-data"]
 ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
 
-# It's a wrapper script to load the viral-ngs environment via the easy-deploy script
-# and then run any commands desired
-ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
+## It's a wrapper script to load the viral-ngs environment via the easy-deploy script
+## and then run any commands desired
+##ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
+RUN cat docker/container_environment.sh >> /etc/container_environment.sh
+
 CMD ["/bin/bash"]
