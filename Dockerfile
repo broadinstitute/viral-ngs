@@ -36,15 +36,14 @@ COPY . $VIRAL_NGS_PATH/
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
 # verifies that conda-installed python libraries are working.
-RUN /bin/bash -c "set -e; source /opt/miniconda/bin/activate /opt/miniconda; echo -n 'viral-ngs version: '; $VIRAL_NGS_PATH/assembly.py --version"
+RUN /bin/bash -c "set -e; source $VIRAL_NGS_PATH/docker/container_environment.sh; echo -n 'viral-ngs version: '; assembly.py --version"
 
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
 ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
 
-## It's a wrapper script to load the viral-ngs environment via the easy-deploy script
-## and then run any commands desired
-##ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
-RUN cat docker/container_environment.sh >> /etc/container_environment.sh
+# A wrapper script to load the viral-ngs environment, switch to
+# a non-root user, and then run any commands desired
+ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
 
 CMD ["/bin/bash"]
