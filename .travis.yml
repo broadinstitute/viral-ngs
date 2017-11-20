@@ -1,101 +1,8 @@
-language: python
 sudo: required 
 dist: trusty
 
 git:
   depth: 75
-
-stages:
-  - build
-  - test
-
-jobs:
-  fast_finish: true
-  include:
-    - stage: build
-      os: linux
-      language: java
-      jdk: oraclejdk8
-      env:
-        - BUILD_PACKAGE=docker
-        # DOCKER_USER
-        - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
-        # DOCKER_PASS
-        - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
-        # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
-        - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
-        # DX_API_TOKEN (for DNAnexus builds)
-        - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
-        - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
-      script:
-        - set -e
-        - travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null
-        - travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .
-        - docker run --rm local/viral-ngs:build assembly.py --version
-        - travis/deploy-docker.sh
-        #- travis/tests-cromwell.sh
-    - stage: build
-      os: linux
-      language: java
-      jdk: oraclejdk8
-      env:
-        - BUILD_PACKAGE=docker
-        # DX_API_TOKEN (for DNAnexus builds)
-        - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
-        - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
-      script:
-        - travis/version-wdl-runtimes.sh
-        - travis/validate-wdl.sh
-        - travis/build-dx.sh
-
-    - stage: build
-      os: linux
-      python: 3.5
-      env: BUILD_DOCS=true
-      script: travis/build-docs.sh
-    - stage: test
-      os: linux
-      python: 2.7
-      env: PERFORM_TESTING=true
-      script:
-        - travis/tests-long.sh
-        - travis/tests-unit.sh
-    - stage: test
-      os: linux
-      python: 3.6
-      env: PERFORM_TESTING=true
-      script:
-        - travis/tests-long.sh
-        - travis/tests-unit.sh
-    - stage: test
-      os: linux
-      python: 3.6
-      env:
-        - BUILD_PACKAGE=conda
-        # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-        - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-        # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
-        - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
-      script: travis_wait travis/build-conda.sh
-
-#        - stage: test
-#          os: osx
-#          language: generic
-#          env:
-#              - TRAVIS_OSX_PYTHON_VERSION=py36
-#              - TRAVIS_PYTHON_VERSION=3.6
-#              - PERFORM_TESTING=true
-
-cache:
-  directories:
-    - $HOME/misc_cache
-    - $HOME/miniconda
-  timeout: 480
-before_cache:
-  # Remove since we're caching the extracted directories
-  - if [[ "$BUILD_PACKAGE" == "docker" || "$BUILD_DOCS" == "true" ]]; then mv $HOME/miniconda $HOME/no_cache_miniconda; else conda clean --tarballs --yes; fi
-  # Conda's repodata cache
-  - rm -rf tools/conda-cache/.pkgs/cache
 
 env:
   global:
@@ -109,20 +16,141 @@ env:
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
   - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
 
-before_install:
-  - travis/before_install.sh
+cache:
+  directories:
+    - $HOME/misc_cache
+    - $HOME/miniconda
+  timeout: 480
 
-install:
-  - if [[ "$BUILD_PACKAGE" == "conda" || -n "$PERFORM_TESTING" ]]; then source travis/install-conda.sh; fi
-  - if [ -n "$PERFORM_TESTING" ]; then travis_wait travis/install-tools.sh; source travis/activate-conda.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis/install-conda-build.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/upgrade-docker.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/install-wdl.sh; fi
-  - if [ -n "$BUILD_DOCS" ]; then travis/install-pip-docs.sh; fi
+stages:
+  - build
+  - test
 
-after_success:
-  - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
+jobs:
+  fast_finish: true
+  include:
+
+    - name: build_docker
+      stage: build
+      os: linux
+      language: generic
+      env:
+        # DOCKER_USER
+        - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
+        # DOCKER_PASS
+        - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+        # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
+        - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
+      install: travis/upgrade-docker.sh
+      script:
+        - set -e
+        - travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null
+        - travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .
+        - docker run --rm local/viral-ngs:build assembly.py --version
+        - travis/deploy-docker.sh
+        #- travis/tests-cromwell.sh
+
+    - name: build_dxWDL
+      stage: build
+      os: linux
+      language: java
+      jdk: oraclejdk8
+      env:
+        # DX_API_TOKEN (for DNAnexus builds)
+        - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
+        - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
+      install: travis/install-wdl.sh
+      script:
+        - travis/version-wdl-runtimes.sh
+        - travis/validate-wdl.sh
+        - travis/build-dx.sh
+
+    - name: build_docs
+      stage: build
+      os: linux
+      python: 3.5
+      env: BUILD_DOCS=true
+      script: travis/build-docs.sh
+      install: travis/install-pip-docs.sh
+
+    - name: test_py27
+      stage: test
+      os: linux
+      language: python
+      python: 2.7
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis_wait travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-long.sh
+        - travis/tests-unit.sh
+      before_cache:
+        - conda clean --tarballs --yes
+        - rm -rf tools/conda-cache/.pkgs/cache
+
+    #- name: test_py36
+    #  stage: test
+    #  os: linux
+    #  language: python
+    #  python: 3.6
+    #  before_install: travis/before_install.sh
+    #  install:
+    #    - source travis/install-conda.sh
+    #    - travis_wait travis/install-tools.sh
+    #    - source travis/activate-conda.sh
+    #  script:
+    #    - travis/tests-long.sh
+    #    - travis/tests-unit.sh
+    #  after_success:
+    #    - coveralls
+    #  before_cache:
+    #    - conda clean --tarballs --yes
+    #    - rm -rf tools/conda-cache/.pkgs/cache
+
+    - name: test_py36_in_docker
+      stage: test
+      os: linux
+      language: generic
+      install:
+        - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+        - docker pull $DOCKER_TAG
+      script:
+        - docker run --rm -it -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e PERFORM_TESTING=true --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/tests-long.sh; travis/tests-unit.sh"
+
+    - name: build_conda
+      stage: test
+      os: linux
+      language: python
+      python: 3.6
+      env:
+        - BUILD_PACKAGE=conda
+        # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+        - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+        # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
+        - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
+      install:
+        - source travis/install-conda.sh
+        - travis/install-conda-build.sh
+      script: travis_wait travis/build-conda.sh
+      before_cache:
+        - conda clean --tarballs --yes
+        - rm -rf tools/conda-cache/.pkgs/cache
+
+#        - name: test_osx
+#          stage: test
+#          os: osx
+#          language: generic
+#          env:
+#              - TRAVIS_OSX_PYTHON_VERSION=py36
+#              - TRAVIS_PYTHON_VERSION=3.6
+#          before_install:
+#              - travis/before_install.sh
+#              # Under OSX, some versions of ruby seem to cause this error.
+#              # See: https://github.com/travis-ci/travis-ci/issues/6307
+#              - rvm get head
+#          after_script:
+#              # correct post-build failure on OSX due to non-zero exit code
+#              - set +e
   
-after_script:
-  # correct post-build failure on OSX due to non-zero exit code
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then set +e; fi
