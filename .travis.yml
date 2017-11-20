@@ -15,8 +15,6 @@ env:
   #- DOCKER_REPO_DEV="broadinstitute/viral-ngs-dev"
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
-  # $BUNDLE_SECRET for decrypting tarball of third-party tools
-  - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
 
 cache:
   directories:
@@ -46,10 +44,9 @@ jobs:
       install: travis/upgrade-docker.sh
       script:
         - set -e
-        - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG="broadinstitute/viral-ngs"; fi
-        - travis_wait docker pull $OLD_DOCKER_TAG > /dev/null
+        - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG="broadinstitute/viral-ngs"; fi; echo "old docker tag = $OLD_DOCKER_TAG"
+        - docker pull $OLD_DOCKER_TAG
         - travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .
-        #- docker run --rm local/viral-ngs:build assembly.py --version
         - travis/deploy-docker.sh
       before_cache:
         - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
@@ -84,9 +81,12 @@ jobs:
       env:
         - TRAVIS_JOB=test_py27
         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+        # $BUNDLE_SECRET for decrypting tarball of third-party tools
+        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
+        - travis/install-gatk.sh
         - travis_wait travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
@@ -103,9 +103,12 @@ jobs:
     #  env:
     #    - TRAVIS_JOB=test_py36
     #    - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+    #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
+    #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
     #  before_install: travis/before_install.sh
     #  install:
     #    - source travis/install-conda.sh
+    #    - travis/install-gatk.sh
     #    - travis_wait travis/install-tools.sh
     #    - source travis/activate-conda.sh
     #  script:
@@ -123,11 +126,14 @@ jobs:
       env:
         - TRAVIS_JOB=test_py36_in_docker
         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+        # $BUNDLE_SECRET for decrypting tarball of third-party tools
+        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
+        - travis/install-gatk.sh
       script:
-        - docker run -e PYTEST_ADDOPTS --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit"
+        - docker run -e PYTEST_ADDOPTS -v $CACHE_DIR:/gatk --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit'
 
     - stage: test
       os: linux
@@ -135,9 +141,12 @@ jobs:
       jdk: oraclejdk8
       env:
         - TRAVIS_JOB=test_cromwell
+        # $BUNDLE_SECRET for decrypting tarball of third-party tools
+        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
+        - travis/install-gatk.sh
         - travis/install-wdl.sh
       script:
         - travis/version-wdl-runtimes.sh
@@ -151,11 +160,14 @@ jobs:
         - TRAVIS_JOB=build_conda_in_docker
         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
         - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+        # $BUNDLE_SECRET for decrypting tarball of third-party tools
+        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
+        - travis/install-gatk.sh
       script:
-        - travis_wait docker run -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/build-conda.sh"
+        - docker run -v $CACHE_DIR:/gatk -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/build-conda.sh'
 
     #- stage: test
     #  os: linux
