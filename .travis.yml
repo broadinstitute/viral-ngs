@@ -168,7 +168,7 @@ jobs:
         - docker pull $DOCKER_TAG
         - travis/install-gatk.sh
       script:
-        - docker run -v $GATK_PATH:/gatk -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; gatk-register /gatk/GenomeAnalysisTK.jar; travis/build-conda.sh'
+        - docker run -v $GATK_PATH:/gatk -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; gatk-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
 
     #- stage: test
     #  os: linux
