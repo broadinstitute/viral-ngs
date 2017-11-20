@@ -39,7 +39,6 @@ task assemble {
         --memLimitGb 14 \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
-      ln ${reads_unmapped_bam} ${sample_name}.subsamp.bam
 
     elif [[ "${assembler}" == "trinity-spades" ]]; then
       assembly.py assemble_trinity \
