@@ -10,6 +10,9 @@ import unittest
 import hashlib
 import logging
 
+# third-party
+import Bio.SeqIO
+
 # intra-project
 import util.file
 from util.misc import available_cpu_count
@@ -97,7 +100,11 @@ class TestCaseWithTmp(unittest.TestCase):
     def assertEqualContents(self, f1, f2):
         assert_equal_contents(self, f1, f2)
 
-
+    def assertEqualFasta(self, f1, f2):
+        def seqIdPairs(f):
+            return [(rec.id, rec.seq) for rec in Bio.SeqIO.parse(f, 'fasta')]
+        self.assertEqual(seqIdPairs(f1), seqIdPairs(f2))
+        
 """
 When "nose" executes python scripts for automated testing, it excludes ones with
 the executable bit set (in case they aren't import safe). To prevent any of the

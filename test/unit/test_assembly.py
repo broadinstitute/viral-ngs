@@ -271,6 +271,22 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
+    def test_lassa_multisegment_refsel(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        with util.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
+             as (outFasta, outReference, outStats):
+            expected = os.path.join(inDir, 'expected.lasv.fasta')
+            expectedStats = os.path.join(inDir, 'expected.refsel.lasv.stats.tsv')
+            refs = [os.path.join(inDir, 'ref.lasv.{}.fasta'.format(strain))
+                    for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19')]
+            assembly.order_and_orient(
+                os.path.join(inDir, 'contigs.lasv.fasta'),
+                refs, outFasta, outReference=outReference, outStats=outStats)
+            self.assertEqualContents(outFasta, expected)
+            self.assertEqualFasta(outReference, refs[0])
+            self.assertEqualContents(outStats, expectedStats)
+
     def test_influenza_multisegment(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')

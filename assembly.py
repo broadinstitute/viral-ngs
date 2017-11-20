@@ -19,6 +19,7 @@ import subprocess
 import functools
 import operator
 import concurrent.futures
+import csv
 
 try:
     from itertools import zip_longest    # pylint: disable=E0611
@@ -481,7 +482,8 @@ def order_and_orient(inFasta, inReference, outFasta,
         outAlternateContigs=None, outReference=None,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
-        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3, n_genome_segments=0, threads=0):
+        min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3, n_genome_segments=0, 
+        outStats=None, threads=0):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -520,11 +522,11 @@ def order_and_orient(inFasta, inReference, outFasta,
                                             min_contig_len=min_contig_len, min_pct_contig_aligned=min_pct_contig_aligned),
                                             refs_fasta, scaffolds_fasta, alt_contigs_fasta)
 
-         assert all(len(tuple(Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')))==n_genome_segments for ref_num in range(n_refs)), \
-             'Some computed scaffold does not have the number of segments that the reference genome has ({}))'.format(n_genome_segments)
+         refs = [tuple(Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')) for ref_num in range(n_refs)]
+         assert set(map(len, refs))==set([n_genome_segments]), \
+             'Some computed scaffold does not have the number of segments that the reference genome has ({}): {})'.format(n_genome_segments, map(len,refs))
          
-         base_counts = [sum([len(rec.seq.ungap('N')) for rec in Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')])
-                        for ref_num in range(n_refs)]
+         base_counts = [sum([len(rec.seq.ungap('N')) for rec in ref]) for ref in refs]
          best_ref_num = numpy.argmax(base_counts)
          log.info('base_counts={} best_ref_num={}'.format(base_counts, best_ref_num))
          shutil.copyfile(scaffolds_fasta[best_ref_num], outFasta)
@@ -532,6 +534,14 @@ def order_and_orient(inFasta, inReference, outFasta,
              shutil.copyfile(alt_contigs_fasta[best_ref_num], outAlternateContigs)
          if outReference:
              shutil.copyfile(refs_fasta[best_ref_num], outReference)
+         if outStats:
+             ref_ranks = numpy.argsort(-numpy.array(base_counts))
+             with open(outStats, 'w') as stats_f:
+                 stats_w = csv.DictWriter(stats_f, fieldnames='ref_num ref_name base_count rank'.split(), delimiter='\t')
+                 stats_w.writeheader()
+                 for ref_num, (ref, base_count, rank) in enumerate(zip(refs, base_counts, ref_ranks)):
+                     stats_w.writerow({'ref_num': ref_num, 'ref_name': ref[0].id, 'base_count': base_count, 'rank': rank})
+         
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
@@ -561,6 +571,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     parser.add_argument('--threads', type=int, default=0, help='Number of threads to use (0 for all cpus)')
 
     parser.add_argument('--outReference', help='Output the reference chosen for scaffolding to this file')
+    parser.add_argument('--outStats', help='Output stats used in reference selection')
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
     #                    choices=['nucmer', 'promer'],
