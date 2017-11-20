@@ -23,6 +23,8 @@ matrix:
             # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
             - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
         - os: linux
+          language: java
+          jdk: oraclejdk8
           env:
             - BUILD_PACKAGE=docker
             # DOCKER_USER
@@ -31,6 +33,9 @@ matrix:
             - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
             # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
             - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
+            # DX_API_TOKEN (for DNAnexus builds)
+            - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
+            - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
 #        - os: osx
 #          language: generic
 #          env:
@@ -72,20 +77,28 @@ install:
   - if [ -n "$PERFORM_TESTING" ]; then travis_wait travis/install-tools.sh; source travis/activate-conda.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis/install-conda-build.sh; fi
   - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/upgrade-docker.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/install-wdl.sh; fi
   - if [ -n "$BUILD_DOCS" ]; then travis/install-pip-docs.sh; fi
 
 script:
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-long.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis/tests-unit.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis_wait travis/build-conda.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker pull broadinstitute/viral-ngs:latest; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then docker run --rm local/viral-ngs:build assembly.py --help; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then
+      set -e;
+      travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null;
+      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .;
+      docker run --rm local/viral-ngs:build assembly.py --version;
+      travis/deploy-docker.sh;
+      travis/version-wdl-runtimes.sh;
+      travis/validate-wdl.sh;
+      travis/build-dx.sh;
+      travis/tests-cromwell.sh;
+    fi
   - if [ -n "$BUILD_DOCS" ]; then travis/build-docs.sh; fi
 
 after_success:
   - if [ -n "$PERFORM_TESTING" ]; then coveralls; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/deploy-docker.sh; fi
   
 after_script:
   # correct post-build failure on OSX due to non-zero exit code

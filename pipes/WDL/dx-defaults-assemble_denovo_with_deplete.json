@@ -1,0 +1,14 @@
+{
+  "assemble_denovo_with_deplete.deplete_taxa.bmtaggerDbs": [
+    "dx://file-BYF8y0Q06PJ7G1fPvkB9q3fK",
+    "dx://file-BYF6g8Q0zjF77x79bGYgJ1Zb",
+    "dx://file-BYF6j80068477x79bGYgJ1gX"
+  ],
+  "assemble_denovo_with_deplete.deplete_taxa.blastDbs": [
+    "dx://file-BzBpkK80x0z8GBQPfZ4kgPKp",
+    "dx://file-BYFv7bQ0QyBFXQBkX1Jqz88g"
+  ],
+
+  "assemble_denovo_with_deplete.assemble.trim_clip_db":
+    "dx://file-BXF0vYQ0QyBF509G9J12g927"
+}
