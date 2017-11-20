@@ -9,7 +9,7 @@ task plot_coverage {
   File assembly_fasta
   File reads_unmapped_bam
 
-  File gatk_tar_bz2
+  File gatk_jar
   File? novocraft_license
 
   String? aligner="novoalign" # novoalign or bwa
@@ -23,7 +23,7 @@ task plot_coverage {
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
 
-    read_utils.py extract_tarball ${gatk_tar_bz2} gatk
+    mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     cp ${assembly_fasta} assembly.fasta
 
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG

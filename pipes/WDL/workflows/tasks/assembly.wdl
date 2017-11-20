@@ -153,7 +153,7 @@ task refine {
   File    assembly_fasta
   File    reads_unmapped_bam
 
-  File    gatk_tar_bz2
+  File    gatk_jar
   File?   novocraft_license
 
   String? novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100"
@@ -161,11 +161,6 @@ task refine {
   Int?    min_coverage=1
 
   String  assembly_basename=basename(assembly_fasta, ".fasta")
-
-  # comment out until we figure out how to send named pipes across the host-container mount
-  #parameter_meta {
-  #  gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
-  #}
 
   command {
     set -ex -o pipefail
@@ -175,7 +170,7 @@ task refine {
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
 
-    read_utils.py extract_tarball ${gatk_tar_bz2} gatk --loglevel=DEBUG
+    mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     ln -s ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
 
