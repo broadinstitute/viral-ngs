@@ -30,11 +30,11 @@ jobs:
   fast_finish: true
   include:
 
-    - name: build_docker
-      stage: build
+    - stage: build
       os: linux
       language: generic
       env:
+        - TRAVIS_JOB=build_docker
         # DOCKER_USER
         - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
         # DOCKER_PASS
@@ -50,12 +50,12 @@ jobs:
         - travis/deploy-docker.sh
         #- travis/tests-cromwell.sh
 
-    - name: build_dxWDL
-      stage: build
+    - stage: build
       os: linux
       language: java
       jdk: oraclejdk8
       env:
+        - TRAVIS_JOB=build_dxWDL
         # DX_API_TOKEN (for DNAnexus builds)
         - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
         - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
@@ -65,19 +65,19 @@ jobs:
         - travis/validate-wdl.sh
         - travis/build-dx.sh
 
-    - name: build_docs
-      stage: build
+    - stage: build
       os: linux
+      language: python
       python: 3.5
-      env: BUILD_DOCS=true
-      script: travis/build-docs.sh
+      env: TRAVIS_JOB=build_docs
       install: travis/install-pip-docs.sh
+      script: travis/build-docs.sh
 
-    - name: test_py27
-      stage: test
+    - stage: test
       os: linux
       language: python
       python: 2.7
+      env: TRAVIS_JOB=test_py27
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -90,11 +90,11 @@ jobs:
         - conda clean --tarballs --yes
         - rm -rf tools/conda-cache/.pkgs/cache
 
-    #- name: test_py36
-    #  stage: test
+    #- stage: test
     #  os: linux
     #  language: python
     #  python: 3.6
+    #  env: TRAVIS_JOB=test_py36
     #  before_install: travis/before_install.sh
     #  install:
     #    - source travis/install-conda.sh
@@ -109,40 +109,50 @@ jobs:
     #    - conda clean --tarballs --yes
     #    - rm -rf tools/conda-cache/.pkgs/cache
 
-    - name: test_py36_in_docker
-      stage: test
+    - stage: test
       os: linux
       language: generic
+      env: TRAVIS_JOB=test_py36_in_docker
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
       script:
         - docker run --rm -it -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e PERFORM_TESTING=true --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/tests-long.sh; travis/tests-unit.sh"
 
-    - name: build_conda
-      stage: test
+    - stage: test
       os: linux
-      language: python
-      python: 3.6
+      language: generic
       env:
-        - BUILD_PACKAGE=conda
+        - TRAVIS_JOB=build_conda_in_docker
         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
         - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-        # $TRAVIS_ACCESS_TOKEN_FOR_OTHER_REPO (viral-ngs-deploy)
-        - secure: ChB0K3gPr5HknxYA41xCrpgChHDmLkqc79p1NABB/tbqOEnrPzDPqE+FU4/QlmeV96jMYn4uyLVauJpzVXyBIVoOa8guqoF5VdiKlAhaUwh9UQJ75i3SKQtGBrqaTXSDVI1vJARMiGabduCrcNJxVsxV9Bm+YzTq6tuhWyqR4fs=
       install:
-        - source travis/install-conda.sh
-        - travis/install-conda-build.sh
-      script: travis_wait travis/build-conda.sh
-      before_cache:
-        - conda clean --tarballs --yes
-        - rm -rf tools/conda-cache/.pkgs/cache
+        - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+        - docker pull $DOCKER_TAG
+      script:
+        - travis_wait docker run --rm -it -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/build-conda.sh"
 
-#        - name: test_osx
-#          stage: test
+    #- stage: test
+    #  os: linux
+    #  language: python
+    #  python: 3.6
+    #  env:
+    #    - TRAVIS_JOB=build_conda
+    #    # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+    #    - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+    #  install:
+    #    - source travis/install-conda.sh
+    #    - travis/install-conda-build.sh
+    #  script: travis_wait travis/build-conda.sh
+    #  before_cache:
+    #    - conda clean --tarballs --yes
+    #    - rm -rf tools/conda-cache/.pkgs/cache
+
+#        - stage: test
 #          os: osx
 #          language: generic
 #          env:
+#              - TRAVIS_JOB=test_osx
 #              - TRAVIS_OSX_PYTHON_VERSION=py36
 #              - TRAVIS_PYTHON_VERSION=3.6
 #          before_install:
