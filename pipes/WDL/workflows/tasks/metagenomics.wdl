@@ -7,10 +7,11 @@ task kraken {
   Array[File] reads_unmapped_bam
   File        kraken_db_tar_lz4
 
-  parameter_meta {
-    kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-    #reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  # comment out until we figure out how to send named pipes across the host-container mount
+  #parameter_meta {
+  #  kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+  #  reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
@@ -76,9 +77,10 @@ task krona {
 
   String input_basename = basename(classified_reads_txt_gz, ".txt.gz")
 
-  parameter_meta {
-    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  # comment out until we figure out how to send named pipes across the host-container mount
+  #parameter_meta {
+  #  krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
@@ -88,11 +90,9 @@ task krona {
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
     # decompress DB to /mnt/db
-    cat ${krona_taxonomy_db_tgz} |
-      read_utils.py extract_tarball \
-        - . \
-        --pipe_hint=${krona_taxonomy_db_tgz} \
-        --loglevel=DEBUG
+    read_utils.py extract_tarball \
+      ${krona_taxonomy_db_tgz} . \
+      --loglevel=DEBUG
 
     metagenomics.py krona \
       ${classified_reads_txt_gz} \

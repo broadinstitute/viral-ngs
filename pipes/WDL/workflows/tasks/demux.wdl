@@ -15,9 +15,10 @@ task illumina_demux {
   Int?    minimumQuality = 10
   String? runStartDate
 
-  parameter_meta {
-    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  # comment out until we figure out how to send named pipes across the host-container mount
+  #parameter_meta {
+  #  flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
@@ -31,11 +32,9 @@ task illumina_demux {
     fi
     FLOWCELL_DIR=$(mktemp -d)
 
-    cat ${flowcell_tgz} |
-      read_utils.py extract_tarball \
-        - $FLOWCELL_DIR \
-        --pipe_hint=${flowcell_tgz} \
-        --loglevel=DEBUG
+    read_utils.py extract_tarball \
+      ${flowcell_tgz} $FLOWCELL_DIR \
+      --loglevel=DEBUG
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.

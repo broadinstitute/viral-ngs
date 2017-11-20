@@ -267,7 +267,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
-                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
                     # this is an unindexed fasta file, we will need to index it
                     bmtagger_build_db(db, tempDir, 'bmtagger_db')
                     db_dir = tempDir
@@ -479,7 +479,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
-                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
                     # this is an unindexed fasta file, we will need to index it
                     blastn_build_db(db, tempDbDir, 'blastn_db')
                     db_dir = tempDbDir

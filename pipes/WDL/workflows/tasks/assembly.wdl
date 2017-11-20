@@ -162,9 +162,10 @@ task refine {
 
   String  assembly_basename=basename(assembly_fasta, ".fasta")
 
-  parameter_meta {
-    gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  # comment out until we figure out how to send named pipes across the host-container mount
+  #parameter_meta {
+  #  gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
