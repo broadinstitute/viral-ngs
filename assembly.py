@@ -349,6 +349,7 @@ def assemble_spades(
     filter_contigs=False,
     kmer_sizes=(55,65),
     n_reads=10000000,
+    outReads=None,
     mask_errors=False,
     max_kmer_sizes=1,
     mem_limit_gb=8,
@@ -357,21 +358,30 @@ def assemble_spades(
     '''De novo RNA-seq assembly with the SPAdes assembler.
     '''
 
-    with util.file.tempfname(suffix='.bam', prefix='trim_rmdup_for_spades') as trim_rmdup_bam:
-        trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
-                                 trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
+    if outReads:
+        trim_rmdup_bam = outReads
+    else:
+        trim_rmdup_bam = util.file.mkstempfname('.subsamp.bam')
 
-        with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True,
-                                                       JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
-            try:
-                tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
-                                                   contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
-                                                   contigs_out=out_fasta, filter_contigs=filter_contigs,
-                                                   kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
-                                                   spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
-                                                   threads=threads)
-            except subprocess.CalledProcessError as e:
-                raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
+    trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
+                             trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
+
+    with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True,
+                                                   JVMmemory=str(mem_limit_gb)+'g') as (reads_fwd, reads_bwd, reads_unpaired):
+        try:
+            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+                                               contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
+                                               contigs_out=out_fasta, filter_contigs=filter_contigs,
+                                               kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
+                                               spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
+                                               threads=threads)
+        except subprocess.CalledProcessError as e:
+            raise DenovoAssemblyError('SPAdes assembler failed: ' + str(e))
+
+    if not outReads:
+        os.unlink(trim_rmdup_bam)
+
+
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format. May include both paired and unpaired reads.')
@@ -383,6 +393,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='Optional input contigs of high medium quality, previously assembled from the same sample')
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
+    parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
