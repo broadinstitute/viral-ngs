@@ -123,7 +123,7 @@ jobs:
 
     - stage: test
       os: linux
-      language: generic
+      language: python
       env:
         - TRAVIS_JOB=test_py36_in_docker
         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
@@ -133,6 +133,7 @@ jobs:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
         - travis/install-gatk.sh
+        - pip install coveralls=1.1
         - mkdir coverage
       script:
         - docker run -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; gatk-register /gatk/GenomeAnalysisTK.jar; pytest test/integration test/unit; cp .coverage /coverage'
@@ -172,7 +173,7 @@ jobs:
         - docker pull $DOCKER_TAG
         - travis/install-gatk.sh
       script:
-        - docker run -v $GATK_PATH:/gatk -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; gatk-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
+        - docker run -v $GATK_PATH:/gatk -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e TRAVIS_COMMIT -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; gatk-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
 
     #- stage: test
     #  os: linux
