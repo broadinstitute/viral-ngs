@@ -15,6 +15,11 @@ task assemble {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v assembly.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
+
     if [[ "${assembler}" == "trinity" ]]; then
       assembly.py assemble_trinity \
         ${reads_unmapped_bam} \
@@ -96,6 +101,11 @@ task scaffold {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v assembly.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
+
     assembly.py order_and_orient \
       ${contigs_fasta} \
       ${reference_genome_fasta} \
@@ -158,6 +168,11 @@ task refine {
 
   command {
     set -ex -o pipefail
+
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v assembly.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
 
     read_utils.py extract_tarball ${gatk_tar_bz2} gatk --loglevel=DEBUG
     cp ${assembly_fasta} assembly.fasta

@@ -13,6 +13,10 @@ task deplete_taxa {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v taxon_filter.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
@@ -25,7 +29,7 @@ task deplete_taxa {
       ${bam_basename}.cleaned.bam \
       --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
       --blastDbs ${sep=' ' blastDbs} \
-      --chunkSize="${query_chunk_size}" \
+      --chunkSize ${query_chunk_size} \
       --JVMmemory=14g \
       --loglevel=DEBUG
 
@@ -62,6 +66,11 @@ task filter_to_taxon {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v taxon_filter.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
+
     taxon_filter.py filter_lastal_bam \
       ${reads_unmapped_bam} \
       ${lastal_db_fasta} \
@@ -91,6 +100,11 @@ task merge_one_per_sample {
 
   command {
     set -ex -o pipefail
+
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v read_utils.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
 
     read_utils.py merge_bams \
       "${sep=' ' inputBams}" \

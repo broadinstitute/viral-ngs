@@ -15,6 +15,10 @@ task kraken {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v metagenomics.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
@@ -79,6 +83,10 @@ task krona {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v metagenomics.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
     # decompress DB to /mnt/db
     cat ${krona_taxonomy_db_tgz} |
       read_utils.py extract_tarball \

@@ -18,6 +18,11 @@ task plot_coverage {
   command {
     set -ex -o pipefail
 
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v read_utils.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
+
     read_utils.py extract_tarball ${gatk_tar_bz2} gatk
     cp ${assembly_fasta} assembly.fasta
 
@@ -85,8 +90,12 @@ task fastqc {
 
   command {
     set -ex -o pipefail
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v reports.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
     ln -s ${reads_bam} ${reads_basename}.bam
-    fastqc -t `nproc` ${reads_bam}
+    fastqc -t `nproc` ${reads_basename}.bam
   }
 
   output {
@@ -111,6 +120,10 @@ task spikein_report {
 
   command {
     set -ex -o pipefail
+    # for those backends that prefer to override our Docker ENTRYPOINT
+    if [ -z "$(command -v read_utils.py)" ]; then
+      source /opt/viral-ngs/source/docker/container_environment.sh
+    fi
     ln -s ${reads_bam} ${reads_basename}.bam
     read_utils.py bwamem_idxstats \
       ${reads_basename}.bam \
