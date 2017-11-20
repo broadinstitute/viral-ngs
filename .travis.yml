@@ -129,7 +129,7 @@ jobs:
       script:
         - docker run -e PYTEST_ADDOPTS --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit"
 
-    - stage: build
+    - stage: test
       os: linux
       language: java
       jdk: oraclejdk8
