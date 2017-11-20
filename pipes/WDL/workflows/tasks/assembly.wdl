@@ -175,7 +175,7 @@ task refine {
     fi
 
     read_utils.py extract_tarball ${gatk_tar_bz2} gatk --loglevel=DEBUG
-    cp ${assembly_fasta} assembly.fasta
+    ln -s ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
 
     assembly.py refine_assembly \
