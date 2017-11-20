@@ -133,7 +133,7 @@ jobs:
         - docker pull $DOCKER_TAG
         - travis/install-gatk.sh
       script:
-        - docker run -e PYTEST_ADDOPTS -v $CACHE_DIR:/gatk --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit'
+        - docker run -e PYTEST_ADDOPTS -v $CACHE_DIR:/gatk --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit; coveralls'
 
     - stage: test
       os: linux
