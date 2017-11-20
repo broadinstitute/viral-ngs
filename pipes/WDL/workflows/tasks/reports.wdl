@@ -60,7 +60,7 @@ task plot_coverage {
     grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     expr $(cat bases_aligned) / $(cat assembly_length) | tee mean_coverage
-    reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html --loglevel=DEBUG
+    reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
   }
 
   output {
@@ -96,7 +96,7 @@ task fastqc {
     if [ -z "$(command -v reports.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
-    reports.py fastqc ${reads_bam} ${reads_basename}_fastqc.html --loglevel=DEBUG
+    reports.py fastqc ${reads_bam} ${reads_basename}_fastqc.html
   }
 
   output {

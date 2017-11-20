@@ -62,7 +62,7 @@ task illumina_demux {
     rm -f Unmatched.bam
     for bam in *.bam; do
       fastqc_out=$(basename $bam .bam)_fastqc.html
-      reports.py fastqc $bam $fastqc_out --loglevel=DEBUG
+      reports.py fastqc $bam $fastqc_out
     done
   }
 
