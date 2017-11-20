@@ -11,6 +11,8 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
   - PYTHONIOENCODING=UTF8
+  #- DOCKER_REPO_PROD="broadinstitute/viral-ngs"
+  #- DOCKER_REPO_DEV="broadinstitute/viral-ngs-dev"
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
   # $BUNDLE_SECRET for decrypting tarball of third-party tools
@@ -44,11 +46,13 @@ jobs:
       install: travis/upgrade-docker.sh
       script:
         - set -e
-        - travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null
-        - travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .
-        - docker run --rm local/viral-ngs:build assembly.py --version
+        - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG="broadinstitute/viral-ngs"; fi
+        - travis_wait docker pull $OLD_DOCKER_TAG > /dev/null
+        - travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .
+        #- docker run --rm local/viral-ngs:build assembly.py --version
         - travis/deploy-docker.sh
-        #- travis/tests-cromwell.sh
+      before_cache:
+        - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
 
     - stage: build
       os: linux
@@ -77,7 +81,9 @@ jobs:
       os: linux
       language: python
       python: 2.7
-      env: TRAVIS_JOB=test_py27
+      env:
+        - TRAVIS_JOB=test_py27
+        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -94,7 +100,9 @@ jobs:
     #  os: linux
     #  language: python
     #  python: 3.6
-    #  env: TRAVIS_JOB=test_py36
+    #  env:
+    #    - TRAVIS_JOB=test_py36
+    #    - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
     #  before_install: travis/before_install.sh
     #  install:
     #    - source travis/install-conda.sh
@@ -112,12 +120,29 @@ jobs:
     - stage: test
       os: linux
       language: generic
-      env: TRAVIS_JOB=test_py36_in_docker
+      env:
+        - TRAVIS_JOB=test_py36_in_docker
+        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
       script:
-        - docker run --rm -it -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e PERFORM_TESTING=true --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/tests-long.sh; travis/tests-unit.sh"
+        - docker run -e PYTEST_ADDOPTS --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; pytest test/integration test/unit"
+
+    - stage: build
+      os: linux
+      language: java
+      jdk: oraclejdk8
+      env:
+        - TRAVIS_JOB=test_cromwell
+      install:
+        - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+        - docker pull $DOCKER_TAG
+        - travis/install-wdl.sh
+      script:
+        - travis/version-wdl-runtimes.sh
+        - travis/validate-wdl.sh
+        - travis/tests-cromwell.sh
 
     - stage: test
       os: linux
@@ -130,7 +155,7 @@ jobs:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
       script:
-        - travis_wait docker run --rm -it -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/build-conda.sh"
+        - travis_wait docker run -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c "set -e; cd /opt/viral-ngs/source; source docker/container_environment.sh; travis/build-conda.sh"
 
     #- stage: test
     #  os: linux
