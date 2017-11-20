@@ -9,10 +9,6 @@ workflow demux_plus {
   call demux.illumina_demux as illumina_demux
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
-    call reports.fastqc as fastqc {
-      input:
-        reads_bam = raw_reads
-    }
     call reports.spikein_report as spikein {
       input:
         reads_bam = raw_reads

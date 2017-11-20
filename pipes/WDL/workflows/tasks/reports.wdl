@@ -60,19 +60,21 @@ task plot_coverage {
     grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     expr $(cat bases_aligned) / $(cat assembly_length) | tee mean_coverage
+    reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html --loglevel=DEBUG
   }
 
   output {
-    File reads_bam = "${sample_name}.bam"
-    File reads_bam_flagstat = "${sample_name}.bam.flagstat.txt"
-    File mapped_reads_bam = "${sample_name}.mapped.bam"
-    File coverage_plot = "${sample_name}.coverage_plot.pdf"
-    Int assembly_length = read_int("assembly_length")
+    File reads_bam                  = "${sample_name}.bam"
+    File reads_bam_flagstat         = "${sample_name}.bam.flagstat.txt"
+    File mapped_reads_bam           = "${sample_name}.mapped.bam"
+    File mapped_reads_fastqc        = "${sample_name}.mapped_fastqc.html"
+    File coverage_plot              = "${sample_name}.coverage_plot.pdf"
+    Int assembly_length             = read_int("assembly_length")
     Int assembly_length_unambiguous = read_int("assembly_length_unambiguous")
-    Int reads_aligned = read_int("reads_aligned")
-    Int read_pairs_aligned = read_int("read_pairs_aligned")
-    Int bases_aligned = read_int("bases_aligned")
-    Int mean_coverage = read_int("mean_coverage")
+    Int reads_aligned               = read_int("reads_aligned")
+    Int read_pairs_aligned          = read_int("read_pairs_aligned")
+    Int bases_aligned               = read_int("bases_aligned")
+    Int mean_coverage               = read_int("mean_coverage")
   }
 
   runtime {
@@ -94,13 +96,11 @@ task fastqc {
     if [ -z "$(command -v reports.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
-    ln -s ${reads_bam} ${reads_basename}.bam
-    fastqc -t `nproc` ${reads_basename}.bam
+    reports.py fastqc ${reads_bam} ${reads_basename}_fastqc.html --loglevel=DEBUG
   }
 
   output {
     File fastqc_html = "${reads_basename}_fastqc.html"
-    File fastqc_zip  = "${reads_basename}_fastqc.zip"
   }
 
   runtime {
