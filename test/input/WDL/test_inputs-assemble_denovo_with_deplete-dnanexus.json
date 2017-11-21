@@ -11,6 +11,6 @@
 	"file-BYFv7bQ0QyBFXQBkX1Jqz88g"
   ],
 
-  "assemble_denovo_with_deplete.gatk_jar": "project-F89kXY805X08BpXq7xjxbX9F:file-F89Vx8Q09y3VFxf1KKXbbVv4",
-  "assemble_denovo_with_deplete.novocraft_license": "project-F89kXY805X08BpXq7xjxbX9F:file-F1zkVGQ0jy1P68J88kyJ8zVF"
+  "assemble_denovo_with_deplete.gatk_jar": "file-F89Vx8Q09y3VFxf1KKXbbVv4",
+  "assemble_denovo_with_deplete.novocraft_license": "file-F1zkVGQ0jy1P68J88kyJ8zVF"
 }
