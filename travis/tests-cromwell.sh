@@ -11,7 +11,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		echo "Executing $workflow_name using Cromwell on local instance"
 		java -jar cromwell-29.jar run \
 			workflows/$workflow_name.wdl \
-			-i $input_json | tee cromwell.out
+			-i $input_json > cromwell.out
 		error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
 		if [ -n "$error_logs" ]; then
 			echo "error running $workflow_name"
