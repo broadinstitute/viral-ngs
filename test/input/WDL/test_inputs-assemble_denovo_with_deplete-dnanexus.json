@@ -1,0 +1,16 @@
+{
+  "assemble_denovo_with_deplete.deplete_taxa.raw_reads_unmapped_bam": "file-Bg535280kYGqbXJGYG23Z7Bx",
+  "assemble_denovo_with_deplete.filter_to_taxon.lastal_db_fasta": "file-ByVBfxQ0z77PGBKpqQG2x8jZ",
+  "assemble_denovo_with_deplete.assemble.trim_clip_db": "file-BXF0vYQ0QyBF509G9J12g927",
+  "assemble_denovo_with_deplete.scaffold.reference_genome_fasta": "file-ByVBfxQ0z77042YFk4G9VG8X",
+
+  "assemble_denovo_with_deplete.deplete_taxa.bmtaggerDbs": [
+	"file-BYF6g8Q0zjF77x79bGYgJ1Zb"
+  ],
+  "assemble_denovo_with_deplete.deplete_taxa.blastDbs": [
+	"file-BYFv7bQ0QyBFXQBkX1Jqz88g"
+  ],
+
+  "assemble_denovo_with_deplete.gatk_jar": "project-F89kXY805X08BpXq7xjxbX9F:file-F89Vx8Q09y3VFxf1KKXbbVv4",
+  "assemble_denovo_with_deplete.novocraft_license": "project-F89kXY805X08BpXq7xjxbX9F:file-F1zkVGQ0jy1P68J88kyJ8zVF"
+}

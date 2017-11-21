@@ -5,10 +5,11 @@ ln -s pipes/WDL/workflows pipes/WDL/workflows/tasks .
 
 for workflow in pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
-	input_json="test/input/WDL/test_values-$workflow_name-local.json"
+	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
+		echo "testing $workflow_name"
 		java -jar cromwell-29.jar run workflows/$workflow_name.wdl -i $input_json
 
-		echo "note: there is no testing of output yet..."
     fi
 done
+echo "note: there is no testing of output yet..."
