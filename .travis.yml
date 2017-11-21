@@ -19,7 +19,7 @@ env:
 cache:
   directories:
     - $HOME/misc_cache
-    #- $HOME/miniconda
+    - $HOME/miniconda
   timeout: 480
 
 stages:
