@@ -112,13 +112,13 @@ class TestCaseWithTmp(unittest.TestCase):
             return [rec.seq for rec in Bio.SeqIO.parse(f, 'fasta')]
         self.assertEqual(seqs(f1), seqs(f2))
 
-    def test_file(self, fname):
+    def input(self, fname):
         '''Return the full filename for a file in the test input directory for this test class'''
         return os.path.join(util.file.get_test_input_path(self), fname)
 
-    def test_files(self, *fnames):
+    def inputs(self, *fnames):
         '''Return the full filenames for files in the test input directory for this test class'''
-        return [self.test_file(fname) for fname in fnames]
+        return [self.input(fname) for fname in fnames]
         
 """
 When "nose" executes python scripts for automated testing, it excludes ones with
