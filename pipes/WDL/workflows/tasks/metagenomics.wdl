@@ -7,14 +7,13 @@ task kraken {
   Array[File] reads_unmapped_bam
   File        kraken_db_tar_lz4
 
-  # comment out until we figure out how to send named pipes across the host-container mount
   parameter_meta {
     kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-  #  reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v metagenomics.py)" ]; then
@@ -45,16 +44,6 @@ task kraken {
       --outReads `cat $OUT_READS` \
       --outReport `cat $OUT_REPORTS` \
       --loglevel=DEBUG
-
-    ## execute on each bam sequentially
-    #for bam in ${sep=' ' reads_unmapped_bam}; do
-    #  metagenomics.py kraken \
-    #    $DB_DIR \
-    #    $bam \
-    #    --outReads kraken-reads-$(basename $bam .bam).txt.gz \
-    #    --outReport kraken-report-$(basename $bam .bam).txt \
-    #    --loglevel=DEBUG
-    #done
   }
 
   output {
@@ -77,13 +66,12 @@ task krona {
 
   String input_basename = basename(classified_reads_txt_gz, ".txt.gz")
 
-  # comment out until we figure out how to send named pipes across the host-container mount
-  #parameter_meta {
-  #  krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  #}
+  parameter_meta {
+    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  }
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v metagenomics.py)" ]; then

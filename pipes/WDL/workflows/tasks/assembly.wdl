@@ -13,12 +13,16 @@ task assemble {
   String  sample_name = basename(reads_unmapped_bam, ".bam")
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v assembly.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
+    set -x
+
+    # find 90% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
 
     if [[ "${assembler}" == "trinity" ]]; then
       assembly.py assemble_trinity \
@@ -26,7 +30,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-trinity.fasta \
         ${'--n_reads=' + trinity_n_reads} \
-        --JVMmemory 14g \
+        --JVMmemory "$mem_in_mb"m \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
 
@@ -36,7 +40,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-spades.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb 14 \
+        --memLimitGb "$mem_in_mb"m \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
 
@@ -46,7 +50,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-trinity.fasta \
         ${'--n_reads=' + trinity_n_reads} \
-        --JVMmemory 14g \
+        --JVMmemory "$mem_in_mb"m \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
       assembly.py assemble_spades \
@@ -55,7 +59,7 @@ task assemble {
         ${sample_name}.assembly1-spades.fasta \
         --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb 14 \
+        --memLimitGb "$mem_in_mb"m \
         --loglevel=DEBUG
 
     else
@@ -76,6 +80,7 @@ task assemble {
     docker: "broadinstitute/viral-ngs"
     memory: "15 GB"
     cpu: 4
+    dx_instance_type: "mem2_ssd1_x4"
   }
 
 }
@@ -98,12 +103,13 @@ task scaffold {
   String  sample_name = basename(contigs_fasta, ".fasta")
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v assembly.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
+    set -x
 
     assembly.py order_and_orient \
       ${contigs_fasta} \
@@ -145,6 +151,7 @@ task scaffold {
     docker: "broadinstitute/viral-ngs"
     memory: "12 GB"
     cpu: 2
+    dx_instance_type: "mem2_ssd1_x4"
   }
 }
 
@@ -162,13 +169,17 @@ task refine {
   String  assembly_basename=basename(assembly_fasta, ".fasta")
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v assembly.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
 
+    # find 90% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+
+    # TO DO: make this input accept either a .jar or a .tar.bz
     mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     ln -s ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
@@ -182,7 +193,7 @@ task refine {
       --major_cutoff ${major_cutoff} \
       --GATK_PATH gatk/ \
       --novo_params="${novoalign_options}" \
-      --JVMmemory 7g \
+      --JVMmemory "$mem_in_mb"m \
       --loglevel=DEBUG
   }
 
@@ -195,5 +206,6 @@ task refine {
     docker: "broadinstitute/viral-ngs"
     memory: "7 GB"
     cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }

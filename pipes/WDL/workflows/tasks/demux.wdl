@@ -15,13 +15,12 @@ task illumina_demux {
   Int?    minimumQuality = 10
   String? runStartDate
 
-  # comment out until we figure out how to send named pipes across the host-container mount
-  #parameter_meta {
-  #  flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  #}
+  parameter_meta {
+    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  }
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v illumina.py)" ]; then
@@ -35,6 +34,9 @@ task illumina_demux {
     read_utils.py extract_tarball \
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
+
+    # find 95% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.95/1024)}'`
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
@@ -54,7 +56,7 @@ task illumina_demux {
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
-      --JVMmemory=14g \
+      --JVMmemory="$mem_in_mb"m \
       --threads=64 \
       --compression_level=5 \
       --loglevel=DEBUG

@@ -19,8 +19,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 				echo "contents of stderr ($log):"
 				cat $log | sed "s/^/[STDERR] /"
 			done
-			#exit 1
-			echo "TO DO: this deserves a failure, but for now, we hide it"
+			exit 1
+			#echo "TO DO: this deserves a failure, but for now, we hide it"
 		fi
     fi
 done

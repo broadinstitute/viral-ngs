@@ -11,7 +11,7 @@ task deplete_taxa {
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v taxon_filter.py)" ]; then
@@ -20,6 +20,10 @@ task deplete_taxa {
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
+    set -x
+
+    # find 90% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
 
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
@@ -30,7 +34,8 @@ task deplete_taxa {
       --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
       --blastDbs ${sep=' ' blastDbs} \
       --chunkSize ${query_chunk_size} \
-      --JVMmemory=14g \
+      --JVMmemory="$mem_in_mb"m \
+      --srprismMemory=$mem_in_mb \
       --loglevel=DEBUG
 
     samtools view -c ${raw_reads_unmapped_bam} | tee depletion_read_count_pre
@@ -66,18 +71,22 @@ task filter_to_taxon {
   String bam_basename = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v taxon_filter.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
+    set -x
+
+    # find 90% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
 
     taxon_filter.py filter_lastal_bam \
       ${reads_unmapped_bam} \
       ${lastal_db_fasta} \
       ${bam_basename}.taxfilt.bam \
-      --JVMmemory=14g \
+      --JVMmemory="$mem_in_mb"m \
       --loglevel=DEBUG
 
     samtools view -c ${bam_basename}.taxfilt.bam | tee filter_read_count_post
@@ -103,18 +112,21 @@ task merge_one_per_sample {
   Boolean?     rmdup=false
 
   command {
-    set -ex -o pipefail
+    set -e -o pipefail
 
     # for those backends that prefer to override our Docker ENTRYPOINT
     if [ -z "$(command -v read_utils.py)" ]; then
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
 
+    # find 90% memory
+    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+
     read_utils.py merge_bams \
       "${sep=' ' inputBams}" \
       "${out_bam_basename}.bam" \
       --picardOptions SORT_ORDER=queryname \
-      --JVMmemory 7g \
+      --JVMmemory "$mem_in_mb"m \
       --loglevel=DEBUG
 
     if [[ "${rmdup}" == "true" ]]; then
@@ -122,7 +134,7 @@ task merge_one_per_sample {
       read_utils.py rmdup_mvicuna_bam \
         tmp.bam \
         ${out_bam_basename}.bam \
-        --JVMmemory 7g \
+        --JVMmemory "$mem_in_mb"m \
         --loglevel=DEBUG
     fi
   }
