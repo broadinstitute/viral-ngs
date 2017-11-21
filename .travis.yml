@@ -115,8 +115,8 @@ jobs:
 #        - travis/tests-long.sh
 #        - travis/tests-unit.sh
         - pytest test/integration test/unit
-      after_success:
-        - coveralls
+      #after_success:
+      #  - coveralls
       before_cache:
         - conda clean --tarballs --yes
         - rm -rf tools/conda-cache/.pkgs/cache
