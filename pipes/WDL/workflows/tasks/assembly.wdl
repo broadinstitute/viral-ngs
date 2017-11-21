@@ -22,7 +22,7 @@ task assemble {
     set -x
 
     # find 90% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     if [[ "${assembler}" == "trinity" ]]; then
       assembly.py assemble_trinity \
@@ -177,7 +177,7 @@ task refine {
     fi
 
     # find 90% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     # TO DO: make this input accept either a .jar or a .tar.bz
     mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar

@@ -36,7 +36,7 @@ task illumina_demux {
       --loglevel=DEBUG
 
     # find 95% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.95/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_95.sh`
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.

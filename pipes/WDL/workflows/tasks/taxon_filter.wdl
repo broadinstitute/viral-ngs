@@ -23,7 +23,7 @@ task deplete_taxa {
     set -x
 
     # find 90% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
@@ -80,7 +80,7 @@ task filter_to_taxon {
     set -x
 
     # find 90% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     taxon_filter.py filter_lastal_bam \
       ${reads_unmapped_bam} \
@@ -120,7 +120,7 @@ task merge_one_per_sample {
     fi
 
     # find 90% memory
-    mem_in_mb=`head -n1 /proc/meminfo | awk '{print int($2*0.9/1024)}'`
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     read_utils.py merge_bams \
       "${sep=' ' inputBams}" \
