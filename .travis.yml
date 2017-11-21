@@ -88,7 +88,6 @@ script:
       set -e;
       travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null;
       travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest . > /dev/null;
-      #docker run --rm local/viral-ngs:build assembly.py --version;
       travis/deploy-docker.sh > /dev/null;
       travis/version-wdl-runtimes.sh;
       travis/validate-wdl.sh > /dev/null;
