@@ -25,8 +25,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 	  echo "Building $workflow to DNAnexus"
 
     test_input_json_wdl="test/input/WDL/test_values-$workflow_name-dnanexus.json"
-    if [ -f "$input_json_wdl" ]; then
-      CMD_INPUT="-inputs $test_input_json"
+    if [ -f "$test_input_json_wdl" ]; then
+      CMD_INPUT="-inputs $test_input_json_wdl"
     else
       CMD_INPUT=""
     fi
@@ -40,8 +40,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
       CMD_DEFAULTS=""
     fi
 
-	  dx_id=$(java -jar dxWDL-0.51.jar compile
-      $workflow $CMD_INPUT $CMD_DEFAULTS -f
+	  dx_id=$(java -jar dxWDL-0.51.jar compile \
+      $workflow $CMD_INPUT $CMD_DEFAULTS -f \
       -destination /build/$VERSION/$workflow_name)
 	  echo "Succeeded: $workflow_name = $dx_id"
     echo -e "$workflow_name\t$dx_id" >> $COMPILE_SUCCESS
@@ -61,10 +61,10 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
        dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
-       dx_job_id=$(dx run
-           $dx_workflow_id
-           -f $input_json
-           --name "$VERSION-$workflow_name"
+       dx_job_id=$(dx run \
+           $dx_workflow_id \
+           -f $input_json \
+           --name "$VERSION-$workflow_name" \
            --destination /tests/$VERSION/$workflow_name)
        echo "Launched $workflow_name as $dx_job_id"
        echo -e "$workflow_name\t$dx_workflow_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
