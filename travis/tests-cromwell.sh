@@ -17,8 +17,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		if [ -n "$error_logs" ]; then
 			echo "error running $workflow_name"
 			for log in $error_logs; do
-				echo "contents of stderr ($log):"
-				cat $log | sed "s/^/[STDERR] /"
+				echo "contents of stderr ($log):" >&2
+				cat $log | sed "s/^/[STDERR] /" >&2
 			done
 			exit 1
 		fi
