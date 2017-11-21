@@ -87,12 +87,12 @@ script:
   - if [[ "$BUILD_PACKAGE" == "docker" ]]; then
       set -e;
       travis_wait docker pull broadinstitute/viral-ngs:latest > /dev/null;
-      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .;
-      docker run --rm local/viral-ngs:build assembly.py --version;
-      travis/deploy-docker.sh;
+      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest . > /dev/null;
+      #docker run --rm local/viral-ngs:build assembly.py --version;
+      travis/deploy-docker.sh > /dev/null;
       travis/version-wdl-runtimes.sh;
-      travis/validate-wdl.sh;
-      travis/build-dx.sh;
+      travis/validate-wdl.sh > /dev/null;
+      travis/build-dx.sh > /dev/null;
       travis/tests-cromwell.sh;
     fi
   - if [ -n "$BUILD_DOCS" ]; then travis/build-docs.sh; fi
