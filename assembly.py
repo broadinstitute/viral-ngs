@@ -535,7 +535,7 @@ def order_and_orient(inFasta, inReference, outFasta,
          if outReference:
              shutil.copyfile(refs_fasta[best_ref_num], outReference)
          if outStats:
-             ref_ranks = numpy.argsort(-numpy.array(base_counts))
+             ref_ranks = (-numpy.array(base_counts)).argsort().argsort()
              with open(outStats, 'w') as stats_f:
                  stats_w = csv.DictWriter(stats_f, fieldnames='ref_num ref_name base_count rank'.split(), delimiter='\t')
                  stats_w.writeheader()

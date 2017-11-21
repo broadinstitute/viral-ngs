@@ -311,6 +311,18 @@ class TestOrderAndOrient(TestCaseWithTmp):
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
+    def test_ebov_palindrome_refsel(self):
+        # this tests a scenario where show-aligns has more alignments than show-tiling
+        with util.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
+            expected, expectedStats = self.test_files('expected.ebov.doublehit.fasta',
+                                                      'expected.refsel.ebov.stats.tsv')
+            assembly.order_and_orient(
+                self.test_file('contigs.ebov.doublehit.fasta'),
+                self.test_file('refs.ebov.fasta'),
+                outFasta, n_genome_segments=1, outStats=outStats)
+            self.assertEqualFastaSeqs(outFasta, expected)
+            self.assertEqualContents(outStats, expectedStats)
+
     def test_hiv_wraparound(self):
         # this tests a misassembly from Trinity and checks that we still use some of the contig
         inDir = util.file.get_test_input_path(self)
