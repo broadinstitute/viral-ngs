@@ -12,12 +12,14 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		java -jar cromwell-29.jar run \
 			workflows/$workflow_name.wdl \
 			-i $input_json | tee cromwell.out
-		$rc=$?
+		rc=$?
 		if [ $rc -gt 0 ]; then
 			echo "error running $workflow_name"
-			error_logs=$(grep stderr cromwell.out  | perl -lape 's/.*\s(\S+)$/$1/g')
-			echo "contents of stderr ($error_logs):"
-			cat $error_logs
+			error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
+			for log in $error_logs; do
+				echo "contents of stderr ($log):"
+				cat $log | sed "s/^/[STDERR] /"
+			done
 			#exit $rc
 			echo "TO DO: this deserves a failure, but for now, we hide it"
 		fi
