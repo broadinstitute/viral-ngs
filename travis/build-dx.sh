@@ -24,7 +24,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     workflow_name=`basename $workflow .wdl`
 	  echo "Building $workflow to DNAnexus"
 
-    test_input_json_wdl="test/input/WDL/test_values-$workflow_name-dnanexus.json"
+    test_input_json_wdl="test/input/WDL/test_inputs-$workflow_name-dnanexus.json"
     if [ -f "$test_input_json_wdl" ]; then
       CMD_INPUT="-inputs $test_input_json_wdl"
     else
