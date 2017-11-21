@@ -50,7 +50,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
   fi
 done
 # the presence of this file in the project denotes successful build
-dx upload --no-progress --destination /build/$VERSION/ $COMPILE_SUCCESS
+dx upload --brief --no-progress --destination /build/$VERSION/ $COMPILE_SUCCESS
 
 
 TEST_LAUNCH_ALL="dxWDL-execute_all-launched.txt"
@@ -74,4 +74,4 @@ for workflow in pipes/WDL/workflows/*.wdl; do
   fi
 done
 # the presence of this file in the project denotes all tests launched
-dx upload --no-progress --destination /build/$VERSION/ $TEST_LAUNCH_ALL
+dx upload --brief --no-progress --destination /build/$VERSION/ $TEST_LAUNCH_ALL
