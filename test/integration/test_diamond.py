@@ -3,9 +3,11 @@
 from builtins import super
 import argparse
 import fnmatch
+import gzip
 import os
 from os.path import join
 import sys
+import shutil
 import tempfile
 import pytest
 from Bio import SeqIO
@@ -93,8 +95,18 @@ def input_fastqs(request, tmpdir_module, sam_to_fastq, db_type):
 
 
 @pytest.fixture(scope='module')
-def taxonomy_db(request, db_type):
-    return join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy')
+def taxonomy_db(request, tmpdir_module, db_type):
+    taxonomy = os.path.join(tmpdir_module, db_type, 'taxonomy')
+    shutil.copytree(join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy'),
+                    taxonomy)
+    prot = os.path.join(taxonomy, 'accession2taxid', 'prot.accession2taxid')
+    prot_gz = prot + '.gz'
+
+    with open(prot, 'rb') as f_in:
+        with gzip.open(prot_gz, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    return taxonomy
 
 
 @pytest.fixture(scope='module')
@@ -103,15 +115,11 @@ def diamond_db(request, tmpdir_module, diamond, db_type):
     db_dir = join(data_dir, 'db')
 
     db = os.path.join(tmpdir_module, db_type + '.dmnd')
-    translated = os.path.join(tmpdir_module, db_type + '.fa')
+    translated = os.path.join(tmpdir_module, db_type + '.faa')
 
     lib_dir = join(db_dir, 'library')
-    with open(translated, "w") as f_out:
-        for fname in find_files(db_dir, '*.ffn'):
-            with open(fname) as f:
-                for seq_record in SeqIO.parse(f, 'fasta'):
-                    seq_record.seq = seq_record.seq.translate()
-                    SeqIO.write(seq_record, f_out, 'fasta')
+    util.file.cat(translated, find_files(db_dir, '*.faa'))
+
     diamond.build(db, [translated])
     return os.path.splitext(db)[0]
 
