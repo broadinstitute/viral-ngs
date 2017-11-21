@@ -7,11 +7,11 @@ task kraken {
   Array[File] reads_unmapped_bam
   File        kraken_db_tar_lz4
 
-  # comment out until we figure out how to send named pipes across the host-container mount
-  parameter_meta {
-    kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-  #  reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  ## comment out until we figure out how to send named pipes across the host-container mount
+  #parameter_meta {
+  #  kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+  ##  reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
