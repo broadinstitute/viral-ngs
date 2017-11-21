@@ -9,9 +9,10 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 	if [ -f $input_json ]; then
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
+		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell-29.jar run \
 			workflows/$workflow_name.wdl \
-			-i $input_json > cromwell.out
+			-i $input_json | cat > cromwell.out
 		error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
 		if [ -n "$error_logs" ]; then
 			echo "error running $workflow_name"
@@ -20,7 +21,6 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 				cat $log | sed "s/^/[STDERR] /"
 			done
 			exit 1
-			#echo "TO DO: this deserves a failure, but for now, we hide it"
 		fi
     fi
 done
