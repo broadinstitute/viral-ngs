@@ -14,6 +14,7 @@ import math
 import os
 import tempfile
 import shutil
+import sys
 
 from Bio import SeqIO
 
@@ -450,6 +451,32 @@ def parser_fastq_to_bam(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('fastq_to_bam', parser_fastq_to_bam))
+
+
+def join_paired_fastq(
+        inFastqs,
+        output,
+        outFormat
+):
+    ''' Join paired fastq reads into single reads with Ns
+    '''
+    inFastqs = list(inFastqs)
+    if output == '-':
+        output = sys.stdout
+    SeqIO.write(util.file.join_paired_fastq(inFastqs, output_format=outFormat), output, outFormat)
+    return 0
+
+
+def parser_join_paired_fastq(parser=argparse.ArgumentParser()):
+    parser.add_argument('output', help='Output file.')
+    parser.add_argument('inFastqs', nargs='+', help='Input fastq file (2 if paired, 1 if interleaved)')
+    parser.add_argument('--outFormat', default='fastq', help='Output file format.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, join_paired_fastq, split_args=True)
+    return parser
+
+__commands__.append(('join_paired_fastq', parser_join_paired_fastq))
+
 
 # ======================
 # ***  split_reads   ***
