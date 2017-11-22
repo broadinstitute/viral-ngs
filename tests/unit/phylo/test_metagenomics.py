@@ -4,7 +4,6 @@ import six
 import argparse
 from collections import Counter
 import copy
-import io
 import os.path
 from os.path import join
 import tempfile
@@ -42,17 +41,30 @@ class TestDiamondCalls(TestCaseWithTmp):
         patcher = patch('subprocess.Popen')
         self.addCleanup(patcher.stop)
         self.mock_popen = patcher.start()
-        self.mock_popen.return_value.stdout = io.BytesIO(b'read1\t210')
-        self.mock_popen.return_value.stdin = io.BytesIO()
+        self.mock_popen.return_value.returncode = 0
 
         patcher = patch('tools.picard.SamToFastqTool')
         self.addCleanup(patcher.stop)
         self.mock_s2f = patcher.start()
-        self.mock_s2f.return_value.execute.return_value.stdout = io.BytesIO(b'something\nATGC')
+        self.mock_s2f.return_value.execute.return_value.returncode = 0
 
         patcher = patch('tools.diamond.Diamond', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_diamond = patcher.start()
+
+        # Can't open unwritten named pipes
+        if six.PY2:
+            patcher = patch('__builtin__.open', mock.mock_open(read_data="id1\t1\n"))
+        else:
+            patcher = patch('builtins.open', mock.mock_open(read_data="id1\t1\n"))
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
+        # mock_open doesn't have __next__ for csv.reader
+        patcher = patch('metagenomics.taxa_hits_from_tsv', autospec=True)
+        self.addCleanup(patcher.stop)
+        self.mock_taxa_hits = patcher.start()
+        self.mock_taxa_hits.return_value = Counter({1: 100, 2: 40})
 
         self.inBam = util.file.mkstempfname('.bam')
         self.db = tempfile.mkdtemp('db')
