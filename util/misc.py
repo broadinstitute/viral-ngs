@@ -332,21 +332,6 @@ def run_and_save(args, stdout=None, stdin=None,
     return sp
 
 
-def bind_pipes(input_pipe, output_pipe, f, *args, **kwargs):
-    '''Bind input pipe to output pipe via function f in background thread.'''
-    def wrapf():
-        try:
-            f(input_pipe, output_pipe, *args, **kwargs)
-        finally:
-            try:
-                output_pipe.close()
-            finally:
-                input_pipe.close()
-    t = threading.Thread(target=wrapf)
-    t.daemon = True # die if the program exits
-    t.start()
-
-
 class FeatureSorter(object):
     ''' This class helps sort genomic features. It's not terribly optimized
         for speed or anything. Slightly inspired by calhoun's MultiSequenceRangeMap.

@@ -132,7 +132,7 @@ def test_kraken_multi(kraken_db):
         with util.file.open_or_gzopen(outfile) as inf:
             assert len(inf.read()) > 0
 
-@unittest.skip("not sure if this works anyway")
+@unittest.skip("this deadlocks currently...")
 def test_kraken_fifo(kraken_db):
     in_bams = list(os.path.join(util.file.get_test_input_path(), d, 'test-reads.bam') for d in ('TestMetagenomicsSimple', 'TestMetagenomicsViralMix'))
     out_reports = list(util.file.mkstempfname('.out_{}.report.txt'.format(i)) for i in (1,2))

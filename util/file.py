@@ -301,17 +301,17 @@ def open_or_gzopen(fname, *opts, **kwargs):
     open_opts = list(opts)
     assert type(mode) == str, "open mode must be of type str"
 
-    # 'U' mode is deprecated in py3 and may be unsupported in future versions, 
+    # 'U' mode is deprecated in py3 and may be unsupported in future versions,
     # so use newline=None when 'U' is specified
-    if len(open_opts) > 0:  
-        mode = open_opts[0]  
+    if len(open_opts) > 0:
+        mode = open_opts[0]
         if sys.version_info[0] == 3:
             if 'U' in mode:
                 if 'newline' not in kwargs:
                     kwargs['newline'] = None
                 open_opts[0] = mode.replace("U","")
 
-    # if this is a gzip file 
+    # if this is a gzip file
     if fname.endswith('.gz'):
         # if text read mode is desired (by spec or default)
         if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
@@ -330,7 +330,7 @@ def open_or_gzopen(fname, *opts, **kwargs):
         return gzip.open(fname, *gz_opts, **kwargs)
     else:
         return open(fname, *open_opts, **kwargs)
-            
+
 
 def read_tabfile_dict(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
@@ -751,14 +751,20 @@ def find_broken_symlinks(rootdir, followlinks=False):
     return broken_links_to_remove
 
 
-def join_interleaved_fastq(input_fastq_f, output_format='fastq', num_n=None):
-    '''Join interleaved fastq into single reads connected by Ns'''
+def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
+    '''Join paired/interleaved fastq(s) into single reads connected by Ns'''
     assert output_format in ('fastq', 'fasta')
     num_n = num_n or 31
 
-    # In case input is a stdout pipe (always binary encoded)
-    input_fastq_f = codecs.getreader('ascii')(input_fastq_f)
-    for r1, r2 in util.misc.batch_iterator(SeqIO.parse(input_fastq_f, 'fastq'), 2):
+    if len(input_fastqs) > 1:
+        f1 = SeqIO.parse(input_fastqs[0], 'fastq')
+        f2 = SeqIO.parse(input_fastqs[1], 'fastq')
+        records = zip(f1, f2)
+    else:
+        if input_fastqs[0] == '-':
+            input_fastqs[0] = sys.stdin
+        records = util.misc.batch_iterator(SeqIO.parse(input_fastqs[0], 'fastq'), 2)
+    for r1, r2 in records:
         if r1.id.endswith('/1'):
             rid = r1.id[:-2]
         else:

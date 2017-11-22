@@ -244,3 +244,17 @@ def find_tmp_dir():
     if 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
         tmpdir = os.environ['TMPDIR']
     return tmpdir
+
+class BadInputError(RuntimeError):
+
+    '''Indicates that an invalid input was given to a command'''
+
+    def __init__(self, reason):
+        super(BadInputError, self).__init__(reason)
+
+def check_input(condition, error_msg):
+    '''Check input to a command'''
+    if not condition:
+        raise BadInputError(error_msg)
+
+    
