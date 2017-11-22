@@ -15,4 +15,5 @@ rm $TGZ
 
 echo "Fetching quayctl"
 wget --quiet https://github.com/coreos/quayctl/releases/download/v0.0.1/quayctl-linux-x64
-mv quayctl-linux-64 quayctl
+mv quayctl-linux-x64 quayctl
+chmod a+x quayctl
