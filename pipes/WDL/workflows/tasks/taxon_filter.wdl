@@ -22,8 +22,8 @@ task deplete_taxa {
     fi
     set -x
 
-    # find 90% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+    # find 50% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_50.sh`
 
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
@@ -53,6 +53,7 @@ task deplete_taxa {
     docker: "broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
     preemptible: 1
   }
 }
