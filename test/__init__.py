@@ -10,6 +10,9 @@ import unittest
 import hashlib
 import logging
 
+# third-party
+import Bio.SeqIO
+
 # intra-project
 import util.file
 from util.misc import available_cpu_count
@@ -97,7 +100,26 @@ class TestCaseWithTmp(unittest.TestCase):
     def assertEqualContents(self, f1, f2):
         assert_equal_contents(self, f1, f2)
 
+    def assertEqualFasta(self, f1, f2):
+        '''Check that two fasta files have the same sequence ids and bases'''
+        def seqIdPairs(f):
+            return [(rec.id, rec.seq) for rec in Bio.SeqIO.parse(f, 'fasta')]
+        self.assertEqual(seqIdPairs(f1), seqIdPairs(f2))
 
+    def assertEqualFastaSeqs(self, f1, f2):
+        '''Check that two fasta files have the same sequence bases (sequence ids may differ)'''
+        def seqs(f):
+            return [rec.seq for rec in Bio.SeqIO.parse(f, 'fasta')]
+        self.assertEqual(seqs(f1), seqs(f2))
+
+    def input(self, fname):
+        '''Return the full filename for a file in the test input directory for this test class'''
+        return os.path.join(util.file.get_test_input_path(self), fname)
+
+    def inputs(self, *fnames):
+        '''Return the full filenames for files in the test input directory for this test class'''
+        return [self.input(fname) for fname in fnames]
+        
 """
 When "nose" executes python scripts for automated testing, it excludes ones with
 the executable bit set (in case they aren't import safe). To prevent any of the
