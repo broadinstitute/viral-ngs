@@ -61,8 +61,8 @@ task kraken {
 }
 
 task krona {
-  File   classified_reads_txt_gz
-  File?  krona_taxonomy_db_tgz = "gs://sabeti-public-dbs/krona/krona_taxonomy_20160502.tar.lz4" # pipeable
+  File  classified_reads_txt_gz
+  File  krona_taxonomy_db_tgz
 
   String input_basename = basename(classified_reads_txt_gz, ".txt.gz")
 

@@ -2,7 +2,7 @@
 task assemble {
 
   File    reads_unmapped_bam
-  File?   trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
+  File    trim_clip_db
 
   Int?    trinity_n_reads=250000
   Int?    spades_n_reads=10000000

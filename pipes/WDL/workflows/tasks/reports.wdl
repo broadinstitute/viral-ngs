@@ -113,7 +113,7 @@ task fastqc {
 
 task spikein_report {
   File  reads_bam
-  File? spikein_db = "gs://sabeti-public-dbs-gz/spikeins/ercc_spike-ins.fasta"
+  File  spikein_db
   Int?  minScoreToFilter = 60
 
   String reads_basename=basename(reads_bam, ".bam")
