@@ -483,7 +483,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3, n_genome_segments=0, 
-        outStats=None, threads=0):
+        outStats=None, threads=None):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -568,8 +568,6 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
                         help="""Number of genome segments.  If 0 (the default), the `inReference` parameter is treated as one genome.
                         If positive, the `inReference` parameter is treated as a list of genomes of nGenomeSegments each.""")
 
-    parser.add_argument('--threads', type=int, default=0, help='Number of threads to use (0 for all cpus)')
-
     parser.add_argument('--outReference', help='Output the reference chosen for scaffolding to this file')
     parser.add_argument('--outStats', help='Output stats used in reference selection')
     #parser.add_argument('--aligner',
@@ -642,7 +640,7 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     #parser.add_argument("--trimmed_contigs",
     #                    default=None,
     #                    help="optional output file for trimmed contigs")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
 
