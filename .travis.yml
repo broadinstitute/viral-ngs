@@ -45,7 +45,7 @@ jobs:
         # DOCKER_PASS (for $DOCKER_USER)
         - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
+        - secure: WgrzGq3SjH5TG3jDwQxprNoyP7fyfAUZ2O/FqFaIOdr1aihZ45W+sZFfQsd74ny76dSe2I/w+Ly0gAl1WFLgmEBr9yAmxwA1p3mKDRx9NKaxzPrGZaF7hUmmZtBnkTx+hoJCiMjYu3kFVo/RBQ1IgQ1wHLvLb8KkQ6oAYAvd2YY=
         - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
         # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
