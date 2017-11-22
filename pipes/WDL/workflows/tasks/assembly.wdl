@@ -23,6 +23,7 @@ task assemble {
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
 
     if [[ "${assembler}" == "trinity" ]]; then
       assembly.py assemble_trinity \
@@ -40,7 +41,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-spades.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb "$mem_in_mb"m \
+        --memLimitGb $mem_in_gb \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
 
@@ -59,7 +60,7 @@ task assemble {
         ${sample_name}.assembly1-spades.fasta \
         --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb "$mem_in_mb"m \
+        --memLimitGb $mem_in_gb \
         --loglevel=DEBUG
 
     else
