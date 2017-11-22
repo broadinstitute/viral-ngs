@@ -12,10 +12,10 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell-29.jar run \
 			workflows/$workflow_name.wdl \
-			-i $input_json | cat > cromwell.out
-		error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
-		if [ -n "$error_logs" ]; then
+			-i $input_json | tee cromwell.out
+		if [ ${PIPESTATUS[0]} -gt 0 ]; then
 			echo "error running $workflow_name"
+			error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
 			for log in $error_logs; do
 				echo "contents of stderr ($log):"
 				cat $log | sed "s/^/[STDERR] /"
