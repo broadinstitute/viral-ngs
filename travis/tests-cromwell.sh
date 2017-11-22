@@ -20,7 +20,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 				echo "contents of stderr ($log):" >&2
 				cat $log | sed "s/^/[STDERR] /" >&2
 			done
-			exit 1
+			sync; sleep 30; exit 1
 		fi
     fi
 done
