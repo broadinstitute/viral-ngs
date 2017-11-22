@@ -76,8 +76,8 @@ install:
   - if [[ "$BUILD_PACKAGE" == "conda" || -n "$PERFORM_TESTING" ]]; then source travis/install-conda.sh; fi
   - if [ -n "$PERFORM_TESTING" ]; then travis_wait travis/install-tools.sh; source travis/activate-conda.sh; fi
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis/install-conda-build.sh; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/upgrade-docker.sh &> /dev/null; fi
-  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/install-wdl.sh &> /dev/null; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/upgrade-docker.sh; fi
+  - if [[ "$BUILD_PACKAGE" == "docker" ]]; then travis/install-wdl.sh; fi
   - if [ -n "$BUILD_DOCS" ]; then travis/install-pip-docs.sh; fi
 
 script:
@@ -86,12 +86,12 @@ script:
   - if [[ "$BUILD_PACKAGE" == "conda" ]]; then travis_wait travis/build-conda.sh; fi
   - if [[ "$BUILD_PACKAGE" == "docker" ]]; then
       set -e;
-      travis_wait docker pull broadinstitute/viral-ngs:latest &> /dev/null;
-      travis_wait docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest . &> /dev/null;
-      travis/deploy-docker.sh > /dev/null;
-      travis/version-wdl-runtimes.sh &> /dev/null;
-      travis/validate-wdl.sh &> /dev/null;
-      travis/build-dx.sh &> /dev/null;
+      docker pull broadinstitute/viral-ngs:latest;
+      docker build -t local/viral-ngs:build --cache-from broadinstitute/viral-ngs:latest .;
+      travis/deploy-docker.sh;
+      travis/version-wdl-runtimes.sh;
+      travis/validate-wdl.sh;
+      travis/build-dx.sh;
       travis/tests-cromwell.sh;
     fi
   - if [ -n "$BUILD_DOCS" ]; then travis/build-docs.sh; fi
