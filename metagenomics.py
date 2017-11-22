@@ -747,53 +747,50 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     # do not convert this to samtools bam2fq unless we can figure out how to replicate
     # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
-    s2fq = picard.execute(
-        inBam,
-        '/dev/stdout',
-        interleave=True,
-        illuminaClipping=True,
-        JVMmemory=picard.jvmMemDefault,
-        background=True,
-        stdout=subprocess.PIPE,
-    )
+    with util.file.fifo(2) as (fastq_pipe, diamond_pipe):
+        s2fq = picard.execute(
+            inBam,
+            fastq_pipe,
+            interleave=True,
+            illuminaClipping=True,
+            JVMmemory=picard.jvmMemDefault,
+            background=True,
+        )
 
-    diamond_tool = tools.diamond.Diamond()
-    diamond_tool.install()
-    taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
-    taxonnodes = join(taxDb, 'nodes.dmp')
+        diamond_tool = tools.diamond.Diamond()
+        diamond_tool.install()
+        taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
+        taxonnodes = join(taxDb, 'nodes.dmp')
+        rutils = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'read_utils.py')
+        cmd = '{read_utils} join_paired_fastq --outFormat fasta /dev/stdout {fastq}'.format(
+            read_utils=rutils, fastq=fastq_pipe)
 
-    cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
-    cmd += ' --threads {threads}'.format(threads=util.misc.sanitize_thread_count(threads))
-    cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
-        db=db,
-        taxonmap=taxonmap,
-        taxonnodes=taxonnodes)
+        cmd += ' | {} blastx --out {output} --outfmt 102 --sallseqid'.format(
+            diamond_tool.install_and_get_path(), output=diamond_pipe)
+        cmd += ' --threads {threads}'.format(threads=util.misc.sanitize_thread_count(threads))
+        cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
+            db=db,
+            taxonmap=taxonmap,
+            taxonnodes=taxonnodes)
 
-    if outReads is not None:
-        # Interstitial save of stdout to output file
-        cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
+        if outReads is not None:
+            # Interstitial save of stdout to output file
+            cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
 
-    diamond_ps = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE, executable='/bin/bash')
+        diamond_ps = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
 
-    def f(input_pipe, output_pipe):
-        output_pipe = codecs.getwriter('ascii')(output_pipe)
-        SeqIO.write(util.file.join_interleaved_fastq(input_pipe, output_format='fasta', num_n=16),
-                    output_pipe, 'fasta')
+        tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
-    util.misc.bind_pipes(s2fq.stdout, diamond_ps.stdin, f)
+        with open(diamond_pipe) as lca_p:
+            hits = taxa_hits_from_tsv(lca_p)
+            with open(outReport, 'w') as f:
+                for line in kraken_dfs_report(tax_db, hits):
+                    print(line, file=f)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
-
-    lca_p = codecs.getreader('ascii')(diamond_ps.stdout)
-
-    hits = taxa_hits_from_tsv(lca_p)
-    with open(outReport, 'w') as f:
-        for line in kraken_dfs_report(tax_db, hits):
-            print(line, file=f)
-
-    s2fq.wait()
-    diamond_ps.wait()
+        s2fq.wait()
+        assert s2fq.returncode == 0
+        diamond_ps.wait()
+        assert diamond_ps.returncode == 0
 
 
 def parser_diamond(parser=argparse.ArgumentParser()):
