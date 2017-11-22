@@ -12,3 +12,7 @@ TGZ=dx-toolkit-v0.240.1-ubuntu-14.04-amd64.tar.gz
 wget --quiet https://wiki.dnanexus.com/images/files/$TGZ
 tar -xzpf $TGZ
 rm $TGZ
+
+echo "Fetching quayctl"
+wget --quiet wget https://github.com/coreos/quayctl/releases/download/v0.0.1/quayctl-linux-x64
+mv quayctl-linux-64 quayctl

@@ -2,10 +2,10 @@
 set -e -o pipefail
 
 if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]]; then
-	echo "Deploying docker image to DockerHub"
+	echo "Deploying docker image to $DOCKER_REGISTRY"
 
-	# log in to DockerHub
-	echo "$DOCKER_PASS" | docker login --password-stdin --username "$DOCKER_USER"
+	# log in to Docker registry
+	echo "$DOCKER_PASS" | docker login --password-stdin --username "$DOCKER_USER" "$DOCKER_REGISTRY"
 
 	# tag and deploy
 	FIRST_TIME=1
