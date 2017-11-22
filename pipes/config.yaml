@@ -140,6 +140,13 @@ samples_per_run: "samples-runs.txt"
 # to insufficient input data, consider expanding the list of accessions given to lastal.
 accessions_file_for_lastal_db_build: ""
 
+# File containing the list of accessions for reference genomes to use for reference selection.
+# Defaults to the same list as `accessions_for_ref_genome_build`.
+# For multi-segment genomes, the file must list all segments for the first reference, then all segments
+# for the second reference, and so on; for each reference, segments must be listed in the same order as for
+# `accessions_for_ref_genome_build`; all segments must be listed for each reference.
+accessions_file_for_refsel_db_build: ""
+
 # De novo assembler to use.  Current options are "trinity", "spades" and "trinity-spades"
 # (the "trinity-spades" option gives contigs produced by Trinity as auxiliary input to SPAdes).
 assembly_assembler: "trinity"
@@ -273,6 +280,11 @@ ref_genome_dir: "ref_genome"
 # The directory where the lastal database files should be stored
 # Can be a remote path prefix (s3://, gs://, etc.). The path should contain lastal.{ext} files
 lastal_ref_db_dir: "lastal_db"
+
+# The directory where the reference selection files should be stored
+# Can be a remote path prefix (s3://, gs://, etc.). The path should contain a refsel.fasta file.
+refsel_ref_db_dir: "refsel_db"
+
 
 #    |------------ Values needed for automated GenBank submission --------------
 

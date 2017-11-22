@@ -271,6 +271,20 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
+    def test_lassa_multisegment_refsel(self):
+        with util.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
+             as (outFasta, outReference, outStats):
+            contigs, expected, expectedStats = self.inputs('contigs.lasv.fasta', 
+                                                           'expected.lasv.fasta', 
+                                                           'expected.refsel.lasv.stats.tsv')
+            refs = [self.input('ref.lasv.{}.fasta'.format(strain))
+                    for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19')]
+            assembly.order_and_orient(contigs, refs, outFasta,
+                                      outReference=outReference, outStats=outStats)
+            self.assertEqualContents(outFasta, expected)
+            self.assertEqualFasta(outReference, refs[0])
+            self.assertEqualContents(outStats, expectedStats)
+
     def test_influenza_multisegment(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')
@@ -294,6 +308,17 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_ebov_palindrome_refsel(self):
+        # this tests a scenario where show-aligns has more alignments than show-tiling
+        with util.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
+            contigs, refs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
+                                                                 'refs.ebov.fasta',
+                                                                 'expected.ebov.doublehit.fasta',
+                                                                 'expected.refsel.ebov.stats.tsv')
+            assembly.order_and_orient(contigs, refs, outFasta, n_genome_segments=1, outStats=outStats)
+            self.assertEqualFastaSeqs(outFasta, expected)
+            self.assertEqualContents(outStats, expectedStats)
 
     def test_hiv_wraparound(self):
         # this tests a misassembly from Trinity and checks that we still use some of the contig
