@@ -8,9 +8,9 @@
   "stage_2.spades_trim_clip_db": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
 
   "stage_2.deplete_bmtaggerDbs": [
+	{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
   ],
   "stage_2.deplete_blastDbs": [
-	{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } },
 	{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BzBpkK80x0z8GBQPfZ4kgPKp" } }
   ]
 }

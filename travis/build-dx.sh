@@ -59,6 +59,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
   if [ -n "$(grep DX_SKIP_WORKFLOW $workflow)" ]; then
     echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
   else
+    workflow_name=`basename $workflow .wdl`
     input_json="test/input/WDL/test_inputs-$workflow_name-dnanexus.dx.json"
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
