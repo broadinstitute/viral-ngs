@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e  # intentionally allow for pipe failures below
 
+ln -s $GATK_PATH/GenomeAnalysisTK.jar .
 ln -s pipes/WDL/workflows pipes/WDL/workflows/tasks .
 
 for workflow in pipes/WDL/workflows/*.wdl; do
