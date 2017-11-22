@@ -18,6 +18,7 @@ import tools.novoalign
 from test import TestCaseWithTmp, _CPUS
 
 
+@unittest.skip("redundant, and takes 1 minute")
 class TestAssemble(TestCaseWithTmp):
     ''' Test the de novo assembly pipeline '''
 
