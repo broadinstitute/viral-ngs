@@ -29,11 +29,4 @@ workflow demux_plus {
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams
   }
 
-  scatter(classified_reads in kraken.kraken_classified_reads) {
-    call metagenomics.krona as krona {
-      input:
-        classified_reads_txt_gz = classified_reads
-    }
-  }
-
 }

@@ -6,9 +6,11 @@
 task kraken {
   Array[File] reads_unmapped_bam
   File        kraken_db_tar_lz4
+  File        krona_taxonomy_db_tgz
 
   parameter_meta {
     kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
     #reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
   }
 
@@ -28,6 +30,9 @@ task kraken {
     read_utils.py extract_tarball \
       ${kraken_db_tar_lz4} $DB_DIR \
       --loglevel=DEBUG
+    read_utils.py extract_tarball \
+      ${krona_taxonomy_db_tgz} . \
+      --loglevel=DEBUG
 
     # prep input and output file names
     OUT_READS=fnames_outreads.txt
@@ -44,11 +49,24 @@ task kraken {
       --outReads `cat $OUT_READS` \
       --outReport `cat $OUT_REPORTS` \
       --loglevel=DEBUG
+
+    for bam in ${sep=' ' reads_unmapped_bam}; do
+      report_basename="kraken-reads-$(basename $bam .bam)"
+      metagenomics.py krona \
+        $report_basename.txt.gz \
+        taxonomy \
+        $report_basename.html \
+        --noRank --noHits \
+        --loglevel=DEBUG
+      tar czf $report_basename.krona.tar.gz $report_basename.html*
+    done
   }
 
   output {
     Array[File] kraken_classified_reads = glob("kraken-reads-*.txt.gz")
     Array[File] kraken_summary_report   = glob("kraken-report-*.txt")
+    Array[File] krona_report_html       = glob("kraken-reads-*.html")
+    Array[File] krona_report_tgz        = glob("kraken-reads-*.krona.tar.gz")
   }
 
   runtime {

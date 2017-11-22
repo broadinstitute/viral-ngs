@@ -14,5 +14,5 @@ tar -xzpf $TGZ
 rm $TGZ
 
 echo "Fetching quayctl"
-wget --quiet wget https://github.com/coreos/quayctl/releases/download/v0.0.1/quayctl-linux-x64
+wget --quiet https://github.com/coreos/quayctl/releases/download/v0.0.1/quayctl-linux-x64
 mv quayctl-linux-64 quayctl
