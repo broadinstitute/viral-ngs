@@ -109,12 +109,13 @@ rule orient_and_impute:
     '''
     input:  
         fasta      = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-'+config["assembly_assembler"]+'.fasta',
-        ref_genome = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["ref_genome_dir"], ref_name="reference" )),
-        cleaned_reads = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam'
+        cleaned_reads = config["data_dir"]+'/'+config["subdirs"]["per_sample"]+'/{sample}.cleaned.bam',
+        refsel_genomes = objectify_remote(expand( '{refDir}/'+'{ref_name}.fasta', refDir=config["refsel_ref_db_dir"], ref_name="refsel" ))
     output: 
         fasta = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly3-modify.fasta'
     resources: 
-        mem = 12
+        mem = 12,
+        threads = int(config.get("number_of_threads", 1))
     params: 
         LSF  = config.get('LSF_queues', {}).get('short', '-W 4:00'),
         UGER = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
@@ -125,6 +126,7 @@ rule orient_and_impute:
         renamed_prefix   = "",
         replace_length   = str(config.get("assembly_replace_length", 55)),
         logid            = "{sample}",
+        scaffold_ref = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffold_ref.fasta',
         scaffolded_fasta = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-scaffolded.fasta',
         gapfilled_fasta=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-gapfilled.fasta',
         alternate_fasta  = config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.assembly2-alternate_sequences.fasta'
@@ -139,9 +141,10 @@ rule orient_and_impute:
         if config.get("scaffold_min_pct_contig_aligned"):
             ono_extra.extend(["--min_pct_contig_aligned", str(config["scaffold_min_pct_contig_aligned"])])
         ono_extra = " ".join(ono_extra)
-        shell("{config[bin_dir]}/assembly.py order_and_orient {input.fasta} {input.ref_genome} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta}")
-        shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.cleaned_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]}")        
-        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {input.ref_genome} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
+        n_genome_segments = len(config["accessions_for_ref_genome_build"])
+        shell("{config[bin_dir]}/assembly.py order_and_orient {input.fasta} {input.refsel_genomes} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta} --nGenomeSegments {n_genome_segments} --outReference {params.scaffold_ref} --threads {resources.threads}")
+        shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.cleaned_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]}")
+        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {params.scaffold_ref} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the scaffolded assembly,
