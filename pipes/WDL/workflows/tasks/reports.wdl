@@ -81,6 +81,7 @@ task plot_coverage {
     docker: "broadinstitute/viral-ngs"
     memory: "3500 MB"
     cpu: 4
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 

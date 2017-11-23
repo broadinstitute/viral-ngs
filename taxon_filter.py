@@ -643,6 +643,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
         else:
             decompressor = ['lz4', '-d']
         new_fasta = util.file.mkstempfname('.fasta')
+        log.debug("cat {} | {} > {}".format(inputFasta, ' '.join(decompressor), new_fasta))
         with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
             subprocess.check_call(decompressor, stdin=inf, stdout=outf)
         inputFasta = new_fasta
@@ -654,6 +655,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
+    log.debug("building bmtagger and srprism databases on {}".format(os.path.join(outputDirectory, outPrefix)))
     bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask")
     )

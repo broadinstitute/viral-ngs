@@ -22,6 +22,7 @@ workflow demux_plus {
         assembler = "spades",
         reads_unmapped_bam = deplete.cleaned_bam
     }
+    # TO DO: call diamond+krona on spades contigs
   }
 
   call metagenomics.kraken as kraken {

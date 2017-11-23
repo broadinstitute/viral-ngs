@@ -65,6 +65,7 @@ jobs:
         - travis/validate-wdl.sh
         # build DNAnexus pipelines
         - travis/build-dx.sh
+        - travis/tests-dx.sh
         # test Cromwell
         - travis/tests-cromwell.sh
       before_cache:

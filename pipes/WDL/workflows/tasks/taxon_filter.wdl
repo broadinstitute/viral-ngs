@@ -103,6 +103,7 @@ task filter_to_taxon {
     docker: "broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 16
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 

@@ -81,7 +81,7 @@ task assemble {
     docker: "broadinstitute/viral-ngs"
     memory: "15 GB"
     cpu: 4
-    dx_instance_type: "mem2_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_x8"
   }
 
 }
@@ -112,6 +112,9 @@ task scaffold {
     fi
     set -x
 
+    # find 90% memory
+    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
+
     assembly.py order_and_orient \
       ${contigs_fasta} \
       ${reference_genome_fasta} \
@@ -126,7 +129,7 @@ task scaffold {
       ${sample_name}.intermediate_scaffold.fasta \
       ${reads_bam} \
       ${sample_name}.intermediate_gapfill.fasta \
-      --memLimitGb 12 \
+      --memLimitGb $mem_in_gb \
       --maskErrors \
       --loglevel=DEBUG
 
@@ -150,9 +153,9 @@ task scaffold {
 
   runtime {
     docker: "broadinstitute/viral-ngs"
-    memory: "12 GB"
-    cpu: 2
-    dx_instance_type: "mem2_ssd1_x4"
+    memory: "15 GB"
+    cpu: 4
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 

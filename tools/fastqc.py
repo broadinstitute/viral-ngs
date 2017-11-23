@@ -46,3 +46,4 @@ class FastQC(tools.Tool):
                 subprocess.check_call(tool_cmd, stdout=sys.stderr)
                 expected_out = os.path.join(out_dir, os.path.basename(inBam)[:-4]) + "_fastqc.html"
                 shutil.copyfile(expected_out, outHtml)
+                log.debug("complete")
