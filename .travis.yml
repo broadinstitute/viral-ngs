@@ -63,9 +63,9 @@ jobs:
         # version and validate WDL code
         - travis/version-wdl-runtimes.sh
         - travis/validate-wdl.sh
-        # build DNAnexus pipelines
+        # build DNAnexus pipelines, but only spend money on master and PR builds
         - travis/build-dx.sh
-        - travis/tests-dx.sh
+        - if [[ "$TRAVIS_BRANCH" == "master"]]; then travis/tests-dx.sh; fi
         # test Cromwell
         - travis/tests-cromwell.sh
       before_cache:
