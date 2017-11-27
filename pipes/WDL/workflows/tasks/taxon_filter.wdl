@@ -54,7 +54,7 @@ task deplete_taxa {
     memory: "14 GB"
     cpu: 8
     dx_instance_type: "mem1_ssd1_x8"
-    preemptible: 1
+    preemptible: 0
   }
 }
 
