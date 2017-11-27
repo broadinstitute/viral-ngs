@@ -42,8 +42,10 @@ RUN /bin/bash -c "set -e; source $VIRAL_NGS_PATH/docker/container_environment.sh
 VOLUME ["/gatk", "/novoalign", "/user-data"]
 ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
 
-# A wrapper script to load the viral-ngs environment, switch to
-# a non-root user, and then run any commands desired
-ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
+# Set up path and environment variables
+ENTRYPOINT ["/opt/viral-ngs/source/docker/container_environment.sh"]
+## A wrapper script to load the viral-ngs environment, switch to
+## a non-root user, and then run any commands desired
+#ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
 
 CMD ["/bin/bash"]
