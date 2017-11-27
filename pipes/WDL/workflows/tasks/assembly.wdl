@@ -183,8 +183,14 @@ task refine {
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
-    # TO DO: make this input accept either a .jar or a .tar.bz
-    mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
+    # prep GATK
+    mkdir gatk
+    if [[ ${gatk_jar} == *.tar.bz2 ]]; then
+      tar -xjvf ${gatk_jar} -C gatk
+    else
+      ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
+    fi
+
     ln -s ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
 

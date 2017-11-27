@@ -23,9 +23,15 @@ task plot_coverage {
       source /opt/viral-ngs/source/docker/container_environment.sh
     fi
 
-    mkdir gatk; ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
-    cp ${assembly_fasta} assembly.fasta
+    # prep GATK
+    mkdir gatk
+    if [[ ${gatk_jar} == *.tar.bz2 ]]; then
+      tar -xjvf ${gatk_jar} -C gatk
+    else
+      ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
+    fi
 
+    cp ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
     read_utils.py index_fasta_picard assembly.fasta --loglevel=DEBUG
     read_utils.py index_fasta_samtools assembly.fasta --loglevel=DEBUG

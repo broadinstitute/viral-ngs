@@ -11,7 +11,7 @@ Docker Images
 To facilitate cloud compute deployments, we have published a complete Docker
 image with associated dependencies at
 `DockerHub <https://hub.docker.com/r/broadinstitute/viral-ngs/>`_.
-Simply ``docker pull broadinstitute/viral-ngs:1.18.2`` (or some other tagged version).
+Simply ``docker pull broadinstitute/viral-ngs``.
 
 
 DNAnexus
@@ -36,7 +36,7 @@ All of the command line functions in viral-ngs are accessible from the docker im
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets)::
 
   dsub --project broad-sabeti-lab --zones "us-east1-*" \
-    --image broadinstitute/viral-ngs:1.18.2 \
+    --image broadinstitute/viral-ngs \
     --name illumina_demux-test \
     --logging gs://sabeti-temp-30d/dpark/test-demux/logs \
     --input FC_TGZ=gs://sabeti-sequencing/flowcells/broad-walkup/160907_M04004_0066_000000000-AJH8U.tar.gz \
@@ -44,8 +44,9 @@ Here is an example invocation of ``illumina.py illumina_demux`` (replace the pro
     --command 'illumina.py illumina_demux ${FC_TGZ} 1 ${OUTDIR}' \
     --min-ram 30 \
     --min-cores 8 \
-    --disk-size 100
+    --disk-size 2000
 
+The speed of disk write and read operations is linearly proportional to the disk size, hitting the maximum disk speed somewhere around 1-8TB (depending on your I/O pattern). See `GCE documentation <https://cloud.google.com/compute/docs/disks/performance>`_.
 
 
 Manual Installation
@@ -86,10 +87,11 @@ In order to finish installing viral-ngs, you will need to activate its conda env
 
   source activate viral-ngs-env
 
-Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK `from the Broad Institute <https://software.broadinstitute.org/gatk/download/archive>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
+Due to license restrictions, the viral-ngs conda package cannot distribute and install GATK directly. To fully install GATK, you must download a licensed copy of GATK v3.6 `from the Broad Institute <https://software.broadinstitute.org/gatk/download/archive>`_, and call "gatk-register," which will copy GATK into your viral-ngs conda environment::
 
-  # (download licensed copy of GATK)
-  gatk-register /path/to/GenomeAnalysisTK.jar
+  mkdir -p /path/to/gatk_dir
+  wget -O - 'https://software.broadinstitute.org/gatk/download/auth?package=GATK-archive&version=3.6-0-g89b7209' | tar -xjvC /path/to/gatk_dir
+  gatk-register /path/to/gatk_dir/GenomeAnalysisTK.jar
 
 The single-threaded version of `Novoalign <http://www.novocraft.com/products/novoalign/>`_ is installed by default. If you have a license for Novoalign to enable multi-threaded operation, viral-ngs will copy it to the viral-ngs conda environment if the ``NOVOALIGN_LICENSE_PATH`` environment variable is set. Alternatively, the conda version of Novoalign can be overridden if the ``NOVOALIGN_PATH`` environment variable is set. If you obtain a Novoalign license after viral-ngs has already been installed, it can be added to the conda environment by calling::
 
