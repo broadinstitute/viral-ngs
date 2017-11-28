@@ -52,17 +52,17 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--bmtaggerDbs',
-        nargs='+',
-        required=True,
-        help='''Reference databases (one or more) to deplete from input.
+        nargs='*',
+        default=(),
+        help='''Reference databases to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument(
         '--blastDbs',
-        nargs='+',
-        required=True,
-        help='One or more reference databases for blast to deplete from input.'
+        nargs='*',
+        default=(),
+        help='Reference databases for blast to deplete from input.'
     )
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
@@ -79,6 +79,8 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
 def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
         Optionally, use lastal to select a specific taxon of interest.'''
+
+    assert len(args.bmtaggerDbs) + len(args.blastDbs) > 0
 
     # only RevertSam if inBam is already aligned
     # Most of the time the input will be unaligned

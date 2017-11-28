@@ -4,8 +4,8 @@
 # ======================================================================
 task deplete_taxa {
   File         raw_reads_unmapped_bam
-  Array[File]? bmtaggerDbs=[]  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
-  Array[File]? blastDbs=[]  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Int?         query_chunk_size=0
 
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
