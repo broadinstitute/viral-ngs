@@ -34,10 +34,16 @@ class BmtaggerTools(tools.Tool):
             install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def execute(self, *args, stderr=None):
+    def execute(self, *args):
         cmd = [self.install_and_get_path()]
         cmd.extend(args)
-        subprocess.check_call(cmd, stderr=stderr)
+        subprocess.check_call(cmd)
+
+    def silent_execute(self, *args):
+        cmd = [self.install_and_get_path()]
+        cmd.extend(args)
+        with open(os.devnull, 'w') as fnull:
+            subprocess.check_call(cmd, stderr=fnull)
 
 
 class BmtaggerShTool(BmtaggerTools):
@@ -81,8 +87,7 @@ class BmtoolTool(BmtaggerTools):
             raise IOError("No fasta file provided")
 
         args = ['-d', input_fasta, '-o', bitmask_file_path, '-A', str(max_ambig), '-w', str(word_size)]
-        with open(os.devnull, 'w') as fnull:
-            self.execute(*args, stderr=fnull)
+        self.silent_execute(*args)
 
         return bitmask_file_path
 
