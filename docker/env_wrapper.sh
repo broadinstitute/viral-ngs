@@ -27,7 +27,7 @@ ln -s /user-data $HOME/data
 chown $USER_NAME:$GROUP_NAME /user-data
 
 #source /opt/viral-ngs/easy-deploy-viral-ngs.sh load
-source /opt/viral-ngs/source/docker/container_environment.sh
+#source /opt/viral-ngs/source/docker/container_environment.sh
 
 cd $HOME/data
 

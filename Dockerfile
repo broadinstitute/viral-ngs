@@ -33,17 +33,23 @@ RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh
 # layers will likely need to be rebuilt each time)
 COPY . $VIRAL_NGS_PATH/
 
+# Volume setup: make external tools and data available within the container
+VOLUME ["/gatk", "/novoalign", "/user-data"]
+ENV \
+	PATH="$VIRAL_NGS_PATH:/opt/miniconda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+	MINICONDA_PATH="/opt/miniconda" \
+	CONDA_DEFAULT_ENV="/opt/miniconda" \
+	CONDA_PREFIX="/opt/miniconda" \
+	JAVA_HOME="/opt/miniconda" \
+	VIRAL_NGS_DOCKER_DATA_PATH="/user-data" \
+	NOVOALIGN_PATH="/novoalign" \
+	GATK_PATH="/gatk"
+
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
 # verifies that conda-installed python libraries are working.
-RUN /bin/bash -c "set -e; source $VIRAL_NGS_PATH/docker/container_environment.sh; echo -n 'viral-ngs version: '; assembly.py --version"
+RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; assembly.py --version"
 
-# Volume setup: make external tools and data available within the container
-VOLUME ["/gatk", "/novoalign", "/user-data"]
-ENV GATK_PATH="/gatk" NOVOALIGN_PATH="/novoalign" VIRAL_NGS_DOCKER_DATA_PATH="/user-data"
-
-# Set up path and environment variables
-ENTRYPOINT ["/opt/viral-ngs/source/docker/container_environment.sh"]
 ## A wrapper script to load the viral-ngs environment, switch to
 ## a non-root user, and then run any commands desired
 #ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
