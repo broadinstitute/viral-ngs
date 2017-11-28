@@ -28,7 +28,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
        # launch simple test cases on DNAnexus CI project
        dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
        dx_job_id=$(dx run \
-           $dx_workflow_id -y \
+           $dx_workflow_id -y --brief \
            -f $input_json \
            --name "$VERSION-$workflow_name" \
            --destination /tests/$VERSION/$workflow_name)

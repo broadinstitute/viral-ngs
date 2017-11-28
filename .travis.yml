@@ -62,13 +62,12 @@ jobs:
         - travis/install-gatk.sh
       script:
         - set -e
-        # build docker image
+        # pull old docker image
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
-        - if docker pull $OLD_DOCKER_TAG; then
-            travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .;
-          else
-            travis_wait docker build -t local/viral-ngs:build .;
-          fi
+        - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
+        # build new docker image
+        - travis_wait docker build -t local/viral-ngs:build $_CACHE_FROM .;
+        # deploy docker image
         - travis/deploy-docker.sh
         # version and validate WDL code
         - travis/version-wdl-runtimes.sh
@@ -76,7 +75,7 @@ jobs:
         # build DNAnexus pipelines, but only spend money on master and PR builds
         - travis/build-dx.sh
         - if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
-        # test Cromwell
+        # test Cromwell local execution engine
         - travis/tests-cromwell.sh
       before_cache:
         - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
