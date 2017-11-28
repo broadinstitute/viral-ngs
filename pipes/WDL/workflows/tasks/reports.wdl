@@ -1,6 +1,5 @@
 
 
-
 task plot_coverage {
   # TO DO: add a BWA option
   # TO DO: make GATK indel-realigner optional
@@ -17,11 +16,6 @@ task plot_coverage {
 
   command {
     set -ex -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v read_utils.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
 
     # prep GATK
     mkdir gatk
@@ -99,10 +93,6 @@ task fastqc {
 
   command {
     set -ex -o pipefail
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v reports.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
     reports.py fastqc ${reads_bam} ${reads_basename}_fastqc.html
   }
 
@@ -127,10 +117,7 @@ task spikein_report {
 
   command {
     set -ex -o pipefail
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v read_utils.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
+
     ln -s ${reads_bam} ${reads_basename}.bam
     read_utils.py bwamem_idxstats \
       ${reads_basename}.bam \

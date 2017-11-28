@@ -13,13 +13,7 @@ task assemble {
   String  sample_name = basename(reads_unmapped_bam, ".bam")
 
   command {
-    set -e -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
-    set -x
+    set -ex -o pipefail
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -104,13 +98,7 @@ task scaffold {
   String  sample_name = basename(contigs_fasta, ".fasta")
 
   command {
-    set -e -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
-    set -x
+    set -ex -o pipefail
 
     # find 90% memory
     mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
@@ -173,12 +161,7 @@ task refine {
   String  assembly_basename=basename(assembly_fasta, ".fasta")
 
   command {
-    set -e -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
+    set -ex -o pipefail
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`

@@ -11,16 +11,11 @@ task deplete_taxa {
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
   command {
-    set -e -o pipefail
+    set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v taxon_filter.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
-    set -x
 
     # find 50% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_50.sh`
@@ -72,13 +67,7 @@ task filter_to_taxon {
   String bam_basename = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
 
   command {
-    set -e -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v taxon_filter.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
-    set -x
+    set -ex -o pipefail
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -114,12 +103,7 @@ task merge_one_per_sample {
   Boolean?     rmdup=false
 
   command {
-    set -e -o pipefail
-
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v read_utils.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
+    set -ex -o pipefail
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`

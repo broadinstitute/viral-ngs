@@ -20,12 +20,8 @@ task illumina_demux {
   }
 
   command {
-    set -e -o pipefail
+    set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v illumina.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
