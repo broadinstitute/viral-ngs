@@ -632,7 +632,7 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 # ========================
 
 
-def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
+def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=18):
     """ Create a database for use with Bmtagger from an input FASTA file.
     """
 
@@ -657,7 +657,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
     log.debug("building bmtagger and srprism databases on {}".format(os.path.join(outputDirectory, outPrefix)))
     bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(
-        inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask")
+        inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask"), word_size=word_size
     )
     srprismdb_path = tools.bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
@@ -676,6 +676,12 @@ def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    parser.add_argument(
+        '--word_size',
+        type=int,
+        default=18,
+        help='Database word size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bmtagger_build_db, split_args=True)

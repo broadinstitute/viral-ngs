@@ -29,8 +29,6 @@ class TestDepleteHuman(TestCaseWithTmp):
 
     def setUp(self):
         TestCaseWithTmp.setUp(self)
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         self.tempDir = tempfile.mkdtemp()
         myInputDir = util.file.get_test_input_path(self)
         ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
@@ -40,12 +38,9 @@ class TestDepleteHuman(TestCaseWithTmp):
         self.blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
 
         # create bmtagger db
-        self.bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, self.database_prefix_path + ".bitmask")
-        self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
+        taxon_filter.bmtagger_build_db(ref_fasta, self.tempDir, "5kb_human_from_chr6", word_size=8)
 
     def test_deplete_human(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
@@ -74,8 +69,6 @@ class TestDepleteHuman(TestCaseWithTmp):
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
     def test_deplete_human_aligned_input(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
@@ -103,8 +96,6 @@ class TestDepleteHuman(TestCaseWithTmp):
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
 
     def test_deplete_empty(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
 
         # Run deplete_human
