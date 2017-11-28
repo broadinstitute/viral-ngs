@@ -52,6 +52,6 @@ RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; assembly.py --version"
 
 ## A wrapper script to load the viral-ngs environment, switch to
 ## a non-root user, and then run any commands desired
-#ENTRYPOINT ["/opt/viral-ngs/source/docker/env_wrapper.sh"]
+#ENTRYPOINT ["/opt/viral-ngs/source/docker/gosu-entrypoint.sh"]
 
 CMD ["/bin/bash"]
