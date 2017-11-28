@@ -2,7 +2,7 @@
 set -e -o pipefail
 
 NEW_TAG=`travis/list-docker-tags.sh | tail -1`
-OLD_TAG="broadinstitute/viral-ngs"
+OLD_TAG="quay.io/broadinstitute/viral-ngs"
 
 echo Replacing $OLD_TAG with $NEW_TAG in all task WDL files
 sed -i -- "s|$OLD_TAG|$NEW_TAG|g" pipes/WDL/workflows/tasks/*.wdl

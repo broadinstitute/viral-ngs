@@ -66,7 +66,7 @@ task kraken {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "200 GB"
     cpu: 32
     dx_instance_type: "mem3_ssd1_x32"
@@ -108,7 +108,7 @@ task krona {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "2 GB"
     cpu: 1
   }
@@ -199,7 +199,7 @@ task diamond_contigs {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "100 GB"
     cpu: 16
     dx_instance_type: "mem3_ssd1_x16"

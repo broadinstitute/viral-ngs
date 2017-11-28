@@ -23,8 +23,8 @@ task isnvs_per_sample {
     File isnvsFile = "vphaser2.${sample}.txt.gz"
   }
   runtime {
-    memory: "7GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "7 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -63,8 +63,8 @@ task isnvs_vcf {
     Array[File] isnvFiles = ["isnvs.vcf.gz", "isnvs.vcf.gz.tbi", "isnvs.annot.vcf.gz", "isnvs.annot.txt.gz", "isnvs.annot.vcf.gz.tbi"]
   }
   runtime {
-    memory: "4GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "4 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -105,7 +105,7 @@ task isnvs_vcf_filtered {
     Array[File] isnvFiles = ["isnvs.vcf.gz", "isnvs.vcf.gz.tbi", "isnvs.annot.vcf.gz", "isnvs.annot.txt.gz", "isnvs.annot.vcf.gz.tbi"]
   }
   runtime {
-    memory: "4GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "4 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }

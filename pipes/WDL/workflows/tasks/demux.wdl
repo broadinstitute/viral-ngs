@@ -72,7 +72,7 @@ task illumina_demux {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "16 GB"
     cpu: 32
     dx_instance_type: "mem1_ssd2_x36"

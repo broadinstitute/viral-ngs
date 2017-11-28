@@ -23,7 +23,7 @@ task download_reference_genome {
     Array[File] featureTables = glob("*.tbl")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs:1.12.2"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -48,7 +48,7 @@ task download_lastal_sources {
     Array[File] featureTables = glob("*.tbl")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs:1.12.2"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -65,7 +65,7 @@ task build_lastal_db {
         Array[File] lastalDbFiles = glob("lastal.*")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs:1.12.2"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -90,7 +90,7 @@ task annot_transfer {
   }
   runtime {
     memory: "4GB"
-    docker: "broadinstitute/viral-ngs:1.12.2"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -121,6 +121,6 @@ task prepare_genbank {
     File errorSummary = "${featureTableDir}/errorsummary.val"
   }
   runtime {
-    docker: "broadinstitute/viral-ngs:1.12.2"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }

@@ -78,7 +78,7 @@ task plot_coverage {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3500 MB"
     cpu: 4
     dx_instance_type: "mem1_ssd1_x8"
@@ -103,7 +103,7 @@ task fastqc {
   runtime {
     memory: "2 GB"
     cpu: 1
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -134,6 +134,6 @@ task spikein_report {
   runtime {
     memory: "3 GB"
     cpu: 2
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }

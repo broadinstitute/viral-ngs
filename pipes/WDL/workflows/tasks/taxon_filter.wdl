@@ -51,7 +51,7 @@ task deplete_taxa {
     Int  depletion_read_count_post = read_int("depletion_read_count_post")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 8
     dx_instance_type: "mem1_ssd1_x8"
@@ -95,7 +95,7 @@ task filter_to_taxon {
     Int  filter_read_count_post = read_int("filter_read_count_post")
   }
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 16
     dx_instance_type: "mem1_ssd1_x8"
@@ -138,6 +138,6 @@ task merge_one_per_sample {
   runtime{
     memory: "7 GB"
     cpu: 4
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }

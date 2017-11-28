@@ -2,7 +2,7 @@ dist: trusty
 os: linux
 
 git:
-  depth: 125
+  depth: 150
 
 env:
   global:
@@ -11,9 +11,12 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
   - PYTHONIOENCODING=UTF8
-  - DOCKER_REGISTRY="docker.io"
-  - DOCKER_REPO_PROD="broadinstitute/viral-ngs"
-  - DOCKER_REPO_DEV="broadinstitute/viral-ngs-dev"
+  #- DOCKER_REGISTRY="docker.io"
+  #- DOCKER_REPO_PROD="broadinstitute/viral-ngs"
+  #- DOCKER_REPO_DEV="broadinstitute/viral-ngs-dev"
+  - DOCKER_REGISTRY="quay.io"
+  - DOCKER_REPO_PROD="quay.io/broadinstitute/viral-ngs"
+  - DOCKER_REPO_DEV="quay.io/broadinstitute/viral-ngs-dev"
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
 
@@ -40,10 +43,14 @@ jobs:
           - docker-ce
       env:
         - TRAVIS_JOB=docker_wdl
-        # DOCKER_USER (for $DOCKER_REPO_PROD on $DOCKER_REGISTRY)
-        - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
-        # DOCKER_PASS (for $DOCKER_USER)
-        - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+        # DOCKER_USER (for Quay.io)
+        - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
+        # DOCKER_PASS (for Quay.io)
+        - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
+        ## DOCKER_USER (for DockerHub)
+        #- secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
+        ## DOCKER_PASS (for DockerHub)
+        #- secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
         # DX_API_TOKEN (for DNAnexus builds)
         - secure: WgrzGq3SjH5TG3jDwQxprNoyP7fyfAUZ2O/FqFaIOdr1aihZ45W+sZFfQsd74ny76dSe2I/w+Ly0gAl1WFLgmEBr9yAmxwA1p3mKDRx9NKaxzPrGZaF7hUmmZtBnkTx+hoJCiMjYu3kFVo/RBQ1IgQ1wHLvLb8KkQ6oAYAvd2YY=
         - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
@@ -57,8 +64,11 @@ jobs:
         - set -e
         # build docker image
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
-        - docker pull $OLD_DOCKER_TAG
-        - travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .
+        - if docker pull $OLD_DOCKER_TAG; then
+            travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .;
+          else
+            travis_wait docker build -t local/viral-ngs:build .;
+          fi
         - travis/deploy-docker.sh
         # version and validate WDL code
         - travis/version-wdl-runtimes.sh
