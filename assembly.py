@@ -31,7 +31,7 @@ import util.cmd
 import util.file
 import util.misc
 import util.vcf
-from util.provenance import FileArg
+from util.provenance import InFile, OutFile
 import read_utils
 import tools
 import tools.picard
