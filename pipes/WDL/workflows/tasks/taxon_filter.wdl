@@ -20,14 +20,20 @@ task deplete_taxa {
     # find 50% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_50.sh`
 
+    # bmtagger and blast db args
+    DBS_BMTAGGER="${sep=' ' bmtaggerDbs}"
+    DBS_BLAST="${sep=' ' blastDbs}"
+    if [ -n "$DBS_BMTAGGER" ]; then DBS_BMTAGGER="--bmtaggerDbs $DBS_BMTAGGER"; fi
+    if [ -n "$DBS_BLAST" ]; then DBS_BLAST="--blastDbs $DBS_BLAST"; fi
+
+    # run depletion
     taxon_filter.py deplete_human \
       ${raw_reads_unmapped_bam} \
       tmpfile.raw.bam \
       tmpfile.bmtagger_depleted.bam \
       tmpfile.rmdup.bam \
       ${bam_basename}.cleaned.bam \
-      --bmtaggerDbs ${sep=' ' bmtaggerDbs} \
-      --blastDbs ${sep=' ' blastDbs} \
+      $DBS_BMTAGGER $DBS_BLAST \
       --chunkSize ${query_chunk_size} \
       --JVMmemory="$mem_in_mb"m \
       --srprismMemory=$mem_in_mb \

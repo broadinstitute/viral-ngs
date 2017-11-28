@@ -245,6 +245,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
@@ -275,6 +277,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
@@ -287,6 +291,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
