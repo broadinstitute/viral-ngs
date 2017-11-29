@@ -79,7 +79,7 @@ class Lastal(LastTools):
                         yield read_id
 
             if lastal_pipe.poll():
-                raise CalledProcessError()
+                raise subprocess.CalledProcessError(lastal_pipe.returncode, cmd)
 
 
 class Lastdb(LastTools):

@@ -28,7 +28,7 @@ task kraken {
       --loglevel=DEBUG
     read_utils.py extract_tarball \
       ${krona_taxonomy_db_tgz} . \
-      --loglevel=DEBUG
+      --loglevel=DEBUG &  # we don't need this until later
 
     # prep input and output file names
     OUT_READS=fnames_outreads.txt
@@ -46,6 +46,7 @@ task kraken {
       --outReport `cat $OUT_REPORTS` \
       --loglevel=DEBUG
 
+    wait # for krona_taxonomy_db_tgz to download and extract
     for bam in ${sep=' ' reads_unmapped_bam}; do
       report_basename="$(basename $bam .bam).kraken-reads"
       metagenomics.py krona \
@@ -118,60 +119,54 @@ task krona {
 task diamond_contigs {
   File  contigs_fasta
   File  reads_unmapped_bam
-  File  diamond_db_tar_lz4
-  File  diamond_taxonomy_db_tar_lz4
-  File  bwa_taxonomy_db_tar_lz4
+  File  diamond_db_lz4
+  File  ncbi_taxonomy_db_tar_lz4
   File  krona_taxonomy_db_tar_lz4
 
   String contigs_basename = basename(contigs_fasta, ".fasta")
 
   parameter_meta {
-    diamond_db_tar_lz4          : "stream" # for DNAnexus, until WDL implements the File| type
-    diamond_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
-    bwa_taxonomy_db_tar_lz4     : "stream" # for DNAnexus, until WDL implements the File| type
-    krona_taxonomy_db_tar_lz4   : "stream" # for DNAnexus, until WDL implements the File| type
+    diamond_db_lz4            : "stream" # for DNAnexus, until WDL implements the File| type
+    ncbi_taxonomy_db_tar_lz4  : "stream" # for DNAnexus, until WDL implements the File| type
+    krona_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
     set -ex -o pipefail
 
-    echo "TO DO: this is not yet implemented"
-    exit 1
-
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
-    DIAMOND_DB_DIR=$(mktemp -d)
-    DIAMOND_TAXDB_DIR=$(mktemp -d)
-    BWA_TAXDB_DIR=$(mktemp -d)
+    NCBI_TAXDB_DIR=$(mktemp -d)
+
+    # find 90% memory
+    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
 
     # decompress DBs to /mnt/db
+    cat ${diamond_db_lz4} | lz4 -d > $TMPDIR/diamond_db.dmnd &
     read_utils.py extract_tarball \
-      ${diamond_db_tar_lz4} $DIAMOND_DB_DIR \
-      --loglevel=DEBUG
-    read_utils.py extract_tarball \
-      ${diamond_taxonomy_db_tar_lz4} $DIAMOND_TAXDB_DIR \
-      --loglevel=DEBUG
-    read_utils.py extract_tarball \
-      ${bwa_taxonomy_db_tar_lz4} $BWA_TAXDB_DIR \
-      --loglevel=DEBUG
+      ${ncbi_taxonomy_db_tar_lz4} $NCBI_TAXDB_DIR \
+      --loglevel=DEBUG &
+    wait
     read_utils.py extract_tarball \
       ${krona_taxonomy_db_tar_lz4} . \
-      --loglevel=DEBUG
+      --loglevel=DEBUG &  # we don't need this until later
 
     # classify contigs
     metagenomics.py diamond_fasta \
       ${contigs_fasta} \
-      $DIAMOND_DB_DIR \
-      $DIAMOND_TAXDB_DIR \
+      $TMPDIR/diamond_db.dmnd \
+      $NCBI_TAXDB_DIR \
       ${contigs_basename}.diamond.fasta \
+      --memLimitGb $mem_in_gb \
       --loglevel=DEBUG
 
     # map reads to contigs & create kraken-like read report
+    bwa index ${contigs_basename}.diamond.fasta
     metagenomics.py align_rna \
       ${reads_unmapped_bam} \
       ${contigs_basename}.diamond.fasta \
-      $BWA_TAXDB_DIR \
+      $NCBI_TAXDB_DIR \
       ${contigs_basename}.diamond.summary_report.txt \
       --outReads ${contigs_basename}.diamond.reads.txt.gz \
       --dupeReads ${contigs_basename}.diamond.reads_w_dupes.txt.gz \
@@ -179,6 +174,7 @@ task diamond_contigs {
       --loglevel=DEBUG
 
     # run krona
+    wait # for krona_taxonomy_db_tgz to download and extract
     metagenomics.py krona \
       ${contigs_basename}.diamond.reads.txt.gz \
       taxonomy \

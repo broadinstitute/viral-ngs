@@ -855,33 +855,46 @@ def parser_diamond_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Diamond database directory.')
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outFasta', help='Output sequences, same as inFasta, with taxid|###| prepended to each sequence identifier.')
+    parser.add_argument('--memLimitGb', type=float, default=None, help='approximate memory usage in GB')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond_fasta, split_args=True)
     return parser
-def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None):
+def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
     '''
         Classify fasta sequences by the taxon of the Lowest Common Ancestor (LCA)
     '''
 
-    with util.file.tempfname() as blast_hits:
+    with util.file.tmp_dir() as tmp_dir:
         # run diamond blastx on fasta sequences
         cmd = [tools.diamond.Diamond().install_and_get_path(), 'blastx',
             '-q', inFasta,
             '--db', db,
-            '--out', blast_hits,
-            '--outfmt', '102',
-            '--sallseqid',
+            '--outfmt', '102', # tsv: query name, taxid of LCA, e-value
+            '--salltitles',# to recover the entire fasta sequence name
+            '--sensitive', # this is necessary for longer reads or contigs
+            '--algo', '1', # for small query files
             '--threads', util.misc.sanitize_thread_count(threads),
             '--taxonmap', os.path.join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz'),
             '--taxonnodes', os.path.join(taxDb, 'nodes.dmp'),
+            '--tmpdir', tmp_dir,
             ]
-        subprocess.check_call(cmd)
+        if memLimitGb:
+            cmd.extend('--block-size', str(round(memLimitGb / 6.0, 1)))
+        log.debug(' '.join(cmd))
+        diamond_p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
-        # read the output report and load into an in-memory map of sequence ID -> tax ID
-        #tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
-        raise NotImplementedError() # TO DO: finish this part
+        # read the output report and load into an in-memory map
+        # of sequence ID -> tax ID (there shouldn't be that many sequences)
+        seq_to_tax = {}
+        for line in diamond_p.stdout:
+            row = line.decode('UTF-8').rstrip('\n\r').split('\t')
+            tax = row[1] if row[1] != '0' else '32644' # diamond returns 0 if unclassified, but the proper taxID for that is 32644
+            seq_to_tax[row[0]] = tax
+        if diamond_p.poll():
+            raise subprocess.CalledProcessError(diamond_p.returncode, cmd)
 
     # copy inFasta to outFasta while prepending taxid|###| to all sequence names
+    log.debug("transforming {} to {}".format(inFasta, outFasta))
     with file.util.open_or_gzopen(inFasta, 'rt') as inf:
         with file.util.open_or_gzopen(outFasta, 'wt') as outf:
             for seq in Bio.SeqIO.parse(inf, 'fasta'):
@@ -890,6 +903,16 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None):
                         '|'.join('taxid', taxid, seq.id),
                         str(seq.seq))]):
                     outf.write(text_line)
+
+
+def parser_build_diamond_db(parser=argparse.ArgumentParser()):
+    parser.add_argument('protein_fastas', nargs='+', help='Input protein fasta files')
+    parser.add_argument('db', help='Output Diamond database file')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, build_diamond_db, split_args=True)
+    return parser
+def build_diamond_db(protein_fastas, db, threads=None):
+    tool.diamond.Diamond().build(db, protein_fastas, options={'threads':util.misc.sanitize_thread_count(threads)})
 
 
 def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
