@@ -129,7 +129,7 @@ task scaffold {
 
     assembly.py impute_from_reference \
       ${sample_name}.intermediate_gapfill.fasta \
-      ${reference_genome_fasta} \
+      ${sample_name}.scaffolding_chosen_ref.fasta \
       ${sample_name}.scaffold.fasta \
       --newName ${sample_name} \
       ${'--replaceLength=' + replace_length} \
