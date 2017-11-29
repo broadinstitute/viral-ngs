@@ -343,7 +343,10 @@ __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
 
     tmpDb = None
-    if not any(('.tar' in db or '.tgz' in db or '.zip' in db) for db in refDbs):
+    if not any(not os.path.exists(db)  # indexed db prefix
+            or os.path.isdir(db)       # indexed db in directory
+            or (os.path.isfile(db) and ('.tar' in db or '.tgz' in db or '.zip' in db)) # packaged indexed db
+            for db in refDbs):
         # this is a scenario where all refDbs are unbuilt fasta
         # files. we can simplify and speed up execution by
         # concatenating them all and running deplete_method
