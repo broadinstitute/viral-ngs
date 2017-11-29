@@ -343,7 +343,8 @@ __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
 
     tmpDb = None
-    if not any(not os.path.exists(db)  # indexed db prefix
+    if len(refDbs)>1 and not any(
+            not os.path.exists(db)  # indexed db prefix
             or os.path.isdir(db)       # indexed db in directory
             or (os.path.isfile(db) and ('.tar' in db or '.tgz' in db or '.zip' in db)) # packaged indexed db
             for db in refDbs):
