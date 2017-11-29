@@ -2,7 +2,7 @@
 task assemble {
 
   File    reads_unmapped_bam
-  File?   trim_clip_db="gs://sabeti-public-dbs-gz/trim_clip/contaminants.fasta"
+  File    trim_clip_db
 
   Int?    trinity_n_reads=250000
   Int?    spades_n_reads=10000000
@@ -15,10 +15,9 @@ task assemble {
   command {
     set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
+    # find 90% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
 
     if [[ "${assembler}" == "trinity" ]]; then
       assembly.py assemble_trinity \
@@ -26,7 +25,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-trinity.fasta \
         ${'--n_reads=' + trinity_n_reads} \
-        --JVMmemory 14g \
+        --JVMmemory "$mem_in_mb"m \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
 
@@ -36,10 +35,9 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-spades.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb 14 \
+        --memLimitGb $mem_in_gb \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
-      ln ${reads_unmapped_bam} ${sample_name}.subsamp.bam
 
     elif [[ "${assembler}" == "trinity-spades" ]]; then
       assembly.py assemble_trinity \
@@ -47,7 +45,7 @@ task assemble {
         ${trim_clip_db} \
         ${sample_name}.assembly1-trinity.fasta \
         ${'--n_reads=' + trinity_n_reads} \
-        --JVMmemory 14g \
+        --JVMmemory "$mem_in_mb"m \
         --outReads=${sample_name}.subsamp.bam \
         --loglevel=DEBUG
       assembly.py assemble_spades \
@@ -56,7 +54,7 @@ task assemble {
         ${sample_name}.assembly1-spades.fasta \
         --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
         ${'--nReads=' + spades_n_reads} \
-        --memLimitGb 14 \
+        --memLimitGb $mem_in_gb \
         --loglevel=DEBUG
 
     else
@@ -74,9 +72,10 @@ task assemble {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "15 GB"
     cpu: 4
+    dx_instance_type: "mem1_ssd1_x8"
   }
 
 }
@@ -101,10 +100,8 @@ task scaffold {
   command {
     set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
+    # find 90% memory
+    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
 
     assembly.py order_and_orient \
       ${contigs_fasta} \
@@ -120,7 +117,7 @@ task scaffold {
       ${sample_name}.intermediate_scaffold.fasta \
       ${reads_bam} \
       ${sample_name}.intermediate_gapfill.fasta \
-      --memLimitGb 12 \
+      --memLimitGb $mem_in_gb \
       --maskErrors \
       --loglevel=DEBUG
 
@@ -143,9 +140,10 @@ task scaffold {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
-    memory: "12 GB"
-    cpu: 2
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "15 GB"
+    cpu: 4
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 
@@ -153,7 +151,7 @@ task refine {
   File    assembly_fasta
   File    reads_unmapped_bam
 
-  File    gatk_tar_bz2
+  File    gatk_jar
   File?   novocraft_license
 
   String? novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100"
@@ -162,19 +160,20 @@ task refine {
 
   String  assembly_basename=basename(assembly_fasta, ".fasta")
 
-  parameter_meta {
-    gatk_tar_bz2: "stream" # for DNAnexus, until WDL implements the File| type
-  }
-
   command {
     set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v assembly.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
+    # find 90% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+
+    # prep GATK
+    mkdir gatk
+    if [[ ${gatk_jar} == *.tar.bz2 ]]; then
+      tar -xjvf ${gatk_jar} -C gatk
+    else
+      ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     fi
 
-    read_utils.py extract_tarball ${gatk_tar_bz2} gatk --loglevel=DEBUG
     ln -s ${assembly_fasta} assembly.fasta
     read_utils.py novoindex assembly.fasta --loglevel=DEBUG
 
@@ -187,7 +186,7 @@ task refine {
       --major_cutoff ${major_cutoff} \
       --GATK_PATH gatk/ \
       --novo_params="${novoalign_options}" \
-      --JVMmemory 7g \
+      --JVMmemory "$mem_in_mb"m \
       --loglevel=DEBUG
   }
 
@@ -197,8 +196,9 @@ task refine {
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "7 GB"
     cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }

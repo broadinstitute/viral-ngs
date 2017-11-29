@@ -13,6 +13,5 @@ docker run -it \
        --volume $GATK_PATH:/gatk \
        --volume $DATA_DIR:/user-data \
        -e RUN_USER_ID=$UID -e RUN_GROUP_ID=$GID \
-       --hostname viralngs \
        $IMAGE_HASH_OR_TAG \
        "$@"

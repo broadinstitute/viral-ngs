@@ -1,20 +1,20 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" ]]; then
-	echo "Deploying docker image to DockerHub"
+if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" && -n "$DOCKER_REGISTRY" ]]; then
+	echo "Deploying docker image to $DOCKER_REGISTRY"
 
-	# log in to DockerHub
-	echo "$DOCKER_PASS" | docker login --password-stdin --username "$DOCKER_USER"
+	# log in to Docker registry
+	echo "$DOCKER_PASS" | docker login --password-stdin --username "$DOCKER_USER" "$DOCKER_REGISTRY"
 
 	# tag and deploy
 	for TAG in `travis/list-docker-tags.sh`; do
-		echo "Pushing docker image to DockerHub as $TAG"
-		docker tag local/viral-ngs:build $TAG 
+		echo "Pushing docker image to docker registry as $TAG"
+		docker tag local/viral-ngs:build $TAG
 		docker push $TAG
 	done
 
 else
-	echo "Skipping DockerHub deploy unless DOCKER_USER and DOCKER_PASS variables are set."
+	echo "Skipping Docker image deploy unless DOCKER_REGISTRY, DOCKER_USER and DOCKER_PASS variables are set."
 
 fi

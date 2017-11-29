@@ -39,6 +39,12 @@ class BmtaggerTools(tools.Tool):
         cmd.extend(args)
         subprocess.check_call(cmd)
 
+    def silent_execute(self, *args):
+        cmd = [self.install_and_get_path()]
+        cmd.extend(args)
+        with open(os.devnull, 'w') as fnull:
+            subprocess.check_call(cmd, stderr=fnull)
+
 
 class BmtaggerShTool(BmtaggerTools):
     """ tool wrapper for bmtagger """
@@ -54,7 +60,7 @@ class BmtoolTool(BmtaggerTools):
     """ tool wrapper for bmtool """
     subtool_name = 'bmtool'
 
-    def build_database(self, fasta_files, bitmask_file_path, max_amig=0, word_size=8):
+    def build_database(self, fasta_files, bitmask_file_path, max_ambig=0, word_size=18):
         """ builds a bmtool database (*.bitmask file) """
 
         input_fasta = ""
@@ -80,8 +86,8 @@ class BmtoolTool(BmtaggerTools):
         else:
             raise IOError("No fasta file provided")
 
-        args = ['-d', input_fasta, '-o', bitmask_file_path, '-A', str(max_amig), '-w', str(word_size)]
-        self.execute(*args)
+        args = ['-d', input_fasta, '-o', bitmask_file_path, '-A', str(max_ambig), '-w', str(word_size)]
+        self.silent_execute(*args)
 
         return bitmask_file_path
 

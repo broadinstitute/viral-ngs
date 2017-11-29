@@ -9,10 +9,6 @@ workflow demux_plus {
   call demux.illumina_demux as illumina_demux
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
-    call reports.fastqc as fastqc {
-      input:
-        reads_bam = raw_reads
-    }
     call reports.spikein_report as spikein {
       input:
         reads_bam = raw_reads
@@ -26,18 +22,17 @@ workflow demux_plus {
         assembler = "spades",
         reads_unmapped_bam = deplete.cleaned_bam
     }
+    # TO DO: (not yet implemented)
+    #call metagenomics.diamond_contigs as diamond {
+    #  input:
+    #    contigs_fasta = spades.contigs_fasta,
+    #    reads_unmapped_bam = deplete.cleaned_bam
+    #}
   }
 
   call metagenomics.kraken as kraken {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams
-  }
-
-  scatter(classified_reads in kraken.kraken_classified_reads) {
-    call metagenomics.krona as krona {
-      input:
-        classified_reads_txt_gz = classified_reads
-    }
   }
 
 }
