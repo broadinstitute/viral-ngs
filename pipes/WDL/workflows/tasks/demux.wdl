@@ -22,20 +22,17 @@ task illumina_demux {
   command {
     set -ex -o pipefail
 
-    # for those backends that prefer to override our Docker ENTRYPOINT
-    if [ -z "$(command -v illumina.py)" ]; then
-      source /opt/viral-ngs/source/docker/container_environment.sh
-    fi
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
     FLOWCELL_DIR=$(mktemp -d)
 
-    cat ${flowcell_tgz} |
-      read_utils.py extract_tarball \
-        - $FLOWCELL_DIR \
-        --pipe_hint=${flowcell_tgz} \
-        --loglevel=DEBUG
+    read_utils.py extract_tarball \
+      ${flowcell_tgz} $FLOWCELL_DIR \
+      --loglevel=DEBUG
+
+    # find 95% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_95.sh`
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
@@ -55,22 +52,27 @@ task illumina_demux {
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
-      --JVMmemory=14g \
+      --JVMmemory="$mem_in_mb"m \
       --threads=64 \
       --compression_level=5 \
       --loglevel=DEBUG
 
     rm -f Unmatched.bam
+    for bam in *.bam; do
+      fastqc_out=$(basename $bam .bam)_fastqc.html
+      reports.py fastqc $bam $fastqc_out
+    done
   }
 
   output {
     File        metrics                  = "metrics.txt"
     File        commonBarcodes           = "barcodes.txt"
     Array[File] raw_reads_unaligned_bams = glob("*.bam")
+    Array[File] raw_reads_fastqc         = glob("*_fastqc.html")
   }
 
   runtime {
-    docker: "broadinstitute/viral-ngs"
+    docker: "quay.io/broadinstitute/viral-ngs"
     memory: "16 GB"
     cpu: 32
     dx_instance_type: "mem1_ssd2_x36"

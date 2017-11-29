@@ -1,45 +1,16 @@
 ## viral-ngs Docker container
 
 ### Introduction
-This directory contains a `Dockerfile` suitable for building a containerized instance of viral-ngs capable of running on any platform that supports [Docker](https://www.docker.com/). 
+The parent directory contains a `Dockerfile` suitable for building a containerized instance of viral-ngs capable of running on any platform that supports [Docker](https://www.docker.com/). 
 
 Detailed documentation for Docker is [available online](https://docs.docker.com/).
 
-### Considerations
-The `Dockerfile` relies on the [easy-install script](https://github.com/broadinstitute/viral-ngs/tree/master/easy-deploy-script), which means that any time a new Docker image is built, it will include the latest version of viral-ngs available via the broad-viral channel of the [conda package manager](http://conda.pydata.org/docs/install/quick.html). 
-
-In order to use all features of the viral-ngs pipeline, it is necessary to manually [license and download GATK](https://software.broadinstitute.org/gatk/). To make a licensed copy of GATK available to the Docker container, set the `$GATK_PATH` environment variable on the host machine to the path containing an extracted copy of `GenomeAnalysisTK.jar`.
-
-By default, the pipeline will install a single-threaded version of [Novoalign](http://www.novocraft.com/products/novoalign/) from bioconda. It is possible to use a multi-threaded version to decrease compute time. To make a multi-threaded version of novoalign available to the Docker container, set the `$NOVOALIGN_PATH` environment variable on the host machine to the path containing the extracted Novocraft binaries, such as `novoalign`, `novoindex`, as well as the `novoalign.lic` license file. Note that the version of Novoalign used must support the 64-bit Linux platform of the viral-ngs Docker image, regardless of the platform hosting the Docker daemon.
-
 ### To build
-  Navigate to the directory containing the `Dockerfile`, then run:
+  From the viral-ngs directory, run:
 
-  `tar -czh . | docker build --rm -`
+  `docker build .`
 
-  The `tar` is necessary because Docker cannot dereference symlinks, and by tarring the directory, symlinks
-  to files in higher filesystem levels can be used. In particular, it is assumed a symlink exists within the directory containing the `Dockerfile` to the `easy-deploy-script/` directory of this repo. Furthermore, it is a good idea to use `-t` argument to give the build a tag so it is easier to manage images later. For example:
-
-  `tar -czh . | docker build --rm -t local/viral-ngs -`
-
-  To build with a specific version of viral-ngs, a Docker `--build-arg` may optionally be specified. Ex.:
-  ```
-  tar -czh . | docker build --rm -t local/viral-ngs:1.16.0 --build-arg VIRAL_NGS_VERSION=1.16.0  -
-  ```
-  Note that the version of viral-ngs specified must exist in one of the channels specified in the easy-install script. As of March 2017, check available version at [broad-viral](https://anaconda.org/broad-viral/viral-ngs/files) channel.  Otherwise, build may fail with an error like this:
-
-  ```shell
- PackageNotFoundError: Package not found: '' Package missing in current linux-64 channels:
-  - viral-ngs 1.16.0*
-
-You can search for packages on anaconda.org with
-
-    anaconda search -t conda viral-ngs
-
-You may need to install the anaconda-client command line client with
-
-    conda install anaconda-client
-  ```
+  See `.travis.yml` for an example invocation of this.
   
 ### To run
 Download licensed copies of GATK and Novoalign to the host machine (for Linux-64), and run:
@@ -48,6 +19,7 @@ export GATK_PATH=/path/to/gatk/
 export NOVOALIGN_PATH=/path/to/novoalign/
 docker run --rm -v $NOVOALIGN_PATH:/novoalign -v $GATK_PATH:/gatk -v /path/to/dir/on/host:/user-data -i <image_ID> "<command>.py subcommand"
 ```
+
 The helper script `rundocker.sh` is also available to conveniently run more customized docker run commands. It requires, however, to edit the file to match with locations of GATK, Novoalign, and `viral-ngs` version. This is an example to run with `rundocker.sh`
 
 `./rundocker.sh /path/to/datdir/on/host "<command>.py subcommand"`
@@ -64,16 +36,20 @@ An arbitrary directory on the host system can be made available within the Docke
 
 The `<command>.py subcommand` specified must match one of the [documented viral-ngs commands](https://viral-ngs.readthedocs.io/en/latest/cmdline.html).
 
+
+### Running as a non-root user within the container
+
+An optional entrypoint script is provided that invokes gosu to step down from root:
+
+```docker run --rm -ti --entrypoint=/opt/viral-ngs/source/docker/gosu-entrypoint.sh <image_ID>```
+
+
 ### Debugging
 
 #### Shell usage
-To use a shell within a viral-ngs Docker container, pass `/bin/bash` to the run command:
+To use a shell within a viral-ngs Docker container, run in interactive mode:
 
-```docker run --rm -t -i <image_ID> /bin/bash```
-
-Note that with the wrapper script normally used as the entrypoint, for true root access the following can be used for shell debugging of the container:
-
-```docker run --rm -ti --entrypoint=/bin/bash <image_ID> -s```
+```docker run --rm -t -i <image_ID>```
 
 #### Clean slate
 If you receive a "no space on device" error, sometimes a fresh start can be helpful. You can run these commands to remove **ALL** current docker images, containers, and volumes (be careful! the commands will also remove Docker items unrelated to viral-ngs):

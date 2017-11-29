@@ -29,6 +29,7 @@ import util.file
 import util.misc
 import tools.samtools
 import tools.bwa
+import tools.fastqc
 import assembly
 import interhost
 from util.stats import mean, median
@@ -869,6 +870,14 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
 
 __commands__.append(('align_and_plot_coverage', parser_align_and_plot_coverage))
 
+
+
+def parser_fastqc(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outHtml', help='Output report, HTML format.')
+    util.cmd.attach_main(parser, tools.fastqc.FastQC().execute, split_args=True)
+    return parser
+__commands__.append(('fastqc', parser_fastqc))
 
 # =======================
 

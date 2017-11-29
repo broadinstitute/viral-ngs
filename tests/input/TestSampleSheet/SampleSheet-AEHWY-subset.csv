@@ -1,0 +1,22 @@
+[Header]
+IEMFileVersion,4
+Date,8/14/2015
+Workflow,GenerateFASTQ
+Application,FASTQ Only
+Assay,Nextera XT
+Description,
+Chemistry,Amplicon
+
+[Reads]
+101
+101
+
+[Settings]
+ReverseComplement,0
+Adapter,CTGTCTCTTATACACATCT
+
+[Data]
+Sample_ID,Sample_Name,Sample_Plate,Sample_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description
+16,E023,,,N711,AAGAGGCA,S517,GCGTAAGA,,
+17,E024,,,N712,GTAGAGGA,S517,GCGTAAGA,,
+MAK_AD,MAK_AD,,,N701,TAAGGCGA,S502,CTCTCTAT,,

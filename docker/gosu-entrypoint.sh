@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# This script sets up the viral-ngs environment by sourcing the
-# easy-deploy script, then running whatever is passed in
-
-export SKIP_VERSION_CHECK=true
-
 # Gosu setup adapted from https://denibertovic.com/posts/handling-permissions-with-docker-volumes/
 USER_ID=${RUN_USER_ID:-1000}
 GROUP_ID=${RUN_GROUP_ID:-$USER_ID}
@@ -25,9 +20,6 @@ ln -s /user-data $HOME/data
 # '-R' is not used here because the user running docker may not have chown -R permission to the whole
 # data directory
 chown $USER_NAME:$GROUP_NAME /user-data
-
-#source /opt/viral-ngs/easy-deploy-viral-ngs.sh load
-source /opt/viral-ngs/source/docker/container_environment.sh
 
 cd $HOME/data
 

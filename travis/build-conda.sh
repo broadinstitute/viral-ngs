@@ -40,7 +40,7 @@ else
 
     SANITIZED_BRANCH_NAME="$(echo $BRANCH_NAME | sed 's/-/_/g')"
     CONDA_PKG_VERSION="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$(echo $SANITIZED_BRANCH_NAME)"
-    echo "Building conda package version $CONDA_PKG_VERSION and docker image version $pkg_version_docker"
+    echo "Building conda package version $CONDA_PKG_VERSION"
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt

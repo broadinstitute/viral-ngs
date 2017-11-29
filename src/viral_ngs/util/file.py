@@ -199,7 +199,7 @@ def destroy_tmp_dir(tempdir=None):
 
 
 def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
-    if tarfile != '-' and not os.path.isfile(tarfile):
+    if not (tarfile == '-' or (os.path.exists(tarfile) and not os.path.isdir(tarfile))):
         raise Exception('file does not exist: %s' % tarfile)
     if out_dir is None:
         out_dir = tempfile.mkdtemp(prefix='extract_tarball-')

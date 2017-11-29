@@ -31,8 +31,8 @@ task ref_guided_consensus {
     File variantCalls = "${sample}.vcf.gz"
   }
   runtime {
-    memory: "4GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "4 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -49,8 +49,8 @@ task ref_guided_consensus_aligned_with_dups {
     File onlyAlignedReadsBam = "${sample}.realigned.only_aligned.bam"
   }
   runtime {
-    memory: "8GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "8 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -71,7 +71,7 @@ task ref_guided_consensus_aligned_with_dups {
 #
 #  }
 #  runtime {
-#    docker: "broadinstitute/viral-ngs"
+#    docker: "quay.io/broadinstitute/viral-ngs"
 #  }
 #}
 
@@ -103,8 +103,8 @@ task multi_align_mafft {
     Array[File] chrAlignedFiles = glob("aligned_*.fasta")
   }
   runtime {
-    memory: "8GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "8 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
 
@@ -123,7 +123,7 @@ task index_ref {
     File referenceDict = "*.dict"
   }
   runtime {
-    memory: "4GB"
-    docker: "broadinstitute/viral-ngs"
+    memory: "4 GB"
+    docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
