@@ -27,7 +27,7 @@ workflow demux_metag {
       input:
         contigs_fasta = spades.contigs_fasta,
         reads_unmapped_bam = deplete.cleaned_bam,
-        krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
+        krona_taxonomy_db_tar_lz4 = krona_taxonomy_db_tgz
     }
   }
 
