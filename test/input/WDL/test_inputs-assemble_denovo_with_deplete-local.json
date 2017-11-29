@@ -3,7 +3,7 @@
   "assemble_denovo_with_deplete.plot_coverage.sample_name": "G5012.3",
   "assemble_denovo_with_deplete.filter_to_taxon.lastal_db_fasta": "test/input/ebov-makona.fasta",
   "assemble_denovo_with_deplete.assemble.trim_clip_db": "test/input/TestAssembleTrinity/clipDb.fasta",
-  "assemble_denovo_with_deplete.scaffold.reference_genome_fasta": "test/input/ebov-makona.fasta",
+  "assemble_denovo_with_deplete.scaffold.reference_genome_fasta": ["test/input/ebov-makona.fasta"],
 
   "assemble_denovo_with_deplete.deplete_taxa.blastDbs": [
 	"test/input/TestDepleteHuman/5kb_human_from_chr6.fasta"

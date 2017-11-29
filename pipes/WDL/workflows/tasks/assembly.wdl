@@ -81,13 +81,13 @@ task assemble {
 }
 
 task scaffold {
-  File    contigs_fasta
-  File    reads_bam
-  File    reference_genome_fasta
+  File         contigs_fasta
+  File         reads_bam
+  Array[File]+ reference_genome_fasta
 
-  String? aligner="muscle"
-  Float?  min_length_fraction=0.5
-  Float?  min_unambig=0.5
+  String? aligner
+  Float?  min_length_fraction
+  Float?  min_unambig
   Int?    replace_length=55
 
   Int?    nucmer_max_gap
@@ -105,12 +105,15 @@ task scaffold {
 
     assembly.py order_and_orient \
       ${contigs_fasta} \
-      ${reference_genome_fasta} \
+      ${sep=' ' reference_genome_fasta} \
       ${sample_name}.intermediate_scaffold.fasta \
       ${'--maxgap=' + nucmer_max_gap} \
       ${'--minmatch=' + nucmer_min_match} \
       ${'--mincluster=' + nucmer_min_cluster} \
       ${'--min_pct_contig_aligned=' + scaffold_min_pct_contig_aligned} \
+      --outReference ${sample_name}.scaffolding_chosen_ref.fasta \
+      --outStats ${sample_name}.scaffolding_stats.txt \
+      --outAlternateContigs ${sample_name}.scaffolding_alt_contigs.fasta \
       --loglevel=DEBUG
 
     assembly.py gapfill_gap2seq \
@@ -121,15 +124,18 @@ task scaffold {
       --maskErrors \
       --loglevel=DEBUG
 
+    grep -v '^>' ${sample_name}.intermediate_gapfill.fasta | tr -d '\n' | wc -c | tee assembly_preimpute_length
+    grep -v '^>' ${sample_name}.intermediate_gapfill.fasta | tr -d '\nNn' | wc -c | tee assembly_preimpute_length_unambiguous
+
     assembly.py impute_from_reference \
       ${sample_name}.intermediate_gapfill.fasta \
       ${reference_genome_fasta} \
       ${sample_name}.scaffold.fasta \
       --newName ${sample_name} \
-      --replaceLength ${replace_length} \
-      --minLengthFraction ${min_length_fraction} \
-      --minUnambig ${min_unambig} \
-      --aligner ${aligner} \
+      ${'--replaceLength=' + replace_length} \
+      ${'--minLengthFraction=' + min_length_fraction} \
+      ${'--minUnambig=' + min_unambig} \
+      ${'--aligner=' + aligner} \
       --loglevel=DEBUG
   }
 
@@ -137,6 +143,11 @@ task scaffold {
     File scaffold_fasta              = "${sample_name}.scaffold.fasta"
     File intermediate_scaffold_fasta = "${sample_name}.intermediate_scaffold.fasta"
     File intermediate_gapfill_fasta  = "${sample_name}.intermediate_gapfill.fasta"
+    Int  assembly_preimpute_length             = read_int("assembly_preimpute_length")
+    Int  assembly_preimpute_length_unambiguous = read_int("assembly_preimpute_length_unambiguous")
+    File scaffolding_chosen_ref      = "${sample_name}.scaffolding_chosen_ref.fasta"
+    File scaffolding_stats           = "${sample_name}.scaffolding_stats.txt"
+    File scaffolding_alt_contigs     = "${sample_name}.scaffolding_alt_contigs.fasta"
   }
 
   runtime {
