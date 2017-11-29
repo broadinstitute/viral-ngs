@@ -643,6 +643,8 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
     filter_file('names.dmp', sep='|')
     filter_file('merged.dmp')
     filter_file('delnodes.dmp')
+__commands__.append(('subset_taxonomy', parser_subset_taxonomy))
+
 
 def rank_code(rank):
     '''Get the short 1 letter rank code for named ranks.'''
@@ -740,6 +742,7 @@ def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterT
     kraken_tool = tools.kraken.Kraken()
     kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
                          filterThreshold=filterThreshold, numThreads=threads)
+__commands__.append(('kraken', parser_kraken))
 
 
 
@@ -785,8 +788,7 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=No
         # Cleanup tmp .tsv files
         for tmp_tsv in to_import:
             os.unlink(tmp_tsv)
-
-
+__commands__.append(('krona', parser_krona))
 
 
 def parser_diamond(parser=argparse.ArgumentParser()):
@@ -848,6 +850,7 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         assert s2fq.returncode == 0
         diamond_ps.wait()
         assert diamond_ps.returncode == 0
+__commands__.append(('diamond', parser_diamond))
 
 
 def parser_diamond_fasta(parser=argparse.ArgumentParser()):
@@ -873,7 +876,7 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
             '--salltitles',# to recover the entire fasta sequence name
             '--sensitive', # this is necessary for longer reads or contigs
             '--algo', '1', # for small query files
-            '--threads', util.misc.sanitize_thread_count(threads),
+            '--threads', str(util.misc.sanitize_thread_count(threads)),
             '--taxonmap', os.path.join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz'),
             '--taxonnodes', os.path.join(taxDb, 'nodes.dmp'),
             '--tmpdir', tmp_dir,
@@ -903,6 +906,7 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
                         '|'.join('taxid', taxid, seq.id),
                         str(seq.seq))]):
                     outf.write(text_line)
+__commands__.append(('diamond_fasta', parser_diamond_fasta))
 
 
 def parser_build_diamond_db(parser=argparse.ArgumentParser()):
@@ -912,7 +916,8 @@ def parser_build_diamond_db(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, build_diamond_db, split_args=True)
     return parser
 def build_diamond_db(protein_fastas, db, threads=None):
-    tool.diamond.Diamond().build(db, protein_fastas, options={'threads':util.misc.sanitize_thread_count(threads)})
+    tool.diamond.Diamond().build(db, protein_fastas, options={'threads':str(util.misc.sanitize_thread_count(threads))})
+__commands__.append(('build_diamond_db', parser_build_diamond_db))
 
 
 def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
@@ -1002,6 +1007,7 @@ def align_rna_metagenomics(
 
     if not outBam:
         os.unlink(aln_bam_deduped)
+__commands__.append(('align_rna', parser_align_rna_metagenomics))
 
 
 def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=None):
@@ -1092,8 +1098,7 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
 
         kraken_tool = tools.kraken.Kraken()
         kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
-
-
+__commands__.append(('report_merge', parser_metagenomic_report_merge))
 
 
 
@@ -1235,17 +1240,8 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
 
     if clean:
         kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
-
-
-
-
-__commands__.append(('kraken', parser_kraken))
-__commands__.append(('diamond', parser_diamond))
-__commands__.append(('krona', parser_krona))
-__commands__.append(('align_rna', parser_align_rna_metagenomics))
-__commands__.append(('report_merge', parser_metagenomic_report_merge))
-__commands__.append(('subset_taxonomy', parser_subset_taxonomy))
 __commands__.append(('kraken_build', parser_kraken_build))
+
 
 
 def full_parser():

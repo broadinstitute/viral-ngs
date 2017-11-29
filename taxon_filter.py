@@ -78,7 +78,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
 
 def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
-        Optionally, use lastal to select a specific taxon of interest.'''
+    '''
 
     assert len(args.bmtaggerDbs) + len(args.blastDbs) > 0
 
