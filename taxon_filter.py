@@ -341,6 +341,17 @@ __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
 
 
 def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
+
+    tmpDb = None
+    if not any(('.tar' in db or '.tgz' in db or '.zip' in db) for db in refDbs):
+        # this is a scenario where all refDbs are unbuilt fasta
+        # files. we can simplify and speed up execution by
+        # concatenating them all and running deplete_method
+        # just once
+        tmpDb = mkstempfname('.fasta')
+        merge_compressed_files(refDbs, tmpDb)
+        refDbs = [tmpDb]
+
     samtools = tools.samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
@@ -351,6 +362,10 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
                 os.unlink(tmpBamIn)
             tmpBamIn = tmpBamOut
     shutil.copyfile(tmpBamIn, outBam)
+
+    if tmpDb:
+        os.unlink(tmpDb)
+
 
 # ========================
 # ***  deplete_blastn  ***
@@ -581,6 +596,31 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
+
+# ================================
+# ***  merge_compressed_files  ***
+# ================================
+
+def merge_compressed_files(inFiles, outFile):
+    ''' Take a collection of input text files, possibly compressed,
+        and concatenate into a single output text file.
+        TO DO: if we made util.file.open_or_gzopen more multilingual,
+        we wouldn't need this.
+    '''
+    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+        for infname in inFiles:
+            if infname.endswith('.gz') or infname.endswith('.lz4'):
+                if infname.endswith('.gz'):
+                    decompressor = ['gzip', '-dc']
+                else:
+                    decompressor = ['lz4', '-d']
+                with open(infname, 'rb') as inf:
+                    subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+            else:
+                with open(infname, 'rt') as inf:
+                    for line in inf:
+                        outf.write(line)
+
 
 # ========================
 # ***  blastn_build_db  ***

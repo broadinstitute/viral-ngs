@@ -496,6 +496,56 @@ def collect_parents(parents, taxids):
             taxid = parents[taxid]
 
 
+def parser_subset_taxonomy(parser=argparse.ArgumentParser()):
+    parser.add_argument(
+        "taxDb",
+        help="Taxonomy database directory (containing nodes.dmp, parents.dmp etc.)",
+    )
+    parser.add_argument(
+        "outputDb",
+        help="Output taxonomy database directory",
+    )
+    parser.add_argument(
+        "--whitelistTaxids",
+        help="List of taxids to add to taxonomy (with parents)",
+        nargs='+', type=int
+    )
+    parser.add_argument(
+        "--whitelistTaxidFile",
+        help="File containing taxids - one per line - to add to taxonomy with parents.",
+    )
+    parser.add_argument(
+        "--whitelistTreeTaxids",
+        help="List of taxids to add to taxonomy (with parents and children)",
+        nargs='+', type=int
+    )
+    parser.add_argument(
+        "--whitelistTreeTaxidFile",
+        help="File containing taxids - one per line - to add to taxonomy with parents and children.",
+    )
+    parser.add_argument(
+        "--whitelistGiFile",
+        help="File containing GIs - one per line - to add to taxonomy with nodes.",
+    )
+    parser.add_argument(
+        "--whitelistAccessionFile",
+        help="File containing accessions - one per line - to add to taxonomy with nodes.",
+    )
+    parser.add_argument(
+        "--skipGi", action='store_true',
+        help="Skip GI to taxid mapping files"
+    )
+    parser.add_argument(
+        "--skipAccession", action='store_true',
+        help="Skip accession to taxid mapping files"
+    )
+    parser.add_argument(
+        "--skipDeadAccession", action='store_true',
+        help="Skip dead accession to taxid mapping files"
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, subset_taxonomy, split_args=True)
+    return parser
 def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=None,
                     whitelistTreeTaxids=None, whitelistTreeTaxidFile=None,
                     whitelistGiFile=None, whitelistAccessionFile=None,
@@ -669,17 +719,6 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
     return cum_hits
 
 
-def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
-    '''
-        Classify reads by taxon using Kraken
-    '''
-
-    assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kraken_tool = tools.kraken.Kraken()
-    kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
-                         filterThreshold=filterThreshold, numThreads=threads)
-
-
 def parser_kraken(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
@@ -692,8 +731,30 @@ def parser_kraken(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken, split_args=True)
     return parser
+def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
+    '''
+        Classify reads by taxon using Kraken
+    '''
+
+    assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
+    kraken_tool = tools.kraken.Kraken()
+    kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
+                         filterThreshold=filterThreshold, numThreads=threads)
 
 
+
+def parser_krona(parser=argparse.ArgumentParser()):
+    parser.add_argument('inTsv', help='Input tab delimited file.')
+    parser.add_argument('db', help='Krona taxonomy database directory.')
+    parser.add_argument('outHtml', help='Output html report.')
+    parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)', type=int, default=2)
+    parser.add_argument('--taxidColumn', help='Column of taxonomy id. (default %(default)s)', type=int, default=3)
+    parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)', type=int)
+    parser.add_argument('--noHits', help='Include wedge for no hits.', action='store_true')
+    parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, krona, split_args=True)
+    return parser
 def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, noHits=None, noRank=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
@@ -726,20 +787,17 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=No
             os.unlink(tmp_tsv)
 
 
-def parser_krona(parser=argparse.ArgumentParser()):
-    parser.add_argument('inTsv', help='Input tab delimited file.')
-    parser.add_argument('db', help='Krona taxonomy database directory.')
-    parser.add_argument('outHtml', help='Output html report.')
-    parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)', type=int, default=2)
-    parser.add_argument('--taxidColumn', help='Column of taxonomy id. (default %(default)s)', type=int, default=3)
-    parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)', type=int)
-    parser.add_argument('--noHits', help='Include wedge for no hits.', action='store_true')
-    parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, krona, split_args=True)
+
+
+def parser_diamond(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('db', help='Diamond database directory.')
+    parser.add_argument('taxDb', help='Taxonomy database directory.')
+    parser.add_argument('outReport', help='Output taxonomy report.')
+    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
-
-
 def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
@@ -758,7 +816,6 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         )
 
         diamond_tool = tools.diamond.Diamond()
-        diamond_tool.install()
         taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
         taxonnodes = join(taxDb, 'nodes.dmp')
         rutils = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'read_utils.py')
@@ -793,17 +850,71 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         assert diamond_ps.returncode == 0
 
 
-def parser_diamond(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+def parser_diamond_fasta(parser=argparse.ArgumentParser()):
+    parser.add_argument('inFasta', help='Input sequences, FASTA format.')
     parser.add_argument('db', help='Diamond database directory.')
     parser.add_argument('taxDb', help='Taxonomy database directory.')
-    parser.add_argument('outReport', help='Output taxonomy report.')
-    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
+    parser.add_argument('outFasta', help='Output sequences, same as inFasta, with taxid|###| prepended to each sequence identifier.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, diamond, split_args=True)
+    util.cmd.attach_main(parser, diamond_fasta, split_args=True)
     return parser
+def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None):
+    '''
+        Classify fasta sequences by the taxon of the Lowest Common Ancestor (LCA)
+    '''
+
+    with util.file.tempfname() as blast_hits:
+        # run diamond blastx on fasta sequences
+        cmd = [tools.diamond.Diamond().install_and_get_path(), 'blastx',
+            '-q', inFasta,
+            '--db', db,
+            '--out', blast_hits,
+            '--outfmt', '102',
+            '--sallseqid',
+            '--threads', util.misc.sanitize_thread_count(threads),
+            '--taxonmap', os.path.join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz'),
+            '--taxonnodes', os.path.join(taxDb, 'nodes.dmp'),
+            ]
+        subprocess.check_call(cmd)
+
+        # read the output report and load into an in-memory map of sequence ID -> tax ID
+        #tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
+        raise NotImplementedError() # TO DO: finish this part
+
+    # copy inFasta to outFasta while prepending taxid|###| to all sequence names
+    with file.util.open_or_gzopen(inFasta, 'rt') as inf:
+        with file.util.open_or_gzopen(outFasta, 'wt') as outf:
+            for seq in Bio.SeqIO.parse(inf, 'fasta'):
+                taxid = seq_to_tax.get(seq.id, '32644') # default to "unclassified"
+                for text_line in util.file.fastaMaker([(
+                        '|'.join('taxid', taxid, seq.id),
+                        str(seq.seq))]):
+                    outf.write(text_line)
 
 
+def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('db', help='Bwa index prefix.')
+    parser.add_argument('taxDb', help='Taxonomy database directory.')
+    parser.add_argument('outReport', help='Output taxonomy report.')
+    parser.add_argument('--dupeReport', help='Generate report including duplicates.')
+    parser.add_argument(
+        '--sensitive',
+        dest='sensitive',
+        action="store_true",
+        help='Use sensitive instead of default BWA mem options.'
+    )
+    parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
+    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
+    parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.PicardTools.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)
+    return parser
 def align_rna_metagenomics(
     inBam,
     db,
@@ -886,31 +997,32 @@ def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=No
             print(line, file=f)
 
 
-def parser_align_rna_metagenomics(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('db', help='Bwa index prefix.')
-    parser.add_argument('taxDb', help='Taxonomy database directory.')
-    parser.add_argument('outReport', help='Output taxonomy report.')
-    parser.add_argument('--dupeReport', help='Generate report including duplicates.')
+
+
+def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
     parser.add_argument(
-        '--sensitive',
-        dest='sensitive',
-        action="store_true",
-        help='Use sensitive instead of default BWA mem options.'
+        "metagenomic_reports",
+        help="Input metagenomic reports with the query ID and taxon ID in the 2nd and 3rd columns (Kraken format)",
+        nargs='+',
+        type=argparse.FileType('r')
     )
-    parser.add_argument('--outBam', help='Output aligned, indexed BAM file. Default is to write to temp.')
-    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
-    parser.add_argument('--dupeReads', help='Output LCA assignments for each read including duplicates.')
     parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.PicardTools.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        "--outSummaryReport",
+        dest="out_kraken_summary",
+        help="Path of human-readable metagenomic summary report, created by kraken-report"
     )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, align_rna_metagenomics, split_args=True)
+    parser.add_argument(
+        "--krakenDB",
+        dest="kraken_db",
+        help="Kraken database (needed for outSummaryReport)",
+        type=argparse.FileType('r')
+    )
+    parser.add_argument(
+        "--outByQueryToTaxonID", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. "
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
     return parser
-
-
 def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db, out_krona_input):
     '''
         Merge multiple metegenomic reports into a single metagenomic report.
@@ -959,81 +1071,7 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
         kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
 
 
-def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
-    parser.add_argument(
-        "metagenomic_reports",
-        help="Input metagenomic reports with the query ID and taxon ID in the 2nd and 3rd columns (Kraken format)",
-        nargs='+',
-        type=argparse.FileType('r')
-    )
-    parser.add_argument(
-        "--outSummaryReport",
-        dest="out_kraken_summary",
-        help="Path of human-readable metagenomic summary report, created by kraken-report"
-    )
-    parser.add_argument(
-        "--krakenDB",
-        dest="kraken_db",
-        help="Kraken database (needed for outSummaryReport)",
-        type=argparse.FileType('r')
-    )
-    parser.add_argument(
-        "--outByQueryToTaxonID", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. "
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
-    return parser
 
-def parser_subset_taxonomy(parser=argparse.ArgumentParser()):
-    parser.add_argument(
-        "taxDb",
-        help="Taxonomy database directory (containing nodes.dmp, parents.dmp etc.)",
-    )
-    parser.add_argument(
-        "outputDb",
-        help="Output taxonomy database directory",
-    )
-    parser.add_argument(
-        "--whitelistTaxids",
-        help="List of taxids to add to taxonomy (with parents)",
-        nargs='+', type=int
-    )
-    parser.add_argument(
-        "--whitelistTaxidFile",
-        help="File containing taxids - one per line - to add to taxonomy with parents.",
-    )
-    parser.add_argument(
-        "--whitelistTreeTaxids",
-        help="List of taxids to add to taxonomy (with parents and children)",
-        nargs='+', type=int
-    )
-    parser.add_argument(
-        "--whitelistTreeTaxidFile",
-        help="File containing taxids - one per line - to add to taxonomy with parents and children.",
-    )
-    parser.add_argument(
-        "--whitelistGiFile",
-        help="File containing GIs - one per line - to add to taxonomy with nodes.",
-    )
-    parser.add_argument(
-        "--whitelistAccessionFile",
-        help="File containing accessions - one per line - to add to taxonomy with nodes.",
-    )
-    parser.add_argument(
-        "--skipGi", action='store_true',
-        help="Skip GI to taxid mapping files"
-    )
-    parser.add_argument(
-        "--skipAccession", action='store_true',
-        help="Skip accession to taxid mapping files"
-    )
-    parser.add_argument(
-        "--skipDeadAccession", action='store_true',
-        help="Skip dead accession to taxid mapping files"
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, subset_taxonomy, split_args=True)
-    return parser
 
 
 def kraken_library_ids(library):
@@ -1072,6 +1110,19 @@ class KrakenBuildError(Exception):
     '''Error while building kraken database.'''
 
 
+def parser_kraken_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Kraken database output directory.')
+    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
+    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
+    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
+    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken default: 15)')
+    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken default: 31)')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
+    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
+    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken_build, split_args=True)
+    return parser
 def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
                 threads=None, workOnDisk=False,
                 minimizerLen=None, kmerLen=None, maxDbSize=None, clean=False):
@@ -1163,19 +1214,6 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
         kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
 
 
-def parser_kraken_build(parser=argparse.ArgumentParser()):
-    parser.add_argument('db', help='Kraken database output directory.')
-    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
-    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
-    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
-    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken default: 15)')
-    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken default: 31)')
-    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
-    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
-    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken_build, split_args=True)
-    return parser
 
 
 __commands__.append(('kraken', parser_kraken))

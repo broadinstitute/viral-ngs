@@ -34,8 +34,8 @@ task kraken {
     OUT_READS=fnames_outreads.txt
     OUT_REPORTS=fnames_outreports.txt
     for bam in ${sep=' ' reads_unmapped_bam}; do
-      echo "kraken-reads-$(basename $bam .bam).txt.gz" >> $OUT_READS
-      echo "kraken-report-$(basename $bam .bam).txt" >> $OUT_REPORTS
+      echo "$(basename $bam .bam).kraken-reads.txt.gz" >> $OUT_READS
+      echo "$(basename $bam .bam).kraken-summary_report.txt" >> $OUT_REPORTS
     done
 
     # execute on all inputs and outputs at once
@@ -47,7 +47,7 @@ task kraken {
       --loglevel=DEBUG
 
     for bam in ${sep=' ' reads_unmapped_bam}; do
-      report_basename="kraken-reads-$(basename $bam .bam)"
+      report_basename="$(basename $bam .bam).kraken-reads"
       metagenomics.py krona \
         $report_basename.txt.gz \
         taxonomy \
@@ -59,10 +59,10 @@ task kraken {
   }
 
   output {
-    Array[File] kraken_classified_reads = glob("kraken-reads-*.txt.gz")
-    Array[File] kraken_summary_report   = glob("kraken-report-*.txt")
-    Array[File] krona_report_html       = glob("kraken-reads-*.html")
-    Array[File] krona_report_tgz        = glob("kraken-reads-*.krona.tar.gz")
+    Array[File] kraken_classified_reads = glob("*.kraken-reads.txt.gz")
+    Array[File] kraken_summary_report   = glob("*.kraken-summary_report.txt")
+    Array[File] krona_report_html       = glob("*.kraken-reads.html")
+    Array[File] krona_report_tgz        = glob("*.kraken-reads.krona.tar.gz")
   }
 
   runtime {

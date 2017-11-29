@@ -88,14 +88,12 @@ jobs:
     #    - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
     #    # DOCKER_PASS
     #    - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
-    #    # DOCKER_EMAIL (for broadinstitute/viral-ngs on Docker Hub)
-    #    - secure: kKSA73w+i9MfIbLBx7FN85SImGn+Rbhke554q39DSkU0++Q8zyRj7862oOKX3XBlBfeFrZaDzuyk7D1WJvdOF48tQHTJVcoI5qvzFqn4qXjLN3oI2dsGWd154SmUH9uviNUKjNzVpzcdQ7nt+ntrR4FQHLf+gqn7PyCg2p0jD2w=
     #  install: travis/upgrade-docker.sh
     #  script:
     #    - set -e
     #    - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
-    #    - docker pull $OLD_DOCKER_TAG
-    #    - travis_wait docker build -t local/viral-ngs:build --cache-from $OLD_DOCKER_TAG .
+    #    - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
+    #    - travis_wait docker build -t local/viral-ngs:build $_CACHE_FROM .;
     #    - travis/deploy-docker.sh
     #  before_cache:
     #    - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt

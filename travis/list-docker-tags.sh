@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [ -z "$DOCKER_REGISTRY" -o -z "$DOCKER_REPO_PROD" -o -z "$DOCKER_REPO_DEV" -o -z "$TRAVIS_BRANCH" ]; then
-	echo "This script requires the following environment variables set: DOCKER_REGISTRY, DOCKER_REPO_PROD, DOCKER_REPO_DEV, and TRAVIS_BRANCH."
+if [ -z "$DOCKER_REPO_PROD" -o -z "$DOCKER_REPO_DEV" -o -z "$TRAVIS_BRANCH" ]; then
+	echo "This script requires the following environment variables set: DOCKER_REPO_PROD, DOCKER_REPO_DEV, and TRAVIS_BRANCH."
 	exit 1
 fi
 
