@@ -52,17 +52,17 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--bmtaggerDbs',
-        nargs='+',
-        required=True,
-        help='''Reference databases (one or more) to deplete from input.
+        nargs='*',
+        default=(),
+        help='''Reference databases to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument(
         '--blastDbs',
-        nargs='+',
-        required=True,
-        help='One or more reference databases for blast to deplete from input.'
+        nargs='*',
+        default=(),
+        help='Reference databases for blast to deplete from input.'
     )
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
@@ -79,6 +79,8 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
 def main_deplete_human(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
         Optionally, use lastal to select a specific taxon of interest.'''
+
+    assert len(args.bmtaggerDbs) + len(args.blastDbs) > 0
 
     # only RevertSam if inBam is already aligned
     # Most of the time the input will be unaligned
@@ -267,7 +269,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
-                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
                     # this is an unindexed fasta file, we will need to index it
                     bmtagger_build_db(db, tempDir, 'bmtagger_db')
                     db_dir = tempDir
@@ -479,7 +481,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
-                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4'):
+                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
                     # this is an unindexed fasta file, we will need to index it
                     blastn_build_db(db, tempDbDir, 'blastn_db')
                     db_dir = tempDbDir
@@ -632,7 +634,7 @@ __commands__.append(('blastn_build_db', parser_blastn_build_db))
 # ========================
 
 
-def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
+def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=18):
     """ Create a database for use with Bmtagger from an input FASTA file.
     """
 
@@ -643,6 +645,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
         else:
             decompressor = ['lz4', '-d']
         new_fasta = util.file.mkstempfname('.fasta')
+        log.debug("cat {} | {} > {}".format(inputFasta, ' '.join(decompressor), new_fasta))
         with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
             subprocess.check_call(decompressor, stdin=inf, stdout=outf)
         inputFasta = new_fasta
@@ -654,8 +657,9 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
+    log.debug("building bmtagger and srprism databases on {}".format(os.path.join(outputDirectory, outPrefix)))
     bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(
-        inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask")
+        inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask"), word_size=word_size
     )
     srprismdb_path = tools.bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
@@ -674,6 +678,12 @@ def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
+    )
+    parser.add_argument(
+        '--word_size',
+        type=int,
+        default=18,
+        help='Database word size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bmtagger_build_db, split_args=True)

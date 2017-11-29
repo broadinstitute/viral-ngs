@@ -94,23 +94,27 @@ class TestBmtagger(TestCaseWithTmp):
 
     def setUp(self):
         TestCaseWithTmp.setUp(self)
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         self.tempDir = tempfile.mkdtemp()
-        myInputDir = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman')
-        ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
+        ref_fasta = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
         self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
-        self.bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(ref_fasta, self.database_prefix_path + ".bitmask")
-        self.srprismdb_path = tools.bmtagger.SrprismTool().build_database(ref_fasta, self.database_prefix_path + ".srprism")
+        taxon_filter.bmtagger_build_db(ref_fasta, self.tempDir, "5kb_human_from_chr6", word_size=8)
 
-    @unittest.skip('functionally equivalent to test_Deplete_bmtagger_tar_db + test_bmtagger_empty_output')
     def test_deplete_bmtagger_bam(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
         outBam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
             inBam, self.database_prefix_path, outBam, '--srprismMemory', '1500'])
+        args.func_main(args)
+        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
+        assert_equal_bam_reads(self, outBam, expectedOut)
+
+    @unittest.skip("too slow for real word size of 18bp")
+    def test_deplete_bmtagger_fasta_db(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        ref_fasta = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
+        outBam = util.file.mkstempfname('-out.bam')
+        args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
+            inBam, ref_fasta, outBam, '--srprismMemory', '1500'])
         args.func_main(args)
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.bmtagger.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
@@ -129,8 +133,6 @@ class TestBmtagger(TestCaseWithTmp):
         os.unlink(tar_db_tgz)
 
     def test_bmtagger_empty_input(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         out_bam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
@@ -139,8 +141,6 @@ class TestBmtagger(TestCaseWithTmp):
         assert_equal_bam_reads(self, out_bam, empty_bam)
 
     def test_bmtagger_empty_output(self):
-        os.environ.pop('TMPDIR', None)
-        util.file.set_tmp_dir(None)
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
         out_bam = util.file.mkstempfname('-out.bam')
@@ -245,6 +245,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
@@ -275,6 +277,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
@@ -287,6 +291,8 @@ class TestBmtaggerDbBuild(TestCaseWithTmp):
                 tempDir,
                 "--outputFilePrefix",
                 output_prefix,
+                "--word_size",
+                "8",
             ]
         )
         args.func_main(args)
