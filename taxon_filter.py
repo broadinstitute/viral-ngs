@@ -16,7 +16,6 @@ import os
 import math
 import tempfile
 import shutil
-import functools
 import concurrent.futures
 
 from Bio import SeqIO
@@ -376,38 +375,15 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
 # ========================
 
 
-def run_blastn(blastn_path, db, input_fasta, blast_threads=1):
+def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads):
     """ run blastn on the input fasta file. this is intended to be run in parallel
         by blastn_chunked_fasta
     """
-    chunk_hits = mkstempfname('.hits.txt.gz')
+    with util.file.open_or_gzopen(out_hits, 'wt') as outf:
+        for read_id in tools.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads):
+            outf.write(read_id + '\n')
 
-    blastnCmd = [
-        blastn_path, '-db', db, '-word_size', '16', '-num_threads', str(blast_threads), '-evalue', '1e-6', '-outfmt',
-        '6', '-max_target_seqs', '1', '-query', input_fasta,
-    ]
-    log.debug(' '.join(blastnCmd))
-    blast_pipe = subprocess.Popen(blastnCmd, stdout=subprocess.PIPE)
-
-    with util.file.open_or_gzopen(chunk_hits, 'wt') as outf:
-        # strip tab output to just query read ID names and emit
-        last_read_id = None
-        for line in blast_pipe.stdout:
-            line = line.decode('UTF-8').rstrip('\n\r')
-            read_id = line.split('\t')[0]
-            # only emit if it is not a duplicate of the previous read ID
-            if read_id != last_read_id:
-                last_read_id = read_id
-                outf.write(read_id + '\n')
-
-    if blast_pipe.poll():
-        raise subprocess.CalledProcessError(blast_pipe.returncode, blastnCmd)
-    os.unlink(input_fasta)
-
-    return chunk_hits
-
-
-def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=None):
+def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None):
     """
     Helper function: blastn a fasta file, overcoming apparent memory leaks on
     an input with many query sequences, by splitting it into multiple chunks
@@ -419,17 +395,17 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=None):
     # will be detrimental relative to actual computation time
     MIN_CHUNK_SIZE = 20000
 
-    # get the blastn path here so we don't run conda install checks multiple times
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    # just in case blast is not installed, install it once, not many times in parallel!
+    tools.blast.BlastnTool().install()
 
-    # clamp threadcount to number of CPUs
-    threads = util.misc.sanitize_thread_count(threads, 2*util.misc.available_cpu_count())
+    # clamp threadcount to number of CPU cores
+    threads = util.misc.sanitize_thread_count(threads)
 
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)
     log.debug("number of reads in fasta file %s" % number_of_reads)
     if number_of_reads == 0:
-        return [mkstempfname('.hits.txt')]
+        util.file.make_empty(out_hits)
 
     # divide (max, single-thread) chunksize by thread count
     # to find the  absolute max chunk size per thread
@@ -470,24 +446,27 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=None):
             batch = None
             input_fastas.append(chunk_fasta)
 
-    log.debug("number of chunk files to be processed by blastn %s" % len(input_fastas))
+    num_chunks = len(input_fastas)
+    log.debug("number of chunk files to be processed by blastn %d" % num_chunks)
 
-    hits_files = []
     # run blastn on each of the fasta input chunks
+    hits_files = list(mkstempfname('.hits.txt') for f in input_fastas)
     with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
-        # if we have so few chunks that there are cpus left over,
+        # If we have so few chunks that there are cpus left over,
         # divide extra cpus evenly among chunks where possible
-        # rounding to 1 if there are more chunks than extra threads
-        cpus_leftover = (threads - len(input_fastas))
-        blast_threads = max(1, int(cpus_leftover / len(input_fastas)))
+        # rounding to 1 if there are more chunks than extra threads.
+        # Then double up this number to better maximize CPU usage.
+        cpus_leftover = threads - num_chunks
+        blast_threads = 2*max(1, int(cpus_leftover / num_chunks))
+        for i in range(num_chunks):
+            executor.submit(
+                _run_blastn_chunk, db, input_fastas[i], hits_files[i], blast_threads)
 
-        futs = [
-            executor.submit(functools.partial(run_blastn, blastnPath, db, input_fasta, blast_threads))
-            for input_fasta in input_fastas
-        ]
-        hits_files = [fut.result() for fut in concurrent.futures.as_completed(futs)]
-
-    return hits_files
+    # merge results and clean up
+    util.file.cat(out_hits, hits_files)
+    for i in range(num_chunks):
+        os.unlink(input_fastas[i])
+        os.unlink(hits_files[i])
 
 
 def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMmemory=None):
@@ -521,21 +500,15 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
         if chunkSize:
             ## chunk up input and perform blastn in several parallel threads
-
-            # Initial BAM -> FASTA sequences
-            fasta = mkstempfname('.fasta')
-            tools.samtools.SamtoolsTool().bam2fa(inBam, fasta)
-
-            # Find BLAST hits
-            log.info("running blastn on %s against %s", inBam, db)
-            blastOutFiles = blastn_chunked_fasta(fasta, db_prefix, chunkSize, threads)
-            util.file.cat(blast_hits, blastOutFiles)
-            os.unlink(fasta)
+            with util.file.tempfname('.fasta') as reads_fasta:
+                tools.samtools.SamtoolsTool().bam2fa(inBam, reads_fasta)
+                log.info("running blastn on %s against %s", inBam, db)
+                blastn_chunked_fasta(reads_fasta, db_prefix, blast_hits, chunkSize, threads)
 
         else:
             ## pipe tools together and run blastn multithreaded
             with open(blast_hits, 'wt') as outf:
-                for read_id in tools.blast.BlastnTool().get_hits(inBam, db_prefix, threads=threads):
+                for read_id in tools.blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
                     outf.write(read_id + '\n')
 
     # Deplete BAM of hits

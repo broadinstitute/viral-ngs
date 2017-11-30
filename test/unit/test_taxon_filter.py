@@ -460,16 +460,15 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
             taxon_filter.deplete_blastn_bam,
             out_bam
         )
-        assert_equal_bam_reads(self, out_bam, empty_bam)
+        self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))
 
     def test_blastn_empty_output(self):
         in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
         out_bam = util.file.mkstempfname('-out.bam')
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         taxon_filter.multi_db_deplete_bam(
             in_bam,
             [self.blastdb_path],
             taxon_filter.deplete_blastn_bam,
             out_bam
         )
-        assert_equal_bam_reads(self, out_bam, empty_bam)
+        self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))

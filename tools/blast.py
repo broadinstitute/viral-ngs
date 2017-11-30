@@ -39,13 +39,10 @@ class BlastnTool(BlastTools):
     """ Tool wrapper for blastn """
     subtool_name = 'blastn'
 
-    def get_hits(self, inBam, db, threads=None):
-
-        # Initial BAM -> FASTA sequences
-        fasta_pipe = tools.samtools.SamtoolsTool().bam2fa_pipe(inBam)
+    def get_hits_pipe(self, inPipe, db, threads=None):
 
         # run blastn and emit list of read IDs
-        threads = util.misc.sanitize_thread_count(threads, 2*util.misc.available_cpu_count())
+        threads = util.misc.sanitize_thread_count(threads)
         cmd = [self.install_and_get_path(),
             '-db', db,
             '-word_size', 16,
@@ -56,7 +53,7 @@ class BlastnTool(BlastTools):
         ]
         cmd = [str(x) for x in cmd]
         _log.debug('| ' + ' '.join(cmd) + ' |')
-        blast_pipe = subprocess.Popen(cmd, stdin=fasta_pipe, stdout=subprocess.PIPE)
+        blast_pipe = subprocess.Popen(cmd, stdin=inPipe, stdout=subprocess.PIPE)
 
         # strip tab output to just query read ID names and emit
         last_read_id = None
@@ -70,6 +67,17 @@ class BlastnTool(BlastTools):
 
         if blast_pipe.poll():
             raise subprocess.CalledProcessError(blast_pipe.returncode, cmd)
+
+    def get_hits_bam(self, inBam, db, threads=None):
+        return self.get_hits_pipe(
+            tools.samtools.SamtoolsTool().bam2fa_pipe(inBam),
+            db,
+            threads=threads)
+
+    def get_hits_fasta(self, inFasta, db, threads=None):
+        with open(inFasta, 'rt') as inf:
+            for hit in self.get_hits_pipe(inf, db, threads=threads):
+                yield hit
 
 
 class MakeblastdbTool(BlastTools):
