@@ -242,7 +242,7 @@ task refine_2x_and_plot {
   String? plot_coverage_novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
 
   String  assembly_basename = basename(assembly_fasta, ".fasta")
-  String  sample_name       = basename(reads_unmapped_bam, ".bam"),
+  String  sample_name       = basename(reads_unmapped_bam, ".bam")
 
   command {
     set -ex -o pipefail
