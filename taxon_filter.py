@@ -597,7 +597,7 @@ def merge_compressed_files(inFiles, outFile, sep=''):
                     decompressor = ['pigz', '-d']
                 elif infname.endswith('.lz4'):
                     decompressor = ['lz4', '-d']
-                else
+                else:
                     decompressor = ['lbzip2', '-d']
                 with open(infname, 'rb') as inf:
                     subprocess.check_call(decompressor, stdin=inf, stdout=outf)
