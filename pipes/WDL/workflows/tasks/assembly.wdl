@@ -213,3 +213,136 @@ task refine {
     dx_instance_type: "mem1_ssd1_x8"
   }
 }
+
+
+task refine_2x_and_plot {
+  # This combined task exists just to streamline the two calls to
+  # assembly.refine and one call to reports.plot_coverage that almost
+  # every assembly workflow uses. It saves on instance spin up and
+  # docker pull times, file staging time, and all steps contained
+  # here have similar hardware requirements. It is also extremely
+  # rare for analyses to branch off of intermediate products between
+  # these three steps.
+  # The more atomic WDL tasks are still available for custom workflows.
+
+  File    assembly_fasta
+  File    reads_unmapped_bam
+
+  File    gatk_jar  # can alternatively be the .tar.bz2
+  File?   novocraft_license
+
+  String? refine1_novoalign_options="-r Random -l 30 -g 40 -x 20 -t 502"
+  Float?  refine1_major_cutoff=0.5
+  Int?    refine1_min_coverage=2
+
+  String? refine2_novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100"
+  Float?  refine2_major_cutoff=0.5
+  Int?    refine2_min_coverage=3
+
+  String? plot_coverage_novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
+
+  String  assembly_basename = basename(assembly_fasta, ".fasta")
+  String  sample_name       = basename(reads_unmapped_bam, ".bam"),
+
+  command {
+    set -ex -o pipefail
+
+    # find 90% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+
+    # prep GATK
+    mkdir gatk
+    if [[ ${gatk_jar} == *.tar.bz2 ]]; then
+      tar -xjvf ${gatk_jar} -C gatk
+    else
+      ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
+    fi
+
+    ln -s ${assembly_fasta} assembly.fasta
+    read_utils.py novoindex assembly.fasta --loglevel=DEBUG
+
+    # refine 1
+    assembly.py refine_assembly \
+      assembly.fasta \
+      ${reads_unmapped_bam} \
+      ${assembly_basename}.refine1.fasta \
+      --outVcf ${assembly_basename}.refine1.pre_fasta.vcf.gz \
+      --min_coverage ${refine1_min_coverage} \
+      --major_cutoff ${refine1_major_cutoff} \
+      --GATK_PATH gatk/ \
+      --novo_params="${refine1_novoalign_options}" \
+      --JVMmemory "$mem_in_mb"m \
+      --loglevel=DEBUG
+
+    # refine 2
+    assembly.py refine_assembly \
+      ${assembly_basename}.refine1.fasta \
+      ${reads_unmapped_bam} \
+      ${assembly_basename}.refine2.fasta \
+      --outVcf ${assembly_basename}.refine2.pre_fasta.vcf.gz \
+      --min_coverage ${refine2_min_coverage} \
+      --major_cutoff ${refine2_major_cutoff} \
+      --GATK_PATH gatk/ \
+      --novo_params="${refine2_novoalign_options}" \
+      --JVMmemory "$mem_in_mb"m \
+      --loglevel=DEBUG
+
+    # final alignment
+    read_utils.py align_and_fix \
+      ${reads_unmapped_bam} \
+      ${assembly_basename}.refine2.fasta \
+      --outBamAll ${sample_name}.bam \
+      --outBamFiltered ${sample_name}.mapped.bam \
+      --GATK_PATH gatk/ \
+      --aligner_options "${plot_coverage_novoalign_options}" \
+      --JVMmemory "$mem_in_mb"m \
+      --loglevel=DEBUG
+
+    # plot_coverage
+    reports.py plot_coverage \
+      ${sample_name}.mapped.bam \
+      ${sample_name}.coverage_plot.pdf \
+      --plotFormat pdf \
+      --plotWidth 1100 \
+      --plotHeight 850 \
+      --plotDPI 100 \
+      --loglevel=DEBUG
+
+    # collect figures of merit
+    grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
+    grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
+    samtools view -c ${sample_name}.mapped.bam | tee reads_aligned
+    samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
+    grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
+    samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
+    expr $(cat bases_aligned) / $(cat assembly_length) | tee mean_coverage
+
+    # fastqc mapped bam
+    reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
+  }
+
+  output {
+    File refine1_sites_vcf_gz        = "${assembly_basename}.refine1.pre_fasta.vcf.gz"
+    File refine1_assembly_fasta      = "${assembly_basename}.refine1.fasta"
+    File refine2_sites_vcf_gz        = "${assembly_basename}.refine2.pre_fasta.vcf.gz"
+    File refine2_assembly_fasta      = "${assembly_basename}.refine2.fasta"
+    File aligned_bam                 = "${sample_name}.bam"
+    File aligned_bam_flagstat        = "${sample_name}.bam.flagstat.txt"
+    File aligned_only_reads_bam      = "${sample_name}.mapped.bam"
+    File aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
+    File coverage_plot               = "${sample_name}.coverage_plot.pdf"
+    Int  assembly_length             = read_int("assembly_length")
+    Int  assembly_length_unambiguous = read_int("assembly_length_unambiguous")
+    Int  reads_aligned               = read_int("reads_aligned")
+    Int  read_pairs_aligned          = read_int("read_pairs_aligned")
+    Int  bases_aligned               = read_int("bases_aligned")
+    Int  mean_coverage               = read_int("mean_coverage")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "7 GB"
+    cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
+  }
+}
