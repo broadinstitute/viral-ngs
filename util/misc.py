@@ -440,8 +440,7 @@ def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count
     if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
         threads = 1
 
-    # max threads = double real core count to utilize hypethreading
-    max_cores = 2 * available_cpu_count()
+    max_cores = available_cpu_count()
 
     if threads is None:
         threads = max_cores

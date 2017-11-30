@@ -423,7 +423,7 @@ def blastn_chunked_fasta(fasta, db, chunkSize=1000000, threads=None):
     blastnPath = tools.blast.BlastnTool().install_and_get_path()
 
     # clamp threadcount to number of CPUs
-    threads = util.misc.sanitize_thread_count(threads)
+    threads = util.misc.sanitize_thread_count(threads, 2*util.misc.available_cpu_count())
 
     # determine size of input data; records in fasta file
     number_of_reads = util.file.fasta_length(fasta)

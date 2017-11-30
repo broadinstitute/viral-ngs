@@ -527,7 +527,7 @@ def order_and_orient(inFasta, inReference, outFasta,
          for ref_num in range(n_refs):
              Bio.SeqIO.write(ref_segments_all[ref_num*n_genome_segments : (ref_num+1)*n_genome_segments], refs_fasta[ref_num], 'fasta')
 
-         with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+         with concurrent.futures.ProcessPoolExecutor(max_workers=2*util.misc.sanitize_thread_count(threads)) as executor:
              executor.map(functools.partial(_call_order_and_orient_orig, inFasta=inFasta,
                                             breaklen=breaklen, maxgap=maxgap, minmatch=minmatch, mincluster=mincluster, min_pct_id=min_pct_id,
                                             min_contig_len=min_contig_len, min_pct_contig_aligned=min_pct_contig_aligned),

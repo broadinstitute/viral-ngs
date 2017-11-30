@@ -854,8 +854,8 @@ __commands__.append(('diamond', parser_diamond))
 
 
 def parser_diamond_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFasta', help='Input sequences, FASTA format.')
-    parser.add_argument('db', help='Diamond database directory.')
+    parser.add_argument('inFasta', help='Input sequences, FASTA format, optionally gzip compressed.')
+    parser.add_argument('db', help='Diamond database file.')
     parser.add_argument('taxDb', help='Taxonomy database directory.')
     parser.add_argument('outFasta', help='Output sequences, same as inFasta, with taxid|###| prepended to each sequence identifier.')
     parser.add_argument('--memLimitGb', type=float, default=None, help='approximate memory usage in GB')
