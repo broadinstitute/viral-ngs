@@ -52,8 +52,8 @@ jobs:
         ## DOCKER_PASS (for DockerHub)
         #- secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: WgrzGq3SjH5TG3jDwQxprNoyP7fyfAUZ2O/FqFaIOdr1aihZ45W+sZFfQsd74ny76dSe2I/w+Ly0gAl1WFLgmEBr9yAmxwA1p3mKDRx9NKaxzPrGZaF7hUmmZtBnkTx+hoJCiMjYu3kFVo/RBQ1IgQ1wHLvLb8KkQ6oAYAvd2YY=
-        - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
+        - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
+        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
         # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
       install:
@@ -72,9 +72,10 @@ jobs:
         # version and validate WDL code
         - travis/version-wdl-runtimes.sh
         - travis/validate-wdl.sh
-        # build DNAnexus pipelines, but only spend money on master and PR builds
+        # build DNAnexus pipelines and launch a few test executions
         - travis/build-dx.sh
-        - if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
+        - travis/tests-dx.sh
+        #- if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
         # test Cromwell local execution engine
         - travis/tests-cromwell.sh
       before_cache:
