@@ -42,7 +42,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
       CMD_DEFAULTS=""
     fi
 
-	  dx_id=$(java -jar dxWDL-0.53.jar compile \
+	  dx_id=$(java -jar dxWDL.jar compile \
       $workflow $CMD_INPUT $CMD_DEFAULTS -f \
       -destination /build/$VERSION/$workflow_name)
 	  echo "Succeeded: $workflow_name = $dx_id"
