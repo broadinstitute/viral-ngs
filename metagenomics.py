@@ -882,7 +882,7 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
             '--tmpdir', tmp_dir,
             ]
         if memLimitGb:
-            cmd.extend('--block-size', str(round(memLimitGb / 6.0, 1)))
+            cmd.extend(['--block-size', str(round(memLimitGb / 6.0, 1))])
         log.debug(' '.join(cmd))
         diamond_p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
