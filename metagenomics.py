@@ -882,7 +882,7 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
             '--tmpdir', tmp_dir,
             ]
         if memLimitGb:
-            cmd.extend(['--block-size', str(round(memLimitGb / 6.0, 1))])
+            cmd.extend(['--block-size', str(round(memLimitGb / 5.0, 1))])
         log.debug(' '.join(cmd))
         diamond_p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
@@ -898,8 +898,8 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
 
     # copy inFasta to outFasta while prepending taxid|###| to all sequence names
     log.debug("transforming {} to {}".format(inFasta, outFasta))
-    with file.util.open_or_gzopen(inFasta, 'rt') as inf:
-        with file.util.open_or_gzopen(outFasta, 'wt') as outf:
+    with util.file.open_or_gzopen(inFasta, 'rt') as inf:
+        with util.file.open_or_gzopen(outFasta, 'wt') as outf:
             for seq in Bio.SeqIO.parse(inf, 'fasta'):
                 taxid = seq_to_tax.get(seq.id, '32644') # default to "unclassified"
                 for text_line in util.file.fastaMaker([(

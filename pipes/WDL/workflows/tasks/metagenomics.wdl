@@ -120,15 +120,15 @@ task diamond_contigs {
   File  contigs_fasta
   File  reads_unmapped_bam
   File  diamond_db_lz4
-  File  ncbi_taxonomy_db_tar_lz4
+  File  diamond_taxonomy_db_tar_lz4
   File  krona_taxonomy_db_tar_lz4
 
   String contigs_basename = basename(contigs_fasta, ".fasta")
 
   parameter_meta {
-    diamond_db_lz4            : "stream" # for DNAnexus, until WDL implements the File| type
-    ncbi_taxonomy_db_tar_lz4  : "stream" # for DNAnexus, until WDL implements the File| type
-    krona_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
+    diamond_db_lz4              : "stream" # for DNAnexus, until WDL implements the File| type
+    diamond_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
+    krona_taxonomy_db_tar_lz4   : "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
@@ -137,7 +137,7 @@ task diamond_contigs {
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
-    NCBI_TAXDB_DIR=$(mktemp -d)
+    DIAMOND_TAXDB_DIR=$(mktemp -d)
 
     # find 90% memory
     mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
@@ -145,7 +145,7 @@ task diamond_contigs {
     # decompress DBs to /mnt/db
     cat ${diamond_db_lz4} | lz4 -d > $TMPDIR/diamond_db.dmnd &
     read_utils.py extract_tarball \
-      ${ncbi_taxonomy_db_tar_lz4} $NCBI_TAXDB_DIR \
+      ${diamond_taxonomy_db_tar_lz4} $DIAMOND_TAXDB_DIR \
       --loglevel=DEBUG &
     wait
     read_utils.py extract_tarball \
@@ -156,7 +156,7 @@ task diamond_contigs {
     metagenomics.py diamond_fasta \
       ${contigs_fasta} \
       $TMPDIR/diamond_db.dmnd \
-      $NCBI_TAXDB_DIR/taxonomy/ \
+      $DIAMOND_TAXDB_DIR/taxonomy/ \
       ${contigs_basename}.diamond.fasta \
       --memLimitGb $mem_in_gb \
       --loglevel=DEBUG
@@ -166,7 +166,7 @@ task diamond_contigs {
     metagenomics.py align_rna \
       ${reads_unmapped_bam} \
       ${contigs_basename}.diamond.fasta \
-      $NCBI_TAXDB_DIR/taxonomy/ \
+      $DIAMOND_TAXDB_DIR/taxonomy/ \
       ${contigs_basename}.diamond.summary_report.txt \
       --outReads ${contigs_basename}.diamond.reads.txt.gz \
       --dupeReads ${contigs_basename}.diamond.reads_w_dupes.txt.gz \
