@@ -3,7 +3,7 @@ set -e -o pipefail
 
 echo "Fetching WDL related JAR files"
 wget --quiet \
- https://github.com/dnanexus-rnd/dxWDL/releases/download/0.51/dxWDL-0.53.jar \
+ https://github.com/dnanexus-rnd/dxWDL/releases/download/0.53/dxWDL-0.53.jar \
  https://github.com/broadinstitute/wdltool/releases/download/0.14/wdltool-0.14.jar \
  https://github.com/broadinstitute/cromwell/releases/download/29/cromwell-29.jar
 
