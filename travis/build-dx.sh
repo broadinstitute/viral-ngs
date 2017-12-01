@@ -27,7 +27,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     test_input_json_wdl="test/input/WDL/test_inputs-$workflow_name-dnanexus.json"
     if [ -f "$test_input_json_wdl" ]; then
       CMD_INPUT="-inputs $test_input_json_wdl"
-      # blank this out until bugfix https://github.com/dnanexus-rnd/dxWDL/issues/69
+      # blank this out until we're sure we want to test it this way...
       CMD_INPUT=""
     else
       CMD_INPUT=""
@@ -36,13 +36,13 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     defaults_json="pipes/WDL/dx-defaults-$workflow_name.json"
     if [ -f "$defaults_json" ]; then
       CMD_DEFAULTS="-defaults $defaults_json"
-      # blank this out until bugfix https://github.com/dnanexus-rnd/dxWDL/issues/69
+      # blank this for first test
       CMD_DEFAULTS=""
     else
       CMD_DEFAULTS=""
     fi
 
-	  dx_id=$(java -jar dxWDL-0.51.jar compile \
+	  dx_id=$(java -jar dxWDL-0.53.jar compile \
       $workflow $CMD_INPUT $CMD_DEFAULTS -f \
       -destination /build/$VERSION/$workflow_name)
 	  echo "Succeeded: $workflow_name = $dx_id"
