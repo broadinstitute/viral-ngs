@@ -36,6 +36,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     defaults_json="pipes/WDL/dx-defaults-$workflow_name.json"
     if [ -f "$defaults_json" ]; then
       CMD_DEFAULTS="-defaults $defaults_json"
+      # blank this out until we're sure this works...
+      CMD_DEFAULTS=""
     else
       CMD_DEFAULTS=""
     fi
