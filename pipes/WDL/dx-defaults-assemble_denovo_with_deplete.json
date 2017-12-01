@@ -1,12 +1,12 @@
 {
   "assemble_denovo_with_deplete.deplete_taxa.bmtaggerDbs": [
-    "dx://file-BYF8y0Q06PJ7G1fPvkB9q3fK",
-    "dx://file-BYF6g8Q0zjF77x79bGYgJ1Zb",
-    "dx://file-BYF6j80068477x79bGYgJ1gX"
+    "dx://project-F8PQ6380xf5bK0Qk0YPjB17P:file-F8B3B6Q09y3bZg3j1FqK7bJ9",
+    "dx://project-F8PQ6380xf5bK0Qk0YPjB17P:file-F8B3ppQ09y3qvQj35VgbPJFG",
+    "dx://project-F8PQ6380xf5bK0Qk0YPjB17P:file-F8B3B6809y3kK1JP5X8Pg361"
   ],
   "assemble_denovo_with_deplete.deplete_taxa.blastDbs": [
-    "dx://file-BzBpkK80x0z8GBQPfZ4kgPKp",
-    "dx://file-BYFv7bQ0QyBFXQBkX1Jqz88g"
+    "dx://project-F8PQ6380xf5bK0Qk0YPjB17P:file-F8BjgXj09y3gkfZGPPQZbZkK",
+    "dx://project-F8PQ6380xf5bK0Qk0YPjB17P:file-F8B3Pp809y3jBpXq7xjxbq94"
   ],
 
   "assemble_denovo_with_deplete.assemble.trim_clip_db":
