@@ -906,6 +906,7 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
                         '|'.join('taxid', taxid, seq.id),
                         str(seq.seq))]):
                     outf.write(text_line)
+
 __commands__.append(('diamond_fasta', parser_diamond_fasta))
 
 

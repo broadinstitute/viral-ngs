@@ -156,7 +156,7 @@ task diamond_contigs {
     metagenomics.py diamond_fasta \
       ${contigs_fasta} \
       $TMPDIR/diamond_db.dmnd \
-      $NCBI_TAXDB_DIR \
+      $NCBI_TAXDB_DIR/taxonomy/ \
       ${contigs_basename}.diamond.fasta \
       --memLimitGb $mem_in_gb \
       --loglevel=DEBUG
@@ -166,7 +166,7 @@ task diamond_contigs {
     metagenomics.py align_rna \
       ${reads_unmapped_bam} \
       ${contigs_basename}.diamond.fasta \
-      $NCBI_TAXDB_DIR \
+      $NCBI_TAXDB_DIR/taxonomy/ \
       ${contigs_basename}.diamond.summary_report.txt \
       --outReads ${contigs_basename}.diamond.reads.txt.gz \
       --dupeReads ${contigs_basename}.diamond.reads_w_dupes.txt.gz \
