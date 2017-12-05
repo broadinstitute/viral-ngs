@@ -20,7 +20,8 @@ LABEL maintainer "viral-ngs@broadinstitute.org"
 ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
-	MINICONDA_PATH="/opt/miniconda" \
+	MINICONDA_PATH="/opt/miniconda"
+ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	CONDA_DEFAULT_ENV=$MINICONDA_PATH \
 	CONDA_PREFIX=$MINICONDA_PATH \
@@ -33,7 +34,7 @@ COPY requirements-conda.txt requirements-conda-tests.txt requirements-py3.txt $V
 COPY docker/install-viral-ngs.sh $VIRAL_NGS_PATH/docker/
 #COPY easy-deploy-script/easy-deploy-viral-ngs.sh $VIRAL_NGS_PATH/easy-deploy-script/
 WORKDIR $INSTALL_PATH
-RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh
+RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh minimal
 
 # Copy all of the source code into the repo
 # (this probably changes all the time, so all downstream build
