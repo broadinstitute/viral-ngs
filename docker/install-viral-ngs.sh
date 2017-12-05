@@ -26,9 +26,18 @@ sync
 #$INSTALL_PATH/easy-deploy-viral-ngs.sh setup-git-local
 
 # manually install it ourselves instead of using easy-deploy
-conda install --override-channels -y \
-	-q -c broad-viral -c bioconda -c conda-forge -c defaults -c r \
-	--file "$VIRAL_NGS_PATH/requirements-py3.txt" \
-	--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
-	--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt"
+if [[ "$1" == "minimal" ]]; then
+	# a more minimal set of tools (smaller docker image?)
+	conda install --override-channels -y \
+		-q -c broad-viral -c bioconda -c conda-forge -c defaults -c r \
+		--file "$VIRAL_NGS_PATH/requirements-minimal.txt"
+else
+	conda install --override-channels -y \
+		-q -c broad-viral -c bioconda -c conda-forge -c defaults -c r \
+		--file "$VIRAL_NGS_PATH/requirements-py3.txt" \
+		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
+		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt"
+fi
+
+# clean up
 conda clean -y --all
