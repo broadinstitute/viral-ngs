@@ -30,6 +30,8 @@ import networkx.readwrite.json_graph
 import networkx.drawing.nx_pydot
 import concurrent.futures
 
+_log = logging.getLogger(__name__)
+
 class FileArg(str):
 
     '''Argparse parameter type for input and output files, which provides error-checking and optional provenance tracking.'''
@@ -94,41 +96,43 @@ def add_provenance_tracking(cmd_parser, cmd_func):
             traceback.print_tb(e)
             exception = e
         finally:
-            if is_provenance_tracking_enabled():
-                end_time = time.time()
+            try:
+                if is_provenance_tracking_enabled():
+                    end_time = time.time()
 
-                step_id = '-'.join(map(str, (time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(beg_time)), 
-                                             cmd_func.__module__, cmd_func.__name__, uuid.uuid4())))
+                    step_id = '-'.join(map(str, (time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime(beg_time)), 
+                                                 cmd_func.__module__, cmd_func.__name__, uuid.uuid4())))
 
-                pgraph = networkx.DiGraph()
-                hasher = Hasher()
+                    pgraph = networkx.DiGraph()
+                    hasher = Hasher()
 
-                pgraph.add_node(step_id, beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
-                                exception=str(exception),
-                                viral_ngs_version=util.version.get_version(),
-                                platform=platform.platform(), cpus=util.misc.available_cpu_count(), host=socket.getfqdn(), 
-                                user=getpass.getuser(),
-                                argv=tuple(sys.argv))
+                    pgraph.add_node(step_id, beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
+                                    exception=str(exception),
+                                    viral_ngs_version=util.version.get_version(),
+                                    platform=platform.platform(), cpus=util.misc.available_cpu_count(), host=socket.getfqdn(), 
+                                    user=getpass.getuser(),
+                                    argv=tuple(sys.argv))
 
-                for arg, val in vars(args).items():
-                    for i, v in enumerate(util.misc.make_seq(val)):
-                        if v and isinstance(v, FileArg):
-                            file_hash = hasher(v)
-                            edge_attrs = dict(arg=arg)
-                            if len(val) > 1:
-                                edge_attrs.update(arg_order=i)
-                            if isinstance(v, InFile):
-                                pgraph.add_edge(file_hash, step_id, **edge_attrs)
-                            elif exception is None:
-                                assert isinstance(v, OutFile)
-                                pgraph.add_edge(step_id, file_hash, **edge_attrs)
+                    for arg, val in vars(args).items():
+                        for i, v in enumerate(util.misc.make_seq(val)):
+                            if v and isinstance(v, FileArg):
+                                file_hash = hasher(v)
+                                pgraph.add_node(file_hash, fname=v)
+                                edge_attrs = dict(arg=arg, fname=v)
+                                if len(val) > 1:
+                                    edge_attrs.update(arg_order=i)
+                                if isinstance(v, InFile):
+                                    pgraph.add_edge(file_hash, step_id, **edge_attrs)
+                                elif exception is None:
+                                    assert isinstance(v, OutFile)
+                                    pgraph.add_edge(step_id, file_hash, **edge_attrs)
 
-                util.file.dump_file(os.path.join(os.environ['VIRAL_NGS_PROV'], step_id+'.graphml'),
-                                    networkx.readwrite.json_graph.jit_data(pgraph))
-                networkx.drawing.nx_pydot.write_dot(pgraph, os.path.join(os.environ['VIRAL_NGS_PROV'], step_id+'.dot'))
+                    util.file.dump_file(os.path.join(os.environ['VIRAL_NGS_PROV'], step_id+'.graphml'),
+                                        networkx.readwrite.json_graph.jit_data(pgraph))
+                    networkx.drawing.nx_pydot.write_dot(pgraph, os.path.join(os.environ['VIRAL_NGS_PROV'], step_id+'.dot'))
+
+            except Exception:
+                _log.warning('Error recording provenance ({})'.format(traceback.format_exc()))
 
     return _run_cmd_with_tracking
-
-if __name__ == '__main__':
-    print(bool(OutFile(None)))
 
