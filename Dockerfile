@@ -30,7 +30,7 @@ ENV \
 # Prepare viral-ngs user and installation directory
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
-COPY requirements-conda-minimal.txt $VIRAL_NGS_PATH/
+COPY requirements-minimal.txt $VIRAL_NGS_PATH/
 #COPY requirements-conda.txt requirements-conda-tests.txt requirements-py3.txt $VIRAL_NGS_PATH/
 COPY docker/install-viral-ngs.sh $VIRAL_NGS_PATH/docker/
 #COPY easy-deploy-script/easy-deploy-viral-ngs.sh $VIRAL_NGS_PATH/easy-deploy-script/
