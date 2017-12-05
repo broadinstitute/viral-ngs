@@ -1,6 +1,6 @@
-FROM broadinstitute/viral-baseimage:0.1.5
+FROM broadinstitute/viral-baseimage:0.1.6
 
-LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
+LABEL maintainer "viral-ngs@broadinstitute.org"
 
 # to build:
 #   docker build .
@@ -9,7 +9,7 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   docker run --rm <image_ID> "<command>.py subcommand"
 #
 # to run interactively:
-#   docker run --rm -it <image_ID> bash
+#   docker run --rm -it <image_ID>
 #
 # to run with GATK and/or Novoalign:
 #   Download licensed copies of GATK and Novoalign to the host machine (for Linux-64)
@@ -17,14 +17,21 @@ LABEL maintainer "Chris Tomkins-Tinch <tomkinsc@broadinstitute.org>"
 #   export NOVOALIGN_PATH=/path/to/novoalign/
 #   docker run --rm -v $GATK_PATH:/gatk -v $NOVOALIGN_PATH:/novoalign -v /path/to/dir/on/host:/user-data <image_ID> "<command>.py subcommand"
 
-ENV INSTALL_PATH="/opt/viral-ngs" VIRAL_NGS_PATH="/opt/viral-ngs/source"
+ENV \
+	INSTALL_PATH="/opt/viral-ngs" \
+	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
+	MINICONDA_PATH="/opt/miniconda" \
+	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+	CONDA_DEFAULT_ENV=$MINICONDA_PATH \
+	CONDA_PREFIX=$MINICONDA_PATH \
+	JAVA_HOME=$MINICONDA_PATH
 
 # Prepare viral-ngs user and installation directory
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 COPY requirements-conda.txt requirements-conda-tests.txt requirements-py3.txt $VIRAL_NGS_PATH/
 COPY docker/install-viral-ngs.sh $VIRAL_NGS_PATH/docker/
-COPY easy-deploy-script/easy-deploy-viral-ngs.sh $VIRAL_NGS_PATH/easy-deploy-script/
+#COPY easy-deploy-script/easy-deploy-viral-ngs.sh $VIRAL_NGS_PATH/easy-deploy-script/
 WORKDIR $INSTALL_PATH
 RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh
 
@@ -36,11 +43,6 @@ COPY . $VIRAL_NGS_PATH/
 # Volume setup: make external tools and data available within the container
 VOLUME ["/gatk", "/novoalign", "/user-data"]
 ENV \
-	PATH="$VIRAL_NGS_PATH:/opt/miniconda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-	MINICONDA_PATH="/opt/miniconda" \
-	CONDA_DEFAULT_ENV="/opt/miniconda" \
-	CONDA_PREFIX="/opt/miniconda" \
-	JAVA_HOME="/opt/miniconda" \
 	VIRAL_NGS_DOCKER_DATA_PATH="/user-data" \
 	NOVOALIGN_PATH="/novoalign" \
 	GATK_PATH="/gatk"
