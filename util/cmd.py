@@ -11,6 +11,7 @@ import sys
 import shutil
 import logging
 import argparse
+import inspect
 import util.version
 import util.file
 import util.provenance
@@ -109,9 +110,12 @@ def main_command(mainfunc):
 def attach_main(parser, cmd_main, split_args=False):
     ''' This attaches the main function call to a parser object.
     '''
+    cmd_main_orig = cmd_main
     if split_args:
         cmd_main = main_command(cmd_main)
-    cmd_main = util.provenance.add_provenance_tracking(parser, cmd_main)
+    cmd_main = util.provenance.add_provenance_tracking(cmd_parser=parser, cmd_func=cmd_main, 
+                                                       cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0],
+                                                       cmd_name=cmd_main_orig.__name__)
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=cmd_main)
     return parser
