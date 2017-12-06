@@ -8,10 +8,7 @@ Cloud compute implementations
 Docker Images
 ~~~~~~~~~~~~~
 
-To facilitate cloud compute deployments, we have published a complete Docker
-image with associated dependencies at
-`DockerHub <https://hub.docker.com/r/broadinstitute/viral-ngs/>`_.
-Simply ``docker pull broadinstitute/viral-ngs``.
+To facilitate cloud compute deployments, we publish a complete Docker image with associated dependencies to the Docker registry at `quay.io <https://quay.io/repository/broadinstitute/viral-ngs>`_. Simply ``docker pull quay.io/broadinstitute/viral-ngs`` for the latest stable version.
 
 
 DNAnexus
@@ -31,12 +28,12 @@ Google Cloud Platform: dsub
 All of the command line functions in viral-ngs are accessible from the docker image_ and can be invoked directly using dsub_.
 
 .. _dsub: https://cloud.google.com/genomics/v1alpha2/dsub
-.. _image: https://hub.docker.com/r/broadinstitute/viral-ngs/
+.. _image: https://quay.io/repository/broadinstitute/viral-ngs
 
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets)::
 
   dsub --project broad-sabeti-lab --zones "us-east1-*" \
-    --image broadinstitute/viral-ngs \
+    --image quay.io/broadinstitute/viral-ngs \
     --name illumina_demux-test \
     --logging gs://sabeti-temp-30d/dpark/test-demux/logs \
     --input FC_TGZ=gs://sabeti-sequencing/flowcells/broad-walkup/160907_M04004_0066_000000000-AJH8U.tar.gz \
@@ -222,14 +219,6 @@ For more information, see the following AWS pages:
 * `List of EC2 regions <https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region>`_
 
 Note that the EC2 instance created by the easy-deploy script is currently configured to be an m4.2xlarge, which costs ~$0.55/hour to run. It is suggested that the instance be terminated via the AWS web console once processing with viral-ngs is complete. See the `AWS page for current pricing <https://aws.amazon.com/ec2/pricing/>`_ .
-
-Limitations
-~~~~~~~~~~~
-
-As viral-ngs does not currently build a depletion database for BMTagger or BLAST automatically,
-it is the responsibility of the user to create a depletion database for use within the virtualized
-viral-ngs environment. It can be created within the virtual machine (VM), or uploaded
-after the fact via ``rsync``.
 
 Running Easy Deploy
 ~~~~~~~~~~~~~~~~~~~

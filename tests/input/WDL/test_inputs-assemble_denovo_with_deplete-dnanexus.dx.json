@@ -1,17 +1,17 @@
 {
-	"stage_0.gatk_jar": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F89Vx8Q09y3VFxf1KKXbbVv4" } },
-	"stage_0.novocraft_license": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F1zkVGQ0jy1P68J88kyJ8zVF" } },
-
-	"stage_1.raw_reads_unmapped_bam": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-F8F2kVQ09y3Q9Qj14fF806q2" } },
+	"stage_1.raw_reads_unmapped_bam": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F8F2kVQ09y3Q9Qj14fF806q2" } },
 
 	"stage_1.bmtaggerDbs": [
-		{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
+		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
 	],
 	"stage_1.blastDbs": [
-		{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BYFv7bQ0QyBFXQBkX1Jqz88g" } }
+		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYFv7bQ0QyBFXQBkX1Jqz88g" } }
 	],
 
-	"stage_2.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } },
-	"stage_3.trim_clip_db": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
-	"stage_4.reference_genome_fasta": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } }
+	"stage_2.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } },
+	"stage_3.trim_clip_db": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
+	"stage_4.reference_genome_fasta": [ { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } } ],
+
+	"stage_5.gatk_jar": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F89Vx8Q09y3VFxf1KKXbbVv4" } },
+	"stage_5.novocraft_license": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F1zkVGQ0jy1P68J88kyJ8zVF" } }
 }

@@ -6,7 +6,7 @@ task deplete_taxa {
   File         raw_reads_unmapped_bam
   Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
-  Int?         query_chunk_size=0
+  Int?         query_chunk_size
 
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
@@ -34,7 +34,7 @@ task deplete_taxa {
       tmpfile.rmdup.bam \
       ${bam_basename}.cleaned.bam \
       $DBS_BMTAGGER $DBS_BLAST \
-      --chunkSize ${query_chunk_size} \
+      ${'--chunkSize=' + query_chunk_size} \
       --JVMmemory="$mem_in_mb"m \
       --srprismMemory=$mem_in_mb \
       --loglevel=DEBUG

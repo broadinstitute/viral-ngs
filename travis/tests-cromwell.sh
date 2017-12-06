@@ -11,7 +11,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
-		java -jar cromwell-29.jar run \
+		java -jar cromwell.jar run \
 			workflows/$workflow_name.wdl \
 			-i $input_json | tee cromwell.out
 		if [ ${PIPESTATUS[0]} -gt 0 ]; then

@@ -1,0 +1,19 @@
+{
+  "demux_plus.deplete.bmtaggerDbs": [
+    "dx://file-F8B3B6Q09y3bZg3j1FqK7bJ9",
+    "dx://file-F8B3ppQ09y3qvQj35VgbPJFG",
+    "dx://file-F8B3B6809y3kK1JP5X8Pg361"
+  ],
+  "demux_plus.deplete.blastDbs": [
+    "dx://file-F8BjgXj09y3gkfZGPPQZbZkK",
+    "dx://file-F8B3Pp809y3jBpXq7xjxbq94"
+  ],
+
+  "demux_plus.spades.trim_clip_db":
+    "dx://file-BXF0vYQ0QyBF509G9J12g927",
+
+  "demux_plus.kraken.kraken_db_tar_lz4":
+    "dx://file-F8QF3bj0xf5gZv76BG4QgpF4",
+  "demux_plus.kraken.krona_taxonomy_db_tgz":
+    "dx://file-F4z0fgj07FZ8jg8yP7yz0Qzb"
+}

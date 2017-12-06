@@ -30,7 +30,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
            -f $input_json \
-           --name "$VERSION-$workflow_name" \
+           --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name)
        echo "Launched $workflow_name as $dx_job_id"
        echo -e "$workflow_name\t$dx_workflow_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
