@@ -1,17 +1,17 @@
 {
-	"stage_1.raw_reads_unmapped_bam": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F8F2kVQ09y3Q9Qj14fF806q2" } },
+	"deplete_taxa.raw_reads_unmapped_bam": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F8F2kVQ09y3Q9Qj14fF806q2" } },
 
-	"stage_1.bmtaggerDbs": [
+	"deplete_taxa.bmtaggerDbs": [
 		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
 	],
-	"stage_1.blastDbs": [
+	"deplete_taxa.blastDbs": [
 		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYFv7bQ0QyBFXQBkX1Jqz88g" } }
 	],
 
-	"stage_2.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } },
-	"stage_3.trim_clip_db": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
-	"stage_4.reference_genome_fasta": [ { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } } ],
+	"filter_to_taxon.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } },
+	"assemble.trim_clip_db": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
+	"scaffold.reference_genome_fasta": [ { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } } ],
 
-	"stage_5.gatk_jar": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F89Vx8Q09y3VFxf1KKXbbVv4" } },
-	"stage_5.novocraft_license": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F1zkVGQ0jy1P68J88kyJ8zVF" } }
+	"refine_2x_and_plot.gatk_jar": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F89Vx8Q09y3VFxf1KKXbbVv4" } },
+	"refine_2x_and_plot.novocraft_license": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-F1zkVGQ0jy1P68J88kyJ8zVF" } }
 }
