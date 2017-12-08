@@ -18,7 +18,6 @@ env:
   
   - DOCKER_REGISTRY_MIRROR="docker.io"
   - DOCKER_REPO_PROD_MIRROR="broadinstitute/viral-ngs"
-  #- DOCKER_REPO_DEV_MIRROR="broadinstitute/viral-ngs-dev"
   
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
