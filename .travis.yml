@@ -11,12 +11,15 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR/GenomeAnalysisTK-3.6"
   - PYTHONIOENCODING=UTF8
-  #- DOCKER_REGISTRY="docker.io"
-  #- DOCKER_REPO_PROD="broadinstitute/viral-ngs"
-  #- DOCKER_REPO_DEV="broadinstitute/viral-ngs-dev"
+  
   - DOCKER_REGISTRY="quay.io"
   - DOCKER_REPO_PROD="quay.io/broadinstitute/viral-ngs"
   - DOCKER_REPO_DEV="quay.io/broadinstitute/viral-ngs-dev"
+  
+  - DOCKER_REGISTRY_MIRROR="docker.io"
+  - DOCKER_REPO_PROD_MIRROR="broadinstitute/viral-ngs"
+  #- DOCKER_REPO_DEV_MIRROR="broadinstitute/viral-ngs-dev"
+  
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
 
@@ -47,10 +50,10 @@ jobs:
         - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
         # DOCKER_PASS (for Quay.io)
         - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
-        ## DOCKER_USER (for DockerHub)
-        #- secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
-        ## DOCKER_PASS (for DockerHub)
-        #- secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
+        ## DOCKER_USER_MIRROR (for DockerHub)
+        - secure: ha7NOBHdAdYI7pqxIEuvYacgvfnE/W3BHmJ3+wnK0wAR7GmB4jKfUuUfRDA90ABdZMyIxf4JOG2jERkwsQo9uXQkTKv+q3hGzukQeErfMEl5WkKg/U4xG2uthvc0Ru2DukAbVzJx5tyEqDwBLp4jhvF3L9Wf12GjcbkuQiIxeqk=
+        ## DOCKER_PASS_MIRROR (for DockerHub)
+        - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
         # DX_API_TOKEN (for DNAnexus builds)
         - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
         - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
