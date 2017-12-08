@@ -51,7 +51,7 @@ jobs:
         # DOCKER_PASS (for Quay.io)
         - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
         ## DOCKER_USER_MIRROR (for DockerHub)
-        - secure: ha7NOBHdAdYI7pqxIEuvYacgvfnE/W3BHmJ3+wnK0wAR7GmB4jKfUuUfRDA90ABdZMyIxf4JOG2jERkwsQo9uXQkTKv+q3hGzukQeErfMEl5WkKg/U4xG2uthvc0Ru2DukAbVzJx5tyEqDwBLp4jhvF3L9Wf12GjcbkuQiIxeqk=
+        - secure: NErgcpFHK3Q51idZumScyRlr6PJjuFirHXlJJSPFhtKBh1Gg+z2Z3DLoFCOTibIyJSVo38T2eA53daM3VmPWb3kd4brrLjjoH7a3i/838IJjIDLpFULAc3uzP7PGckEiXb8gB1lQB/IaeDiWWUL2SbzMOdLABpANpR1AYmF00VI=
         ## DOCKER_PASS_MIRROR (for DockerHub)
         - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
         # DX_API_TOKEN (for DNAnexus builds)
