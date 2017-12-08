@@ -37,7 +37,6 @@ Each commit on any branch, and any pull request, will trigger a build on Travis 
 1. `py.test` is run on Python 3.6. Tool dependencies are installed prior to unit tests via conda. Integration and unit tests are run with every branch commit--note that this is the reverse order of the Py27 tests (unit then integration) so that errors are likely to be detected earlier in the overall build process, if they exist. The Travis cache is cleared for each tagged release, invoking a full re-install of dependencies. Normally, this job completes in 15+ minutes, about half of which is the loading of conda tool dependencies from the cache. Coverage reports are sent to coveralls.io from this Travis job only.
 
 Some TO DO improvements for the future:
- - Separate out all tests of snakemake pipelines from unit and integration into a separate space & Travis job.
  - DNAnexus workflow testing should check output for correctness.
  - Cromwell workflow testing should check output for correctness.
  - Utilize Travis build stages.

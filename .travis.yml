@@ -199,6 +199,28 @@ jobs:
       before_cache:
         - conda clean --all --yes
 
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_snakemake
+        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+        # $BUNDLE_SECRET (for testing GATK)
+        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis_wait travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-snakemake.sh
+      after_success:
+        - coveralls
+      before_cache:
+        - conda clean --all --yes
+
     #- language: python
     #  stage: test
     #  env:
