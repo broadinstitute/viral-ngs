@@ -12,6 +12,7 @@ if [ -n "$TRAVIS_TAG" ]; then
 	DOCKER_REPO=$DOCKER_REPO_PROD
 	DOCKER_SHORT_TAG="latest"
 	DOCKER_LONG_TAG="$(echo $TRAVIS_TAG | sed 's/^v//')"
+	PUSH_TO_MIRROR=true
 elif [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 	# this is a PR build (TRAVIS_BRANCH=target of PR, TRAVIS_PULL_REQUEST_BRANCH=source of PR)
 	DOCKER_REPO=$DOCKER_REPO_DEV
@@ -24,6 +25,7 @@ elif [[ "$TRAVIS_BRANCH" == "master" ]]; then
 	DOCKER_REPO=$DOCKER_REPO_PROD
 	DOCKER_SHORT_TAG="latest"
 	DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g\S+/$1-rc$2/')"
+	PUSH_TO_MIRROR=true
 else
 	# this is an normal non-master branch commit
 	DOCKER_REPO=$DOCKER_REPO_DEV
@@ -35,3 +37,9 @@ fi
 
 echo $DOCKER_REPO:$DOCKER_SHORT_TAG
 echo $DOCKER_REPO:$DOCKER_LONG_TAG
+
+if [ -n "$DOCKER_REPO_PROD_MIRROR" -a -n "$PUSH_TO_MIRROR" ]; then
+	# if this should be sent to prod, also echo the mirror registry tags
+	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_SHORT_TAG
+	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_LONG_TAG
+fi
