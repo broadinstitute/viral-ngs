@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+# This script lists all docker tags that should apply to this particular
+# deploy, including short tags (like repo:latest) and long tags (like
+# repo:full-version-number). Tags are emitted one per line.
+#
+# Important note: the last tag is considered the definitive, uniquely
+# identifiable tag that should be used for all build steps that depend on
+# the docker image (e.g. version-wdl-runtimes.sh). All others are aliases.
+
 set -e -o pipefail
 
 if [ -z "$DOCKER_REPO_PROD" -o -z "$DOCKER_REPO_DEV" -o -z "$TRAVIS_BRANCH" ]; then
@@ -35,11 +44,11 @@ else
 	#DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g(\S+)/$1-dev$2-g$3/')-$(echo $DOCKER_SHORT_TAG)"
 fi
 
-echo $DOCKER_REPO:$DOCKER_SHORT_TAG
-echo $DOCKER_REPO:$DOCKER_LONG_TAG
-
 if [ -n "$DOCKER_REPO_PROD_MIRROR" -a -n "$PUSH_TO_MIRROR" ]; then
 	# if this should be sent to prod, also echo the mirror registry tags
 	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_SHORT_TAG
 	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_LONG_TAG
 fi
+
+echo $DOCKER_REPO:$DOCKER_SHORT_TAG
+echo $DOCKER_REPO:$DOCKER_LONG_TAG
