@@ -4,6 +4,7 @@ import six
 import argparse
 from collections import Counter
 import copy
+import io
 import os.path
 from os.path import join
 import tempfile
@@ -47,6 +48,7 @@ class TestDiamondCalls(TestCaseWithTmp):
         self.addCleanup(patcher.stop)
         self.mock_s2f = patcher.start()
         self.mock_s2f.return_value.execute.return_value.returncode = 0
+        self.mock_s2f.return_value.execute.return_value.stdout = io.BytesIO(b'')
 
         patcher = patch('tools.diamond.Diamond', autospec=True)
         self.addCleanup(patcher.stop)

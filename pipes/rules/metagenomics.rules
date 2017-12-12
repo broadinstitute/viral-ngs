@@ -25,6 +25,7 @@ method_props = {
     },
     'kraken': {
         'reads_ext': 'kraken.reads.gz',
+        'taxid_column': '3',
     },
     'rna_bwa': {
         'reads_ext': 'rna_bwa.lca.gz',
@@ -206,4 +207,9 @@ rule krona_import_taxonomy:
         mem=32
     run:
         krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")
+        taxid_column = method_props[wildcards.method].get('taxid_column', 2)
+        # By setting other columns to taxid column, they get ignored and are
+        # not outputted. We don't want to save query names or scores because
+        # our scores are not quantitative
+        shell('''{config[bin_dir]}/metagenomics.py krona {input.tsv} {krona_db_prefix} {output} --noRank \
+        --taxidColumn {taxid_column} --queryColumn {taxid_column} --scoreColumn {taxid_column}''')

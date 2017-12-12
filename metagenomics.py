@@ -23,6 +23,7 @@ import shutil
 import sys
 import subprocess
 import tempfile
+import threading
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -804,6 +805,24 @@ def parser_diamond(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, diamond, split_args=True)
     return parser
+
+
+def join_interleaved_fastq_pipes(input_pipe, output_pipe, *args, **kwargs):
+    '''Join interleaved fastq input between input pipe and output pipe .'''
+    def wrapf(ipipe, opipe):
+        try:
+            input_pipe = codecs.getreader('ascii')(ipipe)
+            output_pipe = codecs.getwriter('ascii')(opipe)
+            gen = util.file.join_paired_fastq([input_pipe], output_format='fasta', num_n=16)
+            SeqIO.write(gen, output_pipe, 'fasta')
+        finally:
+            opipe.close()
+            ipipe.close()
+    t = threading.Thread(target=wrapf, args=[input_pipe, output_pipe])
+    t.daemon = True # die if the program exits
+    t.start()
+
+
 def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     '''
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
@@ -811,49 +830,55 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     # do not convert this to samtools bam2fq unless we can figure out how to replicate
     # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
-    with util.file.fifo(2) as (fastq_pipe, diamond_pipe):
-        s2fq = picard.execute(
-            inBam,
-            fastq_pipe,
-            interleave=True,
-            illuminaClipping=True,
-            JVMmemory=picard.jvmMemDefault,
-            background=True,
-        )
+    s2fq = picard.execute(
+        inBam,
+        '/dev/stdout',
+        interleave=True,
+        illuminaClipping=True,
+        JVMmemory=picard.jvmMemDefault,
+        background=True,
+        stdout=subprocess.PIPE,
+    )
 
-        diamond_tool = tools.diamond.Diamond()
-        taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
-        taxonnodes = join(taxDb, 'nodes.dmp')
-        rutils = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'read_utils.py')
-        cmd = '{read_utils} join_paired_fastq --outFormat fasta /dev/stdout {fastq}'.format(
-            read_utils=rutils, fastq=fastq_pipe)
+    diamond_tool = tools.diamond.Diamond()
+    taxonmap = join(taxDb, 'accession2taxid', 'prot.accession2taxid.gz')
+    taxonnodes = join(taxDb, 'nodes.dmp')
 
-        cmd += ' | {} blastx --out {output} --outfmt 102 --sallseqid'.format(
-            diamond_tool.install_and_get_path(), output=diamond_pipe)
-        cmd += ' --threads {threads}'.format(threads=util.misc.sanitize_thread_count(threads))
-        cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
-            db=db,
-            taxonmap=taxonmap,
-            taxonnodes=taxonnodes)
+    cmd = '{} blastx --outfmt 102 --sallseqid'.format(diamond_tool.install_and_get_path())
+    cmd += ' --threads {threads}'.format(threads=util.misc.sanitize_thread_count(threads))
+    cmd += ' --db {db} --taxonmap {taxonmap} --taxonnodes {taxonnodes}'.format(
+        db=db,
+        taxonmap=taxonmap,
+        taxonnodes=taxonnodes)
 
-        if outReads is not None:
-            # Interstitial save of stdout to output file
-            cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
+    if outReads is not None:
+        # Interstitial save of stdout to output file
+        cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
 
-        diamond_ps = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
+    try:
+        diamond_ps = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, executable='/bin/bash')
+
+
+        join_interleaved_fastq_pipes(s2fq.stdout, diamond_ps.stdin)
 
         tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
-        with open(diamond_pipe) as lca_p:
-            hits = taxa_hits_from_tsv(lca_p)
-            with open(outReport, 'w') as f:
-                for line in kraken_dfs_report(tax_db, hits):
-                    print(line, file=f)
+        lca_p = codecs.getreader('ascii')(diamond_ps.stdout)
+
+        hits = taxa_hits_from_tsv(lca_p)
+        with open(outReport, 'w') as f:
+            for line in kraken_dfs_report(tax_db, hits):
+                print(line, file=f)
 
         s2fq.wait()
         assert s2fq.returncode == 0
         diamond_ps.wait()
         assert diamond_ps.returncode == 0
+    except KeyboardInterrupt:
+        diamond_ps.send_signal(signal.SIGINT)
+        raise
+
 __commands__.append(('diamond', parser_diamond))
 
 
@@ -893,8 +918,10 @@ def diamond_fasta(inFasta, db, taxDb, outFasta, threads=None, memLimitGb=None):
         # read the output report and load into an in-memory map
         # of sequence ID -> tax ID (there shouldn't be that many sequences)
         seq_to_tax = {}
-        for line in diamond_p.stdout:
-            row = line.decode('UTF-8').rstrip('\n\r').split('\t')
+
+        diamond_stdout = codecs.getreader('ascii')(diamond_p.stdout)
+        for line in diamond_stdout:
+            row = line.rstrip('\n\r').split('\t')
             tax = row[1] if row[1] != '0' else '32644' # diamond returns 0 if unclassified, but the proper taxID for that is 32644
             seq_to_tax[row[0]] = tax
         if diamond_p.poll():
