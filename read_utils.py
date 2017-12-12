@@ -23,6 +23,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+from util.provenance import InFile, OutFile
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -56,10 +57,10 @@ def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex=r'^@(\S+)/[1|2
 
 
 def parser_purge_unmated(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('inFastq1', type=InFile, help='Input fastq file; 1st end of paired-end reads.')
+    parser.add_argument('inFastq2', type=InFile, help='Input fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('outFastq1', type=OutFile, help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('outFastq2', type=OutFile, help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument(
         "--regex",
         help="Perl regular expression to parse paired read IDs (default: %(default)s)",
@@ -304,8 +305,8 @@ __commands__.append(('sort_bam', parser_sort_bam))
 
 
 def parser_merge_bams(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBams', help='Input bam files.', nargs='+')
-    parser.add_argument('outBam', help='Output bam file.')
+    parser.add_argument('inBams', type=InFile, help='Input bam files.', nargs='+')
+    parser.add_argument('outBam', type=OutFile, help='Output bam file.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.MergeSamFilesTool.jvmMemDefault,
@@ -1075,18 +1076,18 @@ def align_and_fix(
 
 
 def parser_align_and_fix(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format; will be indexed by Picard and Novoalign.')
+    parser.add_argument('inBam', type=InFile, help='Input unaligned reads, BAM format.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format; will be indexed by Picard and Novoalign.')
     parser.add_argument(
         '--outBamAll',
-        default=None,
+        type=OutFile,
         help='''Aligned, sorted, and indexed reads.  Unmapped and duplicate reads are
                 retained. By default, duplicate reads are marked. If "--skipMarkDupes"
                 is specified duplicate reads are included in outout without being marked.'''
     )
     parser.add_argument(
         '--outBamFiltered',
-        default=None,
+        type=OutFile,
         help='''Aligned, sorted, and indexed reads.  Unmapped reads are removed from this file,
                 as well as any marked duplicate reads. Note that if "--skipMarkDupes" is provided,
                 duplicates will be not be marked and will be included in the output.'''

@@ -33,6 +33,7 @@ import tools.fastqc
 import assembly
 import interhost
 from util.stats import mean, median
+from util.provenance import InFile, OutFile
 
 log = logging.getLogger(__name__)
 
@@ -182,6 +183,32 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
 
 __commands__.append(('assembly_stats', parser_assembly_stats))
 
+#######################
+
+def final_assembly_metrics(assembly_fname, metrics_fname):
+    """Output several basic metrics for an assembly"""
+
+    with open(assembly_fname, 'rt') as in_f:
+        seqs = Bio.SeqIO.parse(in_f, 'fasta')
+        n_unambig = sum(map(assembly.unambig_count, seqs))
+        n_tot = sum(map(len, seqs))
+        pct_unambig = n_unambig / n_tot if n_tot else 0
+        with open(metrics_fname, 'wt') as out_f:
+            out_w = csv.DictWriter(out_f, fieldnames='metric value'.split(), delimiter='\t')
+            out_w.writerow({'metric': 'n_unambig', 'value': n_unambig})
+            out_w.writerow({'metric': 'n_tot', 'value': n_tot})
+            out_w.writerow({'metric': 'pct_unambig', 'value': pct_unambig})
+
+def parser_final_assembly_metrics(parser=argparse.ArgumentParser()):
+    parser.add_argument('assembly_fname', type=InFile, help='File containing final assembly')
+    parser.add_argument('metrics_fname', type=OutFile, help='Output file for metrics')
+    util.cmd.attach_main(parser, final_assembly_metrics, split_args=True)
+    return parser
+
+__commands__.append(('final_assembly_metrics', parser_final_assembly_metrics))
+
+
+#######################
 
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
     """ Write or print pairwise alignment summary information for sequences in two FASTA

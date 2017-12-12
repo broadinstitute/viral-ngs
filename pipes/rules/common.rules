@@ -1,5 +1,5 @@
 
-import os, os.path, sys, collections
+import os, os.path, sys, collections, time, uuid
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -26,6 +26,8 @@ def set_env_vars():
     for k,v in config.get('env_vars', {}).items():
         if k not in os.environ:
             os.environ[k] = v
+
+    os.environ['VIRAL_NGS_RUN_ID'] = '-'.join(map(str, (time.strftime('%Y-%m-%d-%H-%M-%S'), uuid.uuid4())))
 
 def read_tab_file(fname):
     with util.file.open_or_gzopen(fname, 'rU') as inf:

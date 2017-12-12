@@ -33,6 +33,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
+from util.provenance import InFile, OutFile
 
 log = logging.getLogger(__name__)
 
@@ -42,12 +43,12 @@ log = logging.getLogger(__name__)
 
 
 def parser_deplete_human(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('revertBam', nargs='?', help='Output BAM: read markup reverted with Picard.')
-    parser.add_argument('bmtaggerBam', help='Output BAM: depleted of human reads with BMTagger.')
-    parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
+    parser.add_argument('inBam', type=InFile, help='Input BAM file.')
+    parser.add_argument('revertBam', type=OutFile, nargs='?', help='Output BAM: read markup reverted with Picard.')
+    parser.add_argument('bmtaggerBam', type=OutFile, help='Output BAM: depleted of human reads with BMTagger.')
+    parser.add_argument('rmdupBam', type=OutFile, help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument(
-        'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
+        'blastnBam', type=OutFile, help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
     )
     parser.add_argument(
         '--bmtaggerDbs',
@@ -194,9 +195,9 @@ def filter_lastal_bam(
 
 
 def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument("inBam", help="Input reads")
-    parser.add_argument("db", help="Database of taxa we keep")
-    parser.add_argument("outBam", help="Output reads, filtered to refDb")
+    parser.add_argument("inBam", type=InFile, help="Input reads")
+    parser.add_argument("db", type=InFile, help="Database of taxa we keep")
+    parser.add_argument("outBam", type=OutFile, help="Output reads, filtered to refDb")
     parser.add_argument(
         '-n',
         dest="max_gapless_alignments_per_position",
@@ -314,7 +315,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
 
 
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
+    parser.add_argument('inBam', type=InFile, help='Input BAM file.')
     parser.add_argument(
         'refDbs',
         nargs='+',
@@ -322,7 +323,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
-    parser.add_argument('outBam', help='Output BAM file.')
+    parser.add_argument('outBam', type=OutFile, help='Output BAM file.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument(
         '--JVMmemory',

@@ -253,10 +253,10 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
 
 
 def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
-    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, unaligned BAM format.')
+    parser.add_argument('clipDb', type=InFile, help='Trimmomatic clip DB.')
     parser.add_argument(
-        'outBam',
+        'outBam', type=OutFile,
         help="""Output reads, unaligned BAM format (currently, read groups and other
                 header information are destroyed in this process)."""
     )
@@ -316,9 +316,9 @@ def assemble_trinity(
 
 
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
-    parser.add_argument('outFasta', help='Output assembly.')
+    parser.add_argument('inBam', type=InFile, help='Input unaligned reads, BAM format.')
+    parser.add_argument('clipDb', type=InFile, help='Trimmomatic clip DB.')
+    parser.add_argument('outFasta', type=OutFile, help='Output assembly.')
     parser.add_argument(
         '--n_reads',
         default=100000,
@@ -390,12 +390,12 @@ def assemble_spades(
 
 
 def parser_assemble_spades(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_bam', help='Input unaligned reads, BAM format. May include both paired and unpaired reads.')
-    parser.add_argument('clip_db', help='Trimmomatic clip db')
-    parser.add_argument('out_fasta', help='Output assembled contigs. Note that, since this is RNA-seq assembly, for each assembled genomic region there may be several contigs representing different variants of that region.')
-    parser.add_argument('--contigsTrusted', dest='contigs_trusted', 
+    parser.add_argument('in_bam', type=InFile, help='Input unaligned reads, BAM format. May include both paired and unpaired reads.')
+    parser.add_argument('clip_db', type=InFile, help='Trimmomatic clip db')
+    parser.add_argument('out_fasta', type=OutFile, help='Output assembled contigs. Note that, since this is RNA-seq assembly, for each assembled genomic region there may be several contigs representing different variants of that region.')
+    parser.add_argument('--contigsTrusted', type=InFile, dest='contigs_trusted', 
                         help='Optional input contigs of high quality, previously assembled from the same sample')
-    parser.add_argument('--contigsUntrusted', dest='contigs_untrusted', 
+    parser.add_argument('--contigsUntrusted', type=InFile, dest='contigs_untrusted', 
                         help='Optional input contigs of high medium quality, previously assembled from the same sample')
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
@@ -426,10 +426,10 @@ def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_g
         shutil.copyfile(in_scaffold, out_scaffold)
 
 def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gaps between contigs in a scaffold')):
-    parser.add_argument('in_scaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
+    parser.add_argument('in_scaffold', type=InFile, help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
-    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('out_scaffold', help='Output assembly.')
+    parser.add_argument('in_bam', type=InFile, help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_scaffold', type=OutFile, help='Output assembly.')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
@@ -558,32 +558,31 @@ def order_and_orient(inFasta, inReference, outFasta,
          
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFasta', help='Input de novo assembly/contigs, FASTA format.')
+    parser.add_argument('inFasta', type=InFile, help='Input de novo assembly/contigs, FASTA format.')
     parser.add_argument(
-        'inReference', nargs='+',
+        'inReference', nargs='+', type=InFile,
         help=('Reference genome for ordering, orienting, and merging contigs, FASTA format.  Multiple filenames may be listed, each '
               'containing one reference genome. Alternatively, multiple references may be given by specifying a single filename, '
               'and giving the number of reference segments with the nGenomeSegments parameter.  If multiple references are given, '
               'they must all contain the same number of segments listed in the same order.')
     )
     parser.add_argument(
-        'outFasta',
+        'outFasta', type=OutFile,
         help="""Output assembly, FASTA format, with the same number of
                 chromosomes as inReference, and in the same order."""
     )
     parser.add_argument(
-        '--outAlternateContigs',
+        '--outAlternateContigs', type=OutFile,
         help="""Output sequences (FASTA format) from alternative contigs that mapped,
-                but were not chosen for the final output.""",
-        default=None
+                but were not chosen for the final output."""
     )
 
     parser.add_argument('--nGenomeSegments', dest='n_genome_segments', type=int, default=0,
                         help="""Number of genome segments.  If 0 (the default), the `inReference` parameter is treated as one genome.
                         If positive, the `inReference` parameter is treated as a list of genomes of nGenomeSegments each.""")
 
-    parser.add_argument('--outReference', help='Output the reference chosen for scaffolding to this file')
-    parser.add_argument('--outStats', help='Output stats used in reference selection')
+    parser.add_argument('--outReference', type=OutFile, help='Output the reference chosen for scaffolding to this file')
+    parser.add_argument('--outStats', type=OutFile, help='Output stats used in reference selection')
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
     #                    choices=['nucmer', 'promer'],
@@ -799,11 +798,11 @@ def impute_from_reference(
 
 def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     parser.add_argument(
-        'inFasta',
+        'inFasta', type=InFile,
         help='Input assembly/contigs, FASTA format, already ordered, oriented and merged with inReference.'
     )
-    parser.add_argument('inReference', help='Reference genome to impute with, FASTA format.')
-    parser.add_argument('outFasta', help='Output assembly, FASTA format.')
+    parser.add_argument('inReference', type=InFile, help='Reference genome to impute with, FASTA format.')
+    parser.add_argument('outFasta', type=OutFile, help='Output assembly, FASTA format.')
     parser.add_argument("--newName", default=None, help="rename output chromosome (default: do not rename)")
     parser.add_argument(
         "--minLengthFraction",
@@ -956,26 +955,26 @@ def refine_assembly(
 
 def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument(
-        'inFasta', help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.'
+        'inFasta', type=InFile, help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.'
     )
-    parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, unaligned BAM format.')
     parser.add_argument(
-        'outFasta',
+        'outFasta', type=OutFile,
          help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
     )
     parser.add_argument(
         '--already_realigned_bam',
-        default=None,
+        type=InFile,
         help="""BAM with reads that are already aligned to inFasta.
             This bypasses the alignment process by novoalign and instead uses the given
             BAM to make an assembly. When set, outBam is ignored."""
     )
     parser.add_argument(
         '--outBam',
-        default=None,
+        type=OutFile,
         help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed. GATK indel realigned.'
     )
-    parser.add_argument('--outVcf', default=None, help='GATK genotype calls for genome in inFasta coordinate space.')
+    parser.add_argument('--outVcf', type=OutFile, help='GATK genotype calls for genome in inFasta coordinate space.')
     parser.add_argument(
         '--min_coverage',
         default=3,
@@ -1041,10 +1040,10 @@ def unambig_count(seq):
 
 
 def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
-    parser.add_argument("inFile", help="input sequence file")
+    parser.add_argument("inFile", type=InFile, help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
     parser.add_argument("minUnambig", help="minimum percentage unambiguous bases for contig", type=float)
-    parser.add_argument("outFile", help="output file")
+    parser.add_argument("outFile", type=OutFile, help="output file")
     parser.add_argument("-f", "--format", help="Format for input sequence (default: %(default)s)", default="fasta")
     parser.add_argument(
         "-of", "--output-format",
@@ -1075,8 +1074,8 @@ __commands__.append(('filter_short_seqs', parser_filter_short_seqs))
 
 
 def parser_modify_contig(parser=argparse.ArgumentParser()):
-    parser.add_argument("input", help="input alignment of reference and contig (should contain exactly 2 sequences)")
-    parser.add_argument("output", help="Destination file for modified contigs")
+    parser.add_argument("input", type=InFile, help="input alignment of reference and contig (should contain exactly 2 sequences)")
+    parser.add_argument("output", type=OutFile, help="Destination file for modified contigs")
     parser.add_argument("ref", help="reference sequence name (exact match required)")
     parser.add_argument(
         "-n", "--name",
@@ -1464,8 +1463,8 @@ def vcf_to_seqs(vcfIter, chrlens, samples, min_dp=0, major_cutoff=0.5, min_dp_ra
 
 
 def parser_vcf_to_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument("inVcf", help="Input VCF file")
-    parser.add_argument("outFasta", help="Output FASTA file")
+    parser.add_argument("inVcf", type=InFile, help="Input VCF file")
+    parser.add_argument("outFasta", type=OutFile, help="Output FASTA file")
     parser.add_argument(
         "--trim_ends",
         action="store_true",
@@ -1565,8 +1564,8 @@ __commands__.append(('vcf_to_fasta', parser_vcf_to_fasta))
 
 
 def parser_trim_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument("inFasta", help="Input fasta file")
-    parser.add_argument("outFasta", help="Output (trimmed) fasta file")
+    parser.add_argument("inFasta", type=InFile, help="Input fasta file")
+    parser.add_argument("outFasta", type=OutFile, help="Output (trimmed) fasta file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, trim_fasta, split_args=True)
     return parser
@@ -1608,8 +1607,8 @@ def deambig_fasta(inFasta, outFasta):
 
 
 def parser_deambig_fasta(parser=argparse.ArgumentParser()):
-    parser.add_argument("inFasta", help="Input fasta file")
-    parser.add_argument("outFasta", help="Output fasta file")
+    parser.add_argument("inFasta", type=InFile, help="Input fasta file")
+    parser.add_argument("outFasta", type=OutFile, help="Output fasta file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, deambig_fasta, split_args=True)
     return parser
@@ -1637,8 +1636,8 @@ def vcf_dpdiff(vcfs):
 
 
 def parser_dpdiff(parser=argparse.ArgumentParser()):
-    parser.add_argument("inVcfs", help="Input VCF file", nargs='+')
-    parser.add_argument("outFile", help="Output flat file")
+    parser.add_argument("inVcfs", type=InFile, help="Input VCF file", nargs='+')
+    parser.add_argument("outFile", type=OutFile, help="Output flat file")
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, dpdiff, split_args=True)
     return parser
