@@ -20,6 +20,7 @@ import operator
 import queue
 import re
 import shutil
+import signal
 import sys
 import subprocess
 import tempfile
@@ -677,6 +678,30 @@ def taxa_hits_from_tsv(f, taxid_column=2):
     return c
 
 
+def kraken_leftover_reads(krakenDb, inBam, krakenReads, outBam=None, paired=None, filterThreshold=None):
+    filter_threshold = filterThreshold if filterThreshold is not None else 0.05
+
+    output = outBam if outBam is not None else '-'
+    rutils = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'read_utils.py')
+    cmd = '''{read_utils} subset_sam {in_bam} <(zcat {kraken_reads} | kraken-filter --db {kraken_db} --threshold {filter_threshold} | awk 'BEGIN {{FS="\t"}} {{ if ($1 == "U") {{print $2}} }}') --outSam {output} {paired}'''.format(
+        in_bam=inBam, kraken_reads=krakenReads, kraken_db=krakenDb,
+        filter_threshold=filterThreshold, output=output, paired='--paired' if paired is True else '', read_utils=rutils)
+
+    subprocess.check_call(cmd, shell=True, executable='/bin/bash')
+
+
+def parser_kraken_leftover_reads(parser=argparse.ArgumentParser()):
+    parser.add_argument('krakenDb', help='Diamond database directory.')
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('krakenReads', help='Kraken output reads file.')
+    parser.add_argument('-o', '--outBam', default='-', help='Subset of unclassified reads. Defaults to stdout.')
+    parser.add_argument('--paired', action='store_true', help='Sample is paired.')
+    parser.add_argument('--filterThreshold', default=0.05, help='Filter threshold for kraken filter. Only unclassified reads not passing the threshold are processed with diamond.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken_leftover_reads, split_args=True)
+    return parser
+
+
 def kraken_dfs_report(db, taxa_hits):
     '''Return a kraken compatible DFS report of taxa hits.
 
@@ -811,7 +836,8 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
     # do not convert this to samtools bam2fq unless we can figure out how to replicate
     # the clipping functionality of Picard SamToFastq
     picard = tools.picard.SamToFastqTool()
-    with util.file.fifo(2) as (fastq_pipe, diamond_pipe):
+    with util.file.fifo(3) as (fastq_pipe, diamond_pipe, lca_pipe):
+
         s2fq = picard.execute(
             inBam,
             fastq_pipe,
@@ -838,13 +864,18 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
 
         if outReads is not None:
             # Interstitial save of stdout to output file
-            cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
+            reads_cmd = 'cat {inf} | tee >(gzip --best > {out}) > {pipe}'.format(
+                inf=diamond_pipe, out=outReads, pipe=lca_pipe)
+            gz_ps = subprocess.Popen(reads_cmd, shell=True, executable='/bin/bash')
+        else:
+            lca_pipe = diamond_pipe
+            gz_ps = None
 
         diamond_ps = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
 
         tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
-        with open(diamond_pipe) as lca_p:
+        with open(lca_pipe) as lca_p:
             hits = taxa_hits_from_tsv(lca_p)
             with open(outReport, 'w') as f:
                 for line in kraken_dfs_report(tax_db, hits):
@@ -854,8 +885,12 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         assert s2fq.returncode == 0
         diamond_ps.wait()
         assert diamond_ps.returncode == 0
-__commands__.append(('diamond', parser_diamond))
 
+        if gz_ps:
+            gz_ps.wait()
+            assert gz_ps.returncode == 0
+
+__commands__.append(('diamond', parser_diamond))
 
 def parser_diamond_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument('inFasta', help='Input sequences, FASTA format, optionally gzip compressed.')
@@ -1246,7 +1281,6 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
     if clean:
         kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
 __commands__.append(('kraken_build', parser_kraken_build))
-
 
 
 def full_parser():

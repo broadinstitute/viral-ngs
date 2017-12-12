@@ -70,14 +70,14 @@ class TestDiamondCalls(TestCaseWithTmp):
         self.db = tempfile.mkdtemp('db')
         self.tax_db = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple', 'db', 'taxonomy')
 
-    def test_output_reads(self, mock_dfs):
+    def test_args_db(self, mock_dfs):
         out_report = util.file.mkstempfname('report.txt')
         out_reads = util.file.mkstempfname('lca.gz')
 
         metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, outReads=out_reads)
 
         cmd = self.mock_popen.call_args[0][0]
-        self.assertIn(out_reads, cmd)
+        self.assertIn(self.db, cmd)
         assert isinstance(metagenomics.kraken_dfs_report.call_args[0][0], metagenomics.TaxonomyDb)
 
     def test_num_threads(self, mock_dfs):

@@ -18,6 +18,7 @@ import sys
 import concurrent.futures
 
 from Bio import SeqIO
+import pysam
 
 import util.cmd
 import util.file
@@ -1203,6 +1204,71 @@ def main_extract_tarball(*args, **kwargs):
     '''
     print(util.file.extract_tarball(*args, **kwargs))
 __commands__.append(('extract_tarball', parser_extract_tarball))
+
+
+def main_subset_sam(inBam, idsFile, outSam=None, noStripIds=None, paired=None):
+    ''' Extract a subset of reads by QNAME into a new bam.
+
+    Requires the subset to be a strict subset and in the same ordering so the
+    processing is a merge sort that require O(n) time and O(1) memory.
+    '''
+
+    if inBam.endswith('.sam'):
+        inmode = 'r'
+    else:
+        inmode = 'rb'
+
+    if outSam == None or outSam == '-' or outSam.endswith('.sam'):
+        outmode = 'w'
+    else:
+        outmode = 'wb'
+
+    infile = pysam.AlignmentFile(inBam, inmode, check_sq=False)
+    outfile = pysam.AlignmentFile(outSam, outmode, template=infile)
+
+    def read_id(line):
+        read_id = line.strip()
+        if noStripIds:
+            return read_id
+        if read_id.endswith('/1') or read_id.endswith('/2'):
+            return read_id[:-2]
+
+    if paired:
+        id_count_needed = 2
+    else:
+        id_count_needed = 1
+    with open(idsFile) as f:
+        read_ids = (read_id(line) for line in f)
+
+        current_id_count = 0
+        try:
+            current_id = next(read_ids)
+        except StopIteration:
+            return
+
+        try:
+            for s in infile:
+                if s.query_name == current_id:
+                    current_id_count += 1
+                    outfile.write(s)
+                    if current_id_count == id_count_needed:
+                        current_id = next(read_ids)
+                        current_id_count = 0
+        except StopIteration:
+            return
+
+
+def parser_subset_sam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input bam file')
+    parser.add_argument('idsFile', help='File of read ids (may end with /1, /2 for paired.')
+    parser.add_argument('-o', '--outSam', help='Output sam file', default='-')
+    parser.add_argument('--noStripIds', help="Don't strip trailing /1 or /2 from read ids")
+    parser.add_argument('--paired', action='store_true', help="Paired reads")
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, main_subset_sam, split_args=True)
+    return parser
+
+__commands__.append(('subset_sam', parser_subset_sam))
 
 
 # =========================

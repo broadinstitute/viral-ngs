@@ -51,6 +51,7 @@ taxfiles_krona = [
 
 rna_bwa_ext = ['sa', 'bwt', 'amb', 'sa', 'ann', 'pac']
 
+
 rule diamond:
     input:
         bam         = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
@@ -194,6 +195,28 @@ rule all_kraken_host_depleted:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                             "{sample}.cleaned.kraken.krona.html"), sample=samples)
 
+
+rule kraken_leftover_diamond:
+    input:
+        bam   = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
+        reads = os.path.join(config['data_dir'], config['subdirs']['metagenomics'], '{sample}.{adjective,raw|cleaned}.kraken.reads.gz')
+    output:
+        report = os.path.join(config['data_dir'], config['subdirs']['metagenomics'], '{sample}.{adjective,raw|cleaned}.leftover.diamond.report'),
+        reads  = os.path.join(config['data_dir'], config['subdirs']['metagenomics'], '{sample}.{adjective,raw|cleaned}.leftover.diamond.lca.gz')
+    params: kraken_filter_threshold = config.get('kraken_filter_threshold', '0.05')
+    resources:
+        threads = int(config.get("number_of_threads", 1)),
+    run:
+        kraken_db = config['kraken_db'],
+        diamond_db_prefix  = os.path.splitext(strip_protocol(config['diamond_db'], relative=True))[0]
+        taxonomy_db_prefix = strip_protocol(config['taxonomy_db'], relative=True)
+        shell('{config[bin_dir]}/metagenomics.py kraken_leftover_reads {config[kraken_db]} {input.bam} {input.reads} --paired --filterThreshold {params.kraken_filter_threshold} | {config[bin_dir]}/metagenomics.py diamond /dev/stdin {diamond_db_prefix} {taxonomy_db_prefix} {output.report} --outReads {output.reads} --threads {resources.threads}')
+
+
+rule all_kraken_leftover_diamond:
+    input:
+        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
+                            "{sample}.cleaned.leftover.diamond.report"), sample=samples)
 
 rule krona_import_taxonomy:
     input:
