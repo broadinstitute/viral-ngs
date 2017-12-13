@@ -47,10 +47,10 @@ def plot_provenance(prov_plot):
 
     pgraph = networkx.DiGraph()
     
-    for step_graph_fname in os.listdir(os.environ['VIRAL_NGS_PROV']):
+    for step_graph_fname in os.listdir(util.provenance.provenance_data_dir()):
         print(step_graph_fname)
         if step_graph_fname.endswith('.json'):
-            step_graph = json.loads(util.file.slurp_file(os.path.join(os.environ['VIRAL_NGS_PROV'], step_graph_fname)))
+            step_graph = json.loads(util.file.slurp_file(os.path.join(util.provenance.provenance_data_dir(), step_graph_fname)))
             step_id = step_graph['step']['step_id']
             pgraph.add_node(step_id, **step_graph['step'])
             pgraph.add_node(step_id, node_kind='step')
@@ -84,6 +84,7 @@ __commands__.append(('plot_provenance', parser_plot_provenance))
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
+
 
 
 if __name__ == '__main__':

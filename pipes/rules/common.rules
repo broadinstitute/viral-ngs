@@ -1,5 +1,5 @@
 
-import os, os.path, sys, collections, time, uuid
+import os, os.path, sys, collections, time, uuid, getpass
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
@@ -10,7 +10,7 @@ except ImportError:
 
 # Ensure that Snakemake rules can import viral-ngs python code
 sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
-import util, util.misc, util.file
+import util, util.misc, util.file, util.provenance
 
 shell.executable("/bin/bash")
 
@@ -27,7 +27,7 @@ def set_env_vars():
         if k not in os.environ:
             os.environ[k] = v
 
-    os.environ['VIRAL_NGS_RUN_ID'] = '-'.join(map(str, (time.strftime('%Y-%m-%d-%H-%M-%S'), uuid.uuid4())))
+    util.provenance.set_run_id()
 
 def read_tab_file(fname):
     with util.file.open_or_gzopen(fname, 'rU') as inf:
