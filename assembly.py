@@ -519,13 +519,16 @@ def order_and_orient(inFasta, inReference, outFasta,
 
     n_refs = len(ref_segments_all) // n_genome_segments
     log.info('n_genome_segments={} n_refs={}'.format(n_genome_segments, n_refs))
+    ref_ids = []
 
     with util.file.tempfnames(suffixes=[ '.{}.ref.fasta'.format(ref_num) for ref_num in range(n_refs)]) as refs_fasta, \
          util.file.tempfnames(suffixes=[ '.{}.scaffold.fasta'.format(ref_num) for ref_num in range(n_refs)]) as scaffolds_fasta, \
          util.file.tempfnames(suffixes=[ '.{}.altcontig.fasta'.format(ref_num) for ref_num in range(n_refs)]) as alt_contigs_fasta:
 
          for ref_num in range(n_refs):
-             Bio.SeqIO.write(ref_segments_all[ref_num*n_genome_segments : (ref_num+1)*n_genome_segments], refs_fasta[ref_num], 'fasta')
+             this_ref_segs = ref_segments_all[ref_num*n_genome_segments : (ref_num+1)*n_genome_segments]
+             ref_ids.append(this_ref_segs[0].id)
+             Bio.SeqIO.write(this_ref_segs, refs_fasta[ref_num], 'fasta')
 
          with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
              executor.map(functools.partial(_call_order_and_orient_orig, inFasta=inFasta,
@@ -533,12 +536,11 @@ def order_and_orient(inFasta, inReference, outFasta,
                                             min_contig_len=min_contig_len, min_pct_contig_aligned=min_pct_contig_aligned),
                                             refs_fasta, scaffolds_fasta, alt_contigs_fasta)
 
-         refs = [tuple(Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')) for ref_num in range(n_refs)]
-         assert set(map(len, refs))==set([n_genome_segments]), \
-             'Some computed scaffold does not have the number of segments that the reference genome has ({}): {})'.format(n_genome_segments, map(len,refs))
-         
-         base_counts = [sum([len(rec.seq.ungap('N')) for rec in ref]) for ref in refs]
+         scaffolds = [tuple(Bio.SeqIO.parse(scaffolds_fasta[ref_num], 'fasta')) for ref_num in range(n_refs)]
+         base_counts = [sum([len(seg.seq.ungap('N')) for seg in scaffold]) \
+                        if len(scaffold)==n_genome_segments else 0 for scaffold in scaffolds]
          best_ref_num = numpy.argmax(base_counts)
+         assert len(scaffolds[best_ref_num])==n_genome_segments, 'All computed scaffolds are incomplete'
          log.info('base_counts={} best_ref_num={}'.format(base_counts, best_ref_num))
          shutil.copyfile(scaffolds_fasta[best_ref_num], outFasta)
          if outAlternateContigs:
@@ -550,8 +552,8 @@ def order_and_orient(inFasta, inReference, outFasta,
              with open(outStats, 'w') as stats_f:
                  stats_w = csv.DictWriter(stats_f, fieldnames='ref_num ref_name base_count rank'.split(), delimiter='\t')
                  stats_w.writeheader()
-                 for ref_num, (ref, base_count, rank) in enumerate(zip(refs, base_counts, ref_ranks)):
-                     stats_w.writerow({'ref_num': ref_num, 'ref_name': ref[0].id, 'base_count': base_count, 'rank': rank})
+                 for ref_num, (ref_id, base_count, rank) in enumerate(zip(ref_ids, base_counts, ref_ranks)):
+                     stats_w.writerow({'ref_num': ref_num, 'ref_name': ref_id, 'base_count': base_count, 'rank': rank})
          
 
 def parser_order_and_orient(parser=argparse.ArgumentParser()):
