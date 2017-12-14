@@ -38,6 +38,7 @@ import time
 import uuid
 import socket
 import getpass
+import pwd
 import json
 import traceback
 import inspect
@@ -138,8 +139,7 @@ def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
         a wrapper for cmd_func, which has the same signature but adds provenance tracking (if provenance tracking is configured)
     """
     if not is_provenance_tracking_enabled():
-        print('provtrack disabled')
-        return cmd_main
+        return cmd_func
 
     def _run_cmd_with_tracking(args):
 
@@ -186,10 +186,22 @@ def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
                         for i, v in enumerate(util.misc.make_seq(val)):
                             if v and isinstance(v, FileArg) and (isinstance(v, InFile) or cmd_exception is None) and \
                                os.path.isfile(v) and not stat.S_ISFIFO(os.stat(v).st_mode):
-                                file_hash = hasher(v)
-                                pgraph['in_files' if isinstance(v, InFile) else 'out_files'][file_hash] = \
-                                    dict(fname=v, realpath=os.path.realpath(v), arg=arg, arg_order=i)
 
+                                file_info = dict(fname=v, realpath=os.path.realpath(v), arg=arg, arg_order=i)
+                                try:
+                                    file_stat = os.stat(v)
+                                    file_info.update(size=file_stat[stat.ST_SIZE])
+                                    file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
+                                except Exception:
+                                    _log.warning('Error getting file info ({})'.format(traceback.format_exc()))
+                                                     
+                                pgraph['in_files' if isinstance(v, InFile) else 'out_files'][hasher(v)] = file_info
+
+                                if isinstance(v, OutFile) and v.endswith('.tsv') and file_info.get('size', 100000) < 10000:
+                                    lines = util.file.slurp_file(v).strip().split()
+                                    if lines and lines[0].startswith('metric\tvalue'):
+                                        
+                                    
                     util.file.dump_file(os.path.join(provenance_data_dir(), step_id+'.json'),
                                         json.dumps(pgraph, sort_keys=True, indent=4))
 

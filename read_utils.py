@@ -1205,15 +1205,13 @@ def main_extract_tarball(*args, **kwargs):
     print(util.file.extract_tarball(*args, **kwargs))
 __commands__.append(('extract_tarball', parser_extract_tarball))
 
-def fasta_stats(fasta, stats):
+def fasta_stats(fasta):
     '''Print basic stats about a fasta file'''
-    with open(stats, 'wt') as out:
-        out.write('metric\tvalue\n')
-        out.write('nrecords\t{}\n'.format(util.file.fasta_length(fasta)))
+    fasta_metrics = dict(n_seqs=util.file.fasta_length(fasta))
+    return dict(metrics=fasta_metrics)
 
 def parser_fasta_stats(parser=argparse.ArgumentParser()):
     parser.add_argument('fasta', type=InFile, help='fasta file to analyze')
-    parser.add_argument('stats', type=OutFile, help='file to which to write the stats')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, fasta_stats, split_args=True)
     return parser
