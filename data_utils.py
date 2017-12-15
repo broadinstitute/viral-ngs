@@ -47,10 +47,10 @@ def plot_provenance(prov_plot):
 
     pgraph = networkx.DiGraph()
     
-    for step_graph_fname in os.listdir(util.metadata.provenance_data_dir()):
+    for step_graph_fname in os.listdir(util.metadata.metadata_data_dir()):
         print(step_graph_fname)
         if step_graph_fname.endswith('.json'):
-            step_graph = json.loads(util.file.slurp_file(os.path.join(util.metadata.provenance_data_dir(), step_graph_fname)))
+            step_graph = json.loads(util.file.slurp_file(os.path.join(util.metadata.metadata_data_dir(), step_graph_fname)))
             step_id = step_graph['step']['step_id']
             pgraph.add_node(step_id, **step_graph['step'])
             pgraph.add_node(step_id, node_kind='step')
