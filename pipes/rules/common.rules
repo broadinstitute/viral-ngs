@@ -10,7 +10,7 @@ except ImportError:
 
 # Ensure that Snakemake rules can import viral-ngs python code
 sys.path.append(os.path.realpath(os.path.join(os.path.expanduser(config['bin_dir']))))
-import util, util.misc, util.file, util.provenance
+import util, util.misc, util.file, util.metadata
 
 shell.executable("/bin/bash")
 
@@ -27,7 +27,7 @@ def set_env_vars():
         if k not in os.environ:
             os.environ[k] = v
 
-    util.provenance.set_run_id()
+    util.metadata.set_run_id()
 
 def read_tab_file(fname):
     with util.file.open_or_gzopen(fname, 'rU') as inf:

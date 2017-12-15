@@ -7,7 +7,7 @@ The unit of recording in this module is one command (see cmd.py), as opposed to 
 To use this module, import InFile and OutFile from it; then, when defining argparse arguments for a command, in add_argument()
 use "type=InFile" for input files or "type=OutFile" for output files. Until provenance tracking is enabled (see below how),
 InFile and OutFile are defined to be simply str.  To enable provenance tracking, set the environment variable
-VIRAL_NGS_PROVENANCE_DATA to a writable directory.  Then, whenever a command is run, a file is written to that directory
+VIRAL_NGS_METADATA to a writable directory.  Then, whenever a command is run, a file is written to that directory
 recording the command, all its parameters, the input and output files, and details of the run environment.
 Input and output files are identified by a hash of their contents, so that copied/moved/renamed files can be properly identified.
 For each file, we also record metadata such as name, size, and modification date.
@@ -17,12 +17,14 @@ For each file, we also record metadata such as name, size, and modification date
 code version and with what parameters.
 
 
+Note that only files actually used are listed in the metadata; optional files not specified in a given command invocation are not.
+
 
 See data_utils.py for utils that create useful reports from provenance data.
 '''
 
 __author__ = "ilya@broadinstitute.org"
-__all__ = ["InFile", "OutFile", "add_provenance_tracking", "is_provenance_tracking_enabled", "provenance_data_dir"]
+__all__ = ["InFile", "OutFile", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir"]
 
 # built-ins
 import argparse
@@ -56,13 +58,13 @@ import concurrent.futures
 _log = logging.getLogger(__name__)
 
 
-VIRAL_NGS_PROVENANCE_DATA_FORMAT='1.0.0'
+VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
-def is_provenance_tracking_enabled():
-    return 'VIRAL_NGS_PROVENANCE_DATA' in os.environ
+def is_metadata_tracking_enabled():
+    return 'VIRAL_NGS_METADATA' in os.environ
 
-def provenance_data_dir():
-    return os.environ['VIRAL_NGS_PROVENANCE_DATA']
+def metadata_dir():
+    return os.environ['VIRAL_NGS_METADATA']
 
 class FileArg(str):
 
@@ -81,7 +83,7 @@ class OutFile(FileArg):
     def __new__(cls, *args, **kw):
         return FileArg.__new__(cls, *args, **kw)
 
-if not is_provenance_tracking_enabled():
+if not is_metadata_tracking_enabled():
     InFile = str
     OutFile = str
 
@@ -105,7 +107,7 @@ def create_run_id(t=None):
 
 def set_run_id():
     """Generate and record in the environment a unique ID for a run (set of steps run as part of one workflow)."""
-    os.environ['VIRAL_NGS_PROVENANCE_RUN_ID'] = create_run_id()
+    os.environ['VIRAL_NGS_METADATA_RUN_ID'] = create_run_id()
 
 def tag_code_version(tag, push_to=None):
     """Create a lightweight git tag for the current state of the project repository, even if the state is dirty.
@@ -127,19 +129,24 @@ def tag_code_version(tag, push_to=None):
         if push_to:
             run_cmd('git push ' + push_to + ' ' + tag)
     
-def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
+def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     """Add provenance tracking to the given command.
     
     Args:
         cmd_parser: parser for a command defined in a script
-        cmd_func: function implementing the command. Function takes one parameter, an argparse.Namespace, giving the values of the command's
+        cmd_main: function implementing the command. Function takes one parameter, an argparse.Namespace, giving the values of the command's
              arguments.
+        cmd_main_orig: the original cmd_main function defined in the command script, if cmd_main is a wrapper around the original 
+             function, else same as cmd_main
 
     Returns:
-        a wrapper for cmd_func, which has the same signature but adds provenance tracking (if provenance tracking is configured)
+        a wrapper for cmd_main, which has the same signature but adds provenance tracking (if provenance tracking is configured)
     """
-    if not is_provenance_tracking_enabled():
-        return cmd_func
+    if not is_metadata_tracking_enabled():
+        return cmd_main
+
+    cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
+    cmd_name=cmd_main_orig.__name__
 
     def _run_cmd_with_tracking(args):
 
@@ -147,29 +154,37 @@ def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
 
         try:
             beg_time = time.time()
-            
-            cmd_result = cmd_func(args)
+
+            # *** Run the actual command ***
+            cmd_result = cmd_main(args)
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
         finally:
             try:
-                if is_provenance_tracking_enabled():
+                if is_metadata_tracking_enabled():
                     end_time = time.time()
 
-                    run_id = os.environ.get('VIRAL_NGS_PROVENANCE_RUN_ID', create_run_id(beg_time))
+                    run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
                     step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
-                    code_repo = os.path.join(provenance_data_dir(), 'code_repo')
+                    code_repo = os.path.join(metadata_dir(), 'code_repo')
                     tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
 
-                    pgraph = dict(format=VIRAL_NGS_PROVENANCE_DATA_FORMAT, in_files={}, out_files={})
+                    pgraph = dict(format=VIRAL_NGS_METADATA_FORMAT, in_files={}, out_files={})
                     hasher = Hasher()
 
                     args_dict = vars(args)
                     args_dict.pop('func_main', None)
+
+                    # Sometimes file names accessed by a command are not passed as command args, but computed within the command.
+                    # The command can tell us about such files by returning a dict with the key 'files' mapped to a dict
+                    # containing additional (arg name, file name(s)) mappings.
+                    info_from_cmd = cmd_result if isinstance(cmd_result, collections.Mapping) else {}
+                    args_dict.update(info_from_cmd.get('files', {}))
+
                     pgraph['step']=dict(step_id=step_id, run_id=run_id,
-                                        provenance_data_dir=provenance_data_dir(),
+                                        metadata_dir=metadata_dir(),
                                         cmd_module=cmd_module, cmd_name=cmd_name,
                                         beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                         exception=cmd_exception_str,
@@ -180,14 +195,24 @@ def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
                                         user=getpass.getuser(),
                                         cwd=os.getcwd(),
                                         argv=tuple(sys.argv),
-                                        args=args_dict, **(cmd_result if isinstance(cmd_result, collections.Mapping) else {}))
-                    
+                                        args=args_dict)
+
+                    # The command can, through its return value, pass us metadata to attach either to input/output files or to the
+                    # step itself (the latter represented by the key of None)
+                    file2metadata = info_from_cmd.get('metadata', {})
+                    pgraph['step'].update(file2metadata.get(None, {})
+
                     for arg, val in args_dict.items():
                         for i, v in enumerate(util.misc.make_seq(val)):
                             if v and isinstance(v, FileArg) and (isinstance(v, InFile) or cmd_exception is None) and \
                                os.path.isfile(v) and not stat.S_ISFIFO(os.stat(v).st_mode):
 
-                                file_info = dict(fname=v, realpath=os.path.realpath(v), arg=arg, arg_order=i)
+                                # Metadata for a file is considered to reside not on the file node, but 
+                                # on the edge between the file node and the step node.
+                                # That way, if multiple steps read the same input or produce the same output, metadata from the
+                                # different steps will remain separate ("same" here refers to file contents rather than identity).
+
+                                file_info = dict(fname=v, realpath=os.path.realpath(v), arg=arg, arg_order=i, **file2metadata.get(v, {}))
                                 try:
                                     file_stat = os.stat(v)
                                     file_info.update(size=file_stat[stat.ST_SIZE])
@@ -197,16 +222,11 @@ def add_provenance_tracking(cmd_parser, cmd_func, cmd_module, cmd_name):
                                                      
                                 pgraph['in_files' if isinstance(v, InFile) else 'out_files'][hasher(v)] = file_info
 
-                                if isinstance(v, OutFile) and v.endswith('.tsv') and file_info.get('size', 100000) < 10000:
-                                    lines = util.file.slurp_file(v).strip().split()
-                                    if lines and lines[0].startswith('metric\tvalue'):
-                                        
-                                    
-                    util.file.dump_file(os.path.join(provenance_data_dir(), step_id+'.json'),
+                    util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
                                         json.dumps(pgraph, sort_keys=True, indent=4))
 
             except Exception:
-                _log.warning('Error recording provenance ({})'.format(traceback.format_exc()))
+                _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
                 
         if cmd_exception:
             raise cmd_exception

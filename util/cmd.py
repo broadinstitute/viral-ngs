@@ -11,10 +11,9 @@ import sys
 import shutil
 import logging
 import argparse
-import inspect
 import util.version
 import util.file
-import util.provenance
+import util.metadata
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
@@ -113,9 +112,8 @@ def attach_main(parser, cmd_main, split_args=False):
     cmd_main_orig = cmd_main
     if split_args:
         cmd_main = main_command(cmd_main)
-    cmd_main = util.provenance.add_provenance_tracking(cmd_parser=parser, cmd_func=cmd_main, 
-                                                       cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0],
-                                                       cmd_name=cmd_main_orig.__name__)
+    cmd_main = util.metadata.add_metadata_tracking(cmd_parser=parser, cmd_main=cmd_main, cmd_main_orig=cmd_main_orig)
+                                                     )
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=cmd_main)
     return parser

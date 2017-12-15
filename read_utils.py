@@ -23,7 +23,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
-from util.provenance import InFile, OutFile
+from util.metadata import InFile, OutFile
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -1208,7 +1208,8 @@ __commands__.append(('extract_tarball', parser_extract_tarball))
 def fasta_stats(fasta):
     '''Print basic stats about a fasta file'''
     fasta_metrics = dict(n_seqs=util.file.fasta_length(fasta))
-    return dict(metrics=fasta_metrics)
+    log.info('Metrics for FASTA file {}: {}'.format(fasta, fasta_metrics))
+    return dict(metadata={fasta: fasta_metrics})
 
 def parser_fasta_stats(parser=argparse.ArgumentParser()):
     parser.add_argument('fasta', type=InFile, help='fasta file to analyze')

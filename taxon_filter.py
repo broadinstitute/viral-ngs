@@ -33,7 +33,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.provenance import InFile, OutFile
+from util.metadata import InFile, OutFile
 
 log = logging.getLogger(__name__)
 
