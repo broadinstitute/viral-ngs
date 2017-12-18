@@ -200,7 +200,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     # The command can, through its return value, pass us metadata to attach either to input/output files or to the
                     # step itself (the latter represented by the key of None)
                     file2metadata = info_from_cmd.get('metadata', {})
-                    pgraph['step'].update(file2metadata.get(None, {})
+                    pgraph['step'].update(file2metadata.get(None, {}))
 
                     for arg, val in args_dict.items():
                         for i, v in enumerate(util.misc.make_seq(val)):
