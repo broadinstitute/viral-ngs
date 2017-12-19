@@ -158,9 +158,9 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
         a wrapper for cmd_main, which has the same signature but adds provenance tracking (if provenance tracking is configured)
     """
 
-    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), default=(),
+    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
                             help='attach metadata to step')
-    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), default=(),
+    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'),
                             help='attach metadata to input or output file')
 
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
@@ -206,7 +206,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
 
                     args_dict.pop('func_main', None)  # not serializable
 
-                    pgraph['step']=dict(*args_dict['metadata'],
+                    pgraph['step']=dict(*(args_dict['metadata'] or ()),
                                         step_id=step_id, run_id=run_id,
                                         metadata_dir=metadata_dir(),
                                         cmd_module=cmd_module, cmd_name=cmd_name,
@@ -226,7 +226,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     # step itself (the latter represented by the key of None)
                     file2metadata = info_from_cmd.get('metadata', {})
                     pgraph['step'].update(file2metadata.get(None, {}))
-                    for file, attr, val in args_dict['file_metadata']:
+                    for file, attr, val in (args_dict['file_metadata'] or ()):
                         file_metadata.setdefault(file, {})[attr] = val
 
                     for arg, val in args_dict.items():
