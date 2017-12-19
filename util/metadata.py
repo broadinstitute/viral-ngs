@@ -86,8 +86,15 @@ class InFile(FileArg):
 class OutFile(FileArg):
 
     def __new__(cls, *args, **kw):
-        if not os.access(args[0], os.W_OK):
-            raise IOError('Output file not writable - ' + args[0])
+        fname = args[0]
+        if not os.path.exists(fname):
+            with open(fname, 'w'):
+                pass
+            os.unlink(fname)
+        else:
+            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+                raise IOError('Output filel not writable: ' + fname)
+
         return FileArg.__new__(cls, *args, **kw)
 
 if not is_metadata_tracking_enabled():

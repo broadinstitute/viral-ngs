@@ -113,7 +113,7 @@ def check_paths(read=(), write=(), read_and_write=()):
             os.unlink(fname)
         else:
             if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
-                raise PermissionError('Cannot write ' + fname)
+                raise IOError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
