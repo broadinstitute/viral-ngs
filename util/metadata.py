@@ -162,8 +162,9 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
     cmd_name=cmd_main_orig.__name__
 
-    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), help='attach metadata to step')
-    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), 
+    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), default=(),
+                            help='attach metadata to step')
+    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), defaullt=(),
                             help='attach metadata to input or output file')
 
     def _run_cmd_with_tracking(args):
@@ -171,21 +172,15 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
         args_dict = vars(args)
-        args_dict.pop('func_main', None)
 
-        cmd_metadata = dict(args_dict.get('metadata', []))
-        if hasattr(args, 'metadata'):
-            delattr(args, 'metadata')
-
-        file_metadata = args_dict.get('file_metadata', [])
-        if hasattr(args, 'file_metadata'):
-            delattr(args, 'file_metadata')
+        delattr(args, 'metadata')
+        delattr(args, 'file_metadata')
 
         try:
             beg_time = time.time()
 
             # *** Run the actual command ***
-            cmd_result = cmd_main(args)
+            cmd_result = cmd_main(args) if 'VIRAL_NGS_SKIP_CMD' not in os.environ else None
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -210,7 +205,10 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     info_from_cmd = cmd_result if isinstance(cmd_result, collections.Mapping) else {}
                     args_dict.update(info_from_cmd.get('files', {}))
 
-                    pgraph['step']=dict(step_id=step_id, run_id=run_id,
+                    args_dict.pop('func_main', None)  # not serializable
+
+                    pgraph['step']=dict(*args_dict['metadata'],
+                                        step_id=step_id, run_id=run_id,
                                         metadata_dir=metadata_dir(),
                                         cmd_module=cmd_module, cmd_name=cmd_name,
                                         beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
@@ -222,14 +220,13 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                         user=getpass.getuser(),
                                         cwd=os.getcwd(),
                                         argv=tuple(sys.argv),
-                                        args=args_dict,
-                                        **cmd_metadata)
+                                        args=args_dict)
 
                     # The command can, through its return value, pass us metadata to attach either to input/output files or to the
                     # step itself (the latter represented by the key of None)
                     file2metadata = info_from_cmd.get('metadata', {})
                     pgraph['step'].update(file2metadata.get(None, {}))
-                    for file, attr, val in file_metadata:
+                    for file, attr, val in args_dict['file_metadata']:
                         file_metadata.setdefault(file, {})[attr] = val
 
                     for arg, val in args_dict.items():
