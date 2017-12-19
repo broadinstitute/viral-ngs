@@ -168,7 +168,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
 
     def _run_cmd_with_tracking(args):
 
-        args_dict = vars(args)
+        args_dict = vars(args).copy()
 
         delattr(args, 'metadata')
         delattr(args, 'file_metadata')
@@ -250,7 +250,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                 pgraph['in_files' if isinstance(v, InFile) else 'out_files'][hasher(v)] = file_info
 
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
-                                        json.dumps(pgraph, sort_keys=True, indent=4))
+                                        json.dumps(pgraph, sort_keys=True, indent=4, default=str))
 
             except Exception:
                 _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
