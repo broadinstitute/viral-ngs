@@ -86,14 +86,15 @@ class InFile(FileArg):
 class OutFile(FileArg):
 
     def __new__(cls, *args, **kw):
-        fname = args[0]
-        if not os.path.exists(fname):
-            with open(fname, 'w'):
-                pass
-            os.unlink(fname)
-        else:
-            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
-                raise IOError('Output filel not writable: ' + fname)
+        if 'VIRAL_NGS_SKIP_CMD' not in os.envion:
+            fname = args[0]
+            if not os.path.exists(fname):
+                with open(fname, 'w'):
+                    pass
+                os.unlink(fname)
+            else:
+                if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+                    raise IOError('Output filel not writable: ' + fname)
 
         return FileArg.__new__(cls, *args, **kw)
 
@@ -220,7 +221,8 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                         user=getpass.getuser(),
                                         cwd=os.getcwd(),
                                         argv=tuple(sys.argv),
-                                        args=args_dict)
+                                        args=args_dict,
+                                        skipped_cmd = 'VIRAL_NGS_SKIP_CMD' in os.environ)
 
                     # The command can, through its return value, pass us metadata to attach either to input/output files or to the
                     # step itself (the latter represented by the key of None)
