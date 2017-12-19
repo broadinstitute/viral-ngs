@@ -206,7 +206,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
 
                     args_dict.pop('func_main', None)  # not serializable
 
-                    pgraph['step']=dict(*(args_dict['metadata'] or ()),
+                    pgraph['step']=dict(args_dict['metadata'] or (),
                                         step_id=step_id, run_id=run_id,
                                         metadata_dir=metadata_dir(),
                                         cmd_module=cmd_module, cmd_name=cmd_name,
@@ -220,7 +220,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                         cwd=os.getcwd(),
                                         argv=tuple(sys.argv),
                                         args=args_dict,
-                                        skipped_cmd = 'VIRAL_NGS_SKIP_CMD' in os.environ)
+                                        cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ)
 
                     # The command can, through its return value, pass us metadata to attach either to input/output files or to the
                     # step itself (the latter represented by the key of None)
