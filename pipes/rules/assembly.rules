@@ -54,7 +54,7 @@ rule assemble_trinity:
         makedirs(expand("{dir}/{subdir}",
             dir=[config["data_dir"],config["tmp_dir"]],
             subdir=config["subdirs"]["assembly"]))
-        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {output.subsamp_bam} --threads {resources.threads} --JVMmemory 5g")
+        shell("{config[bin_dir]}/assembly.py assemble_trinity {input.bam} {input.clipDb} {output.fasta} --n_reads={params.n_reads} --outReads {output.subsamp_bam} --threads {resources.threads} --JVMmemory 5g --metadata sample {wildcards.sample} --metadata step_role de_novo_assembly")
 
 rule assemble_spades:
     ''' This step runs the SPAdes assembler.
@@ -68,7 +68,7 @@ rule assemble_spades:
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
     run:
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem} --metadata sample {wildcards.sample} --metadata step_role de_novo_assembly")
 
 
 rule assemble_trinity_spades:
@@ -84,7 +84,7 @@ rule assemble_trinity_spades:
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
     run:
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_trinity_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem}")
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_trinity_spades} --contigsUntrusted {input.contigs_trinity} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem} --metadata sample {wildcards.sample} --metadata step_role de_novo_assembly")
 
             
 rule orient_and_impute:
@@ -142,9 +142,9 @@ rule orient_and_impute:
             ono_extra.extend(["--min_pct_contig_aligned", str(config["scaffold_min_pct_contig_aligned"])])
         ono_extra = " ".join(ono_extra)
         n_genome_segments = len(config["accessions_for_ref_genome_build"])
-        shell("{config[bin_dir]}/assembly.py order_and_orient {input.fasta} {input.refsel_genomes} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta} --nGenomeSegments {n_genome_segments} --outReference {params.scaffold_ref} --threads {resources.threads}")
-        shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.cleaned_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]}")
-        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {params.scaffold_ref} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index")
+        shell("{config[bin_dir]}/assembly.py order_and_orient {input.fasta} {input.refsel_genomes} {params.scaffolded_fasta} {ono_extra} --outAlternateContigs {params.alternate_fasta} --nGenomeSegments {n_genome_segments} --outReference {params.scaffold_ref} --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role scaffolding")
+        shell("{config[bin_dir]}/assembly.py gapfill_gap2seq {params.scaffolded_fasta} {input.cleaned_reads} {params.gapfilled_fasta} --memLimitGb {resources[mem]} --maskErrors --randomSeed {config[random_seed]} --metadata sample {wildcards.sample} --metadata step_role gapfill")
+        shell("{config[bin_dir]}/assembly.py impute_from_reference {params.gapfilled_fasta} {params.scaffold_ref} {output.fasta} --newName {params.renamed_prefix}{wildcards.sample} --replaceLength {params.replace_length} --minLengthFraction {params.length} --minUnambig {params.min_unambig} --index --metadata sample {wildcards.sample} --metadata step_role gapfill")
 
 rule refine_assembly_1:
     ''' This a first pass refinement step where we take the scaffolded assembly,
@@ -173,7 +173,7 @@ rule refine_assembly_1:
         logid             = "{sample}",
         novoalign_options = config.get("refine_assembly_1_novoalign_params", "-r Random -l 30 -g 40 -x 20 -t 502"),
         min_coverage      = "2"
-    shell:  "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads}"
+    shell:  "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role refine --metadata step_name {rule}"
 
 rule refine_assembly_2:
     ''' This a second pass refinement step very similar to the first.
@@ -200,7 +200,7 @@ rule refine_assembly_2:
         novoalign_options = config.get("refine_assembly_2_novoalign_params", "-r Random -l 40 -g 40 -x 20 -t 100"),
         min_coverage      = "3"
     shell:  
-        "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads}"
+        "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role refine --metadata step_name {rule} --file-metadata {output[0]} file_role final_assembly"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
@@ -227,4 +227,4 @@ rule map_reads_to_self:
     run:
         makedirs([os.path.join(config["data_dir"], config["subdirs"]["align_self"]),
             os.path.join(config["reports_dir"], "assembly")])
-        shell("{config[bin_dir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --aligner novoalign --aligner_options '{params.aligner_options}' --threads {resources.threads}")
+        shell("{config[bin_dir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --aligner novoalign --aligner_options '{params.aligner_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role eval --metadata step_name {rule}")

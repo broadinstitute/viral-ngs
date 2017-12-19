@@ -76,11 +76,18 @@ class FileArg(str):
 class InFile(FileArg):
 
     def __new__(cls, *args, **kw):
+
+        # check that the file is readable, force an immediate error if it is not
+        with open(args[0]):
+            pass
+
         return FileArg.__new__(cls, *args, **kw)
 
 class OutFile(FileArg):
 
     def __new__(cls, *args, **kw):
+        if not os.access(args[0], os.W_OK):
+            raise IOError('Output file not writable - ' + args[0])
         return FileArg.__new__(cls, *args, **kw)
 
 if not is_metadata_tracking_enabled():
@@ -148,9 +155,24 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
     cmd_name=cmd_main_orig.__name__
 
+    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), help='attach metadata to step')
+    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), 
+                            help='attach metadata to input or output file')
+
     def _run_cmd_with_tracking(args):
 
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
+
+        args_dict = vars(args)
+        args_dict.pop('func_main', None)
+
+        cmd_metadata = dict(args_dict.get('metadata', []))
+        if hasattr(args, 'metadata'):
+            delattr(args, 'metadata')
+
+        file_metadata = args_dict.get('file_metadata', [])
+        if hasattr(args, 'file_metadata'):
+            delattr(args, 'file_metadata')
 
         try:
             beg_time = time.time()
@@ -174,8 +196,6 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     pgraph = dict(format=VIRAL_NGS_METADATA_FORMAT, in_files={}, out_files={})
                     hasher = Hasher()
 
-                    args_dict = vars(args)
-                    args_dict.pop('func_main', None)
 
                     # Sometimes file names accessed by a command are not passed as command args, but computed within the command.
                     # The command can tell us about such files by returning a dict with the key 'files' mapped to a dict
@@ -195,12 +215,15 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                         user=getpass.getuser(),
                                         cwd=os.getcwd(),
                                         argv=tuple(sys.argv),
-                                        args=args_dict)
+                                        args=args_dict,
+                                        **cmd_metadata)
 
                     # The command can, through its return value, pass us metadata to attach either to input/output files or to the
                     # step itself (the latter represented by the key of None)
                     file2metadata = info_from_cmd.get('metadata', {})
                     pgraph['step'].update(file2metadata.get(None, {}))
+                    for file, attr, val in file_metadata:
+                        file_metadata.setdefault(file, {})[attr] = val
 
                     for arg, val in args_dict.items():
                         for i, v in enumerate(util.misc.make_seq(val)):
