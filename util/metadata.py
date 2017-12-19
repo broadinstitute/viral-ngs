@@ -86,7 +86,7 @@ class InFile(FileArg):
 class OutFile(FileArg):
 
     def __new__(cls, *args, **kw):
-        if 'VIRAL_NGS_SKIP_CMD' not in os.envion:
+        if 'VIRAL_NGS_SKIP_CMD' not in os.environ:
             fname = args[0]
             if not os.path.exists(fname):
                 with open(fname, 'w'):
