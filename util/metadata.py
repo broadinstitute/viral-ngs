@@ -157,25 +157,23 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     Returns:
         a wrapper for cmd_main, which has the same signature but adds provenance tracking (if provenance tracking is configured)
     """
-    if not is_metadata_tracking_enabled():
-        return cmd_main
+
+    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), default=(),
+                            help='attach metadata to step')
+    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), default=(),
+                            help='attach metadata to input or output file')
 
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
     cmd_name=cmd_main_orig.__name__
 
-    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), default=(),
-                            help='attach metadata to step')
-    cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'), defaullt=(),
-                            help='attach metadata to input or output file')
-
     def _run_cmd_with_tracking(args):
-
-        cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
         args_dict = vars(args)
 
         delattr(args, 'metadata')
         delattr(args, 'file_metadata')
+
+        cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
         try:
             beg_time = time.time()
