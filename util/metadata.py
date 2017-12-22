@@ -7,7 +7,7 @@ The unit of recording in this module is one command (see cmd.py), as opposed to 
 To use this module, import InFile and OutFile from it; then, when defining argparse arguments for a command, in add_argument()
 use "type=InFile" for input files or "type=OutFile" for output files. Until provenance tracking is enabled (see below how),
 InFile and OutFile are defined to be simply str.  To enable provenance tracking, set the environment variable
-VIRAL_NGS_METADATA to a writable directory.  Then, whenever a command is run, a file is written to that directory
+VIRAL_NGS_METADATA_PATH to a writable directory.  Then, whenever a command is run, a file is written to that directory
 recording the command, all its parameters, the input and output files, and details of the run environment.
 Input and output files are identified by a hash of their contents, so that copied/moved/renamed files can be properly identified.
 For each file, we also record metadata such as name, size, and modification date.
@@ -45,26 +45,24 @@ import json
 import traceback
 import inspect
 import collections
-import re
 
 # intra-module
 import util.file
 import util.misc
 import util.version
 
-# third-party
-import concurrent.futures
 
 _log = logging.getLogger(__name__)
 
 
 VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
-def is_metadata_tracking_enabled():
-    return 'VIRAL_NGS_METADATA' in os.environ
-
 def metadata_dir():
-    return os.environ['VIRAL_NGS_METADATA']
+    return os.environ['VIRAL_NGS_METADATA_PATH']
+
+def is_metadata_tracking_enabled():
+    return metadata_dir() in os.environ
+
 
 class FileArg(str):
 
@@ -75,6 +73,8 @@ class FileArg(str):
 
 class InFile(FileArg):
 
+    '''Argparse parameter type for input files'''
+
     def __new__(cls, *args, **kw):
 
         # check that the file is readable, force an immediate error if it is not
@@ -84,6 +84,8 @@ class InFile(FileArg):
         return FileArg.__new__(cls, *args, **kw)
 
 class OutFile(FileArg):
+
+    '''Argparse parameter type for output files'''
 
     def __new__(cls, *args, **kw):
         if 'VIRAL_NGS_SKIP_CMD' not in os.environ:
@@ -99,8 +101,7 @@ class OutFile(FileArg):
         return FileArg.__new__(cls, *args, **kw)
 
 if not is_metadata_tracking_enabled():
-    InFile = str
-    OutFile = str
+    InFile, OutFile = str, str
 
 class Hasher(object):
     """Manages computation of file hashes.
@@ -112,11 +113,17 @@ class Hasher(object):
         self.hash_algorithm = hash_algorithm
 
     def __call__(self, file):
-        return self.hash_algorithm + '_' + util.file.hash_file(file, hash_algorithm=self.hash_algorithm)
+        file_hash = ''
+        try:
+            if os.path.isfile(v) and not stat.S_ISFIFO(os.stat(v).st_mode):
+                file_hash = self.hash_algorithm + '_' + util.file.hash_file(file, hash_algorithm=self.hash_algorithm)
+        except Exception:
+            _log.warning('Cannot compute hash for {}'.format(file))
+        return file_hash
 
 
 def create_run_id(t=None):
-    """Generate a unique ID for a run (set of steps run as part of one workflow)"""
+    """Generate a unique ID for a run (set of steps run as part of one workflow)."""
     return util.file.string_to_file_name('__'.join(map(str, (time.strftime('%Y%m%d%H%M%S', time.localtime(t))[2:], getpass.getuser(),
                                                              os.path.basename(os.getcwd()), uuid.uuid4()))))[:210]
 
@@ -128,8 +135,11 @@ def tag_code_version(tag, push_to=None):
     """Create a lightweight git tag for the current state of the project repository, even if the state is dirty.
     If the repository is dirty, use the 'git stash create' command to create a commit representing the current state,
     and tag that; else, tag the existing clean state.  If `push_to` is not None, push the tag to the specified remote.
+    Return the git hash for the created git tag.  In case of any error, print a warning and return an empty string.
     """
+
     def run_cmd(cmd):
+        """Run a command and return its output"""
         out = ''
         result = util.misc.run_and_print(cmd.strip().split(), silent=True)
         if result.returncode == 0:
@@ -139,11 +149,19 @@ def tag_code_version(tag, push_to=None):
             out = out.strip()
         return out
 
-    with util.file.pushd_popd(util.version.get_project_path()):
-        run_cmd('git tag ' + tag + ' ' + run_cmd('git stash create'))
-        if push_to:
-            run_cmd('git push ' + push_to + ' ' + tag)
-    
+    code_hash = ''
+
+    try:
+        with util.file.pushd_popd(util.version.get_project_path()):
+            code_hash = run_cmd('git stash create') or run_cmd('git log -1 --format="%H"')
+            run_cmd('git tag ' + tag + ' ' + code_hash)
+            if push_to:
+                run_cmd('git push ' + push_to + ' ' + tag)
+    except Exception:
+        _log.warning('Error creating git tag: {}'.format(traceback.format_exc()))
+
+    return code_hash
+
 def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     """Add provenance tracking to the given command.
     
@@ -159,9 +177,10 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     """
 
     cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
-                            help='attach metadata to step')
+                            help='attach metadata to this command')
     cmd_parser.add_argument('--file-metadata', action='append', nargs=3, metavar=('FILE', 'ATTRIBUTE', 'VALUE'),
-                            help='attach metadata to input or output file')
+                            help='attach metadata to an input or output file of this command')
+
 
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
     cmd_name=cmd_main_orig.__name__
@@ -169,9 +188,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     def _run_cmd_with_tracking(args):
 
         args_dict = vars(args).copy()
-
         delattr(args, 'metadata')
-        delattr(args, 'file_metadata')
 
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
@@ -192,54 +209,36 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
                     code_repo = os.path.join(metadata_dir(), 'code_repo')
-                    tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
+                    code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
 
-                    pgraph = dict(format=VIRAL_NGS_METADATA_FORMAT, in_files={}, out_files={})
+                    step_data = dict(format=VIRAL_NGS_METADATA_FORMAT, in_files={}, out_files={})
                     hasher = Hasher()
+                    
+                    args_dict.update(args_dict['metadata'] or {})
+                    args_dict.update(cmd_result if isinstance(cmd_result, collections.Mapping) else {})
 
-
-                    # Sometimes file names accessed by a command are not passed as command args, but computed within the command.
-                    # The command can tell us about such files by returning a dict with the key 'files' mapped to a dict
-                    # containing additional (arg name, file name(s)) mappings.
-                    info_from_cmd = cmd_result if isinstance(cmd_result, collections.Mapping) else {}
-                    args_dict.update(info_from_cmd.get('files', {}))
-
-                    args_dict.pop('func_main', None)  # not serializable
-
-                    pgraph['step']=dict(args_dict['metadata'] or (),
-                                        step_id=step_id, run_id=run_id,
-                                        metadata_dir=metadata_dir(),
-                                        cmd_module=cmd_module, cmd_name=cmd_name,
-                                        beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
-                                        exception=cmd_exception_str,
-                                        viral_ngs_version=util.version.get_version(),
-                                        viral_ngs_path=util.version.get_project_path(),
-                                        viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
-                                        platform=platform.platform(), cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
-                                        user=getpass.getuser(),
-                                        cwd=os.getcwd(),
-                                        argv=tuple(sys.argv),
-                                        args=args_dict,
-                                        cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ)
-
-                    # The command can, through its return value, pass us metadata to attach either to input/output files or to the
-                    # step itself (the latter represented by the key of None)
-                    file2metadata = info_from_cmd.get('metadata', {})
-                    pgraph['step'].update(file2metadata.get(None, {}))
-                    for file, attr, val in (args_dict['file_metadata'] or ()):
-                        file_metadata.setdefault(file, {})[attr] = val
+                    step_data['step']=dict(args_dict,
+                                           step_id=step_id, run_id=run_id,
+                                           metadata_dir=metadata_dir(),
+                                           cmd_module=cmd_module, cmd_name=cmd_name,
+                                           beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
+                                           exception=cmd_exception_str,
+                                           viral_ngs_version=util.version.get_version(),
+                                           viral_ngs_path=util.version.get_project_path(),
+                                           viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
+                                           code_hash=code_hash,
+                                           platform=platform.platform(), cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
+                                           user=getpass.getuser(),
+                                           cwd=os.getcwd(),
+                                           argv=tuple(sys.argv),
+                                           cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ)
 
                     for arg, val in args_dict.items():
                         for i, v in enumerate(util.misc.make_seq(val)):
-                            if v and isinstance(v, FileArg) and (isinstance(v, InFile) or cmd_exception is None) and \
-                               os.path.isfile(v) and not stat.S_ISFIFO(os.stat(v).st_mode):
-
-                                # Metadata for a file is considered to reside not on the file node, but 
-                                # on the edge between the file node and the step node.
-                                # That way, if multiple steps read the same input or produce the same output, metadata from the
-                                # different steps will remain separate ("same" here refers to file contents rather than identity).
-
-                                file_info = dict(fname=v, realpath=os.path.realpath(v), arg=arg, arg_order=i, **file2metadata.get(v, {}))
+                            if v and isinstance(v, FileArg) and (isinstance(v, InFile) or cmd_exception is None):
+                               
+                                file_info = dict(fname=v, realpath=os.path.realpath(v), abspath=os.path.abspath(v),
+                                                 arg=arg, arg_idx=i, hash=hasher(v))
                                 try:
                                     file_stat = os.stat(v)
                                     file_info.update(size=file_stat[stat.ST_SIZE])
@@ -247,10 +246,10 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                 except Exception:
                                     _log.warning('Error getting file info ({})'.format(traceback.format_exc()))
                                                      
-                                pgraph['in_files' if isinstance(v, InFile) else 'out_files'][hasher(v)] = file_info
+                                step_data['in_files' if isinstance(v, InFile) else 'out_files'][hasher(v)] = file_info
 
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
-                                        json.dumps(pgraph, sort_keys=True, indent=4, default=str))
+                                        json.dumps(step_data, sort_keys=True, indent=4, default=str))
 
             except Exception:
                 _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
