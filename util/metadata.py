@@ -275,22 +275,23 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                             return val and isinstance(val, FileArg) and [(idx, val)] or \
                                 isinstance(val, list) and functools.reduce(operator.concat,
                                                                            [get_FileArgs(v, idx+(i,)) for i, v in enumerate(val)], []) or []
-                        for idx, f in get_FileArgs(val):
-                            file_info = dict(fname=v, realpath=os.path.realpath(v), abspath=os.path.abspath(v),
+                        for idx, file_arg in get_FileArgs(val):
+                            file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg),
                                              arg=arg, arg_idx=idx)
 
-                            if isinstance(f, InFile) or cmd_exception is None:
+                            if isinstance(file_arg, InFile) or cmd_exception is None:
                                
                                 try:
-                                    file_info.update(hash=hasher(f))
+                                    file_info.update(hash=hasher(file_arg))
 
-                                    file_stat = os.stat(f)
+                                    file_stat = os.stat(file_arg)
                                     file_info.update(size=file_stat[stat.ST_SIZE])
                                     file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
                                 except Exception:
                                     _log.warning('Error getting file info ({})'.format(traceback.format_exc()))
                                     
-                            step_data['in_files' if isinstance(f, InFile) else 'out_files'][arg+''.join('_'+str(i) for i in idx)] = file_info
+                            port_name = arg+''.join('_'+str(i) for i in idx)
+                            step_data['in_files' if isinstance(file_arg, InFile) else 'out_files'][port_name] = file_info
 
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
                                         json.dumps(step_data, sort_keys=True, indent=4, default=str))
