@@ -278,6 +278,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                         for idx, file_arg in get_FileArgs(val):
                             file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg),
                                              arg=arg, arg_idx=idx)
+                            file_info.update(file2metadata[file_arg])
 
                             if isinstance(file_arg, InFile) or cmd_exception is None:
                                
