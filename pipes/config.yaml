@@ -97,6 +97,9 @@ env_vars:
 #    |----------------- Project-specific pipeline files ------------------------
 
 # Text file containing sequencer flowcell metadata
+# TSV file with the following structure:
+#flowcell        lane    barcode_file    bustard_dir     max_mismatches
+#H32G3ADXY       1       /path/to/barcodes.txt    /path/to/illumina/run/directory/run_BH32G3ADXY 1
 seqruns_demux: "flowcells.txt"
 
 # The location of a text file containing names of samples
