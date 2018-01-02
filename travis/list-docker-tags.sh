@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+# This script lists all docker tags that should apply to this particular
+# deploy, including short tags (like repo:latest) and long tags (like
+# repo:full-version-number). Tags are emitted one per line.
+#
+# Important note: the last tag is considered the definitive, uniquely
+# identifiable tag that should be used for all build steps that depend on
+# the docker image (e.g. version-wdl-runtimes.sh). All others are aliases.
+
 set -e -o pipefail
 
 if [ -z "$DOCKER_REPO_PROD" -o -z "$DOCKER_REPO_DEV" -o -z "$TRAVIS_BRANCH" ]; then
@@ -12,6 +21,7 @@ if [ -n "$TRAVIS_TAG" ]; then
 	DOCKER_REPO=$DOCKER_REPO_PROD
 	DOCKER_SHORT_TAG="latest"
 	DOCKER_LONG_TAG="$(echo $TRAVIS_TAG | sed 's/^v//')"
+	PUSH_TO_MIRROR=true
 elif [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 	# this is a PR build (TRAVIS_BRANCH=target of PR, TRAVIS_PULL_REQUEST_BRANCH=source of PR)
 	DOCKER_REPO=$DOCKER_REPO_DEV
@@ -24,6 +34,7 @@ elif [[ "$TRAVIS_BRANCH" == "master" ]]; then
 	DOCKER_REPO=$DOCKER_REPO_PROD
 	DOCKER_SHORT_TAG="latest"
 	DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g\S+/$1-rc$2/')"
+	PUSH_TO_MIRROR=true
 else
 	# this is an normal non-master branch commit
 	DOCKER_REPO=$DOCKER_REPO_DEV
@@ -31,6 +42,12 @@ else
 	DOCKER_SHORT_TAG="$BRANCH_NAME"
 	DOCKER_LONG_TAG="$(git describe --tags --always | sed s/^v//)-$(echo $DOCKER_SHORT_TAG)"
 	#DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g(\S+)/$1-dev$2-g$3/')-$(echo $DOCKER_SHORT_TAG)"
+fi
+
+if [ -n "$DOCKER_REPO_PROD_MIRROR" -a -n "$PUSH_TO_MIRROR" ]; then
+	# if this should be sent to prod, also echo the mirror registry tags
+	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_SHORT_TAG
+	echo $DOCKER_REPO_PROD_MIRROR:$DOCKER_LONG_TAG
 fi
 
 echo $DOCKER_REPO:$DOCKER_SHORT_TAG
