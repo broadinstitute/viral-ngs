@@ -90,7 +90,7 @@ rule align_rna:
         taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
         shell("{config[bin_dir]}/metagenomics.py align_rna {input.bam} "+rna_bwa_path_prefix+" "+taxonomy_db_prefix+" {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outReads {output.nodupes_lca} --dupeReads {output.lca} --JVMmemory {resources.mem}g --threads {resources.threads}")
 
-if config.get('kraken_execution', 'single') == 'multiple':
+if config['kraken_execution'] == 'multiple':
     kraken_samples = []
     all_kraken_inputs = {}
     all_kraken_reports = {}
@@ -176,7 +176,7 @@ else:
         shell:
             """
             {config[bin_dir]}/metagenomics.py kraken {params.kraken_db} {input.bam} --outReads {output.reads} --outReports {output.report} \
-            {params.lock_memory} --threads {resources.threads}")
+            {params.lock_memory} --threads {resources.threads}
             """
 
 
