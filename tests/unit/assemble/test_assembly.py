@@ -278,7 +278,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
                                                            'expected.lasv.fasta', 
                                                            'expected.refsel.lasv.stats.tsv')
             refs = [self.input('ref.lasv.{}.fasta'.format(strain))
-                    for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19')]
+                    for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')]
             assembly.order_and_orient(contigs, refs, outFasta,
                                       outReference=outReference, outStats=outStats)
             self.assertEqualContents(outFasta, expected)
