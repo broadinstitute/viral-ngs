@@ -97,6 +97,9 @@ env_vars:
 #    |----------------- Project-specific pipeline files ------------------------
 
 # Text file containing sequencer flowcell metadata
+# TSV file with the following structure:
+#flowcell        lane    barcode_file    bustard_dir     max_mismatches
+#H32G3ADXY       1       /path/to/barcodes.txt    /path/to/illumina/run/directory/run_BH32G3ADXY 1
 seqruns_demux: "flowcells.txt"
 
 # The location of a text file containing names of samples
@@ -223,7 +226,7 @@ vcf_merge_naive_filter: false
 # Strategy for kraken classification for multiple inputs. 'single' results in 1 kraken process for
 # each input bam, while 'multiple' coalesces multiple input classifications into a single kraken
 # run.
-kraken_execution: multiple
+kraken_execution: single
 
 # Random seed, for non-deterministic steps.  0 means use current time.
 random_seed: 0
