@@ -200,7 +200,7 @@ rule refine_assembly_2:
         novoalign_options = config.get("refine_assembly_2_novoalign_params", "-r Random -l 40 -g 40 -x 20 -t 100"),
         min_coverage      = "3"
     shell:  
-        "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role refine --metadata step_name {rule} --file-metadata {output[0]} file_role final_assembly"
+        "{config[bin_dir]}/assembly.py refine_assembly {input} {output[0]} --outVcf {output[1]} --min_coverage {params.min_coverage} --novo_params '{params.novoalign_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role refine --metadata step_name {rule} --metadata file.outFasta.role final_assembly"
 
 rule map_reads_to_self:
     ''' After the final assembly is produced, we also produce BAM files with all reads
