@@ -7,8 +7,8 @@ task deplete_taxa {
   Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Int?         query_chunk_size
-  Boolean?     clear_tags=false
-  Array[String]? tags_to_clear
+  Boolean?     clear_tags = false
+  String? tags_to_clear_space_separated
 
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
@@ -29,8 +29,7 @@ task deplete_taxa {
     if [ -n "$DBS_BLAST" ]; then DBS_BLAST="--blastDbs $DBS_BLAST"; fi
     
     if [[ "${clear_tags}" == "true" ]]; then
-      TAGS="${sep=' ' tags_to_clear}"
-      CLEAR_TAGS="--clearTags --tagsToClear $TAGS"
+      TAGS_TO_CLEAR="--clearTags --tagsToClear $tags_to_clear_space_separated"
     fi
 
     # run depletion
@@ -42,7 +41,7 @@ task deplete_taxa {
       ${bam_basename}.cleaned.bam \
       $DBS_BMTAGGER $DBS_BLAST \
       ${'--chunkSize=' + query_chunk_size} \
-      $CLEAR_TAGS \
+      $TAGS_TO_CLEAR \
       --JVMmemory="$mem_in_mb"m \
       --srprismMemory=$mem_in_mb \
       --loglevel=DEBUG
