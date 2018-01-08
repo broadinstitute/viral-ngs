@@ -65,6 +65,11 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
+    parser.add_argument('--clearTags', dest='clear_tags', default=False, action='store_true', 
+                        help='When supplying an aligned input file, clear the per-read attribute tags')
+    parser.add_argument("--tagsToClear", type=str, nargs='+', dest="tags_to_clear", default=["XT", "X0", "X1", "XA", 
+                        "AM", "SM", "BQ", "CT", "XN", "OC", "OP"], 
+                        help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -96,21 +101,14 @@ def main_deplete_human(args):
     with pysam.AlignmentFile(args.inBam, 'rb', check_sq=False) as bam:
         # if it looks like the bam is aligned, revert it
         if 'SQ' in bam.header and len(bam.header['SQ'])>0:
+            picardTagOptions = []
+            if args.clear_tags:
+                for tag in args.tags_to_clear:
+                    picardTagOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+
             tools.picard.RevertSamTool().execute(
                 args.inBam, revertBamOut, picardOptions=['SORT_ORDER=queryname', 
-                                                         'SANITIZE=true', 
-                                                         'ATTRIBUTE_TO_CLEAR=XT',
-                                                         'ATTRIBUTE_TO_CLEAR=X0',
-                                                         'ATTRIBUTE_TO_CLEAR=X1',
-                                                         'ATTRIBUTE_TO_CLEAR=XA',
-                                                         'ATTRIBUTE_TO_CLEAR=AM',
-                                                         'ATTRIBUTE_TO_CLEAR=SM',
-                                                         'ATTRIBUTE_TO_CLEAR=BQ',
-                                                         'ATTRIBUTE_TO_CLEAR=CT',
-                                                         'ATTRIBUTE_TO_CLEAR=XN',
-                                                         'ATTRIBUTE_TO_CLEAR=OC',
-                                                         'ATTRIBUTE_TO_CLEAR=OP'
-                                                         ]
+                                                         'SANITIZE=true'] + picardTagOptions 
             )
             bamToDeplete = revertBamOut
         else:
