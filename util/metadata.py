@@ -237,30 +237,32 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
 
                     step_data = dict(format=VIRAL_NGS_METADATA_FORMAT)
 
+                    metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
                     metadata = {}
-                    # include any metadata provided on the command line
-                    metadata.update(args_dict.pop('metadata', {}))
+                    metadata.update()
                     # include any metadata returned from the function that executed the command
                     metadata.update(cmd_result if isinstance(cmd_result, collections.Mapping) else {})
 
-                    step_data['step']=dict(step_id=step_id, run_id=run_id,
-                                           cmd_module=cmd_module, cmd_name=cmd_name,
-                                           version_info=dict(viral_ngs_version=util.version.get_version(),
-                                                             viral_ngs_path=util.version.get_project_path(),
-                                                             viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
-                                                             code_hash=code_hash),
-                                           run_env=dict(metadata_dir=metadata_dir(),
-                                                        platform=platform.platform(), 
-                                                        cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
-                                                        user=getpass.getuser(),
-                                                        cwd=os.getcwd()),
-                                           run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
-                                                         exception=cmd_exception_str,
-                                                         argv=tuple(sys.argv),
-                                                         cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ)
-                                           args=args_dict,
-                                           metadata=metadata)
+                    args_dict.pop('func_main', '')
 
+                    step_data['step'] = dict(step_id=step_id, run_id=run_id,
+                                             cmd_module=cmd_module, cmd_name=cmd_name,
+                                             version_info=dict(viral_ngs_version=util.version.get_version(),
+                                                               viral_ngs_path=util.version.get_project_path(),
+                                                               viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
+                                                               code_hash=code_hash),
+                                             run_env=dict(metadata_dir=metadata_dir(),
+                                                          platform=platform.platform(), 
+                                                          cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
+                                                          user=getpass.getuser(),
+                                                          cwd=os.getcwd()),
+                                             run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
+                                                           exception=cmd_exception_str,
+                                                           argv=tuple(sys.argv),
+                                                           cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ),
+                                             args=args_dict,
+                                             metadata=metadata)
+                    
                     #
                     # Record information about the input and output files used by the command
                     #
@@ -290,13 +292,10 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                   list of lists of FileArgs, the return value is an empty list.
                             """
                             return \
-                                # if val is a simple FileArg
                                 val and isinstance(val, FileArg) and [(idx_prefix, val)] or \
-                                # if val is a list of FileArgs, or a list of lists of FileArgs
                                 isinstance(val, list) and functools.reduce(operator.concat,
                                                                            [get_FileArgs(v, idx_prefix+(i,)) 
                                                                             for i, v in enumerate(val)], []) or \
-                                # if val is neither of the above
                                 []
 
                         for idx, file_arg in get_FileArgs(val):

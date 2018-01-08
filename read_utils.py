@@ -702,8 +702,8 @@ def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
 
 
 def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -793,8 +793,8 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
 
 
 def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
