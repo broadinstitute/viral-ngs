@@ -210,6 +210,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
         try:
+            _log.info('calling command {}.{}; metadata tracking: {}'.format(cmd_module, cmd_name, is_metadata_tracking_enabled()))
             beg_time = time.time()
 
             # *** Run the actual command ***
@@ -221,6 +222,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
             try:  # if any errors happen during metadata recording just issue a warning
                 if is_metadata_tracking_enabled():
                     end_time = time.time()
+                    _log.info('recording metadata to {}'.format(metadata_dir()))
 
                     #
                     # Record data pertaining to the whole step
@@ -238,10 +240,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     step_data = dict(format=VIRAL_NGS_METADATA_FORMAT)
 
                     metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
-                    metadata = {}
-                    metadata.update()
-                    # include any metadata returned from the function that executed the command
-                    metadata.update(cmd_result if isinstance(cmd_result, collections.Mapping) else {})
+                    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) else {}
 
                     args_dict.pop('func_main', '')
 
@@ -261,7 +260,8 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                                            argv=tuple(sys.argv),
                                                            cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ),
                                              args=args_dict,
-                                             metadata=metadata)
+                                             metadata_from_cmd_line=metadata_from_cmd_line,
+                                             metadata_from_cmd_return=metadata_from_cmd_return)
                     
                     #
                     # Record information about the input and output files used by the command
@@ -275,7 +275,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     # Additionally, if the command reads and writes files that were not passed as arguments 
                     # (e.g. if a filename gets constructed based on the arguments), the command can tell us about these files
                     # by returning metadata values of type InFile/OutFile.
-                    for arg, val in itertools.chain(args_dict.items(), metadata.items()):
+                    for arg, val in itertools.chain(args_dict.items(), metadata_from_cmd_return.items()):
 
                         def get_FileArgs(val, idx_prefix=()):
                             """Extract any file arguments from a command parameter or metadata value.
