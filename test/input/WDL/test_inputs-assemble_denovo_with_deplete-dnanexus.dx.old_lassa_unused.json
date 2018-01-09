@@ -12,6 +12,5 @@
 	],
 
 	"stage_2.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-ByVBfxQ0z77PGBKpqQG2x8jZ" } },
-	"stage_3.trim_clip_db": { "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
 	"stage_4.reference_genome_fasta": [{ "$dnanexus_link": { "project": "project-F856jv809y3VkzyFGkKqX367", "id": "file-ByVBfxQ0z77042YFk4G9VG8X" } }]
 }
