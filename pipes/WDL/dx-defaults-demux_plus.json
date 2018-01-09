@@ -1,8 +1,11 @@
 {
+  "demux_plus.spikein.spikein_db":
+    "dx://file-F6PXkF00Yqp3zVXq14fF98Kz",
+
   "demux_plus.deplete.bmtaggerDbs": [
-    "dx://file-F8B3B6Q09y3bZg3j1FqK7bJ9",
-    "dx://file-F8B3ppQ09y3qvQj35VgbPJFG",
-    "dx://file-F8B3B6809y3kK1JP5X8Pg361"
+    "dx://file-BYF8y0Q06PJ7G1fPvkB9q3fK",
+    "dx://file-BYF6g8Q0zjF77x79bGYgJ1Zb",
+    "dx://file-BYF6j80068477x79bGYgJ1gX"
   ],
   "demux_plus.deplete.blastDbs": [
     "dx://file-F8BjgXj09y3gkfZGPPQZbZkK",
