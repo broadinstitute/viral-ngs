@@ -1,3 +1,5 @@
+#DX_SKIP_WORKFLOW
+
 import "tasks/demux.wdl" as demux
 import "tasks/metagenomics.wdl" as metagenomics
 import "tasks/taxon_filter.wdl" as taxon_filter
