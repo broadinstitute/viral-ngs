@@ -8,7 +8,7 @@ task deplete_taxa {
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Int?         query_chunk_size
   Boolean?     clear_tags = false
-  String? tags_to_clear_space_separated
+  String? tags_to_clear_space_separated = "XT X0 X1 XA AM SM BQ CT XN OC OP"
 
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
 
