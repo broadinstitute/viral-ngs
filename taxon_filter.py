@@ -69,7 +69,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
                         help='When supplying an aligned input file, clear the per-read attribute tags')
     parser.add_argument("--tagsToClear", type=str, nargs='+', dest="tags_to_clear", default=["XT", "X0", "X1", "XA", 
                         "AM", "SM", "BQ", "CT", "XN", "OC", "OP"], 
-                        help='blastn chunk size (default: %(default)s)')
+                        help='A space-separated list of tags to remove from all reads in the input bam file (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
