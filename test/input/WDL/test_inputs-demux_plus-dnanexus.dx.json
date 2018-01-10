@@ -4,9 +4,6 @@
   "stage-1.maxMismatches": 0,
   "stage-1.minimumQuality": 25,
 
-  "stage-2.spikein_spikein_db": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F6PXkF00Yqp3zVXq14fF98Kz" } },
-  "stage-2.spades_trim_clip_db": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BXF0vYQ0QyBF509G9J12g927" } },
-
   "stage-2.deplete_bmtaggerDbs": [
 	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
   ],

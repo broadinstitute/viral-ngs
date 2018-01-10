@@ -4,9 +4,6 @@
 	"stage-1.bmtaggerDbs": [
 		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
 	],
-	"stage-1.blastDbs": [
-		{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYFv7bQ0QyBFXQBkX1Jqz88g" } }
-	],
 
 	"stage-2.lastal_db_fasta": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } },
 	"stage-4.reference_genome_fasta": [ { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F1zXZ9Q0pvkp7FkZ646YJX2y" } } ],
