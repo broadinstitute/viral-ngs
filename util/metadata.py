@@ -53,7 +53,6 @@ import getpass
 import pwd
 import json
 import traceback
-import inspect
 import collections
 import functools
 import itertools
@@ -136,7 +135,7 @@ class FileArg(str):
                     _log.warning('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
             return file_info
 
-        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=map(file2dict, self.get_fnames()))
+        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.get_fnames())))
 
 def InFile(val, *args, **kwargs):
     """Argparse argument type for arguments that denote input files."""
@@ -224,7 +223,7 @@ def tag_code_version(tag, push_to=None):
 
     return code_hash
 
-def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
+def add_metadata_tracking(cmd_parser, cmd_main):
     """Add provenance tracking to the given command.  
 
     Called from util.cmd.attach_main().
@@ -233,8 +232,6 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
         cmd_parser: parser for a command defined in a script
         cmd_main: function implementing the command. Function takes one parameter, an argparse.Namespace, giving the values of the command's
              arguments.
-        cmd_main_orig: the original cmd_main function defined in the command script, if cmd_main is a wrapper around the original 
-             function, else same as cmd_main.
 
     Returns:
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
@@ -243,9 +240,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
     cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
                             help='attach metadata to this step (step=this specific execution of this command)')
 
-    cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
-    cmd_module2=os.path.splitext(os.path.basename(sys.argv[0]))[0]
-    assert cmd_module == cmd_module2
+    cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
     def _run_cmd_with_tracking(args):
 
