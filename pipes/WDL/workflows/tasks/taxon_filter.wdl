@@ -31,7 +31,7 @@ task deplete_taxa {
     if [[ "${clear_tags}" == "true" ]]; then
       TAGS_TO_CLEAR="--clearTags"
       if [[ -n "$tags_to_clear_space_separated" ]]; then
-        TAGS_TO_CLEAR="$TAGS_TO_CLEAR --tagsToClear $tags_to_clear_space_separated"
+        TAGS_TO_CLEAR="$TAGS_TO_CLEAR ${'--tagsToClear=' + tags_to_clear_space_separated}"
       fi
     fi
 
