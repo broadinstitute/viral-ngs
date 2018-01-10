@@ -84,13 +84,17 @@ def is_metadata_tracking_enabled():
 
     # check also that the only VIRAL_NGS_METADATA env vars are known ones
 
+
+def _make_list(x):
+    return [x]
+
 class FileArg(str):
 
     '''The value of an argparse parser argument representing input or output file(s).  In addition to the string representing the
     argument value, keeps track of any filenames derived from the argument, and has methods for capturing metadata about the
     files to which they point.'''
     
-    def __new__(cls, val, mode, val2fnames=lambda x: [x]):
+    def __new__(cls, val, mode, val2fnames=_make_list):
         """Construct a FileArg.
 
         Args:
@@ -134,17 +138,20 @@ class FileArg(str):
 
         return dict(__FileArg__=True, val=self.val, mode=self.mode, files=map(file2dict, self.get_fnames()))
 
-def InFile(val):
+def InFile(val, *args, **kwargs):
     """Argparse argument type for arguments that denote input files."""
-    file_arg = FileArg(val, mode='r')
-    util.file.check(read=file_arg.get_fnames())
+    file_arg = FileArg(val, mode='r', *args, **kwargs)
+    util.file.check_paths(read=file_arg.get_fnames())
     return file_arg
 
-def OutFile(val):
+def OutFile(val, *args, **kwargs):
     """Argparse argument type for arguments that denote output files."""
-    file_arg = FileArg(val, mode='w')
-    util.file.check(write=file_arg.get_fnames())
+    file_arg = FileArg(val, mode='w', *args, **kwargs)
+    util.file.check_paths(write=file_arg.get_fnames())
     return file_arg
+
+def _add_suffixes(val, suffixes):
+    return [val+sfx for sfx in suffixes]
 
 def FilePrefix(InFile_or_OutFile, suffixes):
     """Argparse argument type for arguments that denote a prefix for a set of input or output files with known extensions.
@@ -156,7 +163,7 @@ def FilePrefix(InFile_or_OutFile, suffixes):
         # specify a FASTA file for which we also create an index
         parser.add_argument(outFasta, type=FilePrefix(OutFile, suffixes=('', '.fai')))
     """
-    return lambda prefix: InFile_Or_OutFile(prefix, val2fnames=lambda val: [val+sfx for sfx in suffixes])
+    return functools.partial(InFile_or_OutFile, val2fnames=functools.partial(_add_suffixes, suffixes=suffixes))
 
 class Hasher(object):
     """Manages computation of file hashes.
@@ -261,7 +268,8 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
             try:  # if any errors happen during metadata recording just issue a warning
                 if is_metadata_tracking_enabled():
                     end_time = time.time()
-                    _log.info('recording metadata to {}'.format(metadata_dir()))
+                    _log.info('command {}.{} finished in {}s; recording metadata to {}'.format(cmd_module, cmd_name, end_time-beg_time,
+                                                                                               metadata_dir()))
 
                     #
                     # Record data pertaining to the whole step
