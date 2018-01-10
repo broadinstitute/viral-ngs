@@ -1,4 +1,32 @@
 
+#task merge_tar_chunks {
+#  Array[File]+  tar_chunks
+#  String        out_filename
+#  command {
+#    set -ex -o pipefail
+#
+#    if [ -d /mnt/tmp ]; then
+#      TMPDIR=/mnt/tmp
+#    fi
+#    FLOWCELL_DIR=$(mktemp -d)
+#
+#    read_utils.py extract_tarball \
+#      ${flowcell_tgz} $FLOWCELL_DIR \
+#      --loglevel=DEBUG
+#
+#  }
+#  output {
+#    File tar_lz4=
+#  }
+#  runtime {
+#    docker: "quay.io/broadinstitute/viral-ngs"
+#    memory: "7 GB"
+#    cpu: 4
+#    dx_instance_type: "mem1_hdd2_x8"
+#    preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
+#  }
+#}
+
 task illumina_demux {
 
   File    flowcell_tgz
