@@ -108,6 +108,9 @@ class FileArg(str):
         s.val, s.mode, s.val2fnames = val, mode, val2fnames
         return s
 
+    def __getnewargs__(self):
+        return (self.val, self.mode, self.val2fnames)
+
     def get_fnames(self):
         """Return the list of filename(s) specified by this argument."""
         return self.val2fnames(self.val)
