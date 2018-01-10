@@ -11,6 +11,7 @@ import sys
 import shutil
 import logging
 import argparse
+import functools
 import util.version
 import util.file
 import util.metadata
@@ -97,12 +98,12 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
+    @functools.wraps(mainfunc)
     def _main(args):
         args2 = dict((k, v) for k, v in vars(args).items() if k not in (
             'loglevel', 'tmp_dir', 'tmp_dirKeep', 'version', 'func_main', 'command'))
         mainfunc(**args2)
 
-    _main.__doc__ = mainfunc.__doc__
     return _main
 
 

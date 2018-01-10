@@ -192,23 +192,23 @@ def set_run_id():
     """Generate and record in the environment a unique ID for a run (set of steps run as part of one workflow)."""
     os.environ['VIRAL_NGS_METADATA_RUN_ID'] = create_run_id()
 
+def run_cmd(cmd):
+    """Run a command and return its output; if command fails, return empty string."""
+    out = ''
+    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
+    if result.returncode == 0:
+        out = result.stdout
+        if not isinstance(out, str):
+            out = out.decode('utf-8')
+        out = out.strip()
+    return out
+    
 def tag_code_version(tag, push_to=None):
     """Create a lightweight git tag for the current state of the project repository, even if the state is dirty.
     If the repository is dirty, use the 'git stash create' command to create a commit representing the current state,
     and tag that; else, tag the existing clean state.  If `push_to` is not None, push the tag to the specified git remote.
     Return the git hash for the created git tag.  In case of any error, print a warning and return an empty string.
     """
-
-    def run_cmd(cmd):
-        """Run a command and return its output"""
-        out = ''
-        result = util.misc.run_and_print(cmd.strip().split(), silent=True)
-        if result.returncode == 0:
-            out = result.stdout
-            if not isinstance(out, str):
-                out = out.decode('utf-8')
-            out = out.strip()
-        return out
 
     code_hash = ''
 
@@ -222,6 +222,10 @@ def tag_code_version(tag, push_to=None):
         _log.warning('Could not create git tag: {}'.format(traceback.format_exc()))
 
     return code_hash
+
+def get_conda_env():
+    """Return the active conda environment"""
+    return run_cmd('conda env export')
 
 def add_metadata_tracking(cmd_parser, cmd_main):
     """Add provenance tracking to the given command.  
@@ -240,18 +244,15 @@ def add_metadata_tracking(cmd_parser, cmd_main):
     cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
                             help='attach metadata to this step (step=this specific execution of this command)')
 
-    cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
-
+    @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
 
-        cmd_name = args.command
         args_dict = vars(args).copy()
         delattr(args, 'metadata')
 
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
         try:
-            _log.info('calling command {}.{}; metadata tracking: {}'.format(cmd_module, cmd_name, is_metadata_tracking_enabled()))
             beg_time = time.time()
 
             # *** Run the actual command ***
@@ -263,6 +264,10 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             try:  # if any errors happen during metadata recording just issue a warning
                 if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
                     end_time = time.time()
+
+                    cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
+                    cmd_name = args_dict.get('command', cmd_main.__name__)
+
                     _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
                                                                                    cmd_exception_str))
                     _log.info('recording metadata to {}'.format(metadata_dir()))
@@ -307,7 +312,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                                                           platform=platform.platform(), 
                                                           cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                                                           user=getpass.getuser(),
-                                                          cwd=os.getcwd()),
+                                                          cwd=os.getcwd(), conda_env=get_conda_env()),
                                              run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                                            exception=cmd_exception_str,
                                                            argv=tuple(sys.argv)),
