@@ -52,14 +52,16 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--bmtaggerDbs',
+        type=FilePrefix(InFile, suffixes=['.bitmask']+['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]),
         nargs='*',
         default=(),
-        help='''Reference databases to deplete from input.
+        help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
     parser.add_argument(
         '--blastDbs',
+        type=FilePrefix(InFile, suffixes=['.nsq', 'nhr', 'nin'])
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'

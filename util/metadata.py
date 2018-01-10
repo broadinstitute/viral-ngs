@@ -33,7 +33,8 @@ Metadata recording is done on a best-effort basis.  If metadata recording fails 
 '''
 
 __author__ = "ilya@broadinstitute.org"
-__all__ = ["InFile", "OutFile", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", "load_provenance_graph"]
+__all__ = ["InFile", "OutFile", "FilePrefix", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", 
+           "load_provenance_graph"]
 
 # built-ins
 import argparse
@@ -81,45 +82,81 @@ def metadata_dir():
 def is_metadata_tracking_enabled():
     return 'VIRAL_NGS_METADATA_PATH' in os.environ
 
+    # check also that the only VIRAL_NGS_METADATA env vars are known ones
+
 class FileArg(str):
 
-    '''Abstract base class for argparse parameter type for input and output files, 
-    which provides error-checking and optional provenance tracking.'''
+    '''The value of an argparse parser argument representing input or output file(s).  In addition to the string representing the
+    argument value, keeps track of any filenames derived from the argument, and has methods for capturing metadata about the
+    files to which they point.'''
     
-    def __new__(cls, *args, **kw):
-        return str.__new__(cls, *args, **kw)
+    def __new__(cls, val, mode, val2fnames=lambda x: [x]):
+        """Construct a FileArg.
 
-class InFile(FileArg):
+        Args:
+           val: the value of the command-line argument
+           mode: 'r' if `val` points to input file(s), 'w' if to output files
+           val2fnames: function that will compute, from `val, the list of actual filenames of the file(s) denoted by this 
+             command-line argument.  By default, this is just one file and `val` contains its full name.  But `val` can be a 
+             common prefix for a set of files with a given list of suffixes, or `val` can be a directory denoting all the files
+             in the directory or just those matching a wildcard; and in those cases, val2fnames will compute the actual file names.
+        """
+        s = str.__new__(cls, val)
+        s.val, s.mode, s.val2fnames = val, mode, val2fnames
+        return s
 
-    '''Argparse parameter type for input files'''
+    def get_fnames(self):
+        """Return the list of filename(s) specified by this argument."""
+        return self.val2fnames(self.val)
 
-    def __new__(cls, *args, **kw):
+    def to_dict(self, hasher, out_files_exist):
+        """Return a dict representing metadata about the file(s) denoted by this argument.
 
-        # check that the file is readable, force an immediate error if it is not
-        with open(args[0]):
-            pass
+        Args:
+            hasher: callable for computing the hash value of a file
+            out_files_exist: if False, don't expect output files to exist (because the command raised an exception)
+        """
 
-        return FileArg.__new__(cls, *args, **kw)
+        def file2dict(file_arg):
+            """Compute a dictionary of info about one file"""
+            file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg))
+            if self.mode=='r' or out_files_exist:
+                file_info.update(hash=hasher(file_arg))
 
-class OutFile(FileArg):
+                try:
+                    file_stat = os.stat(file_arg)
+                    file_info.update(size=file_stat[stat.ST_SIZE],
+                                     mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
+                    file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
+                except Exception:
+                    _log.warning('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
+            return file_info
 
-    '''Argparse parameter type for output files'''
+        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=map(file2dict, self.get_fnames()))
 
-    def __new__(cls, *args, **kw):
-        if 'VIRAL_NGS_SKIP_CMD' not in os.environ:
-            fname = args[0]
-            if not os.path.exists(fname):
-                with open(fname, 'w'):
-                    pass
-                os.unlink(fname)
-            else:
-                if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
-                    raise IOError('Output filel not writable: ' + fname)
+def InFile(val):
+    """Argparse argument type for arguments that denote input files."""
+    file_arg = FileArg(val, mode='r')
+    util.file.check(read=file_arg.get_fnames())
+    return file_arg
 
-        return FileArg.__new__(cls, *args, **kw)
+def OutFile(val):
+    """Argparse argument type for arguments that denote output files."""
+    file_arg = FileArg(val, mode='w')
+    util.file.check(write=file_arg.get_fnames())
+    return file_arg
 
-if not is_metadata_tracking_enabled():
-    InFile, OutFile = str, str
+def FilePrefix(InFile_or_OutFile, suffixes):
+    """Argparse argument type for arguments that denote a prefix for a set of input or output files with known extensions.
+
+    Usage examples: 
+
+        # specify a base name for BLAST database files
+        parser.add_argument(--blastDbs, type=FilePrefix(InFile, suffixes=('.nhr', '.nin', '.nsq')))
+        # specify a FASTA file for which we also create an index
+        parser.add_argument(outFasta, type=FilePrefix(OutFile, suffixes=('', '.fai')))
+    """
+    return lambda prefix: InFile_Or_OutFile(prefix, val2fnames=lambda val: [val+sfx for sfx in suffixes])
 
 class Hasher(object):
     """Manages computation of file hashes.
@@ -200,10 +237,12 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                             help='attach metadata to this step (step=this specific execution of this command)')
 
     cmd_module=os.path.splitext(os.path.basename(inspect.getfile(cmd_main_orig)))[0]
-    cmd_name=cmd_main_orig.__name__
+    cmd_module2=os.path.splitext(os.path.basename(sys.argv[0]))[0]
+    assert cmd_module == cmd_module2
 
     def _run_cmd_with_tracking(args):
 
+        cmd_name = args.command
         args_dict = vars(args).copy()
         delattr(args, 'metadata')
 
@@ -214,7 +253,7 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
             beg_time = time.time()
 
             # *** Run the actual command ***
-            cmd_result = cmd_main(args) if 'VIRAL_NGS_SKIP_CMD' not in os.environ else None
+            cmd_result = cmd_main(args)
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -240,9 +279,19 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                     step_data = dict(format=VIRAL_NGS_METADATA_FORMAT)
 
                     metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
-                    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) else {}
+                    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
+                                               else {}
 
                     args_dict.pop('func_main', '')
+
+                    hasher = Hasher()
+
+                    def transform_val(val):
+                        if isinstance(val, FileArg): return val.to_dict(hasher, cmd_exception is None)
+                        if isinstance(val, list): return map(transform_val, val)
+                        return val
+
+                    args_dict = dict((k, transform_val(v)) for k, v in args_dict.items())
 
                     step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                              cmd_module=cmd_module, cmd_name=cmd_name,
@@ -257,69 +306,10 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
                                                           cwd=os.getcwd()),
                                              run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                                            exception=cmd_exception_str,
-                                                           argv=tuple(sys.argv),
-                                                           cmd_was_skipped = 'VIRAL_NGS_SKIP_CMD' in os.environ),
-                                             args=args_dict,
+                                                           argv=tuple(sys.argv)),
+                                             args={k: transform_val(v) for k, v in args_dict.items()},
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return)
-                    
-                    #
-                    # Record information about the input and output files used by the command
-                    #
-
-                    hasher = Hasher()
-
-                    step_data.update(in_files={}, out_files={})
-
-                    # Input and output files are specified by argparse arguments of type InFile and OutFile.
-                    # Additionally, if the command reads and writes files that were not passed as arguments 
-                    # (e.g. if a filename gets constructed based on the arguments), the command can tell us about these files
-                    # by returning metadata values of type InFile/OutFile.
-                    for arg, val in itertools.chain(args_dict.items(), metadata_from_cmd_return.items()):
-
-                        def get_FileArgs(val, idx_prefix=()):
-                            """Extract any file arguments from a command parameter or metadata value.
-
-                            Args:
-                                val: the value of a command parameter or metadata; can be a single value, a list of values 
-                                  (for an argparse argument with with nargs=N), or a list of lists (with nargs=N and action='append').
-                                idx_prefix: tuple to prepend to all returned indices (see return value below)
-                            Returns:
-                                a flat list of pairs (idx, file_arg), one per InFile/OutFile value contained in `val`, where file_arg
-                                is the InFile/OutFile value, and idx is the index of the file within the original argument value
-                                ( () if the value was just a file, (i,) if the value was a list of files, (i,j) if it was a list of
-                                  lists of files ).  Note that if the `val` argument was not a FileArg or list of FileArgs or
-                                  list of lists of FileArgs, the return value is an empty list.
-                            """
-                            return \
-                                val and isinstance(val, FileArg) and [(idx_prefix, val)] or \
-                                isinstance(val, list) and functools.reduce(operator.concat,
-                                                                           [get_FileArgs(v, idx_prefix+(i,)) 
-                                                                            for i, v in enumerate(val)], []) or \
-                                []
-
-                        for idx, file_arg in get_FileArgs(val):
-                            file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg),
-                                             arg=arg, arg_idx=idx)
-
-                            if isinstance(file_arg, InFile) or cmd_exception is None:
-                               
-                                file_info.update(hash=hasher(file_arg))
-
-                                try:
-                                    file_stat = os.stat(file_arg)
-                                    file_info.update(size=file_stat[stat.ST_SIZE],
-                                                     mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
-                                    file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
-                                except Exception:
-                                    _log.warning('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
-                                    
-                            port_name = arg+''.join('_'+str(i) for i in idx)
-                            step_data['in_files' if isinstance(file_arg, InFile) else 'out_files'][port_name] = file_info
-
-                        # end: for idx, file_arg in get_FileArgs(val):
-
-                    # end: for arg, val in itertools.chain(args_dict.items(), metadata.items())
 
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
                                         json.dumps(step_data, sort_keys=True, indent=4, default=str))
@@ -382,4 +372,5 @@ def compute_paths(paths_file):
 
 
 if __name__ == '__main__':
-    print(InFile('hi.txt')=='hi.txt', hash(InFile('hi.txt'))==hash('hi.txt'))
+    z=OutFile('hi')
+    print(z,type(z), z.suffixes, isinstance(z,str), str(z))
