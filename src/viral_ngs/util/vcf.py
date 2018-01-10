@@ -181,8 +181,8 @@ def calc_maf(genos, ancestral=None, ploidy=1):
 
     return out
 
-class TabixReader(pysam.Tabixfile):
-    ''' A wrapper around pysam.Tabixfile that provides a context and
+class TabixReader(pysam.TabixFile):
+    ''' A wrapper around pysam.TabixFile that provides a context and
         allows us to query using 1-based coordinates.
 
         We should request upstream to the Pysam people to implement
@@ -191,7 +191,18 @@ class TabixReader(pysam.Tabixfile):
     '''
 
     def __init__(self, inFile, parser=pysam.asTuple()):
-        # because of odd Cython weirdness, we don't actually want to call super.__init__ here..
+        # inFile is passed in but is never used, and yet the TabixReader works. How?!
+        # This inFile magic is because Tabixfile is a Cython object that uses def __cinit__ 
+        # rather than def __init__; the former is called automatically exactly once for the 
+        # base class prior to any use of __init__. Use of subsequent __init__ should obey 
+        # normal inheritance rules (assuming inheritance from object and it's not an old-style class). 
+        # So __cinit__ sets the input file, and then our __init__ (which doesn't override a base method) 
+        # is called and sets the parser. 
+        # This could all break in the future if pysam moves away from __cinit__, but doing so would
+        # reduce performance and so it seems unlikely.
+        # See:
+        #   https://github.com/cython/cython/blob/master/docs/src/userguide/special_methods.rst#id19
+        #   https://github.com/pysam-developers/pysam/blob/master/pysam/libctabix.pyx#L331
         #super(TabixReader, self).__init__(inFile, parser=parser)
         self.parser = parser
 
