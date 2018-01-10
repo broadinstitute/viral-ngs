@@ -266,10 +266,11 @@ def add_metadata_tracking(cmd_parser, cmd_main, cmd_main_orig):
             cmd_exception_str = traceback.format_exc()
         finally:
             try:  # if any errors happen during metadata recording just issue a warning
-                if is_metadata_tracking_enabled():
+                if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
                     end_time = time.time()
-                    _log.info('command {}.{} finished in {}s; recording metadata to {}'.format(cmd_module, cmd_name, end_time-beg_time,
-                                                                                               metadata_dir()))
+                    _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
+                                                                                   cmd_exception_str))
+                    _log.info('recording metadata to {}'.format(metadata_dir()))
 
                     #
                     # Record data pertaining to the whole step
