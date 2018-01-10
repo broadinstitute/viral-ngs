@@ -1,5 +1,5 @@
 
-import os, os.path, sys, collections, time, uuid, getpass
+import os, os.path, sys, collections
 # imports needed for download_file() and webfile_readlines()
 import re
 # since py3 split up urllib
