@@ -167,9 +167,6 @@ def FilePrefix(InFile_or_OutFile, suffixes):
     """
     return functools.partial(InFile_or_OutFile, val2fnames=functools.partial(_add_suffixes, suffixes=suffixes))
 
-if not is_metadata_tracking_enabled():
-    InFile, OutFile = str, str
-    FilePrefix = lambda *args, **kw: str
 
 class Hasher(object):
     """Manages computation of file hashes.
@@ -234,10 +231,6 @@ def get_conda_env():
     """Return the active conda environment"""
     return run_cmd('conda env export')
 
-class IgnoreArg(argparse.Action):
-    def __call__(*args, **kw):
-        pass
-
 def add_metadata_tracking(cmd_parser, cmd_main):
     """Add provenance tracking to the given command.  
 
@@ -252,11 +245,8 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
     """
 
-    cmd_parser.add_argument('--metadata', action='append' if is_metadata_tracking_enabled() else IgnoreArg(), nargs=2, 
-                            metavar=('ATTRIBUTE', 'VALUE'),
+    cmd_parser.add_argument('--metadata', action='append', nargs=2, 
                             help='attach metadata to this step (step=this specific execution of this command)')
-    if not is_metadata_tracking_enabled():
-        return cmd_main
 
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
@@ -276,7 +266,9 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             cmd_exception_str = traceback.format_exc()
         finally:
             try:  # if any errors happen during metadata recording just issue a warning
-                if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
+                # If command was cancelled by the user by Ctrl-C, skip the metadata recoding; but if it failed with an exception,
+                # still record that.
+                if not isinstance(cmd_exception, KeyboardInterrupt):
                     end_time = time.time()
 
                     cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
@@ -397,6 +389,35 @@ def compute_paths(paths_file):
 
     #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
 
+
+###
+#
+# Section: disabling metadata tracking
+#
+# If metadata tracking is not enabled, disable the code in this module, in a simple way that prevents any bugs in it from affecting normal
+# operations.  We do this by replacing externally called routines with simple stubs.
+#
+###
+
+def _return_str(*args, **kw):
+    return str
+
+class IgnoreArg(argparse.Action):
+    def __call__(*args, **kw):
+        pass
+
+def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
+    cmd_parser.add_argument('--metadata', action=IgnoreArg(), nargs=2,
+                            metavar=('ATTRIBUTE', 'VALUE'),
+                            help='(DISABLED) attach metadata to this step (step=this specific execution of this command)')
+    return cmd_main
+
+if not is_metadata_tracking_enabled():
+    InFile, OutFile = str, str
+    FilePrefix = _return_str
+    add_metadata_tracking = _add_metadata_tracking_dummy
+
+################################################################    
 
 if __name__ == '__main__':
     z=OutFile('hi')
