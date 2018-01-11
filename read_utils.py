@@ -773,14 +773,14 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.available_cpu_count()) as executor:
         futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files) for lb, files in lb_to_files.items()]
         for future in concurrent.futures.as_completed(futures):
+            log.info("mvicuna finished processing library")
             try:
                 readList = future.result()
                 per_lb_read_lists.append(readList)
             except Exception as exc:
-                print('mvicuna process call generated an exception: %s' % (exc))
+                log.error('mvicuna process call generated an exception: %s' % (exc))
 
     # merge per-library read lists together
-    print("len(per_lb_read_lists)", per_lb_read_lists)
     util.file.concat(per_lb_read_lists, readListAll)
     # remove per-library read lists
     for fl in per_lb_read_lists:
