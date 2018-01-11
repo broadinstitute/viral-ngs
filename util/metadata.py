@@ -167,6 +167,10 @@ def FilePrefix(InFile_or_OutFile, suffixes):
     """
     return functools.partial(InFile_or_OutFile, val2fnames=functools.partial(_add_suffixes, suffixes=suffixes))
 
+if not is_metadata_tracking_enabled():
+    InFile, OutFile = str, str
+    FilePrefix = lambda *args, **kw: str
+
 class Hasher(object):
     """Manages computation of file hashes.
 
@@ -230,6 +234,10 @@ def get_conda_env():
     """Return the active conda environment"""
     return run_cmd('conda env export')
 
+class IgnoreArg(argparse.Action):
+    def __call__(*args, **kw):
+        pass
+
 def add_metadata_tracking(cmd_parser, cmd_main):
     """Add provenance tracking to the given command.  
 
@@ -244,8 +252,11 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
     """
 
-    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
+    cmd_parser.add_argument('--metadata', action='append' if is_metadata_tracking_enabled() else IgnoreArg(), nargs=2, 
+                            metavar=('ATTRIBUTE', 'VALUE'),
                             help='attach metadata to this step (step=this specific execution of this command)')
+    if not is_metadata_tracking_enabled():
+        return cmd_main
 
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
@@ -326,11 +337,15 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
                                         json.dumps(step_data, sort_keys=True, indent=4, default=str))
 
+                    _log.info('metadata recording took {}s'.format(time.time() - end_time))
+
+
             except Exception:
                 # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
                 _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
 
         if cmd_exception:
+            _log.warning('Command failed with exception: {}'.format(cmd_exception_str))
             raise cmd_exception
 
     return _run_cmd_with_tracking
