@@ -39,14 +39,12 @@ class TestFilterLastal(TestCaseWithTmp):
             util.file.get_test_input_path(),
             'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Enterovirus_C', 'GCF_000861165.1_ViralProj15288_genomic.fna'
         )
-        dbDir = tempfile.mkdtemp()
-        self.lastdb_path = tools.last.Lastdb().build_database(self.polio_fasta, os.path.join(dbDir, 'NC_002058'))
 
     def test_filter_lastal_bam_polio(self):
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.blastn.bam')
         outBam = util.file.mkstempfname('-out-taxfilt.bam')
         args = taxon_filter.parser_filter_lastal_bam(argparse.ArgumentParser()).parse_args([
-            inBam, self.lastdb_path, outBam])
+            inBam, self.polio_fasta, outBam])
         args.func_main(args)
         expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.taxfilt.imperfect.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
@@ -56,7 +54,7 @@ class TestFilterLastal(TestCaseWithTmp):
         outBam = util.file.mkstempfname('-out-taxfilt.bam')
         taxon_filter.filter_lastal_bam(
             empty_bam,
-            self.lastdb_path,
+            self.polio_fasta,
             outBam
         )
         assert_equal_bam_reads(self, outBam, empty_bam)
@@ -67,7 +65,7 @@ class TestFilterLastal(TestCaseWithTmp):
         outBam = util.file.mkstempfname('-out-taxfilt.bam')
         taxon_filter.filter_lastal_bam(
             in_bam,
-            self.lastdb_path,
+            self.polio_fasta,
             outBam
         )
         assert_equal_bam_reads(self, outBam, empty_bam)
