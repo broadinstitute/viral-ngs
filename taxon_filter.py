@@ -134,8 +134,8 @@ def main_deplete_human(args):
     # if the user has not specified saving a revertBam, we used a temp file and can remove it
     if not args.revertBam:
         os.unlink(revertBamOut)
-    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
 
+    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
     multi_db_deplete_bam(
         args.rmdupBam,
         args.blastDbs,
@@ -371,6 +371,7 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
     for db in refDbs:
         if not samtools.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
+            print("db", db)
             deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
                 os.unlink(tmpBamIn)
@@ -487,6 +488,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
     blast_hits = mkstempfname('.blast_hits.txt')
 
     with util.file.tmp_dir('-blastn_db_unpack') as tempDbDir:
+        db_dir = ""
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
@@ -502,9 +504,12 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
                 db_dir = db
             # this directory should have a .bitmask and a .srprism file in it somewhere
             hits = list(glob.glob(os.path.join(db_dir, '*.nin')))
-            if len(hits) != 1:
-                raise Exception()
-            db_prefix = hits[0][:-4]  # remove the '.nin'
+            if len(hits) == 0:
+                raise Exception("The blast database does not appear to a *.nin file.")
+            elif len(hits) == 1:
+                db_prefix = hits[0][:-4]  # remove the '.nin'
+            elif len(hits) >1:
+                db_prefix = os.path.commonprefix(hits).rsplit('.', 1)[0] # remove '.nin' and split-db prefix
         else:
             # this is simply a prefix to a bunch of files, not an actual file
             db_prefix = db

@@ -15,6 +15,7 @@ import os
 import tempfile
 import shutil
 import sys
+import concurrent.futures
 
 from Bio import SeqIO
 
@@ -715,6 +716,35 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
+def _merge_fastqs_and_mvicuna(lb, files):
+    readList = mkstempfname('.keep_reads.txt')
+    log.info("executing M-Vicuna DupRm on library " + lb)
+
+    # create merged FASTQs per library
+    infastqs = (mkstempfname('.1.fastq'), mkstempfname('.2.fastq'))
+    for d in range(2):
+        with open(infastqs[d], 'wt') as outf:
+            for fprefix in files:
+                fn = '%s_%d.fastq' % (fprefix, d + 1)
+
+                if os.path.isfile(fn):
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line)
+                    os.unlink(fn)
+                else:
+                    log.warn(
+                        """no reads found in %s,
+                                assuming that's because there's no reads in that read group""", fn
+                    )
+
+    # M-Vicuna DupRm to see what we should keep (append IDs to running file)
+    if os.path.getsize(infastqs[0]) > 0 or os.path.getsize(infastqs[1]) > 0:
+        mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
+    for fn in infastqs:
+        os.unlink(fn)
+
+    return readList
 
 def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using M-Vicuna. The
@@ -738,36 +768,26 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
 
     # For each library, merge FASTQs and run rmdup for entire library
-    readList = mkstempfname('.keep_reads.txt')
-    for lb, files in lb_to_files.items():
-        log.info("executing M-Vicuna DupRm on library " + lb)
+    readListAll = mkstempfname('.keep_reads_all.txt')
+    per_lb_read_lists = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.available_cpu_count()) as executor:
+        futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files) for lb, files in lb_to_files.items()]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                readList = future.result()
+                per_lb_read_lists.append(readList)
+            except Exception as exc:
+                print('mvicuna process call generated an exception: %s' % (exc))
 
-        # create merged FASTQs per library
-        infastqs = (mkstempfname('.1.fastq'), mkstempfname('.2.fastq'))
-        for d in range(2):
-            with open(infastqs[d], 'wt') as outf:
-                for fprefix in files:
-                    fn = '%s_%d.fastq' % (fprefix, d + 1)
-
-                    if os.path.isfile(fn):
-                        with open(fn, 'rt') as inf:
-                            for line in inf:
-                                outf.write(line)
-                        os.unlink(fn)
-                    else:
-                        log.warn(
-                            """no reads found in %s,
-                                    assuming that's because there's no reads in that read group""", fn
-                        )
-
-        # M-Vicuna DupRm to see what we should keep (append IDs to running file)
-        if os.path.getsize(infastqs[0]) > 0 or os.path.getsize(infastqs[1]) > 0:
-            mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
-        for fn in infastqs:
-            os.unlink(fn)
+    # merge per-library read lists together
+    print("len(per_lb_read_lists)", per_lb_read_lists)
+    util.file.concat(per_lb_read_lists, readListAll)
+    # remove per-library read lists
+    for fl in per_lb_read_lists:
+        os.unlink(fl)
 
     # Filter original input BAM against keep-list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, readList, outBam, JVMmemory=JVMmemory)
+    tools.picard.FilterSamReadsTool().execute(inBam, False, readListAll, outBam, JVMmemory=JVMmemory)
     return 0
 
 
