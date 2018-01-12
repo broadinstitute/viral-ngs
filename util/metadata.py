@@ -32,6 +32,10 @@ Implementation notes:
 Metadata recording is done on a best-effort basis.  If metadata recording fails for any reason, a warning is logged, but no error is raised.
 '''
 
+# * Main
+
+# ** Prelims
+
 __author__ = "ilya@broadinstitute.org"
 __all__ = ["InFile", "OutFile", "FilePrefix", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", 
            "load_provenance_graph"]
@@ -66,6 +70,8 @@ import util.version
 
 _log = logging.getLogger(__name__)
 
+# * Recording of metadata
+
 #########################
 # Recording of metadata #
 #########################
@@ -87,13 +93,13 @@ def is_metadata_tracking_enabled():
 def _make_list(x):
     return [x]
 
-class FileArg(str):
+class FileArg(object):
 
     '''The value of an argparse parser argument representing input or output file(s).  In addition to the string representing the
     argument value, keeps track of any filenames derived from the argument, and has methods for capturing metadata about the
     files to which they point.'''
     
-    def __new__(cls, val, mode, val2fnames=_make_list):
+    def __init__(self, val, mode, val2fnames=_make_list):
         """Construct a FileArg.
 
         Args:
@@ -104,12 +110,7 @@ class FileArg(str):
              common prefix for a set of files with a given list of suffixes, or `val` can be a directory denoting all the files
              in the directory or just those matching a wildcard; and in those cases, val2fnames will compute the actual file names.
         """
-        s = str.__new__(cls, val)
-        s.val, s.mode, s.val2fnames = val, mode, val2fnames
-        return s
-
-    def __getnewargs__(self):
-        return (self.val, self.mode, self.val2fnames)
+        self.val, self.mode, self.val2fnames = val, mode, val2fnames
 
     def get_fnames(self):
         """Return the list of filename(s) specified by this argument."""
@@ -167,6 +168,7 @@ def FilePrefix(InFile_or_OutFile, suffixes):
     """
     return functools.partial(InFile_or_OutFile, val2fnames=functools.partial(_add_suffixes, suffixes=suffixes))
 
+# * Hasher
 
 class Hasher(object):
     """Manages computation of file hashes.
@@ -186,7 +188,8 @@ class Hasher(object):
             _log.warning('Cannot compute hash for {}: {}'.format(file, traceback.format_exc()))
         return file_hash
 
-
+# * Getting the environment
+    
 def create_run_id(t=None):
     """Generate a unique ID for a run (set of steps run as part of one workflow)."""
     return util.file.string_to_file_name('__'.join(map(str, (time.strftime('%Y%m%d%H%M%S', time.localtime(t))[2:], getpass.getuser(),
@@ -251,8 +254,13 @@ def add_metadata_tracking(cmd_parser, cmd_main):
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
 
+        def replace_file_args(val):
+            return (isinstance(val, FileArg) and val.val) or (isinstance(val, list) and list(map(replace_file_args, val))) or val
+
         args_dict = vars(args).copy()
-        delattr(args, 'metadata')
+        metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
+
+        args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
 
         cmd_exception, cmd_exception_str, cmd_result = (None,)*3
 
@@ -260,7 +268,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             beg_time = time.time()
 
             # *** Run the actual command ***
-            cmd_result = cmd_main(args)
+            cmd_result = cmd_main(args_new)
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -293,20 +301,12 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     step_data = dict(format=VIRAL_NGS_METADATA_FORMAT)
 
-                    metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
                     metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
                                                else {}
 
                     args_dict.pop('func_main', '')
 
                     hasher = Hasher()
-
-                    def transform_val(val):
-                        if isinstance(val, FileArg): return val.to_dict(hasher, cmd_exception is None)
-                        if isinstance(val, list): return map(transform_val, val)
-                        return val
-
-                    args_dict = dict((k, transform_val(v)) for k, v in args_dict.items())
 
                     step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                              cmd_module=cmd_module, cmd_name=cmd_name,
@@ -322,12 +322,15 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                                              run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                                            exception=cmd_exception_str,
                                                            argv=tuple(sys.argv)),
-                                             args={k: transform_val(v) for k, v in args_dict.items()},
+                                             args=args_dict,
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return)
 
+                    def write_obj(x):
+                        return (isinstance(x, FileArg) and x.to_dict(hasher, cmd_exception is None)) or str(x)
+
                     util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
-                                        json.dumps(step_data, sort_keys=True, indent=4, default=str))
+                                        json.dumps(step_data, sort_keys=True, indent=4, default=write_obj))
 
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
