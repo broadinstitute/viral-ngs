@@ -43,9 +43,9 @@ task illumina_demux {
   Int?    minimumQuality = 10
   String? runStartDate
 
-  parameter_meta {
-    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+  #parameter_meta {
+  #  flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+  #}
 
   command {
     set -ex -o pipefail
