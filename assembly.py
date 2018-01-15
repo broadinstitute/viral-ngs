@@ -921,8 +921,7 @@ def refine_assembly(
     name_opts = []
     if chr_names:
         name_opts = ['--name'] + chr_names
-    main_vcf_to_fasta(
-        parser_vcf_to_fasta(argparse.ArgumentParser(
+    args = parser_vcf_to_fasta(argparse.ArgumentParser(
         )).parse_args([
             tmpVcf,
             tmpFasta,
@@ -932,7 +931,7 @@ def refine_assembly(
             '--major_cutoff',
             str(major_cutoff)
         ] + name_opts)
-    )
+    args.func_main(args)
     if outVcf:
         shutil.copyfile(tmpVcf, outVcf)
         if outVcf.endswith('.gz'):
