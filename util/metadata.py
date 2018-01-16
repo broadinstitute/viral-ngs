@@ -113,7 +113,7 @@ class FileArg(object):
         self.val, self.mode, self.val2fnames = val, mode, val2fnames
 
     def get_fnames(self):
-        """Return the list of filename(s) specified by this argument."""
+        """Return the list of filename(s) specified by this command-line argument."""
         return self.val2fnames(self.val)
 
     def to_dict(self, hasher, out_files_exist):
@@ -140,6 +140,9 @@ class FileArg(object):
             return file_info
 
         return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.get_fnames())))
+
+    def __str__(self):
+        return '{}({})'.format('InFile' if self.mode=='r' else 'OutFile', self.val)
 
 def InFile(val, *args, **kwargs):
     """Argparse argument type for arguments that denote input files."""
