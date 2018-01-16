@@ -61,6 +61,7 @@ import collections
 import functools
 import itertools
 import operator
+import binascii
 
 # intra-module
 import util.file
@@ -302,7 +303,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     code_repo = os.path.join(metadata_dir(), 'code_repo')
                     code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
 
-                    step_data = dict(format=VIRAL_NGS_METADATA_FORMAT)
+                    step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
 
                     metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
                                                else {}
@@ -331,12 +332,12 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     def write_obj(x):
                         return (isinstance(x, FileArg) and x.to_dict(hasher, cmd_exception is None)) or str(x)
+                    
+                    json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
+                    crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
 
-                    util.file.dump_file(os.path.join(metadata_dir(), step_id+'.json'),
-                                        json.dumps(step_data, sort_keys=True, indent=4, default=write_obj))
-
+                    util.file.dump_file(os.path.join(metadata_dir(), '{}.{}.json'.format(step_id, crc32)), json_str)
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
-
 
             except Exception:
                 # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
@@ -370,9 +371,28 @@ class ProvenanceGraph(object):
         for step_record_fname in os.listdir(path):
             _log.info('loading step {}'.format(step_record_fname))
             if step_record_fname.endswith('.json'):
+
                 step_record = json.loads(util.file.slurp_file(os.path.join(path, step_record_fname)))
                 step_id = step_record['step']['step_id']
                 pgraph.add_node(step_id, node_kind='step', **step_record['step'])
+
+                for arg, val in step_record['args'].items():
+                    def gather_files(val):
+                        return (isinstance(val, collections.Mapping) and '__FileArg__' in val and [val]) or \
+                            (isinstance(val, list) and functools.reduce(operator.concat, map(gather_files, val), [])) or []
+                    for files in gather_files(val):
+                        for f in files['files']:
+                            if 'hash' in f:
+                                pgraph.add_node(f['hash'], node_kind='data', size=f['size'])
+                                if files['mode'] == 'r':
+                                    pgraph.add_edge(f['hash'], step_id)
+                                else:
+                                    pgraph.add_edge(step_id, f['hash'])
+                                
+                            
+
+
+
                 for file_kind in ('in_files', 'out_files'):
                     for port_name, file_info in step_record[file_kind].items():
                         port_id = step_id + '__' + port_name
