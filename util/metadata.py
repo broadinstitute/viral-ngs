@@ -68,6 +68,9 @@ import util.file
 import util.misc
 import util.version
 
+# third-party
+import networkx
+
 
 _log = logging.getLogger(__name__)
 
@@ -141,6 +144,10 @@ class FileArg(object):
             return file_info
 
         return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.get_fnames())))
+
+    @staticmethod
+    def is_from_dict(val):
+        return isinstance(val, collections.Mapping) and '__FileArg__' in val and isinstance(val['files'], list)
 
     def __str__(self):
         return '{}({})'.format('InFile' if self.mode=='r' else 'OutFile', self.val)
@@ -225,7 +232,7 @@ def tag_code_version(tag, push_to=None):
 
     try:
         with util.file.pushd_popd(util.version.get_project_path()):
-            code_hash = run_cmd('git stash create') or run_cmd('git log -1 --format="%H"')
+            code_hash = run_cmd('git stash create') or run_cmd('git log -1 --format=%H')
             run_cmd('git tag ' + tag + ' ' + code_hash)
             if push_to:
                 run_cmd('git push ' + push_to + ' ' + tag)
@@ -262,7 +269,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             return (isinstance(val, FileArg) and val.val) or (isinstance(val, list) and list(map(replace_file_args, val))) or val
 
         args_dict = vars(args).copy()
-        metadata_from_cmd_line = args_dict.pop('metadata', {}) or {}
+        metadata_from_cmd_line = dict(args_dict.pop('metadata', {}) or {})
 
         args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
 
@@ -363,55 +370,67 @@ class ProvenanceGraph(object):
     def __init__(self):
         self.pgraph = networkx.DiGraph()
 
-    def load(path=None):
+    def load(self, path=None):
         """Read the provenance graph."""
         
-        if path is None: path = metadata_dir()
+        if path is None: 
+            path = metadata_dir()
+        assert path
+        
+        pgraph = self.pgraph
 
         for step_record_fname in os.listdir(path):
             _log.info('loading step {}'.format(step_record_fname))
             if step_record_fname.endswith('.json'):
 
-                step_record = json.loads(util.file.slurp_file(os.path.join(path, step_record_fname)))
+                json_str = util.file.slurp_file(os.path.join(path, step_record_fname))
+                #crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
+                #assert step_record_fname.endswith('.{}.json'.format(crc32))
+
+                step_record = json.loads(json_str)
+                
+                if 'args' not in step_record['step']:
+                    continue
+
                 step_id = step_record['step']['step_id']
                 pgraph.add_node(step_id, node_kind='step', **step_record['step'])
 
-                for arg, val in step_record['args'].items():
+                for arg, val in step_record['step']['args'].items():
                     def gather_files(val):
-                        return (isinstance(val, collections.Mapping) and '__FileArg__' in val and [val]) or \
-                            (isinstance(val, list) and functools.reduce(operator.concat, map(gather_files, val), [])) or []
+                        return (FileArg.is_from_dict(val) and [val]) \
+                            or (isinstance(val, list) and functools.reduce(operator.concat, list(map(gather_files, val)), [])) or []
+
                     for files in gather_files(val):
+                        assert '__FileArg__' in files
                         for f in files['files']:
-                            if 'hash' in f:
+                            if f.get('hash', ''):
                                 pgraph.add_node(f['hash'], node_kind='data', size=f['size'])
-                                if files['mode'] == 'r':
-                                    pgraph.add_edge(f['hash'], step_id)
-                                else:
-                                    pgraph.add_edge(step_id, f['hash'])
-                                
-                            
+                                e = (f['hash'], step_id) if files['mode'] == 'r' else (step_id, f['hash'])
+                                pgraph.add_edge(*e)
+                                e_attrs = pgraph[e[0]][e[1]]
+                                e_attrs.setdefault('arg2files', {}).setdefault(arg, []).append(f)
+                                for k, v in dict(step_record['step']['metadata_from_cmd_line']).items():
+                                    pfx = 'file.{}.'.format(arg)
+                                    if k.startswith(pfx):
+                                        e_attrs[k[len(pfx):]] = v
+                                e_attrs['fname'] = ','.join(set(filter(None, [e_attrs.get('fnames', ''), f['fname']])))
+                                e_attrs['ext'] = ','.join(set([os.path.splitext(fname)[1] for fname in e_attrs['fname'].split(',')]))
 
-
-
-                for file_kind in ('in_files', 'out_files'):
-                    for port_name, file_info in step_record[file_kind].items():
-                        port_id = step_id + '__' + port_name
-                        pgraph.add_node(port_id, **file_info)
-                        pgraph.add_node(port_id, node_kind=('input' if file_kind=='in_files' else 'output'))
-                        pgraph.add_edge(*((port_id, step_id) if file_kind=='in_files' else (step_id, port_id)))
-                        if 'hash' in file_info:
-                            file_id = file_info['hash']
-                            if file_id:
-                                pgraph.add_node(file_id, node_kind='file')
-                                pgraph.add_edge(*((file_id, port_id) if file_kind=='in_files' else (port_id, file_id)))
-
-        return pgraph
-
-
-def compute_paths(paths_file):
+def compute_paths():
     """Compute computation paths, and their attributes."""
 
-    g = load_provenance_graph()
+    pgraph = ProvenanceGraph()
+    pgraph.load()
+    g = pgraph.pgraph
+
+    step_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='step']
+    data_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='data']
+
+    beg_edges = [e for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
+    end_edges = [e for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
+
+    print('beg_edges=', '\n'.join(map(str, beg_edges)))
+    print('end_edges=', '\n'.join(map(str, end_edges)))
 
     #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
 
@@ -443,5 +462,4 @@ if not is_metadata_tracking_enabled():
 ################################################################    
 
 if __name__ == '__main__':
-    z=OutFile('hi')
-    print(z,type(z), z.suffixes, isinstance(z,str), str(z))
+    compute_paths()
