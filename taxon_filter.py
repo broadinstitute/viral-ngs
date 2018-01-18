@@ -371,7 +371,6 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
     for db in refDbs:
         if not samtools.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
-            print("db", db)
             deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
                 os.unlink(tmpBamIn)
