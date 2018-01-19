@@ -269,7 +269,10 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             return (isinstance(val, FileArg) and val.val) or (isinstance(val, list) and list(map(replace_file_args, val))) or val
 
         args_dict = vars(args).copy()
-        metadata_from_cmd_line = dict(args_dict.pop('metadata', {}) or {})
+
+        metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
+                                   for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
+        metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
 
         args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
 
@@ -343,7 +346,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
                     crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
 
-                    util.file.dump_file(os.path.join(metadata_dir(), '{}.{}.json'.format(step_id, crc32)), json_str)
+                    util.file.dump_file(os.path.join(metadata_dir(), '{}.crc32_{}.json'.format(step_id, crc32)), json_str)
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
             except Exception:
@@ -368,10 +371,15 @@ class ProvenanceGraph(object):
     is represented as attributes of the step node.'''
 
     def __init__(self):
+        """Initialize an empty provenance graph."""
         self.pgraph = networkx.DiGraph()
 
     def load(self, path=None):
-        """Read the provenance graph."""
+        """Read the provenance graph from the metadata directory.
+
+        Args:
+           path: path to the metadata directory; if None (default), use the path specified by the environment var VIRAL_NGS_METADATA_PATH.
+        """
         
         if path is None: 
             path = metadata_dir()
@@ -380,41 +388,86 @@ class ProvenanceGraph(object):
         pgraph = self.pgraph
 
         for step_record_fname in os.listdir(path):
+            if not step_record_fname.endswith('.json'): continue
+
             _log.info('loading step {}'.format(step_record_fname))
-            if step_record_fname.endswith('.json'):
+            json_str = util.file.slurp_file(os.path.join(path, step_record_fname))
+            #crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
+            #assert step_record_fname.endswith('.{}.json'.format(crc32))
 
-                json_str = util.file.slurp_file(os.path.join(path, step_record_fname))
-                #crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
-                #assert step_record_fname.endswith('.{}.json'.format(crc32))
+            step_record = json.loads(json_str)
 
-                step_record = json.loads(json_str)
-                
-                if 'args' not in step_record['step']:
-                    continue
+            if 'args' not in step_record['step']:
+                continue
 
-                step_id = step_record['step']['step_id']
-                pgraph.add_node(step_id, node_kind='step', **step_record['step'])
+            step_id = step_record['step']['step_id']
+            pgraph.add_node(step_id, node_kind='step', **step_record['step'])
 
-                for arg, val in step_record['step']['args'].items():
-                    def gather_files(val):
-                        return (FileArg.is_from_dict(val) and [val]) \
-                            or (isinstance(val, list) and functools.reduce(operator.concat, list(map(gather_files, val)), [])) or []
+            for arg, val in step_record['step']['args'].items():
+                def gather_files(val):
+                    return (FileArg.is_from_dict(val) and [val]) \
+                        or (isinstance(val, list) and functools.reduce(operator.concat, list(map(gather_files, val)), [])) or []
 
-                    for files in gather_files(val):
-                        assert '__FileArg__' in files
-                        for f in files['files']:
-                            if f.get('hash', ''):
-                                pgraph.add_node(f['hash'], node_kind='data', size=f['size'])
-                                e = (f['hash'], step_id) if files['mode'] == 'r' else (step_id, f['hash'])
-                                pgraph.add_edge(*e)
-                                e_attrs = pgraph[e[0]][e[1]]
-                                e_attrs.setdefault('arg2files', {}).setdefault(arg, []).append(f)
-                                for k, v in dict(step_record['step']['metadata_from_cmd_line']).items():
-                                    pfx = 'file.{}.'.format(arg)
-                                    if k.startswith(pfx):
-                                        e_attrs[k[len(pfx):]] = v
-                                e_attrs['fname'] = ','.join(set(filter(None, [e_attrs.get('fnames', ''), f['fname']])))
-                                e_attrs['ext'] = ','.join(set([os.path.splitext(fname)[1] for fname in e_attrs['fname'].split(',')]))
+                for files in gather_files(val):
+                    assert '__FileArg__' in files
+                    for f in files['files']:
+                        if f.get('hash', ''):
+                            pgraph.add_node(f['hash'], node_kind='data', size=f['size'])
+                            e = (f['hash'], step_id) if files['mode'] == 'r' else (step_id, f['hash'])
+                            pgraph.add_edge(*e)
+                            e_attrs = pgraph[e[0]][e[1]]
+                            e_attrs.setdefault('arg2files', {}).setdefault(arg, []).append(f)
+                            for k, v in dict(step_record['step']['metadata_from_cmd_line']).items():
+                                pfx = 'file.{}.'.format(arg)
+                                if k.startswith(pfx):
+                                    e_attrs[k[len(pfx):]] = v
+                            e_attrs['fname'] = ','.join(set(filter(None, [e_attrs.get('fnames', ''), f['fname']])))
+                            e_attrs['ext'] = ','.join(set([os.path.splitext(fname)[1] for fname in e_attrs['fname'].split(',')]))
+                # end: for files in gather_files(val)
+            # end: for arg, val in step_record['step']['args'].items()
+        # end: for step_record_fname in os.listdir(path)
+    # end: def load(self, path=None)
+
+    def find_prereq_steps(self, step, prereq_steps=None):
+        """Return the set of steps that compute data used by `step`, including step itself"""
+
+
+        if prereq_steps is None: prereq_steps = set()
+        if step in prereq_steps: return prereq_steps
+
+        print('STEPPP:', step, 'prereq_steps=', prereq_steps)
+
+        G = self.pgraph
+        prereq_steps.add(step)
+
+        for data in G.predecessors(step):
+            data_makers = list(G.predecessors(data))
+            if not data_makers: continue
+
+            if len(data_makers) == 1:
+                self.find_prereq_steps(list(data_makers)[0], prereq_steps)
+                continue
+
+            #print('       step=', step, 'data=', G.nodes[step])
+#            for prereq_step in data_makers:
+#                print('prereq_step=', prereq_step, 'data=', G.nodes[prereq_step])
+            run_id_matched = [prereq_step for prereq_step in data_makers
+                              if G.nodes[prereq_step]['run_id'] == G.nodes[step]['run_id']]
+            if run_id_matched:
+                self.find_prereq_steps(run_id_matched[0], prereq_steps)
+                continue
+            
+            fname_matched = [prereq_step for prereq_step in data_makers
+                             if G.edges[prereq_step, data]['fname'] == G.edges[data, step]['fname']]
+            if fname_matched:
+                self.find_prereq_steps(fname_matched[0], prereq_steps)
+                continue
+
+            _log.warning('Matched data but not fname or run_id: step={} data={}'.format(step, data))
+        
+        return prereq_steps
+    # end: def find_prereq_steps(self, step, prereq_steps=None)
+# end: class ProvenanceGraph(object)
 
 def compute_paths():
     """Compute computation paths, and their attributes."""
@@ -426,20 +479,61 @@ def compute_paths():
     step_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='step']
     data_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='data']
 
-    beg_edges = [e for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
-    end_edges = [e for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
+
+
+    #step_graph = networkx.DiGraph()
+    #step_graph.add_nodes_from(step_nodes)
+    for d in data_nodes:
+        g.nodes[d]['fname'] = ','.join(set(map(operator.itemgetter(2), itertools.chain(g.in_edges(nbunch=d, data='fname'), 
+                                                                                       g.out_edges(nbunch=d, data='fname')))))
+        for e in g.in_edges(nbunch=d, data='fname'):
+            g.nodes[e[0]].setdefault('outputs', []).append(e[2])
+        for e in g.out_edges(nbunch=d, data='fname'):
+            g.nodes[e[1]].setdefault('inputs', []).append(e[2])
+        # for pred, succ in itertools.product(g.predecessors(d), g.successors(d)):
+        #     if pred != succ:
+        #         step_graph.add_edge(pred, succ, linked_by=d)
+
+    beg_edges = [e[:2] for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
+    end_edges = [e[:2] for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
 
     print('beg_edges=', '\n'.join(map(str, beg_edges)))
     print('end_edges=', '\n'.join(map(str, end_edges)))
 
-    #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
+#    step_graph.add_edges_from(beg_edges)
+#    step_graph.add_edges_from(end_edges)
+    beg_nodes = set(map(operator.itemgetter(0), beg_edges))
+    end_nodes = set(map(operator.itemgetter(1), end_edges))
 
+    for end_edge in end_edges:
+        #with networkx.utils.contextmanagers.reversed(g):
+        #    pred = networkx.predecessor(g, end_node)
+        end_node = end_edge[0]
+        print('end_node=', end_node)
+        prereqs = pgraph.find_prereq_steps(end_node)
+        reachable_beg_nodes = prereqs# & beg_nodes
+        print('end_node=', end_node, 'reachable_beg_nodes=({})'.format(len(reachable_beg_nodes)), 
+              '\n'.join(map(str,['\nn={} \ninp={} \nout={}'.format(n, '\n'.join(g.nodes[n].get('inputs',[])), '\n'.join(g.nodes[n].get('outputs',[]))) for n in reachable_beg_nodes])))
+
+        # for b in reachable_beg_nodes:
+        #     print('===========path from', type(b), g.nodes[b])
+        #     n = b
+        #     while n != end_node:
+        #         p = pred[n][0]
+        #         print(p)
+        #         print('     in=', g.nodes[p].get('inputs', []))
+        #         print('    out=', g.nodes[p].get('outputs', []))
+        #         print(' ')
+        #         n = p
+    
+
+    #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
 
 ###
 #
 # Section: disabling metadata tracking
 #
-# If metadata tracking is not enabled, disable the code in this module, in a simple way that prevents any bugs in it from affecting normal
+# If metadata tracking is not enabled, disable the code in this module, in a simple way that ensures it won't affect normal operations.
 # operations.  We do this by replacing externally called routines with simple stubs.
 #
 ###
@@ -448,6 +542,7 @@ def _return_str(*args, **kw):
     return str
 
 def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
+    """Add the --metadata command-line argument to `cmd_parser`, but make it a no-op; return `cmd_main` unchanged."""
     cmd_parser.add_argument('--metadata', dest=argparse.SUPPRESS, nargs=2,
                             metavar=('ATTRIBUTE', 'VALUE'),
                             help='(DISABLED because metadata tracking is disabled, set environment variable '
@@ -462,4 +557,5 @@ if not is_metadata_tracking_enabled():
 ################################################################    
 
 if __name__ == '__main__':
+    #import assembly
     compute_paths()
