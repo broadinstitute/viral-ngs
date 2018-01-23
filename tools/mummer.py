@@ -284,10 +284,14 @@ class MummerTool(tools.Tool):
                 seq = []
                 for _, left, right, n_features, features in fs.get_intervals(c):
                     # get all proposed sequences for this specific region
-                    alt_seqs = list(
-                            alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
-                            for f in features
-                        )
+                    alt_seqs = []
+                    for f in features:
+                        try:
+                            alt_seqs.append(alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2]))
+                        except AmbiguousAlignmentException:
+                            log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
+                            pass
+
                     # pick the "right" one and glue together into a chromosome
                     ranked_unique_seqs = contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right))
                     seq.append(ranked_unique_seqs[0])
