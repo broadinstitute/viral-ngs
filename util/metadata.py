@@ -266,7 +266,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
     def _run_cmd_with_tracking(args):
 
         def replace_file_args(val):
-            return (isinstance(val, FileArg) and val.val) or (isinstance(val, list) and list(map(replace_file_args, val))) or val
+            return (isinstance(val, FileArg) and val.val) or (isinstance(val, (list, tuple)) and list(map(replace_file_args, val))) or val
 
         args_dict = vars(args).copy()
 
