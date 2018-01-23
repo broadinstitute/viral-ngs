@@ -17,7 +17,7 @@ mummer=3.23
 muscle=3.8.1551 
 mvicuna=1.0
 novoalign=3.07.00
-picard=2.9.0
+picard=2.13
 pigz=2.3.4
 prinseq=0.20.4
 samtools=1.6
@@ -30,9 +30,9 @@ unzip=6.0
 vphaser2=2.0
 # Python packages below
 bedtools=2.26.0
-biopython=1.68
+biopython=1.70
 future==0.16.0
 matplotlib=1.5.3
 pysam=0.13.0
 pybedtools=0.7.10
-PyYAML=3.11
+PyYAML=3.12
