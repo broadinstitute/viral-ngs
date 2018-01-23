@@ -31,7 +31,7 @@ import util.cmd
 import util.file
 import util.misc
 import util.vcf
-from util.metadata import InFile, OutFile
+from util.metadata import InFile, OutFile, OutFiles
 import read_utils
 import tools
 import tools.picard
@@ -952,13 +952,18 @@ def refine_assembly(
     return 0
 
 
+def _refine_assembly_fnames_outFasta(f):
+    """Return the filesnames denoted by the outFasta parameter to refine_assembly command"""
+    f_noext = os.path.splitext(f)[0]
+    return (f, f+'.fai', f_noext+'.nix', f_noext+'.dict')
+
 def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'inFasta', type=InFile, help='Input assembly, FASTA format, pre-indexed for Picard, Samtools, and Novoalign.'
     )
     parser.add_argument('inBam', type=InFile, help='Input reads, unaligned BAM format.')
     parser.add_argument(
-        'outFasta', type=OutFile,
+        'outFasta', type=OutFiles(compute_fnames=_refine_assembly_fnames_outFasta),
          help='Output refined assembly, FASTA format, indexed for Picard, Samtools, and Novoalign.'
     )
     parser.add_argument(

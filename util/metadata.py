@@ -37,7 +37,7 @@ Metadata recording is done on a best-effort basis.  If metadata recording fails 
 # ** Prelims
 
 __author__ = "ilya@broadinstitute.org"
-__all__ = ["InFile", "OutFile", "FilePrefix", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", 
+__all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", 
            "load_provenance_graph"]
 
 # built-ins
@@ -94,8 +94,7 @@ def is_metadata_tracking_enabled():
     # check also that the only VIRAL_NGS_METADATA env vars are known ones
 
 
-def _make_list(x):
-    return [x]
+def _make_list(*x): return x
 
 class FileArg(object):
 
@@ -103,22 +102,23 @@ class FileArg(object):
     argument value, keeps track of any filenames derived from the argument, and has methods for capturing metadata about the
     files to which they point.'''
     
-    def __init__(self, val, mode, val2fnames=_make_list):
+    def __init__(self, val, mode, compute_fnames=_make_list):
         """Construct a FileArg.
 
         Args:
            val: the value of the command-line argument
            mode: 'r' if `val` points to input file(s), 'w' if to output files
-           val2fnames: function that will compute, from `val, the list of actual filenames of the file(s) denoted by this 
+           compute_fnames: function that will compute, from `val`, the list of actual filenames of the file(s) denoted by this 
              command-line argument.  By default, this is just one file and `val` contains its full name.  But `val` can be a 
              common prefix for a set of files with a given list of suffixes, or `val` can be a directory denoting all the files
-             in the directory or just those matching a wildcard; and in those cases, val2fnames will compute the actual file names.
+             in the directory or just those matching a wildcard; and in those cases, compute_fnames will compute the actual file names
+             by some non-trivial operation.
         """
-        self.val, self.mode, self.val2fnames = val, mode, val2fnames
+        self.val, self.mode, self.compute_fnames = val, mode, compute_fnames
 
     def get_fnames(self):
         """Return the list of filename(s) specified by this command-line argument."""
-        return self.val2fnames(self.val)
+        return self.compute_fnames(self.val)
 
     def to_dict(self, hasher, out_files_exist):
         """Return a dict representing metadata about the file(s) denoted by this argument.
@@ -152,32 +152,30 @@ class FileArg(object):
     def __str__(self):
         return '{}({})'.format('InFile' if self.mode=='r' else 'OutFile', self.val)
 
-def InFile(val, *args, **kwargs):
+    def __repr__(self): return str(self)
+        
+
+
+def InFile(val, compute_fnames=_make_list):
     """Argparse argument type for arguments that denote input files."""
-    file_arg = FileArg(val, mode='r', *args, **kwargs)
+    file_arg = FileArg(val, mode='r', compute_fnames=compute_fnames)
     util.file.check_paths(read=file_arg.get_fnames())
     return file_arg
 
-def OutFile(val, *args, **kwargs):
+def OutFile(val, compute_fnames=_make_list):
     """Argparse argument type for arguments that denote output files."""
-    file_arg = FileArg(val, mode='w', *args, **kwargs)
+    file_arg = FileArg(val, mode='w', compute_fnames=compute_fnames)
     util.file.check_paths(write=file_arg.get_fnames())
     return file_arg
 
-def _add_suffixes(val, suffixes):
-    return [val+sfx for sfx in suffixes]
+def InFiles(compute_fnames):
+    """Argparse argument type for a string from which names of input files can be computed"""
+    return functools.partial(InFile, compute_fnames=compute_fnames)
 
-def FilePrefix(InFile_or_OutFile, suffixes):
-    """Argparse argument type for arguments that denote a prefix for a set of input or output files with known extensions.
+def OutFiles(compute_fnames):
+    """Argparse argument type for a string from which names of output files can be computed"""
+    return functools.partial(OutFile, compute_fnames=compute_fnames)
 
-    Usage examples: 
-
-        # specify a base name for BLAST database files
-        parser.add_argument(--blastDbs, type=FilePrefix(InFile, suffixes=('.nhr', '.nin', '.nsq')))
-        # specify a FASTA file for which we also create an index
-        parser.add_argument(outFasta, type=FilePrefix(OutFile, suffixes=('', '.fai')))
-    """
-    return functools.partial(InFile_or_OutFile, val2fnames=functools.partial(_add_suffixes, suffixes=suffixes))
 
 # * Hasher
 
@@ -543,15 +541,19 @@ def _return_str(*args, **kw):
 
 def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
     """Add the --metadata command-line argument to `cmd_parser`, but make it a no-op; return `cmd_main` unchanged."""
-    cmd_parser.add_argument('--metadata', dest=argparse.SUPPRESS, nargs=2,
+    cmd_parser.add_argument('--metadata', nargs=2,
                             metavar=('ATTRIBUTE', 'VALUE'),
                             help='(DISABLED because metadata tracking is disabled, set environment variable '
                             'VIRAL_NGS_METADATA_PATH to enable) attach metadata to this step (step=this specific execution of this command)')
-    return cmd_main
+    @functools.wraps(cmd_main)
+    def _run_cmd_with_tracking(args):
+        delattr(args, 'metadata')
+        return cmd_main(args)
+    
+    return _run_cmd_with_tracking
 
 if not is_metadata_tracking_enabled():
-    InFile, OutFile = str, str
-    FilePrefix = _return_str
+    InFile, OutFile, InFiles, OutFiles = str, str, _return_str, _return_str
     add_metadata_tracking = _add_metadata_tracking_dummy
 
 ################################################################    

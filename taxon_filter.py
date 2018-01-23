@@ -33,7 +33,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.metadata import InFile, OutFile, FilePrefix
+from util.metadata import InFile, OutFile, InFiles
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +52,9 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--bmtaggerDbs',
-        type=FilePrefix(InFile, suffixes=['.bitmask']+['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]),
+        type=InFiles(compute_fnames=functools.partial(util.misc.add_suffixes,
+                                                      suffixes=(['.bitmask']+
+                                                                ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))),
         nargs='*',
         default=(),
         help='''Reference databases (one or more) to deplete from input.

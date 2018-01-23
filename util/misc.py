@@ -594,3 +594,9 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
             log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param, new_param))
 
     return result
+
+def add_suffixes(base, suffixes):
+    """Return a list with each suffix in turn added to the base"""
+    return [base+sfx for sfx in suffixes]
+
+
