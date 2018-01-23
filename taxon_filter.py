@@ -41,13 +41,13 @@ log = logging.getLogger(__name__)
 # =======================
 
 
-def parser_deplete_human(parser=argparse.ArgumentParser()):
+def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('revertBam', nargs='?', help='Output BAM: read markup reverted with Picard.')
-    parser.add_argument('bmtaggerBam', help='Output BAM: depleted of human reads with BMTagger.')
+    parser.add_argument('bmtaggerBam', help='Output BAM: depleted of reads with BMTagger.')
     parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument(
-        'blastnBam', help='Output BAM: rmdupBam run through another depletion of human reads with BLASTN.'
+        'blastnBam', help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
     parser.add_argument(
         '--bmtaggerDbs',
@@ -76,11 +76,18 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_deplete)
     util.cmd.attach_main(parser, main_deplete_human)
     return parser
 
-
 def main_deplete_human(args):
+    ''' A wrapper around 'deplete', deprecated but preserved for legacy compatibility. 
+    '''
+    main_deplete(args)
+__commands__.append(('deplete_human', parser_deplete))
+
+
+def main_deplete(args):
     ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
     '''
 
@@ -147,7 +154,7 @@ def main_deplete_human(args):
     )
     return 0
 
-__commands__.append(('deplete_human', parser_deplete_human))
+__commands__.append(('deplete', parser_deplete))
 
 
 
