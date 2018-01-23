@@ -15,6 +15,7 @@ import shutil
 import tempfile
 import argparse
 import itertools
+import gzip
 import pytest
 import tools.mummer
 import tools.novoalign
@@ -372,6 +373,24 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_ambig_align(self):
+        inDir = util.file.get_test_input_path(self)
+        contigs_gz = os.path.join(inDir, 'contigs.lasv.ambig.fasta.gz')
+        contigs = util.file.mkstempfname('.fasta')
+        with gzip.open(contigs_gz, 'rb') as f_in:
+            with open(contigs, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        expected = os.path.join(inDir, 'expected.lasv.ambig.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            contigs,
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta)
+        def get_seqs(fasta):
+            return [str(s.seq) for s in Bio.SeqIO.parse(fasta, 'fasta')]
+        self.assertEqual(get_seqs(outFasta), get_seqs(expected))
+        
 
 class TestGap2Seq(TestCaseWithTmp):
     '''Test gap-filling tool Gap2Seq'''
