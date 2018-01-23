@@ -15,7 +15,6 @@ import shutil
 import tempfile
 import argparse
 import itertools
-import gzip
 import pytest
 import tools.mummer
 import tools.novoalign
@@ -378,7 +377,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
         inDir = util.file.get_test_input_path(self)
         contigs_gz = os.path.join(inDir, 'contigs.lasv.ambig.fasta.gz')
         contigs = util.file.mkstempfname('.fasta')
-        with gzip.open(contigs_gz, 'rb') as f_in:
+        with util.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
             with open(contigs, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
         expected = os.path.join(inDir, 'expected.lasv.ambig.fasta')
