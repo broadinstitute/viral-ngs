@@ -615,7 +615,9 @@ if __name__ == '__main__':
     #import assembly
     #compute_paths()
     pgraph = ProvenanceGraph()
-    pgraph.load(max_age_days=2)
-    pgraph.write_dot('pgraph.dot', ignore_cmds=['main_vcf_to_fasta'], ignore_exts=['.fai', '.dict', '.nix'])
+    pgraph.load(max_age_days=5)
+    pgraph.write_dot('pgraph.dot', ignore_cmds=['main_vcf_to_fasta'], 
+                     ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
+                     ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])
 
 
