@@ -250,9 +250,11 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             decompress_proc = subprocess.Popen(decompressor,
                 stdin=inf, stdout=subprocess.PIPE)
             untar_proc = subprocess.Popen(untar_cmd,
-                stdin=decompress_proc.stdout, stderr=fnull)
+                stdin=decompress_proc.stdout) #, stderr=fnull)
             if untar_proc.wait():
                 raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
+            if decompress_proc.wait():
+                raise subprocess.CalledProcessError(decompress_proc.returncode, decompressor)
             if inf is not None:
                 inf.close()
         log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
