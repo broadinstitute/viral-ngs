@@ -241,6 +241,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         elif compression == 'none':
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
+        untar_cmd.append('--no-same-owner') # this only works on GNU!
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
         with open(os.devnull, 'w') as fnull:
             if tarfile == '-':
