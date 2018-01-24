@@ -372,7 +372,7 @@ class ProvenanceGraph(object):
         """Initialize an empty provenance graph."""
         self.pgraph = networkx.DiGraph()
 
-    def load(self, path=None):
+    def load(self, path=None, max_age_days=10000):
         """Read the provenance graph from the metadata directory.
 
         Args:
@@ -395,8 +395,9 @@ class ProvenanceGraph(object):
 
             step_record = json.loads(json_str)
 
-            if 'args' not in step_record['step']:
-                continue
+            if 'args' not in step_record['step']: continue
+            if step_record['step']['run_info']['exception']: continue
+            if ((time.time() - step_record['step']['run_info']['beg_time']) / (60*60*24)) > max_age_days: continue
 
             step_id = step_record['step']['step_id']
             pgraph.add_node(step_id, node_kind='step', **step_record['step'])
@@ -424,6 +425,14 @@ class ProvenanceGraph(object):
                 # end: for files in gather_files(val)
             # end: for arg, val in step_record['step']['args'].items()
         # end: for step_record_fname in os.listdir(path)
+
+        for d in pgraph:
+            if pgraph.nodes[d]['node_kind'] == 'data':
+                pgraph.nodes[d]['fname'] = ','.join(set(map(operator.itemgetter(2),
+                                                            itertools.chain(pgraph.in_edges(nbunch=d, data='fname'), 
+                                                                            pgraph.out_edges(nbunch=d, data='fname')))))
+
+
     # end: def load(self, path=None)
 
     def find_prereq_steps(self, step, prereq_steps=None):
@@ -465,6 +474,50 @@ class ProvenanceGraph(object):
         
         return prereq_steps
     # end: def find_prereq_steps(self, step, prereq_steps=None)
+
+    def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
+
+        def get_val(d, keys):
+            if not keys: return d
+            keys = util.misc.make_seq(keys)
+            if isinstance(d, collections.Mapping) and keys[0] in d:
+                return get_val(d[keys[0]], keys[1:])
+            return None
+
+
+        def fix_name(s):
+            return 'n' + util.file.string_to_file_name(s).replace('-', '_')
+
+        ignored = set()
+
+        G = self.pgraph
+        with open(dotfile, 'wt') as out:
+            out.write('digraph G {\n')
+            for n in G:
+                if not nodes or n in nodes:
+                    n_attrs = G.nodes[n]
+                    if G.nodes[n]['node_kind'] == 'step':
+                        label = get_val(n_attrs, 'metadata_from_cmd_line step_name'.split()) or get_val(n_attrs, 'cmd_name') or 'unknown_cmd'
+                        if label in ignore_cmds: 
+                            ignored.add(n)
+                            continue
+                        shape = 'invhouse'
+                    else:
+                        label = get_val(n_attrs, 'fname') or 'noname'
+                        if any(label.endswith(e) for e in ignore_exts): 
+                            ignored.add(n)
+                            continue
+                        if ',' in label:
+                            label = ','.join(filter(lambda f: not f.startswith('/tmp'), label.split(',')))
+                        shape = 'oval'
+                        
+                    out.write('{} [label="{}", shape={}];\n'.format(fix_name(n), label, shape))
+
+            for u, v, fname in G.edges(data='fname'):
+                if u in ignored or v in ignored: continue
+                out.write('{} -> {} ;\n'.format(fix_name(u), fix_name(v)))
+            out.write('}\n')
+        
 # end: class ProvenanceGraph(object)
 
 def compute_paths():
@@ -560,4 +613,9 @@ if not is_metadata_tracking_enabled():
 
 if __name__ == '__main__':
     #import assembly
-    compute_paths()
+    #compute_paths()
+    pgraph = ProvenanceGraph()
+    pgraph.load(max_age_days=2)
+    pgraph.write_dot('pgraph.dot', ignore_cmds=['main_vcf_to_fasta'], ignore_exts=['.fai', '.dict', '.nix'])
+
+
