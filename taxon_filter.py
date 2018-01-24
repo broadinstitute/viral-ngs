@@ -302,7 +302,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
                 # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
                 print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
 
-            with extract_build_or_use_database(db, bmtagger_build_db, 'bitmask', tmp_suffix="-bmtagger", db_prefix="bmtagger") as db_prefix:
+            with extract_build_or_use_database(db, bmtagger_build_db, 'bitmask', tmp_suffix="-bmtagger", db_prefix="bmtagger") as (db_prefix,tempDir):
                 matchesFile = mkstempfname('.txt')
                 cmdline = [
                     bmtaggerPath, '-b', db_prefix + '.bitmask', '-C', bmtaggerConf, '-x', db_prefix + '.srprism', '-T', tempDir, '-q1',
@@ -486,7 +486,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
     blast_hits = mkstempfname('.blast_hits.txt')
 
-    with extract_build_or_use_database(db, blastn_build_db, 'nin', tmp_suffix="-blastn_db_unpack", db_prefix="blastn") as db_prefix:
+    with extract_build_or_use_database(db, blastn_build_db, 'nin', tmp_suffix="-blastn_db_unpack", db_prefix="blastn") as (db_prefix,tempDir):
         if chunkSize:
             ## chunk up input and perform blastn in several parallel threads
             with util.file.tempfname('.fasta') as reads_fasta:
@@ -567,7 +567,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
             # this is simply a prefix to a bunch of files, not an actual file
             db_prefix = db
 
-        yield db_prefix
+        yield (db_prefix,tempDbDir)
 
 # ========================
 # ***  deplete_bwa  ***
@@ -578,7 +578,7 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None, JVMmemory=None):
 
     threads = util.misc.sanitize_thread_count(threads)
 
-    with extract_build_or_use_database(db, bwa_build_db, 'bwt', tmp_suffix="-bwa_db_unpack", db_prefix="bwa") as db_prefix:
+    with extract_build_or_use_database(db, bwa_build_db, 'bwt', tmp_suffix="-bwa_db_unpack", db_prefix="bwa") as (db_prefix,tempDbDir):
         with util.file.tempfname('.aligned.sam') as aligned_sam:
             tools.bwa.Bwa().align_mem_bam(inBam, db_prefix, aligned_sam, threads=threads)
             tools.samtools.SamtoolsTool().view(['-f0x4'], aligned_sam, outBam)
