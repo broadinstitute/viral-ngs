@@ -6,6 +6,7 @@ import unittest
 import os
 import tempfile
 import subprocess
+import shutil
 
 import argparse
 
@@ -64,9 +65,11 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
+            'test-reads.revert.bam', 
+            'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam',
-            'test-reads.blastn.bam',
+            'test-reads.rmdup.bam', 
+            'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
@@ -93,8 +96,11 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
-            'test-reads.revert.bam', 'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 'test-reads.blastn.bam',
+            'test-reads.revert.bam', 
+            'test-reads.bwa.bam',
+            'test-reads.bmtagger.bam',
+            'test-reads.rmdup.bam', 
+            'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
 
