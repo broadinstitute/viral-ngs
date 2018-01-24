@@ -436,8 +436,16 @@ class ProvenanceGraph(object):
     # end: def load(self, path=None)
 
     def find_prereq_steps(self, step, prereq_steps=None):
-        """Return the set of steps that compute data used by `step`, including step itself"""
+        """Return the set containing `step` plus any steps needed to compute data used by `step.
 
+        This is complicated by the fact that the same data may be produced by different computation paths.
+        E.g. the empty data may be produced by different step signalling a failure.  So if one of the inputs to a step
+        is an empty file, and multiple other steps have produced an empty file as an output, which of these steps
+        should be taken as the prereq step?  Right now we use some heuristics based on run_id and filenames to resolve this.
+
+        Args:
+            prereq_steps: set of prereq steps already found, or None indicating an empty set
+        """
 
         if prereq_steps is None: prereq_steps = set()
         if step in prereq_steps: return prereq_steps
@@ -452,7 +460,7 @@ class ProvenanceGraph(object):
             if not data_makers: continue
 
             if len(data_makers) == 1:
-                self.find_prereq_steps(list(data_makers)[0], prereq_steps)
+                self.find_prereq_steps(data_makers[0], prereq_steps)
                 continue
 
             #print('       step=', step, 'data=', G.nodes[step])
