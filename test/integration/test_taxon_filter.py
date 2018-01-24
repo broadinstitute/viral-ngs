@@ -44,7 +44,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 os.path.join(myInputDir, 'test-reads.bam'),
                 # output files
@@ -72,7 +72,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 os.path.join(myInputDir, 'test-reads-aligned.bam'),
                 # output files
@@ -99,7 +99,7 @@ class TestDepleteHuman(TestCaseWithTmp):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 empty_bam,
                 # output files
