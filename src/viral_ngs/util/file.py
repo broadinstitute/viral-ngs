@@ -242,8 +242,10 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
         if os.getuid() == 0:
-            log.debug("tar is running as root. Assuming that this is GNU tar, appending --no-same-owner")
-            untar_cmd.append('--no-same-owner')
+            # GNU tar behaves differently when run as root vs normal user
+            # we want normal user behavior always
+            if 'GNU' in subprocess.check_output(['tar', '--version']).decode('UTF-8'):
+                untar_cmd.append('--no-same-owner')
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
         with open(os.devnull, 'w') as fnull:
             if tarfile == '-':
