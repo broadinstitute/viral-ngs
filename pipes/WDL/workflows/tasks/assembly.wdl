@@ -317,8 +317,11 @@ task refine_2x_and_plot {
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
 
+    # fastqc mapped bam
+    reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
+
+    # plot coverage
     if [ $(cat reads_aligned) != 0 ]; then
-      # plot coverage
       reports.py plot_coverage \
         ${sample_name}.mapped.bam \
         ${sample_name}.coverage_plot.pdf \
@@ -327,8 +330,6 @@ task refine_2x_and_plot {
         --plotHeight 850 \
         --plotDPI 100 \
         --loglevel=DEBUG
-      # fastqc mapped bam
-      reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
     else
       touch ${sample_name}.coverage_plot.pdf ${sample_name}.mapped_fastqc.html
     fi
