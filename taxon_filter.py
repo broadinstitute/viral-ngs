@@ -52,6 +52,12 @@ def parser_deplete(parser=argparse.ArgumentParser()):
         'blastnBam', help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
     parser.add_argument(
+        '--bwaDbs',
+        nargs='*',
+        default=(),
+        help='Reference databases for blast to deplete from input.'
+    )
+    parser.add_argument(
         '--bmtaggerDbs',
         nargs='*',
         default=(),
@@ -61,12 +67,6 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--blastDbs',
-        nargs='*',
-        default=(),
-        help='Reference databases for blast to deplete from input.'
-    )
-    parser.add_argument(
-        '--bwaDbs',
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
