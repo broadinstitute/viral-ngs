@@ -44,7 +44,7 @@ class IlluminaIndexReference(object):
                 "A711":[{"seq":"AGGGTCAA","instruments":[]}],
                 "A712":[{"seq":"AGGAGTGG","instruments":[]}]
             },
-            "i7":{
+            "i5":{
                 "A501": [{"seq":"TGAACCTT", "instruments":["MiSeq","HiSeq 2000","HiSeq 2500"]}, {"seq":"AAGGTTCA", "instruments":["MiniSeq","NextSeq","HiSeq 3000","HiSeq 4000"]}],
                 "A502": [{"seq":"TGCTAAGT", "instruments":["MiSeq","HiSeq 2000","HiSeq 2500"]}, {"seq":"ACTTAGCA", "instruments":["MiniSeq","NextSeq","HiSeq 3000","HiSeq 4000"]}],
                 "A503": [{"seq":"TGTTCTCT", "instruments":["MiSeq","HiSeq 2000","HiSeq 2500"]}, {"seq":"AGAGAACA", "instruments":["MiniSeq","NextSeq","HiSeq 3000","HiSeq 4000"]}],
