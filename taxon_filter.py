@@ -697,7 +697,7 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    blastdb_path = tools.bwa.Bwa().index(inputFasta, output=os.path.join(outputDirectory, outPrefix))
+    tools.bwa.Bwa().index(inputFasta, output=os.path.join(outputDirectory, outPrefix))
 
     if new_fasta is not None:
         os.unlink(new_fasta)
