@@ -573,7 +573,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
 # ***  deplete_bwa  ***
 # ========================
 
-def deplete_bwa_bam(inBam, db, outBam, threads=None, JVMmemory=None):
+def deplete_bwa_bam(inBam, db, outBam, threads=None):
     'Use blastn to remove reads that match at least one of the databases.'
 
     threads = util.misc.sanitize_thread_count(threads)
@@ -591,12 +591,6 @@ def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for bwa. '
                          'An ephemeral database will be created if a fasta file is provided.')
     parser.add_argument('outBam', help='Ouput BAM file with matching reads removed.')
-    #parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bwa_bam)
     return parser
