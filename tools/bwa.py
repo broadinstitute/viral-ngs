@@ -8,6 +8,7 @@ import logging
 import os
 import os.path
 import subprocess
+import shutil
 
 import tools
 import tools.samtools
@@ -194,15 +195,7 @@ class Bwa(tools.Tool):
             # os.unlink(headerFile)
             # os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_reheader.bam".format(reheadered_bam))
 
-            # sort
-            sorter = tools.picard.SortSamTool()
-            sorter.execute(
-                tmp_bam_aligned,
-                outBam,
-                sort_order='coordinate',
-                picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
-                JVMmemory=JVMmemory
-            )
+            shutil.move(tmp_bam_aligned, outBam)
             #os.unlink(reheadered_bam)
 
     def mem(self, inReads, refDb, outAlign, options=None, min_score_to_filter=None,
