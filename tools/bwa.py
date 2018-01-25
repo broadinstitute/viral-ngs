@@ -209,8 +209,9 @@ class Bwa(tools.Tool):
             threads=None, invert_filter=False):
         options = [] if not options else options
 
+        threads = util.misc.sanitize_thread_count(threads)
         if '-t' not in options:
-            options.extend(('-t', str(util.misc.sanitize_thread_count(threads))))
+            options.extend(('-t', str(threads)))
 
         samtools = tools.samtools.SamtoolsTool()
 
