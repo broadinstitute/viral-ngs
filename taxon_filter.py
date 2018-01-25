@@ -64,7 +64,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--blastDbs',
-        type=FilePrefix(InFile, suffixes=['.nsq', '.nhr', '.nin']),
+        type=InFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=['.nsq', '.nhr', '.nin'])),
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
