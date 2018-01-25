@@ -8,6 +8,7 @@ import logging
 import os
 import os.path
 import subprocess
+import shutil
 
 import tools
 import tools.samtools
@@ -216,25 +217,30 @@ class Bwa(tools.Tool):
 
         samtools = tools.samtools.SamtoolsTool()
 
-        with util.file.tempfname('.aligned.sam') as aln_sam:
-            with samtools.bam2fq_tmp(inReads) as (fq1, fq2):
-                self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
+        aln_sam = util.file.mkstempfname('.aligned.sam')
+        with samtools.bam2fq_tmp(inReads) as (fq1, fq2):
+            self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
 
-            if min_score_to_filter:
-                # Filter reads in the alignment based on on their alignment score
-                aln_sam_filtered = util.file.mkstempfname('.sam')
-                self.filter_sam_on_alignment_score(aln_sam, aln_sam_filtered,
-                                                   min_score_to_filter, options, invert_filter=invert_filter)
-            else:
-                aln_sam_filtered = aln_sam
+        if min_score_to_filter:
+            # Filter reads in the alignment based on on their alignment score
+            aln_sam_filtered = util.file.mkstempfname('.sam')
+            self.filter_sam_on_alignment_score(aln_sam, aln_sam_filtered,
+                                               min_score_to_filter, options, invert_filter=invert_filter)
+            shutil.unlink(aln_sam)
+        else:
+            aln_sam_filtered = aln_sam
 
-            if sort:
-                samtools.sort(aln_sam_filtered, outAlign, threads=threads)
+        if sort:
+            samtools.sort(aln_sam_filtered, outAlign, threads=threads)
+            if not min_score_to_filter:
+                shutil.unlink(aln_sam_filtered)
 
-                # cannot index sam files; only do so if a bam/cram is desired
-                # sorting is required for indexing
-                if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
-                    samtools.index(outAlign)
+            # cannot index sam files; only do so if a bam/cram is desired
+            # sorting is required for indexing
+            if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
+                samtools.index(outAlign)
+        else:
+            shutil.move(aln_sam_filtered, outAlign)
 
     def filter_sam_on_alignment_score(self, in_sam, out_sam, min_score_to_filter,
                                       bwa_options, invert_filter=False):
