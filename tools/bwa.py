@@ -171,44 +171,21 @@ class Bwa(tools.Tool):
 
         assert len(readgroup_line) > 0
 
-        with util.file.tempfname('.aligned.bam') as tmp_bam_aligned:
-            # rather than reheader the alignment bam file later so it has the readgroup information
-            # from the original bam file, we'll pass the RG line to bwa to write out
-            self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R',
-                     readgroup_line.rstrip("\r\n")],
-                     min_score_to_filter=min_score_to_filter, threads=threads, invert_filter=invert_filter, sort=False)
+        #with util.file.tempfname('.aligned.bam') as tmp_bam_aligned:
+        # rather than reheader the alignment bam file later so it has the readgroup information
+        # from the original bam file, we'll pass the RG line to bwa to write out
+        self.mem(one_rg_inBam, refDb, outBam, options=options+['-R',
+                 readgroup_line.rstrip("\r\n").replace('\t','\\t')],
+                 min_score_to_filter=min_score_to_filter, threads=threads, invert_filter=invert_filter)
 
-            # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
-            # and we can safely delete it this file
-            # if there was only one RG in the input, we used it directly and should not delete it
-            if removeInput:
-                os.unlink(one_rg_inBam)
-
-            # if the aligned bam file contains no reads after filtering
-            # just create an empty file
-            if tools.samtools.SamtoolsTool().count(tmp_bam_aligned) == 0:
-                util.file.touch(outBam)
-            else:
-                # samtools reheader seems to segfault on some alignments created by bwa
-                # so rather than reheader, BWA will write out the RG given to it via '-R'
-                # reheadered_bam = util.file.mkstempfname('.reheadered.bam')
-                # tools.samtools.SamtoolsTool().reheader(tmp_bam_aligned, headerFile, reheadered_bam)
-                # os.unlink(tmp_bam_aligned)
-                # os.unlink(headerFile)
-                # os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_reheader.bam".format(reheadered_bam))
-     
-                # sort
-                sorter = tools.picard.SortSamTool()
-                sorter.execute(
-                    tmp_bam_aligned,
-                    outBam,
-                    sort_order='coordinate',
-                    picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
-                    JVMmemory=JVMmemory
-                )
+        # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
+        # and we can safely delete it this file
+        # if there was only one RG in the input, we used it directly and should not delete it
+        if removeInput:
+            os.unlink(one_rg_inBam)
 
     def mem(self, inReads, refDb, outAlign, options=None, min_score_to_filter=None,
-            threads=None, invert_filter=False, sort=True):
+            threads=None, invert_filter=False):
         options = [] if not options else options
 
         threads = util.misc.sanitize_thread_count(threads)
@@ -226,21 +203,17 @@ class Bwa(tools.Tool):
             aln_sam_filtered = util.file.mkstempfname('.sam')
             self.filter_sam_on_alignment_score(aln_sam, aln_sam_filtered,
                                                min_score_to_filter, options, invert_filter=invert_filter)
-            shutil.unlink(aln_sam)
+            os.unlink(aln_sam)
         else:
             aln_sam_filtered = aln_sam
 
-        if sort:
-            samtools.sort(aln_sam_filtered, outAlign, threads=threads)
-            if not min_score_to_filter:
-                shutil.unlink(aln_sam_filtered)
+ 
+        samtools.sort(aln_sam_filtered, outAlign, threads=threads)
+        os.unlink(aln_sam_filtered)
 
-            # cannot index sam files; only do so if a bam/cram is desired
-            # sorting is required for indexing
-            if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
-                samtools.index(outAlign)
-        else:
-            shutil.move(aln_sam_filtered, outAlign)
+        # cannot index sam files; only do so if a bam/cram is desired
+        if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
+            samtools.index(outAlign)
 
     def filter_sam_on_alignment_score(self, in_sam, out_sam, min_score_to_filter,
                                       bwa_options, invert_filter=False):
