@@ -210,9 +210,8 @@ class Bwa(tools.Tool):
         options = [] if not options else options
 
         if '-t' not in options:
-            options.extend(('-t', str(threads)))
+            options.extend(('-t', str(util.misc.sanitize_thread_count(threads))))
 
-        threads = threads or util.misc.available_cpu_count()
         samtools = tools.samtools.SamtoolsTool()
 
         with util.file.tempfname('.aligned.sam') as aln_sam:
