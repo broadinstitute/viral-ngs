@@ -43,15 +43,6 @@ task plot_coverage {
 
     samtools index ${sample_name}.mapped.bam
 
-    reports.py plot_coverage \
-      ${sample_name}.mapped.bam \
-      ${sample_name}.coverage_plot.pdf \
-      --plotFormat pdf \
-      --plotWidth 1100 \
-      --plotHeight 850 \
-      --plotDPI 100 \
-      --loglevel=DEBUG
-
     # collect figures of merit
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
     grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
@@ -59,8 +50,24 @@ task plot_coverage {
     samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
     grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
-    expr $(cat bases_aligned) / $(cat assembly_length) | tee mean_coverage
+    echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+
+    # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
+
+    # plot coverage
+    if [ $(cat reads_aligned) != 0 ]; then
+      reports.py plot_coverage \
+        ${sample_name}.mapped.bam \
+        ${sample_name}.coverage_plot.pdf \
+        --plotFormat pdf \
+        --plotWidth 1100 \
+        --plotHeight 850 \
+        --plotDPI 100 \
+        --loglevel=DEBUG
+    else
+      touch ${sample_name}.coverage_plot.pdf ${sample_name}.mapped_fastqc.html
+    fi
   }
 
   output {
