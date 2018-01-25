@@ -16,6 +16,7 @@ import os
 import math
 import tempfile
 import shutil
+import functools
 import concurrent.futures
 
 from Bio import SeqIO
