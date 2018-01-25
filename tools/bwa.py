@@ -8,7 +8,6 @@ import logging
 import os
 import os.path
 import subprocess
-import shutil
 
 import tools
 import tools.samtools
@@ -169,10 +168,9 @@ class Bwa(tools.Tool):
 
         assert len(readgroup_line) > 0
 
-        tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
-        self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R',
+        self.mem(one_rg_inBam, refDb, outBam, options=options+['-R',
                  readgroup_line.rstrip("\r\n")],
                  min_score_to_filter=min_score_to_filter, threads=threads, invert_filter=invert_filter)
 
@@ -181,22 +179,6 @@ class Bwa(tools.Tool):
         # if there was only one RG in the input, we used it directly and should not delete it
         if removeInput:
             os.unlink(one_rg_inBam)
-
-        # if the aligned bam file contains no reads after filtering
-        # just create an empty file
-        if tools.samtools.SamtoolsTool().count(tmp_bam_aligned) == 0:
-            util.file.touch(outBam)
-        else:
-            # samtools reheader seems to segfault on some alignments created by bwa
-            # so rather than reheader, BWA will write out the RG given to it via '-R'
-            # reheadered_bam = util.file.mkstempfname('.reheadered.bam')
-            # tools.samtools.SamtoolsTool().reheader(tmp_bam_aligned, headerFile, reheadered_bam)
-            # os.unlink(tmp_bam_aligned)
-            # os.unlink(headerFile)
-            # os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_reheader.bam".format(reheadered_bam))
-
-            shutil.move(tmp_bam_aligned, outBam)
-            #os.unlink(reheadered_bam)
 
     def mem(self, inReads, refDb, outAlign, options=None, min_score_to_filter=None,
             threads=None, invert_filter=False):
