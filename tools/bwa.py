@@ -8,6 +8,7 @@ import logging
 import os
 import os.path
 import subprocess
+import shutil
 
 import tools
 import tools.samtools
@@ -52,7 +53,7 @@ class Bwa(tools.Tool):
         self.execute('index', cmd)
 
     def align_mem_bam(self, inBam, refDb, outBam, options=None,
-                      min_score_to_filter=None, threads=None, JVMmemory=None):
+                      min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False):
         options = options or []
 
         samtools = tools.samtools.SamtoolsTool()
@@ -68,7 +69,7 @@ class Bwa(tools.Tool):
             # Only one RG, keep it simple
             self.align_mem_one_rg(inBam, refDb, outBam, options=options,
                                   min_score_to_filter=min_score_to_filter,
-                                  threads=threads)
+                                  threads=threads, invert_filter=invert_filter)
 
         else:
             # Multiple RGs, align one at a time and merge
@@ -82,7 +83,8 @@ class Bwa(tools.Tool):
                     rgid=rg,
                     options=options,
                     min_score_to_filter=min_score_to_filter,
-                    threads=threads
+                    threads=threads, 
+                    invert_filter=invert_filter
                 )
                 if os.path.getsize(tmp_bam) > 0:
                     align_bams.append(tmp_bam)
@@ -99,12 +101,14 @@ class Bwa(tools.Tool):
                     picardOptions=['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true'],
                     JVMmemory=JVMmemory
                 )
+                if outBam.endswith(".bam") or outBam.endswith(".cram"):
+                    samtools.index(outBam)
                 for bam in align_bams:
                     os.unlink(bam)
 
 
     def align_mem_one_rg(self, inBam, refDb, outBam, rgid=None, options=None,
-                         min_score_to_filter=None, threads=None, JVMmemory=None):
+                         min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False):
         """
             Performs an alignment of one read group in a bam file to a reference fasta file
 
@@ -137,25 +141,24 @@ class Bwa(tools.Tool):
             tools.samtools.SamtoolsTool().dumpHeader(one_rg_inBam, headerFile)
         else:
             # strip inBam to one read group
-            tmp_bam = util.file.mkstempfname('.onebam.bam')
-            samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
-            # special exit if this file is empty
-            if samtools.count(tmp_bam) == 0:
-                log.warning("No reads present for RG %s in file: %s", rgid, inBam)
-                return
-            # simplify BAM header otherwise Novoalign gets confused
-            one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
-            removeInput = True
-            
-            with open(headerFile, 'wt') as outf:
-                for row in samtools.getHeader(inBam):
-                    if len(row) > 0 and row[0] == '@RG':
-                        if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
-                            # skip all read groups that are not rgid
-                            continue
-                    outf.write('\t'.join(row) + '\n')
-            samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
-            os.unlink(tmp_bam)
+            with util.file.tempfname('.onebam.bam') as tmp_bam:
+                samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+                # special exit if this file is empty
+                if samtools.count(tmp_bam) == 0:
+                    log.warning("No reads present for RG %s in file: %s", rgid, inBam)
+                    return
+                # simplify BAM header otherwise Novoalign gets confused
+                one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
+                removeInput = True
+                
+                with open(headerFile, 'wt') as outf:
+                    for row in samtools.getHeader(inBam):
+                        if len(row) > 0 and row[0] == '@RG':
+                            if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
+                                # skip all read groups that are not rgid
+                                continue
+                        outf.write('\t'.join(row) + '\n')
+                samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
 
         # perform actual alignment
 
@@ -168,12 +171,12 @@ class Bwa(tools.Tool):
 
         assert len(readgroup_line) > 0
 
-        tmp_bam_aligned = util.file.mkstempfname('.aligned.bam')
+        #with util.file.tempfname('.aligned.bam') as tmp_bam_aligned:
         # rather than reheader the alignment bam file later so it has the readgroup information
         # from the original bam file, we'll pass the RG line to bwa to write out
-        self.mem(one_rg_inBam, refDb, tmp_bam_aligned, options=options+['-R',
-                 readgroup_line.rstrip("\r\n")],
-                 min_score_to_filter=min_score_to_filter, threads=threads)
+        self.mem(one_rg_inBam, refDb, outBam, options=options+['-R',
+                 readgroup_line.rstrip("\r\n").replace('\t','\\t')],
+                 min_score_to_filter=min_score_to_filter, threads=threads, invert_filter=invert_filter)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
@@ -181,64 +184,39 @@ class Bwa(tools.Tool):
         if removeInput:
             os.unlink(one_rg_inBam)
 
-        # if the aligned bam file contains no reads after filtering
-        # just create an empty file
-        if tools.samtools.SamtoolsTool().count(tmp_bam_aligned) == 0:
-            util.file.touch(outBam)
-        else:
-            # samtools reheader seems to segfault on some alignments created by bwa
-            # so rather than reheader, BWA will write out the RG given to it via '-R'
-            # reheadered_bam = util.file.mkstempfname('.reheadered.bam')
-            # tools.samtools.SamtoolsTool().reheader(tmp_bam_aligned, headerFile, reheadered_bam)
-            # os.unlink(tmp_bam_aligned)
-            # os.unlink(headerFile)
-            # os.system("samtools view -h {} > /Users/tomkinsc/Desktop/test_reheader.bam".format(reheadered_bam))
-
-            # sort
-            sorter = tools.picard.SortSamTool()
-            sorter.execute(
-                tmp_bam_aligned,
-                outBam,
-                sort_order='coordinate',
-                picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
-                JVMmemory=JVMmemory
-            )
-            #os.unlink(reheadered_bam)
-
     def mem(self, inReads, refDb, outAlign, options=None, min_score_to_filter=None,
-            threads=None):
+            threads=None, invert_filter=False):
         options = [] if not options else options
 
-        threads = threads or util.misc.available_cpu_count()
-        samtools = tools.samtools.SamtoolsTool()
-        fq1 = util.file.mkstempfname('.1.fastq')
-        fq2 = util.file.mkstempfname('.2.fastq')
-        aln_sam = util.file.mkstempfname('.sam')
-        samtools.bam2fq(inReads, fq1, fq2)
-
+        threads = util.misc.sanitize_thread_count(threads)
         if '-t' not in options:
             options.extend(('-t', str(threads)))
 
-        self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
-        os.unlink(fq1)
-        os.unlink(fq2)
+        samtools = tools.samtools.SamtoolsTool()
+
+        aln_sam = util.file.mkstempfname('.aligned.sam')
+        with samtools.bam2fq_tmp(inReads) as (fq1, fq2):
+            self.execute('mem', options + [refDb, fq1, fq2], stdout=aln_sam)
 
         if min_score_to_filter:
             # Filter reads in the alignment based on on their alignment score
             aln_sam_filtered = util.file.mkstempfname('.sam')
             self.filter_sam_on_alignment_score(aln_sam, aln_sam_filtered,
-                                               min_score_to_filter, options)
+                                               min_score_to_filter, options, invert_filter=invert_filter)
+            os.unlink(aln_sam)
         else:
             aln_sam_filtered = aln_sam
 
+ 
         samtools.sort(aln_sam_filtered, outAlign, threads=threads)
-        os.unlink(aln_sam)
+        os.unlink(aln_sam_filtered)
+
         # cannot index sam files; only do so if a bam/cram is desired
         if outAlign.endswith(".bam") or outAlign.endswith(".cram"):
             samtools.index(outAlign)
 
     def filter_sam_on_alignment_score(self, in_sam, out_sam, min_score_to_filter,
-                                      bwa_options):
+                                      bwa_options, invert_filter=False):
         """Filter reads in an alignment based on their alignment score.
 
         This is useful because bwa mem ignores its -T option on paired-end
@@ -303,6 +281,7 @@ class Bwa(tools.Tool):
                     ls = line.split('\t')
 
                     qname = ls[0]
-                    if qname_alignment_scores[qname] >= min_score_to_filter:
+                    if ((qname_alignment_scores[qname] >= min_score_to_filter and not invert_filter) or 
+                        (qname_alignment_scores[qname] < min_score_to_filter and invert_filter)):
                         # Write this query name
                         out_sam_f.write(line + '\n')
