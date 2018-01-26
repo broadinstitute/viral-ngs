@@ -241,6 +241,11 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         elif compression == 'none':
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
+        if os.getuid() == 0:
+            # GNU tar behaves differently when run as root vs normal user
+            # we want normal user behavior always
+            if 'GNU' in subprocess.check_output(['tar', '--version']).decode('UTF-8'):
+                untar_cmd.append('--no-same-owner')
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
         with open(os.devnull, 'w') as fnull:
             if tarfile == '-':
@@ -250,9 +255,11 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             decompress_proc = subprocess.Popen(decompressor,
                 stdin=inf, stdout=subprocess.PIPE)
             untar_proc = subprocess.Popen(untar_cmd,
-                stdin=decompress_proc.stdout, stderr=fnull)
+                stdin=decompress_proc.stdout) #, stderr=fnull)
             if untar_proc.wait():
                 raise subprocess.CalledProcessError(untar_proc.returncode, untar_cmd)
+            if decompress_proc.wait():
+                raise subprocess.CalledProcessError(decompress_proc.returncode, decompressor)
             if inf is not None:
                 inf.close()
         log.debug("completed unpacking of {} into {}".format(tarfile, out_dir))
