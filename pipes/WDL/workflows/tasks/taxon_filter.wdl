@@ -6,6 +6,7 @@ task deplete_taxa {
   File         raw_reads_unmapped_bam
   Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? bwaDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Int?         query_chunk_size
   Boolean?     clear_tags = false
   String? tags_to_clear_space_separated = "XT X0 X1 XA AM SM BQ CT XN OC OP"
@@ -25,8 +26,10 @@ task deplete_taxa {
     # bmtagger and blast db args
     DBS_BMTAGGER="${sep=' ' bmtaggerDbs}"
     DBS_BLAST="${sep=' ' blastDbs}"
+    DBS_BWA="${sep=' ' bwaDbs}"
     if [ -n "$DBS_BMTAGGER" ]; then DBS_BMTAGGER="--bmtaggerDbs $DBS_BMTAGGER"; fi
     if [ -n "$DBS_BLAST" ]; then DBS_BLAST="--blastDbs $DBS_BLAST"; fi
+    if [ -n "$DBS_BWA" ]; then DBS_BWA="--bwaDbs $DBS_BWA"; fi
     
     if [[ "${clear_tags}" == "true" ]]; then
       TAGS_TO_CLEAR="--clearTags"
@@ -36,13 +39,14 @@ task deplete_taxa {
     fi
 
     # run depletion
-    taxon_filter.py deplete_human \
+    taxon_filter.py deplete \
       ${raw_reads_unmapped_bam} \
       tmpfile.raw.bam \
+      tmpfile.bwa.bam \
       tmpfile.bmtagger_depleted.bam \
       tmpfile.rmdup.bam \
       ${bam_basename}.cleaned.bam \
-      $DBS_BMTAGGER $DBS_BLAST \
+      $DBS_BMTAGGER $DBS_BLAST $DBS_BWA \
       ${'--chunkSize=' + query_chunk_size} \
       $TAGS_TO_CLEAR \
       --JVMmemory="$mem_in_mb"m \

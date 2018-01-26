@@ -6,6 +6,7 @@ import unittest
 import os
 import tempfile
 import subprocess
+import shutil
 
 import argparse
 
@@ -44,10 +45,12 @@ class TestDepleteHuman(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 os.path.join(myInputDir, 'test-reads.bam'),
                 # output files
+                os.path.join(self.tempDir, 'test-reads.revert.bam'),
+                os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
                 os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
@@ -62,9 +65,11 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
+            'test-reads.revert.bam', 
+            'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam',
-            'test-reads.blastn.bam',
+            'test-reads.rmdup.bam', 
+            'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
 
@@ -72,11 +77,12 @@ class TestDepleteHuman(TestCaseWithTmp):
         myInputDir = util.file.get_test_input_path(self)
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 os.path.join(myInputDir, 'test-reads-aligned.bam'),
                 # output files
                 os.path.join(self.tempDir, 'test-reads.revert.bam'),
+                os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
                 os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
@@ -90,8 +96,11 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
-            'test-reads.revert.bam', 'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 'test-reads.blastn.bam',
+            'test-reads.revert.bam', 
+            'test-reads.bwa.bam',
+            'test-reads.bmtagger.bam',
+            'test-reads.rmdup.bam', 
+            'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
 
@@ -99,10 +108,12 @@ class TestDepleteHuman(TestCaseWithTmp):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
 
         # Run deplete_human
-        args = taxon_filter.parser_deplete_human(argparse.ArgumentParser()).parse_args(
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args(
             [
                 empty_bam,
                 # output files
+                os.path.join(self.tempDir, 'deplete-empty.revert.bam'),
+                os.path.join(self.tempDir, 'deplete-empty.bwa.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.rmdup.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
