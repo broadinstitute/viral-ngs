@@ -389,6 +389,17 @@ class TestOrderAndOrient(TestCaseWithTmp):
         def get_seqs(fasta):
             return [str(s.seq) for s in Bio.SeqIO.parse(fasta, 'fasta')]
         self.assertEqual(get_seqs(outFasta), get_seqs(expected))
+
+    def test_obscure_mummer3_bug(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.lasv.bug.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contig.mummer3_fail_lasv.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta)
+        # if we made it this far, that means nucmer didn't error
+        # this test throws an exception under mummer3 but not mummer4
         
 
 class TestGap2Seq(TestCaseWithTmp):
