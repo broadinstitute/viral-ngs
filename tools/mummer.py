@@ -52,9 +52,10 @@ class MummerTool(tools.Tool):
         toolCmd = [os.path.join(self.install_and_get_path(), 'nucmer'),
             '--prefix={}'.format(outDelta)]
         if extend is not None:
-            if extend:
-                toolCmd.append('--extend')
-            else:
+            if not extend:
+                # default behavior is --extend
+                # mummer4 no longer recognizes --extend and we should only
+                # specify an argument here if we want non-default behavior
                 toolCmd.append('--noextend')
         if breaklen is not None:
             toolCmd.extend(['--breaklen', str(breaklen)])
@@ -76,9 +77,10 @@ class MummerTool(tools.Tool):
         toolCmd = [os.path.join(self.install_and_get_path(), 'promer'),
             '--prefix={}'.format(outDelta)]
         if extend is not None:
-            if extend:
-                toolCmd.append('--extend')
-            else:
+            if not extend:
+                # default behavior is --extend
+                # mummer4 no longer recognizes --extend and we should only
+                # specify an argument here if we want non-default behavior
                 toolCmd.append('--noextend')
         if breaklen is not None:
             toolCmd.extend(['--breaklen', str(breaklen)])
