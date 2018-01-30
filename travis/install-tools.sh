@@ -9,10 +9,14 @@ export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
 
 PYVER=`echo $TRAVIS_PYTHON_VERSION | cut -c 1`
 
-for i in $(seq 3); do
-  conda create -y -m -c broad-viral -c r -c bioconda -c conda-forge -c defaults -p tools/conda-tools/default --file requirements-conda.txt --file requirements-conda-tests.txt --file requirements-py$PYVER.txt python="$TRAVIS_PYTHON_VERSION" && break
-  sleep 5
-done
+conda create -y -m -p tools/conda-tools/default python="$TRAVIS_PYTHON_VERSION"
+
+conda install -y --override-channels \
+	-c broad-viral -c r -c bioconda -c conda-forge -c defaults \
+	--file requirements-conda.txt \
+	--file requirements-conda-tests.txt \
+	--file requirements-py$PYVER.txt \
+	-p tools/conda-tools/default
 
 conda list -p tools/conda-tools/default
 
