@@ -170,7 +170,7 @@ jobs:
       install:
         - source travis/install-conda.sh
         - travis/install-gatk.sh
-        - travis_wait travis/install-tools.sh
+        - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
         - travis/tests-unit.sh
@@ -191,7 +191,7 @@ jobs:
       install:
         - source travis/install-conda.sh
         - travis/install-gatk.sh
-        - travis_wait travis/install-tools.sh
+        - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
         - travis/tests-long.sh
@@ -214,7 +214,7 @@ jobs:
       install:
         - source travis/install-conda.sh
         - travis/install-gatk.sh
-        - travis_wait travis/install-tools.sh
+        - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
         - travis/tests-snakemake.sh
