@@ -93,22 +93,12 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete)
-    util.cmd.attach_main(parser, main_deplete_human)
+    
     return parser
-
-def parser_deplete_human(parser=argparse.ArgumentParser()):
-    parser = parser_deplete(parser)
-    return parser
-
-def main_deplete_human(args):
-    ''' A wrapper around 'deplete', deprecated but preserved for legacy compatibility. 
-    '''
-    main_deplete(args)
-__commands__.append(('deplete_human', parser_deplete))
 
 
 def main_deplete(args):
-    ''' Run the entire depletion pipeline: bmtagger, mvicuna, blastn.
+    ''' Run the entire depletion pipeline: bwa, bmtagger, mvicuna, blastn.
     '''
 
     assert len(args.bmtaggerDbs) + len(args.blastDbs) + len(args.bwaDbs) > 0
@@ -185,6 +175,17 @@ def main_deplete(args):
 __commands__.append(('deplete', parser_deplete))
 
 
+def parser_deplete_human(parser=argparse.ArgumentParser()):
+    parser = parser_deplete(parser)
+    util.cmd.attach_main(parser, main_deplete_human)
+
+    return parser
+
+def main_deplete_human(args):
+    ''' A wrapper around 'deplete'; deprecated but preserved for legacy compatibility. 
+    '''
+    main_deplete(args)
+__commands__.append(('deplete_human', parser_deplete_human))
 
 # =======================
 # ***  filter_lastal  ***
