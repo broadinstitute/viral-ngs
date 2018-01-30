@@ -24,7 +24,7 @@ class MummerTool(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = [
-                tools.CondaPackage(TOOL_NAME, version=tool_version)
+                tools.CondaPackage(TOOL_NAME, executable="mummer", version=tool_version)
                 ]
         tools.Tool.__init__(self, install_methods=install_methods)
 
