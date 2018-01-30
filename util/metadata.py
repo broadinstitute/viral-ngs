@@ -522,6 +522,16 @@ class ProvenanceGraph(networkx.DiGraph):
             hash2files[f.file_hash].add(f)
             realpath2files[f.realpath].add(f)
 
+        for h, fs in hash2files.items():
+            if len(fs) > 1:
+                for f1 in fs:
+                    for f2 in fs:
+                        if f1.realpath != f2.realpath and os.path.isfile(f1.realpath) and os.path.isfile(f2.realpath) and \
+                           os.path.samefile(f1.realpath, f2.realpath):
+                            realpath2files[f1.realpath].add(f2)
+                            realpath2files[f2.realpath].add(f1)
+                            print('SAMEFILES:\n{}\n{}\n'.format(f1, f2))
+
         for f in self.file_nodes:
             if not self.pred[f]:
                 # file f is read by some step, but we don't have a record of a step that wrote this exact file.
@@ -533,7 +543,7 @@ class ProvenanceGraph(networkx.DiGraph):
                         f2s_bef = [ f2 for f2 in f2s if f2.mtime < self.nodes[s]['run_info']['beg_time'] ]
                         if f2s_bef:
                             f2 = f2s_bef[-1]
-                            assert f2 != f and f2.realpath == f.realpath and f2.file_hash == f.file_hash and f2.mtime < f.mtime
+                            assert f2 != f and f2.file_hash == f.file_hash and f2.mtime < f.mtime
                             self.add_edge(f2, s, **self.edges[f, s])
                             self.remove_edge(f, s)
                             _log.info('reconnected: {}->{}'.format(f2.realpath, s))
@@ -587,7 +597,9 @@ class ProvenanceGraph(networkx.DiGraph):
     # end: def load(self, path=None)
 
 # *** write_dot    
-    def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
+    def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=(), title=''):
+        """Write out this graph, or part of it, as a GraphViz .dot file."""
+
         ignore_exts = ()
 
         def get_val(d, keys):
@@ -598,12 +610,9 @@ class ProvenanceGraph(networkx.DiGraph):
                 return get_val(d[keys[0]], keys[1:])
             return None
 
-        node2id = {}
-
-        def fix_name(s):
+        def fix_name(s, node2id={}):
             """Return a string based on `s` but valid as a GraphViz node name"""
             return 'n' + str(node2id.setdefault(s, len(node2id)))
-        # util.file.string_to_file_name(str(s)).replace('-', '_').replace('.', '_')
 
         ignored = set()
 
@@ -623,8 +632,6 @@ class ProvenanceGraph(networkx.DiGraph):
                         if any(label.endswith(e) for e in ignore_exts): 
                             ignored.add(n)
                             continue
-                        #if ',' in label:
-                        #    label = ','.join(filter(lambda f: not f.startswith('/tmp'), label.split(',')))
                         shape = 'oval'
                         
                     out.write('{} [label="{}", shape={}];\n'.format(fix_name(n), label, shape))
@@ -633,6 +640,8 @@ class ProvenanceGraph(networkx.DiGraph):
                 if nodes and (u not in nodes or v not in nodes): continue
                 if u in ignored or v in ignored: continue
                 out.write('{} -> {} [label="{}"];\n'.format(fix_name(u), fix_name(v), arg))
+            out.write('labelloc="t";\n')
+            out.write('label="{}\n{}";\n'.format(time.strftime('%c'), title))
             out.write('}\n')
     # end: def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
         
@@ -663,41 +672,11 @@ def compute_paths():
             svg_fname = 'pgraph{:03}.svg'.format(i)
             G.write_dot(dot_fname, nodes=ancs, ignore_cmds=['main_vcf_to_fasta'], 
                         ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
-                        ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])
+                        ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()],
+                        title=os.path.basename(e.realpath))
             _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
             _log.info('created {}'.format(svg_fname))
         
-
-    # beg_edges = [e[:2] for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
-    # end_edges = [e[:2] for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
-
-    # beg_nodes = set(map(operator.itemgetter(0), beg_edges))
-    # end_nodes = set(map(operator.itemgetter(1), end_edges))
-
-    # for end_edge in end_edges:
-    #     #with networkx.utils.contextmanagers.reversed(g):
-    #     #    pred = networkx.predecessor(g, end_node)
-    #     end_node = end_edge[0]
-    #     print('end_node=', end_node)
-    #     prereqs = pgraph.find_prereq_steps(end_node)
-    #     reachable_beg_nodes = prereqs# & beg_nodes
-    #     print('end_node=', end_node, 'reachable_beg_nodes=({})'.format(len(reachable_beg_nodes)), 
-    #           '\n'.join(map(str,['\nn={} \ninp={} \nout={}'.format(n, '\n'.join(g.nodes[n].get('inputs',[])), '\n'.join(g.nodes[n].get('outputs',[]))) for n in reachable_beg_nodes])))
-
-    #     # for b in reachable_beg_nodes:
-    #     #     print('===========path from', type(b), g.nodes[b])
-    #     #     n = b
-    #     #     while n != end_node:
-    #     #         p = pred[n][0]
-    #     #         print(p)
-    #     #         print('     in=', g.nodes[p].get('inputs', []))
-    #     #         print('    out=', g.nodes[p].get('outputs', []))
-    #     #         print(' ')
-    #     #         n = p
-    
-
-    #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
-
 ################################################################    
 
 def _setup_logger(log_level):
