@@ -14,6 +14,6 @@ for i in $(seq 3); do
   sleep 5
 done
 
-conda list
+conda list -p tools/conda-tools/default
 
 conda clean --all --yes # clean temp/cache files to reduce Travis cache size
