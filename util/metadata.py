@@ -256,8 +256,9 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
     """
 
-    cmd_parser.add_argument('--metadata', action='append', nargs=2, metavar=('ATTRIBUTE', 'VALUE'),
-                            help='attach metadata to this step (step=this specific execution of this command)')
+    if cmd_parser.get_default('metadata') is None:
+        cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append', default=(),
+                                help='attach metadata to this step (step=this specific execution of this command)')
 
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
@@ -398,10 +399,11 @@ def _return_str(*args, **kw):
 
 def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
     """Add the --metadata command-line argument to `cmd_parser`, but make it a no-op; return `cmd_main` unchanged."""
-    cmd_parser.add_argument('--metadata', nargs=2,
-                            metavar=('ATTRIBUTE', 'VALUE'),
-                            help='(DISABLED because metadata tracking is disabled, set environment variable '
-                            'VIRAL_NGS_METADATA_PATH to enable) attach metadata to this step (step=this specific execution of this command)')
+    if cmd_parser.get_default('metadata') is None:
+        cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append', default=(),
+                                help='(DISABLED because metadata tracking is disabled, set environment variable '
+                                'VIRAL_NGS_METADATA_PATH to enable) attach metadata to this step '
+                                '(step=this specific execution of this command)')
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
         delattr(args, 'metadata')
