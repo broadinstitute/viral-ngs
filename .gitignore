@@ -72,3 +72,6 @@ tools/conda-cache/
 tools/conda-tools/
 
 *.snakemake/
+
+pgraph*.dot
+pgraph*.svg

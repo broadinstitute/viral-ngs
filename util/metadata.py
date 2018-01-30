@@ -61,6 +61,7 @@ import functools
 import itertools
 import operator
 import binascii
+import fnmatch
 
 # intra-module
 import util.file
@@ -416,7 +417,7 @@ if not is_metadata_tracking_enabled():
 ##########################
 
 # ** class ProvenanceGraph
-class ProvenanceGraph(object):
+class ProvenanceGraph(networkx.DiGraph):
 
     '''Provenance graph representing a set of computations.  It has two types of nodes: steps and files.  A step node
     represents a computation step (a specific execution of a specific command); a file node represents a particular file
@@ -426,14 +427,24 @@ class ProvenanceGraph(object):
     Various information about the parameters and execution of a step is represented as attributes of the step node.
 
     Fields:
-       pgraph: the full provenance graph
        hash2files: map from file hash to file nodes with that hash
     '''
 
+    FileNode = collections.namedtuple('FileNode', 'realpath file_hash mtime')
+
     def __init__(self):
         """Initialize an empty provenance graph."""
-        self.pgraph = networkx.DiGraph()
-        self.hash2files = collections.defaultdict(list)
+        super(ProvenanceGraph, self).__init__()
+
+    @property
+    def file_nodes(self): 
+        """The nodes representing files"""
+        return [n for n in self if self.nodes[n]['node_kind'] == 'file']
+
+    @property
+    def step_nodes(self): 
+        """The nodes representing steps"""
+        return [n for n in self if self.nodes[n]['node_kind'] == 'step']
 
 # *** Loading pgraph
     def load(self, metadata_path=None, max_age_days=10000):
@@ -445,8 +456,8 @@ class ProvenanceGraph(object):
         """
 
         metadata_path = metadata_path or metadata_dir()
-        pgraph = self.pgraph
 
+# **** Load steps and files
         for step_record_fname in os.listdir(metadata_path or metadata_dir()):
             if not step_record_fname.endswith('.json'): continue
 
@@ -466,7 +477,7 @@ class ProvenanceGraph(object):
             if ((time.time() - step_record['step']['run_info']['beg_time']) / (60*60*24)) > max_age_days: continue
 
             step_id = step_record['step']['step_id']
-            pgraph.add_node(step_id, node_kind='step', **step_record['step'])
+            self.add_node(step_id, node_kind='step', **step_record['step'])
 
             # Add input and output files of this step as data nodes.
             for arg, val in step_record['step']['args'].items():
@@ -479,140 +490,105 @@ class ProvenanceGraph(object):
                     assert FileArg.is_from_dict(files)
                     for f in files['files']:
                         if dict_has_keys(f, 'hash fname realpath size'):
-                            file_node = (f['realpath'], f['hash'], 0)
-                            pgraph.add_node(file_node, node_kind='file', **f)
-                            self.hash2files[f['hash']].append(file_node)
+                            file_node = self.FileNode(f['realpath'], f['hash'], f['mtime'])
+                            self.add_node(file_node, node_kind='file', **f)
                             e = (file_node, step_id) if files['mode'] == 'r' else (step_id, file_node)
-                            pgraph.add_edge(*e, arg=arg)
+                            self.add_edge(*e, arg=arg)
 
-                            e_attrs = pgraph[e[0]][e[1]]
-
-                            # gather any per-file metadata specified on the command line.  currently, such metadata is specified
+                            # gather any per-file metadata specified on the command line.  currently, such metadata can be specified
                             # for a given command arg, and applied to all files denoted by the arg.
                             for metadata_attr, metadata_val in dict(step_record['step']['metadata_from_cmd_line']).items():
                                 pfx = 'file.{}.'.format(arg)
                                 if metadata_attr.startswith(pfx):
-                                    pgraph[e[0]][e[1]][metadata_attr[len(pfx):]] = metadata_val
+                                    self[e[0]][e[1]][metadata_attr[len(pfx):]] = metadata_val
                     # end: for f in files['files']
                 # end: for files in gather_files(val)
             # end: for arg, val in step_record['step']['args'].items()
         # end: for step_record_fname in os.listdir(path)
 
+# **** Check for anomalies
+
+        for f in self.file_nodes:
+            if self.in_degree[f] > 1:
+                print('ANOMALY: file with indegree {}: {}'.format(self.in_degree[f], f))
+                for e in self.in_edges(nbunch=f, data=True):
+                    print(e[0], e[1], json.dumps(e[2], indent=4))
+
+# **** Reconstruct missing connections between steps and files
+
+        hash2files = collections.defaultdict(set)
+        realpath2files = collections.defaultdict(set)
+        for f in self.file_nodes:
+            hash2files[f.file_hash].add(f)
+            realpath2files[f.realpath].add(f)
+
+        for f in self.file_nodes:
+            if not self.pred[f]:
+                # file f is read by some step, but we don't have a record of a step that wrote this exact file.
+                # do we have 
+                f2s = [ f2 for f2 in (hash2files[f.file_hash] & realpath2files[f.realpath]) if f2 != f and f2.mtime < f.mtime ]
+                if f2s:
+                    f2s = sorted(f2s, key=operator.attrgetter('mtime'))
+                    for s in list(self.succ[f]):
+                        f2s_bef = [ f2 for f2 in f2s if f2.mtime < self.nodes[s]['run_info']['beg_time'] ]
+                        if f2s_bef:
+                            f2 = f2s_bef[-1]
+                            assert f2 != f and f2.realpath == f.realpath and f2.file_hash == f.file_hash and f2.mtime < f.mtime
+                            self.add_edge(f2, s, **self.edges[f, s])
+                            self.remove_edge(f, s)
+                            _log.info('reconnected: {}->{}'.format(f2.realpath, s))
+
         # process hardlinks: if a file doesn't have a creation record, but is the same as a file that does, then
         # reroute input links to the file that does have a creation record.
 
-        file_nodes = [n for n in pgraph if pgraph.nodes[n]['node_kind'] == 'file']
-        for file_node in file_nodes:
-            #assert pgraph.in_degree[file_node] <= 1
-            if pgraph.in_degree[file_node] > 1:
-                _log.warning('indegree of {} is {}'.format(file_node, pgraph.in_degree[file_node]))
-            if pgraph.in_degree[file_node] == 0:
-                _log.warning('UNKNOWN ORIGIN: {}'.format(file_node))
-                realpath, file_hash, mtime = file_node
-                if not os.path.isfile(realpath): 
-                    _log.warning('not realpath: {}'.format(realpath))
-                    continue
-                else:
-                    if os.stat(realpath).st_nlink > 1:
-                        _log.warning('{} has {} hardlinks'.format(realpath, os.stat(realpath).st_nlink))
+        if False:
 
-                if len(self.hash2files[file_hash]) > 1:
-                    _log.warning('unknown-origin file {} has aliases: {}'.format(file_node, self.hash2files[file_hash]))
-                for n_other in self.hash2files[file_hash]:
-                    other_realpath, other_file_hash, other_mtime = n_other
-                    if n_other != file_node and pgraph.in_degree[n_other] > 0 and \
-                       os.path.isfile(other_realpath) and os.path.samefile(realpath, other_realpath):
-                        _log.info('file {} is alias for {}'.format(n_other, file_node))
-                        if pgraph.in_degree[n_other] > 1:
-                            _log.info('indegree of n_other({}) is {}'.format(n_other, pgraph.in_degree[n_other]))
-                        new_edges = []
-                        del_edges = []
-                        for n, step_reading_n, edge_attrs in pgraph.out_edges(file_node, data=True):
-                            assert n == file_node
-                            del_edges.append((n, step_reading_n))
-                            new_edges.append((n_other, step_reading_n, copy.deepcopy(edge_attrs)))
-                            _log.info('rerouted input of {} from {} to {}'.format(step_reading_n, n, n_other))
-                        pgraph.add_edges_from(new_edges)
-                        pgraph.remove_edges_from(del_edges)
-                        break
-            # end: if pgraph.in_degree[file_node] == 0
-        # end: for file_node in file_nodes
+            new_edges = []
+            del_nodes = []
+            for file_node in self.file_nodes:
+                #assert self.in_degree[file_node] <= 1
+                if self.in_degree[file_node] == 0:
+                    if not os.path.isfile(file_node.realpath): continue
+                    # loop over files which have contents identical to file_node, but which have a creation record
+                    # (i.e. are the output of a known step)
+                    for file_node_2 in self.hash2files[file_node.file_hash]:
+                        if file_node_2 != file_node and file_node_2.mtime == file_node.mtime and self.in_degree[file_node_2] > 0 and \
+                           os.path.isfile(file_node_2.realpath) and os.path.samefile(file_node.realpath, file_node_2.realpath):
+                            # merge file_node into file_node_2: for any steps that read file_node, reroute them to read file_node_2 instead.
+                            for n, step_reading_n, edge_attrs in self.out_edges(file_node, data=True):
+                                assert n == file_node
+                                new_edges.append((file_node_2, step_reading_n, copy.deepcopy(edge_attrs)))
+                                _log.info('rerouted input of {} from {} to {}'.format(step_reading_n, n, file_node_2))
+                            del_nodes.append(n)
+                            break
+                    # end: for file_node_2 in self.hash2files[file_node.file_hash]:
+                # end: if self.in_degree[file_node] == 0
+            # end: for file_node in file_nodes
+            self.add_edges_from(new_edges)
+            self.remove_nodes_from(del_nodes)
 
-        assert networkx.algorithms.dag.is_directed_acyclic_graph(pgraph)
-                        
+        assert networkx.algorithms.dag.is_directed_acyclic_graph(self)
+
+        #
+        # Print nodes with unknown origin
+        # 
+
+        unknown_origin_files = []
+        for file_node in self.file_nodes:
+            #assert self.in_degree[file_node] <= 1
+            if self.in_degree[file_node] > 1:
+                _log.warning('indegree of {} is {}'.format(file_node, self.in_degree[file_node]))
+            if self.in_degree[file_node] == 0 and os.path.isfile(file_node.realpath):
+                unknown_origin_files.append(file_node.realpath)
+                #_log.warning('UNKNOWN ORIGIN: {}'.format(file_node))
+
+        print('UNKNOWN_ORIGIN:\n', '\n'.join(unknown_origin_files))
+
     # end: def load(self, path=None)
-
-# *** find_prereq_steps    
-    def find_prereq_steps(self, step, prereq_steps=None):
-        """Return the set containing `step` plus any steps needed to compute data used by `step.
-
-        This is complicated by the fact that the same data may be produced by different computation paths.
-        E.g. the empty data may be produced by different step signalling a failure.  So if one of the inputs to a step
-        is an empty file, and multiple other steps have produced an empty file as an output, which of these steps
-        should be taken as the prereq step?  Right now we use some heuristics based on run_id and filenames to resolve this.
-
-        Args:
-            prereq_steps: set of prereq steps already found, or None indicating an empty set
-        """
-
-        if prereq_steps is None: prereq_steps = set()
-        if step in prereq_steps: return prereq_steps
-
-        G = self.pgraph
-        prereq_steps.add(step)
-
-        for data in G.predecessors(step):
-            data_makers = list(G.predecessors(data))
-            if not data_makers: continue
-
-            if len(data_makers) == 1:
-                self.find_prereq_steps(data_makers[0], prereq_steps)
-                continue
-
-            fname_matched = [prereq_step for prereq_step in data_makers
-                             if G.edges[prereq_step, data]['fname'] == G.edges[data, step]['fname']]
-
-            if not fname_matched:
-                fname_matched = [prereq_step for prereq_step in data_makers
-                                 if os.path.isfile(G.edges[prereq_step, data]['realpath']) and \
-                                 os.path.isfile(G.edges[data, step]['realpath']) and \
-                                 os.path.samefile(G.edges[prereq_step, data]['realpath'],
-                                                  G.edges[data, step]['realpath'])]
-            if fname_matched:
-                run_id_matched = [prereq_step for prereq_step in fname_matched
-                                  if G.nodes[prereq_step]['run_id'] == G.nodes[step]['run_id']]
-
-                self.find_prereq_steps((run_id_matched or fname_matched)[0], prereq_steps)
-                continue
-                
-            run_id_matched = [prereq_step for prereq_step in data_makers
-                              if G.nodes[prereq_step]['run_id'] == G.nodes[step]['run_id']]
-            if run_id_matched:
-                self.find_prereq_steps(run_id_matched[0], prereq_steps)
-                continue
-
-            _log.warning('Matched data but not fname or run_id: step={} data={}'.format(step, data))
-            # for now just arbitrarily pick the first one
-            self.find_prereq_steps(data_makers[0], prereq_steps)
-            continue
-            
-            if False:
-                def pr(*args):
-                    return '\n'+json.dumps((G.nodes[args[0]] if len(args)==1 else G.edges[args[0], args[1]]), indent=4)
-
-                print('step=\n', pr(step))
-                print('edge=\n', pr(data, step))
-                print('data_makers=\n', data_makers)
-                for i, dm in enumerate(data_makers):
-                    print('\ndm_edge', i, 'dm=', pr(dm), 'edge=', pr(dm, data))
-                print('data node=\n', pr(data))
-                assert False, 'Matched data but not fname or run_id: step={} data={}'.format(step, data)
-        
-        return prereq_steps
-    # end: def find_prereq_steps(self, step, prereq_steps=None)
 
 # *** write_dot    
     def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
+        ignore_exts = ()
 
         def get_val(d, keys):
             """Fetch a value from a nested dict using a sequence of keys"""
@@ -631,13 +607,12 @@ class ProvenanceGraph(object):
 
         ignored = set()
 
-        G = self.pgraph
         with open(dotfile, 'wt') as out:
             out.write('digraph G {\n')
-            for n in G:
+            for n in self:
                 if not nodes or n in nodes:
-                    n_attrs = G.nodes[n]
-                    if G.nodes[n]['node_kind'] == 'step':
+                    n_attrs = self.nodes[n]
+                    if self.nodes[n]['node_kind'] == 'step':
                         label = get_val(n_attrs, 'metadata_from_cmd_line step_name'.split()) or get_val(n_attrs, 'cmd_name') or 'unknown_cmd'
                         if label in ignore_cmds: 
                             ignored.add(n)
@@ -654,10 +629,12 @@ class ProvenanceGraph(object):
                         
                     out.write('{} [label="{}", shape={}];\n'.format(fix_name(n), label, shape))
 
-            for u, v, arg in G.edges(data='arg'):
+            for u, v, arg in self.edges(data='arg'):
+                if nodes and (u not in nodes or v not in nodes): continue
                 if u in ignored or v in ignored: continue
                 out.write('{} -> {} [label="{}"];\n'.format(fix_name(u), fix_name(v), arg))
             out.write('}\n')
+    # end: def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
         
 # end: class ProvenanceGraph(object)
 
@@ -665,39 +642,58 @@ class ProvenanceGraph(object):
 def compute_paths():
     """Compute computation paths, and their attributes."""
 
-    pgraph = ProvenanceGraph()
-    pgraph.load()
-    g = pgraph.pgraph
+    G = ProvenanceGraph()
+    G.load()
 
-    step_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='step']
-    data_nodes = [n for n, node_kind in g.nodes.data('node_kind') if node_kind=='data']
+    beg_nodes = [f for f in G.file_nodes if fnmatch.fnmatch(f.realpath, '*/data/00_raw/*.bam')]
+    end_nodes = [f for f in G.file_nodes if fnmatch.fnmatch(f.realpath, '*/data/02_assembly/*.fasta')]
+    for i, e in enumerate(end_nodes):
+        ancs = networkx.algorithms.dag.ancestors(G, e)
+        ancs.add(e)
+        if True: #set(beg_nodes) & ancs:
 
-    beg_edges = [e[:2] for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
-    end_edges = [e[:2] for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
+            print('===============================beg ', i)
+            for a in ancs:
+                if G.nodes[a]['node_kind'] == 'step':
+                    print('-----------------------', json.dumps(G.nodes[a], indent=4))
 
-    beg_nodes = set(map(operator.itemgetter(0), beg_edges))
-    end_nodes = set(map(operator.itemgetter(1), end_edges))
+            print('===============================end ', i)
 
-    for end_edge in end_edges:
-        #with networkx.utils.contextmanagers.reversed(g):
-        #    pred = networkx.predecessor(g, end_node)
-        end_node = end_edge[0]
-        print('end_node=', end_node)
-        prereqs = pgraph.find_prereq_steps(end_node)
-        reachable_beg_nodes = prereqs# & beg_nodes
-        print('end_node=', end_node, 'reachable_beg_nodes=({})'.format(len(reachable_beg_nodes)), 
-              '\n'.join(map(str,['\nn={} \ninp={} \nout={}'.format(n, '\n'.join(g.nodes[n].get('inputs',[])), '\n'.join(g.nodes[n].get('outputs',[]))) for n in reachable_beg_nodes])))
+            dot_fname = 'pgraph{:03}.dot'.format(i)
+            svg_fname = 'pgraph{:03}.svg'.format(i)
+            G.write_dot(dot_fname, nodes=ancs, ignore_cmds=['main_vcf_to_fasta'], 
+                        ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
+                        ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])
+            _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
+            _log.info('created {}'.format(svg_fname))
+        
 
-        # for b in reachable_beg_nodes:
-        #     print('===========path from', type(b), g.nodes[b])
-        #     n = b
-        #     while n != end_node:
-        #         p = pred[n][0]
-        #         print(p)
-        #         print('     in=', g.nodes[p].get('inputs', []))
-        #         print('    out=', g.nodes[p].get('outputs', []))
-        #         print(' ')
-        #         n = p
+    # beg_edges = [e[:2] for e in g.out_edges(nbunch=data_nodes, data=True) if e[2]['ext']=='.bam' and 'data/00_raw' in e[2]['fname']]
+    # end_edges = [e[:2] for e in g.in_edges(nbunch=data_nodes, data=True) if e[2].get('role', None) == 'final_assembly']
+
+    # beg_nodes = set(map(operator.itemgetter(0), beg_edges))
+    # end_nodes = set(map(operator.itemgetter(1), end_edges))
+
+    # for end_edge in end_edges:
+    #     #with networkx.utils.contextmanagers.reversed(g):
+    #     #    pred = networkx.predecessor(g, end_node)
+    #     end_node = end_edge[0]
+    #     print('end_node=', end_node)
+    #     prereqs = pgraph.find_prereq_steps(end_node)
+    #     reachable_beg_nodes = prereqs# & beg_nodes
+    #     print('end_node=', end_node, 'reachable_beg_nodes=({})'.format(len(reachable_beg_nodes)), 
+    #           '\n'.join(map(str,['\nn={} \ninp={} \nout={}'.format(n, '\n'.join(g.nodes[n].get('inputs',[])), '\n'.join(g.nodes[n].get('outputs',[]))) for n in reachable_beg_nodes])))
+
+    #     # for b in reachable_beg_nodes:
+    #     #     print('===========path from', type(b), g.nodes[b])
+    #     #     n = b
+    #     #     while n != end_node:
+    #     #         p = pred[n][0]
+    #     #         print(p)
+    #     #         print('     in=', g.nodes[p].get('inputs', []))
+    #     #         print('    out=', g.nodes[p].get('outputs', []))
+    #     #         print(' ')
+    #     #         n = p
     
 
     #start_nodes = [ n for n in pgraph if dict().viewitems() <= g.nodes[n].viewitems() ]
@@ -715,16 +711,18 @@ def _setup_logger(log_level):
 
 if __name__ == '__main__':
     #import assembly
-    #compute_paths()
     _setup_logger('INFO')
-    pgraph = ProvenanceGraph()
-    pgraph.load(max_age_days=100)
-    dot_fname = 'pgraph.dot'
-    svg_fname = 'pgraph.svg'
-    pgraph.write_dot(dot_fname, ignore_cmds=['main_vcf_to_fasta'], 
-                     ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
-                     ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])
-    _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
+    compute_paths()
+
+    if False:
+        pgraph = ProvenanceGraph()
+        pgraph.load(max_age_days=100)
+        dot_fname = 'pgraph.dot'
+        svg_fname = 'pgraph.svg'
+        pgraph.write_dot(dot_fname, ignore_cmds=['main_vcf_to_fasta'], 
+                         ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
+                         ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])
+        _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
 
 
     if False:
