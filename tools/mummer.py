@@ -13,10 +13,8 @@ import random
 import subprocess
 import Bio.SeqIO
 
-TOOL_NAME = "mummer"
-tool_version = '3.23'
-#TOOL_NAME = "mummer4"
-#tool_version = '4.0.0beta2'
+TOOL_NAME = "mummer4"
+tool_version = '4.0.0beta2'
 
 log = logging.getLogger(__name__)
 
