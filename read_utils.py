@@ -756,7 +756,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
 
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
-    tools.picard.SamToFastqTool().per_read_group(inBam, tempDir, picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
+    tools.picard.SamToFastqTool().per_read_group(inBam, tempDir, picardOptions=['VALIDATION_STRINGENCY=LENIENT'], JVMmemory=JVMmemory)
     read_groups = [x[1:] for x in tools.samtools.SamtoolsTool().getHeader(inBam) if x[0] == '@RG']
     read_groups = [dict(pair.split(':', 1) for pair in rg) for rg in read_groups]
 

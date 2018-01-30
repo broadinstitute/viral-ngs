@@ -28,6 +28,7 @@ rule depletion:
         bmtagger_dbs = objectify_remote(expand("{db}.{ext}", db=config["bmtagger_dbs_remove"], ext=['bitmask','srprism.ssa','srprism.imp','srprism.idx','srprism.map','srprism.ss','srprism.amp','srprism.rmp','srprism.pmp','srprism.ssd'])),
         blast_dbs    = objectify_remote(expand("{db}.{ext}", db=config["blast_db_remove"], ext=['nhr','nsq','nin'])) # ['nhr','nix','nsq','dict','fai','nin']
     output: 
+        config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bwa_depleted.bam',
         config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
         config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
         config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
@@ -46,7 +47,8 @@ rule depletion:
         mem_mb = int((resources.mem * 1000) * 0.95)
         blast_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["blast_db_remove"]]))
         bmtagger_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["bmtagger_dbs_remove"]]))
-        shell("{config[bin_dir]}/taxon_filter.py deplete_human {input.input_bam} {params.revert_bam} {output} --bmtaggerDbs {bmtagger_db_prefixes} --blastDbs {blast_db_prefixes} --threads {resources.threads} --srprismMemory {mem_mb} --JVMmemory 15g --metadata sample {wildcards.sample} --metadata step_name {rule} --metadata file.inBam.role raw_reads")
+        bwa_db_prefixes=" ".join(set([strip_protocol(dbf, relative=True) for dbf in config["bwa_dbs_remove"]]))
+        shell("{config[bin_dir]}/taxon_filter.py deplete {input.input_bam} {params.revert_bam} {output} --bwaDbs {bwa_db_prefixes} --bmtaggerDbs {bmtagger_db_prefixes} --blastDbs {blast_db_prefixes} --threads {resources.threads} --srprismMemory {mem_mb} --JVMmemory 15g --metadata sample {wildcards.sample} --metadata step_name {rule} --metadata file.inBam.role raw_reads")
         os.unlink(params.revert_bam)
 
 rule filter_to_taxon:
