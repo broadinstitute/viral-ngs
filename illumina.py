@@ -522,14 +522,16 @@ class RunInfo(object):
 
     def get_flowcell(self):
         fc = self.root[0].find('Flowcell').text
-        # do not slice in the iSeq/Firefly case
-        if not self.get_machine().startswith("FF"):
+        # slice in the case where the ID has a prefix of zeros
+        if re.match(r"^0+-", fc):
             if '-' in fc:
                 # miseq often adds a bunch of leading zeros and a dash in front
-                fc = fc.split('-')[1]
+                fc = "-".join(fc.split('-')[1:])
         # >=5 to avoid an exception here: https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510
         # <= 15 to limit the bytes added to each bam record
-        assert 5 <= len(fc) <= 15
+        assert len(fc) >= 5,"The flowcell ID must be five or more characters in length"
+        if len(fc) > 15:
+            log.warn("The provided flowcell ID is longer than 15 characters. Is that correct?")
         return fc
 
     def get_rundate_american(self):
