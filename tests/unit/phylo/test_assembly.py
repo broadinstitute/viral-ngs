@@ -389,6 +389,19 @@ class TestOrderAndOrient(TestCaseWithTmp):
         def get_seqs(fasta):
             return [str(s.seq) for s in Bio.SeqIO.parse(fasta, 'fasta')]
         self.assertEqual(get_seqs(outFasta), get_seqs(expected))
+
+    def test_obscure_mummer3_bug(self):
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        expected = os.path.join(inDir, 'expected.lasv.bug.fasta')
+        # under mummer3, this fails with a weird error in nucmer,
+        # causing a CalledProcessError. We want this to succeed
+        # nucmer, but fail later on due to IncompleteAssemblyError
+        self.assertRaises(assembly.IncompleteAssemblyError,
+            assembly.order_and_orient,
+            os.path.join(inDir, 'contig.mummer3_fail_lasv.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta)
         
 
 class TestGap2Seq(TestCaseWithTmp):
