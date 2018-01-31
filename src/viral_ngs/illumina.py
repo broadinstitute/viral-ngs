@@ -40,7 +40,8 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                         help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
                         default=None)
     parser.add_argument('--commonBarcodes',
-                        help='Write a TSV report of all barcode counts, in descending order.',
+                        help='''Write a TSV report of all barcode counts, in descending order. 
+                                Only applicable for read structures containing "B"''',
                         default=None)
     parser.add_argument('--sampleSheet',
                         default=None,
@@ -79,12 +80,13 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
 
 
 def main_illumina_demux(args):
-    ''' Demultiplex Illumina runs & produce BAM files, one per sample.
-        Wraps together Picard's ExtractBarcodes and IlluminaBasecallsToSam
+    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or 
+        for simplex runs, a single bam will be produced bearing the flowcell ID.
+        Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
         while handling the various required input formats. Also can
         read Illumina BCL directories, tar.gz BCL directories.
-        TO DO: read BCL or tar.gz BCL directories from S3 / object store.
     '''
+    # TO DO: read BCL or tar.gz BCL directories from S3 / object store.
 
     # prepare
     illumina = IlluminaDirectory(args.inDir)
@@ -147,33 +149,46 @@ def main_illumina_demux(args):
                 link_locs=link_locs
             )
 
-    # Picard ExtractIlluminaBarcodes
-    extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
-    barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
-    samples.make_barcodes_file(extract_input)
-    out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    picardOpts['read_structure'] = read_structure
-    tools.picard.ExtractIlluminaBarcodesTool().execute(
-        illumina.get_BCLdir(),
-        args.lane,
-        extract_input,
-        barcodes_tmpdir,
-        out_metrics,
-        picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+    multiplexed_samples = True if 'B' in read_structure else False            
+    
+    if multiplexed_samples:
+        assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
+    else:
+        assert samples==None, "A SampleSheet may not be provided unless 'B' is present in the read_structure"
+        if args.commonBarcodes:
+            log.warn("--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file.")
+            util.file.touch(args.commonBarcodes)
 
-    if args.commonBarcodes:
-        # this step can take > 2 hours on a large high-output flowcell
-        # so kick it to the background while we demux
-        #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
-        executor = concurrent.futures.ProcessPoolExecutor()
-        executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
+    # B in read structure indicates barcoded multiplexed samples
+    if multiplexed_samples:
+        # Picard ExtractIlluminaBarcodes
+        extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
+        barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+        samples.make_barcodes_file(extract_input)
+        out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
+        picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+                          if hasattr(args, opt) and getattr(args, opt) != None)
+        picardOpts['read_structure'] = read_structure
+        tools.picard.ExtractIlluminaBarcodesTool().execute(
+            illumina.get_BCLdir(),
+            args.lane,
+            extract_input,
+            barcodes_tmpdir,
+            out_metrics,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
 
-    # Picard IlluminaBasecallsToSam
-    basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
-    samples.make_params_file(args.outDir, basecalls_input)
+        if args.commonBarcodes:
+            # this step can take > 2 hours on a large high-output flowcell
+            # so kick it to the background while we demux
+            #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+            executor = concurrent.futures.ProcessPoolExecutor()
+            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
+
+        # Picard IlluminaBasecallsToSam
+        basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
+        samples.make_params_file(args.outDir, basecalls_input)
+
     picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
                       if hasattr(args, opt) and getattr(args, opt) != None)
     picardOpts['run_start_date'] = run_date
@@ -182,22 +197,34 @@ def main_illumina_demux(args):
         picardOpts['num_processors'] = args.threads
     if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
         picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
-    tools.picard.IlluminaBasecallsToSamTool().execute(
-        illumina.get_BCLdir(),
-        barcodes_tmpdir,
-        flowcell,
-        args.lane,
-        basecalls_input,
-        picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+
+    if multiplexed_samples:
+        tools.picard.IlluminaBasecallsToSamTool().execute(
+            illumina.get_BCLdir(),
+            barcodes_tmpdir,
+            flowcell,
+            args.lane,
+            basecalls_input,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
+    else:
+        tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
+            illumina.get_BCLdir(),
+            os.path.join(args.outDir,flowcell+".bam"),
+            flowcell,
+            args.lane,
+            flowcell,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
 
     # clean up
-    if args.commonBarcodes:
-        log.info("waiting for commonBarcodes output to finish...")
-        executor.shutdown(wait=True)
-    os.unlink(extract_input)
-    os.unlink(basecalls_input)
-    shutil.rmtree(barcodes_tmpdir)
+    if multiplexed_samples:
+        if args.commonBarcodes:
+            log.info("waiting for commonBarcodes output to finish...")
+            executor.shutdown(wait=True)
+        os.unlink(extract_input)
+        os.unlink(basecalls_input)
+        shutil.rmtree(barcodes_tmpdir)
     illumina.close()
     log.info("illumina_demux complete")
     return 0
@@ -495,10 +522,16 @@ class RunInfo(object):
 
     def get_flowcell(self):
         fc = self.root[0].find('Flowcell').text
-        if '-' in fc:
-            # miseq often adds a bunch of leading zeros and a dash in front
-            fc = fc.split('-')[1]
-        assert 4 <= len(fc) <= 9
+        # slice in the case where the ID has a prefix of zeros
+        if re.match(r"^0+-", fc):
+            if '-' in fc:
+                # miseq often adds a bunch of leading zeros and a dash in front
+                fc = "-".join(fc.split('-')[1:])
+        # >=5 to avoid an exception here: https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510
+        # <= 15 to limit the bytes added to each bam record
+        assert len(fc) >= 5,"The flowcell ID must be five or more characters in length"
+        if len(fc) > 15:
+            log.warn("The provided flowcell ID is longer than 15 characters. Is that correct?")
         return fc
 
     def get_rundate_american(self):
