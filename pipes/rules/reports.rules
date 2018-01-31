@@ -126,22 +126,13 @@ rule assembly_metrics:
     input:  
         final_assembly = config["data_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: 
-        config["reports_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.',
-        config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
+        config["reports_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.final_assembly.metrics.tsv'
     resources: 
-        mem     = 4,
+        mem     = 2,
         threads = int(config.get("number_of_threads", 1))
     params: 
-        LSF             = config.get('LSF_queues', {}).get('short', '-W 4:00'),
-        UGER            = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
-        logid           = "{sample}",
-        aligner_options = config.get('map_reads_to_self_novoalign_params', "-r Random -l 40 -g 40 -x 20 -t 100 -k") if config.get('map_reads_to_self_aligner', "novoalign")=="novoalign" else "",
-        aligner         = config.get('map_reads_to_self_aligner', "novoalign")
+        LSF               = config.get('LSF_queues', {}).get('short', '-W 1:00'),
+        UGER              = config.get('UGER_queues', {}).get('short', '-l h_rt=00:05:00'),
+        logid             = "{sample}",
     run:
-        makedirs([os.path.join(config["data_dir"], config["subdirs"]["align_self"]),
-            os.path.join(config["reports_dir"], "assembly")])
-        shell("{config[bin_dir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --aligner novoalign --aligner_options '{params.aligner_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role eval --metadata step_name {rule}")
-
-
-
-
+        shell("{config[bin_dir]}/reports.py final_assembly_metrics {input} {output} --metadata sample {wildcards.sample} --metadata step_role eval --metadata step_name {rule}")

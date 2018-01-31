@@ -242,6 +242,14 @@ def get_conda_env():
     return _shell_cmd('conda env export')
 
 # ** add_metadata_tracking
+
+def add_metadata_arg(cmd_parser, help_extra=''):
+    """Add --metadata arg to `cmd_parser`"""
+    if not getattr(cmd_parser, 'metadata_arg_added', False):
+        cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append',
+                                help='attach metadata to this step (step=this specific execution of this command)' + help_extra)
+        setattr(cmd_parser, 'metadata_arg_added', True)
+
 def add_metadata_tracking(cmd_parser, cmd_main):
     """Add provenance tracking to the given command.  
 
@@ -255,10 +263,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
     Returns:
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
     """
-
-    if cmd_parser.get_default('metadata') is None:
-        cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append', default=(),
-                                help='attach metadata to this step (step=this specific execution of this command)')
+    add_metadata_arg(cmd_parser)
 
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
@@ -289,6 +294,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         # of steps invoked as part of one workflow, such as one Snakemake invocation.
         # run_id is the same for all steps run as part of a single workflow.
         # if not given in the environment, create a run_id for a one-step workflow consisting of just this step.
+        beg_time = time.time()
         run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
         step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
@@ -300,8 +306,6 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
         try:
-            beg_time = time.time()
-
             # *** Run the actual command ***
             cmd_result = cmd_main(args_new)
         except Exception as e:
@@ -390,7 +394,7 @@ def is_valid_step_record(d):
 # Section: disabling metadata tracking
 #
 # If metadata tracking is not enabled, disable the code in this module, in a simple way that ensures it won't affect normal operations.
-# operations.  We do this by replacing externally called routines with simple stubs.
+# We do this by replacing external API routines of this module with simple stubs.
 #
 ###
 
@@ -398,12 +402,9 @@ def _return_str(*args, **kw):
     return str
 
 def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
-    """Add the --metadata command-line argument to `cmd_parser`, but make it a no-op; return `cmd_main` unchanged."""
-    if cmd_parser.get_default('metadata') is None:
-        cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append', default=(),
-                                help='(DISABLED because metadata tracking is disabled, set environment variable '
-                                'VIRAL_NGS_METADATA_PATH to enable) attach metadata to this step '
-                                '(step=this specific execution of this command)')
+    """Do nothing, except still recognize the --metadata common command-line argument as valid."""
+    add_metadata_arg(cmd_parser, '(IGNORED because metadata tracking is disabled)')
+
     @functools.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
         delattr(args, 'metadata')

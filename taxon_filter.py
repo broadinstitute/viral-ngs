@@ -68,7 +68,7 @@ def parser_deplete(parser=argparse.ArgumentParser()):
         type=blast_InFiles,
         nargs='*',
         default=(),
-        help='''Reference databases (one or more) to deplete from input.
+        help='''Reference databases to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
                 and db.srprism.idx, db.srprism.map, etc. by srprism mkindex.'''
     )
