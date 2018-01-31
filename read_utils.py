@@ -12,6 +12,7 @@ import argparse
 import logging
 import math
 import os
+import csv
 import tempfile
 import shutil
 import sys
@@ -1204,20 +1205,6 @@ def main_extract_tarball(*args, **kwargs):
     '''
     print(util.file.extract_tarball(*args, **kwargs))
 __commands__.append(('extract_tarball', parser_extract_tarball))
-
-def fasta_stats(fasta):
-    '''Print basic stats about a fasta file'''
-    fasta_metrics = dict(n_seqs=util.file.fasta_length(fasta))
-    log.info('Metrics for FASTA file {}: {}'.format(fasta, fasta_metrics))
-    return dict(metadata={fasta: fasta_metrics})
-
-def parser_fasta_stats(parser=argparse.ArgumentParser()):
-    parser.add_argument('fasta', type=InFile, help='fasta file to analyze')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, fasta_stats, split_args=True)
-    return parser
-
-__commands__.append(('fasta_stats', parser_fasta_stats))
 
 # =========================
 
