@@ -150,6 +150,12 @@ def main_illumina_demux(args):
             )
 
     multiplexed_samples = True if 'B' in read_structure else False            
+    
+    if multiplexed_samples:
+        assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
+    else:
+        assert samples==None, "A SampleSheet may not be provided unless 'B' is present in the read_structure"
+        assert not args.commonBarcodes, "--commonBarcodes may not be specified unless 'B' is present in the read_structure"
 
     # B in read structure indicates barcoded multiplexed samples
     if multiplexed_samples:
