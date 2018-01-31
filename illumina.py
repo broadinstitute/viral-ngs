@@ -80,8 +80,8 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
 
 
 def main_illumina_demux(args):
-    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample.
-        For simplex samples, a single bam will be produced bearing the flowcell ID.
+    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or 
+        for simplex runs, a single bam will be produced bearing the flowcell ID.
         Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
         while handling the various required input formats. Also can
         read Illumina BCL directories, tar.gz BCL directories.
