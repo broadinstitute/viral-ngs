@@ -155,7 +155,9 @@ def main_illumina_demux(args):
         assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
     else:
         assert samples==None, "A SampleSheet may not be provided unless 'B' is present in the read_structure"
-        assert not args.commonBarcodes, "--commonBarcodes may not be specified unless 'B' is present in the read_structure"
+        if args.commonBarcodes:
+            log.warn("--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file.")
+            util.file.touch(args.commonBarcodes)
 
     # B in read structure indicates barcoded multiplexed samples
     if multiplexed_samples:
@@ -209,7 +211,7 @@ def main_illumina_demux(args):
         tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
             illumina.get_BCLdir(),
             os.path.join(args.outDir,flowcell+".bam"),
-            "single_sample_"+flowcell,
+            flowcell,
             args.lane,
             flowcell,
             picardOptions=picardOpts,
@@ -520,10 +522,14 @@ class RunInfo(object):
 
     def get_flowcell(self):
         fc = self.root[0].find('Flowcell').text
-        if '-' in fc:
-            # miseq often adds a bunch of leading zeros and a dash in front
-            fc = fc.split('-')[1]
-        assert 4 <= len(fc) <= 9
+        # do not slice in the iSeq/Firefly case
+        if not self.get_machine().startswith("FF"):
+            if '-' in fc:
+                # miseq often adds a bunch of leading zeros and a dash in front
+                fc = fc.split('-')[1]
+        # >=5 to avoid an exception here: https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510
+        # <= 15 to limit the bytes added to each bam record
+        assert 5 <= len(fc) <= 15
         return fc
 
     def get_rundate_american(self):

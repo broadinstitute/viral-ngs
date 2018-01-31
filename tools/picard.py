@@ -513,7 +513,7 @@ class IlluminaBasecallsToSamTool(PicardTools):
     def execute(self, 
         basecalls_dir,
         barcodes_dir,
-        run_barcode,
+        read_group_id_precursor,
         lane, library_params,
         picardOptions=None,
         JVMmemory=None
@@ -533,20 +533,22 @@ class IlluminaBasecallsToSamTool(PicardTools):
                     opts.append('='.join((k.upper(), str(v))))
         opts += [
             'BASECALLS_DIR=' + basecalls_dir, 'BARCODES_DIR=' + barcodes_dir, 'LANE=' + str(lane),
-            'RUN_BARCODE=' + run_barcode, 'LIBRARY_PARAMS=' + library_params
+            'RUN_BARCODE=' + read_group_id_precursor, 'LIBRARY_PARAMS=' + library_params
         ]
         PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
 
     def execute_single_sample(self, 
         basecalls_dir,
         output_file,
-        run_barcode, # this is a run-specific ID, ex. the flowcell ID
+        read_group_id_precursor, # this is a run-specific ID, ex. the flowcell ID
         lane,
         sample_alias,
         picardOptions=None,
         JVMmemory=None
     ):
         picardOptions = picardOptions or {}
+
+        assert len(read_group_id_precursor) >= 5, "read_group_id_precursor must be >=5 chars per https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510"
 
         opts_dict = self.defaults.copy()
         for k, v in picardOptions.items():
@@ -563,8 +565,9 @@ class IlluminaBasecallsToSamTool(PicardTools):
             'OUTPUT=' + output_file,
             'BASECALLS_DIR=' + basecalls_dir, 
             'LANE=' + str(lane),
-            'RUN_BARCODE=' + run_barcode, #must be >=5 chars per https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510
-            'SAMPLE_ALIAS=' + sample_alias
+            'RUN_BARCODE=' + read_group_id_precursor, #
+            'SAMPLE_ALIAS=' + sample_alias,
+            'LIBRARY_NAME=' + sample_alias
         ]
         PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
     # pylint: enable=W0221
