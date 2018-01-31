@@ -53,7 +53,7 @@ This align-call-refine cycle is iterated twice, to minimize reference bias in th
  
 .. _Trinity: http://trinityrnaseq.github.io/
 .. _SPAdes: http://bioinf.spbau.ru/en/spades
-.. _MUMMER: http://mummer.sourceforge.net/
+.. _MUMMER: https://mummer4.github.io/
 .. _MUSCLE: https://www.drive5.com/muscle/
 .. _MAFFT: http://mafft.cbrc.jp/alignment/software/
 .. _Gap2Seq: https://www.cs.helsinki.fi/u/lmsalmel/Gap2Seq/
