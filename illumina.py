@@ -40,7 +40,8 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                         help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
                         default=None)
     parser.add_argument('--commonBarcodes',
-                        help='Write a TSV report of all barcode counts, in descending order.',
+                        help='''Write a TSV report of all barcode counts, in descending order. 
+                                Only applicable for read structures containing "B"''',
                         default=None)
     parser.add_argument('--sampleSheet',
                         default=None,
@@ -79,12 +80,13 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
 
 
 def main_illumina_demux(args):
-    ''' Demultiplex Illumina runs & produce BAM files, one per sample.
-        Wraps together Picard's ExtractBarcodes and IlluminaBasecallsToSam
+    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample.
+        For simplex samples, a single bam will be produced bearing the flowcell ID.
+        Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
         while handling the various required input formats. Also can
         read Illumina BCL directories, tar.gz BCL directories.
-        TO DO: read BCL or tar.gz BCL directories from S3 / object store.
     '''
+    # TO DO: read BCL or tar.gz BCL directories from S3 / object store.
 
     # prepare
     illumina = IlluminaDirectory(args.inDir)
@@ -147,33 +149,38 @@ def main_illumina_demux(args):
                 link_locs=link_locs
             )
 
-    # Picard ExtractIlluminaBarcodes
-    extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
-    barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
-    samples.make_barcodes_file(extract_input)
-    out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    picardOpts['read_structure'] = read_structure
-    tools.picard.ExtractIlluminaBarcodesTool().execute(
-        illumina.get_BCLdir(),
-        args.lane,
-        extract_input,
-        barcodes_tmpdir,
-        out_metrics,
-        picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+    multiplexed_samples = True if 'B' in read_structure else False            
 
-    if args.commonBarcodes:
-        # this step can take > 2 hours on a large high-output flowcell
-        # so kick it to the background while we demux
-        #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
-        executor = concurrent.futures.ProcessPoolExecutor()
-        executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
+    # B in read structure indicates barcoded multiplexed samples
+    if multiplexed_samples:
+        # Picard ExtractIlluminaBarcodes
+        extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
+        barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+        samples.make_barcodes_file(extract_input)
+        out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
+        picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+                          if hasattr(args, opt) and getattr(args, opt) != None)
+        picardOpts['read_structure'] = read_structure
+        tools.picard.ExtractIlluminaBarcodesTool().execute(
+            illumina.get_BCLdir(),
+            args.lane,
+            extract_input,
+            barcodes_tmpdir,
+            out_metrics,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
 
-    # Picard IlluminaBasecallsToSam
-    basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
-    samples.make_params_file(args.outDir, basecalls_input)
+        if args.commonBarcodes:
+            # this step can take > 2 hours on a large high-output flowcell
+            # so kick it to the background while we demux
+            #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+            executor = concurrent.futures.ProcessPoolExecutor()
+            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
+
+        # Picard IlluminaBasecallsToSam
+        basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
+        samples.make_params_file(args.outDir, basecalls_input)
+
     picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
                       if hasattr(args, opt) and getattr(args, opt) != None)
     picardOpts['run_start_date'] = run_date
@@ -182,22 +189,34 @@ def main_illumina_demux(args):
         picardOpts['num_processors'] = args.threads
     if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
         picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
-    tools.picard.IlluminaBasecallsToSamTool().execute(
-        illumina.get_BCLdir(),
-        barcodes_tmpdir,
-        flowcell,
-        args.lane,
-        basecalls_input,
-        picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+
+    if multiplexed_samples:
+        tools.picard.IlluminaBasecallsToSamTool().execute(
+            illumina.get_BCLdir(),
+            barcodes_tmpdir,
+            flowcell,
+            args.lane,
+            basecalls_input,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
+    else:
+        tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
+            illumina.get_BCLdir(),
+            os.path.join(args.outDir,flowcell+".bam"),
+            "single_sample_"+flowcell,
+            args.lane,
+            flowcell,
+            picardOptions=picardOpts,
+            JVMmemory=args.JVMmemory)
 
     # clean up
-    if args.commonBarcodes:
-        log.info("waiting for commonBarcodes output to finish...")
-        executor.shutdown(wait=True)
-    os.unlink(extract_input)
-    os.unlink(basecalls_input)
-    shutil.rmtree(barcodes_tmpdir)
+    if multiplexed_samples:
+        if args.commonBarcodes:
+            log.info("waiting for commonBarcodes output to finish...")
+            executor.shutdown(wait=True)
+        os.unlink(extract_input)
+        os.unlink(basecalls_input)
+        shutil.rmtree(barcodes_tmpdir)
     illumina.close()
     log.info("illumina_demux complete")
     return 0
