@@ -596,14 +596,9 @@ def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, main_deplete_bwa_bam)
     return parser
 
-
 def main_deplete_bwa_bam(args):
-    '''Use blastn to remove reads that match at least one of the specified databases.'''
-
-    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_bwa_bam(inBam, db, outBam, threads=threads, JVMmemory=JVMmemory)
-
-    multi_db_deplete_bam(args.inBam, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
+    '''Use BWA to remove reads that match at least one of the specified databases.'''
+    multi_db_deplete_bam(args.inBam, args.refDbs, deplete_bwa_bam, args.outBam, threads=args.threads)
     return 0
 __commands__.append(('deplete_bwa_bam', parser_deplete_bwa_bam))
 
