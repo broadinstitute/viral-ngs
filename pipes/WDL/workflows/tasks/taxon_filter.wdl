@@ -20,8 +20,9 @@ task deplete_taxa {
       TMPDIR=/mnt/tmp
     fi
 
-    # find 50% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_50.sh`
+    # find memory thresholds
+    mem_in_mb_50=`/opt/viral-ngs/source/docker/mem_in_mb_50.sh`
+    mem_in_mb_90=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     # bmtagger and blast db args
     DBS_BMTAGGER="${sep=' ' bmtaggerDbs}"
@@ -49,8 +50,8 @@ task deplete_taxa {
       $DBS_BMTAGGER $DBS_BLAST $DBS_BWA \
       ${'--chunkSize=' + query_chunk_size} \
       $TAGS_TO_CLEAR \
-      --JVMmemory="$mem_in_mb"m \
-      --srprismMemory=$mem_in_mb \
+      --JVMmemory="$mem_in_mb_50"m \
+      --srprismMemory=$mem_in_mb_90 \
       --loglevel=DEBUG
 
     samtools view -c ${raw_reads_unmapped_bam} | tee depletion_read_count_pre
