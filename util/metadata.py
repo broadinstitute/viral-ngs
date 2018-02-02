@@ -487,6 +487,10 @@ class ProvenanceGraph(networkx.DiGraph):
             if ((time.time() - step_record['step']['run_info']['beg_time']) / (60*60*24)) > max_age_days: continue
 
             step_id = step_record['step']['step_id']
+
+            # fix an issue in some legacy files
+            step_record['step']['metadata_from_cmd_line'] = dict(step_record['step'].get('metadata_from_cmd_line', {})) 
+
             self.add_node(step_id, node_kind='step', step_record_fname=step_record_fname, **step_record['step'])
 
             # Add input and output files of this step as data nodes.
@@ -507,7 +511,7 @@ class ProvenanceGraph(networkx.DiGraph):
 
                             # gather any per-file metadata specified on the command line.  currently, such metadata can be specified
                             # for a given command arg, and applied to all files denoted by the arg.
-                            for metadata_attr, metadata_val in dict(step_record['step']['metadata_from_cmd_line']).items():
+                            for metadata_attr, metadata_val in step_record['step']['metadata_from_cmd_line'].items():
                                 pfx = 'file.{}.'.format(arg)
                                 if metadata_attr.startswith(pfx):
                                     self[e[0]][e[1]][metadata_attr[len(pfx):]] = metadata_val
@@ -690,9 +694,12 @@ class ProvenanceGraph(networkx.DiGraph):
         assert f_node in G
 
         assert G.in_degree[f_node] == 1, 'No provenance info for file {}'.format(fname)
-        for n in networkx.algorithms.dag.ancestors(G, f_node):
+        ancs = networkx.algorithms.dag.ancestors(G, f_node)
+        for n in ancs:
             if G.is_snode(n):
                 print(G.nodes[n]['step_record_fname'])
+        G.write_dot('prov.dot', nodes=list(ancs)+[f_node])
+        _shell_cmd('dot -Tsvg -o {} {}'.format('prov.svg', 'prov.dot'))
         
 # end: class ProvenanceGraph(object)
 
