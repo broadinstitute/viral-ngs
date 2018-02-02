@@ -33,12 +33,15 @@ task kraken {
     # prep input and output file names
     OUT_READS=fnames_outreads.txt
     OUT_REPORTS=fnames_outreports.txt
+    OUT_BASENAME=basenames_reads.txt
     for bam in ${sep=' ' reads_unmapped_bam}; do
+      echo "$(basename $bam .bam).kraken-reads" >> $OUT_BASENAME
       echo "$(basename $bam .bam).kraken-reads.txt.gz" >> $OUT_READS
       echo "$(basename $bam .bam).kraken-summary_report.txt" >> $OUT_REPORTS
     done
 
-    # execute on all inputs and outputs at once
+    # execute on all inputs and outputs serially, but with a single
+    # database load into ram
     metagenomics.py kraken \
       $DB_DIR \
       ${sep=' ' reads_unmapped_bam} \
@@ -47,16 +50,18 @@ task kraken {
       --loglevel=DEBUG
 
     wait # for krona_taxonomy_db_tgz to download and extract
-    for bam in ${sep=' ' reads_unmapped_bam}; do
-      report_basename="$(basename $bam .bam).kraken-reads"
-      metagenomics.py krona \
-        $report_basename.txt.gz \
+
+    # run single-threaded krona on up to nproc samples at once
+    parallel \
+      "metagenomics.py krona \
+        {}.txt.gz \
         taxonomy \
-        $report_basename.html \
+        {}.html \
         --noRank --noHits \
-        --loglevel=DEBUG
-      tar czf $report_basename.krona.tar.gz $report_basename.html*
-    done
+        --loglevel=DEBUG" \
+      ::: `cat $OUT_BASENAME`
+    # run single-threaded gzip on up to nproc samples at once
+    parallel "tar czf {}.krona.tar.gz {}.html*" ::: `cat $OUT_BASENAME`
   }
 
   output {
