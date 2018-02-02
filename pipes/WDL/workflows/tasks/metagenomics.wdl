@@ -115,9 +115,9 @@ task krona {
 
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
-    memory: "2 GB"
+    memory: "4 GB"
     cpu: 1
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem2_hdd2_x2"
   }
 }
 
