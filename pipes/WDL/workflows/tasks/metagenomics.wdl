@@ -52,16 +52,16 @@ task kraken {
     wait # for krona_taxonomy_db_tgz to download and extract
 
     # run single-threaded krona on up to nproc samples at once
-    parallel \
+    parallel -I ,, \
       "metagenomics.py krona \
-        {}.txt.gz \
+        ,,.txt.gz \
         taxonomy \
-        {}.html \
+        ,,.html \
         --noRank --noHits \
         --loglevel=DEBUG" \
       ::: `cat $OUT_BASENAME`
     # run single-threaded gzip on up to nproc samples at once
-    parallel "tar czf {}.krona.tar.gz {}.html*" ::: `cat $OUT_BASENAME`
+    parallel -I ,, "tar czf ,,.krona.tar.gz ,,.html*" ::: `cat $OUT_BASENAME`
   }
 
   output {
