@@ -17,16 +17,17 @@ from util.metadata import InFile, OutFile, ProvenanceGraph
 
 log = logging.getLogger(__name__)
 
-def print_provenance(fname):
+def print_provenance(fname, svgfile):
     """Print provenance of a given file"""
 
     G = ProvenanceGraph()
     G.load()
 
-    G.print_provenance(fname)
+    G.print_provenance(fname, svgfile)
             
 def parser_print_provenance(parser=argparse.ArgumentParser()):
     parser.add_argument('fname', type=InFile, help='File for which to print provenance')
+    parser.add_argument('--svgfile', type=OutFile, help='svg file to which to write provenance graph for the given file')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, print_provenance, split_args=True)
     return parser

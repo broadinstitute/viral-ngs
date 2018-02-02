@@ -35,8 +35,7 @@ Metadata recording is done on a best-effort basis.  If metadata recording fails 
 # * Prelims
 
 __author__ = "ilya@broadinstitute.org"
-__all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir", 
-           "load_provenance_graph"]
+__all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir"]
 
 # built-ins
 import argparse
@@ -89,22 +88,21 @@ def is_metadata_tracking_enabled():
 
     # check also that the only VIRAL_NGS_METADATA env vars are known ones
 
-
-def _make_list(*x): return x
-
+ 
 # ** class FileArg
 class FileArg(object):
 
-    '''The value of an argparse parser argument representing input or output file(s).  In addition to the string representing the
-    argument value, keeps track of any filenames derived from the argument, and has methods for capturing metadata about the
-    files to which they point.'''
+    '''The value of an argparse parser argument denoting input or output file(s).  In addition to the string representing the
+    argument value, keeps track of any filename(s) derived from the argument, and has methods for capturing metadata about the
+    files they denote.'''
     
     def __init__(self, val, mode, compute_fnames=_make_list):
         """Construct a FileArg.
 
         Args:
-           val: the value of the command-line argument
-           mode: 'r' if `val` points to input file(s), 'w' if to output files
+           val: the value of the command-line argument.  Most commonly this is just the filename of an input or output file of a command,
+              but can also be e.g. the prefix for a group of files.
+           mode: 'r' if `val` denotes input file(s), 'w' if to output files
            compute_fnames: function that will compute, from `val`, the list of actual filenames of the file(s) denoted by this 
              command-line argument.  By default, this is just one file and `val` contains its full name.  But `val` can be a 
              common prefix for a set of files with a given list of suffixes, or `val` can be a directory denoting all the files
@@ -113,11 +111,12 @@ class FileArg(object):
         """
         self.val, self.mode, self.compute_fnames = val, mode, compute_fnames
 
-    def get_fnames(self):
-        """Return the list of filename(s) specified by this command-line argument."""
+    @property
+    def fnames(self):
+        """List of filename(s) denoted by this command-line argument."""
         return self.compute_fnames(self.val)
 
-    def to_dict(self, hasher, out_files_exist):
+    def gather_file_info(self, hasher, out_files_exist):
         """Return a dict representing metadata about the file(s) denoted by this argument.
 
         Args:
@@ -140,11 +139,14 @@ class FileArg(object):
                 except Exception:
                     _log.warning('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
             return file_info
+        # end: def file2dict(file_arg):
 
-        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.get_fnames())))
+        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.fnames)))
+    # end: def gather_file_info(self, hasher, out_files_exist):
 
     @staticmethod
     def is_from_dict(val):
+        """Tests whether `val` is a valid dict representation of a FileArg object (as constructed by gather_file_info() method)."""
         return isinstance(val, collections.Mapping) and '__FileArg__' in val and isinstance(val['files'], list)
 
     def __str__(self):
@@ -157,13 +159,13 @@ class FileArg(object):
 def InFile(val, compute_fnames=_make_list):
     """Argparse argument type for arguments that denote input files."""
     file_arg = FileArg(val, mode='r', compute_fnames=compute_fnames)
-    util.file.check_paths(read=file_arg.get_fnames())
+    util.file.check_paths(read=file_arg.fnames)
     return file_arg
 
 def OutFile(val, compute_fnames=_make_list):
     """Argparse argument type for arguments that denote output files."""
     file_arg = FileArg(val, mode='w', compute_fnames=compute_fnames)
-    util.file.check_paths(write=file_arg.get_fnames())
+    util.file.check_paths(write=file_arg.fnames)
     return file_arg
 
 def InFiles(compute_fnames):
@@ -195,8 +197,9 @@ class Hasher(object):
             _log.warning('Cannot compute hash for {}: {}'.format(file, traceback.format_exc()))
         return file_hash
 
-# ** Getting the environment
-    
+
+# ** run_id management
+
 def create_run_id(t=None):
     """Generate a unique ID for a run (set of steps run as part of one workflow)."""
     return util.file.string_to_file_name('__'.join(map(str, (time.strftime('%Y%m%d%H%M%S', time.localtime(t))[2:], getpass.getuser(),
@@ -206,17 +209,8 @@ def set_run_id():
     """Generate and record in the environment a unique ID for a run (set of steps run as part of one workflow)."""
     os.environ['VIRAL_NGS_METADATA_RUN_ID'] = create_run_id()
 
-def _shell_cmd(cmd):
-    """Run a command and return its output; if command fails, return empty string."""
-    out = ''
-    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
-    if result.returncode == 0:
-        out = result.stdout
-        if not isinstance(out, str):
-            out = out.decode('utf-8')
-        out = out.strip()
-    return out
-    
+# ** Getting the execution environment
+
 def tag_code_version(tag, push_to=None):
     """Create a lightweight git tag for the current state of the project repository, even if the state is dirty.
     If the repository is dirty, use the 'git stash create' command to create a commit representing the current state,
@@ -282,10 +276,15 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         # for args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when adding the args to
         # the parser, the corresponding values will be of type FileArg, rather than strings.  We must convert these values
         # to str before calling the original command implementation `cmd_main`.
-        def replace_file_args(val):
-            return (isinstance(val, FileArg) and val.val) or (isinstance(val, (list, tuple)) and list(map(replace_file_args, val))) or val
+        file_args = []
+        def replace_and_gather_file_args(val):
+            if isinstance(val, FileArg):
+                file_args.append(val)
+                return val.val
+            if isinstance(val, (list, tuple)): return list(map(replace_and_gather_file_args, val))
+            return val
 
-        args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
+        args_new = argparse.Namespace(**{arg: replace_and_gather_file_args(val) for arg, val in args_dict.items()})
 
         cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
         cmd_name = args_dict.get('command', cmd_main.__name__)
@@ -335,8 +334,6 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     args_dict.pop('func_main', '')
 
-                    hasher = Hasher()
-
                     step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                              cmd_module=cmd_module, cmd_name=cmd_name,
                                              version_info=dict(viral_ngs_version=util.version.get_version(),
@@ -355,11 +352,34 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
                                              enclosing_steps=save_steps_running)
+                    #
+                    # Gather any metadata recorded in output files.
+                    #
+                    step_data['step']['metadata_from_metrics'] = {}
+                    for file_arg in file_args:
+                        if file_arg.mode == 'w' and len(file_arg.fnames) == 1 and file_arg.fnames[0].endswith('.metrics.tsv'):
+                            with open(file_arg.fnames[0]) as f:
+                                for i, line in f.read().strip().split():
+                                    # for metrics here and on cmd line, try converting to int and then to float.  or run eval?
+                                    if i == 0: continue
+                                    metric, value = line.strip().split()
+                                    step_data['step']['metadata_from_metrics'][metric] = value
+
+                    #
+                    # Serialize the record of this step to json.  In the process, for any FileArg args of the command,
+                    # gather hashsums and other file info for the denoted file(s).
+                    #
+
+                    hasher = Hasher()
 
                     def write_obj(x):
-                        return (isinstance(x, FileArg) and x.to_dict(hasher, cmd_exception is None)) or str(x)
+                        """If `x` is a FileArg, return a dict representing it, else return a string representation of `x`.
+                        Used for json serialization below."""
+                        return (isinstance(x, FileArg) and x.gather_file_info(hasher, out_files_exist=cmd_exception is None)) or str(x)
                     
                     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
+
+                    # as a sanity check, we compute the CRC of the json file contents, and make that part of the filename.
                     crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
 
                     util.file.dump_file(os.path.join(metadata_dir(), '{}.crc32_{}.json'.format(step_id, crc32)), json_str)
@@ -577,7 +597,8 @@ class ProvenanceGraph(networkx.DiGraph):
     # end: def _reconstruct_missing_connections(self, file_nodes=None):
 
     def _reconstruct_fnode_maker(self, fnode):
-        """Reconstruct missing maker of fnode
+        """Reconstruct missing maker step of fnode: find another node (if exists) that represents the same file (in the same location)
+        with the same contents, just with an earlier mtime.  Return the new fnode if found, else return none.
         """
 
         hash2files, realpath2files = self._compute_hash_and_realpath_indices()
@@ -618,7 +639,7 @@ class ProvenanceGraph(networkx.DiGraph):
         return hash2files, realpath2files
     # end: def _compute_hash_and_realpath_indices(self):
 
-# *** write_dot    
+# *** write_dot
     def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=(), title=''):
         """Write out this graph, or part of it, as a GraphViz .dot file."""
 
@@ -667,8 +688,19 @@ class ProvenanceGraph(networkx.DiGraph):
             out.write('}\n')
     # end: def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
 
-    def print_provenance(self, fname):
-        """Print the provenance info for the given file"""
+    def write_svg(self, svgfile, *args **kwargs):
+        """Write out this graph to an .svg file.  See write_dot() for documentation of args."""
+        with util.file.tempfname('.dot') as dotfile:
+            self.write_dot(dotfile, *args, **kwargs)
+        _shell_cmd('dot -Tsvg -o {} {}'.format(svgfile, dotfile), ignore_errors=False)
+
+# *** print_provenance
+    def print_provenance(self, fname, svgfile=None):
+        """Print the provenance info for the given file.
+        
+        Args:
+            svgfile: if given, write the provenance graph for the given file to this .svg file
+        """
 
         print('PROVENANCE FOR: {}'.format(fname))
         G = copy.deepcopy(self)
@@ -698,8 +730,8 @@ class ProvenanceGraph(networkx.DiGraph):
         for n in ancs:
             if G.is_snode(n):
                 print(G.nodes[n]['step_record_fname'])
-        G.write_dot('prov.dot', nodes=list(ancs)+[f_node])
-        _shell_cmd('dot -Tsvg -o {} {}'.format('prov.svg', 'prov.dot'))
+
+        if svgfile: G.write_svg(svgfile, nodes=list(ancs)+[f_node])
         
 # end: class ProvenanceGraph(object)
 
@@ -732,7 +764,23 @@ def compute_paths():
                         title=os.path.basename(e.realpath))
             _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
             _log.info('created {}'.format(svg_fname))
-        
+
+# * Misc utils
+
+def _make_list(*x): return x
+
+def _shell_cmd(cmd, ignore_errors=True):
+    """Run a command and return its output; if command fails and `ignore_errors_ is True, return the empty string."""
+    out = ''
+    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
+    if result.returncode == 0:
+        out = result.stdout
+        if not isinstance(out, str):
+            out = out.decode('utf-8')
+        out = out.strip()
+    elif not ignore_errors: raise RuntimeError('Error running {}'.format(cmd))    
+    return out
+
 ################################################################    
 
 def _setup_logger(log_level):
