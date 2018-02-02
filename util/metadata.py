@@ -422,15 +422,12 @@ if not is_metadata_tracking_enabled():
 # ** class ProvenanceGraph
 class ProvenanceGraph(networkx.DiGraph):
 
-    '''Provenance graph representing a set of computations.  It has two types of nodes: steps and files.  A step node
-    represents a computation step (a specific execution of a specific command); a file node represents a particular file
+    '''Provenance graph representing a set of computations.  It has two types of nodes: steps and files.  A step node (snode)
+    represents a computation step (a specific execution of a specific command); a file node (fnode) represents a particular file
     that was read/written by one or more steps.
 
     Edges go from input files of a step to the step, and from a step to its output files, so the graph is bipartite.
     Various information about the parameters and execution of a step is represented as attributes of the step node.
-
-    Fields:
-       hash2files: map from file hash to file nodes with that hash
     '''
 
     FileNode = collections.namedtuple('FileNode', 'realpath file_hash mtime')
@@ -439,15 +436,19 @@ class ProvenanceGraph(networkx.DiGraph):
         """Initialize an empty provenance graph."""
         super(ProvenanceGraph, self).__init__()
 
+    def is_fnode(self, n): return self.nodes[n]['node_kind'] == 'file'
+    def is_snode(self, n): return self.nodes[n]['node_kind'] == 'step'
+
     @property
     def file_nodes(self): 
         """The nodes representing files"""
-        return [n for n in self if self.nodes[n]['node_kind'] == 'file']
+        return [n for n in self if self.is_fnode(n)]
+
 
     @property
     def step_nodes(self): 
         """The nodes representing steps"""
-        return [n for n in self if self.nodes[n]['node_kind'] == 'step']
+        return [n for n in self if self.is_snode(n)]
 
 # *** Loading pgraph
     def load(self, metadata_path=None, max_age_days=10000):
@@ -457,6 +458,12 @@ class ProvenanceGraph(networkx.DiGraph):
            path: path to the metadata directory; if None (default), use the path specified by the environment var VIRAL_NGS_METADATA_PATH.
            max_age_days: ignore steps older than this many days
         """
+
+        #
+        # This is not quite a straightforward "load" operation -- we transform the data a bit in the process.
+        # When recording, we record everything we might later need; but when loading, we might filter out some info.
+        # We might also compute some useful derived info.
+        #
 
         metadata_path = metadata_path or metadata_dir()
 
@@ -480,7 +487,7 @@ class ProvenanceGraph(networkx.DiGraph):
             if ((time.time() - step_record['step']['run_info']['beg_time']) / (60*60*24)) > max_age_days: continue
 
             step_id = step_record['step']['step_id']
-            self.add_node(step_id, node_kind='step', **step_record['step'])
+            self.add_node(step_id, node_kind='step', step_record_fname=step_record_fname, **step_record['step'])
 
             # Add input and output files of this step as data nodes.
             for arg, val in step_record['step']['args'].items():
@@ -512,73 +519,13 @@ class ProvenanceGraph(networkx.DiGraph):
 # **** Check for anomalies
 
         for f in self.file_nodes:
-            if self.in_degree[f] > 1:
-                print('ANOMALY: file with indegree {}: {}'.format(self.in_degree[f], f))
-                for e in self.in_edges(nbunch=f, data=True):
-                    print(e[0], e[1], json.dumps(e[2], indent=4))
+            assert self.in_degree[f] <= 1
+            # if self.in_degree[f] > 1:
+            #     _log.warning('ANOMALY: file with indegree {}: {}'.format(self.in_degree[f], f))
+            #     for e in self.in_edges(nbunch=f, data=True):
+            #         _log.warning(e[0], e[1], json.dumps(e[2], indent=4))
 
-# **** Reconstruct missing connections between steps and files
-
-        hash2files = collections.defaultdict(set)
-        realpath2files = collections.defaultdict(set)
-        for f in self.file_nodes:
-            hash2files[f.file_hash].add(f)
-            realpath2files[f.realpath].add(f)
-
-        for h, fs in hash2files.items():
-            if len(fs) > 1:
-                for f1 in fs:
-                    for f2 in fs:
-                        if f1.realpath != f2.realpath and os.path.isfile(f1.realpath) and os.path.isfile(f2.realpath) and \
-                           os.path.samefile(f1.realpath, f2.realpath):
-                            realpath2files[f1.realpath].add(f2)
-                            realpath2files[f2.realpath].add(f1)
-                            print('SAMEFILES:\n{}\n{}\n'.format(f1, f2))
-
-        for f in self.file_nodes:
-            if not self.pred[f]:
-                # file f is read by some step, but we don't have a record of a step that wrote this exact file.
-                # do we have 
-                f2s = [ f2 for f2 in (hash2files[f.file_hash] & realpath2files[f.realpath]) if f2 != f and f2.mtime < f.mtime ]
-                if f2s:
-                    f2s = sorted(f2s, key=operator.attrgetter('mtime'))
-                    for s in list(self.succ[f]):
-                        f2s_bef = [ f2 for f2 in f2s if f2.mtime < self.nodes[s]['run_info']['beg_time'] ]
-                        if f2s_bef:
-                            f2 = f2s_bef[-1]
-                            assert f2 != f and f2.file_hash == f.file_hash and f2.mtime < f.mtime
-                            self.add_edge(f2, s, **self.edges[f, s])
-                            self.remove_edge(f, s)
-                            _log.info('reconnected: {}->{}'.format(f2.realpath, s))
-
-        # process hardlinks: if a file doesn't have a creation record, but is the same as a file that does, then
-        # reroute input links to the file that does have a creation record.
-
-        if False:
-
-            new_edges = []
-            del_nodes = []
-            for file_node in self.file_nodes:
-                #assert self.in_degree[file_node] <= 1
-                if self.in_degree[file_node] == 0:
-                    if not os.path.isfile(file_node.realpath): continue
-                    # loop over files which have contents identical to file_node, but which have a creation record
-                    # (i.e. are the output of a known step)
-                    for file_node_2 in self.hash2files[file_node.file_hash]:
-                        if file_node_2 != file_node and file_node_2.mtime == file_node.mtime and self.in_degree[file_node_2] > 0 and \
-                           os.path.isfile(file_node_2.realpath) and os.path.samefile(file_node.realpath, file_node_2.realpath):
-                            # merge file_node into file_node_2: for any steps that read file_node, reroute them to read file_node_2 instead.
-                            for n, step_reading_n, edge_attrs in self.out_edges(file_node, data=True):
-                                assert n == file_node
-                                new_edges.append((file_node_2, step_reading_n, copy.deepcopy(edge_attrs)))
-                                _log.info('rerouted input of {} from {} to {}'.format(step_reading_n, n, file_node_2))
-                            del_nodes.append(n)
-                            break
-                    # end: for file_node_2 in self.hash2files[file_node.file_hash]:
-                # end: if self.in_degree[file_node] == 0
-            # end: for file_node in file_nodes
-            self.add_edges_from(new_edges)
-            self.remove_nodes_from(del_nodes)
+        self._reconstruct_missing_connections()
 
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self)
 
@@ -595,9 +542,77 @@ class ProvenanceGraph(networkx.DiGraph):
                 unknown_origin_files.append(file_node.realpath)
                 #_log.warning('UNKNOWN ORIGIN: {}'.format(file_node))
 
-        print('UNKNOWN_ORIGIN:\n', '\n'.join(unknown_origin_files))
+        _log.warning('UNKNOWN_ORIGIN:\n{}'.format('\n'.join(unknown_origin_files)))
 
     # end: def load(self, path=None)
+
+    def _reconstruct_missing_connections(self):
+        """Reconstruct missing connections between steps and files.
+        """
+
+        hash2files, realpath2files = self._compute_hash_and_realpath_indices()
+
+        for f in list(self.file_nodes):
+            if self.is_fnode(f) and not self.pred[f]:
+                # file f is read by some step, but we don't have a record of a step that wrote this exact file.
+                # do we have 
+                print('trying to reconnect to {}'.format(f))
+                f2s = [ f2 for f2 in (hash2files[f.file_hash] & realpath2files[f.realpath]) if f2 != f and f2.mtime < f.mtime ]
+                print('f2s={}'.format(f2s))
+                if f2s:
+                    f2s = sorted(f2s, key=operator.attrgetter('mtime'))
+                    for s in list(self.succ[f]):
+                        f2s_bef = [ f2 for f2 in f2s if f2.mtime < self.nodes[s]['run_info']['beg_time'] ]
+                        if f2s_bef:
+                            f2 = f2s_bef[-1]
+                            assert f2 != f and f2.file_hash == f.file_hash and f2.mtime < f.mtime
+                            self.add_edge(f2, s, **self.edges[f, s])
+                            self.remove_edge(f, s)
+                            
+                            _log.info('reconnected: {}->{}'.format(f2.realpath, s))
+    # end: def _reconstruct_missing_connections(self, file_nodes=None):
+
+    def _reconstruct_fnode_maker(self, fnode):
+        """Reconstruct missing maker of fnode
+        """
+
+        hash2files, realpath2files = self._compute_hash_and_realpath_indices()
+
+        # file f is read by some step, but we don't have a record of a step that wrote this exact file.
+        # do we have 
+        f = fnode
+        print('trying to reconnect to {}'.format(f))
+        f2s = [ f2 for f2 in (hash2files[f.file_hash] & realpath2files[f.realpath]) if f2 != f ]
+        print('f2s={}'.format(f2s))
+        if f2s:
+            f2s = sorted(f2s, key=operator.attrgetter('mtime'))
+            f2 = f2s[-1]
+            assert f2 != f and f2.file_hash == f.file_hash
+            return f2
+        return None
+    # end: def _reconstruct_fnode_maker(self, fnode):
+
+    def _compute_hash_and_realpath_indices(self):
+        """Compute mapping from hash to file nodes and from realpath to file nodes"""
+
+        hash2files = collections.defaultdict(set)
+        realpath2files = collections.defaultdict(set)
+        for f in self.file_nodes:
+            hash2files[f.file_hash].add(f)
+            realpath2files[f.realpath].add(f)
+
+        for h, fs in hash2files.items():
+            if len(fs) > 1:
+                for f1 in fs:
+                    for f2 in fs:
+                        if f1.realpath != f2.realpath and os.path.isfile(f1.realpath) and os.path.isfile(f2.realpath) and \
+                           os.path.samefile(f1.realpath, f2.realpath):
+                            realpath2files[f1.realpath].add(f2)
+                            realpath2files[f2.realpath].add(f1)
+                            #_log.info('SAMEFILES:\n{}\n{}\n'.format(f1, f2))
+
+        return hash2files, realpath2files
+    # end: def _compute_hash_and_realpath_indices(self):
 
 # *** write_dot    
     def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=(), title=''):
@@ -647,6 +662,37 @@ class ProvenanceGraph(networkx.DiGraph):
             out.write('label="{}\n{}";\n'.format(time.strftime('%c'), title))
             out.write('}\n')
     # end: def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
+
+    def print_provenance(self, fname):
+        """Print the provenance info for the given file"""
+
+        print('PROVENANCE FOR: {}'.format(fname))
+        G = copy.deepcopy(self)
+        
+        f_node = G.FileNode(os.path.realpath(fname), Hasher()(fname), os.stat(fname)[stat.ST_MTIME])
+        print('f_node=', f_node)
+
+        hash2files, realpath2files = G._compute_hash_and_realpath_indices()
+        print('hash2files:', '\n'.join(map(str, hash2files.get(f_node.file_hash, []))))
+        print('realpath2files:', '\n'.join(map(str, realpath2files.get(f_node.realpath, []))))
+
+        print('f_node in G? ', f_node in G)
+        if f_node in G:
+            print('in_degree is', G.in_degree[f_node])
+
+        if f_node not in G:
+            G.add_node(f_node, node_kind='file')
+
+        if G.in_degree[f_node] < 1:
+            print('trying to reconnect')
+            f_node = G._reconstruct_fnode_maker(f_node)
+
+        assert f_node in G
+
+        assert G.in_degree[f_node] == 1, 'No provenance info for file {}'.format(fname)
+        for n in networkx.algorithms.dag.ancestors(G, f_node):
+            if G.is_snode(n):
+                print(G.nodes[n]['step_record_fname'])
         
 # end: class ProvenanceGraph(object)
 
