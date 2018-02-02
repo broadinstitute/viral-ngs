@@ -73,6 +73,22 @@ import networkx.algorithms.dag
 
 _log = logging.getLogger(__name__)
 
+# ** Misc utils
+
+def _make_list(*x): return x
+
+def _shell_cmd(cmd, ignore_errors=True):
+    """Run a command and return its output; if command fails and `ignore_errors_ is True, return the empty string."""
+    out = ''
+    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
+    if result.returncode == 0:
+        out = result.stdout
+        if not isinstance(out, str):
+            out = out.decode('utf-8')
+        out = out.strip()
+    elif not ignore_errors: raise RuntimeError('Error running {}'.format(cmd))    
+    return out
+
 # * Recording of metadata
 
 VIRAL_NGS_METADATA_FORMAT='1.0.0'
@@ -688,7 +704,7 @@ class ProvenanceGraph(networkx.DiGraph):
             out.write('}\n')
     # end: def write_dot(self, dotfile, nodes=None, ignore_cmds=(), ignore_exts=()):
 
-    def write_svg(self, svgfile, *args **kwargs):
+    def write_svg(self, svgfile, *args, **kwargs):
         """Write out this graph to an .svg file.  See write_dot() for documentation of args."""
         with util.file.tempfname('.dot') as dotfile:
             self.write_dot(dotfile, *args, **kwargs)
@@ -764,22 +780,6 @@ def compute_paths():
                         title=os.path.basename(e.realpath))
             _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
             _log.info('created {}'.format(svg_fname))
-
-# * Misc utils
-
-def _make_list(*x): return x
-
-def _shell_cmd(cmd, ignore_errors=True):
-    """Run a command and return its output; if command fails and `ignore_errors_ is True, return the empty string."""
-    out = ''
-    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
-    if result.returncode == 0:
-        out = result.stdout
-        if not isinstance(out, str):
-            out = out.decode('utf-8')
-        out = out.strip()
-    elif not ignore_errors: raise RuntimeError('Error running {}'.format(cmd))    
-    return out
 
 ################################################################    
 
