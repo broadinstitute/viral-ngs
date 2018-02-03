@@ -102,7 +102,7 @@ def main_command(mainfunc):
     def _main(args):
         args2 = dict((k, v) for k, v in vars(args).items() if k not in (
             'loglevel', 'tmp_dir', 'tmp_dirKeep', 'version', 'func_main', 'command'))
-        mainfunc(**args2)
+        return mainfunc(**args2)
 
     return _main
 

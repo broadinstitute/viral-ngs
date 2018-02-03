@@ -345,6 +345,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
 
+
                     metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
                                                else {}
 
@@ -368,19 +369,6 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
                                              enclosing_steps=save_steps_running)
-                    #
-                    # Gather any metadata recorded in output files.
-                    #
-                    step_data['step']['metadata_from_metrics'] = {}
-                    for file_arg in file_args:
-                        if file_arg.mode == 'w' and len(file_arg.fnames) == 1 and file_arg.fnames[0].endswith('.metrics.tsv'):
-                            with open(file_arg.fnames[0]) as f:
-                                for i, line in f.read().strip().split():
-                                    # for metrics here and on cmd line, try converting to int and then to float.  or run eval?
-                                    if i == 0: continue
-                                    metric, value = line.strip().split()
-                                    step_data['step']['metadata_from_metrics'][metric] = value
-
                     #
                     # Serialize the record of this step to json.  In the process, for any FileArg args of the command,
                     # gather hashsums and other file info for the denoted file(s).
