@@ -753,35 +753,83 @@ class ProvenanceGraph(networkx.DiGraph):
         
 # end: class ProvenanceGraph(object)
 
-# ** compute_paths
-def compute_paths():
-    """Compute computation paths, and their attributes."""
+
+class Comp(object):
+    """"A Comp is a particular computation, represented by a subgraph of the ProvenanceGraph.
+
+    Fields:
+       nodes: ProvenanceGraph nodes (both fnodes and snodes) comprising this computation
+       main_inputs: fnode(s) denoting the main inputs to the computation, the data we're trying to analyze.
+         For an assembly, the main inputs might be the raw reads files.  By contrast, things like depletion databases
+         are more like parameters of the computation, rather than its inputs.
+       main_outputs: fnode(s) denoting the main outputs of the computation.  This is in contrast to files that store metrics,
+         log files, etc.
+    """
+
+    def __init__(self, nodes, main_inputs, main_outputs):
+        self.nodes, self.main_inputs, self.main_outputs = nodes, main_inputs, main_outputs
+
+# end: class Comp(object):
+
+# ** extract_comps
+def extract_comps():
+    """From the provenance graph, extract the computation paths we're interested in.  A computation path is a set of nodes.
+    For example, we might extract all paths leading from a raw .bam file of reads to a final assembly, along with nodes that
+    compute metrics of the assembly.
+
+    Returns:
+       a list of extracted comps, represented as Comp objects
+    """
 
     G = ProvenanceGraph()
     G.load()
 
-    beg_nodes = [f for f in G.file_nodes if fnmatch.fnmatch(f.realpath, '*/data/00_raw/*.bam')]
+    extracted_comps = []
+
+    beg_nodes = set([f for f in G.file_nodes if fnmatch.fnmatch(f.realpath, '*/data/00_raw/*.bam')])
     end_nodes = [f for f in G.file_nodes if fnmatch.fnmatch(f.realpath, '*/data/02_assembly/*.fasta')]
-    for i, e in enumerate(end_nodes):
-        ancs = networkx.algorithms.dag.ancestors(G, e)
-        ancs.add(e)
-        if True: #set(beg_nodes) & ancs:
+    for end_node in end_nodes:
+        ancs = networkx.algorithms.dag.ancestors(G, end_node)
+        ancs.add(end_node)
+        ancs = set(ancs)
+        beg = beg_nodes & ancs
+        if beg:
+            assert len(beg) == 1
+            extracted_comps.append(Comp(nodes=ancs, main_inputs=list(beg), main_outputs=[end_node]))
 
-            print('===============================beg ', i)
-            for a in ancs:
-                if G.nodes[a]['node_kind'] == 'step':
-                    print('-----------------------', json.dumps(G.nodes[a], indent=4))
+    return extracted_comps
 
-            print('===============================end ', i)
+def group_comps_by_main_input(comps):
+    """Group Comps by the contents of their main inputs.  This way we identify groups of comps where within each group,
+    the comps all start with the same inputs."""
 
-            dot_fname = 'pgraph{:03}.dot'.format(i)
-            svg_fname = 'pgraph{:03}.svg'.format(i)
-            G.write_dot(dot_fname, nodes=ancs, ignore_cmds=['main_vcf_to_fasta'], 
-                        ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
-                        ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()],
-                        title=os.path.basename(e.realpath))
-            _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
-            _log.info('created {}'.format(svg_fname))
+    def comp_main_inputs_contents(comp): return tuple(map(operator.attrgetter('file_hash'), comp.main_inputs))
+    return [tuple(g) for k, g in itertools.groupby(sorted(comps, key=comp_main_inputs_contents), key=comp_main_inputs_contents)]
+
+def report_comps_groups():
+    grps = group_comps_by_main_input(extract_comps())
+    print(sorted(map(len, grps)))
+
+
+# end: def extract_paths():
+
+        # if True: #set(beg_nodes) & ancs:
+
+        #     print('===============================beg ', i)
+        #     for a in ancs:
+        #         if G.nodes[a]['node_kind'] == 'step':
+        #             print('-----------------------', json.dumps(G.nodes[a], indent=4))
+
+        #     print('===============================end ', i)
+
+        #     dot_fname = 'pgraph{:03}.dot'.format(i)
+        #     svg_fname = 'pgraph{:03}.svg'.format(i)
+        #     G.write_dot(dot_fname, nodes=ancs, ignore_cmds=['main_vcf_to_fasta'], 
+        #                 ignore_exts=['.fai', '.dict', '.nix']+['.bitmask', '.nhr', '.nin', '.nsq']+
+        #                 ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()],
+        #                 title=os.path.basename(e.realpath))
+        #     _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
+        #     _log.info('created {}'.format(svg_fname))
 
 ################################################################    
 
@@ -797,7 +845,8 @@ def _setup_logger(log_level):
 if __name__ == '__main__':
     #import assembly
     _setup_logger('INFO')
-    compute_paths()
+    report_comps_groups()
+    #compute_paths()
 
     if False:
         pgraph = ProvenanceGraph()
