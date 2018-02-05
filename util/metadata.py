@@ -1,7 +1,13 @@
-'''Automated recording of data provenance and metrics.  This lets you answer questions like: how was a given data file made?  Which workflow
-versions tend to produce the best results, according to given metrics?
+'''Automated recording of data provenance and metrics.
 
-This module deals with data recording; ../data_utils.py deals with data querying.
+This module enables the following:
+   - answering questions like:
+      - how was a given data file made?  (by what command, with what parameters, using what code version)
+      - Which workflow versions (parameters, code versions) tend to produce the best results for which kinds of input, 
+      according to given metrics?
+   - avoiding redundant computation, when a command is re-run with the same inputs
+
+../metadata_utils.py provides external command-line interface for querying provenance data.
 
 The unit of recording in this module is one command (see cmd.py), as opposed to one Python function or one whole workflow.
 To use this module, import InFile and OutFile from it; then, when defining argparse arguments for a command, in add_argument()
@@ -35,7 +41,8 @@ Metadata recording is done on a best-effort basis.  If metadata recording fails 
 # * Prelims
 
 __author__ = "ilya@broadinstitute.org"
-__all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir"]
+__all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "InFilesPrefix", "OutFilesPrefix",
+           "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir"]
 
 # built-ins
 import argparse
@@ -192,6 +199,13 @@ def OutFiles(compute_fnames):
     """Argparse argument type for a string from which names of output files can be computed"""
     return functools.partial(OutFile, compute_fnames=compute_fnames)
 
+def InFilesPrefix(suffixes):
+    """Argparse argument type for a string that denotes the common prefix of a group of input files."""
+    return InFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=suffixes))
+
+def OutFilesPrefix(suffixes):
+    """Argparse argument type for a string that denotes the common prefix of a group of input files."""
+    return OutFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=suffixes))
 
 # ** Hashing of files
 
@@ -437,7 +451,7 @@ def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
     return _run_cmd_with_tracking
 
 if not is_metadata_tracking_enabled():
-    InFile, OutFile, InFiles, OutFiles = str, str, _return_str, _return_str
+    InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix = str, str, _return_str, _return_str, _return_str, _return_str
     add_metadata_tracking = _add_metadata_tracking_dummy
 
 # * Analysis of metadata 

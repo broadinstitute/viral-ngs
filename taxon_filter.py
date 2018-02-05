@@ -35,7 +35,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.metadata import InFile, OutFile, InFiles
+from util.metadata import InFile, OutFile, InFilesPrefix
 
 log = logging.getLogger(__name__)
 
@@ -52,20 +52,17 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'blastnBam', type=OutFile, help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
-    blast_InFiles = InFiles(compute_fnames=functools.partial(util.misc.add_suffixes,
-                                                             suffixes=(['.bitmask']+
-                                                                       ['.srprism.'+ext 
-                                                                        for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()])))
+    blast_suffixes = ['.bitmask'] + ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]
     parser.add_argument(
         '--bwaDbs',
-        type=blast_InFiles,
+        type=InFilesPrefix(suffixes=blast_suffixes),
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
     )
     parser.add_argument(
         '--bmtaggerDbs',
-        type=blast_InFiles,
+        type=InFilesPrefix(suffixes=blast_suffixes),
         nargs='*',
         default=(),
         help='''Reference databases to deplete from input.
@@ -74,7 +71,7 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--blastDbs',
-        type=InFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=['.nsq', '.nhr', '.nin'])),
+        type=InFilesPrefix(suffixes=['.nsq', '.nhr', '.nin']),
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
