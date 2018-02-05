@@ -77,6 +77,7 @@ import util.version
 # third-party
 import networkx
 import networkx.algorithms.dag
+import networkx.utils.misc
 
 _log = logging.getLogger(__name__)
 
@@ -84,16 +85,15 @@ _log = logging.getLogger(__name__)
 
 def _make_list(*x): return x
 
-def _shell_cmd(cmd, ignore_errors=True):
-    """Run a command and return its output; if command fails and `ignore_errors_ is True, return the empty string."""
+def _shell_cmd(cmd, *args, **kwargs):
+    """Run a command and return its output; if command fails and `check` keyword arg is False, return the empty string."""
     out = ''
-    result = util.misc.run_and_print(cmd.strip().split(), silent=True)
+    result = util.misc.run_and_print(cmd.strip().split(), *args, **kwargs)
     if result.returncode == 0:
         out = result.stdout
         if not isinstance(out, str):
             out = out.decode('utf-8')
         out = out.strip()
-    elif not ignore_errors: raise RuntimeError('Error running {}'.format(cmd))    
     return out
 
 # * Recording of metadata
@@ -528,6 +528,8 @@ class ProvenanceGraph(networkx.DiGraph):
 
             # fix an issue in some legacy files
             step_record['step']['metadata_from_cmd_line'] = dict(step_record['step'].get('metadata_from_cmd_line', {})) 
+            step_record['step']['step_name'] = step_record['step']['metadata_from_cmd_line'].get('step_name',
+                                                                                                 step_record['step']['cmd_name'])
 
             self.add_node(step_id, node_kind='step', step_record_fname=step_record_fname, **step_record['step'])
 
@@ -682,8 +684,8 @@ class ProvenanceGraph(networkx.DiGraph):
             for n in self:
                 if not nodes or n in nodes:
                     n_attrs = self.nodes[n]
-                    if self.nodes[n]['node_kind'] == 'step':
-                        label = get_val(n_attrs, 'metadata_from_cmd_line step_name'.split()) or get_val(n_attrs, 'cmd_name') or 'unknown_cmd'
+                    if n_attrs['node_kind'] == 'step':
+                        label = n_attrs['step_name']
                         if label in ignore_cmds: 
                             ignored.add(n)
                             continue
@@ -710,7 +712,7 @@ class ProvenanceGraph(networkx.DiGraph):
         """Write out this graph to an .svg file.  See write_dot() for documentation of args."""
         with util.file.tempfname('.dot') as dotfile:
             self.write_dot(dotfile, *args, **kwargs)
-        _shell_cmd('dot -Tsvg -o {} {}'.format(svgfile, dotfile), ignore_errors=False)
+            _shell_cmd('dot -Tsvg -o {} {}'.format(svgfile, dotfile), check=True)
 
 # *** print_provenance
     def print_provenance(self, fname, svgfile=None):
@@ -769,10 +771,36 @@ class Comp(object):
     def __init__(self, nodes, main_inputs, main_outputs):
         self.nodes, self.main_inputs, self.main_outputs = nodes, main_inputs, main_outputs
 
+    def __str__(self):
+        return('Comp(main_inputs={}, main_outputs={})'.format(self.main_inputs, self.main_outputs))
+
 # end: class Comp(object):
 
+def compute_comp_attrs(G, comp):
+    """Compute the set of attribute-value pairs for a Comp.
+    """
+
+    attrs={}
+    for n in comp.nodes:
+        if G.is_snode(n):
+            na = G.nodes[n]
+            step_name = na['step_name']  # might need to prepend cmd_module for uniqueness?
+
+            def gather_files(val):
+                """Return a flattened list of files denoted by this command argument (or empty list if it does not denote files)."""
+                return (FileArg.is_from_dict(val) and [val]) \
+                    or (isinstance(val, (list, tuple)) and functools.reduce(operator.concat, list(map(gather_files, val)), [])) or []
+
+            for a, v in na['args'].items():
+                if gather_files(v): continue
+                if a in 'tmp_dir tmp_dirKeep loglevel'.split(): continue
+                if step_name == 'impute_from_reference' and a == 'newName': continue
+                attrs[step_name+'.'+a] = str(v)
+
+    return frozenset(attrs.items())
+
 # ** extract_comps
-def extract_comps():
+def extract_comps(G):
     """From the provenance graph, extract the computation paths we're interested in.  A computation path is a set of nodes.
     For example, we might extract all paths leading from a raw .bam file of reads to a final assembly, along with nodes that
     compute metrics of the assembly.
@@ -780,9 +808,6 @@ def extract_comps():
     Returns:
        a list of extracted comps, represented as Comp objects
     """
-
-    G = ProvenanceGraph()
-    G.load()
 
     extracted_comps = []
 
@@ -807,8 +832,22 @@ def group_comps_by_main_input(comps):
     return [tuple(g) for k, g in itertools.groupby(sorted(comps, key=comp_main_inputs_contents), key=comp_main_inputs_contents)]
 
 def report_comps_groups():
-    grps = group_comps_by_main_input(extract_comps())
+
+    G = ProvenanceGraph()
+    G.load()
+
+    grps = group_comps_by_main_input(extract_comps(G))
     print(sorted(map(len, grps)))
+    for grp_num, g in enumerate(grps):
+        g = list(g)
+        if len(g) > 1:
+            print('==============grp:')
+            print('\n'.join(map(str, g)))
+            for comp_num, comp in enumerate(g):
+                G.write_svg('prov{}_{}.svg'.format(grp_num, comp_num), nodes=comp.nodes)
+                if comp_num > 0:
+                    print('symdiff:\n', '\n'.join(map(str, 
+                                                    sorted(compute_comp_attrs(G, g[0]) ^ compute_comp_attrs(G, comp)))))
 
 
 # end: def extract_paths():
