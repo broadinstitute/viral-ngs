@@ -23,6 +23,7 @@ import shutil
 import sys
 import subprocess
 import tempfile
+import json
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -1137,6 +1138,162 @@ def kraken_library_ids(library):
 
 class KrakenBuildError(Exception):
     '''Error while building kraken database.'''
+
+
+def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
+    parser.add_argument('summary_files_in', nargs="+", help='Kraken summary text file with tab-delimited taxonomic levels.')
+    parser.add_argument('--jsonOut', dest="json_out", type=argparse.FileType('w'), help='The path to a json file containing the relevant parsed summary data in json format.')
+    parser.add_argument('--csvOut', dest="csv_out", type=argparse.FileType('w'), help='The path to a csv file containing sample-specific counts.')
+    parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s)', default="Viruses")
+    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="genus", 
+                        choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
+    parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N taxa by read count (default: %(default)s)')
+    parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
+    parser.add_argument('--noHist', action='store_true', dest="no_hist", help='When topN==1, write out a report by-sample rather than a histogram.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
+    return parser
+
+def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist):
+    """
+        By default, when --taxHeading is at the same level as --taxlevelFocus
+        a summary with lines for each sample is emitted. Otherwise, a histogram is returned.
+        Full data returned via --jsonOut (filtered by --topN and --countThreshold), whereas -csvOut returns a summary.
+    """
+
+    samples = {}
+    same_level = False
+    
+    def indent_len(in_string):
+        return len(in_string)-len(in_string.lstrip())
+
+    for f in list(summary_files_in):
+        sample_name, extension = os.path.splitext(f)
+        sample_summary = {}
+        tax_headings_copy = [s.lower() for s in tax_headings]
+
+        with util.file.open_or_gzopen(f, 'rU') as inf:
+            should_process = False
+            indent_of_selection = -1
+            currently_being_processed = ""
+            for line in inf:
+                if len(line.rstrip('\r\n').strip()) == 0:
+                    continue
+                csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
+                row = next(csv.reader([line.strip().rstrip('\n')], dialect="kraken_report"))
+                
+                indent_of_line = indent_len(row[5])
+                row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
+                
+                # rows are formatted like so:
+                # 0.00  16  0   D   10239     Viruses
+                #
+                # row[0] Percentage of reads covered by the clade rooted at this taxon
+                # row[1] Number of reads covered by the clade rooted at this taxon
+                # row[2] Number of reads assigned directly to this taxon
+                # row[3] A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
+                # row[4] NCBI taxonomy ID
+                # row[5] indented scientific name
+
+                if indent_of_line == indent_of_selection:
+                    should_process = False
+                    indent_of_selection=-1
+
+                if indent_of_selection == -1:
+                    if row[5].lower() in tax_headings_copy:
+                        tax_headings_copy.remove(row[5].lower())
+                        
+                        should_process = True
+                        indent_of_selection = indent_of_line
+                        currently_being_processed = row[5]
+                        sample_summary[row[5]] = collections.OrderedDict()
+                        if row[3] == rank_code(taxlevel_focus):
+                            same_level = True
+                        if row[3] == "-":
+                            log.warning("Non-taxonomic parent level selected")
+                
+                if should_process:
+                    if (rank_code(taxlevel_focus) == row[3]):
+                        
+                        if int(row[1])>=count_threshold:
+                            sample_summary[currently_being_processed][row[5]] = [float(row[0]), int(row[1])]
+
+        
+        for k,taxa in sample_summary.items():
+            sample_summary[k] = collections.OrderedDict(sorted(taxa.items(), key=lambda item: (item[1][1]) , reverse=True)[:top_n_entries])
+
+            if len(list(sample_summary[k].items()))>0:
+                log.info("{f}: most abundant among {heading} at the {level} level: \"{name}\" with {reads} reads ({percent:.2%} of total); included since >{threshold} read{plural}".format(
+                                                                                                  f=f,
+                                                                                                  heading=k, 
+                                                                                                  level=taxlevel_focus, 
+                                                                                                  name=list(sample_summary[k].items())[0][0],
+                                                                                                  reads=list(sample_summary[k].items())[0][1][1],
+                                                                                                  percent=list(sample_summary[k].items())[0][1][0]/100.0,
+                                                                                                  threshold=count_threshold,
+                                                                                                  plural="s" if count_threshold>1 else "" )
+                )
+        samples[sample_name] = sample_summary
+    json_summary = json.dumps(samples, sort_keys=True, indent=4, separators=(',', ': '))
+    json_out.write(json_summary)
+    json_out.close()
+
+
+    if csv_out != None:
+
+        # if we're writing out at the same level as the query header
+        # write out the fractions and counts
+        if same_level or (top_n_entries==1 and no_hist):
+
+            fieldnames = set()
+            for sample, taxa in samples.items():
+                for heading,taxon in taxa.items():
+                    if len(taxon):
+                        for k in taxon.keys():
+                            fieldnames |= set([k+"-pt",k+"-ct"])
+
+            writer = csv.DictWriter(csv_out, fieldnames=["sample"]+sorted(list(fieldnames)))
+            writer.writeheader()
+
+            for sample, taxa in samples.items():
+                sample_dict = {}
+                sample_dict["sample"] = sample
+                for heading,taxon in taxa.items(): 
+                    for entry in taxon.keys():
+                        sample_dict[entry+"-pt"] = taxon[entry][0]
+                        sample_dict[entry+"-ct"] = taxon[entry][1]
+                writer.writerow(sample_dict)
+                
+
+            csv_out.close()
+
+        # otherwise write out a histogram
+        else:
+            count = 0
+            summary_counts = collections.defaultdict(dict)
+            for sample, totals in samples.items():
+                for heading,taxa in totals.items():
+                    for taxon in taxa.keys():
+                        if taxon not in summary_counts[heading].keys():
+                            summary_counts[heading][taxon] = 1
+                        else:
+                            summary_counts[heading][taxon] += 1
+
+            for k,taxa in summary_counts.items():
+                summary_counts[k] = collections.OrderedDict(sorted(taxa.items(), key=lambda item: (item[1]) , reverse=True))
+
+
+            fieldnames = ["heading","taxon","num_samples"]
+            writer = csv.DictWriter(csv_out, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for heading,taxa_counts in summary_counts.items():
+                writer.writerows([{"heading":heading,"taxon":taxon,"num_samples":count} for taxon,count in taxa_counts.items()])
+
+            csv_out.close()
+
+
+__commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 
 def parser_kraken_build(parser=argparse.ArgumentParser()):
