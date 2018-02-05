@@ -10,7 +10,8 @@ task assemble {
   String? assembler="trinity"  # trinity, spades, or trinity-spades
   String  cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
 
-  String  sample_name = basename(reads_unmapped_bam, ".bam")
+  # do this in two steps in case the input doesn't actually have "taxfilt" in the name
+  String  sample_name = basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt")
 
   command {
     set -ex -o pipefail
@@ -95,7 +96,8 @@ task scaffold {
   Int?    nucmer_min_cluster
   Int?    scaffold_min_pct_contig_aligned
 
-  String  sample_name = basename(contigs_fasta, ".fasta")
+  # do this in multiple steps in case the input doesn't actually have "assembly1-x" in the name
+  String  sample_name = basename(basename(basename(contigs_fasta, ".fasta"), ".assembly1-trinity"), ".assembly1-spades")
 
   command {
     set -ex -o pipefail
@@ -169,7 +171,7 @@ task refine {
   Float?  major_cutoff=0.5
   Int?    min_coverage=1
 
-  String  assembly_basename=basename(assembly_fasta, ".fasta")
+  String  assembly_basename=basename(basename(assembly_fasta, ".fasta"), ".scaffold")
 
   command {
     set -ex -o pipefail
@@ -241,8 +243,8 @@ task refine_2x_and_plot {
 
   String? plot_coverage_novoalign_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
 
-  String  assembly_basename = basename(assembly_fasta, ".fasta")
-  String  sample_name       = basename(reads_unmapped_bam, ".bam")
+  # do this in two steps in case the input doesn't actually have "cleaned" in the name
+  String  sample_name = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
 
   command {
     set -ex -o pipefail
@@ -265,8 +267,8 @@ task refine_2x_and_plot {
     assembly.py refine_assembly \
       assembly.fasta \
       ${reads_unmapped_bam} \
-      ${assembly_basename}.refine1.fasta \
-      --outVcf ${assembly_basename}.refine1.pre_fasta.vcf.gz \
+      ${sample_name}.refine1.fasta \
+      --outVcf ${sample_name}.refine1.pre_fasta.vcf.gz \
       --min_coverage ${refine1_min_coverage} \
       --major_cutoff ${refine1_major_cutoff} \
       --GATK_PATH gatk/ \
@@ -276,10 +278,10 @@ task refine_2x_and_plot {
 
     # refine 2
     assembly.py refine_assembly \
-      ${assembly_basename}.refine1.fasta \
+      ${sample_name}.refine1.fasta \
       ${reads_unmapped_bam} \
-      ${assembly_basename}.refine2.fasta \
-      --outVcf ${assembly_basename}.refine2.pre_fasta.vcf.gz \
+      ${sample_name}.fasta \
+      --outVcf ${sample_name}.refine2.pre_fasta.vcf.gz \
       --min_coverage ${refine2_min_coverage} \
       --major_cutoff ${refine2_major_cutoff} \
       --GATK_PATH gatk/ \
@@ -290,30 +292,20 @@ task refine_2x_and_plot {
     # final alignment
     read_utils.py align_and_fix \
       ${reads_unmapped_bam} \
-      ${assembly_basename}.refine2.fasta \
-      --outBamAll ${sample_name}.bam \
+      ${sample_name}.fasta \
+      --outBamAll ${sample_name}.all.bam \
       --outBamFiltered ${sample_name}.mapped.bam \
       --GATK_PATH gatk/ \
       --aligner_options "${plot_coverage_novoalign_options}" \
       --JVMmemory "$mem_in_mb"m \
       --loglevel=DEBUG
 
-    # plot_coverage
-    reports.py plot_coverage \
-      ${sample_name}.mapped.bam \
-      ${sample_name}.coverage_plot.pdf \
-      --plotFormat pdf \
-      --plotWidth 1100 \
-      --plotHeight 850 \
-      --plotDPI 100 \
-      --loglevel=DEBUG
-
     # collect figures of merit
-    grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
-    grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
+    grep -v '^>' ${sample_name}.fasta | tr -d '\n' | wc -c | tee assembly_length
+    grep -v '^>' ${sample_name}.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
     samtools view -c ${sample_name}.mapped.bam | tee reads_aligned
-    samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
-    grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
+    samtools flagstat ${sample_name}.all.bam | tee ${sample_name}.all.bam.flagstat.txt
+    grep properly ${sample_name}.all.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
 
@@ -331,17 +323,17 @@ task refine_2x_and_plot {
         --plotDPI 100 \
         --loglevel=DEBUG
     else
-      touch ${sample_name}.coverage_plot.pdf ${sample_name}.mapped_fastqc.html
+      touch ${sample_name}.coverage_plot.pdf
     fi
   }
 
   output {
-    File refine1_sites_vcf_gz        = "${assembly_basename}.refine1.pre_fasta.vcf.gz"
-    File refine1_assembly_fasta      = "${assembly_basename}.refine1.fasta"
-    File refine2_sites_vcf_gz        = "${assembly_basename}.refine2.pre_fasta.vcf.gz"
-    File refine2_assembly_fasta      = "${assembly_basename}.refine2.fasta"
-    File aligned_bam                 = "${sample_name}.bam"
-    File aligned_bam_flagstat        = "${sample_name}.bam.flagstat.txt"
+    File refine1_sites_vcf_gz        = "${sample_name}.refine1.pre_fasta.vcf.gz"
+    File refine1_assembly_fasta      = "${sample_name}.refine1.fasta"
+    File refine2_sites_vcf_gz        = "${sample_name}.refine2.pre_fasta.vcf.gz"
+    File final_assembly_fasta        = "${sample_name}.fasta"
+    File aligned_bam                 = "${sample_name}.all.bam"
+    File aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
     File aligned_only_reads_bam      = "${sample_name}.mapped.bam"
     File aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
     File coverage_plot               = "${sample_name}.coverage_plot.pdf"
