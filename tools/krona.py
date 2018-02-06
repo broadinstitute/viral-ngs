@@ -35,6 +35,8 @@ class Krona(tools.Tool):
                         query_column=None,
                         taxid_column=None,
                         score_column=None,
+                        magnitude_column=None,
+                        root_name=None,
                         no_hits=None,
                         no_rank=None):
         self.install()
@@ -48,6 +50,10 @@ class Krona(tools.Tool):
             cmd.extend(['-t', str(taxid_column)])
         if score_column is not None:
             cmd.extend(['-s', str(score_column)])
+        if magnitude_column is not None:
+            cmd.extend(['-m', str(magnitude_column)])
+        if root_name is not None:
+            cmd.extend(['-n', root_name])
         if no_hits is not None:
             cmd.append('-i')
         if no_rank is not None:
