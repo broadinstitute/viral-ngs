@@ -79,7 +79,7 @@ rule annot_transfer:
         LSF  = config.get('LSF_queues', {}).get('short', '-W 4:00'),
         UGER = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00')
     run:
-        output_path_prefix = os.path.dirname(output.feature_tables)
+        output_path_prefix = os.path.dirname(output.feature_tables[0])
         for alignmentFile in expand("{data_dir}/{subdir}/aligned_{chrom}.fasta",
                                         data_dir=config["data_dir"],
                                         subdir=config["subdirs"]["multialign_ref"],
@@ -94,9 +94,9 @@ rule prepare_genbank:
             subdir=config["subdirs"]["annot"],
             samp=read_samples_file(config["samples_assembly"]),
             chrom=range(1, len(config["accessions_for_ref_genome_build"])+1)),
-        fasta_files=" ".join(expand("{dir}/{subdir}/{sample}.fasta",
+        fasta_files=expand("{dir}/{subdir}/{sample}.fasta",
             dir=[config["data_dir"]], subdir=[config["subdirs"]["assembly"]],
-            sample=list(read_samples_file(config["samples_assembly"])))),
+            sample=list(read_samples_file(config["samples_assembly"]))),
     output:
         config["data_dir"]+'/'+config["subdirs"]["annot"]+'/errorsummary.val'
     params:
