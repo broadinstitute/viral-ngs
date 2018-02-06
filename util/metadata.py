@@ -357,14 +357,15 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     code_repo = os.path.join(metadata_dir(), 'code_repo')
                     code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
 
-                    step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
-
-
+                    # The function that implements the command can pass us some metadata to be included in the step record,
+                    # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
+                    # treated as metadata.
                     metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
                                                else {}
 
-                    args_dict.pop('func_main', '')
+                    args_dict.pop('func_main', '')  # 
 
+                    step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
                     step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                              cmd_module=cmd_module, cmd_name=cmd_name,
                                              version_info=dict(viral_ngs_version=util.version.get_version(),
@@ -758,6 +759,7 @@ class ProvenanceGraph(networkx.DiGraph):
 
 class Comp(object):
     """"A Comp is a particular computation, represented by a subgraph of the ProvenanceGraph.
+    For example, the steps needed to assemble a viral genome from a particular sample, and to compute metrics for the assembly.
 
     Fields:
        nodes: ProvenanceGraph nodes (both fnodes and snodes) comprising this computation
@@ -777,7 +779,11 @@ class Comp(object):
 # end: class Comp(object):
 
 def compute_comp_attrs(G, comp):
-    """Compute the set of attribute-value pairs for a Comp.
+    """Compute the attributes of a Comp, and gather them together into a single set of attribute-value pairs.  
+    From each step, we gather the parameters of that step.
+
+    Returns:
+       the set of attribute-value pairs for the Comp `comp`
     """
 
     attrs={}
@@ -799,11 +805,9 @@ def compute_comp_attrs(G, comp):
 
     return frozenset(attrs.items())
 
-# ** extract_comps
-def extract_comps(G):
-    """From the provenance graph, extract the computation paths we're interested in.  A computation path is a set of nodes.
-    For example, we might extract all paths leading from a raw .bam file of reads to a final assembly, along with nodes that
-    compute metrics of the assembly.
+# ** extract_comps_assembly
+def extract_comps_assembly(G):
+    """From the provenance graph, extract Comps representing the assembly of one viral sample.
 
     Returns:
        a list of extracted comps, represented as Comp objects
