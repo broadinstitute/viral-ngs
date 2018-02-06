@@ -44,6 +44,8 @@ __author__ = "ilya@broadinstitute.org"
 __all__ = ["InFile", "OutFile", "InFiles", "OutFiles", "InFilesPrefix", "OutFilesPrefix",
            "add_metadata_tracking", "is_metadata_tracking_enabled", "metadata_dir"]
 
+# ** Imports
+
 # built-ins
 import argparse
 import logging
@@ -68,6 +70,7 @@ import itertools
 import operator
 import binascii
 import fnmatch
+import abc
 
 # intra-module
 import util.file
@@ -756,7 +759,7 @@ class ProvenanceGraph(networkx.DiGraph):
         
 # end: class ProvenanceGraph(object)
 
-
+# ** class Comp
 class Comp(object):
     """"A Comp is a particular computation, represented by a subgraph of the ProvenanceGraph.
     For example, the steps needed to assemble a viral genome from a particular sample, and to compute metrics for the assembly.
@@ -777,6 +780,15 @@ class Comp(object):
         return('Comp(main_inputs={}, main_outputs={})'.format(self.main_inputs, self.main_outputs))
 
 # end: class Comp(object):
+
+# class CompExtractor(object):
+#     """Abstract base class for classes that extract particular kinds of Comps from the provenance graph."""
+    
+#     __metaclass__ = abc.ABCMeta
+
+#     @abc.abstractmethod
+#     def 
+
 
 def compute_comp_attrs(G, comp):
     """Compute the attributes of a Comp, and gather them together into a single set of attribute-value pairs.  
@@ -803,6 +815,10 @@ def compute_comp_attrs(G, comp):
                 if step_name == 'impute_from_reference' and a == 'newName': continue
                 attrs[step_name+'.'+a] = str(v)
 
+            for a, v in na['metadata_from_cmd_return'].items():
+                if a == '__metadata__': continue
+                attrs[step_name+'.'+a] = str(v)
+
     return frozenset(attrs.items())
 
 # ** extract_comps_assembly
@@ -824,7 +840,13 @@ def extract_comps_assembly(G):
         beg = beg_nodes & ancs
         if beg:
             assert len(beg) == 1
-            extracted_comps.append(Comp(nodes=ancs, main_inputs=list(beg), main_outputs=[end_node]))
+
+            # add nodes that compute metrics
+            final_assembly_metrics = [s for s in list(G.succ[end_node]) if G.nodes[s]['step_name']=='assembly_metrics']
+            if final_assembly_metrics:
+                final_assembly_metrics = sorted(final_assembly_metrics, key=lambda s: G.nodes[s]['run_info']['beg_time'], reverse=True)
+                ancs.add(final_assembly_metrics[0])
+                extracted_comps.append(Comp(nodes=ancs, main_inputs=list(beg), main_outputs=[end_node]))
 
     return extracted_comps
 
@@ -840,7 +862,7 @@ def report_comps_groups():
     G = ProvenanceGraph()
     G.load()
 
-    grps = group_comps_by_main_input(extract_comps(G))
+    grps = group_comps_by_main_input(extract_comps_assembly(G))
     print(sorted(map(len, grps)))
     for grp_num, g in enumerate(grps):
         g = list(g)
