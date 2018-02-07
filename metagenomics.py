@@ -759,7 +759,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
-def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, noHits=None, noRank=None):
+def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
     '''
