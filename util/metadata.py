@@ -78,6 +78,9 @@ import util.misc
 import util.version
 
 # third-party
+import fs
+import fs.path
+import fs_s3fs
 import networkx
 import networkx.algorithms.dag
 import networkx.utils.misc
@@ -98,6 +101,12 @@ def _shell_cmd(cmd, *args, **kwargs):
             out = out.decode('utf-8')
         out = out.strip()
     return out
+
+def _mask_secret_info(fs_url):
+    """Mask any secret info, such as AWS keys, from fs_url. This is to keep such info from any printed logs."""
+    if fs_url.startswith('s3://') and '@' in fs_url:
+        fs_url = 's3://' + fs_url[fs_url.index('@')+1:]
+    return fs_url
 
 # * Recording of metadata
 
@@ -354,7 +363,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
                                                                                    cmd_exception_str))
-                    _log.info('recording metadata to {}'.format(metadata_dir()))
+                    _log.info('recording metadata to {}'.format(_mask_secret_info(metadata_dir())))
 
                     # record the code version used to run this step
                     code_repo = os.path.join(metadata_dir(), 'code_repo')
@@ -403,8 +412,11 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
                     # as a sanity check, we compute the CRC of the json file contents, and make that part of the filename.
                     crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
+                    json_fname = '{}.crc32_{}.json'.format(step_id, crc32)
+                    
+                    with fs.open_fs(metadata_dir()) as metadata_fs:
+                        metadata_fs.settext(json_fname, json_str)
 
-                    util.file.dump_file(os.path.join(metadata_dir(), '{}.crc32_{}.json'.format(step_id, crc32)), json_str)
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
             except Exception:
@@ -910,7 +922,12 @@ def _setup_logger(log_level):
 if __name__ == '__main__':
     #import assembly
     _setup_logger('INFO')
-    report_comps_groups()
+
+    with fs.open_fs(metadata_dir()) as z:
+        z.tree()
+
+    if False:
+        report_comps_groups()
     #compute_paths()
 
     if False:
