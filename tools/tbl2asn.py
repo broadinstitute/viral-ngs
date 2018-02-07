@@ -74,10 +74,10 @@ class Tbl2AsnTool(tools.Tool):
         # See: https://www.ncbi.nlm.nih.gov/IEB/ToolBox/C_DOC/lxr/source/demo/tbl2asn.c#L9674
         # We can try to work around this by examining the output for the upgrade message
         try:
-            subprocess.check_output(tool_cmd)
+            subprocess.check_output(tool_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             old_version_expected_output = "This copy of tbl2asn is more than a year old.  Please download the current version."
-            if old_version_expected_output in e.output:
+            if old_version_expected_output in e.output.decode('UTF-8'):
                 pass
             else:
                 raise
