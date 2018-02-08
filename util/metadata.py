@@ -318,15 +318,12 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         # for args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when adding the args to
         # the parser, the corresponding values will be of type FileArg, rather than strings.  We must convert these values
         # to str before calling the original command implementation `cmd_main`.
-        file_args = []
-        def replace_and_gather_file_args(val):
-            if isinstance(val, FileArg):
-                file_args.append(val)
-                return val.val
-            if isinstance(val, (list, tuple)): return list(map(replace_and_gather_file_args, val))
+        def replace_file_args(val):
+            if isinstance(val, FileArg): return val.val
+            if isinstance(val, (list, tuple)): return list(map(replace_file_args, val))
             return val
 
-        args_new = argparse.Namespace(**{arg: replace_and_gather_file_args(val) for arg, val in args_dict.items()})
+        args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
 
         cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
         cmd_name = args_dict.get('command', cmd_main.__name__)
@@ -343,6 +340,8 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         # We keep, in an environment variable, the list of any steps already running, and record this info as part of step metadata.
         save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
         os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
+
+        reuse_cached_step(cmd_module, cmd_name, args_dict)
 
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
@@ -406,7 +405,10 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     def write_obj(x):
                         """If `x` is a FileArg, return a dict representing it, else return a string representation of `x`.
                         Used for json serialization below."""
-                        return (isinstance(x, FileArg) and x.gather_file_info(hasher, out_files_exist=cmd_exception is None)) or str(x)
+                        if not isinstance(x, FileArg): return str(x)
+                        file_info = x.gather_file_info(hasher, out_files_exist=cmd_exception is None)
+                        cache_results(file_info)
+                        return file_info
                     
                     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
 
@@ -919,7 +921,76 @@ def tests_ended():
     print('************GATHERED:\n{}'.format('\n'.join(map(str, test2cmds.items()))))
 
 
+# * Caching of results
+
+class FileCache(object):
+    """Manages a cache of data files produced by commands."""
+
+    def __init__(self, cache_dir):
+        self.cache_dir = cache_dir
+
+    def save_file(self, fname, file_hash):
+        """Save the given file to the cache."""
+        if not os.path.isfile(os.path.join(self.cache_dir, file_hash)):
+            # FIXME: race condition
+            shutil.copyfile(fname, os.path.join(self.cache_dir, file_hash))
+
+    def has_file_with_hash(self, file_hash):
+        return os.path.isfile(os.path.join(self.cache_dir, file_hash))
+
+    def fetch_file(self, file_hash, dest_fname):
+        shutil.copyfile(os.path.join(self.cache_dir, file_hash), dest_fname)
+
+def cache_results(file_info):
+    """If caching of results is on, and file_info contains output file(s), save them in the cache."""
+    if 'VIRAL_NGS_DATA_CACHE' not in os.environ: return
+    if file_info['mode'] == 'r': return
+    cache = FileCache(os.environ['VIRAL_NGS_DATA_CACHE'])
+    for f in file_info['files']:
+        if 'hash' in f:
+            cache.save_file(f['abspath'], f['hash'])
+
+def reuse_cached_step(cmd_module, cmd_name, args):
+    """If this step has been run with the same args before, and we have saved the results, reuse the results."""
+    if 'VIRAL_NGS_DATA_CACHE' not in os.environ: return
+
+    def replace_file_args(val):
+        if isinstance(val, FileArg):
+            if val.mode == 'w': return '_out_file_arg'
+            file_info = val.gather_file_info(hasher=Hasher(), out_files_exist=False)
+            return [f['hash'] for f in file_info['files']]
+        if FileArg.is_from_dict(val):
+            if val['mode'] == 'w': return '_out_file_arg'
+            return [f['hash'] for f in val['files']]
+
+        if isinstance(val, (list, tuple)): return list(map(replace_file_args, val))
+        return val
+
+    cur_args = {arg: replace_file_args(val) for arg, val in args.items() if arg != 'func_main'}
+
+    with fs.open_fs(metadata_dir()) as metadata_fs:
+        for step_record_fname in metadata_fs.listdir('/'):
+            if step_record_fname.endswith('.json') and cmd_name in step_record_fname:
+                json_str = util.file.slurp_file(os.path.join(metadata_dir(), step_record_fname))
+                step_record = json.loads(json_str)
+                if not is_valid_step_record(step_record): continue
+                if step_record['step']['run_info']['exception']: continue  # for now, ignore steps that failed
+                if step_record['step'].get('enclosing_steps', ''): continue  # for now, skip steps that are sub-steps of other steps
+                if step_record['step']['cmd_module'] != cmd_module or step_record['step']['cmd_name'] != cmd_name: continue
+                cached_args = {arg: replace_file_args(val) for arg, val in step_record['step']['args'].items()}
+                print('CHECKING FOR REUSE: {}'.format(step_record_fname))
+                print('cached_args: {}'.format(cached_args))
+                print('   cur_args: {}'.format(cur_args))
+                if cached_args == cur_args:
+                    print('CAN REUSE! {}'.format(step_record_fname))
+                else:
+                    print('diff is: {}'.format(set(map(str,cached_args.items())) ^ set(map(str,cur_args.items()))))
+
+# end: def reuse_cached_step(cmd_module, cmd_name, args):
+
+
 ################################################################    
+# * Testing
 
 def _setup_logger(log_level):
     loglevel = getattr(logging, log_level.upper(), None)
@@ -928,6 +999,7 @@ def _setup_logger(log_level):
     h = logging.StreamHandler()
     h.setFormatter(logging.Formatter("%(asctime)s - %(module)s:%(lineno)d:%(funcName)s - %(levelname)s - %(message)s"))
     _log.addHandler(h)
+
 
 
 if __name__ == '__main__':
