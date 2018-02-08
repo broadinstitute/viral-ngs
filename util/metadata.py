@@ -357,7 +357,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             try:  # if any errors happen during metadata recording just issue a warning
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
-                if not isinstance(cmd_exception, KeyboardInterrupt):
+                if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
 
@@ -441,35 +441,6 @@ def is_valid_step_record(d):
 #        dict_has_keys(d['step'], 'args step_id cmd_module version_info run_env run_info')
 
 ##########################
-
-# ** disabling metadata tracking    
-###
-#
-# Section: disabling metadata tracking
-#
-# If metadata tracking is not enabled, disable the code in this module, in a simple way that ensures it won't affect normal operations.
-# We do this by replacing external API routines of this module with simple stubs.
-#
-###
-
-def _return_str(*args, **kw):
-    return str
-
-def _add_metadata_tracking_dummy(cmd_parser, cmd_main):
-    """Do nothing, except still recognize the --metadata common command-line argument as valid."""
-    add_metadata_arg(cmd_parser, '(IGNORED because metadata tracking is disabled)')
-
-    @functools.wraps(cmd_main)
-    def _run_cmd_with_tracking(args):
-        delattr(args, 'metadata')
-        return cmd_main(args)
-    
-    return _run_cmd_with_tracking
-
-if not is_metadata_tracking_enabled():
-    InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix = str, str, _return_str, _return_str, _return_str, _return_str
-    add_metadata_tracking = _add_metadata_tracking_dummy
-
 # * Analysis of metadata 
 ##########################
 
@@ -907,6 +878,46 @@ def report_comps_groups():
         #                 title=os.path.basename(e.realpath))
         #     _shell_cmd('dot -Tsvg -o {} {}'.format(svg_fname, dot_fname))
         #     _log.info('created {}'.format(svg_fname))
+
+################################################################    
+
+# * Recording which tests run which commands
+
+test2cmds = collections.defaultdict(set)
+test_running = None
+
+def instrument_module(module_globals):
+    if 'VIRAL_NGS_GATHER_CMDS_IN_TESTS' not in os.environ: return
+    for cmd_name, cmd_parser in module_globals['__commands__']:
+        p = argparse.ArgumentParser()
+        cmd_parser(p)
+        cmd_main = p.get_default('func_main')
+        if hasattr(cmd_main, '_cmd_main_orig'):
+            cmd_main = cmd_main._cmd_main_orig
+        print('cmd_name=', cmd_name, 'cmd_main=', cmd_main, 'module=', cmd_main.__module__, 'name', cmd_main.__name__)
+
+        def make_caller(cmd_name, cmd_main):
+
+            @functools.wraps(cmd_main)
+            def my_cmd_main(*args, **kw):
+                print('\n***FUNC IMPLEMENTING CMD ', module_globals['__name__'], cmd_name)
+                test2cmds[test_running].add((module_globals['__name__'], cmd_name))
+                return cmd_main(*args, **kw)
+
+            return my_cmd_main
+
+        my_cmd_main = make_caller(cmd_name, cmd_main)
+
+        assert module_globals[cmd_main.__name__] == cmd_main
+        module_globals[cmd_main.__name__] = my_cmd_main
+
+def record_test_start(nodeid):
+    global test_running
+    test_running = nodeid
+
+def tests_ended():
+    print('************GATHERED:\n{}'.format('\n'.join(map(str, test2cmds.items()))))
+
 
 ################################################################    
 

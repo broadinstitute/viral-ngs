@@ -131,3 +131,4 @@ def assert_none_executable():
     testDir = os.path.dirname(__file__)
     assert all(not os.access(os.path.join(testDir, filename), os.X_OK) for filename in os.listdir(testDir)
                if filename.endswith('.py'))
+
