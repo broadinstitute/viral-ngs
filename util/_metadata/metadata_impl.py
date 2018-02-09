@@ -76,6 +76,7 @@ import abc
 import util.file
 import util.misc
 import util.version
+import util.testmon.testmon_core
 
 # third-party
 import fs
@@ -94,7 +95,7 @@ def _make_list(*x): return x
 def _shell_cmd(cmd, *args, **kwargs):
     """Run a command and return its output; if command fails and `check` keyword arg is False, return the empty string."""
     out = ''
-    result = util.misc.run_and_print(cmd.strip().split(), *args, **kwargs)
+    result = util.misc.run_and_print(cmd.strip().split(), silent=True, *args, **kwargs)
     if result.returncode == 0:
         out = result.stdout
         if not isinstance(out, str):
@@ -345,6 +346,13 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
+        if 'VIRAL_NGS_TESTMON' in os.environ:
+            testmon_data = util.testmon.testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()))
+            testmon_data.read_data()
+            testmon_data.read_source()
+            testmon = util.testmon.testmon_core.Testmon([util.version.get_project_path()], set(['singleprocess']))
+            testmon.start()
+
         try:
             # *** Run the actual command ***
             cmd_result = cmd_main(args_new)
@@ -354,9 +362,24 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         finally:
             os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
             try:  # if any errors happen during metadata recording just issue a warning
+
+
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
                 if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
+
+                    if 'VIRAL_NGS_TESTMON' in os.environ:
+                        if cmd_exception: testmon.stop()
+                        else:
+                            print('saving testmon')
+                            testmon.stop_and_save(testmon_data, util.version.get_project_path(), cmd_module+'::'+cmd_name,
+                                                  [dict(outcome='ok')])
+                            print('writing data')
+                            testmon_data.write_data()
+                            testmon.close()
+                            testmon_data.close_connection()
+
+
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
 
@@ -978,13 +1001,8 @@ def reuse_cached_step(cmd_module, cmd_name, args):
                 if step_record['step'].get('enclosing_steps', ''): continue  # for now, skip steps that are sub-steps of other steps
                 if step_record['step']['cmd_module'] != cmd_module or step_record['step']['cmd_name'] != cmd_name: continue
                 cached_args = {arg: replace_file_args(val) for arg, val in step_record['step']['args'].items()}
-                print('CHECKING FOR REUSE: {}'.format(step_record_fname))
-                print('cached_args: {}'.format(cached_args))
-                print('   cur_args: {}'.format(cur_args))
                 if cached_args == cur_args:
                     print('CAN REUSE! {}'.format(step_record_fname))
-                else:
-                    print('diff is: {}'.format(set(map(str,cached_args.items())) ^ set(map(str,cur_args.items()))))
 
 # end: def reuse_cached_step(cmd_module, cmd_name, args):
 
