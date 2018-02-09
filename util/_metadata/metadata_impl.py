@@ -76,7 +76,7 @@ import abc
 import util.file
 import util.misc
 import util.version
-import util.testmon.testmon_core
+from .testmon import testmon_core
 
 # third-party
 import fs
@@ -347,10 +347,10 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
         if 'VIRAL_NGS_TESTMON' in os.environ:
-            testmon_data = util.testmon.testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()))
+            testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()))
             testmon_data.read_data()
             testmon_data.read_source()
-            testmon = util.testmon.testmon_core.Testmon([util.version.get_project_path()], set(['singleprocess']))
+            testmon = testmon_core.Testmon([util.version.get_project_path()], set(['singleprocess']))
             testmon.start()
 
         try:
@@ -941,8 +941,8 @@ def record_test_start(nodeid):
     test_running = nodeid
 
 def tests_ended():
-    print('************GATHERED:\n{}'.format('\n'.join(map(str, test2cmds.items()))))
-
+    #print('************GATHERED:\n{}'.format('\n'.join(map(str, test2cmds.items()))))
+    pass
 
 # * Caching of results
 
