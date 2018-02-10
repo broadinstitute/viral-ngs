@@ -12,7 +12,7 @@ import util.file
 
 from . import metadata_dir
 from .file_arg import FileArg
-from . import recording
+from util._metadata import recording
 from .hashing import Hasher
 
 import fs
