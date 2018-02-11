@@ -205,16 +205,17 @@ class TestmonData(object):
     # If you change the SQLlite schema, you should bump this number
     DATA_VERSION = 2
 
-    def __init__(self, rootdir, variant=None):
+    def __init__(self, rootdir, variant=None, datafile=None):
 
         self.variant = variant if variant else 'default'
         self.rootdir = rootdir
+        self.datafile = datafile
         self.init_connection()
         self.node_data = {}
         self.reports = defaultdict(lambda: [])
 
     def init_connection(self):
-        self.datafile = os.path.join(self.rootdir, '.testmondata')
+        self.datafile = self.datafile or os.path.join(self.rootdir, '.testmondata')
         self.connection = None
 
         new_db = not os.path.exists(self.datafile)
