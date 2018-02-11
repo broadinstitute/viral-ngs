@@ -63,8 +63,6 @@ class ProvenanceGraph(networkx.DiGraph):
 
             _log.info('loading step {}'.format(step_record_fname))
             json_str = util.file.slurp_file(os.path.join(metadata_path, step_record_fname))
-            #crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
-            #assert step_record_fname.endswith('.{}.json'.format(crc32))
 
             step_record = json.loads(json_str)
 

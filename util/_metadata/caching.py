@@ -14,6 +14,7 @@ from . import metadata_dir
 from .file_arg import FileArg
 from util._metadata import recording
 from .hashing import Hasher
+from .testmon import testmon_core
 
 import fs
 
@@ -113,6 +114,14 @@ def reuse_cached_step(cmd_module, cmd_name, args):
                 if step_record['step']['cmd_module'] != cmd_module or step_record['step']['cmd_name'] != cmd_name: continue
                 cached_args = {arg: replace_file_args(val) for arg, val in step_record['step']['args'].items()}
                 if cached_args == cur_args:
-                    print('CAN REUSE! {}'.format(step_record_fname))
+                    if os.path.isfile(os.path.join(metadata_dir(), step_record_fname+'.testmondata')):
+                        print('testing for reuse: {}'.format(os.path.join(metadata_dir(), step_record_fname+'.testmondata')))
+                        testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
+                                                                datafile=os.path.join(metadata_dir(), step_record_fname+'.testmondata'))
+                        testmon_data.read_data()
+                        testmon_data.read_source()
+                        if not testmon_data.test_should_run(step_record['step']['cmd_module']+'::'+step_record['step']['cmd_name']):
+                            print('CAN REUSE! {}'.format(step_record_fname))
+                        testmon_data.close_connection()
 
 # end: def reuse_cached_step(cmd_module, cmd_name, args):

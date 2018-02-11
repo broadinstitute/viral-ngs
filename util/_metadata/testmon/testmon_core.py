@@ -212,19 +212,22 @@ class TestmonData(object):
     # If you change the SQLlite schema, you should bump this number
     DATA_VERSION = 2
 
-    def __init__(self, rootdir, variant=None):
+    def __init__(self, rootdir, variant=None, datafile=None):
 
         self.variant = variant if variant else 'default'
         self.rootdir = rootdir
+        self.datafile = datafile
         self.init_connection()
         self.node_data = {}
         self.reports = defaultdict(lambda: [])
 
     def init_connection(self):
-        self.datafile = os.path.join(self.rootdir, '.testmondata')
+        if self.datafile is None:
+            self.datafile = os.path.join(self.rootdir, '.testmondata')
         self.connection = None
 
         new_db = not os.path.exists(self.datafile)
+        print('datafile={} new_db={}'.format(self.datafile, new_db))
 
         self.connection = sqlite3.connect(self.datafile)
         self.connection.execute("PRAGMA recursive_triggers = TRUE ")
@@ -345,6 +348,7 @@ class TestmonData(object):
             lines = coverage_data.lines(filename)
             if os.path.exists(filename):
                 result[relfilename] = checksum_coverage(self.source_tree.get_file(relfilename).blocks, lines)
+        print('get_nodedata result: {}'.format(result))
         if not result:  # when testmon kicks-in the test module is already imported. If the test function is skipped
             # coverage_data is empty. However, we need to write down, that we depend on the
             # file where the test is stored (so that we notice e.g. when the test is no longer skipped.)
@@ -382,6 +386,7 @@ class TestmonData(object):
         self.unaffected_nodeids, self.unaffected_files = unaffected(self.node_data,
                                                                     changed_files,
                                                                     self.fail_reports if tlf else [])
+        print('unaffected=', self.unaffected_nodeids)
 
         # possible data structures
         # nodeid1 -> [filename -> [block_a, block_b]]

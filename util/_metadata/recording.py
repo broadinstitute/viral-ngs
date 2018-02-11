@@ -16,6 +16,7 @@ import uuid
 import binascii
 import json
 import platform
+import shutil
 
 # intra-module
 import util.file
@@ -25,6 +26,7 @@ import util.version
 from .file_arg import FileArg
 from .hashing import Hasher
 from util._metadata import caching
+from .testmon import testmon_core
 from .md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
 from . import _log, metadata_dir, is_metadata_tracking_enabled
 
@@ -140,8 +142,10 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
-        if 'VIRAL_NGS_TESTMON' in os.environ:
-            testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()))
+        json_fname = '{}.json'.format(step_id)
+        if 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
+            testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
+                                                    datafile=os.path.join(metadata_dir(), json_fname+'.testmondata'))
             testmon_data.read_data()
             testmon_data.read_source()
             testmon = testmon_core.Testmon([util.version.get_project_path()], set(['singleprocess']))
@@ -161,8 +165,9 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
                 if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
+                    save_testmondata = False
 
-                    if 'VIRAL_NGS_TESTMON' in os.environ:
+                    if 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
                         if cmd_exception: testmon.stop()
                         else:
                             print('saving testmon')
@@ -172,7 +177,6 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                             testmon_data.write_data()
                             testmon.close()
                             testmon_data.close_connection()
-
 
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
@@ -229,9 +233,6 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                     
                     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
 
-                    # as a sanity check, we compute the CRC of the json file contents, and make that part of the filename.
-                    crc32 = format(binascii.crc32(json_str.encode()) & 0xffffffff, '08x')
-                    json_fname = '{}.crc32_{}.json'.format(step_id, crc32)
                     
                     with fs.open_fs(metadata_dir()) as metadata_fs:
                         metadata_fs.settext(json_fname, json_str)
