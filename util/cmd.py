@@ -265,3 +265,15 @@ def check_input(condition, error_msg):
         raise BadInputError(error_msg)
 
     
+    
+def run_cmd(module, cmd, args):
+    """Run command after parsing its arguments with the command's parser.
+    
+    Args:
+        module: the module object for the script containing the command
+        cmd: the command name
+        args: list of args to the command
+    """
+    parser_fn = dict(getattr(module, '__commands__'))[cmd]
+    args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(args)
+    args_parsed.func_main(args_parsed)

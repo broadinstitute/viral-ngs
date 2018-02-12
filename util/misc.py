@@ -599,4 +599,13 @@ def add_suffixes(base, suffixes):
     """Return a list with each suffix in turn added to the base"""
     return [base+sfx for sfx in suffixes]
 
-
+@contextlib.contextmanager
+def tmp_set_env(var, val):
+    """Context manager which temporarily set an environment variable.  Returns old value of the variable, or None if not set."""
+    save_var = os.environ.get(var, None)
+    try:
+        os.environ[var] = str(val)
+        yield save_var
+    finally:
+        if save_var is not None:
+            os.environ[var] = save_var

@@ -132,3 +132,10 @@ def assert_none_executable():
     assert all(not os.access(os.path.join(testDir, filename), os.X_OK) for filename in os.listdir(testDir)
                if filename.endswith('.py'))
 
+
+def tst_inp(*f):
+    """Return absolute the path to the given test input file under test/input.
+    Args:
+        f: elements of the relative path to the file under test/input
+    """
+    return os.path.realpath(os.path.join(util.file.get_test_path(), 'input', *f))
