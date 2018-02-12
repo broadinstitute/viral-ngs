@@ -13,6 +13,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.metadata import InFile, OutFile
+from util._metadata.recording import is_valid_step_record
 from test import tst_inp
 
 import reports
@@ -30,6 +31,10 @@ def test_metadata_recording(metadata_db):
     """Test basic metadata recording"""
     with util.file.tempfname('.tsv') as metricsFile:
         util.cmd.run_cmd(reports, 'final_assembly_metrics', [tst_inp('TestAssembleSpades/trinity_contigs.fasta'), metricsFile])
-        print('DB=', metadata_db, 'contents=', metadata_db.listdir())
-        shutil.copytree(metadata_db, '/broad/hptmp/ilya/mdb')
-
+        records = metadata_db.listdir()
+        assert len(records)==1
+        json_str = records[0].read_text(encoding='utf-8')
+        step_record = json.loads(json_str)
+        assert is_valid_step_record(step_record)
+        assert set(step_record['step']['args'].keys()) == set(('assembly_fname', 'metrics_fname'))
+        assert step_record['step']['cmd_name'] == 'final_assembly_metrics'
