@@ -1,2 +1,0 @@
-pytest>=2.9,<4
-coverage>=4
