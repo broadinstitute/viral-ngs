@@ -25,9 +25,9 @@ changed_files = []
 for node_file in node_files:
     if testmon.old_mtimes.get(node_file) != testmon.mtimes.get(node_file):
         changed_files.append(node_file)
-print "Changed files:%s " % changed_files
+#print "Changed files:%s " % changed_files
 
-print rootdir, inifile, inicfg
+#print rootdir, inifile, inicfg
 
 
 
