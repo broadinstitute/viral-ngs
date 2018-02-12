@@ -16,8 +16,8 @@ import textwrap
 
 import coverage
 
-from testmon.process_code import checksum_coverage, read_file_with_checksum
-from testmon.process_code import Module
+from util._metadata.testmon.process_code import checksum_coverage, read_file_with_checksum
+from util._metadata.testmon.process_code import Module
 
 if sys.version_info > (3,):
     buffer = memoryview

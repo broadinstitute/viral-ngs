@@ -7,7 +7,7 @@ import traceback
 
 import util.file
 
-from . import _log
+from util._metadata import _log
 
 class Hasher(object):
     """Manages computation of file hashes.

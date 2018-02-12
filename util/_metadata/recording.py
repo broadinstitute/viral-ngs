@@ -23,12 +23,12 @@ import util.file
 import util.misc
 import util.version
 
-from .file_arg import FileArg
-from .hashing import Hasher
-from util._metadata import caching
-from .testmon import testmon_core
-from .md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
-from . import _log, metadata_dir, is_metadata_tracking_enabled
+from util._metadata.file_arg import FileArg
+from util._metadata.hashing import Hasher
+import util._metadata.caching
+from util._metadata.testmon import testmon_core
+from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
+from util._metadata import _log, metadata_dir, is_metadata_tracking_enabled
 
 # third-party
 import fs

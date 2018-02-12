@@ -40,3 +40,4 @@ PyYAML=3.12
 networkx=2.1
 fs=2.0.18
 fs-s3fs=0.1.7
+coverage=4.4.1

@@ -11,11 +11,11 @@ import contextlib
 
 import util.file
 
-from . import metadata_dir
-from .file_arg import FileArg
-from util._metadata import recording
-from .hashing import Hasher
-from .testmon import testmon_core
+from util._metadata import metadata_dir
+from util._metadata.file_arg import FileArg
+import util._metadata.recording
+from util._metadata.hashing import Hasher
+from util._metadata.testmon import testmon_core
 
 import fs
 

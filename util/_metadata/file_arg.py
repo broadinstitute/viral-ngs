@@ -4,7 +4,7 @@ import collections
 import stat
 import pwd
 
-from .md_utils import _make_list
+from util._metadata.md_utils import _make_list
 
 
 # ** class FileArg

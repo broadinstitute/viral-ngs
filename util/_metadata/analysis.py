@@ -12,10 +12,10 @@ import functools
 import itertools
 import operator
 
-from . import metadata_dir
-from .file_arg import FileArg
-from .hashing import Hasher
-from .provenance_graph import ProvenanceGraph
+from util._metadata import metadata_dir
+from util._metadata.file_arg import FileArg
+from util._metadata.hashing import Hasher
+from util._metadata.provenance_graph import ProvenanceGraph
 
 import networkx
 import networkx.algorithms.dag
