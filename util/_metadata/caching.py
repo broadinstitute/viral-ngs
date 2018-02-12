@@ -7,6 +7,7 @@ import functools
 import collections
 import shutil
 import json
+import contextlib
 
 import util.file
 
@@ -129,33 +130,36 @@ def reuse_cached_step(cmd_module, cmd_name, args):
                 if cached_args == cur_args:
                     if os.path.isfile(os.path.join(metadata_dir(), step_record_fname+'.testmondata')):
                         print('testing for reuse: {}'.format(os.path.join(metadata_dir(), step_record_fname+'.testmondata')))
-                        testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
-                                                                datafile=os.path.join(metadata_dir(), step_record_fname+'.testmondata'))
-                        testmon_data.read_data()
-                        testmon_data.read_source()
-                        if not testmon_data.test_should_run(step_record['step']['cmd_module']+'::'+step_record['step']['cmd_name']):
-                            # test that the cache has all the output files
-                            
-                            print('CAN REUSE! {}'.format(step_record_fname))
-                            flat_cached_args = {arg: flatten_file_args(val) for arg, val in step_record['step']['args'].items()}
-                            all_found=True
-                            cache = FileCache(os.environ['VIRAL_NGS_DATA_CACHE'])
 
-                            for arg in flat_cur_args:
-                                for f_hash, f in zip(flat_cached_args[arg], flat_cur_args[arg]):
-                                    if not cache.has_file_with_hash(f_hash):
-                                        print('not cached: {}'.format(f))
-                                        all_found = False
-                                    else:
-                                        print('cached! {}'.format(f))
+                        with contextlib.closing(testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
+                                                                         datafile=os.path.join(metadata_dir(), 
+                                                                                               step_record_fname+'.testmondata'))) as testmon_data:
 
-                            if all_found:
-                                
+                            testmon_data.read_data()
+                            testmon_data.read_source()
+                            if not testmon_data.test_should_run(step_record['step']['cmd_module']+'::'+step_record['step']['cmd_name']):
+                                # test that the cache has all the output files
+
+                                print('CAN REUSE! {}'.format(step_record_fname))
+                                flat_cached_args = {arg: flatten_file_args(val) for arg, val in step_record['step']['args'].items()}
+                                all_found=True
+                                cache = FileCache(os.environ['VIRAL_NGS_DATA_CACHE'])
+
                                 for arg in flat_cur_args:
                                     for f_hash, f in zip(flat_cached_args[arg], flat_cur_args[arg]):
-                                        cache.fetch_file(f_hash, f)
-                                        print('fetched from cache: {}'.format(f))
-                                    
-                        testmon_data.close_connection()
+                                        if not cache.has_file_with_hash(f_hash):
+                                            print('not cached: {}'.format(f))
+                                            all_found = False
+                                        else:
+                                            print('cached! {}'.format(f))
+
+                                if all_found:
+
+                                    for arg in flat_cur_args:
+                                        for f_hash, f in zip(flat_cached_args[arg], flat_cur_args[arg]):
+                                            cache.fetch_file(f_hash, f)
+                                            print('fetched from cache: {}'.format(f))
+
+                                    return step_record_fname
 
 # end: def reuse_cached_step(cmd_module, cmd_name, args):

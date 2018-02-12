@@ -138,12 +138,13 @@ def add_metadata_tracking(cmd_parser, cmd_main):
         save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
         os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
 
-        caching.reuse_cached_step(cmd_module, cmd_name, args_dict)
+        reused_from_cache = caching.reuse_cached_step(cmd_module, cmd_name, args_dict)
 
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
         json_fname = '{}.json'.format(step_id)
-        if 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
+        testmon_data = None
+        if not reused_from_cache and 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
             testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
                                                     datafile=os.path.join(metadata_dir(), json_fname+'.testmondata'))
             testmon_data.read_data()
@@ -153,7 +154,8 @@ def add_metadata_tracking(cmd_parser, cmd_main):
 
         try:
             # *** Run the actual command ***
-            cmd_result = cmd_main(args_new)
+            if not reused_from_cache:
+                cmd_result = cmd_main(args_new)
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -165,9 +167,8 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
                 if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
-                    save_testmondata = False
 
-                    if 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
+                    if testmon_data is not None:
                         if cmd_exception: testmon.stop()
                         else:
                             print('saving testmon')
@@ -176,7 +177,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                             print('writing data')
                             testmon_data.write_data()
                             testmon.close()
-                            testmon_data.close_connection()
+                        testmon_data.close_connection()
 
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
@@ -211,7 +212,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                                                           cwd=os.getcwd(), conda_env=get_conda_env()),
                                              run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                                            exception=cmd_exception_str,
-                                                           argv=tuple(sys.argv)),
+                                                           argv=tuple(sys.argv), reused_from=reused_from_cache),
                                              args=args_dict,
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
