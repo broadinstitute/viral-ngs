@@ -13,7 +13,7 @@ import util.file
 
 from util._metadata import metadata_dir
 from util._metadata.file_arg import FileArg
-import util._metadata.recording
+from util._metadata import recording
 from util._metadata.hashing import Hasher
 from util._metadata.testmon import testmon_core
 

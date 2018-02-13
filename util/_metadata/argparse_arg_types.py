@@ -4,7 +4,7 @@ import functools
 import util.file
 import util.misc
 
-from util._metadata.recording import FileArg
+from util._metadata.file_arg import FileArg
 from util._metadata.md_utils import _make_list
 
 # ** InFile, OutFile etc
