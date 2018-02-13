@@ -38,7 +38,7 @@ def OutFilesPrefix(suffixes):
     """Argparse argument type for a string that denotes the common prefix of a group of input files."""
     return OutFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=suffixes))
 
-def _InFile_OneOf(val, *opts):
+def _InFile_OneOf(val, opts):
     for opt in opts:
         try:
             return opt(val)
