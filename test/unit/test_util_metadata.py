@@ -13,7 +13,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.metadata import InFile, OutFile
-from util._metadata.recording import is_valid_step_record
+from util._metadata.metadata_db import is_valid_step_record
 from test import tst_inp
 
 import reports

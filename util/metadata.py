@@ -21,6 +21,3 @@ from ._metadata.recording import (
 
 # for use by metadata_utils.py
 from ._metadata.provenance_graph import ProvenanceGraph
-
-# for caching/reusing computation results (experimental)
-from ._metadata.caching import instrument_module, record_test_start, tests_ended

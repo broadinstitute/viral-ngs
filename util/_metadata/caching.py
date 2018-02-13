@@ -13,7 +13,7 @@ import util.file
 
 from util._metadata import metadata_dir
 from util._metadata.file_arg import FileArg
-from util._metadata import recording
+from util._metadata import metadata_db
 from util._metadata.hashing import Hasher
 from util._metadata.testmon import testmon_core
 
@@ -122,7 +122,7 @@ def reuse_cached_step(cmd_module, cmd_name, args):
             if step_record_fname.endswith('.json') and cmd_name in step_record_fname:
                 json_str = util.file.slurp_file(os.path.join(metadata_dir(), step_record_fname))
                 step_record = json.loads(json_str)
-                if not recording.is_valid_step_record(step_record): continue
+                if not metadata_db.is_valid_step_record(step_record): continue
                 if step_record['step']['run_info']['exception']: continue  # for now, ignore steps that failed
                 if step_record['step'].get('enclosing_steps', ''): continue  # for now, skip steps that are sub-steps of other steps
                 if step_record['step']['cmd_module'] != cmd_module or step_record['step']['cmd_name'] != cmd_name: continue
