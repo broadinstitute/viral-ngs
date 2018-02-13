@@ -29,6 +29,7 @@ from util._metadata import caching
 from util._metadata.testmon import testmon_core
 from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
 from util._metadata import _log, metadata_dir, is_metadata_tracking_enabled
+from util._metadata import metadata_db
 
 # third-party
 import fs
@@ -231,12 +232,8 @@ def add_metadata_tracking(cmd_parser, cmd_main):
                         file_info = x.gather_file_info(hasher, out_files_exist=cmd_exception is None)
                         caching.cache_results(file_info)
                         return file_info
-                    
-                    json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
 
-                    
-                    with fs.open_fs(metadata_dir()) as metadata_fs:
-                        metadata_fs.settext(json_fname, json_str)
+                    metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
 
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
 

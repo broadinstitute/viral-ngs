@@ -24,4 +24,4 @@ def _mask_secret_info(fs_url):
 
 def dict_has_keys(d, keys_str):
     """Test whether a `d` is a dict containing all the given keys (given as tokens of `keys_str`)"""
-    return isinstance(d, collections.Mapping) and d.keys() >= set(keys_str.split())
+    return isinstance(d, collections.Mapping) and set(d.keys()) >= set(keys_str.split())
