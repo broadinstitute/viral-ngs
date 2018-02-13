@@ -11,7 +11,7 @@ This module enables the following:
 ../metadata_utils.py provides external command-line interface for querying provenance data.
 '''
 
-from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix
+from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
 from ._metadata.recording import (
     # interface with cmd.py
     add_metadata_tracking, 
