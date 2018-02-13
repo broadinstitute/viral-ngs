@@ -1,5 +1,6 @@
 
 import functools
+import os
 
 import util.file
 import util.misc
@@ -37,3 +38,17 @@ def OutFilesPrefix(suffixes):
     """Argparse argument type for a string that denotes the common prefix of a group of input files."""
     return OutFiles(compute_fnames=functools.partial(util.misc.add_suffixes, suffixes=suffixes))
 
+def _InFile_OneOf(val, *opts):
+    for opt in opts:
+        try:
+            return opt(val)
+        except IOError:
+            pass
+
+    raise IOError("Could not open: {}".format(val))
+
+def InFile_OneOf(*opts):
+    """Argparse argument type for an input arg that can be one of several types.  The first type for which all the input
+    files exist, will be taken as the right one.
+    """
+    return functools.partial(_InFile_OneOf, opts=opts)

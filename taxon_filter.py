@@ -35,7 +35,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.metadata import InFile, OutFile, InFilesPrefix
+from util.metadata import InFile, OutFile, InFilesPrefix, InFile_OneOf
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--blastDbs',
-        type=InFilesPrefix(suffixes=['.nsq', '.nhr', '.nin']),
+        type=InFile_OneOf(InFile, InFilesPrefix(suffixes=['.nsq', '.nhr', '.nin'])),
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
