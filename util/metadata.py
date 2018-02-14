@@ -14,7 +14,7 @@ This module enables the following:
 from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
 from ._metadata.recording import (
     # interface with cmd.py
-    add_metadata_tracking, 
+    add_metadata_tracking, add_metadata_arg,
     # for use by pipe/rules/common.rules to create a common ID for a sequence of steps run as part of same pipeline execution
     set_run_id
 )

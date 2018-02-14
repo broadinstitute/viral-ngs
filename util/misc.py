@@ -609,3 +609,15 @@ def tmp_set_env(var, val):
     finally:
         if save_var is not None:
             os.environ[var] = save_var
+
+def wraps(f):
+    """Like functools.wraps but sets __wrapped__ even on Python 2.7"""
+    wrapper = functools.wraps(f)
+    wrapper.__wrapped__ = f
+    return wrapper
+
+
+def unwrap(f):
+    """Find the original function under layers of wrappers"""
+    return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
+

@@ -3,7 +3,6 @@ flake8>=3.2.1
 mock=2.0.0
 pycodestyle=2.2.0
 pytest=3.4.0
-pytest-catchlog=1.2.2
 pytest-cov==2.5.1
 pytest-mock=1.6.3
 pytest-xdist=1.22.0

@@ -14,6 +14,7 @@ import argparse
 import functools
 import util.version
 import util.file
+import util.misc
 import util.metadata
 
 __author__ = "dpark@broadinstitute.org"
@@ -91,14 +92,13 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
             raise Exception("unrecognized argument %s" % k)
     return parser
 
-
 def main_command(mainfunc):
     ''' This wraps a python method in another method that can be called
         with an argparse.Namespace object. When called, it will pass all
         the values of the object on as parameters to the function call.
     '''
 
-    @functools.wraps(mainfunc)
+    @util.misc.wraps(mainfunc)
     def _main(args):
         args2 = dict((k, v) for k, v in vars(args).items() if k not in (
             'loglevel', 'tmp_dir', 'tmp_dirKeep', 'version', 'func_main', 'command'))
@@ -106,16 +106,20 @@ def main_command(mainfunc):
 
     return _main
 
+cmd_decorators = [util.metadata.add_metadata_tracking]
+parser_hooks = [util.metadata.add_metadata_arg]
 
 def attach_main(parser, cmd_main, split_args=False):
     ''' This attaches the main function call to a parser object.
     '''
-    cmd_main_orig = cmd_main
     if split_args:
         cmd_main = main_command(cmd_main)
-    cmd_main = util.metadata.add_metadata_tracking(cmd_parser=parser, cmd_main=cmd_main)
-    if cmd_main is not cmd_main_orig:
-        cmd_main._cmd_main_orig = cmd_main_orig
+
+    for cmd_decorator in cmd_decorators:
+        cmd_main = cmd_decorator(cmd_main)
+
+    for parser_hook in parser_hooks:
+        parser_hook(parser)
 
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=cmd_main)

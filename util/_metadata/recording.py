@@ -77,29 +77,27 @@ def get_conda_env():
 
 # ** add_metadata_tracking
 
-def add_metadata_arg(cmd_parser, help_extra=''):
+def add_metadata_arg(cmd_parser):
     """Add --metadata arg to `cmd_parser`"""
     if not getattr(cmd_parser, 'metadata_arg_added', False):
         cmd_parser.add_argument('--metadata', nargs=2, metavar=('ATTRIBUTE', 'VALUE'), action='append',
-                                help='attach metadata to this step (step=this specific execution of this command)' + help_extra)
+                                help='attach metadata to this step (step=this specific execution of this command)')
         setattr(cmd_parser, 'metadata_arg_added', True)
 
-def add_metadata_tracking(cmd_parser, cmd_main):
+def add_metadata_tracking(cmd_main):
     """Add provenance tracking to the given command.  
 
     Called from util.cmd.attach_main().
     
     Args:
-        cmd_parser: parser for a command defined in a script
         cmd_main: function implementing the command. Function takes one parameter, an argparse.Namespace, giving the values of the command's
              arguments.
 
     Returns:
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
     """
-    add_metadata_arg(cmd_parser)
 
-    @functools.wraps(cmd_main)
+    @util.misc.wraps(cmd_main)
     def _run_cmd_with_tracking(args):
         """Call the command implementation `cmd_main` with the arguments `args` parsed by `cmd_parser`, and record various
         metadata about the invocation."""
