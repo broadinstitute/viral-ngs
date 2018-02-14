@@ -208,6 +208,44 @@ def parser_final_assembly_metrics(parser=argparse.ArgumentParser()):
 
 __commands__.append(('final_assembly_metrics', parser_final_assembly_metrics))
 
+#######################
+
+
+def coverage_stats(mapped_bam, out_tsv=None, cov_thresholds=(1, 5, 20, 100)):
+    '''Compute coverage stats from mapping of reads to assembly'''
+
+    # genome coverage stats
+    with pysam.AlignmentFile(mapped_bam, 'rb') as bam:
+        coverages = list([pcol.nsegments for pcol in bam.pileup()]) or [0]
+
+    out = OrderedDict()
+    out['aln2self_cov_median'] = median(coverages)
+    out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
+    out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
+    for thresh in cov_thresholds:
+        out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
+    if out_tsv:
+        with open(out_tsv, 'wt') as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=out.keys(), delimiter='\t')
+            writer.writeheader()
+            writer.writerow(out)
+
+    return dict(out, __metadata__=True)
+            
+
+def parser_coverage_stats(parser=argparse.ArgumentParser()):
+    parser.add_argument('mapped_bam', type=InFile, help='Mapping of reads to assembly')
+    parser.add_argument('--out_tsv', type=OutFile, help='File to which to save the stats')
+    parser.add_argument('--cov_thresholds',
+                        nargs='+',
+                        type=int,
+                        default=(1, 5, 20, 100),
+                        help='Genome coverage thresholds to report on. (default: %(default)s)')
+    util.cmd.attach_main(parser, coverage_stats, split_args=True)
+    return parser
+
+__commands__.append(('coverage_stats', parser_coverage_stats))
+
 
 #######################
 

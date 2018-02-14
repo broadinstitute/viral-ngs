@@ -7,6 +7,7 @@ import argparse
 import filecmp
 import os
 import read_utils
+import reports
 import shutil
 import tempfile
 import tools
@@ -14,7 +15,8 @@ import tools.bwa
 import tools.samtools
 import util
 import util.file
-from test import TestCaseWithTmp
+import util.cmd
+from test import TestCaseWithTmp, tst_inp
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -257,3 +259,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
         args.func_main(args)
+
+        with util.file.tempfname('.cov_stats.tsv') as cov_stats_tsv:
+            util.cmd.run_cmd(reports, 'coverage_stats', [outBamFiltered, '--out_tsv', cov_stats_tsv])
+            self.assertEqualContents(cov_stats_tsv, tst_inp('TestAlignAndFix/expected.G5012.3.mini.cov.{}.tsv'.format(aligner)))

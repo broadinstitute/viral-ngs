@@ -214,7 +214,8 @@ rule map_reads_to_self:
         config["data_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.fasta'
     output: 
         config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.bam',
-        config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam'
+        config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.mapped.bam',
+        config["data_dir"]+'/'+config["subdirs"]["align_self"]+'/{sample}.coverage.tsv'
     resources: 
         mem     = 4,
         threads = int(config.get("number_of_threads", 1))
@@ -228,3 +229,4 @@ rule map_reads_to_self:
         makedirs([os.path.join(config["data_dir"], config["subdirs"]["align_self"]),
             os.path.join(config["reports_dir"], "assembly")])
         shell("{config[bin_dir]}/read_utils.py align_and_fix {input} --outBamAll {output[0]} --outBamFiltered {output[1]} --aligner novoalign --aligner_options '{params.aligner_options}' --threads {resources.threads} --metadata sample {wildcards.sample} --metadata step_role eval --metadata step_name {rule}")
+        shell("{config[bin_dir]}/reports.py coverage_stats {output[1]} --out_tsv {output[2]} --metadata sample {wildcards.sample} --metadata step_role eval")
