@@ -240,6 +240,7 @@ def add_metadata_tracking(cmd_parser, cmd_main):
             except Exception:
                 # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
                 _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
+                if 'PYTEST_CURRENT_TEST' in os.eniron: raise
 
         if cmd_exception:
             _log.warning('Command failed with exception: {}'.format(cmd_exception_str))

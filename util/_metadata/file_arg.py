@@ -3,8 +3,10 @@ import os.path
 import collections
 import stat
 import pwd
+import traceback
 
 from util._metadata.md_utils import _make_list
+from . import _log
 
 
 # ** class FileArg
@@ -46,9 +48,9 @@ class FileArg(object):
             """Compute a dictionary of info about one file"""
             file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg))
             if self.mode=='r' or out_files_exist:
-                file_info.update(hash=hasher(file_arg))
-
                 try:
+                    file_info.update(hash=hasher(file_arg))
+
                     file_stat = os.stat(file_arg)
                     file_info.update(size=file_stat[stat.ST_SIZE],
                                      mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
