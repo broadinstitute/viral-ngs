@@ -56,23 +56,30 @@ class SamtoolsTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdout=None, stderr=None):    # pylint: disable=W0221
+    def execute(self, command, args, stdout=None, stderr=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
         if stdout:
             stdout = open(stdout, 'w')
         if stderr:
             stderr = open(stderr, 'w')
-        subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr)
+
+        env = os.environ.copy()
+        env.pop('JAVA_HOME', None)
+        if background:
+            subprocess.Popen(tool_cmd, stdout=stdout, stderr=stderr, env=env)
+        else:
+            subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr, env=env)
+
         if stdout:
             stdout.close()
         if stderr:
             stderr.close()
 
-    def view(self, args, inFile, outFile, regions=None):
+    def view(self, args, inFile, outFile, regions=None, background=False):
         regions = regions or []
 
-        self.execute('view', args + ['-o', outFile, inFile] + regions)
+        self.execute('view', args + ['-o', outFile, inFile] + regions, background=background)
         #opts = args + ['-o', outFile, inFile] + regions
         #pysam.view(*opts)
 
