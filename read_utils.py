@@ -16,8 +16,10 @@ import tempfile
 import shutil
 import sys
 import concurrent.futures
+from contextlib import contextmanager
 
 from Bio import SeqIO
+import pysam
 
 import util.cmd
 import util.file
@@ -179,6 +181,23 @@ __commands__.append(('mkdup_picard', parser_mkdup_picard))
 # ***  revert_bam_picard   ***
 # =============================
 
+def parser_revert_sam_common(parser=argparse.ArgumentParser()):
+    parser.add_argument('--clearTags', dest='clear_tags', default=False, action='store_true', 
+                        help='When supplying an aligned input file, clear the per-read attribute tags')
+    parser.add_argument("--tagsToClear", type=str, nargs='+', dest="tags_to_clear", default=["XT", "X0", "X1", "XA", 
+                        "AM", "SM", "BQ", "CT", "XN", "OC", "OP"], 
+                        help='A space-separated list of tags to remove from all reads in the input bam file (default: %(default)s)')
+    parser.add_argument('--doNotSanitize', dest="do_not_sanitize", action='store_true')
+    try:
+        parser.add_argument(
+            '--JVMmemory',
+            default=tools.picard.RevertSamTool.jvmMemDefault,
+            help='JVM virtual memory size (default: %(default)s)'
+        )
+    except argparse.ArgumentError:
+        # if --JVMmemory is already present in the parser, continue on...
+        pass
+    return parser
 
 def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
@@ -194,19 +213,67 @@ def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
         nargs='*',
         help='Optional arguments to Picard\'s RevertSam, OPTIONNAME=value ...'
     )
+    parser = parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_revert_bam_picard)
+    util.cmd.attach_main(parser, main_revert_bam_picard, split_args=True)
     return parser
 
 
-def main_revert_bam_picard(args):
+def main_revert_bam_picard(inBam, outBam, clear_tags=False, tags_to_clear=None, picardOptions=None, JVMmemory=None):
     '''Revert BAM to raw reads'''
-    opts = list(args.picardOptions)
-    tools.picard.RevertSamTool().execute(args.inBam, args.outBam, picardOptions=opts, JVMmemory=args.JVMmemory)
+    picardOptions = picardOptions or []
+    tags_to_clear = tags_to_clear or []
+
+    if clear_tags:
+        for tag in tags_to_clear:
+            picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+
+    tools.picard.RevertSamTool().execute(inBam, outBam, picardOptions=picardOptions, JVMmemory=JVMmemory)
     return 0
-
-
 __commands__.append(('revert_bam_picard', parser_revert_bam_picard))
+
+@contextmanager
+def revert_bam_if_aligned(inBam, revert_bam=None, clear_tags=True, tags_to_clear=None, picardOptions=None, JVMmemory="4g", sanitize=False):
+    '''
+        revert the bam file if aligned. 
+        If a revertBam file path is specified, it is used, otherwise a temp file is created.
+    '''
+
+    revertBamOut = revert_bam if revert_bam else util.file.mkstempfname('.bam')
+    picardOptions = picardOptions or []
+    tags_to_clear = tags_to_clear or []
+
+    outBam = inBam
+    with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as bam:
+        # if it looks like the bam is aligned, revert it
+        if 'SQ' in bam.header and len(bam.header['SQ'])>0:
+            if clear_tags:
+                for tag in tags_to_clear:
+                    picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+
+            if not any(opt.startswith("SORT_ORDER") for opt in picardOptions):
+                picardOptions.append('SORT_ORDER=queryname')
+
+            if sanitize and not any(opt.startswith("SANITIZE") for opt in picardOptions):
+                picardOptions.append('SANITIZE=true')
+
+            tools.picard.RevertSamTool().execute(
+                inBam, revertBamOut, picardOptions=picardOptions 
+            )
+            outBam = revertBamOut
+        else:
+            # if we don't need to produce a revertBam file
+            # but the user has specified one anyway
+            # simply touch the output
+            if revert_bam:
+                log.warning("An output was specified for 'revertBam', but the input is unaligned, so RevertSam was not needed. Touching the output.")
+                util.file.touch(revertBamOut)
+                # TODO: error out? run RevertSam anyway?
+
+    yield outBam
+
+    if revert_bam == None:
+        os.unlink(revertBamOut)
 
 # =========================
 # ***  generic picard   ***
