@@ -52,17 +52,19 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'blastnBam', type=OutFile, help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
-    blast_suffixes = ['.bitmask'] + ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]
+    arg_type_bwa_bmtagger = InFile_OneOf(InFile, 
+                                         InFilePrefix(suffixes=['.bitmask'] + \
+                                                      ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
     parser.add_argument(
         '--bwaDbs',
-        type=InFilesPrefix(suffixes=blast_suffixes),
+        type=arg_type_bwa_bmtagger,
         nargs='*',
         default=(),
         help='Reference databases for blast to deplete from input.'
     )
     parser.add_argument(
         '--bmtaggerDbs',
-        type=InFilesPrefix(suffixes=blast_suffixes),
+        type=arg_type_bwa_bmtagger,
         nargs='*',
         default=(),
         help='''Reference databases to deplete from input.
