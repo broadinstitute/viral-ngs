@@ -54,6 +54,7 @@ nosetests.xml
 pytest.xml
 coverage.xml
 .coverage*
+.pytest_cache/
 
 test/input/TestVPhaser2/in.bam.bti
 
