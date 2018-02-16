@@ -753,13 +753,14 @@ def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('outHtml', help='Output html report.')
     parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)', type=int, default=2)
     parser.add_argument('--taxidColumn', help='Column of taxonomy id. (default %(default)s)', type=int, default=3)
-    parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)', type=int)
+    parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)', type=int, default=None)
+    parser.add_argument('--magnitudeColumn', help='Column of magnitude. (default %(default)s)', type=int, default=None)
     parser.add_argument('--noHits', help='Include wedge for no hits.', action='store_true')
     parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
-def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, noHits=None, noRank=None):
+def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
     '''
@@ -773,6 +774,7 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=No
                 to_import = [tmp_tsv]
     else:
         to_import = [inTsv]
+    root_name = os.path.basename(inTsv)
 
     krona_tool.import_taxonomy(
         db,
@@ -781,6 +783,8 @@ def krona(inTsv, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=No
         query_column=queryColumn,
         taxid_column=taxidColumn,
         score_column=scoreColumn,
+        magnitude_column=magnitudeColumn,
+        root_name=root_name,
         no_hits=noHits,
         no_rank=noRank
     )
