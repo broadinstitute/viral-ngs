@@ -53,8 +53,8 @@ def parser_deplete(parser=argparse.ArgumentParser()):
         'blastnBam', type=OutFile, help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
     arg_type_bwa_bmtagger = InFile_OneOf(InFile, 
-                                         InFilePrefix(suffixes=['.bitmask'] + \
-                                                      ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
+                                         InFilesPrefix(suffixes=['.bitmask'] + \
+                                                       ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
     parser.add_argument(
         '--bwaDbs',
         type=arg_type_bwa_bmtagger,
