@@ -25,8 +25,6 @@ import util.version
 
 from util._metadata.file_arg import FileArg
 from util._metadata.hashing import Hasher
-from util._metadata import caching
-from util._metadata.testmon import testmon_core
 from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
 from util._metadata import _log, metadata_dir, is_metadata_tracking_enabled
 from util._metadata import metadata_db
@@ -137,24 +135,13 @@ def add_metadata_tracking(cmd_main):
         save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
         os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
 
-        reused_from_cache = caching.reuse_cached_step(cmd_module, cmd_name, args_dict)
-
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
         json_fname = '{}.json'.format(step_id)
-        testmon_data = None
-        if not reused_from_cache and 'VIRAL_NGS_TESTMON' in os.environ and not save_steps_running:
-            testmon_data = testmon_core.TestmonData(os.path.realpath(util.version.get_project_path()), 
-                                                    datafile=os.path.join(metadata_dir(), json_fname+'.testmondata'))
-            testmon_data.read_data()
-            testmon_data.read_source()
-            testmon = testmon_core.Testmon([util.version.get_project_path()], set(['singleprocess']))
-            testmon.start()
 
         try:
             # *** Run the actual command ***
-            if not reused_from_cache:
-                cmd_result = cmd_main(args_new)
+            cmd_result = cmd_main(args_new)
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -166,17 +153,6 @@ def add_metadata_tracking(cmd_main):
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
                 if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
-
-                    if testmon_data is not None:
-                        if cmd_exception: testmon.stop()
-                        else:
-                            print('saving testmon')
-                            testmon.stop_and_save(testmon_data, util.version.get_project_path(), cmd_module+'::'+cmd_name,
-                                                  [dict(outcome='ok')])
-                            print('writing data')
-                            testmon_data.write_data()
-                            testmon.close()
-                        testmon_data.close_connection()
 
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
@@ -211,7 +187,7 @@ def add_metadata_tracking(cmd_main):
                                                           cwd=os.getcwd(), conda_env=get_conda_env()),
                                              run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                                                            exception=cmd_exception_str,
-                                                           argv=tuple(sys.argv), reused_from=reused_from_cache),
+                                                           argv=tuple(sys.argv), reused_cached_step=None),
                                              args=args_dict,
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
@@ -228,7 +204,6 @@ def add_metadata_tracking(cmd_main):
                         Used for json serialization below."""
                         if not isinstance(x, FileArg): return str(x)
                         file_info = x.gather_file_info(hasher, out_files_exist=cmd_exception is None)
-                        caching.cache_results(file_info)
                         return file_info
 
                     metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
