@@ -133,17 +133,6 @@ def add_metadata_arg(cmd_parser):
                                 help='attach metadata to this step (step=this specific execution of this command)')
         setattr(cmd_parser, 'metadata_arg_added', True)
 
-@contextlib.contextmanager
-def handle_enclosing_steps(step_id):
-    # Sometimes, the implementation of a command will invoke another command as a subcommand.
-    # We keep, in an environment variable, the list of any steps already running, and record this info as part of step metadata.
-    save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
-    os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
-    try:
-        yield save_steps_running
-    finally:
-        os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
-
 def gather_user_metadata(args_dict, cmd_result):
     # save any metadata specified on the command line.  then drop the 'metadata' argument from the args dict, since
     # the original command implementation `cmd_main` does not recognize this arg.
@@ -212,7 +201,7 @@ def add_metadata_tracking(cmd_main):
         run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
         step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
-        with handle_enclosing_steps(step_id) as enclosing_steps, \
+        with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps, \
              call_cmd(cmd_main, replace_file_args(args)) as (cmd_result, cmd_exception, cmd_exception_str), \
              errors_as_warnings():
 

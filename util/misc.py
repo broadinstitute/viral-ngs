@@ -607,7 +607,7 @@ def tmp_set_env(var, val, sep='', append=True):
     """
     assert isinstance(var, str) and var, 'Invalid environment var {}'.format(var)
     assert val or not sep, 'Cannot prepend/append when deleting env var'
-    print('val=', val, 'sep=', sep, 'val or not sep=', val or not sep)
+
     old_val = os.environ.get(var, None)
     try:
         if val is None:
