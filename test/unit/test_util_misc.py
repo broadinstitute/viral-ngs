@@ -265,3 +265,20 @@ def test_func_wrap():
 
     assert h.__wrapped__ == g
     assert util.misc.unwrap(h) == f
+
+def test_flatten_dict():
+    """Test dict flattening"""
+
+    flatten_dict = util.misc.flatten_dict
+    
+    inout = (
+        ({}, {}),
+        ({1:2, 3: {4:5}}, {(1,): 2, (3, 4): 5}),
+        ({1:2, 3: {4:5, 6:7}}, {(1,): 2, (3, 4): 5, (3,6):7}),
+        ({1:2, 3: {4:5, 6:7}, 8: {}}, {(1,): 2, (3, 4): 5, (3,6):7}),
+        ({1:2, 3: {4:5, 6:7}, 8: {9: {}}}, {(1,): 2, (3, 4): 5, (3,6):7}),
+        ({1:2, 3: {4:5, 6:7}, 8: {9: {10: (11, 12)}}}, {(1,): 2, (3, 4): 5, (3,6):7, (8,9,10): (11,12)}),
+    )
+    for inp, out in inout:
+        assert flatten_dict(inp) == out
+    

@@ -8,6 +8,7 @@ import os
 import re
 import unittest
 import hashlib
+import collections
 import logging
 
 # third-party

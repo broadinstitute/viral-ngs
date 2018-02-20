@@ -636,3 +636,13 @@ def unwrap(f):
     """Find the original function under layers of wrappers"""
     return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
 
+def flatten_dict(d):
+    '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.'''
+    result = {}
+    for k, v in d.items():
+        if isinstance(v, collections.Mapping):
+            for k_rest, v_actual in flatten_dict(v).items():
+                result[(k,)+k_rest] = v_actual
+        else:
+            result[(k,)] = v
+    return result
