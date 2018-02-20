@@ -600,15 +600,30 @@ def add_suffixes(base, suffixes):
     return [base+sfx for sfx in suffixes]
 
 @contextlib.contextmanager
-def tmp_set_env(var, val):
-    """Context manager which temporarily set an environment variable.  Returns old value of the variable, or None if not set."""
-    save_var = os.environ.get(var, None)
+def tmp_set_env(var, val, sep='', append=True):
+    """Context manager which temporarily sets environment variable `var` to value `val` (or deletes it if `val` is None).  If
+    `sep` is non-empty and `var` is already set, prepends or appends (depending on value of `append`) `val` to the existing
+    value, separated by `sep`. Returns, as context value, the old value of the variable, or None if it was not set.
+    """
+    assert isinstance(var, str) and var, 'Invalid environment var {}'.format(var)
+    assert val or not sep, 'Cannot prepend/append when deleting env var'
+    print('val=', val, 'sep=', sep, 'val or not sep=', val or not sep)
+    old_val = os.environ.get(var, None)
     try:
-        os.environ[var] = str(val)
-        yield save_var
+        if val is None:
+            del os.environ[var]
+        else:
+            new_val = str(val)
+            if sep and old_val:
+                new_val = sep.join((old_val, new_val) if append else (new_val, old_val))
+            assert len(new_val) < 128*1024, 'Env var value too long'
+            os.environ[var] = new_val
+        yield old_val
     finally:
-        if save_var is not None:
-            os.environ[var] = save_var
+        if old_val is None:
+            del os.environ[var]
+        else:
+            os.environ[var] = old_val
 
 def wraps(f):
     """Like functools.wraps but sets __wrapped__ even on Python 2.7"""

@@ -5,9 +5,11 @@ __author__ = "dpark@broadinstitute.org"
 import os, random, collections
 import unittest
 import subprocess
+
 import util.misc
 import util.file
 
+import pytest
 
 class TestRunAndPrint(unittest.TestCase):
     
@@ -209,3 +211,41 @@ class TestConfigIncludes(unittest.TestCase):
 
         self.assertEqual(util.misc.load_config(test_fn('empty.yaml')), {})
 
+def test_tmp_set_env():
+    """Test tmp_set_env()"""
+
+    var = 'VIRAL_NGS_TEST_VAR'
+    tmp_set_env = util.misc.tmp_set_env
+
+    save_environ = dict(os.environ)
+
+    assert var not in os.environ
+    with tmp_set_env(var, 239) as old_val:
+        assert not old_val
+        assert os.environ[var] == '239'
+
+        with tmp_set_env(var, 300) as old_val1:
+            assert old_val1 == '239'
+            assert os.environ[var] == '300'
+            
+        assert os.environ[var] == '239'
+        with tmp_set_env(var, None):
+            assert var not in os.environ
+        assert os.environ[var] == '239'
+
+        with pytest.raises(AssertionError):
+            with tmp_set_env(var, None, sep=':'):
+                pass
+        
+        with tmp_set_env(var, 300, sep=':') as old_val1:
+            assert old_val1 == '239'
+            assert os.environ[var] == '239:300'
+
+            with tmp_set_env(var, 400, sep=':', append=False) as old_val2:
+                assert old_val2 == '239:300'
+                assert os.environ[var] == '400:239:300'
+            assert os.environ[var] == '239:300'
+        assert os.environ[var] == '239'
+        
+    assert var not in os.environ
+    assert os.environ == save_environ
