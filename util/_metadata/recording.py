@@ -107,7 +107,21 @@ def replace_file_args(args):
         return val
 
     return argparse.Namespace(**{arg: _replace_file_args(val) for arg, val in vars(args).items()})
-    
+
+def record_step_to_db(step_data):
+    """Record the record of this step to the metadata database.  In the process, for any FileArg args of the command,
+    gather hashsums and other file info for the denoted file(s)."""
+
+    hasher = Hasher()
+
+    def write_obj(x):
+        """If `x` is a FileArg, return a dict representing it, else return a string representation of `x`.
+        Used for json serialization below."""
+        if not isinstance(x, FileArg): return str(x)
+        file_info = x.gather_file_info(hasher, out_files_exist=not step_data['step']['run_info']['exception'])
+        return file_info
+
+    metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
 
 # ** add_metadata_tracking
 
@@ -175,10 +189,6 @@ def add_metadata_tracking(cmd_main):
         finally:
             os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
             try:  # if any errors happen during metadata recording just issue a warning
-
-
-                # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
-                # still record that.
                 if metadata_db.is_metadata_tracking_enabled():
 
 # *** Record metadata after cmd impl returns
@@ -206,22 +216,7 @@ def add_metadata_tracking(cmd_main):
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
                                              enclosing_steps=save_steps_running)
-                    #
-                    # Serialize the record of this step to json.  In the process, for any FileArg args of the command,
-                    # gather hashsums and other file info for the denoted file(s).
-                    #
-
-                    hasher = Hasher()
-
-                    def write_obj(x):
-                        """If `x` is a FileArg, return a dict representing it, else return a string representation of `x`.
-                        Used for json serialization below."""
-                        if not isinstance(x, FileArg): return str(x)
-                        file_info = x.gather_file_info(hasher, out_files_exist=cmd_exception is None)
-                        return file_info
-
-                    metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
-
+                    record_step_to_db(step_data)
                     _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
             except Exception:
