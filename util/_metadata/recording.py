@@ -97,6 +97,18 @@ def gather_run_info(beg_time, end_time, cmd_exception_str):
                 exception=cmd_exception_str,
                 argv=tuple(sys.argv))
 
+def replace_file_args(args):
+    # for args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when adding the args to
+    # the parser, the corresponding values will be of type FileArg, rather than strings.  We must convert these values
+    # to str before calling the original command implementation `cmd_main`.
+    def _replace_file_args(val):
+        if isinstance(val, FileArg): return val.val
+        if isinstance(val, (list, tuple)): return list(map(_replace_file_args, val))
+        return val
+
+    return argparse.Namespace(**{arg: _replace_file_args(val) for arg, val in vars(args).items()})
+    
+
 # ** add_metadata_tracking
 
 def add_metadata_arg(cmd_parser):
@@ -132,16 +144,7 @@ def add_metadata_tracking(cmd_main):
         metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
                                    for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
         metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
-
-        # for args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when adding the args to
-        # the parser, the corresponding values will be of type FileArg, rather than strings.  We must convert these values
-        # to str before calling the original command implementation `cmd_main`.
-        def replace_file_args(val):
-            if isinstance(val, FileArg): return val.val
-            if isinstance(val, (list, tuple)): return list(map(replace_file_args, val))
-            return val
-
-        args_new = argparse.Namespace(**{arg: replace_file_args(val) for arg, val in args_dict.items()})
+        delattr(args, 'metadata')
 
         cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
         cmd_name = args_dict.get('command', cmd_main.__name__)
@@ -161,11 +164,9 @@ def add_metadata_tracking(cmd_main):
 
         cmd_exception, cmd_exception_str, cmd_result = None, None, None
 
-        json_fname = '{}.json'.format(step_id)
-
         try:
             # *** Run the actual command ***
-            cmd_result = cmd_main(args_new)
+            cmd_result = cmd_main(replace_file_args(args))
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:
