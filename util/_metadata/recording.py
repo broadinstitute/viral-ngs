@@ -26,7 +26,7 @@ import util.version
 from util._metadata.file_arg import FileArg
 from util._metadata.hashing import Hasher
 from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
-from util._metadata import _log, metadata_dir, is_metadata_tracking_enabled
+from util._metadata import _log
 from util._metadata import metadata_db
 
 # third-party
@@ -142,6 +142,8 @@ def add_metadata_tracking(cmd_main):
         try:
             # *** Run the actual command ***
             cmd_result = cmd_main(args_new)
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception as e:
             cmd_exception = e
             cmd_exception_str = traceback.format_exc()
@@ -152,17 +154,17 @@ def add_metadata_tracking(cmd_main):
 
                 # If command was cancelled by the user by Ctrl-C, skip the metadata recording; but if it failed with an exception,
                 # still record that.
-                if is_metadata_tracking_enabled() and not isinstance(cmd_exception, KeyboardInterrupt):
+                if metadata_db.is_metadata_tracking_enabled():
 
 # *** Record metadata after cmd impl returns
                     end_time = time.time()
 
                     _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
                                                                                    cmd_exception_str))
-                    _log.info('recording metadata to {}'.format(_mask_secret_info(metadata_dir())))
+                    _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
                     # record the code version used to run this step
-                    code_repo = os.path.join(metadata_dir(), 'code_repo')
+                    code_repo = os.path.join(metadata_db.metadata_dir(), 'code_repo')
                     code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
 
                     # The function that implements the command can pass us some metadata to be included in the step record,
@@ -180,7 +182,7 @@ def add_metadata_tracking(cmd_main):
                                                                viral_ngs_path=util.version.get_project_path(),
                                                                viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
                                                                code_hash=code_hash),
-                                             run_env=dict(metadata_dir=metadata_dir(),
+                                             run_env=dict(metadata_dir=metadata_db.metadata_dir(),
                                                           platform=platform.platform(), 
                                                           cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                                                           user=getpass.getuser(),

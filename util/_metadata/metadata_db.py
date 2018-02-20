@@ -3,16 +3,30 @@
 import json
 import collections
 import builtins
+import os
 
-from . import metadata_dir
-from .md_utils import dict_has_keys
+from . import md_utils
 
 import fs
+import fs_s3fs
+
+def metadata_dir():
+    """Returns the directory to which metadata was recorded, as specified by the environment variable VIRAL_NGS_METADATA_PATH.
+    Raises an error if the environment variable is not defined.
+    """
+    return os.environ['VIRAL_NGS_METADATA_PATH']
+
+def metadata_dir_sanitized():
+    return md_utils._mask_secret_info(metadata_dir())
+
+def is_metadata_tracking_enabled():
+    return 'VIRAL_NGS_METADATA_PATH' in os.environ
+    # todo: check also that the only VIRAL_NGS_METADATA env vars are known ones
 
 def is_valid_step_record(d):
     """Test whether `d` is a dictionary containing all the expected elements of a step, as recorded by the code above"""
-    return dict_has_keys(d, 'format step') and \
-        dict_has_keys(d['step'], 'args step_id cmd_module')
+    return md_utils.dict_has_keys(d, 'format step') and \
+        md_utils.dict_has_keys(d['step'], 'args step_id cmd_module')
 
 def load_all_records():
     """Load all step records from the database"""

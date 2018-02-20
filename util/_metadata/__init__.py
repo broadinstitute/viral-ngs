@@ -42,18 +42,6 @@ Metadata recording is done on a best-effort basis.  If metadata recording fails 
 """
 
 import logging
-import os
 
 _log = logging.getLogger(__name__)
-
-def metadata_dir():
-    """Returns the directory to which metadata was recorded, as specified by the environment variable VIRAL_NGS_METADATA_PATH.
-    Raises an error if the environment variable is not defined.
-    """
-    return os.environ['VIRAL_NGS_METADATA_PATH']
-
-def is_metadata_tracking_enabled():
-    return 'VIRAL_NGS_METADATA_PATH' in os.environ
-
-    # check also that the only VIRAL_NGS_METADATA env vars are known ones
 
