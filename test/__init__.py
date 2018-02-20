@@ -16,7 +16,7 @@ import Bio.SeqIO
 
 # intra-project
 import util.file
-from util.misc import available_cpu_count
+from util.misc import available_cpu_count, flatten_dict
 from tools.samtools import SamtoolsTool
 
 logging.getLogger('botocore').setLevel(logging.WARNING)
@@ -140,3 +140,14 @@ def tst_inp(*f):
         f: elements of the relative path to the file under test/input
     """
     return os.path.realpath(os.path.join(util.file.get_test_path(), 'input', *f))
+
+def assert_equal_flat_dicts(d1, d2, may_differ=()):
+    """Assert that the flattened versions of d1 and d2 are equal, except possibly for paths in may_differ where only value types must match.
+    """
+    may_differ_set = set(may_differ)
+    assert all(isinstance(x, tuple) for x in may_differ_set)
+    def _canon(d):
+        return { k: (type(v) if k in may_differ_set else v) for k, v in flatten_dict(d).items() }
+    assert _canon(d1) == _canon(d2)
+
+
