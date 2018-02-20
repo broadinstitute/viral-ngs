@@ -143,7 +143,21 @@ def handle_enclosing_steps(step_id):
         yield save_steps_running
     finally:
         os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
-        
+
+def gather_user_metadata(args_dict, cmd_result):
+    # save any metadata specified on the command line.  then drop the 'metadata' argument from the args dict, since
+    # the original command implementation `cmd_main` does not recognize this arg.
+    metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
+                               for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
+    metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
+
+    # The function that implements the command can pass us some metadata to be included in the step record,
+    # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
+    # treated as metadata.
+    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
+                               else {}
+    return metadata_from_cmd_line, metadata_from_cmd_return
+
 @contextlib.contextmanager
 def call_cmd(cmd_main, args):
     cmd_result, cmd_exception, cmd_exception_str = None, None, None
@@ -187,8 +201,9 @@ def add_metadata_tracking(cmd_main):
 
 # *** Before calling cmd impl
         args_dict = vars(args).copy()
-
         delattr(args, 'metadata')
+
+        step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
 
         cmd_main_unwrapped = util.misc.unwrap(cmd_main)
         cmd_module=cmd_main_unwrapped.__module__
@@ -213,21 +228,10 @@ def add_metadata_tracking(cmd_main):
                                                                                cmd_exception_str))
                 _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
-                # save any metadata specified on the command line.  then drop the 'metadata' argument from the args dict, since
-                # the original command implementation `cmd_main` does not recognize this arg.
-                metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
-                                           for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
-                metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
-
-                # The function that implements the command can pass us some metadata to be included in the step record,
-                # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
-                # treated as metadata.
-                metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
-                                           else {}
+                metadata_from_cmd_line, metadata_from_cmd_return = gather_user_metadata(args_dict, cmd_result)
 
                 args_dict.pop('func_main', '')
 
-                step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
                 step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                          cmd_module=cmd_module, cmd_name=cmd_name,
                                          version_info=gather_version_info(step_id),
