@@ -73,6 +73,30 @@ def get_conda_env():
     """Return the active conda environment"""
     return _shell_cmd('conda env export')
 
+def gather_version_info(step_id):
+    """Gather info about the code version we are running"""
+    # record the code version used to run this step
+    code_repo = os.path.join(metadata_db.metadata_dir(), 'code_repo')
+    code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
+    
+    return dict(viral_ngs_version=util.version.get_version(),
+                viral_ngs_path=util.version.get_project_path(),
+                viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
+                code_hash=code_hash)
+
+def gather_run_env():
+    """Gather runtime environment"""
+    return dict(metadata_dir=metadata_db.metadata_dir(),
+                platform=platform.platform(), 
+                cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
+                user=getpass.getuser(),
+                cwd=os.getcwd(), conda_env=get_conda_env())
+
+def gather_run_info(beg_time, end_time, cmd_exception_str):
+    return dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
+                exception=cmd_exception_str,
+                argv=tuple(sys.argv))
+
 # ** add_metadata_tracking
 
 def add_metadata_arg(cmd_parser):
@@ -163,33 +187,20 @@ def add_metadata_tracking(cmd_main):
                                                                                    cmd_exception_str))
                     _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
-                    # record the code version used to run this step
-                    code_repo = os.path.join(metadata_db.metadata_dir(), 'code_repo')
-                    code_hash = tag_code_version('cmd_' + step_id, push_to=code_repo if os.path.isdir(code_repo) else None)
-
                     # The function that implements the command can pass us some metadata to be included in the step record,
                     # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
                     # treated as metadata.
                     metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
                                                else {}
 
-                    args_dict.pop('func_main', '')  # 
+                    args_dict.pop('func_main', '')
 
                     step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
                     step_data['step'] = dict(step_id=step_id, run_id=run_id,
                                              cmd_module=cmd_module, cmd_name=cmd_name,
-                                             version_info=dict(viral_ngs_version=util.version.get_version(),
-                                                               viral_ngs_path=util.version.get_project_path(),
-                                                               viral_ngs_path_real=os.path.realpath(util.version.get_project_path()),
-                                                               code_hash=code_hash),
-                                             run_env=dict(metadata_dir=metadata_db.metadata_dir(),
-                                                          platform=platform.platform(), 
-                                                          cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
-                                                          user=getpass.getuser(),
-                                                          cwd=os.getcwd(), conda_env=get_conda_env()),
-                                             run_info=dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
-                                                           exception=cmd_exception_str,
-                                                           argv=tuple(sys.argv), reused_cached_step=None),
+                                             version_info=gather_version_info(step_id),
+                                             run_env=gather_run_env(),
+                                             run_info=gather_run_info(beg_time, end_time, cmd_exception_str),
                                              args=args_dict,
                                              metadata_from_cmd_line=metadata_from_cmd_line,
                                              metadata_from_cmd_return=metadata_from_cmd_return,
