@@ -26,7 +26,7 @@ import util.version
 
 from util._metadata.file_arg import FileArg
 from util._metadata.hashing import Hasher
-from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys
+from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys, errors_as_warnings
 from util._metadata import _log
 from util._metadata import metadata_db
 
@@ -160,6 +160,8 @@ def gather_user_metadata(args_dict, cmd_result):
 
 @contextlib.contextmanager
 def call_cmd(cmd_main, args):
+    """Call command implementatiton `cmd_main` with arguments `args', yielding (cmd_result, cmd_exception, cmd_exception_str).
+    """
     cmd_result, cmd_exception, cmd_exception_str = None, None, None
     try:
         cmd_result = cmd_main(args)
@@ -169,14 +171,7 @@ def call_cmd(cmd_main, args):
         cmd_exception = e
         cmd_exception_str = traceback.format_exc()
 
-    try:
-        yield (cmd_result, cmd_exception, cmd_exception_str)
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except Exception:
-        # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
-        _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
-        if 'PYTEST_CURRENT_TEST' in os.environ: raise
+    yield (cmd_result, cmd_exception, cmd_exception_str)
 
     if cmd_exception:
         raise cmd_exception
@@ -217,32 +212,33 @@ def add_metadata_tracking(cmd_main):
         run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
         step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
-        with handle_enclosing_steps(step_id) as save_steps_running, \
-             call_cmd(cmd_main, replace_file_args(args)) as (cmd_result, cmd_exception, cmd_exception_str):
+        with handle_enclosing_steps(step_id) as enclosing_steps, \
+             call_cmd(cmd_main, replace_file_args(args)) as (cmd_result, cmd_exception, cmd_exception_str), \
+             errors_as_warnings():
 
-            if metadata_db.is_metadata_tracking_enabled():
+                if metadata_db.is_metadata_tracking_enabled():
 
-                end_time = time.time()
+                    end_time = time.time()
 
-                _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
-                                                                               cmd_exception_str))
-                _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
+                    _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
+                                                                                   cmd_exception_str))
+                    _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
-                metadata_from_cmd_line, metadata_from_cmd_return = gather_user_metadata(args_dict, cmd_result)
+                    metadata_from_cmd_line, metadata_from_cmd_return = gather_user_metadata(args_dict, cmd_result)
 
-                args_dict.pop('func_main', '')
+                    args_dict.pop('func_main', '')
 
-                step_data['step'] = dict(step_id=step_id, run_id=run_id,
-                                         cmd_module=cmd_module, cmd_name=cmd_name,
-                                         version_info=gather_version_info(step_id),
-                                         run_env=gather_run_env(),
-                                         run_info=gather_run_info(beg_time, end_time, cmd_exception_str),
-                                         args=args_dict,
-                                         metadata_from_cmd_line=metadata_from_cmd_line,
-                                         metadata_from_cmd_return=metadata_from_cmd_return,
-                                         enclosing_steps=save_steps_running)
-                record_step_to_db(step_data)
-                _log.info('metadata recording took {}s'.format(time.time() - end_time))
+                    step_data['step'] = dict(step_id=step_id, run_id=run_id,
+                                             cmd_module=cmd_module, cmd_name=cmd_name,
+                                             version_info=gather_version_info(step_id),
+                                             run_env=gather_run_env(),
+                                             run_info=gather_run_info(beg_time, end_time, cmd_exception_str),
+                                             args=args_dict,
+                                             metadata_from_cmd_line=metadata_from_cmd_line,
+                                             metadata_from_cmd_return=metadata_from_cmd_return,
+                                             enclosing_steps=enclosing_steps)
+                    record_step_to_db(step_data)
+                    _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
     return _run_cmd_with_tracking
 

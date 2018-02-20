@@ -1,5 +1,6 @@
 """Misc utils used by the metadata package"""
 
+import contextlib
 import collections
 import util.misc
 
@@ -25,3 +26,18 @@ def _mask_secret_info(fs_url):
 def dict_has_keys(d, keys_str):
     """Test whether a `d` is a dict containing all the given keys (given as tokens of `keys_str`)"""
     return isinstance(d, collections.Mapping) and set(d.keys()) >= set(keys_str.split())
+
+@contextlib.contextmanager
+def errors_as_warnings():
+    exc = []
+    try:
+        yield exc
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
+        e_str = traceback.format_exc()
+        _log.warning('Error recording metadata ({})'.format(e_str))
+        exc.append(e_str)
+        if 'PYTEST_CURRENT_TEST' in os.environ: raise
+    
