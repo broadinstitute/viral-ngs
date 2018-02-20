@@ -17,6 +17,7 @@ import binascii
 import json
 import platform
 import shutil
+import contextlib
 
 # intra-module
 import util.file
@@ -132,6 +133,40 @@ def add_metadata_arg(cmd_parser):
                                 help='attach metadata to this step (step=this specific execution of this command)')
         setattr(cmd_parser, 'metadata_arg_added', True)
 
+@contextlib.contextmanager
+def handle_enclosing_steps(step_id):
+    # Sometimes, the implementation of a command will invoke another command as a subcommand.
+    # We keep, in an environment variable, the list of any steps already running, and record this info as part of step metadata.
+    save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
+    os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
+    try:
+        yield save_steps_running
+    finally:
+        os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
+        
+@contextlib.contextmanager
+def call_cmd(cmd_main, args):
+    cmd_result, cmd_exception, cmd_exception_str = None, None, None
+    try:
+        cmd_result = cmd_main(args)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        cmd_exception = e
+        cmd_exception_str = traceback.format_exc()
+
+    try:
+        yield (cmd_result, cmd_exception, cmd_exception_str)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception:
+        # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
+        _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
+        if 'PYTEST_CURRENT_TEST' in os.environ: raise
+
+    if cmd_exception:
+        raise cmd_exception
+
 def add_metadata_tracking(cmd_main):
     """Add provenance tracking to the given command.  
 
@@ -153,15 +188,11 @@ def add_metadata_tracking(cmd_main):
 # *** Before calling cmd impl
         args_dict = vars(args).copy()
 
-        # save any metadata specified on the command line.  then drop the 'metadata' argument from the args dict, since
-        # the original command implementation `cmd_main` does not recognize this arg.
-        metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
-                                   for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
-        metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
         delattr(args, 'metadata')
 
-        cmd_module=os.path.splitext(os.path.basename(sys.argv[0]))[0]
-        cmd_name = args_dict.get('command', cmd_main.__name__)
+        cmd_main_unwrapped = util.misc.unwrap(cmd_main)
+        cmd_module=cmd_main_unwrapped.__module__
+        cmd_name = args_dict.get('command', cmd_main_unwrapped.__name__)
         
         # Determine the run id and the step id for this step.  A step is a particular invocation of a command; a run is a set
         # of steps invoked as part of one workflow, such as one Snakemake invocation.
@@ -171,62 +202,43 @@ def add_metadata_tracking(cmd_main):
         run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
         step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
-        # Sometimes, the implementation of a command will invoke another command as a subcommand.
-        # We keep, in an environment variable, the list of any steps already running, and record this info as part of step metadata.
-        save_steps_running = os.environ.get('VIRAL_NGS_METADATA_STEPS_RUNNING', '')
-        os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = ((save_steps_running+':') if save_steps_running else '') + step_id
+        with handle_enclosing_steps(step_id) as save_steps_running, \
+             call_cmd(cmd_main, replace_file_args(args)) as (cmd_result, cmd_exception, cmd_exception_str):
 
-        cmd_exception, cmd_exception_str, cmd_result = None, None, None
+            if metadata_db.is_metadata_tracking_enabled():
 
-        try:
-            # *** Run the actual command ***
-            cmd_result = cmd_main(replace_file_args(args))
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception as e:
-            cmd_exception = e
-            cmd_exception_str = traceback.format_exc()
-        finally:
-            os.environ['VIRAL_NGS_METADATA_STEPS_RUNNING'] = save_steps_running
-            try:  # if any errors happen during metadata recording just issue a warning
-                if metadata_db.is_metadata_tracking_enabled():
+                end_time = time.time()
 
-# *** Record metadata after cmd impl returns
-                    end_time = time.time()
+                _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
+                                                                               cmd_exception_str))
+                _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
-                    _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
-                                                                                   cmd_exception_str))
-                    _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
+                # save any metadata specified on the command line.  then drop the 'metadata' argument from the args dict, since
+                # the original command implementation `cmd_main` does not recognize this arg.
+                metadata_from_cmd_line = { k[len('VIRAL_NGS_METADATA_VALUE_'):] : v
+                                           for k, v in os.environ.items() if k.startswith('VIRAL_NGS_METADATA_VALUE_') }
+                metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
 
-                    # The function that implements the command can pass us some metadata to be included in the step record,
-                    # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
-                    # treated as metadata.
-                    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
-                                               else {}
+                # The function that implements the command can pass us some metadata to be included in the step record,
+                # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
+                # treated as metadata.
+                metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
+                                           else {}
 
-                    args_dict.pop('func_main', '')
+                args_dict.pop('func_main', '')
 
-                    step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
-                    step_data['step'] = dict(step_id=step_id, run_id=run_id,
-                                             cmd_module=cmd_module, cmd_name=cmd_name,
-                                             version_info=gather_version_info(step_id),
-                                             run_env=gather_run_env(),
-                                             run_info=gather_run_info(beg_time, end_time, cmd_exception_str),
-                                             args=args_dict,
-                                             metadata_from_cmd_line=metadata_from_cmd_line,
-                                             metadata_from_cmd_return=metadata_from_cmd_return,
-                                             enclosing_steps=save_steps_running)
-                    record_step_to_db(step_data)
-                    _log.info('metadata recording took {}s'.format(time.time() - end_time))
-
-            except Exception:
-                # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
-                _log.warning('Error recording metadata ({})'.format(traceback.format_exc()))
-                if 'PYTEST_CURRENT_TEST' in os.environ: raise
-
-        if cmd_exception:
-            _log.warning('Command failed with exception: {}'.format(cmd_exception_str))
-            raise cmd_exception
+                step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
+                step_data['step'] = dict(step_id=step_id, run_id=run_id,
+                                         cmd_module=cmd_module, cmd_name=cmd_name,
+                                         version_info=gather_version_info(step_id),
+                                         run_env=gather_run_env(),
+                                         run_info=gather_run_info(beg_time, end_time, cmd_exception_str),
+                                         args=args_dict,
+                                         metadata_from_cmd_line=metadata_from_cmd_line,
+                                         metadata_from_cmd_return=metadata_from_cmd_return,
+                                         enclosing_steps=save_steps_running)
+                record_step_to_db(step_data)
+                _log.info('metadata recording took {}s'.format(time.time() - end_time))
 
     return _run_cmd_with_tracking
 

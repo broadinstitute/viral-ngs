@@ -36,4 +36,5 @@ def test_metadata_recording(tmp_metadata_db):
         step_record = records[0]
         assert metadata_db.is_valid_step_record(step_record)
         assert set(step_record['step']['args'].keys()) == set(('assembly_fname', 'metrics_fname'))
+        assert step_record['step']['cmd_module'] == 'reports'
         assert step_record['step']['cmd_name'] == 'final_assembly_metrics'
