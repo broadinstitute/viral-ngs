@@ -46,7 +46,7 @@ def byteify(input):
         return input
 
 @contextlib.contextmanager
-def errors_as_warnings():
+def errors_as_warnings(msg='handling metadata'):
     """Context manager for wrapping non-essential functionality; turns errors into warnings, so that errors in non-essential code
     do not stop primary functionality from being carried out.  If runnning under pytest, exceptions are left as errors.
 
@@ -61,6 +61,6 @@ def errors_as_warnings():
     except Exception as e:
         # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
         e_str = traceback.format_exc()
-        _log.warning('Error recording metadata ({})'.format(e_str))
+        _log.warning('Error in {} ({})'.format(msg, e_str))
         exc.append(e_str)
         if 'PYTEST_CURRENT_TEST' in os.environ: raise

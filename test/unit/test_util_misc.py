@@ -220,6 +220,7 @@ def test_tmp_set_env():
     save_environ = dict(os.environ)
 
     assert var not in os.environ
+
     with tmp_set_env(var, 239) as old_val:
         assert not old_val
         assert os.environ[var] == '239'
@@ -248,6 +249,13 @@ def test_tmp_set_env():
         assert os.environ[var] == '239'
         
     assert var not in os.environ
+
+    with tmp_set_env(var, None) as old_val:
+        assert old_val is None
+        assert var not in os.environ
+
+    assert var not in os.environ
+
     assert os.environ == save_environ
 
 

@@ -28,7 +28,13 @@ def tmp_metadata_db(tmpdir):
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
         yield metadata_db_path
 
-@pytest.mark.usefixtures('tmp_metadata_db')
+@pytest.fixture
+def no_detailed_env():
+    """Disable time-consuming gathering of detailed env"""
+    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_DETAILED_ENV', None):
+        yield
+
+@pytest.mark.usefixtures('tmp_metadata_db', 'no_detailed_env')
 class TestMetadataRecording(TestCaseWithTmp):
 
     def canonicalize_step(self, step_record):

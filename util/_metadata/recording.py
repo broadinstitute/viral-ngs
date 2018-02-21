@@ -59,19 +59,29 @@ def tag_code_version(tag, push_to=None):
 
     code_hash = ''
 
-    try:
-        with util.file.pushd_popd(util.version.get_project_path()):
-            code_hash = _shell_cmd('git stash create') or _shell_cmd('git log -1 --format=%H')
-            _shell_cmd('git tag ' + tag + ' ' + code_hash)
-            if push_to:
-                _shell_cmd('git push ' + push_to + ' ' + tag)
-    except Exception:
-        _log.warning('Could not create git tag: {}'.format(traceback.format_exc()))
+    with errors_as_warnings('getting repo version'):
+        git_dir = os.path.join(util.version.get_project_path(), '.git')
+        git_head_fname = os.path.join(git_dir, 'HEAD')
+        if os.path.isfile(git_head_fname):
+            head_branch = util.file.slurp_file(git_head_fname).strip()
+            if head_branch.startswith('ref:'):
+                code_hash = util.file.slurp_file(os.path.join(git_dir, head_branch.split()[1])).strip()
+
+        if 'VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ:
+            with util.file.pushd_popd(util.version.get_project_path()):
+                stash_hash = _shell_cmd('git stash create')
+                if stash_hash:
+                    code_hash = stash_hash
+                    if tag:
+                        _shell_cmd('git tag ' + tag + ' ' + code_hash)
+                        if push_to:
+                            _shell_cmd('git push ' + push_to + ' ' + tag)
 
     return code_hash
 
 def get_conda_env():
     """Return the active conda environment"""
+    if 'VIRAL_NGS_METADATA_DETAILED_ENV' not in os.environ: return ''
     return _shell_cmd('conda env export')
 
 def gather_version_info(step_id):
@@ -91,7 +101,7 @@ def gather_run_env():
                 platform=platform.platform(), 
                 cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                 user=getpass.getuser(),
-                cwd=os.getcwd(), conda_env=get_conda_env())
+                cwd=os.getcwd(), conda_env=get_conda_env(), got_detailed_env='VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ)
 
 def gather_run_info(beg_time, end_time, cmd_exception_str):
     return dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,

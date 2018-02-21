@@ -611,7 +611,7 @@ def tmp_set_env(var, val, sep='', append=True):
     old_val = os.environ.get(var, None)
     try:
         if val is None:
-            del os.environ[var]
+            os.environ.pop(var, None)
         else:
             new_val = str(val)
             if sep and old_val:
@@ -621,7 +621,7 @@ def tmp_set_env(var, val, sep='', append=True):
         yield old_val
     finally:
         if old_val is None:
-            del os.environ[var]
+            os.environ.pop(var, None)
         else:
             os.environ[var] = old_val
 
