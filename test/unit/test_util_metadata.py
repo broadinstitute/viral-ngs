@@ -63,5 +63,7 @@ class TestMetadataRecording(TestCaseWithTmp):
             expected_step1 = self.input('expected.get_file_size.data1.step.json.gz')
 
             self.chk_step(step_record, expected_step1)
+            for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
+                assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
 
 # end: class TestMetadataRecording(TestCaseWithTmp)
