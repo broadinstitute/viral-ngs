@@ -5,6 +5,7 @@ __commands__ = []
 
 import os
 import os.path
+import collections
 import argparse
 import json
 import shutil
@@ -13,7 +14,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.metadata import InFile, OutFile
-from util._metadata import metadata_db
+from util._metadata import metadata_db, file_arg
 from test import tst_inp
 
 from test.unit import tst_cmds
@@ -36,7 +37,19 @@ def test_metadata_recording(tmp_metadata_db):
         records = metadata_db.load_all_records()
         assert len(records)==1
         step_record = records[0]
-        util.file.dump_file('myout.json', json.dumps(step_record, sort_keys=True, indent=4))
+
+        def canonicalize_step(s):
+            return {k: type(v) if len(k)>1 and k[1] in ('run_env', 'run_info', 'run_id', 'step_id', 'version_info') or \
+                    len(k)>3 and k[1]=='args' and (k[3]=='val' or k[3]=='files' and k[5] not in ('hash', 'size')) \
+                    else v for k, v in util.misc.flatten_dict(s, as_dict=(tuple,list)).items() \
+                    if k[:3] != ('step', 'run_info', 'argv')}
+
+        def chk_step(s, fn):
+            assert canonicalize_step(s) == \
+                canonicalize_step(json.loads(util.file.slurp_file(tst_inp('TestUtilCmd/expected.{}.step.json.gz'.format(fn)))))
+
+        chk_step(step_record, 'get_file_size.data1')
+
 
 def test_metadata_recording2(tmp_metadata_db):
     """Test basic metadata recording"""
