@@ -32,24 +32,12 @@ def is_valid_step_record(d):
 def load_all_records():
     """Load all step records from the database"""
 
-    def byteify(input):
-        if not hasattr(builtins, 'unicode'): return input
-        if isinstance(input, dict):
-            return {byteify(key): byteify(value)
-                    for key, value in input.items()}
-        elif isinstance(input, list):
-            return [byteify(element) for element in input]
-        elif isinstance(input, unicode):
-            return input.encode('utf-8')
-        else:
-            return input
-
     records = []
     with fs.open_fs(metadata_dir()) as metadata_fs:
         for f in metadata_fs.listdir(u'/'):
             if f.endswith('.json'):
                 json_str = metadata_fs.gettext(f)
-                step_record = byteify(json.loads(json_str))
+                step_record = md_utils.byteify(json.loads(json_str))
                 if is_valid_step_record(step_record):
                     records.append(step_record)
     return records

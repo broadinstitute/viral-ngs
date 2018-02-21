@@ -14,7 +14,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.metadata import InFile, OutFile
-from util._metadata import metadata_db, file_arg
+from util._metadata import metadata_db, file_arg, md_utils
 from test import tst_inp
 
 from test.unit import tst_cmds
@@ -39,14 +39,17 @@ def test_metadata_recording(tmp_metadata_db):
         step_record = records[0]
 
         def canonicalize_step(s):
+            """From a step record, either remove keys whose values change between execution, or canonicalize the values by replacing
+            them with just the value type."""
             return {k: type(v) if len(k)>1 and k[1] in ('run_env', 'run_info', 'run_id', 'step_id', 'version_info') or \
                     len(k)>3 and k[1]=='args' and (k[3]=='val' or k[3]=='files' and k[5] not in ('hash', 'size')) \
                     else v for k, v in util.misc.flatten_dict(s, as_dict=(tuple,list)).items() \
                     if k[:3] != ('step', 'run_info', 'argv')}
 
         def chk_step(s, fn):
-            assert canonicalize_step(s) == \
-                canonicalize_step(json.loads(util.file.slurp_file(tst_inp('TestUtilCmd/expected.{}.step.json.gz'.format(fn)))))
+            """Check the step record `s` against expected data from file identified by `fn`"""
+            expected = md_utils.byteify(json.loads(util.file.slurp_file(tst_inp('TestUtilCmd/expected.{}.step.json.gz'.format(fn)))))
+            assert canonicalize_step(s) == canonicalize_step(expected)
 
         chk_step(step_record, 'get_file_size.data1')
 
