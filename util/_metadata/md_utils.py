@@ -1,5 +1,6 @@
 """Misc utils used by the metadata package"""
 
+import builtins
 import contextlib
 import collections
 import util.misc
