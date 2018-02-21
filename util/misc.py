@@ -628,13 +628,16 @@ def tmp_set_env(var, val, sep='', append=True):
 def wraps(f):
     """Like functools.wraps but sets __wrapped__ even on Python 2.7"""
     wrapper = functools.wraps(f)
-    wrapper.__wrapped__ = f
-    return wrapper
-
+    def do_wrap(ff):
+        wrapped = wrapper(ff)
+        if not hasattr(wrapped, '__wrapped__'):
+            setattr(wrapped, '__wrapped__', f)
+        return wrapped
+    return do_wrap
 
 def unwrap(f):
     """Find the original function under layers of wrappers"""
-    return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
+    return f if not hasattr(f, '__wrapped__') else unwrap(getattr(f, '__wrapped__'))
 
 def flatten_dict(d, as_dict=()):
     '''Return a new dict `r`, where r[(k1,k2,...,kn)]==v iff d[k1][k2]...[kn]==v.

@@ -250,20 +250,22 @@ def test_tmp_set_env():
     assert var not in os.environ
     assert os.environ == save_environ
 
+
 def test_func_wrap():
     """Test wrap/unrap decorator helpers"""
 
-    def f(): pass
+    def f(): 
+        print('in f')
 
     @util.misc.wraps(f)
-    def g(): pass
+    def g():
+        print('in g')
 
     assert util.misc.unwrap(g) == f
 
     @util.misc.wraps(g)
     def h(): pass
 
-    assert h.__wrapped__ == g
     assert util.misc.unwrap(h) == f
 
 def test_flatten_dict():
