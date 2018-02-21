@@ -17,6 +17,7 @@ def metadata_dir():
     return os.environ['VIRAL_NGS_METADATA_PATH']
 
 def metadata_dir_sanitized():
+    """Return version `metadata_dir()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
     return md_utils._mask_secret_info(metadata_dir())
 
 def is_metadata_tracking_enabled():

@@ -4,7 +4,9 @@ import contextlib
 import collections
 import util.misc
 
-def _make_list(*x): return x
+def _make_list(*x): 
+    """Construct a new list from the args"""
+    return x
 
 def _shell_cmd(cmd, *args, **kwargs):
     """Run a command and return its output; if command fails and `check` keyword arg is False, return the empty string."""
@@ -29,6 +31,12 @@ def dict_has_keys(d, keys_str):
 
 @contextlib.contextmanager
 def errors_as_warnings():
+    """Context manager for wrapping non-essential functionality; turns errors into warnings, so that errors in non-essential code
+    do not stop primary functionality from being carried out.  If runnning under pytest, exceptions are left as errors.
+
+    Context manager returns a new empty list, to which exception string is appended if exception occurs; this lets later
+    code see if an exception happened.
+    """
     exc = []
     try:
         yield exc
@@ -40,4 +48,3 @@ def errors_as_warnings():
         _log.warning('Error recording metadata ({})'.format(e_str))
         exc.append(e_str)
         if 'PYTEST_CURRENT_TEST' in os.environ: raise
-    
