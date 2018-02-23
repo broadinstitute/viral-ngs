@@ -4,6 +4,7 @@ import collections
 import stat
 import pwd
 import traceback
+import warnings
 
 from util._metadata.md_utils import _make_list
 from . import _log
@@ -57,7 +58,7 @@ class FileArg(object):
                     file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
                     file_info.update(inode=file_stat[stat.ST_INO], device=file_stat[stat.ST_DEV])
                 except Exception:
-                    _log.warning('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
+                    warnings.warn('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
             return file_info
         # end: def file2dict(file_arg):
 

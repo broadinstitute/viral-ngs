@@ -4,6 +4,7 @@ import os
 import os.path
 import stat
 import traceback
+import warnings
 
 import util.file
 
@@ -24,7 +25,7 @@ class Hasher(object):
             if os.path.isfile(file) and not stat.S_ISFIFO(os.stat(file).st_mode):
                 file_hash = self.hash_algorithm + '_' + util.file.hash_file(file, hash_algorithm=self.hash_algorithm)
         except Exception:
-            _log.warning('Cannot compute hash for {}: {}'.format(file, traceback.format_exc()))
+            warnings.warn('Cannot compute hash for {}: {}'.format(file, traceback.format_exc()))
         return file_hash
 
 # end: class Hasher(object)
