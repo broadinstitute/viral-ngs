@@ -104,7 +104,7 @@ class TestMetadataRecording(TestCaseWithTmp):
                                                    ('step', 'args', '', 'files', '', 'abspath ctime device fname inode mtime owner realpath'),
                                                    ('step', 'metadata_from_cmd_return', 'runtime'))) \
                 else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
-                if k[:3] != ('step', 'run_info', 'argv')}
+                if k[:3] != ('step', 'run_info', 'argv')}  # the command-line here is the py.test invocation, with variable options
 
     def chk_step(self, step_record, expected_fname):
         """Check the step record `step_record` against expected data from file identified by `expected_fname`"""
@@ -139,7 +139,7 @@ class TestMetadataRecording(TestCaseWithTmp):
 
         with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as (info_fname, cpy_fname, empty_fname):
             data1_fname, data1a_fname, ex_pfx, dir_pfx = self.inputs('data1.txt', 'data1a.txt', 'data2', 'data_dir/')
-            util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, data1a_fname, info_fname, '--in-fnames-pfx', ex_pfx,
+            util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
                                                          '--in-fnames-dir', dir_pfx, '--factor', '3', '--make-empty', empty_fname,
                                                          '--copy-info-to', cpy_fname])
             records = metadata_db.load_all_records()
