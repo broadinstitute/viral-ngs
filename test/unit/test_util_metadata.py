@@ -44,7 +44,22 @@ class TestMdUtils(object):
 
         assert md_utils._mask_secret_info('s3://AWSKEYID:AWSKEYSECRET@bucketname') == 's3://bucketname'
 
+        assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a')
         assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a b')
+        assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a b c')
+        assert not md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'd')
+        assert not md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'd e')
+        assert not md_utils.dict_has_keys({}, 'd e')
+
+        assert md_utils.byteify('') == ''
+        assert md_utils.byteify(u'') == ''
+        assert md_utils.byteify('ABC') == 'ABC'
+        assert md_utils.byteify(u'ABC') == 'ABC'
+        assert md_utils.byteify([u'A', u'B']) == ['A', 'B']
+        assert md_utils.byteify((u'A', u'B')) == ('A', 'B')
+        assert md_utils.byteify([u'ABC']) == ['ABC']
+        assert md_utils.byteify({u'A': u'ABC'}) == {'A': 'ABC'}
+        assert md_utils.byteify({u'A': [u'B', (u'ABC', u'D', {u'E': u'F'})]}) == {'A': ['B', ('ABC', 'D', {'E': 'F'})]}
 
 @pytest.fixture
 def tmp_metadata_db(tmpdir):
