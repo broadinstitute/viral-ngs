@@ -106,7 +106,12 @@ def main_command(mainfunc):
 
     return _main
 
+# cmd_decorators: decorator functions to be applied, in turn, to a command implementation.
+# Later we should implement a proper plugin scheme using pluggy.
 cmd_decorators = [util.metadata.add_metadata_tracking]
+
+# parser_hooks: functions to be called with command parser as argument.  Any argparse args added should be removed
+# by the corresponding command decorator before calling the original command.
 parser_hooks = [util.metadata.add_metadata_arg]
 
 def attach_main(parser, cmd_main, split_args=False):

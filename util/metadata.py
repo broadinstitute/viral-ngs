@@ -1,9 +1,11 @@
 '''Automated recording of data provenance and metrics.
 
-This module enables the following:
-   - automated recording of metadata and metrics in a uniform format into a centralized place, regardless of where analyses are run
+This module enables automated recording of metadata and metrics in a uniform format into a centralized place.  The unit of recording
+is one command (see cmd.py).  When a command is run, if recording is on, we record: the command; its arguments; info about input and
+output files (including hash of file contents and various file metadata); whether the command succeeded or failed; 
+info about the code version; info about the runtime environment; the duration of the command.
 
-Eventually, will enable:
+Eventually, this will enable:
    - answering questions like:
       - how was a given data file made?  (by what command, with what parameters, using what code version)
       - Which workflow versions (parameters, code versions) tend to produce the best results for which kinds of input, 
