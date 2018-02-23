@@ -54,6 +54,13 @@ class TestMetadataRecording(TestCaseWithTmp):
         """Test basic metadata recording"""
         with util.file.tempfname('.txt') as size_fname:
             data1_fname = self.input('data1.txt')
+
+            # Test that metadata-related errors, like logging to non-existent location, result only in warnings
+            with pytest.warns(UserWarning):
+                with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', '/non/existent/dir'), \
+                     util.misc.tmp_set_env('PYTEST_CURRENT_TEST', None):
+                    util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
+
             util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
             assert util.file.slurp_file(size_fname) == str(os.path.getsize(data1_fname))
             records = metadata_db.load_all_records()

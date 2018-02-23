@@ -1,8 +1,12 @@
 """Misc utils used by the metadata package"""
 
 import builtins
+import os
 import contextlib
 import collections
+import warnings
+import traceback
+
 import util.misc
 
 def _make_list(*x): 
@@ -61,6 +65,6 @@ def errors_as_warnings(msg='handling metadata'):
     except Exception as e:
         # metadata recording is not an essential operation, so if anything goes wrong we just print a warning
         e_str = traceback.format_exc()
-        _log.warning('Error in {} ({})'.format(msg, e_str))
+        warnings.warn('Error in {} ({})'.format(msg, e_str))
         exc.append(e_str)
         if 'PYTEST_CURRENT_TEST' in os.environ: raise
