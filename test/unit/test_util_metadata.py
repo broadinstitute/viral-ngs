@@ -9,6 +9,7 @@ import collections
 import argparse
 import json
 import shutil
+import warnings
 
 import util.cmd
 import util.file
@@ -20,6 +21,26 @@ from test import tst_inp, TestCaseWithTmp
 from test.unit import tst_cmds
 
 import pytest
+
+class TestMdUtils(object):
+    """Test md_utils"""
+
+    def test_misc(self):
+        """Misc tests"""
+
+        assert md_utils._make_list(1,2) == [1,2]
+
+        with pytest.warns(UserWarning):
+            with md_utils.errors_as_warnings():
+                raise RuntimeError('test error')
+
+        with pytest.raises(RuntimeError):
+            with md_utils.errors_as_warnings(mask_errors=False):
+                raise RuntimeError('test error')
+        
+        with pytest.warns(UserWarning):
+            assert md_utils._shell_cmd('abracadabra') == ''
+        assert md_utils._shell_cmd('echo hi') == 'hi'
 
 @pytest.fixture
 def tmp_metadata_db(tmpdir):
@@ -34,7 +55,14 @@ def no_detailed_env():
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_DETAILED_ENV', None):
         yield
 
-@pytest.mark.usefixtures('tmp_metadata_db', 'no_detailed_env')
+@pytest.fixture
+def warnings_as_errors():
+    """Turn warnings into errors, so we see them during testing"""
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        yield
+
+@pytest.mark.usefixtures('tmp_metadata_db', 'no_detailed_env', 'warnings_as_errors')
 class TestMetadataRecording(TestCaseWithTmp):
 
     def canonicalize_step(self, step_record):
@@ -56,8 +84,7 @@ class TestMetadataRecording(TestCaseWithTmp):
             data1_fname = self.input('data1.txt')
 
             with pytest.warns(UserWarning):
-                with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', '/non/existent/dir'), \
-                     util.misc.tmp_set_env('PYTEST_CURRENT_TEST', None):
+                with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', '/non/existent/dir'):
                     util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
 
     def test_simple_cmd(self):

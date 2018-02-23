@@ -13,10 +13,7 @@ import traceback
 import functools
 import time
 import uuid
-import binascii
-import json
 import platform
-import shutil
 import contextlib
 
 # intra-module
@@ -26,14 +23,11 @@ import util.version
 
 from util._metadata.file_arg import FileArg
 from util._metadata.hashing import Hasher
-from util._metadata.md_utils import _make_list, _shell_cmd, _mask_secret_info, dict_has_keys, errors_as_warnings
+from util._metadata.md_utils import _shell_cmd, errors_as_warnings
 from util._metadata import _log
 from util._metadata import metadata_db
 
 # third-party
-import fs
-import fs.path
-import fs_s3fs
 
 VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
@@ -68,14 +62,16 @@ def tag_code_version(tag, push_to=None):
                 code_hash = util.file.slurp_file(os.path.join(git_dir, head_branch.split()[1])).strip()
 
         if 'VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ:
+            # For use during development: if repo is dirty, create a tag for the current contents,
+            # and optionally push it to a specified repo.  Currently will not notice new files.
             with util.file.pushd_popd(util.version.get_project_path()):
-                stash_hash = _shell_cmd('git stash create')
+                stash_hash = _shell_cmd('git stash create', check=False, silent=True)
                 if stash_hash:
                     code_hash = stash_hash
                     if tag:
-                        _shell_cmd('git tag ' + tag + ' ' + code_hash)
+                        _shell_cmd('git tag ' + tag + ' ' + code_hash, check=False, silent=True)
                         if push_to:
-                            _shell_cmd('git push ' + push_to + ' ' + tag)
+                            _shell_cmd('git push ' + push_to + ' ' + tagb, check=False, silent=True)
 
     return code_hash
 
