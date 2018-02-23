@@ -74,5 +74,6 @@ class TestMetadataRecording(TestCaseWithTmp):
                                                          '--copy-info-to', cpy_fname])
             records = metadata_db.load_all_records()
             assert len(records)==2
+            step_record = [r for r in records if r['step']['cmd_name']=='get_file_info'][0]
 
 # end: class TestMetadataRecording(TestCaseWithTmp)
