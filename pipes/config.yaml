@@ -25,7 +25,7 @@ bmtagger_dbs_remove:
   - "s3://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
 
 bwa_dbs_remove:
-  - "s3://sabeti-public-dbs/bmtagger/hg19"
+  - "s3://sabeti-public-dbs/bwa/hg19"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
