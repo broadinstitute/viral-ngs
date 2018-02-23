@@ -42,6 +42,8 @@ class TestMdUtils(object):
             assert md_utils._shell_cmd('abracadabra') == ''
         assert md_utils._shell_cmd('echo hi') == 'hi'
 
+        assert md_utils._mask_secret_info('s3://AWSKEYID:AWSKEYSECRET@bucketname') == 'bucketname'
+
 @pytest.fixture
 def tmp_metadata_db(tmpdir):
     """Sets up the metadata database in a temp dir"""
