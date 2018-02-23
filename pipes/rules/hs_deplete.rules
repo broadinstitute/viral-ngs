@@ -26,7 +26,7 @@ rule depletion:
     input:  
         input_bam    = config["data_dir"]+'/'+config["subdirs"]["source"]+'/{sample}.bam',
         bmtagger_dbs = objectify_remote(expand("{db}.{ext}", db=config["bmtagger_dbs_remove"], ext=['bitmask','srprism.ssa','srprism.imp','srprism.idx','srprism.map','srprism.ss','srprism.amp','srprism.rmp','srprism.pmp','srprism.ssd'])),
-        blast_dbs    = objectify_remote(expand("{db}.{ext}", db=config["blast_db_remove"], ext=['nhr','nsq','nin'])) # ['nhr','nix','nsq','dict','fai','nin']
+        blast_dbs    = objectify_remote(expand("{db}.{ext}", db=config["blast_db_remove"], ext=['nhr','nsq','nin'])), # ['nhr','nix','nsq','dict','fai','nin']
         bwa_dbs      = objectify_remote(expand("{db}.{ext}", db=config["bwa_dbs_remove"], ext=['bwt','amb','ann','pac','sa']))
     output: 
         config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bwa_depleted.bam',
