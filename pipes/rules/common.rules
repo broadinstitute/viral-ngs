@@ -102,7 +102,7 @@ def strip_protocol(uri, relative=False):
         return uri
 
 
-import botocore
+import botocore.session
 
 def objectify_remote(file_address, *args, **kwargs):
     if file_address is None:
