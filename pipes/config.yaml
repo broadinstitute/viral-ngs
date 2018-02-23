@@ -26,8 +26,6 @@ bmtagger_dbs_remove:
 
 bwa_dbs_remove:
   - "s3://sabeti-public-dbs/bmtagger/hg19"
-  - "s3://sabeti-public-dbs/bmtagger/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
-  - "s3://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
