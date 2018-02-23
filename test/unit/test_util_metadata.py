@@ -42,7 +42,7 @@ class TestMdUtils(object):
             assert md_utils._shell_cmd('abracadabra') == ''
         assert md_utils._shell_cmd('echo hi') == 'hi'
 
-        assert md_utils._mask_secret_info('s3://AWSKEYID:AWSKEYSECRET@bucketname') == 'bucketname'
+        assert md_utils._mask_secret_info('s3://AWSKEYID:AWSKEYSECRET@bucketname') == 's3://bucketname'
 
 @pytest.fixture
 def tmp_metadata_db(tmpdir):
