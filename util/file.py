@@ -112,7 +112,7 @@ def check_paths(read=(), write=(), read_and_write=()):
                 pass
             os.unlink(fname)
         else:
-            if not (os.path.isfile(fname) and os.access(fname, os.W_OK)):
+            if not (os.access(fname, os.W_OK)):
                 raise PermissionError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):

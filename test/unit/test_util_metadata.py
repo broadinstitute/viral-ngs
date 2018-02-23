@@ -10,6 +10,7 @@ import argparse
 import json
 import shutil
 import warnings
+import subprocess
 
 import util.cmd
 import util.file
@@ -140,16 +141,21 @@ class TestMetadataRecording(TestCaseWithTmp):
             for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
                 assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
 
-
-        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as (info_fname, cpy_fname, empty_fname):
+        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as (info_fname, cpy_fname, empty_fname), \
+             util.file.fifo() as fifo:
+            cat = subprocess.Popen(['cat', fifo])
             data1_fname, data1a_fname, ex_pfx, dir_pfx = self.inputs('data1.txt', 'data1a.txt', 'data2', 'data_dir/')
             util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
-                                                         '--in-fnames-dir', dir_pfx, '--factor', '3', '--make-empty', empty_fname,
+                                                         '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
+                                                         '--make-empty', fifo,
                                                          '--copy-info-to', cpy_fname])
+            cat.wait()
+            assert cat.returncode == 0
             records = metadata_db.load_all_records()
             assert len(records)==2
             step_record = [r for r in records if r['step']['cmd_name']=='get_file_info'][0]
             expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
+            #util.file.dump_file(self.input('expected.get_file_info.data1.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
             self.chk_step(step_record, expected_step2)
 
 # end: class TestMetadataRecording(TestCaseWithTmp)

@@ -284,5 +284,5 @@ def run_cmd(module, cmd, args):
         args: list of args to the command
     """
     parser_fn = dict(getattr(module, '__commands__'))[cmd]
-    args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(args)
+    args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)
