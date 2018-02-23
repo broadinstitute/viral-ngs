@@ -84,11 +84,25 @@ def warnings_as_errors():
 @pytest.mark.usefixtures('tmp_metadata_db', 'no_detailed_env', 'warnings_as_errors')
 class TestMetadataRecording(TestCaseWithTmp):
 
+    def key_matches(self, k, patterns):
+        """Test whether a nested-dict key `k` (tuple of keys) matches one of the `patterns`.
+        Each pattern is a tuple of strings giving possible values for each position."""
+        return any(all(k_elt in p_elt.split() for k_elt, p_elt in zip(k, p) if p_elt) for p in patterns if len(k)>=len(p))
+
+    def test_key_matches(self):
+        """Test self.key_matches"""
+        assert self.key_matches(('a', 'b', 'c', 'd'), [('a', 'b f g')])
+        assert self.key_matches(('a', 'b', 'c', 'd'), [('a', '', 'c')])
+        assert not self.key_matches(('a', 'b', 'c', 'd'), [('a', 'a', 'c')])
+
     def canonicalize_step(self, step_record):
         """From a step record, either remove keys whose values change between execution, or canonicalize the values by replacing
         them with just the value type."""
-        return {k: type(v) if len(k)>1 and k[1] in ('run_env', 'run_info', 'run_id', 'step_id', 'version_info') or \
-                len(k)>3 and k[1]=='args' and (k[3]=='val' or k[3]=='files' and k[5] not in ('hash', 'size')) \
+
+        return {k: type(v) if self.key_matches(k, (('step', 'run_env run_info run_id step_id version_info'),
+                                                   ('step', 'args', '', 'val'),
+                                                   ('step', 'args', '', 'files', '', 'abspath ctime device fname inode mtime owner realpath'),
+                                                   ('step', 'metadata_from_cmd_return', 'runtime'))) \
                 else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
                 if k[:3] != ('step', 'run_info', 'argv')}
 
@@ -131,5 +145,7 @@ class TestMetadataRecording(TestCaseWithTmp):
             records = metadata_db.load_all_records()
             assert len(records)==2
             step_record = [r for r in records if r['step']['cmd_name']=='get_file_info'][0]
+            expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
+            self.chk_step(step_record, expected_step2)
 
 # end: class TestMetadataRecording(TestCaseWithTmp)
