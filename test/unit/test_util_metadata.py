@@ -35,6 +35,10 @@ class TestMdUtils(object):
             with md_utils.errors_as_warnings():
                 raise RuntimeError('test error')
 
+        with pytest.raises(KeyboardInterrupt):
+            with md_utils.errors_as_warnings():
+                raise KeyboardInterrupt('Someone pressed Ctrl-C')
+
         with pytest.raises(RuntimeError):
             with md_utils.errors_as_warnings(mask_errors=False):
                 raise RuntimeError('test error')
