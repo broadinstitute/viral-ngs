@@ -26,8 +26,8 @@ def parser_get_file_size(parser=argparse.ArgumentParser()):
 __commands__.append(('get_file_size', parser_get_file_size))
 
 def _fnames_in_dir(d):
-    """Returns full pathnames of files in a directory"""
-    return [os.path.join(d, f) for f in os.listdir(d)]
+    """Returns a sorted list of full pathnames of files in a directory"""
+    return [os.path.join(d, f) for f in sorted(os.listdir(d))]
 
 def get_file_info(args):
     """Gets info about various files.  Weird command with lots of options so we can exercise various aspects of metadata recording."""

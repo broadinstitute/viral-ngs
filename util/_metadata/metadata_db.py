@@ -22,7 +22,6 @@ def metadata_dir_sanitized():
 
 def is_metadata_tracking_enabled():
     return 'VIRAL_NGS_METADATA_PATH' in os.environ
-    # todo: check also that the only VIRAL_NGS_METADATA env vars are known ones
 
 def is_valid_step_record(d):
     """Test whether `d` is a dictionary containing all the expected elements of a step, as recorded by the code above"""
@@ -34,7 +33,7 @@ def load_all_records():
 
     records = []
     with fs.open_fs(metadata_dir()) as metadata_fs:
-        for f in metadata_fs.listdir(u'/'):
+        for f in sorted(metadata_fs.listdir(u'/')):
             if f.endswith('.json'):
                 json_str = metadata_fs.gettext(f)
                 step_record = md_utils.byteify(json.loads(json_str))
