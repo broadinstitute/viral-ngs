@@ -8,6 +8,7 @@ import codecs
 import contextlib
 import os
 import os.path
+import stat
 import gzip
 import io
 import tempfile
@@ -103,8 +104,12 @@ def check_paths(read=(), write=(), read_and_write=()):
     assert not (set(write) & set(read_and_write))
 
     for fname in read+read_and_write:
-        with open(fname):
-            pass
+        is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode)
+        if not (os.access(fname, os.R_OK) and (os.path.isfile(fname) or is_fifo)):
+            raise PermissionError('Cannot read ' + fname)
+        if not is_fifo:
+            with open(fname):
+                pass
 
     for fname in write+read_and_write:
         if not os.path.exists(fname):
@@ -112,7 +117,7 @@ def check_paths(read=(), write=(), read_and_write=()):
                 pass
             os.unlink(fname)
         else:
-            if not (os.access(fname, os.W_OK)):
+            if not (os.access(fname, os.W_OK) and (os.path.isfile(fname) or stat.S_ISFIFO(os.stat(fname).st_mode))):
                 raise PermissionError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):

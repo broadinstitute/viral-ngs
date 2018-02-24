@@ -70,6 +70,11 @@ def test_check_paths(tmpdir):
     util.file.make_empty(join(writable_dir, 'myempty.dat'))
     check_paths(read_and_write=join(writable_dir, 'myempty.dat'))
 
+    with util.file.fifo() as fifo:
+        check_paths(read=fifo)
+        check_paths(write=fifo)
+
+
 
 def test_hash_file():
     '''Test util.file.hash_file()'''
