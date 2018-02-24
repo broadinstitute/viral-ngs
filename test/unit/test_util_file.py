@@ -57,14 +57,14 @@ def test_check_paths(tmpdir):
         return join(inDir, f)
     check_paths(read=test_f('empty.bam'))
     check_paths(read=[test_f('empty.bam')])
-    with pytest.raises(Exception):
+    with pytest.raises(StandardError):
         check_paths(read=test_f('non_existent_file'))
-    with pytest.raises(Exception):
+    with pytest.raises(StandardError):
         check_paths(write='/non/writable/dir/file.txt')
     writable_dir = str(tmpdir)
     check_paths(write=(join(writable_dir, 'mydata1.txt'),
                        join(writable_dir, 'mydata2.txt')))
-    with pytest.raises(Exception):
+    with pytest.raises(StandardError):
         check_paths(write=writable_dir)
 
     util.file.make_empty(join(writable_dir, 'myempty.dat'))
@@ -73,8 +73,6 @@ def test_check_paths(tmpdir):
     with util.file.fifo() as fifo:
         check_paths(read=fifo)
         check_paths(write=fifo)
-
-
 
 def test_hash_file():
     '''Test util.file.hash_file()'''

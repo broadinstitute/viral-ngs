@@ -42,10 +42,10 @@ def _InFile_OneOf(val, opts):
     for opt in opts:
         try:
             return opt(val)
-        except IOError:
+        except EnvironmentError:
             pass
 
-    raise IOError("Could not open: {}".format(val))
+    raise EnvironmentError("Could not open: {}".format(val))
 
 def InFile_OneOf(*opts):
     """Argparse argument type for an input arg that can be one of several types.  The first type for which all the input

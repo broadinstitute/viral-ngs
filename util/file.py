@@ -106,7 +106,7 @@ def check_paths(read=(), write=(), read_and_write=()):
     for fname in read+read_and_write:
         is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode)
         if not (os.access(fname, os.R_OK) and (os.path.isfile(fname) or is_fifo)):
-            raise PermissionError('Cannot read ' + fname)
+            raise EnvironmentError('Cannot read ' + fname)
         if not is_fifo:
             with open(fname):
                 pass
@@ -118,7 +118,7 @@ def check_paths(read=(), write=(), read_and_write=()):
             os.unlink(fname)
         else:
             if not (os.access(fname, os.W_OK) and (os.path.isfile(fname) or stat.S_ISFIFO(os.stat(fname).st_mode))):
-                raise PermissionError('Cannot write ' + fname)
+                raise EnvironmentError('Cannot write ' + fname)
 
 def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
     ''' There's no other one-liner way to securely ask for a temp file by
