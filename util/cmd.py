@@ -100,7 +100,7 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
-    getargspec = getattr(inspect, 'getfullargspec', 'getargspec')
+    getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
     mainfunc_args = set(util.misc.flatten(getargspec(mainfunc).args))
 
     @util.misc.wraps(mainfunc)
