@@ -173,7 +173,13 @@ class TestMetadataRecording(TestCaseWithTmp):
         """Test a command that fails"""
         with util.file.tempfname(suffix='.info.txt') as info_fname:
             data1_fname = self.input('data1.txt')
-            with pytest.raises(RuntimeError):
-                util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, info_fname, '--fail'])
+            with step_id_saver() as step_id_fname:
+                with pytest.raises(RuntimeError):
+                    util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, info_fname, '--fail'])
+                step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
+                expected_step_fail = self.input('expected.get_file_info.fail.step.json.gz')
+                self.chk_step(step_record, expected_step_fail)
+                #util.file.dump_file(self.input('expected.get_file_info.fail.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
+                
 # end: class TestMetadataRecording(TestCaseWithTmp)
 
