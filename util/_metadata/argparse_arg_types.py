@@ -8,6 +8,8 @@ import util.misc
 from util._metadata.file_arg import FileArg
 from util._metadata.md_utils import _make_list
 
+OptionalFile = FileArg.OptionalFile
+
 # ** InFile, OutFile etc
 
 def InFile(val, compute_fnames=_make_list):

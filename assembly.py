@@ -31,7 +31,7 @@ import util.cmd
 import util.file
 import util.misc
 import util.vcf
-from util.metadata import InFile, OutFile, OutFiles
+from util.metadata import InFile, OutFile, OutFiles, OptionalFile
 import read_utils
 import tools
 import tools.picard
@@ -969,7 +969,7 @@ def refine_assembly(
 def _refine_assembly_fnames_outFasta(f):
     """Return the filesnames denoted by the outFasta parameter to refine_assembly command"""
     f_noext = os.path.splitext(f)[0]
-    return (f, f+'.fai', f_noext+'.nix', f_noext+'.dict')
+    return (f, OptionalFile(f+'.fai'), OptionalFile(f_noext+'.nix'), OptionalFile(f_noext+'.dict'))
 
 def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument(

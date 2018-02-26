@@ -13,7 +13,7 @@ Eventually, this will enable:
    - avoiding redundant computation, when a command is re-run with the same inputs and same implementation of the command
 '''
 
-from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
+from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf, OptionalFile
 from ._metadata.recording import (
     # interface with cmd.py
     add_metadata_tracking, add_metadata_arg,

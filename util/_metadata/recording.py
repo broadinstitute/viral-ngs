@@ -44,7 +44,7 @@ def set_run_id():
 
 # ** Getting the execution environment
 
-def save_dirty_repo(code_hash, tag, push_to):
+def save_dirty_repo(code_hash, tag, push_to):  # pragma: no cover
     """For use during development: if repo is dirty, create a tag for the current contents,
     and optionally push it to a specified repo.  Currently will not notice new files."""
     with util.file.pushd_popd(util.version.get_project_path()):

@@ -9,7 +9,6 @@ import warnings
 from util._metadata.md_utils import _make_list
 from . import _log
 
-
 # ** class FileArg
 class FileArg(object):
 
@@ -32,10 +31,26 @@ class FileArg(object):
         """
         self.val, self.mode, self.compute_fnames = val, mode, compute_fnames
 
+    class OptionalFile(str):
+        """Marker for optional files returned by compute_fnames methods"""
+
+        def __new__(cls, val):
+            return str.__new__(cls, val)
+
+    @property
+    def required_fnames(self):
+        """List of required filename(s) denoted by this command-line argument."""
+        return [str(f) for f in self.compute_fnames(self.val) if not isinstance(f, self.OptionalFile)]
+
+    @property
+    def optional_fnames(self):
+        """List of optional filename(s) denoted by this command-line argument."""
+        return [str(f) for f in self.compute_fnames(self.val) if isinstance(f, self.OptionalFile)]
+
     @property
     def fnames(self):
-        """List of filename(s) denoted by this command-line argument."""
-        return self.compute_fnames(self.val)
+        """List all required and optional filename(s) denoted by this command-line argument"""
+        return self.required_fnames + self.optional_fnames
 
     def gather_file_info(self, hasher, out_files_exist):
         """Return a dict representing metadata about the file(s) denoted by this argument.
@@ -45,24 +60,25 @@ class FileArg(object):
             out_files_exist: if False, don't expect output files to exist (because the command raised an exception)
         """
 
-        def file2dict(file_arg):
+        def file2info(fname):
             """Compute a dictionary of info about one file"""
-            file_info = dict(fname=file_arg, realpath=os.path.realpath(file_arg), abspath=os.path.abspath(file_arg))
+            file_info = dict(fname=fname, realpath=os.path.realpath(fname), abspath=os.path.abspath(fname))
             if self.mode=='r' or out_files_exist:
                 try:
-                    file_info.update(hash=hasher(file_arg))
+                    file_info.update(hash=hasher(fname))
 
-                    file_stat = os.stat(file_arg)
+                    file_stat = os.stat(fname)
                     file_info.update(size=file_stat[stat.ST_SIZE],
                                      mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
                     file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
                     file_info.update(inode=file_stat[stat.ST_INO], device=file_stat[stat.ST_DEV])
                 except Exception:
-                    warnings.warn('Error getting file info for {} ({})'.format(file_arg, traceback.format_exc()))
+                    if fname not in self.optional_fnames:
+                        warnings.warn('Error getting file info for {} ({})'.format(fname, traceback.format_exc()))
             return file_info
-        # end: def file2dict(file_arg):
+        # end: def file2info(fname):
 
-        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2dict, self.fnames)))
+        return dict(__FileArg__=True, val=self.val, mode=self.mode, files=list(map(file2info, self.fnames)))
     # end: def gather_file_info(self, hasher, out_files_exist):
 
     @staticmethod
