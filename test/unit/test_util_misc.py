@@ -261,6 +261,10 @@ def test_tmp_set_env():
             os.environ[var] = '2'
 
     with pytest.raises(AssertionError):
+        with tmp_set_env(var, None):
+            os.environ[var] = '2'
+
+    with pytest.raises(AssertionError):
         with tmp_set_env(var, 1):
             del os.environ[var]
 
