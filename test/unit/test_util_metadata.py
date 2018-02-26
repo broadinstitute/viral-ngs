@@ -161,5 +161,4 @@ class TestMetadataRecording(TestCaseWithTmp):
             expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
             #util.file.dump_file(self.input('expected.get_file_info.data1.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
             self.chk_step(step_record, expected_step2)
-
 # end: class TestMetadataRecording(TestCaseWithTmp)
