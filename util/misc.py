@@ -12,6 +12,7 @@ import multiprocessing
 import sys
 import copy
 import yaml, json
+import warnings
 
 import util.file
 
@@ -611,6 +612,7 @@ def tmp_set_env(var, val, sep='', append=True):
     old_val = os.environ.get(var, None)
     try:
         if val is None:
+            new_val = None
             os.environ.pop(var, None)
         else:
             new_val = str(val)
@@ -619,6 +621,8 @@ def tmp_set_env(var, val, sep='', append=True):
             assert len(new_val) < 128*1024, 'Env var value too long'
             os.environ[var] = new_val
         yield old_val
+        assert (new_val is None and var not in os.environ) or (new_val is not None and os.environ.get(var, None) == new_val), \
+            "Multi-threading not supported"
     finally:
         if old_val is None:
             os.environ.pop(var, None)

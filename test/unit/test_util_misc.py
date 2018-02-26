@@ -256,8 +256,16 @@ def test_tmp_set_env():
 
     assert var not in os.environ
 
-    assert os.environ == save_environ
+    with pytest.raises(AssertionError):
+        with tmp_set_env(var, 1):
+            os.environ[var] = '2'
 
+    with pytest.raises(AssertionError):
+        with tmp_set_env(var, 1):
+            del os.environ[var]
+
+    assert os.environ == save_environ
+# end: def test_tmp_set_env()
 
 def test_func_wrap():
     """Test wrap/unrap decorator helpers"""

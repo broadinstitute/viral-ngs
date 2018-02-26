@@ -61,6 +61,7 @@ def parser_get_file_info(parser=argparse.ArgumentParser()):
     parser.add_argument('--copy-info-to', type=OutFilesPrefix(suffixes=('.out1', '.out2')), help='Copy results also to these files')
     parser.add_argument('--factor', type=int, default=1, help='Multiply result by this factor')
     parser.add_argument('--make-empty', type=OutFile, action='append', help='Create empty file here')
+    parser.add_argument('--fail', action='append', help='Create empty file here')
     
     util.cmd.attach_main(parser, get_file_info, split_args=False)
     return parser
