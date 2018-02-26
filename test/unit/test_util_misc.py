@@ -250,6 +250,16 @@ def test_tmp_set_env():
         
     assert var not in os.environ
 
+    with tmp_set_env(var, 300, sep=':') as old_val:
+        assert old_val is None
+        assert os.environ[var] == '300'
+    assert var not in os.environ
+
+    with tmp_set_env(var, 300, sep=':', append=False) as old_val:
+        assert old_val is None
+        assert os.environ[var] == '300'
+    assert var not in os.environ
+
     with tmp_set_env(var, None) as old_val:
         assert old_val is None
         assert var not in os.environ
