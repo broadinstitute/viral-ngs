@@ -11,6 +11,8 @@ import json
 import shutil
 import warnings
 import subprocess
+import contextlib
+import functools
 
 import util.cmd
 import util.file
@@ -66,12 +68,18 @@ class TestMdUtils(object):
         assert md_utils.byteify({u'A': u'ABC'}) == {'A': 'ABC'}
         assert md_utils.byteify({u'A': [u'B', (u'ABC', u'D', {u'E': u'F'})]}) == {'A': ['B', ('ABC', 'D', {'E': 'F'})]}
 
-@pytest.fixture
-def tmp_metadata_db(tmpdir):
+@pytest.fixture(scope='class')
+def tmp_metadata_db(tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
-    metadata_db_path = tmpdir.mkdir('metadata_db')
+    metadata_db_path = tmpdir_factory.mktemp('metadata_db')
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
         yield metadata_db_path
+
+@contextlib.contextmanager
+def step_id_saver():
+    """Save and yield the step ID of the command run within the `with` suite"""
+    with util.file.tempfname(suffix='.stepid') as step_id_fname, util.misc.tmp_set_env('VIRAL_NGS_METADATA_SAVE_STEP_ID_TO', step_id_fname):
+        yield step_id_fname
 
 @pytest.fixture
 def no_detailed_env():
@@ -131,35 +139,32 @@ class TestMetadataRecording(TestCaseWithTmp):
 
     def test_simple_cmd(self):
         """Test basic metadata recording"""
-        with util.file.tempfname('.txt') as size_fname:
-            data1_fname = self.input('data1.txt')
+        data1_fname = self.input('data1.txt')
+        with util.file.tempfnames(suffixes=('.txt',)) as (size_fname,), step_id_saver() as step_id_fname:
             util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
             assert util.file.slurp_file(size_fname) == str(os.path.getsize(data1_fname))
-            records = metadata_db.load_all_records()
-            assert len(records)==1
-            step_record = records[0]
-
+            
+            step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
             expected_step1 = self.input('expected.get_file_size.data1.step.json.gz')
-
             self.chk_step(step_record, expected_step1)
             for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
                 assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
 
     def test_complex_cmd(self):
         """Test a complex command"""
-        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as (info_fname, cpy_fname, empty_fname), \
-             util.file.fifo() as fifo:
+        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as \
+             (info_fname, cpy_fname, empty_fname), \
+             util.file.fifo() as fifo, step_id_saver() as step_id_fname:
             cat = subprocess.Popen(['cat', fifo])
             data1_fname, data1a_fname, ex_pfx, dir_pfx = self.inputs('data1.txt', 'data1a.txt', 'data2', 'data_dir/')
+
             util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
                                                          '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
                                                          '--make-empty', fifo,
                                                          '--copy-info-to', cpy_fname])
             cat.wait()
             assert cat.returncode == 0
-            records = metadata_db.load_all_records()
-            assert len(records)==1
-            step_record = [r for r in records if r['step']['cmd_name']=='get_file_info'][0]
+            step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
             expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
             #util.file.dump_file(self.input('expected.get_file_info.data1.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
             self.chk_step(step_record, expected_step2)
@@ -171,5 +176,4 @@ class TestMetadataRecording(TestCaseWithTmp):
             with pytest.raises(RuntimeError):
                 util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, info_fname, '--fail'])
 # end: class TestMetadataRecording(TestCaseWithTmp)
-
 

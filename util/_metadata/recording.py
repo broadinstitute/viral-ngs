@@ -209,6 +209,10 @@ def add_metadata_tracking(cmd_main):
         run_id = os.environ.get('VIRAL_NGS_METADATA_RUN_ID', create_run_id(beg_time))
         step_id = '__'.join(map(str, (create_run_id(beg_time), cmd_module, cmd_name)))
 
+        with errors_as_warnings():
+            if 'VIRAL_NGS_METADATA_SAVE_STEP_ID_TO' in os.environ:
+                util.file.dump_file(os.environ['VIRAL_NGS_METADATA_SAVE_STEP_ID_TO'], step_id)
+
         with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps, \
              call_cmd(cmd_main, replace_file_args(args)) as (cmd_result, cmd_exception, cmd_exception_str), \
              errors_as_warnings():
