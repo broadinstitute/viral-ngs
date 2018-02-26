@@ -191,7 +191,6 @@ def add_metadata_tracking(cmd_main):
 
 # *** Before calling cmd impl
         args_dict = vars(args).copy()
-        delattr(args, 'metadata')
 
         step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
 

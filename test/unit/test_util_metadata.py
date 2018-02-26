@@ -145,6 +145,8 @@ class TestMetadataRecording(TestCaseWithTmp):
             for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
                 assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
 
+    def test_complex_cmd(self):
+        """Test a complex command"""
         with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as (info_fname, cpy_fname, empty_fname), \
              util.file.fifo() as fifo:
             cat = subprocess.Popen(['cat', fifo])
@@ -156,9 +158,18 @@ class TestMetadataRecording(TestCaseWithTmp):
             cat.wait()
             assert cat.returncode == 0
             records = metadata_db.load_all_records()
-            assert len(records)==2
+            assert len(records)==1
             step_record = [r for r in records if r['step']['cmd_name']=='get_file_info'][0]
             expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
             #util.file.dump_file(self.input('expected.get_file_info.data1.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
             self.chk_step(step_record, expected_step2)
+
+    def test_failing_cmd(self):
+        """Test a command that fails"""
+        with util.file.tempfname(suffix='.info.txt') as info_fname:
+            data1_fname = self.input('data1.txt')
+            with pytest.raises(RuntimeError):
+                util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, info_fname, '--fail'])
 # end: class TestMetadataRecording(TestCaseWithTmp)
+
+

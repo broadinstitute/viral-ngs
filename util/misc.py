@@ -659,3 +659,9 @@ def flatten_dict(d, as_dict=()):
         else:
             result[(k,)] = v
     return result
+
+def flatten(d, types_to_flatten=(tuple, list)):
+    """Flatten a data structure `d` into a flat list.  Any elements of `d` that are instances of one of the iterable types in 
+    `types_to_flatten` will be recursively flattened."""
+    return [d] if not isinstance(d, types_to_flatten) else \
+        functools.reduce(operator.concat, list(map(functools.partial(flatten, types_to_flatten=types_to_flatten), d)), [])

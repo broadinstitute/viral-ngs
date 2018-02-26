@@ -32,6 +32,8 @@ def _fnames_in_dir(d):
 def get_file_info(args):
     """Gets info about various files.  Weird command with lots of options so we can exercise various aspects of metadata recording."""
 
+    if args.fail: raise RuntimeError('Planned error')
+
     beg_time = time.time()
     
     all_fnames = args.in_fnames

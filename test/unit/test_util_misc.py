@@ -312,3 +312,16 @@ def test_flatten_dict():
     )
     for inp, out in inp_out:
         assert flatten_dict(*inp) == out
+
+def test_flatten():
+    """Test flatten()"""
+
+    flatten = util.misc.flatten
+    assert flatten([]) == []
+    assert flatten([1]) == [1]
+    assert flatten([1, [2]]) == [1, 2]
+    assert flatten([1, [2, [3]]]) == [1, 2, 3]
+    assert flatten([1, [], [2, [3, []]]]) == [1, 2, 3]
+    assert flatten((1, [], (2, (3,)))) == [1, 2, 3]
+    assert flatten([1, [2, [3]]], types_to_flatten=(tuple,)) == [[1, [2, [3]]]]
+    assert flatten([1, [2, [3]]], types_to_flatten=(tuple,list)) == [1, 2, 3]

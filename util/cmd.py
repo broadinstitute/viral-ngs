@@ -12,6 +12,8 @@ import shutil
 import logging
 import argparse
 import functools
+import inspect
+
 import util.version
 import util.file
 import util.misc
@@ -98,10 +100,12 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
+    getargspec = getattr(inspect, 'getfullargspec', 'getargspec')
+    mainfunc_args = set(util.misc.flatten(getargspec(mainfunc).args))
+
     @util.misc.wraps(mainfunc)
     def _main(args):
-        args2 = dict((k, v) for k, v in vars(args).items() if k not in (
-            'loglevel', 'tmp_dir', 'tmp_dirKeep', 'version', 'func_main', 'command'))
+        args2 = {k:v for k, v in vars(args).items() if k in mainfunc_args}
         return mainfunc(**args2)
 
     return _main
@@ -110,8 +114,7 @@ def main_command(mainfunc):
 # Later we should implement a proper plugin scheme using pluggy.
 cmd_decorators = [util.metadata.add_metadata_tracking]
 
-# parser_hooks: functions to be called with command parser as argument.  Any argparse args added should be removed
-# by the corresponding command decorator before calling the original command.
+# parser_hooks: functions to be called with command parser as argument.
 parser_hooks = [util.metadata.add_metadata_arg]
 
 def attach_main(parser, cmd_main, split_args=False):
