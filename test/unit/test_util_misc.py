@@ -238,10 +238,6 @@ def test_tmp_set_env():
             with tmp_set_env(var, None, sep=':'):
                 pass
 
-        with pytest.raises(AssertionError):
-            with tmp_set_env(var, '2:3', sep=':'):
-                pass
-        
         with tmp_set_env(var, 300, sep=':') as old_val1:
             assert old_val1 == '239'
             assert os.environ[var] == '239:300'

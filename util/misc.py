@@ -608,7 +608,6 @@ def tmp_set_env(var, val, sep='', append=True):
     """
     assert isinstance(var, str) and var, 'Invalid environment var {}'.format(var)
     assert val or not sep, 'Cannot prepend/append when deleting env var'
-    assert not (sep and (val is not None) and (sep in str(val))), 'Separator in the middle of a value'
 
     old_val = os.environ.get(var, None)
     try:
