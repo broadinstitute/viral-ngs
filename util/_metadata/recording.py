@@ -44,6 +44,19 @@ def set_run_id():
 
 # ** Getting the execution environment
 
+def save_dirty_repo(code_hash, tag, push_to):
+    """For use during development: if repo is dirty, create a tag for the current contents,
+    and optionally push it to a specified repo.  Currently will not notice new files."""
+    with util.file.pushd_popd(util.version.get_project_path()):
+        stash_hash = _shell_cmd('git stash create', check=False, silent=True)
+        if stash_hash:
+            code_hash = stash_hash
+            if tag:
+                _shell_cmd('git tag ' + tag + ' ' + code_hash, check=False, silent=True)
+                if push_to:
+                    _shell_cmd('git push ' + push_to + ' ' + tagb, check=False, silent=True)
+    return code_hash
+
 def tag_code_version(tag, push_to=None):
     """Create a lightweight git tag for the current state of the project repository, even if the state is dirty.
     If the repository is dirty, use the 'git stash create' command to create a commit representing the current state,
@@ -61,18 +74,8 @@ def tag_code_version(tag, push_to=None):
             if head_branch.startswith('ref:'):
                 code_hash = util.file.slurp_file(os.path.join(git_dir, head_branch.split()[1])).strip()
 
-        if 'VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ:
-            # For use during development: if repo is dirty, create a tag for the current contents,
-            # and optionally push it to a specified repo.  Currently will not notice new files.
-            with util.file.pushd_popd(util.version.get_project_path()):
-                stash_hash = _shell_cmd('git stash create', check=False, silent=True)
-                if stash_hash:
-                    code_hash = stash_hash
-                    if tag:
-                        _shell_cmd('git tag ' + tag + ' ' + code_hash, check=False, silent=True)
-                        if push_to:
-                            _shell_cmd('git push ' + push_to + ' ' + tagb, check=False, silent=True)
-
+        if 'VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ:  # pragma: no cover
+            code_hash = save_dirty_repo(code_hash, tag, push_to)
     return code_hash
 
 def get_conda_env():
