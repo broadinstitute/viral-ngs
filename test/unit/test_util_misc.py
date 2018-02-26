@@ -318,7 +318,11 @@ def test_flatten():
 
     flatten = util.misc.flatten
     assert flatten([]) == []
+    assert flatten(()) == []
+    assert flatten([[]]) == []
+    assert flatten([(),[],[]]) == []
     assert flatten([1]) == [1]
+    assert flatten((1,)) == [1]
     assert flatten([1, [2]]) == [1, 2]
     assert flatten([1, [2, [3]]]) == [1, 2, 3]
     assert flatten([1, [], [2, [3, []]]]) == [1, 2, 3]
