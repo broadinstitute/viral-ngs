@@ -96,7 +96,7 @@ def gather_version_info(step_id):
 
 def gather_run_env():
     """Gather runtime environment"""
-    return dict(metadata_dir=metadata_db.metadata_dir(),
+    return dict(metadata_dir=metadata_db.metadata_dir_sanitized(),
                 platform=platform.platform(), 
                 cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                 user=getpass.getuser(),
