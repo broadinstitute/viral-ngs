@@ -16,8 +16,8 @@ shell.executable("/bin/bash")
 
 # Load config params from any included config files, including the standard default one; load any params
 # specified under legacy names.
-config = util.misc.load_config(config, 
-                               std_includes=[os.path.join(os.path.expanduser(config['bin_dir']), 
+config = util.misc.load_config(config,
+                               std_includes=[os.path.join(os.path.expanduser(config['bin_dir']),
                                                           'pipes', 'config.yaml')],
                                param_renamings={})
 
@@ -33,7 +33,7 @@ def read_tab_file(fname):
         for line in inf:
             row = [item.strip() for item in line.rstrip('\n').split('\t')]
             if len(row) > len(header):
-                # truncate the row to the header length, and only include extra items if they are not spaces 
+                # truncate the row to the header length, and only include extra items if they are not spaces
                 # (takes care of the case where the user may enter an extra space at the end of a row)
                 row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
             assert len(header) == len(row)
@@ -135,3 +135,6 @@ def objectify_remote(file_address, *args, **kwargs):
             file_list[index] = remote_provider.remote(uri, *args, **kwargs)
 
     return file_list
+
+
+os.makedirs(config.get('tmp_dir'), exist_ok=True)

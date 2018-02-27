@@ -1,14 +1,24 @@
 import os.path
+from os.path import join
 import textwrap
 
 samples = list(read_samples_file(config.get("samples_metagenomics")))
 
 rule all_metagenomics:
     input:
-        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa.nodupes']),
-        expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
                     "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa_nodupes'])
+
+rule all_metagenomics_contigs:
+    input:
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.rpsblast.tbl"), sample=samples),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.infernal.tbl"), sample=samples),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.blastn.report"), sample=samples),
+        expand(join(config["data_dir"], config["subdirs"]["metagenomics"],
+                    "{sample}.blastx.report"), sample=samples)
 
 
 rule all_metagenomics_host_depleted:
@@ -50,6 +60,7 @@ taxfiles_krona = [
 ]
 
 rna_bwa_ext = ['sa', 'bwt', 'amb', 'sa', 'ann', 'pac']
+
 
 rule diamond:
     input:
@@ -194,7 +205,6 @@ rule all_kraken_host_depleted:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
                             "{sample}.cleaned.kraken.krona.html"), sample=samples)
 
-
 rule krona_import_taxonomy:
     input:
         tsv = lambda wildcards: os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], \
@@ -207,3 +217,88 @@ rule krona_import_taxonomy:
     run:
         krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
         shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")
+
+rule unclassified_trinity:
+    ''' This step runs the Trinity assembler on Kraken unclassified reads.
+        First trim reads with trimmomatic, rmdup with prinseq,
+        and random subsample to no more than 100k reads.
+    '''
+    # input: join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam")
+    input: bam=join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.raw.bam"),
+           kraken=join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.raw.kraken.reads.gz")
+    output: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.assembly-unclassified-trinity.fasta')
+    resources:
+            mem=16,
+            cores=int(config.get("number_of_threads", 1))
+    params: extracted=join(config["tmp_dir"], config["subdirs"]["metagenomics"], "{sample}.kraken-unclassified.bam"),
+            logid="{sample}",
+            clipDb=config["trim_clip_db"],
+            subsamp_bam=config["tmp_dir"]+'/'+config["subdirs"]["assembly"]+'/{sample}.subsamp.bam',
+            numThreads=str(config.get("number_of_threads", 1))
+    shell:
+        '''
+        {config[bin_dir]}/metagenomics.py kraken_unclassified {input.kraken} {input.bam} {params.extracted}
+        {config[bin_dir]}/assembly.py assemble_trinity {params.extracted} {params.clipDb} {output} --n_reads 0 --outReads {params.subsamp_bam} --threads {params.numThreads} --JVMmemory 14g
+        '''
+
+rule cluster_contigs:
+    input: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.assembly-unclassified-trinity.fasta')
+    output: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.clustered.fasta')
+    resources:
+        mem=4,
+        cores=int(config.get("number_of_threads", 1))
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py cluster_contigs {input} {output} --memory {resources.mem} --memory {resources.mem} --numThreads {resources.cores}
+        """
+
+rule blast_taxonomy:
+    input: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.clustered.fasta')
+    output: blastn=join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.blastn.m8'),
+            blastn_report=join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.blastn.report')
+    resources:
+        mem=24,
+        cores=int(config.get("number_of_threads", 1))
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py blast_taxonomy {input}  \
+          --ntDb {config[blast_nt]} --outBlastn {output.blastn} --outBlastnReport {output.blastn_report}  \
+          --taxDb {config[taxonomy_db]} --numThreads {resources.cores}
+        """
+
+rule blastx_taxonomy:
+    input: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.clustered.fasta')
+    output: blastx=join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.blastx.m8'),
+            blastx_report=join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.blastx.report')
+    resources:
+        mem=24,
+        cores=int(config.get("number_of_threads", 1))
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py blast_taxonomy {input}  \
+          --nrDb {config[blast_nr]} --outBlastx {output.blastx} --outBlastxReport {output.blastx_report}  \
+          --taxDb {config[taxonomy_db]} --numThreads {resources.cores}
+        """
+
+rule rpsblast_contigs:
+    input: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.clustered.fasta')
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.rpsblast.tbl')
+    resources:
+        mem=32,
+        cores=int(config.get("number_of_threads", 1))
+    params: ORFS=join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.orfs.fna')
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py rpsblast_models {config[rpsblast_dbs]} {input} {output} --numThreads {resources.cores} --orfs {params.ORFS}
+        """
+
+rule infernal_contigs:
+    input: join(config["tmp_dir"], config["subdirs"]["metagenomics"], '{sample}.clustered.fasta')
+    output: join(config["data_dir"], config["subdirs"]["metagenomics"], '{sample}.infernal.tbl')
+    resources:
+        mem=16,
+        cores=int(config.get("number_of_threads", 1))
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py infernal_contigs {config[infernal_db]} {input} {output} --numThreads {resources.cores}
+        """

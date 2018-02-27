@@ -31,7 +31,6 @@ class CdHit(tools.Tool):
         return True
 
     def install_and_get_path(self):
-        # the conda version wraps the jar file with a shell script
         return 'cd-hit'
 
     def __init__(self, install_methods=None):
