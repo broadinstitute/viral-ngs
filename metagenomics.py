@@ -53,13 +53,13 @@ class TaxIdError(ValueError):
     '''Taxonomy ID couldn't be determined.'''
 
 
-def maybe_compressed(fn):
+def maybe_compressed(fn, missing_ok=False):
     fn_gz = fn + '.gz'
     if os.path.exists(fn):
         return fn
     elif os.path.exists(fn_gz):
         return fn_gz
-    else:
+    elif not missing_ok:
         raise FileNotFoundError(fn)
 
 
@@ -79,8 +79,8 @@ class TaxonomyDb(object):
         load_names=False
     ):
         if tax_dir:
-            gis_paths = [maybe_compressed(join(tax_dir, 'gi_taxid_nucl.dmp')),
-                         maybe_compressed(join(tax_dir, 'gi_taxid_prot.dmp'))]
+            gis_paths = [maybe_compressed(join(tax_dir, 'gi_taxid_nucl.dmp'), missing_ok=True),
+                         maybe_compressed(join(tax_dir, 'gi_taxid_prot.dmp'), missing_ok=True)]
             nodes_path = maybe_compressed(join(tax_dir, 'nodes.dmp'))
             names_path = maybe_compressed(join(tax_dir, 'names.dmp'))
         self.tax_dir = tax_dir
@@ -183,6 +183,14 @@ class BlastRecord(object):
         for attr, val in zip(self.__slots__, args):
             setattr(self, attr, val)
 
+    def __eq__(self, other):
+        return (self.query_id == other.query_id and self.subject_id == other.subject_id and
+                self.query_start == other.query_start and self.query_end == other.query_end and
+                self.subject_start == other.subject_start and self.subject_end == other.subject_end)
+
+    def __ne__(self, other):
+        """Overrides the default implementation (unnecessary in Python 3)"""
+        return not self.__eq__(other)
 
 def blast_records(f):
     '''Yield blast m8 records line by line'''
@@ -198,11 +206,8 @@ def blast_records(f):
                          if x != 'N/A']
         for field in (2, 10, 11):
             parts[field] = float(parts[field])
-        args = parts[:12]
-        extra = parts[12:]
-        args.append(extra)
 
-        yield BlastRecord(*args)
+        yield BlastRecord(*parts)
 
 
 def paired_query_id(record):
@@ -210,13 +215,11 @@ def paired_query_id(record):
     suffixes = ('/1', '/2')
     for suffix in suffixes:
         if record.query_id.endswith(suffix):
-            rec_list = list(record)
-            rec_list[0] = record.query_id[:-len(suffix)]
-            return BlastRecord(*rec_list)
+            record.query_id = record.query_id[:-len(suffix)]
     return record
 
 
-def translate_gi_to_tax_id(db, record):
+def fill_tax_id_from_gi(db, record):
     '''Replace gi headers in subject ids to int taxonomy ids.'''
     gi = int(record.subject_id.split('|')[1])
     tax_id = db.gis[gi]
@@ -293,7 +296,7 @@ def blast_lca(db,
               with_taxids=None):
     '''Calculate the LCA taxonomy id for groups of blast hits.
 
-    Writes tsv output: query_id \t tax_id
+    Yields tuples of query_id, tax_id
 
     Args:
       db: (TaxonomyDb) Taxonomy db.
@@ -311,13 +314,12 @@ def blast_lca(db,
     if paired:
         records = (paired_query_id(rec) for rec in records)
     blast_groups = (v for k, v in itertools.groupby(records, operator.attrgetter('query_id')))
-    hits = collections.Counter()
     for blast_group in blast_groups:
         blast_group = list(blast_group)
         tax_id = process_blast_hits(db, blast_group, top_percent, with_taxids=with_taxids)
         query_id = blast_group[0].query_id
-        hits[tax_id] += 1
-    return hits
+        print(query_id, tax_id, file=output)
+        yield query_id, tax_id
 
 
 def process_sam_hits(db, sam_hits, top_percent):
@@ -355,7 +357,7 @@ def process_blast_hits(db, hits, top_percent, with_taxids=False):
       (int) Tax id of LCA.
     '''
     if not with_taxids:
-        hits = (translate_gi_to_tax_id(db, hit) for hit in hits)
+        hits = (fill_tax_id_from_gi(db, hit) for hit in hits)
     hits = [hit for hit in hits if len(hit.taxids)]
     if len(hits) == 0:
         return
@@ -721,15 +723,20 @@ def kraken_dfs_report(db, taxa_hits):
     db.children = parents_to_children(db.parents)
     total_hits = sum(taxa_hits.values())
     lines = []
-    kraken_dfs(db, lines, taxa_hits, total_hits, 1, 0)
+    if total_hits:
+        kraken_dfs(db, lines, taxa_hits, total_hits, 1, 0)
     unclassified_hits = taxa_hits.get(0, 0)
     unclassified_hits += taxa_hits.get(-1, 0)
 
     if unclassified_hits > 0 or not total_hits:
-        percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
+        if total_hits:
+            percent_unclassified = '%.2f' % (unclassified_hits / total_hits * 100)
+        else:
+            percent_unclassified = 0
+
         lines.append(
             '\t'.join([
-                str(percent_covered), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
+                str(percent_unclassified), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
             ])
         )
     return reversed(lines)
@@ -1066,9 +1073,28 @@ def extract_kraken_unclassified(inKrakenReads, inBam, outBam, p_threshold=0.5):
             qname = parts[1]
             taxid = parts[2]
             length = parts[3]
-            p = float(parts[4].split('=')[1])
-            kmer_str = parts[5]
+            # Check if already filtered and P= added
+            if '=' in parts[4]:
+                p = float(parts[4].split('=')[1])
+                kmer_str = parts[5]
+            else:
+                kmer_str = parts[4]
+                kmers = [kmer for kmer in kmer_str.split(' ')]
+                kmer_counts = []
+                for kmer in kmers:
+                    t = kmer.split(':')
+                    kmer_counts.append((t[0], int(t[1])))
+                n_kmers = 0
+                n_classified_kmers = 0
+                for kmer_taxid, count in kmer_counts:
+                    n_kmers += count
+                    if kmer_taxid not in ('0', 'A'):
+                        n_classified_kmers += count
+                p = n_classified_kmers / n_kmers
+
             if p <= p_threshold:
+                if qname.endswith('/1') or qname.endswith('/2'):
+                    qname = qname[:-2]
                 qnames.add(qname)
 
     in_sam = pysam.AlignmentFile(inBam, 'rb', check_sq=False)
@@ -1089,6 +1115,7 @@ def parser_kraken_unclassified(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, extract_kraken_unclassified, split_args=True)
     return parser
+__commands__.append(('kraken_unclassified', parser_kraken_unclassified))
 
 
 def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
@@ -1107,7 +1134,17 @@ def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
 
     if level > 0 and not blast_m8_fn:
         blast_m8_fn = util.file.mkstempfname('.blastn.m8')
+
+    blast_m8_compressed = False
+    if blast_m8_fn.endswith('.gz'):
+        blast_m8_compressed = True
+        blast_m8_fn = blast_m8_fn[:-3]
+
     tool.execute_m8_tax(db, ['-query', input_fn, '-out', blast_m8_fn], num_threads=num_threads)
+    if blast_m8_compressed:
+        util.misc.run_and_print(['pigz', blast_m8_fn])
+        blast_m8_fn = blast_m8_fn + '.gz'
+
     if level < 1:
         return
 
@@ -1118,7 +1155,9 @@ def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
         tax_db = tax_db or TaxonomyDb(tax_dir=tax_dir, load_names=True, load_nodes=True)
         blast_m8 = ctx.enter_context(util.file.open_or_gzopen(blast_m8_fn, 'rt'))
         blast_lca_f = ctx.enter_context(util.file.open_or_gzopen(blast_lca_fn, 'wt'))
-        hits = blast_lca(tax_db, blast_m8, blast_lca_f, with_taxids=True)
+        hits = collections.Counter()
+        for _, tax_id in blast_lca(tax_db, blast_m8, blast_lca_f, with_taxids=True):
+            hits[tax_id] += 1
 
         if level < 2:
             return
@@ -1138,8 +1177,8 @@ def blast_taxonomy(inFasta, taxDb=None, ntDb=None, outBlastn=None, outBlastnLca=
         assert ntDb
         blastn = tools.blast.BlastnTool()
         log.info('Executing blastn on %s', inFasta)
-        tax_db = blast_report(blastn, ntDb, inFasta, tax_dir=taxDb, blast_m8_fn=outBlastn, blast_report_fn=outBlastnReport,
-                     num_threads=numThreads)
+        tax_db = blast_report(blastn, ntDb, inFasta, tax_dir=taxDb, blast_m8_fn=outBlastn,
+                              blast_lca_fn=outBlastnLca, blast_report_fn=outBlastnReport, num_threads=numThreads)
         executed = True
 
     if outBlastx or outBlastxLca or outBlastxReport:
@@ -1147,8 +1186,8 @@ def blast_taxonomy(inFasta, taxDb=None, ntDb=None, outBlastn=None, outBlastnLca=
 
         blastx = tools.blast.BlastxTool()
         log.info('Executing blastx on %s', inFasta)
-        blast_report(blastx, nrDb, inFasta, tax_dir=taxDb, tax_db=tax_db, blast_m8_fn=outBlastx, blast_report_fn=outBlastxReport,
-                     num_threads=numThreads)
+        blast_report(blastx, nrDb, inFasta, tax_dir=taxDb, tax_db=tax_db, blast_m8_fn=outBlastx,
+                     blast_lca_fn=outBlastxLca, blast_report_fn=outBlastxReport, num_threads=numThreads)
         executed = True
 
     if not executed:
@@ -1171,6 +1210,7 @@ def parser_blast_taxonomy(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, blast_taxonomy, split_args=True)
     return parser
+__commands__.append(('blast_taxonomy', parser_blast_taxonomy))
 
 
 def infernal_rna(db, inFasta, outTbl, numThreads=None):
@@ -1247,6 +1287,7 @@ def parser_cluster_contigs(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, cluster_contigs, split_args=True)
     return parser
+__commands__.append(('cluster_contigs', parser_cluster_contigs))
 
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):

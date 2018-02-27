@@ -15,13 +15,14 @@ import util.misc
 
 log = logging.getLogger(__name__)
 
+TOOL_VERSION = '2.6.3'
 
 class Prodigal(tools.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = [
-                tools.CondaPackage('prodigal', version=CONDA_VERSION)
+                tools.CondaPackage('prodigal', version=TOOL_VERSION)
             ]
         super(Prodigal, self).__init__(install_methods=install_methods)
 

@@ -226,7 +226,7 @@ def test_rank_code():
 
 def test_blast_records(simple_m8):
     test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+                     'TestTaxonomy')
     with simple_m8 as f:
         records = list(metagenomics.blast_records(f))
     assert len(records) == 110
@@ -236,21 +236,20 @@ def test_blast_records(simple_m8):
 
 def test_blast_lca(taxa_db_simple, simple_m8):
     test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
-    expected = textwrap.dedent("""\
-    C\tM04004:13:000000000-AGV3H:1:1101:12068:2105\t2
-    C\tM04004:13:000000000-AGV3H:1:1101:13451:2146\t2
-    C\tM04004:13:000000000-AGV3H:1:1101:13509:2113\t2
-    C\tM04004:13:000000000-AGV3H:1:1101:14644:2160\t2
-    C\tM04004:13:000000000-AGV3H:1:1101:18179:2130\t2
-    C\tM04004:13:000000000-AGV3H:1:1111:10629:2610\t2
-    C\tM04004:13:000000000-AGV3H:1:1111:10629:26101\t2
-    """)
-    out = StringIO()
+                     'TestTaxonomy')
+    expected = [
+        ('M04004:13:000000000-AGV3H:1:1101:12068:2105', 2),
+        ('M04004:13:000000000-AGV3H:1:1101:13451:2146', 2),
+        ('M04004:13:000000000-AGV3H:1:1101:13509:2113', 2),
+        ('M04004:13:000000000-AGV3H:1:1101:14644:2160', 2),
+        ('M04004:13:000000000-AGV3H:1:1101:18179:2130', 2),
+        ('M04004:13:000000000-AGV3H:1:1111:10629:2610', 2),
+        ('M04004:13:000000000-AGV3H:1:1111:10629:26101', 2),
+    ]
     with simple_m8 as f:
-        metagenomics.blast_lca(taxa_db_simple, f, out, paired=True)
-        out.seek(0)
-        assert out.read() == expected
+        out = StringIO()
+        hits = list(metagenomics.blast_lca(taxa_db_simple, f, out, paired=True))
+        assert hits == expected
 
 
 def test_paired_query_id():
@@ -260,30 +259,26 @@ def test_paired_query_id():
     blast1 = metagenomics.BlastRecord(*tup)
     assert metagenomics.paired_query_id(blast1) == blast1
 
-    new_tup = copy.copy(tup)
-    new_tup[0] = 'query/1'
-    new_blast1 = metagenomics.BlastRecord(*new_tup)
+    new_blast1 = copy.copy(blast1)
+    new_blast1.query_id = 'query/1'
     assert metagenomics.paired_query_id(new_blast1) == blast1
 
-    new_tup = copy.copy(tup)
-    new_tup[0] = 'query/2'
-    new_blast1 = metagenomics.BlastRecord(*new_tup)
+    new_blast1 = copy.copy(blast1)
+    new_blast1.query_id = 'query/2'
     assert metagenomics.paired_query_id(new_blast1) == blast1
 
-    new_tup = copy.copy(tup)
-    new_tup[0] = 'query/3'
-    new_blast1 = metagenomics.BlastRecord(*new_tup)
+    new_blast1 = copy.copy(blast1)
+    new_blast1.query_id = 'query/3'
     assert metagenomics.paired_query_id(new_blast1) == new_blast1
 
 
-def test_translate_gi_to_tax_id(taxa_db_simple):
+def test_fill_tax_id_from_gi(taxa_db_simple):
     tup = ['query', 'gi|4|else', 90., 80, 60, 2, 30, 80,
            1100, 1150, 1e-7, 64.5, []]
     blast1 = metagenomics.BlastRecord(*tup)
 
-    tup[1] = 5
-    expected = metagenomics.BlastRecord(*tup)
-    assert metagenomics.translate_gi_to_tax_id(taxa_db_simple, blast1) == expected
+    metagenomics.fill_tax_id_from_gi(taxa_db_simple, blast1)
+    assert blast1.taxids == [5]
 
 
 def test_kraken_dfs_report(taxa_db):

@@ -216,7 +216,7 @@ rule krona_import_taxonomy:
         mem=32
     run:
         krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")
+        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} {krona_db_prefix} {output} --noRank")
 
 rule unclassified_trinity:
     ''' This step runs the Trinity assembler on Kraken unclassified reads.
@@ -238,7 +238,7 @@ rule unclassified_trinity:
     shell:
         '''
         {config[bin_dir]}/metagenomics.py kraken_unclassified {input.kraken} {input.bam} {params.extracted}
-        {config[bin_dir]}/assembly.py assemble_trinity {params.extracted} {params.clipDb} {output} --n_reads 0 --outReads {params.subsamp_bam} --threads {params.numThreads} --JVMmemory 14g
+        {config[bin_dir]}/assembly.py assemble_trinity {params.extracted} {params.clipDb} {output} --n_reads 100000 --outReads {params.subsamp_bam} --threads {params.numThreads} --JVMmemory 14g
         '''
 
 rule cluster_contigs:

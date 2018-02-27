@@ -14,6 +14,8 @@ import util.file
 
 log = logging.getLogger(__name__)
 
+CONDA_VERSION='1.1.2'
+
 class Infernal(tools.Tool):
 
     COMMANDS = [

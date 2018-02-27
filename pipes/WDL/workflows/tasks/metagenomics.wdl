@@ -122,6 +122,291 @@ task krona {
 }
 
 
+task download_blastn_nt_db {
+  File? nt_tgz
+  File? tax_db_tgz
+  File? blast_tax_db_tgz
+
+  command {
+    set -ex -o pipefail
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+    DB_DIR=$(mktemp -d)
+    TAX_DB_DIR=$(mktemp -d)
+
+    DB=${nt_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      lftp -c "mirror --exclude-glob * --include-glob nt.*.tar.gz ftp://ftp.ncbi.nlm.nih.gov/blast/db/ $DB_DIR"
+      pigz -d $DB_DIR/*.gz
+    else
+      tar -zx -C "$DB_DIR" -f "$DB"
+    fi
+
+    DB=${blast_tax_db_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      curl -s ftp://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz | tar -zx -C $DB_DIR
+    else
+      tar -zx -C "$DB_DIR" -f "$DB"
+    fi
+
+    DB=${tax_db_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      curl -s ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz | tar -zx -C $TAX_DB_DIR
+    else
+      tar -zx -C "$TAX_DB_DIR" -f "$DB"
+    fi
+
+    find $DB_DIR -name "*.???" > blast_db_files.txt
+    find $TAX_DB_DIR -type f > tax_db_files.txt
+  }
+
+  output {
+    Array[File]+ db = read_lines("blast_db_files.txt")
+    Array[File]+ tax_db = read_lines("tax_db_files.txt")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2 GB"
+    cpu: 1
+    dx_instance_type: "mem1_hdd2_x1"
+  }
+}
+
+task blastn_contigs {
+  File contigs_fasta
+  Array[File]+ blast_db_files
+  Array[File]+ tax_db_files
+
+  String contigs_basename = basename(contigs_fasta, ".fasta")
+  String dirname = sub(blast_db_files[0], "/[^/]*$", "")
+  String tax_dirname = sub(tax_db_files[0], "/[^/]*$", "")
+  String db_basename = "nt"
+
+  command {
+
+    metagenomics.py blast_taxonomy ${contigs_fasta} \
+      --taxDb ${tax_dirname} \
+      --ntDb ${dirname + "/" + db_basename} \
+      --outBlastn ${contigs_basename}.blastn.m8.gz \
+      --outBlastnLca ${contigs_basename}.blastn.lca.tsv.gz \
+      --outBlastnReport ${contigs_basename}.blastn.report
+  }
+
+  output {
+    File blastn = "${contigs_basename}.blastn.m8.gz"
+    File blastn_lca = "${contigs_basename}.blastn.lca.tsv.gz"
+    File blastn_report = "${contigs_basename}.blastn.report"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "32 GB"
+    cpu: 16
+    dx_instance_type: "mem1_hdd2_x16"
+  }
+}
+
+task download_blastx_nr_db {
+  File? nr_tgz
+  File? tax_db_tgz
+  File? blast_tax_db_tgz
+
+  command {
+    set -ex -o pipefail
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+    DB_DIR=$(mktemp -d)
+    TAX_DB_DIR=$(mktemp -d)
+
+    DB=${nr_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      lftp -c "mirror --exclude-glob * --include-glob nr.*.tar.gz ftp://ftp.ncbi.nlm.nih.gov/blast/db/ $DB_DIR"
+      pigz -d $DB_DIR/*.gz
+    else
+      tar -zx -C "$DB_DIR" -f "$DB"
+    fi
+
+    DB=${blast_tax_db_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      curl -s ftp://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz | tar -zx -C $DB_DIR
+    else
+      tar -zx -C "$DB_DIR" -f "$DB"
+    fi
+
+    DB=${tax_db_tgz}
+    if [ -z "$DB" ]; then
+      # Download latest databases from NCBI FTP
+      curl -s ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz | tar -zx -C $TAX_DB_DIR
+    else
+      tar -zx -C "$TAX_DB_DIR" -f "$DB"
+    fi
+
+    find $DB_DIR -name "*.???" > blast_db_files.txt
+    find $TAX_DB_DIR -type f > tax_db_files.txt
+  }
+
+  output {
+    Array[File]+ db = read_lines("blast_db_files.txt")
+    Array[File]+ tax_db = read_lines("tax_db_files.txt")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2 GB"
+    cpu: 1
+    dx_instance_type: "mem1_hdd2_x1"
+  }
+}
+
+
+task blastx_contigs {
+  File contigs_fasta
+  Array[File]+ blast_db_files
+  Array[File]+ tax_db_files
+
+  String contigs_basename = basename(contigs_fasta, ".fasta")
+  String dirname = sub(blast_db_files[0], "/[^/]*$", "")
+  String tax_dirname = sub(tax_db_files[0], "/[^/]*$", "")
+  String db_basename = "nr"
+
+  command {
+    metagenomics.py blast_taxonomy ${contigs_fasta} \
+      --taxDb ${tax_dirname} \
+      --nrDb ${dirname + "/" + db_basename} \
+      --outBlastx ${contigs_basename}.blastx.m8.gz \
+      --outBlastxLca ${contigs_basename}.blastx.lca.tsv.gz \
+      --outBlastxReport ${contigs_basename}.blastx.report
+  }
+
+  output {
+    File blastx = "${contigs_basename}.blastx.m8.gz"
+    File blastx_lca = "${contigs_basename}.blastx.lca.tsv.gz"
+    File blastx_report = "${contigs_basename}.blastx.report"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "32 GB"
+    cpu: 16
+    dx_instance_type: "mem1_hdd2_x16"
+  }
+}
+
+task download_cdd_db {
+  File? cdd_db_tgz
+  command {
+    set -ex -o pipefail
+    if [ -d /mnt/tmp ]; then
+      TMPDIR=/mnt/tmp
+    fi
+    DB_DIR=$(mktemp -d)
+
+    DB=${cdd_db_tgz}
+    if [ -z "$DB" ]; then
+      curl -s ftp://ftp.ncbi.nih.gov/pub/mmdb/cdd/little_endian/Cdd_LE.tar.gz | tar -zx -C "$DB_DIR"
+    else
+      tar -zx -C "$DB_DIR" -f "$DB"
+    fi
+
+    echo "$DB_DIR"/Cdd
+  }
+
+  output {
+    String db = read_string(stdout())
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2 GB"
+    cpu: 1
+    dx_instance_type: "mem1_hdd2_x1"
+  }
+}
+
+
+task download_rfam_db {
+  File? rfam_db_tgz
+  command {
+    DB=${rfam_db_tgz}
+    if [ -z "$DB" ]; then
+      curl -s ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz | unpigz > Rfam.cm
+      cmpress Rfam.cm 1>&2
+    else
+      tar -zxf "$DB"
+    fi
+  }
+
+  output {
+    Array[File] db_files = glob("Rfam.cm*")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2 GB"
+    cpu: 1
+    dx_instance_type: "mem1_hdd2_x1"
+  }
+}
+
+task rpsblast_models {
+  File contigs_fasta
+  String cdd_db
+
+  String contigs_basename = basename(contigs_fasta, ".fasta")
+  command {
+    metagenomics.py rpsblast_models \
+      ${cdd_db} \
+      ${contigs_fasta} \
+      ${contigs_basename}.cdd.report
+  }
+
+  output {
+    File cdd_report = "${contigs_basename}.cdd.report"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "32 GB"
+    cpu: 16
+    dx_instance_type: "mem1_hdd2_x16"
+  }
+}
+
+
+task infernal_rfam {
+  File contigs_fasta
+  Array[File] rfam_db_files
+
+  String rfam_db = rfam_db_files[0]
+
+  String contigs_basename = basename(contigs_fasta, ".fasta")
+  command {
+    metagenomics.py infernal_contigs \
+      ${rfam_db} \
+      ${contigs_fasta} \
+      ${contigs_basename}.infernal.tbl
+  }
+
+  output {
+    File infernal_tbl = "${contigs_basename}.infernal.tbl"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "32 GB"
+    cpu: 16
+    dx_instance_type: "mem1_hdd2_x16"
+  }
+}
+
 task diamond_contigs {
   File  contigs_fasta
   File  reads_unmapped_bam

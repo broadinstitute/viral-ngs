@@ -138,6 +138,6 @@ class MakeblastdbTool(BlastTools):
             raise IOError("No fasta file provided")
 
         args = ['-dbtype', 'nucl', '-in', input_fasta, '-out', database_prefix_path]
-        self.execute(*args)
+        self.execute(args)
 
         return database_prefix_path

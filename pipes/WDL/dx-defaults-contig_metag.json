@@ -1,0 +1,16 @@
+{
+    "contig_metagenomics.cdd_db_tgz":
+    "dx://file-FBjx1Vj05Z70GvxZ8kX5yQXx",
+    "contig_metagenomics.rfam_db_tgz":
+    "dx://file-FBkGjY005Z76Y678356XG4zj",
+    "contig_metagenomics.blastn_nt_tgz":
+    "dx://file-FBk6xgQ05Z76Kk758pB640J7",
+    "contig_metagenomics.blastx_nr_tgz":
+    "dx://file-FBjzF8805Z712jqJ35Xq5g6Z",
+    "contig_metagenomics.blast_tax_db_tgz":
+    "dx://file-FBp1B7Q05Z74pp5j7gKvG5Xb",
+    "contig_metagenomics.tax_db_tgz":
+    "dx://file-FBp1B9005Z797ZQf933J0j4X",
+    "contig_metagenomics.diamond_db_tgz":
+    "dx://file-FBkZG2805Z76Kk758pB64642"
+}
