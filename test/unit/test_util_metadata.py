@@ -75,20 +75,7 @@ def step_id_saver():
     with util.file.tempfname(suffix='.stepid') as step_id_fname, util.misc.tmp_set_env('VIRAL_NGS_METADATA_SAVE_STEP_ID_TO', step_id_fname):
         yield step_id_fname
 
-@pytest.fixture
-def no_detailed_env():
-    """Disable time-consuming gathering of detailed env"""
-    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_DETAILED_ENV', None):
-        yield
-
-@pytest.fixture
-def warnings_as_errors():
-    """Turn warnings into errors, so we see them during testing"""
-    with warnings.catch_warnings():
-        warnings.simplefilter('error')
-        yield
-
-@pytest.mark.usefixtures('tmp_metadata_db', 'no_detailed_env', 'warnings_as_errors')
+@pytest.mark.usefixtures('no_detailed_env', 'warnings_as_errors')
 class TestMetadataRecording(TestCaseWithTmp):
 
     def key_matches(self, k, patterns):
