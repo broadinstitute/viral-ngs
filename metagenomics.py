@@ -1244,7 +1244,7 @@ def rpsblast_models(db, inFasta, outReport, orfs=None, numThreads=None):
 
     args = []
     if int(numThreads) > 1:
-        args.extend(['-num_threads', '1'])
+        args.extend(['-num_threads', numThreads])
 
     args.extend(['-db', db, '-outfmt', '6', '-query', orf_fn, '-out', outReport])
 

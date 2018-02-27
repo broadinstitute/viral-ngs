@@ -63,7 +63,7 @@ rule assemble_spades:
             clipDb = objectify_remote(config["trim_clip_db"])
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
     resources: 
-            mem=12,
+            mem=100,
             threads=int(config.get("number_of_threads", 1))
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
@@ -79,7 +79,7 @@ rule assemble_trinity_spades:
             contigs_trinity=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity.fasta'
     output: contigs_trinity_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-trinity-spades.fasta'
     resources: 
-            mem=12,
+            mem=100,
             threads=int(config.get("number_of_threads", 1))
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
