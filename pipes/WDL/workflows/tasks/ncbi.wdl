@@ -24,6 +24,9 @@ task download_reference_genome {
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "3 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x2"
   }
 }
 
@@ -49,23 +52,61 @@ task download_lastal_sources {
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "3 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x2"
   }
 }
 
 task build_lastal_db {
-  File sequences # fasta file
+  File    sequences_fasta
+
+  String  db_name = basename(sequences_fasta, ".fasta")
 
   command {
-    taxon_filter.py lastal_build_db \
-        "${sequences}" \
-        "./"
+    set -ex -o pipefail
+    taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
+    tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4
   }
 
   output {
-        Array[File] lastalDbFiles = glob("lastal.*")
+    File lastal_db = "${db_name}.tar.lz4"
   }
+
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "7 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x4"
+  }
+}
+
+task download_annotation {
+  String        referenceName
+  Array[String] accessions
+  String        emailAddress
+
+  command {
+    set -ex -o pipefail
+    ncbi.py fetch_feature_tables \
+        ${emailAddress} \
+        ./ \
+        ${sep=' ' accessions} \
+        --combinedFilePrefix ${referenceName} \
+        --loglevel DEBUG
+  }
+
+  output {
+    File        referenceFasta  = "${referenceName}.fasta"
+    File        featureTable    = "${referenceName}.tbl"
+    Array[File] featureTables   = glob("*.tbl")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "3 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x2"
   }
 }
 
@@ -89,8 +130,10 @@ task annot_transfer {
     Array[File] featureTables = glob(".tbl")
   }
   runtime {
-    memory: "4GB"
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "3 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x2"
   }
 }
 
@@ -122,5 +165,8 @@ task prepare_genbank {
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "3 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x2"
   }
 }
