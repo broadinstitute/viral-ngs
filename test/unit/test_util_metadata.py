@@ -164,5 +164,20 @@ class TestMetadataRecording(TestCaseWithTmp):
                 expected_step_fail = self.input('expected.get_file_info.fail.step.json.gz')
                 self.chk_step(step_record, expected_step_fail)
                 #util.file.dump_file(self.input('expected.get_file_info.fail.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
+
+    def test_infile_oneof(self):
+        """Test InFile_OneOf"""
+        with util.file.tempfnames(suffixes=('.out1', '.out2')) as (out1_fname, out2_fname):
+            data1_fname, data2_pfx, data_dir = self.inputs('data1.txt', 'data2', 'data_dir')
+            util.cmd.run_cmd(tst_cmds, 'concat_input_files', [data1_fname, out1_fname])
+            self.assertEqualContents(data1_fname, out1_fname)
+
+            util.cmd.run_cmd(tst_cmds, 'concat_input_files', [data2_pfx, out1_fname])
+            util.file.concat((data2_pfx+'.ex1', data2_pfx+'.ex2'), out2_fname)
+            self.assertEqualContents(out1_fname, out2_fname)
+
+            util.cmd.run_cmd(tst_cmds, 'concat_input_files', [data_dir, out1_fname])
+            util.file.concat(util.file.files_or_pipes_in_dir(data_dir), out2_fname)
+            self.assertEqualContents(out1_fname, out2_fname)
                 
 # end: class TestMetadataRecording(TestCaseWithTmp)

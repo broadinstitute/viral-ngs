@@ -79,4 +79,46 @@ def test_hash_file():
     assert util.file.hash_file(os.path.join(util.file.get_test_input_path(), 
                                             'G5012.3.mini.bam'), 'sha1')=='582fc7212b4ac1a3fa5dedd331225886056b30f7'
 
+def test_is_file_or_pipe():
+    """Test is_file_or_pipe()"""
+    ifop = util.file.is_file_or_pipe
+    assert not ifop('/')
+    assert not ifop('/dev/null')
+    assert not ifop('/non/existent/file/asdfasdf')
+    assert not ifop('.')
 
+    def check_ifop(targ):
+        assert ifop(targ)
+        for lnk_fn in (os.symlink, os.link):
+            with util.file.tempfname() as lnk:
+                os.unlink(lnk)
+                lnk_fn(targ, lnk)
+                assert ifop(lnk)
+
+    with util.file.tempfname() as tf:
+        check_ifop(tf)
+        
+    with util.file.fifo() as tfifo:
+        check_ifop(tfifo)
+
+def test_listdir():
+    """Test listdir_full_names() and files_or_pipes_in_dir()"""
+    lfn = util.file.listdir_full_names
+    fopid = util.file.files_or_pipes_in_dir
+    with util.file.tmp_dir() as d:
+        assert lfn(d) == fopid(d) == []
+        f1 = os.path.join(d, 'f1.dat')
+        util.file.make_empty(f1)
+        assert lfn(d) == fopid(d) == [f1]
+        f2 = os.path.join(d, 'f2.dat')
+        util.file.make_empty(f2)
+        util.file.touch(f1)
+        assert lfn(d) == fopid(d) == [f1, f2]
+        with util.file.pushd_popd(d):
+            assert lfn('.') == fopid('.') == ['./f1.dat', './f2.dat']
+            os.mkdir('d1')
+            assert lfn('.') == ['./d1', './f1.dat', './f2.dat']
+            assert fopid('.') == ['./f1.dat', './f2.dat']
+            os.mkfifo('fifo1')
+            assert lfn('.') == ['./d1', './f1.dat', './f2.dat', './fifo1']
+            assert fopid('.') == ['./f1.dat', './f2.dat', './fifo1']

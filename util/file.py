@@ -807,3 +807,17 @@ def hash_file(fname, hash_algorithm, buf_size=io.DEFAULT_BUFFER_SIZE):
                 hasher.update(data)
             else:
                 return hasher.hexdigest()
+
+def is_file_or_pipe(f):
+    """Tests whether path `f` exists and is either a file or a named pipe (or a link to one of these).  
+    Note that os.path.isfile() returns False for pipes, so to support pipes,
+    use this function instead."""
+    return os.path.isfile(f) or (os.path.exists(f) and stat.S_ISFIFO(os.stat(f).st_mode))
+
+def listdir_full_names(d):
+    """Return full names of files in directory `d`, in a deterministic (sorted) order."""
+    return [os.path.join(d, f) for f in sorted(os.listdir(d))]
+
+def files_or_pipes_in_dir(d):
+    """Return the names of files or pipes (or links to them) in directory `d` (but not in subdirs)."""
+    return list(filter(is_file_or_pipe, listdir_full_names(d)))
