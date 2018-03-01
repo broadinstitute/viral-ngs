@@ -13,10 +13,20 @@ Eventually, this will enable:
    - avoiding redundant computation, when a command is re-run with the same inputs and same implementation of the command
 '''
 
+import sys
 from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf, OptionalFile
 from ._metadata.recording import (
     # interface with cmd.py
-    add_metadata_tracking, add_metadata_arg,
+#    add_metadata_tracking, add_metadata_arg,
     # for use by pipe/rules/common.rules to create a common ID for a sequence of steps run as part of same pipeline execution
     set_run_id
 )
+
+import util.cmd_plugins
+
+def register_metadata_plugin_impls():
+    import util._metadata.recording
+    util.cmd_plugins.cmd_plugin_mgr.register(util._metadata.recording)
+
+
+

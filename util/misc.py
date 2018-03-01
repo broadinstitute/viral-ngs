@@ -13,6 +13,7 @@ import sys
 import copy
 import yaml, json
 import warnings
+import inspect
 
 import util.file
 
@@ -665,3 +666,12 @@ def flatten(d, types_to_flatten=(tuple, list)):
     `types_to_flatten` will be recursively flattened."""
     return [d] if not isinstance(d, types_to_flatten) else \
         functools.reduce(operator.concat, list(map(functools.partial(flatten, types_to_flatten=types_to_flatten), d)), [])
+
+def get_named_func_args(f):
+    """Given a Python function object, return a flat list of the names of its named arguments (excluding *args and **kwargs)."""
+    getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
+    return flatten(getargspec(f).args)
+
+def dict_subset(d, keys):
+    """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
+    return {k: v for k, v in d.items() if k in keys}

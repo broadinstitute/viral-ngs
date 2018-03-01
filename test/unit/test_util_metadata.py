@@ -1,7 +1,10 @@
-"""Unit tests for util.metadata"""
+"""Unit tests for util.metadata.
+
+Integration tests are implemented as a pytest plugin in tests/conftest.py , which causes the entire test suite to be run under metadata
+recording.
+"""
 
 __author__ = "ilya@broadinstitute.org"
-__commands__ = []
 
 import os
 import os.path
@@ -164,4 +167,3 @@ class TestMetadataRecording(TestCaseWithTmp):
                 #util.file.dump_file(self.input('expected.get_file_info.fail.step.json'), json.dumps(step_record, sort_keys=True, indent=4))
                 
 # end: class TestMetadataRecording(TestCaseWithTmp)
-

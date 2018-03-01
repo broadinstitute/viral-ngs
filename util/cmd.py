@@ -17,13 +17,20 @@ import inspect
 import util.version
 import util.file
 import util.misc
-import util.metadata
+import util.cmd_plugins
+
+import pluggy
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
 
 log = logging.getLogger()
 tmp_dir = None
+
+
+@util.cmd_plugins.cmd_hookimpl(trylast=True)
+def cmd_call_cmd(cmd_main, args):
+    return cmd_main(args)
 
 class color(object):
     """ *nix terminal control characters for altering text display
@@ -100,22 +107,20 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
-    getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
-    mainfunc_args = set(util.misc.flatten(getargspec(mainfunc).args))
+    mainfunc_args = set(util.misc.get_named_func_args(mainfunc))
 
     @util.misc.wraps(mainfunc)
     def _main(args):
-        args2 = {k:v for k, v in vars(args).items() if k in mainfunc_args}
-        return mainfunc(**args2)
+        return mainfunc(**util.misc.dict_subset(vars(args), mainfunc_args))
 
     return _main
 
 # cmd_decorators: decorator functions to be applied, in turn, to a command implementation.
 # Later we should implement a proper plugin scheme using pluggy.
-cmd_decorators = [util.metadata.add_metadata_tracking]
+#cmd_decorators = [util.metadata.add_metadata_tracking]
 
 # parser_hooks: functions to be called with command parser as argument.
-parser_hooks = [util.metadata.add_metadata_arg]
+#parser_hooks = [util.metadata.add_metadata_arg]
 
 def attach_main(parser, cmd_main, split_args=False):
     ''' This attaches the main function call to a parser object.
@@ -123,14 +128,17 @@ def attach_main(parser, cmd_main, split_args=False):
     if split_args:
         cmd_main = main_command(cmd_main)
 
-    for cmd_decorator in cmd_decorators:
-        cmd_main = cmd_decorator(cmd_main)
+#    for cmd_decorator in cmd_decorators:
+#        cmd_main = cmd_decorator(cmd_main)
 
-    for parser_hook in parser_hooks:
-        parser_hook(parser)
+    @util.misc.wraps(cmd_main)
+    def call_main(args):
+        return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_call_cmd(cmd_main=cmd_main, args=args, config={})
+
+    util.cmd_plugins.cmd_plugin_mgr.hook.cmd_configure_parser(parser=parser)
 
     parser.description = cmd_main.__doc__
-    parser.set_defaults(func_main=cmd_main)
+    parser.set_defaults(func_main=call_main)
     return parser
 
 class _HelpAction(argparse._HelpAction):
@@ -276,8 +284,6 @@ def check_input(condition, error_msg):
     if not condition:
         raise BadInputError(error_msg)
 
-    
-    
 def run_cmd(module, cmd, args):
     """Run command after parsing its arguments with the command's parser.
     
@@ -289,3 +295,12 @@ def run_cmd(module, cmd, args):
     parser_fn = dict(getattr(module, '__commands__'))[cmd]
     args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)
+
+def load_cmd_plugins():
+    """Load plugins we will use."""
+    import util.metadata
+
+    util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
+    util.metadata.register_metadata_plugin_impls()
+
+load_cmd_plugins()

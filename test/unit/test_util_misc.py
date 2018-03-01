@@ -339,3 +339,26 @@ def test_flatten():
     assert flatten((1, [], (2, (3,)))) == [1, 2, 3]
     assert flatten([1, [2, [3]]], types_to_flatten=(tuple,)) == [[1, [2, [3]]]]
     assert flatten([1, [2, [3]]], types_to_flatten=(tuple,list)) == [1, 2, 3]
+
+def test_get_func_arg_names():
+    """Test getting function arg names"""
+
+    gnfa = util.misc.get_named_func_args
+
+    assert gnfa(lambda : None) == []
+    assert gnfa(lambda a: None) == ['a']
+    assert gnfa(lambda a, b: None) == ['a', 'b']
+    assert gnfa(lambda a, b, c=None: None) == ['a', 'b', 'c']
+    assert gnfa(lambda a, b, c=None, *args, **kwargs: None) == ['a', 'b', 'c']
+    def f(a, b, c=None, *args, **kwargs):
+        return 239
+    assert gnfa(lambda a, b, c=None, *args, **kwargs: None) == ['a', 'b', 'c']
+
+def test_dict_subset():
+    """Test dict_subset()"""
+    dict_subset = util.misc.dict_subset
+    assert dict_subset({}, {}) == {}
+    assert dict_subset({1:2}, {}) == {}
+    assert dict_subset({1:2}, {1,2}) == {1:2}
+    assert dict_subset({1:2,3:4}, {1,2,3}) == {1:2,3:4}
+    assert dict_subset({1:2,3:4}, {2,3,5}) == {3:4}
