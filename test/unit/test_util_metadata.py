@@ -20,7 +20,6 @@ import functools
 import util.cmd
 import util.file
 import util.misc
-from util.metadata import InFile, OutFile
 from util._metadata import metadata_db, file_arg, md_utils
 from test import tst_inp, TestCaseWithTmp
 

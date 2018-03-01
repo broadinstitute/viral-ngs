@@ -14,7 +14,7 @@ Eventually, this will enable:
 '''
 
 import sys
-from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf, OptionalFile
+#from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf, OptionalFile
 from ._metadata.recording import (
     # interface with cmd.py
 #    add_metadata_tracking, add_metadata_arg,

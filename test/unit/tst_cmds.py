@@ -10,7 +10,7 @@ import argparse
 import time
 
 import util.file
-from util.metadata import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
+from util.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
 
 def get_file_size(in_fname, size_fname):
     """Writes size of input file to output file"""

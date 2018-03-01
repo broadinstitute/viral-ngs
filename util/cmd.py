@@ -32,6 +32,10 @@ tmp_dir = None
 def cmd_call_cmd(cmd_main, args):
     return cmd_main(args)
 
+@util.cmd_plugins.cmd_hookimpl(trylast=True)
+def cmd_handle_file_arg(val):
+    return val
+
 class color(object):
     """ *nix terminal control characters for altering text display
     """

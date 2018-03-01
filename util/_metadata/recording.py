@@ -32,6 +32,13 @@ from util._metadata import metadata_db
 
 VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
+@util.cmd_plugins.cmd_hookimpl
+def cmd_handle_file_arg(val, mode, compute_fnames):
+    file_arg = FileArg(val, mode, compute_fnames)
+    rw = {'r':'read', 'w':'write'}[mode]
+    util.file.check_paths(**{rw : file_arg.required_fnames})
+    return file_arg
+
 # ** run_id management
 
 def create_run_id(t=None):

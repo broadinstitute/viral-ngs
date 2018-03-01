@@ -16,9 +16,11 @@ def cmd_configure_parser(parser):
 def cmd_call_cmd(cmd_main, args, config):
     """Calls the command."""
 
-@cmd_hookspec
-def cmd_make_arg_handler(mode, compute_fnames):
-    """Return an object to pass to the `type` parameter of argparse.ArgumentParser.add_argument(): a callable that takes a string value
-    and returns the parsed value."""
+@cmd_hookspec(firstresult=True)
+def cmd_handle_file_arg(val, mode, compute_fnames):
+    """Handle a file arg."""
 
 cmd_plugin_mgr.add_hookspecs(sys.modules[__name__])
+
+#cmd_plugin_mgr.trace.root.setwriter(print)
+#undo = cmd_plugin_mgr.enable_tracing()

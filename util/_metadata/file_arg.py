@@ -7,6 +7,7 @@ import traceback
 import warnings
 
 from util._metadata.md_utils import _make_list
+from util.argparse_arg_types import OptionalFile
 from . import _log
 
 # ** class FileArg
@@ -31,21 +32,15 @@ class FileArg(object):
         """
         self.val, self.mode, self.compute_fnames = val, mode, compute_fnames
 
-    class OptionalFile(str):
-        """Marker for optional files returned by compute_fnames methods"""
-
-        def __new__(cls, val):
-            return str.__new__(cls, val)
-
     @property
     def required_fnames(self):
         """List of required filename(s) denoted by this command-line argument."""
-        return [str(f) for f in self.compute_fnames(self.val) if not isinstance(f, self.OptionalFile)]
+        return [str(f) for f in self.compute_fnames(self.val) if not isinstance(f, OptionalFile)]
 
     @property
     def optional_fnames(self):
         """List of optional filename(s) denoted by this command-line argument."""
-        return [str(f) for f in self.compute_fnames(self.val) if isinstance(f, self.OptionalFile)]
+        return [str(f) for f in self.compute_fnames(self.val) if isinstance(f, OptionalFile)]
 
     @property
     def fnames(self):

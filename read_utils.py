@@ -24,7 +24,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
-from util.metadata import InFile, OutFile
+from util.argparse_arg_types import InFile, OutFile
 import tools.bwa
 import tools.cdhit
 import tools.picard

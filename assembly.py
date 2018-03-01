@@ -31,7 +31,7 @@ import util.cmd
 import util.file
 import util.misc
 import util.vcf
-from util.metadata import InFile, OutFile, OutFiles, OptionalFile
+from util.argparse_arg_types import InFile, OutFile, OutFiles, OptionalFile
 import read_utils
 import tools
 import tools.picard

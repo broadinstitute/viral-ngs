@@ -35,7 +35,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.metadata import InFile, OutFile, InFilesPrefix, InFile_OneOf
+from util.argparse_arg_types import InFile, OutFile, InFilesPrefix, InFile_OneOf
 
 log = logging.getLogger(__name__)
 

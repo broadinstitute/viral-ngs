@@ -33,7 +33,7 @@ import tools.fastqc
 import assembly
 import interhost
 from util.stats import mean, median
-from util.metadata import InFile, OutFile
+from util.argparse_arg_types import InFile, OutFile
 
 log = logging.getLogger(__name__)
 
