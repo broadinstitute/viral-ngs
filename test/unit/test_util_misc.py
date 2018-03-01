@@ -362,3 +362,10 @@ def test_dict_subset():
     assert dict_subset({1:2}, {1,2}) == {1:2}
     assert dict_subset({1:2,3:4}, {1,2,3}) == {1:2,3:4}
     assert dict_subset({1:2,3:4}, {2,3,5}) == {3:4}
+
+def test_make_list():
+    """Test make_list()"""
+    assert util.misc.make_list() == []
+    assert util.misc.make_list(1) == [1]
+    assert util.misc.make_list(1, 2) == [1, 2]
+    assert util.misc.make_list(1, 1) == [1, 1]

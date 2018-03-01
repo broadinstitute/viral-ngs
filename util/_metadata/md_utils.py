@@ -9,10 +9,6 @@ import traceback
 
 import util.misc
 
-def _make_list(*x): 
-    """Construct a new list from the args"""
-    return list(x)
-
 @contextlib.contextmanager
 def errors_as_warnings(msg='handling metadata', mask_errors=True):
     """Context manager for wrapping non-essential functionality; if mask_errors=True (default), turns errors into warnings, so

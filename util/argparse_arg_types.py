@@ -6,9 +6,6 @@ import util.file
 import util.misc
 import util.cmd_plugins
 
-#from util._metadata.file_arg import FileArg
-from util._metadata.md_utils import _make_list
-
 class OptionalFile(str):
     """Marker for optional files returned by compute_fnames methods"""
 
@@ -17,7 +14,7 @@ class OptionalFile(str):
 
 # ** InFile, OutFile etc
 
-def _call_arg_handler(val, mode, compute_fnames=_make_list):
+def _call_arg_handler(val, mode, compute_fnames=util.misc.make_list):
     return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_handle_file_arg(val=val, mode=mode, compute_fnames=compute_fnames)
 
 InFile = functools.partial(_call_arg_handler, mode='r')

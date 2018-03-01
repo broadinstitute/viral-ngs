@@ -675,3 +675,7 @@ def get_named_func_args(f):
 def dict_subset(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
     return {k: v for k, v in d.items() if k in keys}
+
+def make_list(*x): 
+    """Construct a new list from the args"""
+    return list(x)

@@ -6,7 +6,6 @@ import pwd
 import traceback
 import warnings
 
-from util._metadata.md_utils import _make_list
 from util.argparse_arg_types import OptionalFile
 from . import _log
 
@@ -17,7 +16,7 @@ class FileArg(object):
     argument value, keeps track of any filename(s) derived from the argument, and has methods for capturing metadata about the
     files they denote.'''
     
-    def __init__(self, val, mode, compute_fnames=_make_list):
+    def __init__(self, val, mode, compute_fnames):
         """Construct a FileArg.
 
         Args:
@@ -25,10 +24,7 @@ class FileArg(object):
               but can also be e.g. the prefix for a group of files.
            mode: 'r' if `val` denotes input file(s), 'w' if to output files
            compute_fnames: function that will compute, from `val`, the list of actual filenames of the file(s) denoted by this 
-             command-line argument.  By default, this is just one file and `val` contains its full name.  But `val` can be a 
-             common prefix for a set of files with a given list of suffixes, or `val` can be a directory denoting all the files
-             in the directory or just those matching a wildcard; and in those cases, compute_fnames will compute the actual file names
-             by some non-trivial operation.
+             command-line argument.
         """
         self.val, self.mode, self.compute_fnames = val, mode, compute_fnames
 

@@ -18,7 +18,14 @@ def cmd_call_cmd(cmd_main, args, config):
 
 @cmd_hookspec(firstresult=True)
 def cmd_handle_file_arg(val, mode, compute_fnames):
-    """Handle a file arg."""
+    """Handle a file arg.
+
+    Args:
+        val: the original command-line argument denoting input or output file(s)
+        mode: 'r' for input files, 'w' for output files.  All file(s) denoted by an arg
+           must have the same mode.
+        compute_fnames: function that takes `val` and returns a list of denoted files.
+    """
 
 cmd_plugin_mgr.add_hookspecs(sys.modules[__name__])
 

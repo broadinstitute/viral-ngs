@@ -33,8 +33,6 @@ class TestMdUtils(object):
     def test_misc(self):
         """Misc tests"""
 
-        assert md_utils._make_list(1,2) == [1,2]
-
         with pytest.warns(UserWarning):
             with md_utils.errors_as_warnings():
                 raise RuntimeError('test error')
