@@ -170,8 +170,8 @@ def gather_user_metadata(args_dict, cmd_result):
     return metadata_from_cmd_line, metadata_from_cmd_return
 
 @contextlib.contextmanager
-def call_cmd(outcome):
-    """Call command implementatiton `cmd_main` with arguments `args', yielding (cmd_result, cmd_exception, cmd_exception_str).
+def unpack_outcome(outcome):
+    """Unpack command outcome, yielding (cmd_result, cmd_exception, cmd_exception_str).
     """
     cmd_result, cmd_exception, cmd_exception_str = None, None, None
     try:
@@ -225,7 +225,7 @@ def cmd_call_cmd(cmd_main, args, config):
     replace_file_args(args)
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps:
         outcome = yield
-        with call_cmd(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings():
+        with unpack_outcome(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings():
 
             if metadata_db.is_metadata_tracking_enabled():
 

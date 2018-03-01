@@ -15,28 +15,13 @@ class OptionalFile(str):
     def __new__(cls, val):
         return str.__new__(cls, val)
 
-#OptionalFile = FileArg.OptionalFile
-
 # ** InFile, OutFile etc
 
-def make_arg_handler(mode, compute_fnames):
-    return 
+def _call_arg_handler(val, mode, compute_fnames=_make_list):
+    return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_handle_file_arg(val=val, mode=mode, compute_fnames=compute_fnames)
 
-def InFile(val, compute_fnames=_make_list):
-    """Argparse argument type for arguments that denote input files."""
-    #file_arg = FileArg(val, mode='r', compute_fnames=compute_fnames)
-    
-    #util.file.check_paths(read=file_arg.fnames)
-    #return file_arg
-    return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_handle_file_arg(val=val, mode='r', compute_fnames=compute_fnames)
-
-def OutFile(val, compute_fnames=_make_list):
-    """Argparse argument type for arguments that denote output files."""
-    #file_arg = FileArg(val, mode='w', compute_fnames=compute_fnames)
-    #util.file.check_paths(write=file_arg.fnames)
-    #return file_arg
-    return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_handle_file_arg(val=val, mode='w', compute_fnames=compute_fnames)
-#    return make_arg_handler(mode='w', compute_fnames=compute_fnames)
+InFile = functools.partial(_call_arg_handler, mode='r')
+OutFile = functools.partial(_call_arg_handler, mode='w')
 
 def InFiles(compute_fnames):
     """Argparse argument type for a string from which names of input files can be computed"""
