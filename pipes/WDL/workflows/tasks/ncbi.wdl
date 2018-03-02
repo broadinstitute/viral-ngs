@@ -97,7 +97,6 @@ task download_annotation {
   }
 
   output {
-    File        referenceFasta  = "${referenceName}.fasta"
     File        featureTable    = "${referenceName}.tbl"
     Array[File] featureTables   = glob("*.tbl")
   }
