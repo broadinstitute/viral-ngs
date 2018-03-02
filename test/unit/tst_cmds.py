@@ -97,6 +97,24 @@ __commands__.append(('concat_input_files', parser_concat_input_files))
 
 #############################################################################################
 
+def concat_input_files_list(args):
+    """Concat the input files"""
+    util.file.concat(args.inp, args.out)
+
+def parser_concat_input_files_list(parser=argparse.ArgumentParser()):
+    parser.add_argument('inp', type=InFile, nargs='+',
+                        help='Names of input files')
+    parser.add_argument('out', type=OutFile, help='write concatenation of input files to this file')
+
+    util.cmd.attach_main(parser, concat_input_files_list, split_args=False)
+    return parser
+
+__commands__.append(('concat_input_files_list', parser_concat_input_files_list))
+
+#############################################################################################
+
+
+
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
 

@@ -35,13 +35,7 @@ VIRAL_NGS_METADATA_FORMAT='1.0.0'
 @util.cmd_plugins.cmd_hookimpl
 def cmd_handle_file_arg(val, mode, compute_fnames):
     """Handle a command-line argument denoting input or output file(s)."""
-    file_arg = FileArg(val, mode, compute_fnames)
-
-    # check that input files are readable, and output files are writable
-    rw = {'r':'read', 'w':'write'}[mode]
-    util.file.check_paths(**{rw : file_arg.required_fnames})
-
-    return file_arg
+    return FileArg(val, mode, compute_fnames)
 
 # ** run_id management
 

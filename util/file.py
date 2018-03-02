@@ -808,11 +808,15 @@ def hash_file(fname, hash_algorithm, buf_size=io.DEFAULT_BUFFER_SIZE):
             else:
                 return hasher.hexdigest()
 
+def ispipe(f):
+    """Tests whether `f` is a named FIFO pipe"""
+    return os.path.exists(f) and stat.S_ISFIFO(os.stat(f).st_mode)
+
 def is_file_or_pipe(f):
     """Tests whether path `f` exists and is either a file or a named pipe (or a link to one of these).  
     Note that os.path.isfile() returns False for pipes, so to support pipes,
     use this function instead."""
-    return os.path.isfile(f) or (os.path.exists(f) and stat.S_ISFIFO(os.stat(f).st_mode))
+    return os.path.isfile(f) or ispipe(f)
 
 def listdir_full_names(d):
     """Return full names of files in directory `d`, in a deterministic (sorted) order."""
