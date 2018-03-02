@@ -79,23 +79,22 @@ task multi_align_mafft {
   Array[File] inputAssemblies # fasta files, one per sample
   File referenceGenome # fasta
 
-  Int? threads
   Int? maxIters
   Int? ep
 
 
   command {
     interhost.py multichr_mafft \
-      "${referenceGenome}" \
-      "${sep=' ' inputAssemblies+}" \
-      "./" \
-      "${'--ep' + ep}" \
-      "${'--maxiters' + maxIters}" \
+      ${referenceGenome} \
+      ${sep=' ' inputAssemblies+} \
+      ./ \
+      ${'--ep' + ep} \
+      ${'--maxiters' + maxIters} \
       --preservecase \
       --localpair \
       --outFilePrefix aligned \
-      --sampleNameListFile "sampleNameList.txt" \
-      "${'--threads' + threads}"
+      --sampleNameListFile sampleNameList.txt \
+      --loglevel DEBUG
   }
 
   output {
