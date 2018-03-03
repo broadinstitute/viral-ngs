@@ -12,6 +12,7 @@ import argparse
 import logging
 import math
 import os
+import os.path
 import csv
 import tempfile
 import shutil
@@ -1198,12 +1199,16 @@ def parser_extract_tarball(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_extract_tarball, split_args=True)
     return parser
-def main_extract_tarball(*args, **kwargs):
+def main_extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
     ''' Extract an input .tar, .tgz, .tar.gz, .tar.bz2, .tar.lz4, or .zip file
         to a given directory (or we will choose one on our own). Emit the
         resulting directory path to stdout.
     '''
-    print(util.file.extract_tarball(*args, **kwargs))
+    with util.file.tempfname() as idx_fname:
+        print(util.file.extract_tarball(tarfile=tarfile, out_dir=out_dir, threads=threads, compression=compression, pipe_hint=pipe_hint,
+                                        index_file=idx_fname))
+        if os.path.isfile(idx_fname):
+            print(util.file.slurp_file(idx_fname))
 __commands__.append(('extract_tarball', parser_extract_tarball))
 
 # =========================

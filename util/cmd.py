@@ -13,6 +13,7 @@ import logging
 import argparse
 import functools
 import inspect
+import traceback
 
 import util.version
 import util.file
@@ -135,11 +136,13 @@ def attach_main(parser, cmd_main, split_args=False):
 #    for cmd_decorator in cmd_decorators:
 #        cmd_main = cmd_decorator(cmd_main)
 
+    load_cmd_plugins()
+
+    util.cmd_plugins.cmd_plugin_mgr.hook.cmd_configure_parser(parser=parser)
+
     @util.misc.wraps(cmd_main)
     def call_main(args):
         return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_call_cmd(cmd_main=cmd_main, args=args, config={})
-
-    util.cmd_plugins.cmd_plugin_mgr.hook.cmd_configure_parser(parser=parser)
 
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=call_main)
@@ -300,11 +303,20 @@ def run_cmd(module, cmd, args):
     args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)
 
+cmd_plugins_loaded = []
+
 def load_cmd_plugins():
     """Load plugins we will use."""
-    import util.metadata
 
-    util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
-    util.metadata.register_metadata_plugin_impls()
+    print('in load_cmd_plugins')
+    traceback.print_stack()
 
-load_cmd_plugins()
+    if not cmd_plugins_loaded:
+
+        import util.metadata
+
+        util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
+        util.metadata.register_metadata_plugin_impls()
+        
+        cmd_plugins_loaded.append(True)
+

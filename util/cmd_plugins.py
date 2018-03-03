@@ -29,5 +29,7 @@ def cmd_handle_file_arg(val, mode, compute_fnames):
 
 cmd_plugin_mgr.add_hookspecs(sys.modules[__name__])
 
+plugins_loaded = False
+
 #cmd_plugin_mgr.trace.root.setwriter(print)
 #undo = cmd_plugin_mgr.enable_tracing()

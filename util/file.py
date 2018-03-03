@@ -204,7 +204,7 @@ def destroy_tmp_dir(tempdir=None):
     tempfile.tempdir = None
 
 
-def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
+def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None, index_file=None):
     if not (tarfile == '-' or (os.path.exists(tarfile) and not os.path.isdir(tarfile))):
         raise Exception('file does not exist: %s' % tarfile)
     if out_dir is None:
@@ -252,6 +252,8 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             # we want normal user behavior always
             if 'GNU' in subprocess.check_output(['tar', '--version']).decode('UTF-8'):
                 untar_cmd.append('--no-same-owner')
+        if index_file and '--index-file' in subprocess.check_output(['tar', '--help']).decode('UTF-8'):
+            untar_cmd.extend(['--verbose', '--index-file', index_file])
         log.debug("cat {} | {} | {}".format(tarfile, ' '.join(decompressor), ' '.join(untar_cmd)))
         with open(os.devnull, 'w') as fnull:
             if tarfile == '-':

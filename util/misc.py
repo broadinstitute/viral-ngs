@@ -14,8 +14,7 @@ import copy
 import yaml, json
 import warnings
 import inspect
-
-import util.file
+import tempfile
 
 log = logging.getLogger(__name__)
 
@@ -181,10 +180,12 @@ except ImportError:
         # Otherwise use temporary files as buffers, since subprocess.call
         # cannot use PIPE.
         if stdout_pipe:
-            stdout_fn = util.file.mkstempfname('.stdout')
+            stdout_fd, stdout_fn = tempfile.mkstemp(suffix='.stdout')
+            os.close(stdout_fd)
             stdout = open(stdout_fn, 'wb')
         if stderr_pipe:
-            stderr_fn = util.file.mkstempfname('.stderr')
+            stderr_fd, stderr_fn = tempfile.mkstemp(suffix='.stderr')
+            os.close(stderr_fd)
             stderr = open(stderr_fn, 'wb')
         try:
             returncode = subprocess.call(
@@ -676,6 +677,6 @@ def dict_subset(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
     return {k: v for k, v in d.items() if k in keys}
 
-def make_list(*x): 
+def make_list(*x):
     """Construct a new list from the args"""
     return list(x)
