@@ -19,6 +19,7 @@ import util.version
 import util.file
 import util.misc
 import util.cmd_plugins
+import util.metadata
 
 import pluggy
 
@@ -303,20 +304,13 @@ def run_cmd(module, cmd, args):
     args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)
 
-cmd_plugins_loaded = []
-
 def load_cmd_plugins():
     """Load plugins we will use."""
 
-    print('in load_cmd_plugins')
-    traceback.print_stack()
-
-    if not cmd_plugins_loaded:
-
-        import util.metadata
+    if not util.cmd_plugins.cmd_plugin_mgr.list_name_plugin():
 
         util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
-        util.metadata.register_metadata_plugin_impls()
-        
-        cmd_plugins_loaded.append(True)
+        util.metadata.register_metadata_plugin_impls(util.cmd_plugins.cmd_plugin_mgr)
+
+
 

@@ -13,8 +13,6 @@ Eventually, this will enable:
    - avoiding redundant computation, when a command is re-run with the same inputs and same implementation of the command
 '''
 
-import sys
-#from ._metadata.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf, OptionalFile
 from ._metadata.recording import (
     # interface with cmd.py
 #    add_metadata_tracking, add_metadata_arg,
@@ -22,11 +20,6 @@ from ._metadata.recording import (
     set_run_id
 )
 
-import util.cmd_plugins
-
-def register_metadata_plugin_impls():
+def register_metadata_plugin_impls(plugin_mgr):
     import util._metadata.recording
-    util.cmd_plugins.cmd_plugin_mgr.register(util._metadata.recording)
-
-
-
+    plugin_mgr.register(util._metadata.recording)
