@@ -21,8 +21,6 @@ import util.misc
 import util.cmd_plugins
 import util.metadata
 
-import pluggy
-
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
 
@@ -311,6 +309,3 @@ def load_cmd_plugins():
 
         util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
         util.metadata.register_metadata_plugin_impls(util.cmd_plugins.cmd_plugin_mgr)
-
-
-
