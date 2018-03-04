@@ -34,7 +34,11 @@ VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
 @util.cmd_plugins.cmd_hookimpl
 def cmd_handle_file_arg(val, mode, compute_fnames):
-    """Handle a command-line argument denoting input or output file(s)."""
+    """Handle a command-line argument denoting input or output file(s).
+    Here we wrap the value in a FileArg object, to record, besides the original argument value, whether this arg denotes input or output
+    files, and how to get the names of these files; in the recording module's implementation of the cmd_call_cmd() hook below,
+    the FileArg objects will be replaced with the original argument values (`val`) before calling the original command.
+    """
     return FileArg(val, mode, compute_fnames)
 
 # ** run_id management

@@ -680,3 +680,11 @@ def dict_subset(d, keys):
 def make_list(*x):
     """Construct a new list from the args"""
     return list(x)
+
+class StrWithAttrs(str):
+    """A str to which attributes can be attached."""
+
+    def __new__(cls, val):
+        return str.__new__(cls, val)
+
+

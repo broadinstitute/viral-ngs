@@ -17,6 +17,9 @@ import csv
 import tempfile
 import shutil
 import sys
+import functools
+import hashlib
+import traceback
 import concurrent.futures
 
 from Bio import SeqIO
@@ -25,7 +28,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
-from util.argparse_arg_types import InFile, OutFile
+from util.argparse_arg_types import InFile, OutFile, OutFiles
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -1185,10 +1188,43 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
 
 __commands__.append(('bwamem_idxstats', parser_bwamem_idxstats))
 
+def _tar_idx_fname(out_dir): 
+    """Construct a filename where the index of a tarball could be written during extraction by the extract_tarball command below.
+    This is needed to define the out_dir argument of the extract_tarball command with argparse type OutFiles(), where we need a function
+    that computes the list of files denoted by the argument (_read_tar_index below).
+
+    We could just place the index file inside out_dir, but that would change the semantics of extract_tarball.  So we instead put it
+    in the temporary directory, in a filename specific to the command invocation.
+    """
+    return os.path.join(tempfile.gettempdir(),
+                        hashlib.sha1((str(out_dir)+os.environ.get('VIRAL_NGS_CMD_INVOCATION_ID', '')).encode('UTF-8')).hexdigest())
+
+def _read_tar_index(out_dir):
+    """Returns the list of files extracted from a tarball by the extract_tarball command below."""
+    tar_idx = _tar_idx_fname(out_dir)
+
+    if not os.path.isfile(tar_idx):
+        # This function is being called before executing the extract_tarballs command, to see if there are any
+        # known output files, so we can check that they are writable.  At this point there are none.
+        return []
+
+    # If we're here then this function was called after the extract_tarballs command, to see which files were written.
+    tar_idx_contents = sorted(list(filter(os.path.isfile, map(functools.partial(os.path.join, out_dir),
+                                                              util.file.slurp_file(tar_idx).strip().split()))))
+    return tar_idx_contents
+
+def main_extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
+    ''' Extract an input .tar, .tgz, .tar.gz, .tar.bz2, .tar.lz4, or .zip file
+        to a given directory (or we will choose one on our own). Emit the
+        resulting directory path to stdout.
+    '''
+    print(util.file.extract_tarball(tarfile=tarfile, out_dir=out_dir, threads=threads, compression=compression, pipe_hint=pipe_hint,
+                                    index_file=_read_tar_index(out_dir) if out_dir else None))
+
 
 def parser_extract_tarball(parser=argparse.ArgumentParser()):
-    parser.add_argument('tarfile', help='Input tar file. May be "-" for stdin.')
-    parser.add_argument('out_dir', help='Output directory')
+    parser.add_argument('tarfile', type=InFile, help='Input tar file. May be "-" for stdin.')
+    parser.add_argument('out_dir', type=OutFiles(compute_fnames=_read_tar_index), help='Output directory')
     parser.add_argument('--compression',
         help='Compression type (default: %(default)s). Auto-detect is incompatible with stdin input unless pipe_hint is specified.',
         choices=('gz', 'bz2', 'lz4', 'zip', 'none', 'auto'),
@@ -1199,16 +1235,8 @@ def parser_extract_tarball(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_extract_tarball, split_args=True)
     return parser
-def main_extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pipe_hint=None):
-    ''' Extract an input .tar, .tgz, .tar.gz, .tar.bz2, .tar.lz4, or .zip file
-        to a given directory (or we will choose one on our own). Emit the
-        resulting directory path to stdout.
-    '''
-    with util.file.tempfname() as idx_fname:
-        print(util.file.extract_tarball(tarfile=tarfile, out_dir=out_dir, threads=threads, compression=compression, pipe_hint=pipe_hint,
-                                        index_file=idx_fname))
-        if os.path.isfile(idx_fname):
-            print(util.file.slurp_file(idx_fname))
+
+
 __commands__.append(('extract_tarball', parser_extract_tarball))
 
 # =========================

@@ -369,3 +369,14 @@ def test_make_list():
     assert util.misc.make_list(1) == [1]
     assert util.misc.make_list(1, 2) == [1, 2]
     assert util.misc.make_list(1, 1) == [1, 1]
+
+def test_StrWithAttrs():
+    StrWithAttrs = util.misc.StrWithAttrs
+    z = StrWithAttrs('hi')
+    z.a = 1
+    assert z.a == 1
+    assert isinstance(z, str)
+    assert z == 'hi'
+    assert str(z) == 'hi'
+
+
