@@ -72,3 +72,9 @@ def byteify(input):
     else:
         return input
 
+def tuple_key_matches(k, patterns):
+    """Test whether a nested-dict key `k` (tuple of keys) matches one of the `patterns`.
+    Each pattern is a tuple of strings giving possible values for each position."""
+    return any(all(str(k_elt) in p_elt.split() for k_elt, p_elt in zip(k, p) if p_elt) for p in patterns if len(k)>=len(p))
+
+    
