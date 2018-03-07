@@ -74,7 +74,10 @@ def canonicalize_step_record(step_record):
                                                                 'abspath ctime device fname inode mtime owner realpath'),
                                                                ('step', 'args', '', ' '.join(map(str, range(10))), 'files', '',
                                                                 'abspath ctime device fname inode mtime owner realpath'),
-                                                               ('step', 'metadata_from_cmd_return', 'runtime'))) \
+                                                               ('step', 'metadata_from_cmd_return', 'runtime'),
+                                                               ('step', 'enclosing_steps'),
+                                                               ('step', 'args', 'tmp_dir'),
+                                                               ('step', 'args', 'tmp_dirKeep'))) \
             else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
             if k[:3] != ('step', 'run_info', 'argv')}
 
