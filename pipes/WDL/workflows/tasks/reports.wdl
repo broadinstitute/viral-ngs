@@ -50,7 +50,8 @@ task plot_coverage {
     samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
     grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
-    echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    python -c "print (float("`cat bases_aligned`")/"`cat assembly_length`") if "`cat assembly_length`">0 else 0" > mean_coverage
 
     # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
@@ -81,7 +82,7 @@ task plot_coverage {
     Int reads_aligned               = read_int("reads_aligned")
     Int read_pairs_aligned          = read_int("read_pairs_aligned")
     Int bases_aligned               = read_int("bases_aligned")
-    Int mean_coverage               = read_int("mean_coverage")
+    Float mean_coverage             = read_float("mean_coverage")
   }
 
   runtime {
