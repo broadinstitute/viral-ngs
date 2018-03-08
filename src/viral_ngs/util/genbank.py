@@ -23,7 +23,6 @@ def parse_accession_str(chr_ref):
     return chr_ref
 
 def get_feature_table_id(featureTableFile):
-    seqid = ""
     with open(featureTableFile, 'rt') as inf:
         for line in inf:
             line = line.rstrip('\r\n')
@@ -37,10 +36,8 @@ def get_feature_table_id(featureTableFile):
                 if not (
                     (seqid.startswith('gb|') or seqid.startswith('ref|')) and seqid.endswith('|') and len(seqid) > 4):
                     raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
-                seqid = seqid[seqid.find("|") + 1:-1]
-    if len(seqid) > 0:
-        return seqid
-
+                seqid = '|'.join(seqid.split('|')[1:-1])
+                return seqid
 
 def _seq_chunks(seq, n):
     # http://stackoverflow.com/a/312464/190597 (Ned Batchelder)
