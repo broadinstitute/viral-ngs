@@ -110,23 +110,22 @@ task download_annotation {
 }
 
 task annot_transfer {
-  # TODO: Iterate over chr-specifc MSAs in workflow rather than in task
-
-  File chrMultipleAlignment # fasta; multiple alignments of sample sequences
-  File referenceFeatureTable # feature table corresponding to the chr in the alignment
-  File referenceGenome # fasta
+  File chr_mutli_aln_fasta # fasta; multiple alignments of sample sequences
+  File reference_fasta # fasta
+  File reference_feature_table # feature table corresponding to the chr in the alignment
 
   command {
     ncbi.py tbl_transfer_prealigned \
-        "${chrMultipleAlignment}" \
-        "${referenceGenome}" \
-        "${referenceFeatureTable}" \
-        "./" \
-        --oob_clip
+        ${chr_mutli_aln_fasta} \
+        ${reference_fasta} \
+        ${reference_feature_table} \
+        . \
+        --oob_clip \
+        --loglevel DEBUG
   }
 
   output {
-    Array[File] featureTables = glob(".tbl")
+    Array[File] featureTables = glob("*.tbl")
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -137,31 +136,36 @@ task annot_transfer {
 }
 
 task prepare_genbank {
-  Array[File] fastaFiles
-  File assemblySummary # summary.assembly.txt
-  File featureTableDir
-
-  String genbankTemplate
-  String genbankSourceTable
-  String biosampleMap
-  String sequencingTech
-  String comment
+  Array[File]+ assemblies_fasta
+  Array[File]+ annotations_tbl
+  File         authors_sbt
+  File         assemblySummary # summary.assembly.txt
+  File         genbankSourceTable
+  File         biosampleMap
+  String       sequencingTech
+  String       comment
 
   command {
+    cp ${sep=' ' annotations_tbl} .
     ncbi.py prep_genbank_files \
-        "${genbankTemplate}" \
-        "${sep=' ' fastaFiles}" \
-        "${featureTableDir}" \
-        --master_source_table "${genbankSourceTable}" \
-        --sequencing_tech "${sequencingTech}" \
-        --biosample_map "${biosampleMap}" \
-        --coverage_table "${assemblySummary}" \
-        --comment "${comment}"
+        ${authors_sbt} \
+        ${sep=' ' assemblies_fasta} \
+        . \
+        --master_source_table ${genbankSourceTable} \
+        --sequencing_tech ${sequencingTech} \
+        --biosample_map ${biosampleMap} \
+        --coverage_table ${assemblySummary} \
+        --comment ${comment} \
+        --loglevel DEBUG
+    tar -czpvf ncbi_package.tar.gz *.val *.cmt *.fsa *.gbf *.sqn *.src *.tbl
   }
 
   output {
-    File errorSummary = "${featureTableDir}/errorsummary.val"
+    Array[File] sequin_files = glob("*.sqn")
+    File        ncbi_package = "ncbi_package.tar.gz"
+    File        errorSummary = "errorsummary.val"
   }
+
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"

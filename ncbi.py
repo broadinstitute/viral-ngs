@@ -176,7 +176,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
         # identify the correct feature table as the one that has an ID that is
         # part of the ref seq ID
         fileAccession = util.genbank.get_feature_table_id(tblFilename)
-        if fileAccession in matchingRefSeq.id:
+        if fileAccession == matchingRefSeq.id.split('|')[0]:
             ref_tbl = tblFilename
             break
     if ref_tbl == "":
