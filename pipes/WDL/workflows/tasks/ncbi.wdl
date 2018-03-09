@@ -26,7 +26,7 @@ task download_fasta {
 task download_annotations {
   Array[String]+ accessions
   String         emailAddress
-  String         combined_fasta
+  String         combined_out_prefix
 
   command {
     set -ex -o pipefail
@@ -39,12 +39,12 @@ task download_annotations {
         ${emailAddress} \
         ./ \
         ${sep=' ' accessions} \
-        --combinedFilePrefix "${combined_fasta}" \
+        --combinedFilePrefix "${combined_out_prefix}" \
         --loglevel DEBUG
   }
 
   output {
-    File        combined_fasta = "${combined_fasta}.fasta"
+    File        combined_fasta = "${combined_out_prefix}.fasta"
     Array[File] genomes_fasta  = glob("*.fasta")
     Array[File] features_tbl   = glob("*.tbl")
   }
