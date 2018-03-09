@@ -1,4 +1,4 @@
-import "tasks/reports.wdl" as reports
+import "reports.wdl" as reports
 
 workflow spikein {
 

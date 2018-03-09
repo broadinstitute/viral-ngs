@@ -110,7 +110,7 @@ task multi_align_mafft_ref {
 
 task multi_align_mafft {
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
-  String?        out_prefix = basename(select_first(assemblies_fasta), '.fasta')
+  String         out_prefix
   Int?           mafft_maxIters
   Int?           mafft_ep
 

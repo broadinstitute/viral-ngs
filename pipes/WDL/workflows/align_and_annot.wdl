@@ -1,5 +1,7 @@
-import "tasks/interhost.wdl" as interhost
-import "tasks/ncbi.wdl" as ncbi
+import "interhost.wdl" as interhost
+import "ncbi.wdl" as ncbi
+
+# DX_SKIP_WORKFLOW
 
 workflow align_and_annot {
 
