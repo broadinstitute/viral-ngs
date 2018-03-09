@@ -36,52 +36,52 @@ jobs:
   fast_finish: true
   include:
 
-    - language: java
-      jdk: oraclejdk8
-      sudo: required
-      addons:
-        apt:
-          packages:
-          - docker-ce
-      env:
-        - TRAVIS_JOB=docker_wdl
-        # DOCKER_USER (for Quay.io)
-        - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
-        # DOCKER_PASS (for Quay.io)
-        - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
-        ## DOCKER_USER_MIRROR (for DockerHub)
-        - secure: NErgcpFHK3Q51idZumScyRlr6PJjuFirHXlJJSPFhtKBh1Gg+z2Z3DLoFCOTibIyJSVo38T2eA53daM3VmPWb3kd4brrLjjoH7a3i/838IJjIDLpFULAc3uzP7PGckEiXb8gB1lQB/IaeDiWWUL2SbzMOdLABpANpR1AYmF00VI=
-        ## DOCKER_PASS_MIRROR (for DockerHub)
-        - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
-        # DX_API_TOKEN (for DNAnexus builds)
-        - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
-        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
-        # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
-        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-      install:
-        #- travis/upgrade-docker.sh
-        - travis/install-wdl.sh
-        - travis/install-gatk.sh
-      script:
-        - set -e
-        # pull old docker image
-        - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
-        - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
-        # build new docker image
-        - docker build -t local/viral-ngs:build $_CACHE_FROM .;
-        # deploy docker image
-        - travis/deploy-docker.sh
-        # version and validate WDL code
-        - travis/version-wdl-runtimes.sh
-        - travis/validate-wdl.sh
-        # build DNAnexus pipelines and launch a few test executions
-        - travis/build-dx.sh
-        - travis/tests-dx.sh
-        #- if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
-        # test Cromwell local execution engine
-        - travis/tests-cromwell.sh
-      before_cache:
-        - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
+    # - language: java
+    #   jdk: oraclejdk8
+    #   sudo: required
+    #   addons:
+    #     apt:
+    #       packages:
+    #       - docker-ce
+    #   env:
+    #     - TRAVIS_JOB=docker_wdl
+    #     # DOCKER_USER (for Quay.io)
+    #     - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
+    #     # DOCKER_PASS (for Quay.io)
+    #     - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
+    #     ## DOCKER_USER_MIRROR (for DockerHub)
+    #     - secure: NErgcpFHK3Q51idZumScyRlr6PJjuFirHXlJJSPFhtKBh1Gg+z2Z3DLoFCOTibIyJSVo38T2eA53daM3VmPWb3kd4brrLjjoH7a3i/838IJjIDLpFULAc3uzP7PGckEiXb8gB1lQB/IaeDiWWUL2SbzMOdLABpANpR1AYmF00VI=
+    #     ## DOCKER_PASS_MIRROR (for DockerHub)
+    #     - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
+    #     # DX_API_TOKEN (for DNAnexus builds)
+    #     - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
+    #     - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
+    #     # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
+    #     - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+    #   install:
+    #     #- travis/upgrade-docker.sh
+    #     - travis/install-wdl.sh
+    #     - travis/install-gatk.sh
+    #   script:
+    #     - set -e
+    #     # pull old docker image
+    #     - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
+    #     - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
+    #     # build new docker image
+    #     - docker build -t local/viral-ngs:build $_CACHE_FROM .;
+    #     # deploy docker image
+    #     - travis/deploy-docker.sh
+    #     # version and validate WDL code
+    #     - travis/version-wdl-runtimes.sh
+    #     - travis/validate-wdl.sh
+    #     # build DNAnexus pipelines and launch a few test executions
+    #     - travis/build-dx.sh
+    #     - travis/tests-dx.sh
+    #     #- if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
+    #     # test Cromwell local execution engine
+    #     - travis/tests-cromwell.sh
+    #   before_cache:
+    #     - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
 
     #- language: generic
     #  stage: build
