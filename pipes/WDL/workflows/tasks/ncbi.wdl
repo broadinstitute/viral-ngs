@@ -87,11 +87,11 @@ task prepare_genbank {
   Array[File]+ assemblies_fasta
   Array[File]+ annotations_tbl
   File         authors_sbt
-  File         assemblySummary # summary.assembly.txt
-  File         genbankSourceTable
-  File         biosampleMap
-  String       sequencingTech
-  String       comment
+  File?        coverage_table # summary.assembly.txt
+  File?        genbankSourceTable
+  File?        biosampleMap
+  String?      sequencingTech
+  String?      comment
   String       out_prefix = "ncbi_package"
 
   command {
@@ -101,11 +101,11 @@ task prepare_genbank {
         ${authors_sbt} \
         ${sep=' ' assemblies_fasta} \
         . \
-        --master_source_table ${genbankSourceTable} \
-        --sequencing_tech ${sequencingTech} \
-        --biosample_map ${biosampleMap} \
-        --coverage_table ${assemblySummary} \
-        --comment ${comment} \
+        ${'--master_source_table=' + genbankSourceTable} \
+        ${'--sequencing_tech=' + sequencingTech} \
+        ${'--biosample_map=' + biosampleMap} \
+        ${'--coverage_table=' + coverage_table} \
+        ${'--comment=' + comment} \
         --loglevel DEBUG
     tar -czpvf ${out_prefix}.tar.gz *.val *.cmt *.fsa *.gbf *.sqn *.src *.tbl
   }

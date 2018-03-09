@@ -24,7 +24,7 @@ workflow align_and_annot {
       input:
         assemblies_fasta = assemblies_fasta,
         annotations_tbl = annot.transferred_feature_tables,
-        out_prefix = basename(annotations_tbl, '.tbl')
+        out_prefix = basename(by_chr.right, '.tbl')
     }
   }
 }
