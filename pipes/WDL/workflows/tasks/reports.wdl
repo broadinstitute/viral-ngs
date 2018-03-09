@@ -50,7 +50,8 @@ task plot_coverage {
     samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
     grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
-    echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    python -c "print (float("`cat bases_aligned`")/"`cat assembly_length`") if "`cat assembly_length`">0 else 0" > mean_coverage
 
     # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
@@ -71,19 +72,19 @@ task plot_coverage {
   }
 
   output {
-    File aligned_bam                 = "${sample_name}.all.bam"
-    File aligned_bam_idx             = "${sample_name}.all.bai"
-    File aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
-    File aligned_only_reads_bam      = "${sample_name}.mapped.bam"
-    File aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
-    File aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
-    File coverage_plot               = "${sample_name}.coverage_plot.pdf"
-    Int  assembly_length             = read_int("assembly_length")
-    Int  assembly_length_unambiguous = read_int("assembly_length_unambiguous")
-    Int  reads_aligned               = read_int("reads_aligned")
-    Int  read_pairs_aligned          = read_int("read_pairs_aligned")
-    Int  bases_aligned               = read_int("bases_aligned")
-    Int  mean_coverage               = read_int("mean_coverage")
+    File  aligned_bam                 = "${sample_name}.all.bam"
+    File  aligned_bam_idx             = "${sample_name}.all.bai"
+    File  aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
+    File  aligned_only_reads_bam      = "${sample_name}.mapped.bam"
+    File  aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
+    File  aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
+    File  coverage_plot               = "${sample_name}.coverage_plot.pdf"
+    Int   assembly_length             = read_int("assembly_length")
+    Int   assembly_length_unambiguous = read_int("assembly_length_unambiguous")
+    Int   reads_aligned               = read_int("reads_aligned")
+    Int   read_pairs_aligned          = read_int("read_pairs_aligned")
+    Int   bases_aligned               = read_int("bases_aligned")
+    Float mean_coverage               = read_float("mean_coverage")
   }
 
   runtime {
