@@ -17,7 +17,7 @@ cp ../pipes/WDL/workflows/tasks/*.wdl ../pipes/WDL/workflows/*.wdl .
 for workflow in ../pipes/WDL/workflows/*.wdl; do
   workflow=`basename $workflow`
   echo "validating $workflow"
-  java -jar womtool.jar validate $workflow
+  java -jar ../womtool.jar validate $workflow
 done
 cd -
 rm -r wdl_validate_test
