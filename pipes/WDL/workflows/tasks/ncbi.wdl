@@ -87,7 +87,6 @@ task download_annotation {
   String        emailAddress
 
   command {
-    set -ex -o pipefail
     ncbi.py fetch_feature_tables \
         ${emailAddress} \
         ./ \
@@ -146,6 +145,7 @@ task prepare_genbank {
   String       comment
 
   command {
+    set -ex -o pipefail
     cp ${sep=' ' annotations_tbl} .
     ncbi.py prep_genbank_files \
         ${authors_sbt} \

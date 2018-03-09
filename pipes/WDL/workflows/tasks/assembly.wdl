@@ -333,8 +333,10 @@ task refine_2x_and_plot {
     File refine2_sites_vcf_gz        = "${sample_name}.refine2.pre_fasta.vcf.gz"
     File final_assembly_fasta        = "${sample_name}.fasta"
     File aligned_bam                 = "${sample_name}.all.bam"
+    File aligned_bam_idx             = "${sample_name}.all.bai"
     File aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
     File aligned_only_reads_bam      = "${sample_name}.mapped.bam"
+    File aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
     File aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
     File coverage_plot               = "${sample_name}.coverage_plot.pdf"
     Int  assembly_length             = read_int("assembly_length")
