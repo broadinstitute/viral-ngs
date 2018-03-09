@@ -2,7 +2,8 @@
 set -e  # intentionally allow for pipe failures below
 
 ln -s $GATK_PATH/GenomeAnalysisTK.jar .
-ln -s pipes/WDL/workflows pipes/WDL/workflows/tasks .
+mkdir -p workflows
+ln -s pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
 
 for workflow in pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
@@ -13,7 +14,6 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell.jar run \
 			workflows/$workflow_name.wdl \
-			--imports tasks \
 			-i $input_json | tee cromwell.out
 		if [ ${PIPESTATUS[0]} -gt 0 ]; then
 			echo "error running $workflow_name"
