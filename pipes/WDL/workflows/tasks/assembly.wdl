@@ -118,6 +118,8 @@ task scaffold {
       --outAlternateContigs ${sample_name}.scaffolding_alt_contigs.fasta \
       --loglevel=DEBUG
 
+    grep '^>' ${sample_name}.scaffolding_chosen_ref.fasta | cut -c 2- | tr '\n' '\t' > ${sample_name}.scaffolding_chosen_ref.txt
+
     assembly.py gapfill_gap2seq \
       ${sample_name}.intermediate_scaffold.fasta \
       ${reads_bam} \
@@ -132,7 +134,7 @@ task scaffold {
     assembly.py impute_from_reference \
       ${sample_name}.intermediate_gapfill.fasta \
       ${sample_name}.scaffolding_chosen_ref.fasta \
-      ${sample_name}.scaffold.fasta \
+      ${sample_name}.scaffolded_imputed.fasta \
       --newName ${sample_name} \
       ${'--replaceLength=' + replace_length} \
       ${'--minLengthFraction=' + min_length_fraction} \
@@ -142,14 +144,15 @@ task scaffold {
   }
 
   output {
-    File scaffold_fasta              = "${sample_name}.scaffold.fasta"
-    File intermediate_scaffold_fasta = "${sample_name}.intermediate_scaffold.fasta"
-    File intermediate_gapfill_fasta  = "${sample_name}.intermediate_gapfill.fasta"
-    Int  assembly_preimpute_length             = read_int("assembly_preimpute_length")
-    Int  assembly_preimpute_length_unambiguous = read_int("assembly_preimpute_length_unambiguous")
-    File scaffolding_chosen_ref      = "${sample_name}.scaffolding_chosen_ref.fasta"
-    File scaffolding_stats           = "${sample_name}.scaffolding_stats.txt"
-    File scaffolding_alt_contigs     = "${sample_name}.scaffolding_alt_contigs.fasta"
+    File   scaffold_fasta              = "${sample_name}.scaffolded_imputed.fasta"
+    File   intermediate_scaffold_fasta = "${sample_name}.intermediate_scaffold.fasta"
+    File   intermediate_gapfill_fasta  = "${sample_name}.intermediate_gapfill.fasta"
+    Int    assembly_preimpute_length             = read_int("assembly_preimpute_length")
+    Int    assembly_preimpute_length_unambiguous = read_int("assembly_preimpute_length_unambiguous")
+    String scaffolding_chosen_ref_name = read_string("${sample_name}.scaffolding_chosen_ref.txt")
+    File   scaffolding_chosen_ref      = "${sample_name}.scaffolding_chosen_ref.fasta"
+    File   scaffolding_stats           = "${sample_name}.scaffolding_stats.txt"
+    File   scaffolding_alt_contigs     = "${sample_name}.scaffolding_alt_contigs.fasta"
   }
 
   runtime {
@@ -307,7 +310,8 @@ task refine_2x_and_plot {
     samtools flagstat ${sample_name}.all.bam | tee ${sample_name}.all.bam.flagstat.txt
     grep properly ${sample_name}.all.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
-    echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
+    python -c "print (float("`cat bases_aligned`")/"`cat assembly_length`") if "`cat assembly_length`">0 else 0" > mean_coverage
 
     # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
@@ -342,7 +346,7 @@ task refine_2x_and_plot {
     Int  reads_aligned               = read_int("reads_aligned")
     Int  read_pairs_aligned          = read_int("read_pairs_aligned")
     Int  bases_aligned               = read_int("bases_aligned")
-    Int  mean_coverage               = read_int("mean_coverage")
+    Float mean_coverage              = read_float("mean_coverage")
   }
 
   runtime {
