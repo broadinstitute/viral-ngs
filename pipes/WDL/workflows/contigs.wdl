@@ -1,6 +1,6 @@
-import "tasks/metagenomics.wdl" as metagenomics
-import "tasks/taxon_filter.wdl" as taxon_filter
-import "tasks/assembly.wdl" as assembly
+import "metagenomics.wdl" as metagenomics
+import "taxon_filter.wdl" as taxon_filter
+import "assembly.wdl" as assembly
 
 workflow contigs {
 
