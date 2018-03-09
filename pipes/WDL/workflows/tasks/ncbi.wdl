@@ -87,7 +87,7 @@ task prepare_genbank {
   Array[File]+ assemblies_fasta
   Array[File]+ annotations_tbl
   File         authors_sbt
-  File?        coverage_table # summary.assembly.txt
+  File?        coverage_table # summary.assembly.txt (from Snakemake)
   File?        genbankSourceTable
   File?        biosampleMap
   String?      sequencingTech
