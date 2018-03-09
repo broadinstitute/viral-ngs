@@ -1,4 +1,4 @@
-import "tasks/ncbi.wdl" as ncbi
+import "ncbi.wdl" as ncbi
 
 workflow download_annotations {
 

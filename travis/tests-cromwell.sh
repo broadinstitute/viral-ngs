@@ -13,6 +13,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell.jar run \
 			workflows/$workflow_name.wdl \
+			--imports tasks \
 			-i $input_json | tee cromwell.out
 		if [ ${PIPESTATUS[0]} -gt 0 ]; then
 			echo "error running $workflow_name"
