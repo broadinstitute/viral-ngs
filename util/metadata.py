@@ -14,12 +14,6 @@ Eventually, this will enable:
 '''
 
 from ._metadata.recording import (
-    # interface with cmd.py
-#    add_metadata_tracking, add_metadata_arg,
-    # for use by pipe/rules/common.rules to create a common ID for a sequence of steps run as part of same pipeline execution
-    set_run_id
+    set_run_id,
+    cmd_handle_file_arg, cmd_configure_parser, cmd_call_cmd
 )
-
-def register_metadata_plugin_impls(plugin_mgr):
-    import util._metadata.recording
-    plugin_mgr.register(util._metadata.recording)

@@ -2,6 +2,7 @@
 
 import os
 import os.path
+import sys
 import io
 import tempfile
 import stat
@@ -14,6 +15,7 @@ import multiprocessing
 import time
 
 import util.file
+import tools.samtools
 
 from util._metadata import _log
 
@@ -26,14 +28,33 @@ class Hasher(object):
     def __init__(self, hash_algorithm='sha1'):
         self.hash_algorithm = hash_algorithm
 
-    def __call__(self, file):
+    def __call__(self, fname):
         file_hash = ''
+        file_size = 0
         try:
-            if os.path.isfile(file) and not stat.S_ISFIFO(os.stat(file).st_mode):
-                file_hash = self.hash_algorithm + '_' + util.file.hash_file(file, hash_algorithm=self.hash_algorithm)
+            if os.path.isfile(fname) and not stat.S_ISFIFO(os.stat(fname).st_mode):
+                if fname.endswith('.bam'):
+                    with util.file.tempfnames(suffixes=('.oldhr.txt','.newhdr.txt', 'canon.bam')) as (old_header_fname, new_header_fname, canon_bam):
+                        # make this a plugin call
+                        tools.samtools.SamtoolsTool().dumpHeader(fname, old_header_fname)
+                        with open(new_header_fname, 'wb') as out_h, open(old_header_fname, 'rb') as in_h:
+                            for line in in_h:
+                                line = line.decode("latin-1")
+                                if line.startswith('@PG'):
+                                    line = '\t'.join(filter(lambda s: not s.startswith('CL:'), line.rstrip('\n').split('\t')))+'\n'
+                                if line.startswith('@SQ'):
+                                    line = '\t'.join(filter(lambda s: not s.startswith('AS:'), line.rstrip('\n').split('\t')))+'\n'
+                                out_h.write(line.encode("latin-1"))
+
+                        tools.samtools.SamtoolsTool().reheader_no_PG(fname, new_header_fname, canon_bam)
+                        file_hash = self.hash_algorithm + '_bamcanon_' + util.file.hash_file(canon_bam, hash_algorithm=self.hash_algorithm)
+                        file_size = os.path.getsize(canon_bam)
+                else:
+                    file_hash = self.hash_algorithm + '_' + util.file.hash_file(fname, hash_algorithm=self.hash_algorithm)
+                    file_size = os.path.getsize(fname)
         except Exception:
-            warnings.warn('Cannot compute hash for {}: {}'.format(file, traceback.format_exc()))
-        return file_hash
+            warnings.warn('Cannot compute hash for {}: {}'.format(fname, traceback.format_exc()))
+        return file_hash, file_size
 
 # end: class Hasher(object)
 

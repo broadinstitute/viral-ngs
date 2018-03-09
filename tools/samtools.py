@@ -167,6 +167,9 @@ class SamtoolsTool(tools.Tool):
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
 
+    def reheader_no_PG(self, inBam, headerFile, outBam):
+        self.execute('reheader', ['-P', headerFile, inBam], stdout=outBam)
+
     def dumpHeader(self, inBam, outHeader):
         opts = []
         if inBam.endswith('.bam'):

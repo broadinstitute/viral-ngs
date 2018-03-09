@@ -140,6 +140,7 @@ def record_step_to_db(step_data):
         Used for json serialization below."""
         if not isinstance(x, FileArg): return str(x)
         file_info = x.gather_file_info(hasher, out_files_exist=not step_data['step']['run_info']['exception'])
+                                       #cmd_result=
         return file_info
 
     metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
@@ -229,7 +230,7 @@ def cmd_call_cmd(cmd_main, args, config):
         outcome = yield
         with unpack_outcome(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings():
 
-            if metadata_db.is_metadata_tracking_enabled():
+            if metadata_db.is_metadata_tracking_enabled() and not enclosing_steps:
 
                 end_time = time.time()
 

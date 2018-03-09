@@ -22,6 +22,8 @@ import util.misc
 import util.cmd_plugins
 import util.metadata
 
+import pluggy
+
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
 
@@ -112,7 +114,9 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
-    mainfunc_args = set(util.misc.get_named_func_args(mainfunc))
+    argspec = util.misc.getargspec(mainfunc)
+    assert argspec[1:3] == (None, None), 'Command impls with *args or **kwargs not supported'
+    mainfunc_args = set(util.misc.flatten(argspec.args))
 
     @util.misc.wraps(mainfunc)
     def _main(args):
@@ -120,21 +124,11 @@ def main_command(mainfunc):
 
     return _main
 
-# cmd_decorators: decorator functions to be applied, in turn, to a command implementation.
-# Later we should implement a proper plugin scheme using pluggy.
-#cmd_decorators = [util.metadata.add_metadata_tracking]
-
-# parser_hooks: functions to be called with command parser as argument.
-#parser_hooks = [util.metadata.add_metadata_arg]
-
 def attach_main(parser, cmd_main, split_args=False):
     ''' This attaches the main function call to a parser object.
     '''
     if split_args:
         cmd_main = main_command(cmd_main)
-
-#    for cmd_decorator in cmd_decorators:
-#        cmd_main = cmd_decorator(cmd_main)
 
     load_cmd_plugins()
 
@@ -248,8 +242,8 @@ def main_argparse(commands, description):
             ret = args.func_main(args)
         finally:
             if (hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep) or util.file.keep_tmp():
-                log.exception(
-                    "Exception occurred while running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
+                log.debug(
+                    "After running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
             else:
                 shutil.rmtree(tempfile.tempdir)
     else:
@@ -311,4 +305,4 @@ def load_cmd_plugins():
     if not util.cmd_plugins.cmd_plugin_mgr.list_name_plugin():
 
         util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
-        util.metadata.register_metadata_plugin_impls(util.cmd_plugins.cmd_plugin_mgr)
+        util.cmd_plugins.cmd_plugin_mgr.register(util.metadata)

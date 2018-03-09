@@ -140,9 +140,9 @@ __commands__.append(('index_fasta_picard', parser_index_fasta_picard))
 
 
 def parser_mkdup_picard(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBams', help='Input reads, BAM format.', nargs='+')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
-    parser.add_argument('--outMetrics', help='Output metrics file. Default is to dump to a temp file.', default=None)
+    parser.add_argument('inBams', type=InFile, help='Input reads, BAM format.', nargs='+')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format.')
+    parser.add_argument('--outMetrics', type=OutFile, help='Output metrics file. Default is to dump to a temp file.')
     parser.add_argument(
         "--remove",
         help="Instead of marking duplicates, remove them entirely (default: %(default)s)",
@@ -187,8 +187,8 @@ __commands__.append(('mkdup_picard', parser_mkdup_picard))
 
 
 def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.RevertSamTool.jvmMemDefault,
@@ -250,8 +250,8 @@ __commands__.append(('picard', parser_picard))
 
 
 def parser_sort_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input bam file.')
-    parser.add_argument('outBam', help='Output bam file, sorted.')
+    parser.add_argument('inBam', type=InFile, help='Input bam file.')
+    parser.add_argument('outBam', type=OutFile, help='Output bam file, sorted.')
     parser.add_argument(
         'sortOrder',
         help='How to sort the reads. [default: %(default)s]',
@@ -343,9 +343,9 @@ __commands__.append(('merge_bams', parser_merge_bams))
 
 
 def parser_filter_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input bam file.')
-    parser.add_argument('readList', help='Input file of read IDs.')
-    parser.add_argument('outBam', help='Output bam file.')
+    parser.add_argument('inBam', type=InFile, help='Input bam file.')
+    parser.add_argument('readList', type=InFile, help='Input file of read IDs.')
+    parser.add_argument('outBam', type=OutFile, help='Output bam file.')
     parser.add_argument(
         "--exclude",
         help="""If specified, readList is a list of reads to remove from input.
@@ -433,12 +433,12 @@ def fastq_to_bam(
 
 
 def parser_fastq_to_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('outBam', help='Output bam file.')
+    parser.add_argument('inFastq1', type=InFile, help='Input fastq file; 1st end of paired-end reads.')
+    parser.add_argument('inFastq2', type=InFile, help='Input fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('outBam', type=OutFile, help='Output bam file.')
     headerGroup = parser.add_mutually_exclusive_group(required=True)
     headerGroup.add_argument('--sampleName', help='Sample name to insert into the read group header.')
-    headerGroup.add_argument('--header', help='Optional text file containing header.')
+    headerGroup.add_argument('--header', type=InFile, help='Optional text file containing header.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FastqToSamTool.jvmMemDefault,
@@ -475,8 +475,8 @@ def join_paired_fastq(
 
 
 def parser_join_paired_fastq(parser=argparse.ArgumentParser()):
-    parser.add_argument('output', help='Output file.')
-    parser.add_argument('inFastqs', nargs='+', help='Input fastq file (2 if paired, 1 if interleaved)')
+    parser.add_argument('output', type=OutFile, help='Output file.')
+    parser.add_argument('inFastqs', type=InFile, nargs='+', help='Input fastq file (2 if paired, 1 if interleaved)')
     parser.add_argument('--outFormat', default='fastq', help='Output file format.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, join_paired_fastq, split_args=True)
@@ -543,8 +543,8 @@ def split_bam(inBam, outBams):
 
 
 def parser_split_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('outBams', nargs='+', help='Output BAM files')
+    parser.add_argument('inBam', type=InFile, help='Input BAM file.')
+    parser.add_argument('outBams', type=OutFile, nargs='+', help='Output BAM files')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, split_bam, split_args=True)
     return parser
@@ -558,9 +558,9 @@ __commands__.append(('split_bam', parser_split_bam))
 
 
 def parser_reheader_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('rgMap', help='Tabular file containing three columns: field, old, new.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('rgMap', type=InFile, help='Tabular file containing three columns: field, old, new.')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_reheader_bam)
     return parser
@@ -815,18 +815,18 @@ __commands__.append(('rmdup_mvicuna_bam', parser_rmdup_mvicuna_bam))
 
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('inFastq1', type=InFile, help='Input fastq file; 1st end of paired-end reads.')
+    parser.add_argument('inFastq2', type=InFile, help='Input fastq file; 2nd end of paired-end reads.')
+    parser.add_argument('outFastq1', type=OutFile, help='Output fastq file; 1st end of paired-end reads.')
+    parser.add_argument('outFastq2', type=OutFile, help='Output fastq file; 2nd end of paired-end reads.')
     parser.add_argument(
         "--includeUnmated",
         help="Include unmated reads in the main output fastq files (default: %(default)s)",
         default=False,
         action="store_true"
     )
-    parser.add_argument('--unpairedOutFastq1', default=None, help='File name of output unpaired reads from 1st end of paired-end reads (independent of --includeUnmated)')
-    parser.add_argument('--unpairedOutFastq2', default=None, help='File name of output unpaired reads from 2nd end of paired-end reads (independent of --includeUnmated)')
+    parser.add_argument('--unpairedOutFastq1', type=OutFile, help='File name of output unpaired reads from 1st end of paired-end reads (independent of --includeUnmated)')
+    parser.add_argument('--unpairedOutFastq2', type=OutFile, help='File name of output unpaired reads from 2nd end of paired-end reads (independent of --includeUnmated)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_rmdup_prinseq_fastq)
     return parser
@@ -855,8 +855,8 @@ def filter_bam_mapped_only(inBam, outBam):
 
 
 def parser_filter_bam_mapped_only(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input aligned reads, BAM format.')
-    parser.add_argument('outBam', help='Output sorted indexed reads, filtered to aligned-only, BAM format.')
+    parser.add_argument('inBam', type=InFile, help='Input aligned reads, BAM format.')
+    parser.add_argument('outBam', type=OutFile, help='Output sorted indexed reads, filtered to aligned-only, BAM format.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_bam_mapped_only, split_args=True)
     return parser
@@ -868,9 +868,9 @@ __commands__.append(('filter_bam_mapped_only', parser_filter_bam_mapped_only))
 
 
 def parser_novoalign(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Novoindex.')
-    parser.add_argument('outBam', help='Output reads, BAM format (aligned).')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format, pre-indexed by Novoindex.')
+    parser.add_argument('outBam', type=OutFile, help='Output reads, BAM format (aligned).')
     parser.add_argument('--options', default='-r Random', help='Novoalign options (default: %(default)s)')
     parser.add_argument('--min_qual', default=0, help='Filter outBam to minimum mapping quality (default: %(default)s)')
     parser.add_argument(
@@ -906,7 +906,7 @@ __commands__.append(('novoalign', parser_novoalign))
 
 
 def parser_novoindex(parser=argparse.ArgumentParser()):
-    parser.add_argument('refFasta', help='Reference genome, FASTA format.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format.')
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
         default=None,
@@ -928,10 +928,10 @@ __commands__.append(('novoindex', parser_novoindex))
 
 
 def parser_gatk_ug(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format, pre-indexed by Picard.')
     parser.add_argument(
-        'outVcf',
+        'outVcf', type=OutFile,
         help='''Output calls in VCF format. If this filename ends with .gz,
         GATK will BGZIP compress the output and produce a Tabix index file as well.'''
     )
@@ -969,9 +969,9 @@ __commands__.append(('gatk_ug', parser_gatk_ug))
 
 
 def parser_gatk_realign(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format, aligned to refFasta.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard.')
-    parser.add_argument('outBam', help='Realigned reads.')
+    parser.add_argument('inBam', type=InFile, help='Input reads, BAM format, aligned to refFasta.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format, pre-indexed by Picard.')
+    parser.add_argument('outBam', type=OutFile, help='Realigned reads.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.gatk.GATKTool.jvmMemDefault,
@@ -1158,10 +1158,10 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
 
 
 def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
-    parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
-    parser.add_argument('--outStats', help='Output idxstats file', default=None)
+    parser.add_argument('inBam', type=InFile, help='Input unaligned reads, BAM format.')
+    parser.add_argument('refFasta', type=InFile, help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument('--outBam', type=OutFile, help='Output aligned, indexed BAM file')
+    parser.add_argument('--outStats', type=OutFile, help='Output idxstats file')
     parser.add_argument(
         '--minScoreToFilter',
         dest="min_score_to_filter",

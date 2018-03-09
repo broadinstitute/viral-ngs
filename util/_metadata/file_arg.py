@@ -85,11 +85,13 @@ class FileArg(object):
                     hash_val, size = None, None
                     if hasattr(self, 'pipe_hasher'):
                         hash_val, size = self.pipe_hasher.get_results()
+                    else:
+                        hash_val, size = hasher(fname)
 
-                    file_info.update(hash=hash_val if hash_val is not None else hasher(fname))
+                    file_info.update(hash=hash_val)
 
                     file_stat = os.stat(fname)
-                    file_info.update(size=size if size is not None else file_stat[stat.ST_SIZE],
+                    file_info.update(size=size,
                                      mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
                     file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
                     file_info.update(inode=file_stat[stat.ST_INO], device=file_stat[stat.ST_DEV])

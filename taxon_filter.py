@@ -43,6 +43,9 @@ log = logging.getLogger(__name__)
 # ***  deplete_human  ***
 # =======================
 
+arg_type_bwa_bmtagger = InFile_OneOf(InFile,
+                                     InFilesPrefix(suffixes=['.bitmask'] + \
+                                                   ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
 def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', type=InFile, help='Input BAM file.')
     parser.add_argument('revertBam', type=OutFile, nargs='?', help='Output BAM: read markup reverted with Picard.')
@@ -52,9 +55,6 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'blastnBam', type=OutFile, help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
-    arg_type_bwa_bmtagger = InFile_OneOf(InFile, 
-                                         InFilesPrefix(suffixes=['.bitmask'] + \
-                                                       ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
     parser.add_argument(
         '--bwaDbs',
         type=arg_type_bwa_bmtagger,
@@ -325,6 +325,7 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', type=InFile, help='Input BAM file.')
     parser.add_argument(
         'refDbs',
+        type=arg_type_bwa_bmtagger,
         nargs='+',
         help='''Reference databases (one or more) to deplete from input.
                 For each db, requires prior creation of db.bitmask by bmtool,
@@ -514,10 +515,11 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
 
 
 def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('refDbs', nargs='+', help='One or more reference databases for blast. '
+    parser.add_argument('inBam', type=InFile, help='Input BAM file.')
+    parser.add_argument('refDbs', type=InFile_OneOf(InFile, InFilesPrefix(suffixes=['.nsq', '.nhr', '.nin'])),
+                        nargs='+', help='One or more reference databases for blast. '
                          'An ephemeral database will be created if a fasta file is provided.')
-    parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
+    parser.add_argument('outBam', type=OutFile, help='Output BAM file with matching reads removed.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
@@ -595,10 +597,10 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None):
             #       with Popen to background bwa process
 
 def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('refDbs', nargs='+', help='One or more reference databases for bwa. '
+    parser.add_argument('inBam', type=InFile, help='Input BAM file.')
+    parser.add_argument('refDbs', type=arg_type_bwa_bmtagger, nargs='+', help='One or more reference databases for bwa. '
                          'An ephemeral database will be created if a fasta file is provided.')
-    parser.add_argument('outBam', help='Ouput BAM file with matching reads removed.')
+    parser.add_argument('outBam', type=OutFile, help='Ouput BAM file with matching reads removed.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bwa_bam)
     return parser
@@ -628,7 +630,7 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
-    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
     parser.add_argument('outputDirectory', help='Location for the output files (default is cwd: %(default)s)')
     parser.add_argument(
         '--outputFilePrefix',
@@ -707,7 +709,7 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
 
 def parser_bwa_build_db(parser=argparse.ArgumentParser()):
-    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
     parser.add_argument('outputDirectory', help='Location for the output files')
     parser.add_argument(
         '--outputFilePrefix',
@@ -755,7 +757,7 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
 
 def parser_blastn_build_db(parser=argparse.ArgumentParser()):
-    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
     parser.add_argument('outputDirectory', help='Location for the output files')
     parser.add_argument(
         '--outputFilePrefix',
@@ -809,7 +811,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
 
 
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
-    parser.add_argument('inputFasta', help='Location of the input FASTA file')
+    parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
     parser.add_argument(
         'outputDirectory',
         help='Location for the output files (Where *.bitmask and *.srprism files will be stored)'

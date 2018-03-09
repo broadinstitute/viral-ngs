@@ -20,6 +20,7 @@ import json
 import hashlib
 import util.cmd
 import util.misc
+import tools.samtools
 import sys
 import csv
 

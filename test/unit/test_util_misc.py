@@ -5,6 +5,7 @@ __author__ = "dpark@broadinstitute.org"
 import os, random, collections
 import unittest
 import subprocess
+import pickle
 
 import util.misc
 import util.file
@@ -340,20 +341,6 @@ def test_flatten():
     assert flatten([1, [2, [3]]], types_to_flatten=(tuple,)) == [[1, [2, [3]]]]
     assert flatten([1, [2, [3]]], types_to_flatten=(tuple,list)) == [1, 2, 3]
 
-def test_get_func_arg_names():
-    """Test getting function arg names"""
-
-    gnfa = util.misc.get_named_func_args
-
-    assert gnfa(lambda : None) == []
-    assert gnfa(lambda a: None) == ['a']
-    assert gnfa(lambda a, b: None) == ['a', 'b']
-    assert gnfa(lambda a, b, c=None: None) == ['a', 'b', 'c']
-    assert gnfa(lambda a, b, c=None, *args, **kwargs: None) == ['a', 'b', 'c']
-    def f(a, b, c=None, *args, **kwargs):
-        return 239
-    assert gnfa(lambda a, b, c=None, *args, **kwargs: None) == ['a', 'b', 'c']
-
 def test_dict_subset():
     """Test dict_subset()"""
     dict_subset = util.misc.dict_subset
@@ -370,13 +357,15 @@ def test_make_list():
     assert util.misc.make_list(1, 2) == [1, 2]
     assert util.misc.make_list(1, 1) == [1, 1]
 
-def test_StrWithAttrs():
-    StrWithAttrs = util.misc.StrWithAttrs
-    z = StrWithAttrs('hi')
+def test_StrWithData():
+    StrWithData = util.misc.StrWithData
+    z = StrWithData('hi')
     z.a = 1
     assert z.a == 1
     assert isinstance(z, str)
     assert z == 'hi'
     assert str(z) == 'hi'
 
-
+    z2 = pickle.loads(pickle.dumps(z))
+    assert type(z2) == type(z)
+    assert z2 == z

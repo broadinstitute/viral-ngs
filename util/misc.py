@@ -668,10 +668,7 @@ def flatten(d, types_to_flatten=(tuple, list)):
     return [d] if not isinstance(d, types_to_flatten) else \
         functools.reduce(operator.concat, list(map(functools.partial(flatten, types_to_flatten=types_to_flatten), d)), [])
 
-def get_named_func_args(f):
-    """Given a Python function object, return a flat list of the names of its named arguments (excluding *args and **kwargs)."""
-    getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)
-    return flatten(getargspec(f).args)
+getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)  # python 2/3 compatibility
 
 def dict_subset(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
@@ -681,10 +678,9 @@ def make_list(*x):
     """Construct a new list from the args"""
     return list(x)
 
-class StrWithAttrs(str):
-    """A str to which attributes can be attached."""
-
+class StrWithData(str):
+    """A str to which extra data can be attached."""
+    
     def __new__(cls, val):
-        return str.__new__(cls, val)
-
+         return  str.__new__(cls, val)
 
