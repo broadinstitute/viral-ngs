@@ -1,10 +1,10 @@
 #DX_SKIP_WORKFLOW
 
-import "tasks/demux.wdl" as demux
-import "tasks/metagenomics.wdl" as metagenomics
-import "tasks/taxon_filter.wdl" as taxon_filter
-import "tasks/assembly.wdl" as assembly
-import "tasks/reports.wdl" as reports
+import "demux.wdl" as demux
+import "metagenomics.wdl" as metagenomics
+import "taxon_filter.wdl" as taxon_filter
+import "assembly.wdl" as assembly
+import "reports.wdl" as reports
 
 workflow demux_metag {
   File krona_taxonomy_db_tgz

@@ -1,7 +1,7 @@
-import "tasks/reports.wdl" as reports
+import "reports.wdl" as reports
 
 workflow spikein {
 
-  call reports.spikein_report as spikein
+  call reports.spikein_report as spikein_report
 
 }

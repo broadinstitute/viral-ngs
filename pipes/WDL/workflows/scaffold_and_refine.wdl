@@ -1,4 +1,4 @@
-import "tasks/assembly.wdl" as assembly
+import "assembly.wdl" as assembly
 
 workflow scaffold_and_refine {
   File reads_unmapped_bam
