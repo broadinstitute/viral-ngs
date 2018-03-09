@@ -396,7 +396,7 @@ def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=N
 
 def prep_genbank_files(templateFile, fasta_files, annotDir,
                        master_source_table=None, comment=None, sequencing_tech=None,
-                       coverage_table=None, biosample_map=None, organism=None):
+                       coverage_table=None, biosample_map=None, organism=None, mol_type=None):
     ''' Prepare genbank submission files.  Requires .fasta and .tbl files as input,
         as well as numerous other metadata files for the submission.  Creates a
         directory full of files (.sqn in particular) that can be sent to GenBank.
@@ -453,7 +453,9 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
     tbl2asn = tools.tbl2asn.Tbl2AsnTool()
     source_quals = []
     if organism:
-        source_quals = [('organism', organism)]
+        source_quals.append(('organism', organism))
+    if mol_type:
+        source_quals.append(('mol_type', mol_type))
     tbl2asn.execute(templateFile, annotDir, comment=comment,
         per_genome_comment=True, source_quals=source_quals)
 
@@ -467,6 +469,7 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
     parser.add_argument('--sequencing_tech', default=None, help='sequencing technology (e.g. Illumina HiSeq 2500)')
     parser.add_argument('--master_source_table', default=None, help='source modifier table')
     parser.add_argument('--organism', default=None, help='species name')
+    parser.add_argument('--mol_type', default=None, help='molecule type')
     parser.add_argument("--biosample_map",
                         help="""A file with two columns and a header: sample and BioSample.
         This file may refer to samples that are not included in this submission.""")
