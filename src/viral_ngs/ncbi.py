@@ -51,7 +51,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     if not ((refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and
                                 len(refID) > 4):
                         raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
-                    refID = refID[refID.find("|") + 1:-1]
+                    refID = '|'.join(refID.split('|')[1:-1])
                     refSeqID = [x for x in cmap.keys() if refID in x][0]
                     #altid = cmap.mapChr(refSeqID, altid)
                     altid = list(set(cmap.keys()) - set([refSeqID]))[0]  # cmap.mapChr(refSeqID, altid)
