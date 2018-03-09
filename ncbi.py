@@ -436,13 +436,22 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                     Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
 
                 # make .fsa files
-                fasta2fsa(out_file_name, annotDir, biosample=biosample.get(sample))
+                fasta2fsa(out_file_name, annotDir, biosample=biosample.get(sample_base))
                 # remove the .fasta file
                 os.unlink(out_file_name)
 
                 # make .src files
                 if master_source_table:
-                    shutil.copy(master_source_table, os.path.join(annotDir, sample + '.src'))
+                    out_src_fname = os.path.join(annotDir, sample + '.src')
+                    with open(master_source_table, 'rt') as inf:
+                        with open(out_src_fname, 'wt') as outf:
+                            outf.write(inf.readline())
+                            for line in inf:
+                                row = line.rsrtrip('\n').split('\t')
+                                if row[0] == sample_base:
+                                    row[0] = sample
+                                    outf.write('\t'.join(row) + '\n')
+
                 # make .cmt files
                 make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
                                              name=sample,
