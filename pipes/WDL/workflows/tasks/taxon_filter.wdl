@@ -175,6 +175,6 @@ task merge_one_per_sample {
     memory: "7 GB"
     cpu: 4
     docker: "quay.io/broadinstitute/viral-ngs"
-    dx_instance_type: "mem2_hdd2_x4"
+    dx_instance_type: "mem1_hdd2_x8"
   }
 }
