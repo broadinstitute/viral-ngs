@@ -13,17 +13,18 @@ workflow align_and_annot {
       assemblies_fasta = assemblies_fasta
   }
 
-  scatter(chr_num in range(len(mafft.alignments_by_chr))) {
+  scatter(aln_by_chr, ref_annot_by_chr in zip(mafft.alignments_by_chr, annotations_tbl)) {
     call ncbi.annot_transfer as annot {
       input:
-        chr_mutli_aln_fasta = mafft.alignments_by_chr[chr_num],
+        chr_mutli_aln_fasta = aln_by_chr,
         reference_fasta = reference_fasta,
-        reference_feature_table = annotations_tbl[chr_num]
+        reference_feature_table = ref_annot_by_chr
     }
     call ncbi.prepare_genbank as genbank {
       input:
         assemblies_fasta = assemblies_fasta,
-        annotations_tbl = annot.featureTables # I'm worried that the order got messed up and we'll have to remap?
+        annotations_tbl = annot.transferred_feature_tables,
+        out_prefix = basename(annotations_tbl, '.tbl')
     }
   }
 }

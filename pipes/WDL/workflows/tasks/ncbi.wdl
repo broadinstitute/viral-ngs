@@ -1,26 +1,19 @@
-task download_reference_genome {
-  String referenceName
-  Array[String] accessions # NCBI accessions to include in the reference
-  String emailAddress
+
+task download_fasta {
+  String         out_prefix
+  Array[String]+ accessions
+  String         emailAddress
 
   command {
     ncbi.py fetch_fastas \
-        "${emailAddress}" \
-        "./" \
-        "${sep=' ' accessions}" \
-        --combinedFilePrefix "${referenceName}" \
-        --removeSeparateFiles \
-        --forceOverwrite
-    ncbi.py fetch_feature_tables \
-        "${emailAddress}" \
-        "./" \
-        "${sep=' ' accessions}" \
-        --forceOverwrite
+        ${emailAddress} \
+        . \
+        ${sep=' ' accessions} \
+        --combinedFilePrefix ${out_prefix} \
   }
 
   output {
-    File referenceFasta = "${referenceName}.fasta"
-    Array[File] featureTables = glob("*.tbl")
+    File sequences_fasta = "${out_prefix}.fasta"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -30,74 +23,30 @@ task download_reference_genome {
   }
 }
 
-task download_lastal_sources {
-  String referenceName
-  Array[String] accessions # NCBI accessions to include in the lastal db
-  String emailAddress
-
-  command {
-    ncbi.py fetch_fastas \
-        "${emailAddress}" \
-        "./" \
-        "${sep=' ' accessions}" \
-        --combinedFilePrefix lastal \
-        --removeSeparateFiles \
-        --forceOverwrite \
-        --chunkSize 300
-  }
-
-  output {
-    File referenceFasta = "lastal.fasta"
-    Array[File] featureTables = glob("*.tbl")
-  }
-  runtime {
-    docker: "quay.io/broadinstitute/viral-ngs"
-    memory: "3 GB"
-    cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
-  }
-}
-
-task build_lastal_db {
-  File    sequences_fasta
-
-  String  db_name = basename(sequences_fasta, ".fasta")
+task download_annotations {
+  Array[String]+ accessions
+  String         emailAddress
+  String         combined_fasta
 
   command {
     set -ex -o pipefail
-    taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
-    tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4
-  }
-
-  output {
-    File lastal_db = "${db_name}.tar.lz4"
-  }
-
-  runtime {
-    docker: "quay.io/broadinstitute/viral-ngs"
-    memory: "7 GB"
-    cpu: 2
-    dx_instance_type: "mem1_ssd1_x4"
-  }
-}
-
-task download_annotation {
-  String        referenceName
-  Array[String] accessions
-  String        emailAddress
-
-  command {
     ncbi.py fetch_feature_tables \
         ${emailAddress} \
         ./ \
         ${sep=' ' accessions} \
-        --combinedFilePrefix ${referenceName} \
+        --loglevel DEBUG
+    ncbi.py fetch_fastas \
+        ${emailAddress} \
+        ./ \
+        ${sep=' ' accessions} \
+        --combinedFilePrefix "${combined_fasta}" \
         --loglevel DEBUG
   }
 
   output {
-    File        featureTable    = "${referenceName}.tbl"
-    Array[File] featureTables   = glob("*.tbl")
+    File        combined_fasta = "${combined_fasta}.fasta"
+    Array[File] genomes_fasta  = glob("*.fasta")
+    Array[File] features_tbl   = glob("*.tbl")
   }
 
   runtime {
@@ -109,8 +58,8 @@ task download_annotation {
 }
 
 task annot_transfer {
-  File chr_mutli_aln_fasta # fasta; multiple alignments of sample sequences
-  File reference_fasta # fasta
+  File chr_mutli_aln_fasta # fasta; multiple alignments of sample sequences for a single chr
+  File reference_fasta # fasta (may contain multiple chrs, only one with the same name as reference_feature_table will be used)
   File reference_feature_table # feature table corresponding to the chr in the alignment
 
   command {
@@ -124,7 +73,7 @@ task annot_transfer {
   }
 
   output {
-    Array[File] featureTables = glob("*.tbl")
+    Array[File] transferred_feature_tables = glob("*.tbl")
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -143,6 +92,7 @@ task prepare_genbank {
   File         biosampleMap
   String       sequencingTech
   String       comment
+  String       out_prefix = "ncbi_package"
 
   command {
     set -ex -o pipefail
@@ -157,12 +107,12 @@ task prepare_genbank {
         --coverage_table ${assemblySummary} \
         --comment ${comment} \
         --loglevel DEBUG
-    tar -czpvf ncbi_package.tar.gz *.val *.cmt *.fsa *.gbf *.sqn *.src *.tbl
+    tar -czpvf ${out_prefix}.tar.gz *.val *.cmt *.fsa *.gbf *.sqn *.src *.tbl
   }
 
   output {
     Array[File] sequin_files = glob("*.sqn")
-    File        ncbi_package = "ncbi_package.tar.gz"
+    File        ncbi_package = "${out_prefix}.tar.gz"
     File        errorSummary = "errorsummary.val"
   }
 

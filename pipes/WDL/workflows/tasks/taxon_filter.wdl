@@ -117,6 +117,27 @@ task filter_to_taxon {
   }
 }
 
+task build_lastal_db {
+  File    sequences_fasta
+  String  db_name = basename(sequences_fasta, ".fasta")
+
+  command {
+    set -ex -o pipefail
+    taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
+    tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4
+  }
+
+  output {
+    File lastal_db = "${db_name}.tar.lz4"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "7 GB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd1_x4"
+  }
+}
 
 task merge_one_per_sample {
   String       out_bam_basename
