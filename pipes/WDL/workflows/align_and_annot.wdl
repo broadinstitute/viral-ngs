@@ -13,12 +13,12 @@ workflow align_and_annot {
       assemblies_fasta = assemblies_fasta
   }
 
-  scatter(aln_by_chr, ref_annot_by_chr in zip(mafft.alignments_by_chr, annotations_tbl)) {
+  scatter(by_chr in zip(mafft.alignments_by_chr, annotations_tbl)) {
     call ncbi.annot_transfer as annot {
       input:
-        chr_mutli_aln_fasta = aln_by_chr,
+        chr_mutli_aln_fasta = by_chr.left,
         reference_fasta = reference_fasta,
-        reference_feature_table = ref_annot_by_chr
+        reference_feature_table = by_chr.right
     }
     call ncbi.prepare_genbank as genbank {
       input:
