@@ -448,7 +448,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                             outf.write(inf.readline())
                             for line in inf:
                                 row = line.rstrip('\n').split('\t')
-                                if row[0] == sample_base:
+                                if row[0] == sample_base or row[0] == sample:
                                     row[0] = sample
                                     outf.write('\t'.join(row) + '\n')
 
