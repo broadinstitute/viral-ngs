@@ -22,13 +22,24 @@ def per_test_metadata_db(request, tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = tmpdir_factory.mktemp('metadata_db')
 
+    # The following tests, for varying reasons, result in some captured metadata varying between test runs.
+    # For now, just don't attempt to check that the metadata does not change; eventually some/most of these exceptions
+    # can be removed.
     nondet_tests = (
         'test/unit/test_assembly.py::TestDeambigAndTrimFasta::test_deambig_fasta',
         'test/unit/test_read_utils.py::TestAlignAndFix::test_bwa',
         'test/unit/test_read_utils.py::TestAlignAndFix::test_novoalign',
+        'test/unit/test_taxon_filter.py::TestBmtagger::test_deplete_bmtagger_bam',
+        'test/unit/test_taxon_filter.py::TestBlastnDbBuild::test_blastn_db_build_gz',
+        'test/unit/test_taxon_filter.py::TestBlastnDbBuild::test_blastn_db_build',
+        'test/unit/test_taxon_filter.py::TestBmtaggerDbBuild::test_bmtagger_db_build_gz',
+        'test/unit/test_taxon_filter.py::TestBmtaggerDbBuild::test_bmtagger_db_build',
+        'test/unit/test_taxon_filter.py::TestLastalDbBuild::test_lastal_db_build',
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_empty',
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human_aligned_input',
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human',
+        'test/integration/test_assembly.py::TestRefineAssembly::test_ebov_refine1',  # novoalign params include num threads
+        'test/integration/test_assembly.py::TestRefineAssembly::test_ebov_refine2',
     )
 
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
