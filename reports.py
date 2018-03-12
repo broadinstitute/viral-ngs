@@ -198,7 +198,7 @@ def final_assembly_metrics(assembly_fname, metrics_fname):
         out_w.writerow({'metric': 'n_unambig', 'value': n_unambig})
         out_w.writerow({'metric': 'n_tot', 'value': n_tot})
         out_w.writerow({'metric': 'pct_unambig', 'value': pct_unambig})
-    return dict(__metadata__=True, n_unambig=n_unambig, n_tot=n_tot, pct_unambig=pct_unambig)
+    return dict(__metadata__=dict(n_unambig=n_unambig, n_tot=n_tot, pct_unambig=pct_unambig))
 
 def parser_final_assembly_metrics(parser=argparse.ArgumentParser()):
     parser.add_argument('assembly_fname', type=InFile, help='File containing the final assembly (fasta)')
@@ -230,7 +230,7 @@ def coverage_stats(mapped_bam, out_tsv=None, cov_thresholds=(1, 5, 20, 100)):
             writer.writeheader()
             writer.writerow(out)
 
-    return dict(out, __metadata__=True)
+    return dict(__metadata__=out)
             
 
 def parser_coverage_stats(parser=argparse.ArgumentParser()):

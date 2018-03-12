@@ -118,10 +118,11 @@ class TestMetadataRecording(TestCaseWithTmp):
             cat = subprocess.Popen(['cat', fifo])
             data1_fname, data1a_fname, ex_pfx, dir_pfx = self.inputs('data1.txt', 'data1a.txt', 'data2', 'data_dir/')
 
-            util.cmd.run_cmd(tst_cmds, 'get_file_info', [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
-                                                         '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
-                                                         '--make-empty', fifo,
-                                                         '--copy-info-to', cpy_fname, '--metadata', 'purpose', 'testing2'])
+            util.cmd.run_cmd(tst_cmds, 'get_file_info', 
+                             [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
+                              '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
+                              '--make-empty', fifo,
+                              '--copy-info-to', cpy_fname, '--metadata', 'purpose', 'testing2'])
             cat.wait()
             assert cat.returncode == 0
 #            step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))

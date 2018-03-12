@@ -166,10 +166,8 @@ def gather_user_metadata(args_dict, cmd_result):
     metadata_from_cmd_line.update(dict(args_dict.pop('metadata', {}) or {}))
 
     # The function that implements the command can pass us some metadata to be included in the step record,
-    # by returning a mapping with '__metadata__' as one key.  The remaining key-value pairs of the mapping are thenn
-    # treated as metadata.
-    metadata_from_cmd_return = cmd_result if isinstance(cmd_result, collections.Mapping) and '__metadata__' in cmd_result \
-                               else {}
+    # by returning a mapping with '__metadata__' as one key.  The value of that dict is a key that provides metadata.
+    metadata_from_cmd_return = cmd_result.get('__metadata__', {}) if isinstance(cmd_result, collections.Mapping) else {}
     return metadata_from_cmd_line, metadata_from_cmd_return
 
 @contextlib.contextmanager

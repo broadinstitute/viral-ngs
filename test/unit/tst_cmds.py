@@ -53,7 +53,7 @@ def get_file_info(args):
 
     end_time = time.time()
 
-    return dict(__metadata__=True, runtime=end_time-beg_time, nfiles=len(all_fnames))
+    return dict(__metadata__=dict(runtime=end_time-beg_time, nfiles=len(all_fnames)))
 
 def parser_get_file_info(parser=argparse.ArgumentParser()):
     parser.add_argument('in_fnames', type=InFile, nargs='+', help='File(s) the size of which we want')

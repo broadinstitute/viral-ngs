@@ -35,7 +35,7 @@ def load_all_records():
     """Load all step records from the database.  If multiple databases are active, only load from the last one."""
 
     records = []
-    with fs.open_fs(metadata_dir().split('|')[-1]) as metadata_fs:
+    with fs.open_fs(metadata_dir().split()[-1]) as metadata_fs:
         for f in sorted(metadata_fs.listdir(u'/')):
             if f.endswith('.json'):
                 json_str = metadata_fs.gettext(f)
@@ -47,7 +47,7 @@ def load_all_records():
 def load_step_record(step_id):
     """Load one step record from the database"""
     json_fname = u'{}.json'.format(step_id)
-    with fs.open_fs(metadata_dir().split('|')[-1]) as metadata_fs:
+    with fs.open_fs(metadata_dir().split()[-1]) as metadata_fs:
         json_str = metadata_fs.gettext(json_fname)
         step_record = md_utils.byteify(json.loads(json_str))
         assert is_valid_step_record(step_record)
@@ -58,7 +58,7 @@ def store_step_record(step_data, write_obj):
     json_fname = u'{}.json'.format(step_data['step']['step_id'])
     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
     if hasattr(builtins, 'unicode'): json_str = unicode(json_str)
-    for mdir in metadata_dir().split('|'):
+    for mdir in metadata_dir().split():
         with fs.open_fs(mdir) as metadata_fs:
             metadata_fs.settext(json_fname, json_str)
 

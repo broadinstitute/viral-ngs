@@ -9,6 +9,7 @@ import warnings
 import tempfile
 import multiprocessing
 import functools
+import inspect
 
 import util.file
 from util.argparse_arg_types import OptionalFile
@@ -76,8 +77,13 @@ class FileArg(object):
         Args:
             hasher: callable for computing the hash value of a file
             out_files_exist: if False, don't expect output files to exist (because the command raised an exception)
+            cmd_result: return value of the function implementing the command, or None if it raised an exception
         """
-        if 'cmd_return_value' in util.misc.getargspec(self.compute_fnames).args:
+
+        # sometimes, the exact list of files denoted by a command argument cannot be determined from the argument
+        # value alone.  In that case, we can arrange for the function implementing the command to compute the list
+        # of files and pass it to the compute_fnames function, through the return value of the command implementation.
+        if inspect.isfunction(self.compute_fnames) and 'cmd_return_value' in util.misc.getargspec(self.compute_fnames).args:
             self.compute_fnames = functools.partial(self.compute_fnames, cmd_return_value=cmd_result)
 
         def file2info(fname):
