@@ -49,17 +49,6 @@ def per_test_metadata_db(request, tmpdir_factory):
     # can be removed.
     nondet_tests = (
         'test/unit/test_assembly.py::TestDeambigAndTrimFasta::test_deambig_fasta',
-        'test/unit/test_read_utils.py::TestAlignAndFix::test_bwa',
-        'test/unit/test_read_utils.py::TestAlignAndFix::test_novoalign',
-        'test/unit/test_taxon_filter.py::TestBmtagger::test_deplete_bmtagger_bam',
-        'test/unit/test_taxon_filter.py::TestBlastnDbBuild::test_blastn_db_build_gz',
-        'test/unit/test_taxon_filter.py::TestBlastnDbBuild::test_blastn_db_build',
-        'test/unit/test_taxon_filter.py::TestBmtaggerDbBuild::test_bmtagger_db_build_gz',
-        'test/unit/test_taxon_filter.py::TestBmtaggerDbBuild::test_bmtagger_db_build',
-        'test/unit/test_taxon_filter.py::TestLastalDbBuild::test_lastal_db_build',
-        'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_empty',
-        'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human_aligned_input',
-        'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human',
     )
 
     canonicalize_keys = (
@@ -76,6 +65,9 @@ def per_test_metadata_db(request, tmpdir_factory):
         ('step', 'args', 'tmp_dirKeep'),
         ('step', 'args', 'novo_params'),
         ('step', 'args', 'refDbs'),
+        ('step', 'args', 'outputDirectory', 'files', '2'),
+        ('step', 'args', 'inVcf', 'files', '0'),
+        ('step', 'args', 'blastDbs', '0', 'files', '2'),
     )
 
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
