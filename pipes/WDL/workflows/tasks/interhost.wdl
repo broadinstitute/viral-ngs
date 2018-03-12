@@ -75,36 +75,68 @@ task ref_guided_consensus_aligned_with_dups {
 #  }
 #}
 
-task multi_align_mafft {
-  Array[File] inputAssemblies # fasta files, one per sample
-  File referenceGenome # fasta
-
-  Int? threads
-  Int? maxIters
-  Int? ep
-
+task multi_align_mafft_ref {
+  File           reference_fasta
+  Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
+  String?        out_prefix = basename(reference_fasta, '.fasta')
+  Int?           mafft_maxIters
+  Int?           mafft_ep
 
   command {
     interhost.py multichr_mafft \
-      "${referenceGenome}" \
-      "${sep=' ' inputAssemblies+}" \
-      "./" \
-      "${'--ep' + ep}" \
-      "${'--maxiters' + maxIters}" \
+      ${reference_fasta} ${sep=' ' assemblies_fasta} \
+      . \
+      ${'--ep' + mafft_ep} \
+      ${'--maxiters' + mafft_maxIters} \
+      --outFilePrefix ${out_prefix} \
       --preservecase \
       --localpair \
-      --outFilePrefix aligned \
-      --sampleNameListFile "sampleNameList.txt" \
-      "${'--threads' + threads}"
+      --sampleNameListFile ${out_prefix}-sample_names.txt \
+      --loglevel DEBUG
   }
 
   output {
-    File sampleNamesFile = "sampleNamesList.txt"
-    Array[File] chrAlignedFiles = glob("aligned_*.fasta")
+    File        sampleNamesFile   = "${out_prefix}-sample_names.txt"
+    Array[File] alignments_by_chr = glob("${out_prefix}*.fasta")
   }
+
   runtime {
-    memory: "8 GB"
     docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "7 GB"
+    cpu: 4
+    dx_instance_type: "mem1_ssd1_x4"
+  }
+}
+
+task multi_align_mafft {
+  Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
+  String         out_prefix
+  Int?           mafft_maxIters
+  Int?           mafft_ep
+
+  command {
+    interhost.py multichr_mafft \
+      ${sep=' ' assemblies_fasta} \
+      . \
+      ${'--ep' + mafft_ep} \
+      ${'--maxiters' + mafft_maxIters} \
+      --outFilePrefix ${out_prefix} \
+      --preservecase \
+      --localpair \
+      --sampleNameListFile ${out_prefix}-sample_names.txt \
+      --loglevel DEBUG
+  }
+
+  output {
+    File        sampleNamesFile   = "${out_prefix}-sample_names.txt"
+    Array[File] alignments_by_chr = glob("${out_prefix}*.fasta")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "7 GB"
+    cpu: 4
+    dx_instance_type: "mem1_ssd1_x4"
   }
 }
 
