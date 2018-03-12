@@ -14,6 +14,7 @@ import argparse
 import functools
 import inspect
 import traceback
+import importlib
 
 import util.version
 import util.file
@@ -271,7 +272,9 @@ def run_cmd(module, cmd, args):
         cmd: the command name
         args: list of args to the command
     """
-    if isinstance(module, str): module = sys.modules[module]
+    if isinstance(module, str): 
+        module = importlib.import_module(module)
+    assert inspect.ismodule(module)
     parser_fn = dict(getattr(module, '__commands__'))[cmd]
     args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)
