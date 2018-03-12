@@ -87,15 +87,15 @@ class PipeHasher(object):
     def __init__(self, old_pipe, mode):
         self.old_pipe = old_pipe
         self.pipe_dir = tempfile.mkdtemp()
-        self.new_pipe = os.path.join(self.pipe_dir, '0.pipe')
+        self.new_pipe = os.path.join(self.pipe_dir, os.path.basename(old_pipe))
         os.mkfifo(self.new_pipe)
         hasher_reads, hasher_writes = (old_pipe, self.new_pipe) if mode=='r' else (self.new_pipe, old_pipe)
         self.pipe_result_fname = os.path.join(self.pipe_dir, 'hash_result')
         self.pipe_done_fname = os.path.join(self.pipe_dir, 'hash_result_done')
         self.pipe_hasher_proc = multiprocessing.Process(target=compute_hash_and_size, 
-                                                       kwargs=dict(fname=hasher_reads, copy_data_to=hasher_writes,
-                                                                   write_result_to=self.pipe_result_fname,
-                                                                   done_file=self.pipe_done_fname))
+                                                        kwargs=dict(fname=hasher_reads, copy_data_to=hasher_writes,
+                                                                    write_result_to=self.pipe_result_fname,
+                                                                    done_file=self.pipe_done_fname))
         self.pipe_hasher_proc.start()
 
     def get_results(self):
