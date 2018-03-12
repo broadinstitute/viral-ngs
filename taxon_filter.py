@@ -35,7 +35,7 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
-from util.argparse_arg_types import InFile, OutFile, InFilesPrefix, InFile_OneOf
+from util.argparse_arg_types import InFile, OutFile, InFilesPrefix, InFile_OneOf, OutFiles, from_cmd_return_value
 
 log = logging.getLogger(__name__)
 
@@ -626,12 +626,15 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    tools.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+    lastal_files_prefix = os.path.join(outputDirectory, outPrefix)
+    tools.last.Lastdb().build_database(inputFasta, lastal_files_prefix)
 
+    return util.misc.add_suffixes(lastal_files_prefix, ('.bck', '.des', '.prj', '.sds', '.ssp', '.suf', '.tis'))
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
-    parser.add_argument('outputDirectory', help='Location for the output files (default is cwd: %(default)s)')
+    parser.add_argument('outputDirectory', type=OutFiles(compute_fnames=from_cmd_return_value),
+                        help='Location for the output files (default is cwd: %(default)s)')
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'

@@ -8,6 +8,7 @@ import traceback
 import warnings
 import tempfile
 import multiprocessing
+import functools
 
 import util.file
 from util.argparse_arg_types import OptionalFile
@@ -69,13 +70,15 @@ class FileArg(object):
         return list(map(str, self.compute_fnames(self.val)))
         #return self.required_fnames + self.optional_fnames
 
-    def gather_file_info(self, hasher, out_files_exist):
+    def gather_file_info(self, hasher, out_files_exist, cmd_result):
         """Return a dict representing metadata about the file(s) denoted by this argument.
 
         Args:
             hasher: callable for computing the hash value of a file
             out_files_exist: if False, don't expect output files to exist (because the command raised an exception)
         """
+        if 'cmd_return_value' in util.misc.getargspec(self.compute_fnames).args:
+            self.compute_fnames = functools.partial(self.compute_fnames, cmd_return_value=cmd_result)
 
         def file2info(fname):
             """Compute a dictionary of info about one file"""

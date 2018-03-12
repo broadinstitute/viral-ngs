@@ -14,7 +14,6 @@ import argparse
 import functools
 import inspect
 import traceback
-import uuid
 
 import util.version
 import util.file
@@ -136,9 +135,7 @@ def attach_main(parser, cmd_main, split_args=False):
 
     @util.misc.wraps(cmd_main)
     def call_main(args):
-        cmd_invocation_id = uuid.uuid4()
-        with util.misc.tmp_set_env('VIRAL_NGS_CMD_INVOCATION_ID', cmd_invocation_id, append=True, sep=':'):
-            return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_call_cmd(cmd_main=cmd_main, args=args, config={})
+        return util.cmd_plugins.cmd_plugin_mgr.hook.cmd_call_cmd(cmd_main=cmd_main, args=args, config={})
 
     parser.description = cmd_main.__doc__
     parser.set_defaults(func_main=call_main)

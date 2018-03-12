@@ -60,3 +60,6 @@ def InFile_OneOf(*opts):
     files exist, will be taken as the right one.
     """
     return functools.partial(_InFile_OneOf, opts=opts)
+
+def from_cmd_return_value(val, cmd_return_value=None):
+    return cmd_return_value or []

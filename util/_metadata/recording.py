@@ -129,7 +129,7 @@ def replace_file_args(args):
     for arg, val in vars(args).items():
         setattr(args, arg, _replace_file_args(val))
 
-def record_step_to_db(step_data):
+def record_step_to_db(step_data, cmd_result):
     """Record the record of this step to the metadata database.  In the process, for any FileArg args of the command,
     gather hashsums and other file info for the denoted file(s)."""
 
@@ -139,8 +139,8 @@ def record_step_to_db(step_data):
         """If `x` is a FileArg, return a dict representing it, else return a string representation of `x`.
         Used for json serialization below."""
         if not isinstance(x, FileArg): return str(x)
-        file_info = x.gather_file_info(hasher, out_files_exist=not step_data['step']['run_info']['exception'])
-                                       #cmd_result=
+        file_info = x.gather_file_info(hasher, out_files_exist=not step_data['step']['run_info']['exception'],
+                                       cmd_result=cmd_result)
         return file_info
 
     metadata_db.store_step_record(step_data=step_data, write_obj=write_obj)
@@ -226,6 +226,7 @@ def cmd_call_cmd(cmd_main, args, config):
             util.file.dump_file(os.environ['VIRAL_NGS_METADATA_SAVE_STEP_ID_TO'], step_id)
     
     replace_file_args(args)
+
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps:
         outcome = yield
         with unpack_outcome(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings():
@@ -251,5 +252,5 @@ def cmd_call_cmd(cmd_main, args, config):
                                          metadata_from_cmd_line=metadata_from_cmd_line,
                                          metadata_from_cmd_return=metadata_from_cmd_return,
                                          enclosing_steps=enclosing_steps)
-                record_step_to_db(step_data)
+                record_step_to_db(step_data, cmd_result)
                 _log.info('metadata recording took {}s'.format(time.time() - end_time))
