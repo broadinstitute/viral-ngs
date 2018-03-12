@@ -30,7 +30,7 @@ class Hasher(object):
         file_hash = ''
         file_size = 0
         try:
-            if os.path.isfile(fname) and not stat.S_ISFIFO(os.stat(fname).st_mode):
+            if os.path.isfile(fname) and not util.file.ispipe(fname):
                 if False and fname.endswith('.bam'):
                     file_hash, file_size = canonicalize_bam(fname, self.hash_algorithm)
                 else:
@@ -119,7 +119,7 @@ class PipeHasher(object):
 def canonicalize_bam(fname, hash_algorithm):  # pragma: no cover
     """Computed hash and size for a canonicalized bam, where details such as exact command lines used to produce the file
     are ignored."""
-    one-time temp files) 
+
     with util.file.tempfnames(suffixes=('.oldhr.txt','.newhdr.txt', 'canon.bam')) as (old_header_fname, 
                                                                                       new_header_fname, canon_bam):
         # make this a plugin call
