@@ -18,9 +18,7 @@ import errno
 import logging
 import json
 import hashlib
-import util.cmd
 import util.misc
-import tools.samtools
 import sys
 import csv
 
@@ -183,6 +181,27 @@ def keep_tmp():
     """
     return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
 
+def find_tmp_dir():
+    ''' This provides a suggested base directory for a temp dir for use in your
+        argparse-based tmp_dir option.
+    '''
+    tmpdir = '/tmp'
+    if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):
+        tmpdir = '/local/scratch'
+    # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
+    for e in ('LSB_JOBID', 'JOB_ID'):
+        if e in os.environ:
+            # this directory often exists for LSF jobs, but not always.
+            # for example, if the job is part of a job array, this directory is called
+            # something unpredictable and unfindable, so just use /local/scratch
+            proposed_dir = '/local/scratch/%s.tmpdir' % os.environ[e]
+            if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
+                tmpdir = proposed_dir
+                break
+    if 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
+        tmpdir = os.environ['TMPDIR']
+    return tmpdir
+
 def set_tmp_dir(name):
     proposed_prefix = ['tmp']
     if name:
@@ -191,7 +210,7 @@ def set_tmp_dir(name):
         if e in os.environ:
             proposed_prefix.append(os.environ[e])
             break
-    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=util.cmd.find_tmp_dir())
+    tempfile.tempdir = tempfile.mkdtemp(prefix='-'.join(proposed_prefix) + '-', dir=find_tmp_dir())
     os.environ['TMPDIR'] = tempfile.tempdir
     return tempfile.tempdir
 

@@ -78,7 +78,7 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
                                 choices=('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'EXCEPTION'))
         elif k == 'tmp_dir':
             if not v:
-                v = find_tmp_dir()
+                v = util.file.find_tmp_dir()
             parser.add_argument("--tmp_dir",
                                 dest="tmp_dir",
                                 help="Base directory for temp files. [default: %(default)s]",
@@ -253,27 +253,6 @@ def main_argparse(commands, description):
         ret = 0
     return ret
 
-
-def find_tmp_dir():
-    ''' This provides a suggested base directory for a temp dir for use in your
-        argparse-based tmp_dir option.
-    '''
-    tmpdir = '/tmp'
-    if os.access('/local/scratch', os.X_OK | os.W_OK | os.R_OK) and os.path.isdir('/local/scratch'):
-        tmpdir = '/local/scratch'
-    # LSB_JOBID is for LSF, JOB_ID is for UGER/GridEngine
-    for e in ('LSB_JOBID', 'JOB_ID'):
-        if e in os.environ:
-            # this directory often exists for LSF jobs, but not always.
-            # for example, if the job is part of a job array, this directory is called
-            # something unpredictable and unfindable, so just use /local/scratch
-            proposed_dir = '/local/scratch/%s.tmpdir' % os.environ[e]
-            if os.access(proposed_dir, os.X_OK | os.W_OK | os.R_OK):
-                tmpdir = proposed_dir
-                break
-    if 'TMPDIR' in os.environ and os.path.isdir(os.environ['TMPDIR']):
-        tmpdir = os.environ['TMPDIR']
-    return tmpdir
 
 class BadInputError(RuntimeError):
 
