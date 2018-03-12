@@ -253,8 +253,8 @@ class TestAlignAndFix(TestCaseWithTmp):
 
     def simple_execution(self, aligner):
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
-        outBamAll = util.file.mkstempfname('.outBamAll.bam')
-        outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam', directory='/tmp')
+        outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam', directory='/tmp')
 
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])

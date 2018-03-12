@@ -21,8 +21,6 @@ from util._metadata import _log
 
 class Hasher(object):
     """Manages computation of file hashes.
-
-    It might also cache the actual contents of files, depending on size.
     """
 
     def __init__(self, hash_algorithm='sha1'):
@@ -33,22 +31,8 @@ class Hasher(object):
         file_size = 0
         try:
             if os.path.isfile(fname) and not stat.S_ISFIFO(os.stat(fname).st_mode):
-                if fname.endswith('.bam'):
-                    with util.file.tempfnames(suffixes=('.oldhr.txt','.newhdr.txt', 'canon.bam')) as (old_header_fname, new_header_fname, canon_bam):
-                        # make this a plugin call
-                        tools.samtools.SamtoolsTool().dumpHeader(fname, old_header_fname)
-                        with open(new_header_fname, 'wb') as out_h, open(old_header_fname, 'rb') as in_h:
-                            for line in in_h:
-                                line = line.decode("latin-1")
-                                if line.startswith('@PG'):
-                                    line = '\t'.join(filter(lambda s: not s.startswith('CL:'), line.rstrip('\n').split('\t')))+'\n'
-                                if line.startswith('@SQ'):
-                                    line = '\t'.join(filter(lambda s: not s.startswith('AS:'), line.rstrip('\n').split('\t')))+'\n'
-                                out_h.write(line.encode("latin-1"))
-
-                        tools.samtools.SamtoolsTool().reheader_no_PG(fname, new_header_fname, canon_bam)
-                        file_hash = self.hash_algorithm + '_bamcanon_' + util.file.hash_file(canon_bam, hash_algorithm=self.hash_algorithm)
-                        file_size = os.path.getsize(canon_bam)
+                if False and fname.endswith('.bam'):
+                    file_hash, file_size = canonicalize_bam(fname, self.hash_algorithm)
                 else:
                     file_hash = self.hash_algorithm + '_' + util.file.hash_file(fname, hash_algorithm=self.hash_algorithm)
                     file_size = os.path.getsize(fname)
@@ -76,14 +60,10 @@ def compute_hash_and_size(fname, copy_data_to=None, copy_pipe_may_break=False,
     assert not hasattr(hashlib, 'algorithms_available') or hash_algorithm in hashlib.algorithms_available
     hasher = getattr(hashlib, hash_algorithm)()
     data_size = 0
-    _log.debug('HASHING: orig={} new={}'.format(fname, copy_data_to))
     with open(fname, 'rb') as f, open(copy_data_to or os.devnull, 'wb') as copy_data_out:
-        _log.debug('OPENED OK')
         while True:
             data = f.read(buf_size)
-            _log.debug('READ OK')
             data_size += len(data)
-            _log.debug('GOT DATA: {} {} {}'.format(len(data), data_size, data))
             if data:
                 hasher.update(data)
                 if copy_data_to: 
@@ -94,11 +74,9 @@ def compute_hash_and_size(fname, copy_data_to=None, copy_pipe_may_break=False,
                             copy_data_to = None
                         else:
                             raise
-                _log.debug('PROCESSED DATA: {} {}'.format(len(data), data))
             else:
                 result = (hasher.hexdigest(), data_size)
                 if write_result_to:
-                    _log.debug('SENDING DATA BACK')
                     util.file.dump_file(write_result_to, '\n'.join(map(str, result)))
                     if done_file: util.file.make_empty(done_file)
                 return result
@@ -136,3 +114,26 @@ class PipeHasher(object):
         if self.pipe_hasher_proc.is_alive():
             self.pipe_hasher_proc.terminate()
         shutil.rmtree(self.pipe_dir, ignore_errors=True)
+
+
+def canonicalize_bam(fname, hash_algorithm):  # pragma: no cover
+    """Computed hash and size for a canonicalized bam, where details such as exact command lines used to produce the file
+    are ignored."""
+    one-time temp files) 
+    with util.file.tempfnames(suffixes=('.oldhr.txt','.newhdr.txt', 'canon.bam')) as (old_header_fname, 
+                                                                                      new_header_fname, canon_bam):
+        # make this a plugin call
+        tools.samtools.SamtoolsTool().dumpHeader(fname, old_header_fname)
+        with open(new_header_fname, 'wb') as out_h, open(old_header_fname, 'rb') as in_h:
+            for line in in_h:
+                line = line.decode("latin-1")
+                if line.startswith('@PG'):
+                    line = '\t'.join(filter(lambda s: not s.startswith('CL:'), line.rstrip('\n').split('\t')))+'\n'
+                if line.startswith('@SQ'):
+                    line = '\t'.join(filter(lambda s: not s.startswith('AS:'), line.rstrip('\n').split('\t')))+'\n'
+                out_h.write(line.encode("latin-1"))
+
+        tools.samtools.SamtoolsTool().reheader_no_PG(fname, new_header_fname, canon_bam)
+        file_hash = hash_algorithm + '_bamcanon_' + util.file.hash_file(canon_bam, hash_algorithm=hash_algorithm)
+        file_size = os.path.getsize(canon_bam)
+        return file_hash, file_size
