@@ -271,6 +271,7 @@ def run_cmd(module, cmd, args):
         cmd: the command name
         args: list of args to the command
     """
+    if isinstance(module, str): module = sys.modules[module]
     parser_fn = dict(getattr(module, '__commands__'))[cmd]
     args_parsed = parser_fn(argparse.ArgumentParser()).parse_args(map(str, args))
     args_parsed.func_main(args_parsed)

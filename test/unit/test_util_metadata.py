@@ -16,6 +16,7 @@ import warnings
 import subprocess
 import contextlib
 import functools
+import concurrent.futures
 
 import util.cmd
 import util.file
@@ -111,20 +112,24 @@ class TestMetadataRecording(TestCaseWithTmp):
 
     def test_complex_cmd(self):
         """Test a complex command"""
-        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty')) as \
-             (info_fname, cpy_fname, empty_fname), \
-             util.file.fifo() as fifo, step_id_saver() as step_id_fname, \
-             util.misc.tmp_set_env('VIRAL_NGS_METADATA_VALUE_project', 'testing1'):
-            cat = subprocess.Popen(['cat', fifo])
+        with util.file.tempfnames(suffixes=('.info.txt', '.cpy', '.empty', '.str1')) as \
+             (info_fname, cpy_fname, empty_fname, str1_fname), \
+             util.file.fifo(num_pipes=2) as (fifo, fifo2), step_id_saver() as step_id_fname, \
+             util.misc.tmp_set_env('VIRAL_NGS_METADATA_VALUE_project', 'testing1'), \
+             concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+
+            cat = executor.submit(util.file.slurp_file, fifo)
+            cat2 = executor.submit(util.file.slurp_file, fifo2)
             data1_fname, data1a_fname, ex_pfx, dir_pfx = self.inputs('data1.txt', 'data1a.txt', 'data2', 'data_dir/')
 
-            util.cmd.run_cmd(tst_cmds, 'get_file_info', 
-                             [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
-                              '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
-                              '--make-empty', fifo,
-                              '--copy-info-to', cpy_fname, '--metadata', 'purpose', 'testing2'])
-            cat.wait()
-            assert cat.returncode == 0
+            res = executor.submit(util.cmd.run_cmd, 'test.unit.tst_cmds', 'get_file_info', 
+                                  [data1_fname, os.path.relpath(data1a_fname), info_fname, '--in-fnames-pfx', ex_pfx,
+                                   '--in-fnames-dir', dir_pfx, '--factor', 3, '--make-empty', empty_fname, 
+                                   '--make-empty', fifo, '--write-data', 'my_data', '--write-dest', fifo2,
+                                   '--copy-info-to', cpy_fname, '--metadata', 'purpose', 'testing2'])
+            res_result = res.result(timeout=10)
+            assert cat.result(timeout=10) == ''
+            assert cat2.result(timeout=10) == 'my_data'
 #            step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
 #            expected_step2 = self.input('expected.get_file_info.data1.step.json.gz')
             #util.file.dump_file(self.input('expected.get_file_info.data1.step.json'), json.dumps(step_record, sort_keys=True, indent=4))

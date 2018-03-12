@@ -10,6 +10,7 @@ import argparse
 import time
 
 import util.file
+import util.cmd
 from util.argparse_arg_types import InFile, OutFile, InFiles, OutFiles, InFilesPrefix, OutFilesPrefix, InFile_OneOf
 
 #############################################################################################
@@ -53,6 +54,10 @@ def get_file_info(args):
 
     end_time = time.time()
 
+    data_to_write = util.file.slurp_file(args.read_from) if args.read_from else args.write_data
+    for f in (args.write_dest or ()):
+        util.file.dump_file(f, data_to_write)
+
     return dict(__metadata__=dict(runtime=end_time-beg_time, nfiles=len(all_fnames)))
 
 def parser_get_file_info(parser=argparse.ArgumentParser()):
@@ -64,6 +69,9 @@ def parser_get_file_info(parser=argparse.ArgumentParser()):
     parser.add_argument('--copy-info-to', type=OutFilesPrefix(suffixes=('.out1', '.out2')), help='Copy results also to these files')
     parser.add_argument('--factor', type=int, default=1, help='Multiply result by this factor')
     parser.add_argument('--make-empty', type=OutFile, action='append', help='Create empty file here')
+    parser.add_argument('--write-data', default='some default data', help='Data to write to write-dest')
+    parser.add_argument('--write-dest', type=OutFile, nargs='*', help='write a data string to each of these files')
+    parser.add_argument('--read-from', type=InFile, help='read a data string from here')
     parser.add_argument('--fail', action='store_true', help='Raise an exception')
     
     util.cmd.attach_main(parser, get_file_info, split_args=False)
