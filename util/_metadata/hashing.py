@@ -56,7 +56,8 @@ def compute_hash_and_size(fname, copy_data_to=None, copy_pipe_may_break=False,
         buf_size: process data in chunks of this size
         hash_algorithm: hash algorithm to use
     '''
-    
+    _log.debug('computing hash: fname={} write_result_to={} '
+               'copy_data_to={} copy_pipe_may_break={}'.format(fname, write_result_to, copy_data_to, copy_pipe_may_break))
     assert not hasattr(hashlib, 'algorithms_available') or hash_algorithm in hashlib.algorithms_available
     hasher = getattr(hashlib, hash_algorithm)()
     data_size = 0
@@ -75,7 +76,7 @@ def compute_hash_and_size(fname, copy_data_to=None, copy_pipe_may_break=False,
                         else:
                             raise
             else:
-                result = (hasher.hexdigest(), data_size)
+                result = (hash_algorithm + '_' + hasher.hexdigest(), data_size)
                 if write_result_to:
                     util.file.dump_file(write_result_to, '\n'.join(map(str, result)))
                     if done_file: util.file.make_empty(done_file)
