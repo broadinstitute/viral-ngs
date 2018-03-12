@@ -43,9 +43,9 @@ log = logging.getLogger(__name__)
 # ***  deplete_human  ***
 # =======================
 
-arg_type_bwa_bmtagger = InFile_OneOf(InFile,
-                                     InFilesPrefix(suffixes=['.bitmask'] + \
-                                                   ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]))
+bmtagger_suffixes = ['.bitmask'] + ['.srprism.'+ext for ext in 'amp idx imp map pmp rmp ss ssa ssd'.split()]
+arg_type_bwa_bmtagger = InFile_OneOf(InFile, InFilesPrefix(suffixes=bmtagger_suffixes))
+
 def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', type=InFile, help='Input BAM file.')
     parser.add_argument('revertBam', type=OutFile, nargs='?', help='Output BAM: read markup reverted with Picard.')
@@ -710,10 +710,13 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
     if new_fasta is not None:
         os.unlink(new_fasta)
 
+    return util.misc.add_suffixes(os.path.join(outputDirectory, outPrefix), ('.sa', '.amb', '.ann', '.pac', '.bwt'))
+    
 
 def parser_bwa_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
-    parser.add_argument('outputDirectory', help='Location for the output files')
+    parser.add_argument('outputDirectory', type=OutFiles(compute_fnames=from_cmd_return_value),
+                        help='Location for the output files')
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
@@ -758,10 +761,13 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     if new_fasta is not None:
         os.unlink(new_fasta)
 
+    return util.misc.add_suffixes(blastdb_path, ['.nsq', '.nhr', '.nin'])
+
 
 def parser_blastn_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
-    parser.add_argument('outputDirectory', help='Location for the output files')
+    parser.add_argument('outputDirectory', type=OutFiles(compute_fnames=from_cmd_return_value),
+                        help='Location for the output files')
     parser.add_argument(
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
@@ -812,11 +818,13 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
     if new_fasta is not None:
         os.unlink(new_fasta)
 
+    return util.misc.add_suffixes(os.path.join(outputDirectory, outPrefix), bmtagger_suffixes)
+
 
 def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
     parser.add_argument('inputFasta', type=InFile, help='Location of the input FASTA file')
     parser.add_argument(
-        'outputDirectory',
+        'outputDirectory', type=OutFiles(compute_fnames=from_cmd_return_value),
         help='Location for the output files (Where *.bitmask and *.srprism files will be stored)'
     )
     parser.add_argument(
