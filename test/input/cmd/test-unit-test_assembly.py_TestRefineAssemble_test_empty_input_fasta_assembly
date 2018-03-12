@@ -34,7 +34,7 @@
 (('refine_assembly', 'step', 'args', 'loglevel'), 'INFO')
 (('refine_assembly', 'step', 'args', 'major_cutoff'), 0.5)
 (('refine_assembly', 'step', 'args', 'min_coverage'), 3)
-(('refine_assembly', 'step', 'args', 'novo_params'), '-r Random -l 30 -g 40 -x 20 -t 502 -c 2')
+(('refine_assembly', 'step', 'args', 'novo_params'), '')
 (('refine_assembly', 'step', 'args', 'novoalign_license_path'), None)
 (('refine_assembly', 'step', 'args', 'outBam'), None)
 (('refine_assembly', 'step', 'args', 'outFasta', '__FileArg__'), True)

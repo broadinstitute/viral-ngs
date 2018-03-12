@@ -2,19 +2,41 @@
 
 import os
 import os.path
+import functools
+import operator
 
 import util.misc
 import util.file
 import util._metadata.metadata_db as metadata_db
+import util._metadata.md_utils as md_utils
 
 import pytest
+
+def canonicalize_step_record(step_record, canonicalize_keys=()):
+    """Return a canonicalized flat dict of key-value pairs representing this record, for regression testing purposes.
+    Canonicalization uniformizes or drops fields that may change between runs.
+    """
+    def canonicalize_value(v):
+        if v is None: return v
+        return type(v)()
+    pfx = (step_record['step']['cmd_name'],)
+    return {pfx+k: canonicalize_value(v) \
+            if md_utils.tuple_key_matches(k, canonicalize_keys) \
+            else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
+            if k[:3] != ('step', 'run_info', 'argv')}
+
+def canonicalize_step_records(step_records, canonicalize_keys=()):
+    """Canonicalize a group of step records"""
+    return sorted(map(str, functools.reduce(operator.concat, 
+                                            [list(canonicalize_step_record(r, canonicalize_keys).items())
+                                             for r in step_records], [])))
 
 #@pytest.fixture(scope='session', autouse='true')
 def tmp_metadata_db(tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = os.environ.get('VIRAL_NGS_TEST_METADATA_PATH', tmpdir_factory.mktemp('metadata_db'))
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
-        yield metadata_db_path
+        yield metadata_db_path        
 
 
 @pytest.fixture(autouse='true')
@@ -38,14 +60,28 @@ def per_test_metadata_db(request, tmpdir_factory):
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_empty',
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human_aligned_input',
         'test/integration/test_taxon_filter.py::TestDepleteHuman::test_deplete_human',
-        'test/integration/test_assembly.py::TestRefineAssembly::test_ebov_refine1',  # novoalign params include num threads
-        'test/integration/test_assembly.py::TestRefineAssembly::test_ebov_refine2',
+    )
+
+    canonicalize_keys = (
+        ('step', 'run_env run_info run_id step_id version_info'),
+        ('step', 'args', '', 'val'),
+        ('step', 'args', '', ' '.join(map(str, range(10))), 'val'),
+        ('step', 'args', '', 'files', '',
+         'abspath ctime device fname inode mtime owner realpath'),
+        ('step', 'args', '', ' '.join(map(str, range(10))), 'files', '',
+         'abspath ctime device fname inode mtime owner realpath'),
+        ('step', 'metadata_from_cmd_return', 'runtime'),
+        ('step', 'enclosing_steps'),
+        ('step', 'args', 'tmp_dir'),
+        ('step', 'args', 'tmp_dirKeep'),
+        ('step', 'args', 'novo_params'),
+        ('step', 'args', 'refDbs'),
     )
 
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
         print('metadata_db_path:', metadata_db_path)
         yield metadata_db_path
-        recs_canon = metadata_db.canonicalize_step_records(metadata_db.load_all_records())
+        recs_canon = canonicalize_step_records(metadata_db.load_all_records(), canonicalize_keys)
 
         cmd_rec_fname = os.path.join(util.file.get_test_input_path(), 'cmd', util.file.string_to_file_name(request.node.nodeid))
         if os.path.isfile(cmd_rec_fname):

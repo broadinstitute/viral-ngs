@@ -62,29 +62,3 @@ def store_step_record(step_data, write_obj):
         with fs.open_fs(mdir) as metadata_fs:
             metadata_fs.settext(json_fname, json_str)
 
-def canonicalize_step_record(step_record):
-    """Return a canonicalized flat dict of key-value pairs representing this record, for regression testing purposes.
-    Canonicalization uniformizes or drops fields that may change between runs.
-    """
-    def canonicalize_value(v):
-        if v is None: return v
-        return type(v)()
-    pfx = (step_record['step']['cmd_name'],)
-    return {pfx+k: canonicalize_value(v) \
-            if md_utils.tuple_key_matches(k, (('step', 'run_env run_info run_id step_id version_info'),
-                                              ('step', 'args', '', 'val'),
-                                              ('step', 'args', '', ' '.join(map(str, range(10))), 'val'),
-                                              ('step', 'args', '', 'files', '',
-                                               'abspath ctime device fname inode mtime owner realpath'),
-                                              ('step', 'args', '', ' '.join(map(str, range(10))), 'files', '',
-                                               'abspath ctime device fname inode mtime owner realpath'),
-                                              ('step', 'metadata_from_cmd_return', 'runtime'),
-                                              ('step', 'enclosing_steps'),
-                                              ('step', 'args', 'tmp_dir'),
-                                              ('step', 'args', 'tmp_dirKeep'))) \
-            else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
-            if k[:3] != ('step', 'run_info', 'argv')}
-
-def canonicalize_step_records(step_records):
-    """Canonicalize a group of step records"""
-    return sorted(map(str, functools.reduce(operator.concat, [list(canonicalize_step_record(r).items()) for r in step_records], [])))
