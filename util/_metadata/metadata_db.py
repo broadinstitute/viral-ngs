@@ -8,6 +8,7 @@ import functools
 import operator
 import io
 import gzip
+import contextlib
 
 import util.misc
 from . import md_utils
@@ -21,9 +22,15 @@ def metadata_dir():
     """
     return os.environ['VIRAL_NGS_METADATA_PATH']
 
+def _mask_secret_info(fs_url):
+    """Mask any secret info, such as AWS keys, from fs_url. This is to keep such info from any printed logs."""
+    if fs_url.startswith('s3://') and '@' in fs_url:
+        fs_url = 's3://' + fs_url[fs_url.index('@')+1:]
+    return fs_url
+
 def metadata_dir_sanitized():
     """Return version `metadata_dir()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
-    return md_utils._mask_secret_info(metadata_dir())
+    return ' '.join([_mask_secret_info(p) for p in metadata_dir().split()])
 
 def is_metadata_tracking_enabled():
     return 'VIRAL_NGS_METADATA_PATH' in os.environ
@@ -34,11 +41,15 @@ def is_valid_step_record(d):
         md_utils.dict_has_keys(d['step'], 'args step_id cmd_module')
 
 def load_all_records():
-    """Load all step records from the database.  If multiple databases are active, only load from the last one."""
+    """Load all step records from the database."""
 
     records = []
-    with fs.open_fs(metadata_dir().split()[-1]) as metadata_fs:
-        for f in sorted(metadata_fs.listdir(u'/')):
+
+    with contextlib.closing(fs.MultiFS()) as metadata_fs:
+        for i, fsys in enumerate(metadata_dir().split()):
+            metadata_fs.add_fs('fs_{}'.format(i), fs.open_fs(fsys))
+
+        for f in sorted(set(metadata_fs.listdir(u'/')):
             if f.endswith('.json.gz'):
                 json_data_gzipped = metadata_fs.getbytes(f)
                 with io.BytesIO(json_data_gzipped) as fgz:
@@ -50,16 +61,7 @@ def load_all_records():
                     records.append(step_record)
     return records
 
-def load_step_record(step_id):
-    """Load one step record from the database"""
-    json_fname = u'{}.json.gz'.format(step_id)
-    with fs.open_fs(metadata_dir().split()[-1]) as metadata_fs:
-        json_str = metadata_fs.gettext(json_fname)
-        step_record = md_utils.byteify(json.loads(json_str))
-        assert is_valid_step_record(step_record)
-        return step_record
-
-def store_step_record(step_data, write_obj):
+def store_step_record(step_data, write_obj=None):
     """Store step record to metadata database(s)"""
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
     json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
