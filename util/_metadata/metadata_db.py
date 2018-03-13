@@ -14,6 +14,7 @@ import util.misc
 from . import md_utils
 
 import fs
+import fs.multifs
 import fs_s3fs
 
 def metadata_dir():
@@ -45,11 +46,11 @@ def load_all_records():
 
     records = []
 
-    with contextlib.closing(fs.MultiFS()) as metadata_fs:
+    with contextlib.closing(fs.multifs.MultiFS()) as metadata_fs:
         for i, fsys in enumerate(metadata_dir().split()):
             metadata_fs.add_fs('fs_{}'.format(i), fs.open_fs(fsys))
 
-        for f in sorted(set(metadata_fs.listdir(u'/')):
+        for f in sorted(set(metadata_fs.listdir(u'/'))):
             if f.endswith('.json.gz'):
                 json_data_gzipped = metadata_fs.getbytes(f)
                 with io.BytesIO(json_data_gzipped) as fgz:

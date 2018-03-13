@@ -50,8 +50,6 @@ class TestMdUtils(object):
             assert md_utils._shell_cmd('abracadabra') == ''
         assert md_utils._shell_cmd('echo hi') == 'hi'
 
-        assert md_utils._mask_secret_info('s3://AWSKEYID:AWSKEYSECRET@bucketname') == 's3://bucketname'
-
         assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a')
         assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a b')
         assert md_utils.dict_has_keys(dict(a=1, b=2, c=3), 'a b c')
@@ -82,10 +80,29 @@ def step_id_saver():
 @pytest.mark.usefixtures('no_detailed_env', 'warnings_as_errors')
 class TestMetadataRecording(TestCaseWithTmp):
 
-    def chk_step(self, step_record, expected_fname):
-        """Check the step record `step_record` against expected data from file identified by `expected_fname`"""
-        expected_step_record = md_utils.byteify(json.loads(util.file.slurp_file(expected_fname)))
-        assert self.canonicalize_step(step_record) == self.canonicalize_step(expected_step_record)
+    # def chk_step(self, step_record, expected_fname):
+    #     """Check the step record `step_record` against expected data from file identified by `expected_fname`"""
+    #     expected_step_record = md_utils.byteify(json.loads(util.file.slurp_file(expected_fname)))
+    #     assert self.canonicalize_step(step_record) == self.canonicalize_step(expected_step_record)
+
+    def test_metadata_db(self):
+        """Test the basic operations of the metadata database"""
+
+        with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', 's3://AWSKEYID:AWSKEYSECRET@bucketname'):
+            assert 'AWSKEYSECRET' not in metadata_db.metadata_dir_sanitized()
+
+        with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', util.file.get_test_input_path(self)):
+            recs = metadata_db.load_all_records()
+            assert len(recs) == 3
+            with util.file.tmp_dir() as tmp_mdb, util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', tmp_mdb):
+                assert len(metadata_db.load_all_records()) == 0
+                for r in recs:
+                    assert metadata_db.is_valid_step_record(r)
+                    metadata_db.store_step_record(r)
+
+                loaded_recs = metadata_db.load_all_records()
+                def get_step_id(r): return r['step']['step_id']
+                assert sorted(loaded_recs, key=get_step_id) == sorted(recs, key=get_step_id)
 
     def test_invalid_metadata_loc(self):
         """Test that metadata-related errors, like logging to non-existent location, result only in warnings"""
@@ -93,7 +110,7 @@ class TestMetadataRecording(TestCaseWithTmp):
             data1_fname = self.input('data1.txt')
 
             with pytest.warns(UserWarning):
-                with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', '/non/existent/dir', append=True, sep='|'):
+                with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', '/non/existent/dir'):
                     util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
 
     def test_simple_cmd(self):
@@ -103,12 +120,11 @@ class TestMetadataRecording(TestCaseWithTmp):
             util.cmd.run_cmd(tst_cmds, 'get_file_size', [data1_fname, size_fname])
             assert util.file.slurp_file(size_fname) == str(os.path.getsize(data1_fname))
             
-            return
-            step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
-            expected_step1 = self.input('expected.get_file_size.data1.step.json.gz')
-            self.chk_step(step_record, expected_step1)
-            for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
-                assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
+            # step_record = metadata_db.load_step_record(util.file.slurp_file(step_id_fname))
+            # expected_step1 = self.input('expected.get_file_size.data1.step.json.gz')
+            # self.chk_step(step_record, expected_step1)
+            # for arg, fname in ('in_fname', data1_fname), ('size_fname', size_fname):
+            #     assert step_record['step']['args'][arg]['files'][0]['realpath'] == os.path.realpath(fname)
 
     def test_complex_cmd(self):
         """Test a complex command"""
