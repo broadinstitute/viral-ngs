@@ -15,6 +15,7 @@ import yaml, json
 import warnings
 import inspect
 import tempfile
+import builtins
 
 log = logging.getLogger(__name__)
 
@@ -684,3 +685,17 @@ class StrWithData(str):
     def __new__(cls, val):
          return  str.__new__(cls, val)
 
+def byteify(input):
+    """Convert any unicode strings in `input` to regular str"""
+    if not hasattr(builtins, 'unicode'): return input
+    if isinstance(input, dict):
+        return {byteify(key): byteify(value)
+                for key, value in input.items()}
+    elif isinstance(input, list):
+        return [byteify(element) for element in input]
+    elif isinstance(input, tuple):
+        return tuple([byteify(element) for element in input])
+    elif isinstance(input, unicode):
+        return input.encode('utf-8')
+    else:
+        return input

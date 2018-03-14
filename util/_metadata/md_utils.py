@@ -51,21 +51,6 @@ def dict_has_keys(d, keys_str):
     """Test whether a `d` is a dict containing all the given keys (given as tokens of `keys_str`)"""
     return isinstance(d, collections.Mapping) and set(d.keys()) >= set(keys_str.split())
 
-def byteify(input):
-    """Convert any unicode strings in `input` to regular str"""
-    if not hasattr(builtins, 'unicode'): return input
-    if isinstance(input, dict):
-        return {byteify(key): byteify(value)
-                for key, value in input.items()}
-    elif isinstance(input, list):
-        return [byteify(element) for element in input]
-    elif isinstance(input, tuple):
-        return tuple([byteify(element) for element in input])
-    elif isinstance(input, unicode):
-        return input.encode('utf-8')
-    else:
-        return input
-
 def tuple_key_matches(k, patterns):
     """Test whether a nested-dict key `k` (tuple of keys) matches one of the `patterns`.
     Each pattern is a tuple of strings giving possible values for each position."""

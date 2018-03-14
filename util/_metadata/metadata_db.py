@@ -9,6 +9,7 @@ import operator
 import io
 import gzip
 import contextlib
+import warnings
 
 import util.misc
 from . import md_utils
@@ -52,29 +53,18 @@ def load_all_records():
 
         for f in sorted(set(metadata_fs.listdir(u'/'))):
             if f.endswith('.json.gz'):
-                json_data_gzipped = metadata_fs.getbytes(f)
-                with io.BytesIO(json_data_gzipped) as fgz:
-                    with gzip.GzipFile(mode='rb', fileobj=fgz) as gzip_obj:
-                        json_bytes = gzip_obj.read()
-                json_str = json_bytes.decode()
-                step_record = md_utils.byteify(json.loads(json_str))
+                step_record = util.file.from_json_gz(metadata_fs.getbytes(f))
                 if is_valid_step_record(step_record):
                     records.append(step_record)
+                else:
+                    warnings.warn('Invalid step record ignored from {}'.format(f))
     return records
 
 def store_step_record(step_data, write_obj=None):
     """Store step record to metadata database(s)"""
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
-    json_str = json.dumps(step_data, sort_keys=True, indent=4, default=write_obj)
-    json_bytes = unicode(json_str) if hasattr(builtins, 'unicode') else json_str.encode('utf-8')
-
-    fgz = io.BytesIO()
-    with gzip.GzipFile(filename=json_fname, mode='wb', fileobj=fgz) as gzip_obj:
-        gzip_obj.write(json_bytes)
-    json_data_gzipped = fgz.getvalue()
+    json_data_gzipped = util.file.to_json_gz(step_data, write_obj=write_obj, filename=json_fname)
 
     for mdir in metadata_dir().split():
         with fs.open_fs(mdir) as metadata_fs:
             metadata_fs.setbytes(json_fname, json_data_gzipped)
-
-

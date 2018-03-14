@@ -5,6 +5,7 @@ import os.path
 import functools
 import operator
 import uuid
+import collections
 
 import util.misc
 import util.file
@@ -96,3 +97,31 @@ def set_nodeid_metadata(request):
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_VALUE_pytest_nodeid', request.node.nodeid), \
          util.misc.tmp_set_env('VIRAL_NGS_METADATA_VALUE_pytest_testid', uuid.uuid4()):
         yield
+
+def gather_metadata_regtests():
+    """Gather data for metadata regtesting."""
+    
+    recs = metadata_db.load_all_records()
+    nodeid2testid2recs = collections.defaultdict(functools.partial(collections.defaultdict, list))
+    for rec in recs:
+        pfx = (rec['step']['cmd_name'],)
+        rec_canon = {pfx+k: v for k, v in util.misc.flatten_dict(rec, as_dict=(tuple, list)).items()}
+        mdata = rec['step']['metadata_from_cmd_line']
+        nodeid2testid2recs[mdata['pytest_nodeid']][mdata['pytest_testid']] = rec_canon
+
+    for nodeid, testid2recs in nodeid2testid2recs.items():
+        common_keys = set.intersection(*[set(k2v.keys()) for k2v in testid2recs.values()])
+        regtest_k2v = {}
+        for k in common_keys:
+            vals = { k2v[k]for k2v in testid2recs.values() }
+            if len(vals) == 1:
+                regtest_k2v[k] = list(vals)[0]
+            else:
+                def canonicalize_value(v):
+                    if v is None: return v
+                    return type(v)()
+
+                val_types = set(map(canonicalize_value, vals))
+                assert len(val_types) == 1
+                regtest_k2v[k] 
+        

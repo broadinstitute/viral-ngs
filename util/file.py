@@ -21,6 +21,7 @@ import hashlib
 import util.misc
 import sys
 import csv
+import builtins
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -847,3 +848,34 @@ def listdir_full_names(d):
 def files_or_pipes_in_dir(d):
     """Return the names of files or pipes (or links to them) in directory `d` (but not in subdirs)."""
     return list(filter(is_file_or_pipe, listdir_full_names(d)))
+
+def to_json_gz(data, write_obj=None, filename=None):
+    """Serialize an object to compressed json format.  Note that non-string keys of dicts get converted to strings,
+    and tuples to lists, so serializing/deserializing an object with these elements may not give back the exact original.
+    On the plus side, this format is human-readable.
+
+    Args:
+        data: a Python data object, e.g. a dictionary
+        write_obj: if given, a function that serializes non-standard sub-objects (see `default` argument to json.dumps())
+        filename: if given, filename is embedded into the gzip output (see `filename` argument to gzip.GzipFile())
+
+    Returns:
+        a bytes object (str in python 2.7) representing the data in compressed json format.
+    """
+
+    json_str = json.dumps(data, sort_keys=True, indent=4, default=write_obj)
+    json_bytes = unicode(json_str) if hasattr(builtins, 'unicode') else json_str.encode('utf-8')
+
+    with io.BytesIO() as fgz:
+        with gzip.GzipFile(filename=filename, mode='wb', fileobj=fgz) as gzip_obj:
+            gzip_obj.write(json_bytes)
+        return fgz.getvalue()
+
+def from_json_gz(json_data_gzipped):
+    """Deserialize an object from compressed json format.  See docstring of to_json_gz() for important caveats."""
+
+    with io.BytesIO(json_data_gzipped) as fgz:
+        with gzip.GzipFile(mode='rb', fileobj=fgz) as gzip_obj:
+            json_bytes = gzip_obj.read()
+    json_str = json_bytes.decode()
+    return util.misc.byteify(json.loads(json_str))

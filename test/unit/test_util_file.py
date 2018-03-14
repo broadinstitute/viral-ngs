@@ -122,3 +122,14 @@ def test_listdir():
             os.mkfifo('fifo1')
             assert lfn('.') == ['./d1', './f1.dat', './f2.dat', './fifo1']
             assert fopid('.') == ['./f1.dat', './f2.dat', './fifo1']
+
+def test_json_gz_serialization():
+    objs = [ None, 0, 1, '', 'test', [], {}, [1], [1,2], {'0':1}, {'0':{'1':2,'3':[4,5], '6':[7,8]}} ]
+    for obj in objs:
+        assert util.file.from_json_gz(util.file.to_json_gz(obj)) == obj
+
+    def sets_as_lists(x):
+        if isinstance(x, set): return list(x)
+        return x
+
+    assert util.file.from_json_gz(util.file.to_json_gz([1, set((2,3))], write_obj=sets_as_lists)) == [1, [2, 3]]

@@ -369,3 +369,15 @@ def test_StrWithData():
     z2 = pickle.loads(pickle.dumps(z))
     assert type(z2) == type(z)
     assert z2 == z
+
+def test_byteify():
+    byteify = util.misc.byteify
+    assert byteify('') == ''
+    assert byteify(u'') == ''
+    assert byteify('ABC') == 'ABC'
+    assert byteify(u'ABC') == 'ABC'
+    assert byteify([u'A', u'B']) == ['A', 'B']
+    assert byteify((u'A', u'B')) == ('A', 'B')
+    assert byteify([u'ABC']) == ['ABC']
+    assert byteify({u'A': u'ABC'}) == {'A': 'ABC'}
+    assert byteify({u'A': [u'B', (u'ABC', u'D', {u'E': u'F'})]}) == {'A': ['B', ('ABC', 'D', {'E': 'F'})]}
