@@ -415,6 +415,7 @@ def available_cpu_count():
 
     Adapted from http://stackoverflow.com/a/1006301/715090
     """
+    if 'VIRAL_NGS_CPUS' in os.environ: return int(os.environ['VIRAL_NGS_CPUS'])
     try:
         with open('/proc/self/status') as f:
             status = f.read()
