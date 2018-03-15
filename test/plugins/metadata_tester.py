@@ -37,10 +37,11 @@ def canonicalize_step_records(step_records, canonicalize_keys=()):
 def tmp_metadata_db(tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = os.environ.get('VIRAL_NGS_TEST_METADATA_PATH', tmpdir_factory.mktemp('metadata_db'))
-    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
+    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path, sep=' '):
         yield metadata_db_path        
 
-#@pytest.fixture(autouse='true')
+
+@pytest.fixture(autouse='true')
 def per_test_metadata_db(request, tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = tmpdir_factory.mktemp('metadata_db')
@@ -71,19 +72,20 @@ def per_test_metadata_db(request, tmpdir_factory):
         ('step', 'args', 'blastDbs', '0', 'files', '2'),
     )
 
-    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
+    with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path, sep=' '):
         print('metadata_db_path:', metadata_db_path)
         yield metadata_db_path
-        recs_canon = canonicalize_step_records(metadata_db.load_all_records(), canonicalize_keys)
-
-        cmd_rec_fname = os.path.join(util.file.get_test_input_path(), 'cmd', util.file.string_to_file_name(request.node.nodeid))
-        if os.path.isfile(cmd_rec_fname):
-            expected_lines = util.file.slurp_file(cmd_rec_fname).strip().split('\n')
-            if recs_canon != expected_lines:
-                pytest.fail('lines do not match: \n{}'.format('\n'.join(sorted(set(recs_canon) ^ set(expected_lines)))))
-        elif 'VIRAL_NGS_TEST_GATHER_CMDS' in os.environ and recs_canon and \
-             request.node.nodeid not in nondet_tests:
-            util.file.dump_file(cmd_rec_fname, '\n'.join(recs_canon))
+        with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
+            recs = unified_metadata_from_test(metadata_db.load_all_records())
+            regtest_file = regtest_fname(request.node.nodeid)
+            if os.path.isfile(regtest_file):
+                with open(regtest_file, 'rb') as rf:
+                    regtest_data = util.file.from_json_gz(rf.read())
+                for canonicalizer, key2vals in regtest_data.items():
+                    canonicalizer_fn = globals()[canonicalizer]
+                    for k, v in key2vals.items():
+                        assert k in recs
+                        assert canonicalizer_fn(recs[k]) == v
 
 @pytest.fixture(scope='session', autouse='true')
 def no_detailed_env():
