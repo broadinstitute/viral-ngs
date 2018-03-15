@@ -381,3 +381,8 @@ def test_byteify():
     assert byteify([u'ABC']) == ['ABC']
     assert byteify({u'A': u'ABC'}) == {'A': 'ABC'}
     assert byteify({u'A': [u'B', (u'ABC', u'D', {u'E': u'F'})]}) == {'A': ['B', ('ABC', 'D', {'E': 'F'})]}
+
+def test_itertools_extras():
+    assert list(util.misc.unique_justseen('AAAABBBCCDAABBB')) == 'A B C D A B'.split()
+    assert list(util.misc.unique_justseen('ABBCcAD', str.lower)) == 'A B C A D'.split()
+

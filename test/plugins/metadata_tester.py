@@ -98,30 +98,61 @@ def set_nodeid_metadata(request):
          util.misc.tmp_set_env('VIRAL_NGS_METADATA_VALUE_pytest_testid', uuid.uuid4()):
         yield
 
+def maybe_unlist(x): return x[0] if len(x)==1 else x
+
+def unified_metadata_from_test(step_records):
+    """Compute a unified representation of metadata from command(s) executed during one test.
+    Records are flattened, combined into one set, and values from records with same key are merged."""
+    key2vals = collections.defaultdict(list)
+    for rec in step_records:
+        pfx = (rec['step']['cmd_name'],)
+        for k, v in util.misc.flatten_dict(rec, as_dict=(tuple, list)).items():
+            key2vals[pfx+k].append(v)
+
+    return {str(k): maybe_unlist(list(util.misc.unique_justseen(sorted(vals, key=str)))) for k, vals in key2vals.items()}
+
+def canon_identity(vals): return vals
+
+def canon_to_types(vals):
+    return maybe_unlist([None if v is None else type(v)() for v in util.misc.make_seq(vals)])
+
+def canon_to_None(vals):
+    return None
+
+canonicalizers = (canon_identity, canon_to_types, canon_to_None)
+
+def regtest_fname(nodeid):
+    return os.path.join(util.file.get_test_input_path(), 'TestMetadataRecording', 'cmd',
+                        util.file.string_to_file_name(nodeid) + '.json.gz')
+
 def gather_metadata_regtests():
     """Gather data for metadata regtesting."""
     
-    recs = metadata_db.load_all_records()
+    recs = [rec for rec in metadata_db.load_all_records() if md_utils.dict_has_keys(rec['step']['metadata_from_cmd_line'],
+                                                                                    'pytest_nodeid pytest_testid')]
     nodeid2testid2recs = collections.defaultdict(functools.partial(collections.defaultdict, list))
     for rec in recs:
-        pfx = (rec['step']['cmd_name'],)
-        rec_canon = {pfx+k: v for k, v in util.misc.flatten_dict(rec, as_dict=(tuple, list)).items()}
         mdata = rec['step']['metadata_from_cmd_line']
-        nodeid2testid2recs[mdata['pytest_nodeid']][mdata['pytest_testid']] = rec_canon
+        nodeid2testid2recs[mdata['pytest_nodeid']][mdata['pytest_testid']].append(rec)
 
     for nodeid, testid2recs in nodeid2testid2recs.items():
-        common_keys = set.intersection(*[set(k2v.keys()) for k2v in testid2recs.values()])
-        regtest_k2v = {}
+        unified_recs = list(map(unified_metadata_from_test, testid2recs.values()))
+        print('for nodeid {} have {} recs'.format(nodeid, len(unified_recs)))
+        if len(unified_recs) < 2: continue
+        common_keys = set.intersection(*[set(k2v.keys()) for k2v in unified_recs])
+        canonicalizer2key2vals = collections.defaultdict(functools.partial(collections.defaultdict, list))
         for k in common_keys:
-            vals = { k2v[k]for k2v in testid2recs.values() }
-            if len(vals) == 1:
-                regtest_k2v[k] = list(vals)[0]
-            else:
-                def canonicalize_value(v):
-                    if v is None: return v
-                    return type(v)()
+            vals = [ k2v[k] for k2v in unified_recs ]
+            for canonicalizer in canonicalizers:
+                canon_vals = list(map(canonicalizer, vals))
+                if all(v == canon_vals[0] for v in canon_vals):
+                    canonicalizer2key2vals[canonicalizer.__name__][k] = canon_vals[0]
+                    break
 
-                val_types = set(map(canonicalize_value, vals))
-                assert len(val_types) == 1
-                regtest_k2v[k] 
-        
+        if canonicalizer2key2vals:
+            fname = regtest_fname(nodeid)
+            with open(fname, 'wb') as out:
+                out.write(util.file.to_json_gz(canonicalizer2key2vals, filename=fname))
+
+if __name__ == '__main__':
+    gather_metadata_regtests()

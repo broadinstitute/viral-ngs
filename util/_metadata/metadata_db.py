@@ -51,7 +51,12 @@ def load_all_records():
         for i, fsys in enumerate(metadata_dir().split()):
             metadata_fs.add_fs('fs_{}'.format(i), fs.open_fs(fsys))
 
-        for f in sorted(set(metadata_fs.listdir(u'/'))):
+        print('getting records...')
+        fnames = sorted(set(metadata_fs.listdir(u'/')))
+
+        print('got {} records'.format(len(fnames)))
+        for i, f in enumerate(fnames):
+            print('loading {}/{} {}'.format(i, len(fnames), f))
             if f.endswith('.json.gz'):
                 step_record = util.file.from_json_gz(metadata_fs.getbytes(f))
                 if is_valid_step_record(step_record):

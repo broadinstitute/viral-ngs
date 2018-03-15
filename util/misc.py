@@ -699,3 +699,15 @@ def byteify(input):
         return input.encode('utf-8')
     else:
         return input
+
+def unique_justseen(iterable, key=None):
+    """List unique elements, preserving order. Remember only the element just seen.
+    From https://docs.python.org/2/library/itertools.html
+    """
+    # unique_justseen('AAAABBBCCDAABBB') --> A B C D A B
+    # unique_justseen('ABBCcAD', str.lower) --> A B C A D
+    map_fn = getattr(itertools, 'imap', map)
+    return map_fn(next, map_fn(operator.itemgetter(1), itertools.groupby(iterable, key)))
+
+
+
