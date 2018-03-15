@@ -41,7 +41,7 @@ def tmp_metadata_db(tmpdir_factory):
         yield metadata_db_path        
 
 
-#@pytest.fixture(autouse='true')
+@pytest.fixture(autouse='true')
 def per_test_metadata_db(request, tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = tmpdir_factory.mktemp('metadata_db')

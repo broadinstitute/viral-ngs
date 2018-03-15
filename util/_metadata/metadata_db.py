@@ -32,7 +32,7 @@ def _mask_secret_info(fs_url):
 
 def metadata_dir_sanitized():
     """Return version `metadata_dir()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
-    return ' '.join([_mask_secret_info(p) for p in metadata_dir().split()])
+    return ' '.join([_mask_secret_info(p) for p in metadata_dir().strip().split()])
 
 def is_metadata_tracking_enabled():
     return 'VIRAL_NGS_METADATA_PATH' in os.environ
@@ -48,7 +48,7 @@ def load_all_records():
     records = []
 
     with contextlib.closing(fs.multifs.MultiFS()) as metadata_fs:
-        for i, fsys in enumerate(metadata_dir().split()):
+        for i, fsys in enumerate(metadata_dir().strip().split()):
             metadata_fs.add_fs('fs_{}'.format(i), fs.open_fs(fsys))
 
         print('getting records...')
@@ -70,6 +70,6 @@ def store_step_record(step_data, write_obj=None):
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
     json_data_gzipped = util.file.to_json_gz(step_data, write_obj=write_obj, filename=json_fname)
 
-    for mdir in metadata_dir().split():
+    for mdir in metadata_dir().strip().split():
         with fs.open_fs(mdir) as metadata_fs:
             metadata_fs.setbytes(json_fname, json_data_gzipped)
