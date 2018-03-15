@@ -14,25 +14,6 @@ import util._metadata.md_utils as md_utils
 
 import pytest
 
-def canonicalize_step_record(step_record, canonicalize_keys=()):
-    """Return a canonicalized flat dict of key-value pairs representing this record, for regression testing purposes.
-    Canonicalization uniformizes or drops fields that may change between runs.
-    """
-    def canonicalize_value(v):
-        if v is None: return v
-        return type(v)()
-    pfx = (step_record['step']['cmd_name'],)
-    return {pfx+k: canonicalize_value(v) \
-            if md_utils.tuple_key_matches(k, canonicalize_keys) \
-            else v for k, v in util.misc.flatten_dict(step_record, as_dict=(tuple,list)).items() \
-            if k[:3] != ('step', 'run_info', 'argv')}
-
-def canonicalize_step_records(step_records, canonicalize_keys=()):
-    """Canonicalize a group of step records"""
-    return sorted(map(str, functools.reduce(operator.concat, 
-                                            [list(canonicalize_step_record(r, canonicalize_keys).items())
-                                             for r in step_records], [])))
-
 @pytest.fixture(scope='session', autouse='true')
 def tmp_metadata_db(tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
@@ -46,34 +27,7 @@ def per_test_metadata_db(request, tmpdir_factory):
     """Sets up the metadata database in a temp dir"""
     metadata_db_path = tmpdir_factory.mktemp('metadata_db')
 
-    # The following tests, for varying reasons, result in some captured metadata varying between test runs.
-    # For now, just don't attempt to check that the metadata does not change; eventually some/most of these exceptions
-    # can be removed.
-    nondet_tests = (
-        'test/unit/test_assembly.py::TestDeambigAndTrimFasta::test_deambig_fasta',
-    )
-
-    canonicalize_keys = (
-        ('step', 'run_env run_info run_id step_id version_info'),
-        ('step', 'args', '', 'val'),
-        ('step', 'args', '', ' '.join(map(str, range(10))), 'val'),
-        ('step', 'args', '', 'files', '',
-         'abspath ctime device fname inode mtime owner realpath'),
-        ('step', 'args', '', ' '.join(map(str, range(10))), 'files', '',
-         'abspath ctime device fname inode mtime owner realpath'),
-        ('step', 'metadata_from_cmd_return', 'runtime'),
-        ('step', 'enclosing_steps'),
-        ('step', 'args', 'tmp_dir'),
-        ('step', 'args', 'tmp_dirKeep'),
-        ('step', 'args', 'novo_params'),
-        ('step', 'args', 'refDbs'),
-        ('step', 'args', 'outputDirectory', 'files', '2'),
-        ('step', 'args', 'inVcf', 'files', '0'),
-        ('step', 'args', 'blastDbs', '0', 'files', '2'),
-    )
-
     with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path, sep=' '):
-        print('metadata_db_path:', metadata_db_path)
         yield metadata_db_path
         with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', metadata_db_path):
             recs = unified_metadata_from_test(metadata_db.load_all_records())
@@ -102,6 +56,9 @@ def set_nodeid_metadata(request):
 
 def maybe_unlist(x): return x[0] if len(x)==1 else x
 
+def nodups(vals):
+    return maybe_unlist(list(util.misc.unique_justseen(sorted(vals, key=str))))
+
 def unified_metadata_from_test(step_records):
     """Compute a unified representation of metadata from command(s) executed during one test.
     Records are flattened, combined into one set, and values from records with same key are merged."""
@@ -111,12 +68,12 @@ def unified_metadata_from_test(step_records):
         for k, v in util.misc.flatten_dict(rec, as_dict=(tuple, list)).items():
             key2vals[pfx+k].append(v)
 
-    return {str(k): maybe_unlist(list(util.misc.unique_justseen(sorted(vals, key=str)))) for k, vals in key2vals.items()}
+    return {str(k): nodups(vals) for k, vals in key2vals.items()}
 
 def canon_identity(vals): return vals
 
 def canon_to_types(vals):
-    return maybe_unlist([None if v is None else type(v)() for v in util.misc.make_seq(vals)])
+    return nodups([None if v is None else type(v)() for v in util.misc.make_seq(vals)])
 
 def canon_to_None(vals):
     return None
@@ -140,7 +97,9 @@ def gather_metadata_regtests():
     for nodeid, testid2recs in nodeid2testid2recs.items():
         unified_recs = list(map(unified_metadata_from_test, testid2recs.values()))
         print('for nodeid {} have {} recs'.format(nodeid, len(unified_recs)))
-        if len(unified_recs) < 2: continue
+        if len(unified_recs) < 2: 
+            print('skipping nodeid {} because too few recs'.format(nodeid))
+            continue
         common_keys = set.intersection(*[set(k2v.keys()) for k2v in unified_recs])
         canonicalizer2key2vals = collections.defaultdict(functools.partial(collections.defaultdict, list))
         for k in common_keys:
