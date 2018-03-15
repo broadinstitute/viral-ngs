@@ -10,6 +10,7 @@ for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
 	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
+		export VIRAL_NGS_METADATA_VALUE_wdl_workflow=$workflow_name
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
