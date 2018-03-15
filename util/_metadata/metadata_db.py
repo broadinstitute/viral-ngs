@@ -10,6 +10,7 @@ import io
 import gzip
 import contextlib
 import warnings
+import shlex
 
 import util.misc
 from . import md_utils
@@ -19,10 +20,15 @@ import fs.multifs
 import fs_s3fs
 
 def metadata_dir():
-    """Returns the directory to which metadata was recorded, as specified by the environment variable VIRAL_NGS_METADATA_PATH.
+    """Returns the string describing directories to which metadata was recorded, 
+    as specified by the environment variable VIRAL_NGS_METADATA_PATH.
     Raises an error if the environment variable is not defined.
     """
     return os.environ['VIRAL_NGS_METADATA_PATH']
+
+def metadata_dirs():
+    """Return list of dirs to which metadata was recorded"""
+    return shlex.split(metadata_dir().strip())
 
 def _mask_secret_info(fs_url):
     """Mask any secret info, such as AWS keys, from fs_url. This is to keep such info from any printed logs."""
@@ -32,7 +38,7 @@ def _mask_secret_info(fs_url):
 
 def metadata_dir_sanitized():
     """Return version `metadata_dir()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
-    return ' '.join([_mask_secret_info(p) for p in metadata_dir().strip().split()])
+    return ' '.join([_mask_secret_info(p) for p in metadata_dirs()])
 
 def is_metadata_tracking_enabled():
     return 'VIRAL_NGS_METADATA_PATH' in os.environ
@@ -48,7 +54,7 @@ def load_all_records():
     records = []
 
     with contextlib.closing(fs.multifs.MultiFS()) as metadata_fs:
-        for i, fsys in enumerate(metadata_dir().strip().split()):
+        for i, fsys in enumerate(metadata_dirs()):
             metadata_fs.add_fs('fs_{}'.format(i), fs.open_fs(fsys))
 
         print('getting records...')
@@ -70,6 +76,6 @@ def store_step_record(step_data, write_obj=None):
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
     json_data_gzipped = util.file.to_json_gz(step_data, write_obj=write_obj, filename=json_fname)
 
-    for mdir in metadata_dir().strip().split():
+    for mdir in metadata_dirs():
         with fs.open_fs(mdir) as metadata_fs:
             metadata_fs.setbytes(json_fname, json_data_gzipped)
