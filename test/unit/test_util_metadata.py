@@ -67,7 +67,6 @@ def step_id_saver():
     with util.file.tempfname(suffix='.stepid') as step_id_fname, util.misc.tmp_set_env('VIRAL_NGS_METADATA_SAVE_STEP_ID_TO', step_id_fname):
         yield step_id_fname
 
-@pytest.mark.usefixtures('no_detailed_env', 'warnings_as_errors')
 class TestMetadataRecording(TestCaseWithTmp):
 
     # def chk_step(self, step_record, expected_fname):
