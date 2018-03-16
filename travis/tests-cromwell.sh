@@ -8,7 +8,7 @@ cd workflows
 
 for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
-	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
+	input_json="../test/input/WDL/test_inputs-$workflow_name-local.json"
 	echo Looking at workflow $workflow_name
 	echo dir is
 	pwd
