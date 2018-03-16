@@ -135,153 +135,153 @@ jobs:
     #    - travis/validate-wdl.sh
     #    - travis/tests-cromwell.sh
 
-    - language: python
-      sudo: false
-      #stage: build
-      env: TRAVIS_JOB=build_docs
-      install: travis/install-pip-docs.sh
-      script: travis/build-docs.sh
+#     - language: python
+#       sudo: false
+#       #stage: build
+#       env: TRAVIS_JOB=build_docs
+#       install: travis/install-pip-docs.sh
+#       script: travis/build-docs.sh
 
-    - language: python
-      python: 3.6
-      sudo: required
-      #stage: test
-      env:
-        - TRAVIS_JOB=build_conda
-        # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-        - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-        # $BUNDLE_SECRET (for testing GATK)
-        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-      install:
-        - source travis/install-conda.sh
-        - travis/install-conda-build.sh
-      script:
-        - travis/build-conda.sh
-      before_cache:
-        - conda clean --all --yes
+#     - language: python
+#       python: 3.6
+#       sudo: required
+#       #stage: test
+#       env:
+#         - TRAVIS_JOB=build_conda
+#         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+#         - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+#         # $BUNDLE_SECRET (for testing GATK)
+#         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#       install:
+#         - source travis/install-conda.sh
+#         - travis/install-conda-build.sh
+#       script:
+#         - travis/build-conda.sh
+#       before_cache:
+#         - conda clean --all --yes
 
-    - language: python
-      python: 2.7
-      #stage: test
-      sudo: required
-      env:
-        - TRAVIS_JOB=test_py27
-        - VIRAL_NGS_METADATA_VALUE_travis_job=test_py27
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
-        # $BUNDLE_SECRET (for testing GATK)
-        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-        # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
-        - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
-      before_install: travis/before_install.sh
-      install:
-        - source travis/install-conda.sh
-        - travis/install-gatk.sh
-        - travis/install-tools.sh
-        - source travis/activate-conda.sh
-      script:
-        - travis/tests-unit.sh
-        - travis/tests-long.sh
-      before_cache:
-        - conda clean --all --yes
+#     - language: python
+#       python: 2.7
+#       #stage: test
+#       sudo: required
+#       env:
+#         - TRAVIS_JOB=test_py27
+#         - VIRAL_NGS_METADATA_VALUE_travis_job=test_py27
+#         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+#         # $BUNDLE_SECRET (for testing GATK)
+#         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
+#         - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
+#       before_install: travis/before_install.sh
+#       install:
+#         - source travis/install-conda.sh
+#         - travis/install-gatk.sh
+#         - travis/install-tools.sh
+#         - source travis/activate-conda.sh
+#       script:
+#         - travis/tests-unit.sh
+#         - travis/tests-long.sh
+#       before_cache:
+#         - conda clean --all --yes
 
-    - language: python
-      python: 3.6
-      #stage: test
-      sudo: required
-      env:
-        - TRAVIS_JOB=test_py36
-        - VIRAL_NGS_METADATA_VALUE_travis_job=test_py36
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
-        # $BUNDLE_SECRET (for testing GATK)
-        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-        # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
-        - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
-      before_install: travis/before_install.sh
-      install:
-        - source travis/install-conda.sh
-        - travis/install-gatk.sh
-        - travis/install-tools.sh
-        - source travis/activate-conda.sh
-      script:
-        - travis/tests-long.sh
-        - travis/tests-unit.sh
-      after_success:
-        - coveralls
-      before_cache:
-        - conda clean --all --yes
+#     - language: python
+#       python: 3.6
+#       #stage: test
+#       sudo: required
+#       env:
+#         - TRAVIS_JOB=test_py36
+#         - VIRAL_NGS_METADATA_VALUE_travis_job=test_py36
+#         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+#         # $BUNDLE_SECRET (for testing GATK)
+#         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
+#         - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
+#       before_install: travis/before_install.sh
+#       install:
+#         - source travis/install-conda.sh
+#         - travis/install-gatk.sh
+#         - travis/install-tools.sh
+#         - source travis/activate-conda.sh
+#       script:
+#         - travis/tests-long.sh
+#         - travis/tests-unit.sh
+#       after_success:
+#         - coveralls
+#       before_cache:
+#         - conda clean --all --yes
 
-    - language: python
-      python: 3.6
-      #stage: test
-      sudo: required
-      env:
-        - TRAVIS_JOB=test_snakemake
-        - VIRAL_NGS_METADATA_VALUE_travis_job=test_snakemake
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
-        # $BUNDLE_SECRET (for testing GATK)
-        - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-        # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
-        - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
-      before_install: travis/before_install.sh
-      install:
-        - source travis/install-conda.sh
-        - travis/install-gatk.sh
-        - travis/install-tools.sh
-        - source travis/activate-conda.sh
-      script:
-        - travis/tests-snakemake.sh
-      after_success:
-        - coveralls
-      before_cache:
-        - conda clean --all --yes
+#     - language: python
+#       python: 3.6
+#       #stage: test
+#       sudo: required
+#       env:
+#         - TRAVIS_JOB=test_snakemake
+#         - VIRAL_NGS_METADATA_VALUE_travis_job=test_snakemake
+#         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+#         # $BUNDLE_SECRET (for testing GATK)
+#         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
+#         - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
+#       before_install: travis/before_install.sh
+#       install:
+#         - source travis/install-conda.sh
+#         - travis/install-gatk.sh
+#         - travis/install-tools.sh
+#         - source travis/activate-conda.sh
+#       script:
+#         - travis/tests-snakemake.sh
+#       after_success:
+#         - coveralls
+#       before_cache:
+#         - conda clean --all --yes
 
-    #- language: python
-    #  stage: test
-    #  env:
-    #    - TRAVIS_JOB=test_py36_in_docker
-    #    - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
-    #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
-    #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-    #  install:
-    #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
-    #    - docker pull $DOCKER_TAG
-    #    - travis/install-gatk.sh
-    #    - pip install coveralls==1.1
-    #    - mkdir coverage
-    #  script:
-    #    - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk-register /gatk/GenomeAnalysisTK.jar; pytest test/integration test/unit; cp .coverage /coverage'
-    #  after_success:
-    #    - mv coverage/.coverage .
-    #    - coveralls
-    #
-    #- language: generic
-    #  stage: test
-    #  env:
-    #    - TRAVIS_JOB=build_conda_in_docker
-    #    # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-    #    - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-    #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
-    #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-    #  install:
-    #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
-    #    - docker pull $DOCKER_TAG
-    #    - travis/install-gatk.sh
-    #  script:
-    #    - docker run -v $GATK_PATH:/gatk -e _JAVA_OPTIONS -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e TRAVIS_COMMIT -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
+#     #- language: python
+#     #  stage: test
+#     #  env:
+#     #    - TRAVIS_JOB=test_py36_in_docker
+#     #    - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
+#     #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
+#     #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#     #  install:
+#     #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+#     #    - docker pull $DOCKER_TAG
+#     #    - travis/install-gatk.sh
+#     #    - pip install coveralls==1.1
+#     #    - mkdir coverage
+#     #  script:
+#     #    - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk-register /gatk/GenomeAnalysisTK.jar; pytest test/integration test/unit; cp .coverage /coverage'
+#     #  after_success:
+#     #    - mv coverage/.coverage .
+#     #    - coveralls
+#     #
+#     #- language: generic
+#     #  stage: test
+#     #  env:
+#     #    - TRAVIS_JOB=build_conda_in_docker
+#     #    # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+#     #    - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+#     #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
+#     #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+#     #  install:
+#     #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+#     #    - docker pull $DOCKER_TAG
+#     #    - travis/install-gatk.sh
+#     #  script:
+#     #    - docker run -v $GATK_PATH:/gatk -e _JAVA_OPTIONS -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e TRAVIS_COMMIT -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
 
-#        - os: osx
-#          language: generic
-#          stage: test
-#          env:
-#              - TRAVIS_JOB=test_osx
-#              - TRAVIS_OSX_PYTHON_VERSION=py36
-#              - TRAVIS_PYTHON_VERSION=3.6
-#          before_install:
-#              - travis/before_install.sh
-#              # Under OSX, some versions of ruby seem to cause this error.
-#              # See: https://github.com/travis-ci/travis-ci/issues/6307
-#              - rvm get head
-#          after_script:
-#              # correct post-build failure on OSX due to non-zero exit code
-#              - set +e
+# #        - os: osx
+# #          language: generic
+# #          stage: test
+# #          env:
+# #              - TRAVIS_JOB=test_osx
+# #              - TRAVIS_OSX_PYTHON_VERSION=py36
+# #              - TRAVIS_PYTHON_VERSION=3.6
+# #          before_install:
+# #              - travis/before_install.sh
+# #              # Under OSX, some versions of ruby seem to cause this error.
+# #              # See: https://github.com/travis-ci/travis-ci/issues/6307
+# #              - rvm get head
+# #          after_script:
+# #              # correct post-build failure on OSX due to non-zero exit code
+# #              - set +e
   

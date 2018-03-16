@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e  # intentionally allow for pipe failures below
+set -x -e  # intentionally allow for pipe failures below
 
 ln -s $GATK_PATH/GenomeAnalysisTK.jar .
 mkdir -p workflows
@@ -9,6 +9,9 @@ cd workflows
 for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
 	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
+	echo Looking at workflow $workflow_name
+	echo dir is
+	pwd
 	if [ -f $input_json ]; then
 		input_json2="inputs-$workflow_name-local.json"
 		sed s/METADATAPATH/${VIRAL_NGS_METADATA_PATH}/ > $input_json2
