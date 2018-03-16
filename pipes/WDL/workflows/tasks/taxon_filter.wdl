@@ -12,9 +12,14 @@ task deplete_taxa {
   String? tags_to_clear_space_separated = "XT X0 X1 XA AM SM BQ CT XN OC OP"
 
   String      bam_basename = basename(raw_reads_unmapped_bam, ".bam")
+	String?     metadata_path
 
   command {
     set -ex -o pipefail
+
+    if [[ -n "$metadata_path" ]]; then
+        VIRAL_NGS_METADATA_PATH=$metadata_path
+    fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -86,9 +91,14 @@ task filter_to_taxon {
 
   # do this in two steps in case the input doesn't actually have "cleaned" in the name
   String bam_basename = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
+	String? metadata_path
 
   command {
     set -ex -o pipefail
+
+    if [[ -n "$metadata_path" ]]; then
+        VIRAL_NGS_METADATA_PATH=$metadata_path
+    fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -120,9 +130,13 @@ task filter_to_taxon {
 task build_lastal_db {
   File    sequences_fasta
   String  db_name = basename(sequences_fasta, ".fasta")
+	String? metadata_path
 
   command {
     set -ex -o pipefail
+    if [[ -n "$metadata_path" ]]; then
+        VIRAL_NGS_METADATA_PATH=$metadata_path
+    fi
     taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
     tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4
   }
@@ -137,6 +151,7 @@ task build_lastal_db {
     cpu: 2
     dx_instance_type: "mem1_ssd1_x4"
   }
+
 }
 
 task merge_one_per_sample {

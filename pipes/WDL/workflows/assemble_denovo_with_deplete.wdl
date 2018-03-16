@@ -3,11 +3,17 @@ import "assembly.wdl" as assembly
 
 workflow assemble_denovo_with_deplete {
 
-  call taxon_filter.deplete_taxa
+	String? metadata_path
+
+  call taxon_filter.deplete_taxa {
+	  input:
+		  metadata_path = metadata_path
+  }
 
   call taxon_filter.filter_to_taxon {
     input:
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
+		  metadata_path = metadata_path
   }
 
   call assembly.assemble {

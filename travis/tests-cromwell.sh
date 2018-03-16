@@ -10,13 +10,17 @@ for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
 	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
-		export VIRAL_NGS_METADATA_VALUE_wdl_workflow=$workflow_name
+		input_json2="inputs-$workflow_name-local.json"
+		sed s/METADATAPATH/${VIRAL_NGS_METADATA_PATH}/ > $input_json2
+		echo PASSING INPUT:
+		cat $input_json2
+		#export VIRAL_NGS_METADATA_VALUE_wdl_workflow=$workflow_name
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell.jar run \
 			$workflow_name.wdl \
-			-i $input_json | tee cromwell.out
+			-i $input_json2 | tee cromwell.out
 		if [ ${PIPESTATUS[0]} -gt 0 ]; then
 			echo "error running $workflow_name"
 			error_logs=$(grep stderr cromwell.out | perl -lape 's/.*\s(\S+)$/$1/g')
