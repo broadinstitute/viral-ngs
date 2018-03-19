@@ -2,9 +2,11 @@
 set -e  # intentionally allow for pipe failures below
 
 ln -s $GATK_PATH/GenomeAnalysisTK.jar .
-ln -s pipes/WDL/workflows pipes/WDL/workflows/tasks .
+mkdir -p workflows
+ln -s pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
+cd workflows
 
-for workflow in pipes/WDL/workflows/*.wdl; do
+for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
 	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
@@ -12,7 +14,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 		echo "Executing $workflow_name using Cromwell on local instance"
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell.jar run \
-			workflows/$workflow_name.wdl \
+			$workflow_name.wdl \
 			-i $input_json | tee cromwell.out
 		if [ ${PIPESTATUS[0]} -gt 0 ]; then
 			echo "error running $workflow_name"
@@ -28,5 +30,6 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     fi
 done
 
+cd -
 date
 echo "note: there is no testing of output correctness yet..."
