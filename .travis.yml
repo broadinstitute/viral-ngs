@@ -45,7 +45,6 @@ jobs:
           - docker-ce
       env:
         - TRAVIS_JOB=docker_wdl
-        - VIRAL_NGS_METADATA_VALUE_travis_job=docker_wdl
         # DOCKER_USER (for Quay.io)
         - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
         # DOCKER_PASS (for Quay.io)
