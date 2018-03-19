@@ -54,8 +54,11 @@ jobs:
         ## DOCKER_PASS_MIRROR (for DockerHub)
         - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
-        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
+#        - secure:
+#        RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
+        - secure: "JFN4fP2CgQmFncK+I433E0HMMX2PHoZLCPMu9udQcrce8qKYNCYJrz5TE5zn2wGw+dBQeLqJ0hQpkp8ifSZPjGPmAVi/94DR8vS2QdAPSePhi6bhqIQlvYgS++M1TGDET1YMsu3xeMH2stcsL6kzXMQx2+28blDdYggsNr0EANk="
+#        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
+        - DX_PROJECT=project-FBgzGgj00xXfzZBQFFk4Z536
         # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
