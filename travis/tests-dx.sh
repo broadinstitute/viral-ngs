@@ -26,10 +26,11 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     input_json="test/input/WDL/test_inputs-$workflow_name-dnanexus.dx.json"
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
+       metadata_path_escaped=$(echo $VIRAL_NGS_METADATA_PATH | sed 's/\:/\\:/g')
        dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
-           -i0.metadata_path=$VIRAL_NGS_METADATA_PATH \
+           -i0.metadata_path=$metadata_path_escaped \
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name)
