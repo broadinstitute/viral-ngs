@@ -17,7 +17,7 @@ task deplete_taxa {
   command {
     set -ex -o pipefail
 
-		VIRAL_NGS_METADATA_PATH=@$metadata_path
+    if [ -n "$metadata_path" ]; then VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -94,7 +94,7 @@ task filter_to_taxon {
   command {
     set -ex -o pipefail
 
-		VIRAL_NGS_METADATA_PATH=$metadata_path
+    if [ -n "$metadata_path" ]; then VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -131,7 +131,8 @@ task build_lastal_db {
   command {
     set -ex -o pipefail
 
-		VIRAL_NGS_METADATA_PATH=$metadata_path
+    if [ -n "$metadata_path" ]; then VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
+		
     taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
     tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4
   }
