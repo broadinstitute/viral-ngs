@@ -56,13 +56,13 @@ jobs:
         # DX_API_TOKEN (for DNAnexus builds)
 #        - secure:
 #        RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
-        - secure: "JFN4fP2CgQmFncK+I433E0HMMX2PHoZLCPMu9udQcrce8qKYNCYJrz5TE5zn2wGw+dBQeLqJ0hQpkp8ifSZPjGPmAVi/94DR8vS2QdAPSePhi6bhqIQlvYgS++M1TGDET1YMsu3xeMH2stcsL6kzXMQx2+28blDdYggsNr0EANk="
+        - secure: "ep90nPB2d3Cb+VVq00NAA/oUBba160fDJ9F1lMPqqNu3Mo6SmcN5U9WNoZXZLEMsSlk0hFNTSGJZsTtcdIeGdt6niUtWVv0u1wkeEyuQ5RE9/4XAFoqIUOgkw5WIAh6r7C2KYPIILzddauaF4cus3afUfETMoWDAZHwBa/mAVv4="
 #        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
         - DX_PROJECT=project-FBgzGgj00xXfzZBQFFk4Z536
         # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
-        - secure: Cd7ch+n8OT0KtA9MhTz1pfXbThJbIQ74oxbSkLGXZKwS52LWwaCH6dtBBbSqXUp9cnxsZhYkxjCmRNgAmBuUh0CpUtgN71YNegYPtLRO1seihqVc3TQC+cgwQxd1hNrsFfAvXwlReLMJgKydGDago0oe5/7df5P+YFAi3w/MKCE=
+        - secure: "YsQou7q6EqbfjuD6dpaKoYJBMZC2ZSHBsSN4C27ZmvR4sLFRZFpxYsr2YGQpruuvDGZMyL8gBBEfYr7E1TtnupA2WwCPnlJzHkPpy8sTaJ1az2GcjNvHwGDKybD4ZKSMREALHMUIMCa30ae3EPHRgDxCzEdfpoIF9zezeHgbxds="        
       install:
         #- travis/upgrade-docker.sh
         - travis/install-wdl.sh
