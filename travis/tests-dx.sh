@@ -30,7 +30,6 @@ for workflow in pipes/WDL/workflows/*.wdl; do
        dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
-           -i0.metadata_path=$metadata_path_escaped \
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name)

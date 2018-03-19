@@ -3,7 +3,7 @@ import "assembly.wdl" as assembly
 
 workflow assemble_denovo_with_deplete {
 
-	String? metadata_path
+	File? metadata_path
 
   call taxon_filter.deplete_taxa {
 	  input:
