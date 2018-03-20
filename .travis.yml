@@ -36,6 +36,11 @@ jobs:
   fast_finish: true
   include:
 
+###################################################
+# Building docker container for viral-ngs;
+# compiling WDL workflows to DNAnexus;
+# testing WDL workflows on DNANexus and locally.
+###################################################
     - language: java
       jdk: oraclejdk8
       sudo: required
@@ -54,11 +59,8 @@ jobs:
         ## DOCKER_PASS_MIRROR (for DockerHub)
         - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
         # DX_API_TOKEN (for DNAnexus builds)
-#        - secure:
-#        RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
-       - secure: "h9w5xGdjv5xfPa0lg3u2OkaXosUU1g/9m1IzaMR/ABrwi46Jc0SU3FAlg582emmqHy+4xu1H/9jzmO2TIXz6D9po2dJS4A3zQla+/KtCWgCGEmOPt+JhOcaRlKV87FEB7RT+p2V7yIKSwuAs+Lf/p+b3YKRjmLW72XvGaQGAbeQ="
-#        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
-        - DX_PROJECT=project-FBgzGgj00xXfzZBQFFk4Z536
+        - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
+        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
         # $BUNDLE_SECRET (for testing GATK on Cromwell-local and DNAnexus)
         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
         # $VIRAL_NGS_METADATA_PATH (for testing metadata logging to s3)
@@ -88,79 +90,42 @@ jobs:
       before_cache:
         - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
 
-    #- language: generic
-    #  stage: build
-    #  env:
-    #    - TRAVIS_JOB=build_docker
-    #    # DOCKER_USER
-    #    - secure: hYX8492Wqpq3yqv+eHBV9c6VY8JlUSS8mUDfT1eWNEZF2vw8WrnTt8SrLIPC8etQUk1ZaSI/8XbJQKEr9LRqgvuO07AIv6BxYCg9l9BPHCj6B2YTTPo2qPkPapfvtGVd7PUZcWDUvzvPxJqMveuKVkTnCuuQSWwR68Y/Khxj8UY=
-    #    # DOCKER_PASS
-    #    - secure: QYylIMLvn1op6d//5yBD7KpquNxK/+xxQxIJLXWFgIl08sdT/MvrI6edgm3k8CumS7735eSV6C+KGOkF9JqM12aGUK/3PPckFGY+h/j4zQX26taT+6221ozbzF6hqYk6qm86FT5QVkBFLxsoDvt0Sh+1FPeVsWJf0o9yrLTrj2E=
-    #  install: travis/upgrade-docker.sh
-    #  script:
-    #    - set -e
-    #    - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
-    #    - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
-    #    - travis_wait docker build -t local/viral-ngs:build $_CACHE_FROM .;
-    #    - travis/deploy-docker.sh
-    #  before_cache:
-    #    - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
-    #
-    #- language: java
-    #  jdk: oraclejdk8
-    #  stage: build
-    #  env:
-    #    - TRAVIS_JOB=build_dxWDL
-    #    # DX_API_TOKEN (for DNAnexus builds)
-    #    - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
-    #    - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
-    #  install:
-    #    - travis/install-wdl.sh
-    #  script:
-    #    - travis/version-wdl-runtimes.sh
-    #    - travis/validate-wdl.sh
-    #    - travis/build-dx.sh
-    #- language: java
-    #  jdk: oraclejdk8
-    #  stage: test
-    #  env:
-    #    - TRAVIS_JOB=test_cromwell
-    #    # $BUNDLE_SECRET for decrypting tarball of third-party tools
-    #    - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-    #  install:
-    #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
-    #    - docker pull $DOCKER_TAG
-    #    - travis/install-gatk.sh
-    #    - travis/install-wdl.sh
-    #  script:
-    #    - travis/version-wdl-runtimes.sh
-    #    - travis/validate-wdl.sh
-    #    - travis/tests-cromwell.sh
+###########################
+# Building documentation
+##########################
+        
+    # - language: python
+    #   sudo: false
+    #   #stage: build
+    #   env: TRAVIS_JOB=build_docs
+    #   install: travis/install-pip-docs.sh
+    #   script: travis/build-docs.sh
 
-#     - language: python
-#       sudo: false
-#       #stage: build
-#       env: TRAVIS_JOB=build_docs
-#       install: travis/install-pip-docs.sh
-#       script: travis/build-docs.sh
+############################
+# Building a conda package
+############################
 
-#     - language: python
-#       python: 3.6
-#       sudo: required
-#       #stage: test
-#       env:
-#         - TRAVIS_JOB=build_conda
-#         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-#         - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
-#         # $BUNDLE_SECRET (for testing GATK)
-#         - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
-#       install:
-#         - source travis/install-conda.sh
-#         - travis/install-conda-build.sh
-#       script:
-#         - travis/build-conda.sh
-#       before_cache:
-#         - conda clean --all --yes
+    # - language: python
+    #   python: 3.6
+    #   sudo: required
+    #   #stage: test
+    #   env:
+    #     - TRAVIS_JOB=build_conda
+    #     # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+    #     - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+    #     # $BUNDLE_SECRET (for testing GATK)
+    #     - secure: KX7DwKRD85S7NgspxevgbulTtV+jHQIiM6NBus2/Ur/P0RMdpt0EQQ2wDq79qGN70bvvkw901N7EjSYd+GWCAM7StXtaxnLRrrZ3XI1gX7KMk8E3QzPf0zualLDs7cuQmL6l6WiElUAEqumLc7WGpLZZLdSPzNqFSg+CBKCmTI8=
+    #   install:
+    #     - source travis/install-conda.sh
+    #     - travis/install-conda-build.sh
+    #   script:
+    #     - travis/build-conda.sh
+    #   before_cache:
+    #     - conda clean --all --yes
+
+################################
+# Running the test suite (py27)
+################################
 
 #     - language: python
 #       python: 2.7
@@ -212,6 +177,10 @@ jobs:
 #       before_cache:
 #         - conda clean --all --yes
 
+####################################
+# Running the test suite (snakemake)
+####################################
+
 #     - language: python
 #       python: 3.6
 #       #stage: test
@@ -236,6 +205,10 @@ jobs:
 #         - coveralls
 #       before_cache:
 #         - conda clean --all --yes
+
+######################################
+# Old/currently unused travis-ci jobs
+######################################
 
 #     #- language: python
 #     #  stage: test

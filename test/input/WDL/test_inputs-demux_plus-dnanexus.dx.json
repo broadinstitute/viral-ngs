@@ -12,5 +12,6 @@
   ],
 
   "stage-3.kraken_db_tar_lz4": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qZg809y3Qvp7j7vgFKj4Z" } },
-  "stage-3.krona_taxonomy_db_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F4z0fgj07FZ8jg8yP7yz0Qzb" } }
+		"stage-3.krona_taxonomy_db_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F4z0fgj07FZ8jg8yP7yz0Qzb" } },
+		"stage-0.metadata_path": { "$dnanexus_link": { "project": "project-F89kXY805X08BpXq7xjxbX9F", "id": "file-FBj0PZj00xXkbY52FG0P8gp9" } }
 }

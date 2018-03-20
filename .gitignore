@@ -73,3 +73,9 @@ tools/conda-cache/
 tools/conda-tools/
 
 *.snakemake/
+
+GenomeAnalysisTK.jar
+cromwell-*.jar
+dxWDL-*.jar
+wdltool-*.jar
+womtool-*.jar
