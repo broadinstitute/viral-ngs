@@ -78,7 +78,8 @@ class TestMetadataRecording(TestCaseWithTmp):
         """Test the basic operations of the metadata database"""
 
         with util.misc.tmp_set_env('VIRAL_NGS_METADATA_PATH', 's3://AWSKEYID:AWSKEYSECRET@bucketname'):
-            assert 'AWSKEYSECRET' not in metadata_db.metadata_dir_sanitized()
+            assert 'AWSKEYSECRET' in str(metadata_db.metadata_dirs())
+            assert 'AWSKEYSECRET' not in str(metadata_db.metadata_dirs_sanitized())
 
         with util.file.tempfname('.paths.txt') as paths_fn:
             util.file.dump_file(paths_fn, '/tmp/prov')

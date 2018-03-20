@@ -17,7 +17,12 @@ task deplete_taxa {
   command {
     set -ex -o pipefail
 
-    if [ -n "$metadata_path" ]; then export VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
+    if [ -n "${metadata_path}" ]; then 
+		  export VIRAL_NGS_METADATA_PATH="@${metadata_path}"
+			echo METADATA PATH SET TO $VIRAL_NGS_METADATA_PATH
+		else
+		  echo METADATA PATH NOT FOUND!
+		fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -94,7 +99,12 @@ task filter_to_taxon {
   command {
     set -ex -o pipefail
 
-    if [ -n "$metadata_path" ]; then export VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
+    if [ -n "${metadata_path}" ]; then 
+		  export VIRAL_NGS_METADATA_PATH="@${metadata_path}"
+			echo METADATA PATH SET TO $VIRAL_NGS_METADATA_PATH
+		else
+		  echo METADATA PATH NOT FOUND!
+		fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -131,7 +141,12 @@ task build_lastal_db {
   command {
     set -ex -o pipefail
 
-    if [ -n "$metadata_path" ]; then export VIRAL_NGS_METADATA_PATH=@$metadata_path; fi
+    if [ -n "${metadata_path}" ]; then 
+		  export VIRAL_NGS_METADATA_PATH="@${metadata_path}"
+			echo METADATA PATH SET TO $VIRAL_NGS_METADATA_PATH
+		else
+		  echo METADATA PATH NOT FOUND!
+		fi
 		
     taxon_filter.py lastal_build_db ${sequences_fasta} ./ --loglevel=DEBUG
     tar -c ${db_name}* | lz4 -9 > ${db_name}.tar.lz4

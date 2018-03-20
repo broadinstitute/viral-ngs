@@ -106,7 +106,7 @@ def gather_version_info(step_id):
 
 def gather_run_env():
     """Gather runtime environment"""
-    return dict(metadata_dir=metadata_db.metadata_dir_sanitized(),
+    return dict(metadata_dir='',
                 platform=platform.platform(), 
                 cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                 user=getpass.getuser(),
@@ -235,7 +235,6 @@ def cmd_call_cmd(cmd_main, args, config):
 
                 _log.info('command {}.{} finished in {}s; exception={}'.format(cmd_module, cmd_name, end_time-beg_time, 
                                                                                cmd_exception_str))
-                _log.info('recording metadata to {}'.format(metadata_db.metadata_dir_sanitized()))
 
                 metadata_from_cmd_line, metadata_from_cmd_return = gather_user_metadata(args_dict, cmd_result)
 

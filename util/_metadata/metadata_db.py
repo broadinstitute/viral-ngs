@@ -25,7 +25,7 @@ def metadata_dir():
     as specified by the environment variable VIRAL_NGS_METADATA_PATH.
     Raises an error if the environment variable is not defined.
     """
-    return os.environ['VIRAL_NGS_METADATA_PATH']
+    return os.environ.get('VIRAL_NGS_METADATA_PATH', '')
 
 def metadata_dirs():
     """Return list of dirs to which metadata was recorded"""
@@ -42,8 +42,8 @@ def _mask_secret_info(fs_url):
         fs_url = 's3://' + fs_url[fs_url.index('@')+1:]
     return fs_url
 
-def metadata_dir_sanitized():
-    """Return version `metadata_dir()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
+def metadata_dirs_sanitized():
+    """Return version `metadata_dirs()` suitable for display in log messsages.  Any sensitive information like AWS keys will be scrubbed."""
     return ' '.join([_mask_secret_info(p) for p in metadata_dirs()])
 
 def is_metadata_tracking_enabled():
@@ -76,6 +76,8 @@ def load_all_records():
 
 def store_step_record(step_data, write_obj=None):
     """Store step record to metadata database(s)"""
+    print('recording metadata to {}'.format(metadata_dirs_sanitized()))
+    
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
     json_data_gzipped = util.file.to_json_gz(step_data, write_obj=write_obj, filename=json_fname)
     
