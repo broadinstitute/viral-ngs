@@ -8,5 +8,5 @@
   "assemble_denovo_with_deplete.scaffold.reference_genome_fasta": ["test/input/ebov-makona.fasta"],
 
 		"assemble_denovo_with_deplete.refine_2x_and_plot.gatk_jar": "GenomeAnalysisTK.jar",
-		"assemble_denovo_with_deplete.metadata_path": "METADATAPATH"
+		"assemble_denovo_with_deplete.metadata_path": "metadata_path.txt"
 }

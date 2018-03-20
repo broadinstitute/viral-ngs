@@ -82,8 +82,8 @@ jobs:
         - travis/version-wdl-runtimes.sh
         - travis/validate-wdl.sh
         # build DNAnexus pipelines and launch a few test executions
-        - travis/build-dx.sh
-        - travis/tests-dx.sh
+#        - travis/build-dx.sh
+#        - travis/tests-dx.sh
         #- if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
         # test Cromwell local execution engine
         - travis/tests-cromwell.sh
