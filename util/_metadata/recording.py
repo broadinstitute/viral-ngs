@@ -15,6 +15,7 @@ import time
 import uuid
 import platform
 import contextlib
+import inspect
 
 # intra-module
 import util.file
@@ -208,7 +209,8 @@ def cmd_call_cmd(cmd_main, args, config):
     step_data = dict(__viral_ngs_metadata__=True, format=VIRAL_NGS_METADATA_FORMAT)
 
     cmd_main_unwrapped = util.misc.unwrap(cmd_main)
-    cmd_module=cmd_main_unwrapped.__module__
+    cmd_module=os.path.splitext(os.path.relpath(inspect.getsourcefile(cmd_main_unwrapped),
+                                                util.version.get_project_path()))[0].replace(os.sep, '.')
     cmd_name = args_dict.get('command', cmd_main_unwrapped.__name__)
 
     # Determine the run id and the step id for this step.  A step is a particular invocation of a command; a run is a set
