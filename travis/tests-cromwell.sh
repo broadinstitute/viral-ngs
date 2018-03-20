@@ -3,12 +3,12 @@ set -e  # intentionally allow for pipe failures below
 
 ln -s $GATK_PATH/GenomeAnalysisTK.jar .
 mkdir -p workflows
-ln -s pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
+cp *.jar test/input/WDL/test_inputs-*-local.json pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
 cd workflows
 
 for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
-	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
+	input_json="test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
