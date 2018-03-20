@@ -8,6 +8,8 @@ task kraken {
   File        kraken_db_tar_lz4
   File        krona_taxonomy_db_tgz
 
+	File?       metadata_path
+
   parameter_meta {
     kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
     krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
@@ -16,6 +18,8 @@ task kraken {
 
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -86,12 +90,16 @@ task krona {
 
   String input_basename = basename(classified_reads_txt_gz, ".txt.gz")
 
+	File? metadata_path
+
   parameter_meta {
     krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     # decompress DB to /mnt/db
     read_utils.py extract_tarball \
@@ -131,6 +139,8 @@ task diamond_contigs {
 
   String contigs_basename = basename(contigs_fasta, ".fasta")
 
+	File? metadata_path
+
   parameter_meta {
     diamond_db_lz4              : "stream" # for DNAnexus, until WDL implements the File| type
     diamond_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
@@ -139,6 +149,8 @@ task diamond_contigs {
 
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp

@@ -12,9 +12,12 @@ task assemble {
 
   # do this in two steps in case the input doesn't actually have "taxfilt" in the name
   String  sample_name = basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt")
+	File? metadata_path
 
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -99,8 +102,12 @@ task scaffold {
   # do this in multiple steps in case the input doesn't actually have "assembly1-x" in the name
   String  sample_name = basename(basename(basename(contigs_fasta, ".fasta"), ".assembly1-trinity"), ".assembly1-spades")
 
+	File? metadata_path
+	
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     # find 90% memory
     mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
@@ -176,8 +183,12 @@ task refine {
 
   String  assembly_basename=basename(basename(assembly_fasta, ".fasta"), ".scaffold")
 
+	File?   metadata_path
+
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
@@ -249,8 +260,12 @@ task refine_2x_and_plot {
   # do this in two steps in case the input doesn't actually have "cleaned" in the name
   String  sample_name = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
 
+	File? metadata_path
+
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`

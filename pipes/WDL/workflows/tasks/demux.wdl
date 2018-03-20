@@ -43,12 +43,16 @@ task illumina_demux {
   Int?    minimumQuality = 10
   String? runStartDate
 
+	File? metadata_path
+
   parameter_meta {
     flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
     set -ex -o pipefail
+
+    if [ -n "${metadata_path}" ]; then export VIRAL_NGS_METADATA_PATH="@${metadata_path}"; fi
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
