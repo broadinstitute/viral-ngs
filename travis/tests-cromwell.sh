@@ -1,22 +1,19 @@
 #!/bin/bash
-set -x -e  # intentionally allow for pipe failures below
+set -e  # intentionally allow for pipe failures below
 
 ln -s $GATK_PATH/GenomeAnalysisTK.jar .
 mkdir -p workflows
-cp *.jar test/input/WDL/test_inputs-*-local.json pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
+cp *.jar pipes/WDL/workflows/*.wdl pipes/WDL/workflows/tasks/*.wdl workflows
+cp -r test workflows/
 cd workflows
 
 for workflow in ../pipes/WDL/workflows/*.wdl; do
 	workflow_name=$(basename $workflow .wdl)
-	input_json="test_inputs-$workflow_name-local.json"
-	echo Looking at workflow $workflow_name
-	echo dir is
-	pwd
+	input_json="test/input/WDL/test_inputs-$workflow_name-local.json"
 	if [ -f $input_json ]; then
-		echo ${VIRAL_NGS_METADATA_PATH} > metadata_path.txt
-		#export VIRAL_NGS_METADATA_VALUE_wdl_workflow=$workflow_name
 		date
 		echo "Executing $workflow_name using Cromwell on local instance"
+		echo ${VIRAL_NGS_METADATA_PATH} > metadata_path.txt
 		# the "cat" is to allow a pipe failure (otherwise it halts because of set -e)
 		java -jar cromwell.jar run \
 			$workflow_name.wdl \
