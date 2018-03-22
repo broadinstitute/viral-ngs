@@ -58,19 +58,24 @@ task download_annotations {
 }
 
 task annot_transfer {
-  Array[File]+ mutli_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
+  Array[File]+ multi_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
   File         reference_fasta         # fasta; all chromosomes in one file
   Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
   command {
-    # TO DO: iterate across each chromosome
-    ncbi.py tbl_transfer_prealigned \
-        ${chr_mutli_aln_fasta} \
-        ${reference_fasta} \
-        ${reference_feature_table} \
-        . \
-        --oob_clip \
-        --loglevel DEBUG
+    set -ex -o pipefail
+    _per_chr_inputs=${write_tsv(zip(multi_aln_fasta, reference_feature_table))}
+    for _row in `cat $_per_chr_inputs | sed -e $'s/\t/:/'`; do
+      _alignment_fasta=`echo $_row | cut -f 1 -d :`
+      _feature_tbl=`echo $_row | cut -f 2 -d :`
+      ncbi.py tbl_transfer_prealigned \
+          $_alignment_fasta \
+          ${reference_fasta} \
+          $_feature_tbl \
+          . \
+          --oob_clip \
+          --loglevel DEBUG
+    done
   }
 
   output {
