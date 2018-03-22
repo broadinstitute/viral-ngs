@@ -98,8 +98,8 @@ task multi_align_mafft_ref {
   }
 
   output {
-    File        sampleNamesFile   = "${out_prefix}-sample_names.txt"
-    Array[File] alignments_by_chr = glob("${out_prefix}*.fasta")
+    File         sampleNamesFile   = "${out_prefix}-sample_names.txt"
+    Array[File]+ alignments_by_chr = glob("${out_prefix}*.fasta")
   }
 
   runtime {
