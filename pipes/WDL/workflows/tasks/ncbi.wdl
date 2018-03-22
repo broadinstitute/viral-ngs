@@ -58,7 +58,7 @@ task download_annotations {
 }
 
 task annot_transfer {
-  Array[File]+ multi_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
+  Array[File]  multi_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
   File         reference_fasta         # fasta; all chromosomes in one file
   Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
@@ -91,7 +91,7 @@ task annot_transfer {
 
 task prepare_genbank {
   Array[File]+ assemblies_fasta
-  Array[File]+ annotations_tbl
+  Array[File]  annotations_tbl
   File         authors_sbt
   File         biosampleMap
   File         genbankSourceTable
