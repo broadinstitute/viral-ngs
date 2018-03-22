@@ -94,10 +94,10 @@ task prepare_genbank {
   Array[File]+ annotations_tbl
   File         authors_sbt
   File         biosampleMap
+  File         genbankSourceTable
   File?        coverage_table # summary.assembly.txt (from Snakemake) -- change this to accept a list of mapped bam files and we can create this table ourselves
-  File?        genbankSourceTable
-  String?      sequencingTech
-  String?      comment
+  String       sequencingTech
+  String       comment # TO DO: make this optional
   String       organism
   String       molType = "cRNA"
 
@@ -108,13 +108,13 @@ task prepare_genbank {
         ${authors_sbt} \
         ${sep=' ' assemblies_fasta} \
         . \
-        ${'--master_source_table ' + genbankSourceTable} \
-        ${'--sequencing_tech "' + sequencingTech + '"'} \
-        ${'--coverage_table ' + coverage_table} \
-        ${'--comment "' + comment + '"'} \
-        --biosample_map ${biosampleMap} \
-        --organism "${organism}" \
         --molType ${molType} \
+        --organism "${organism}" \
+        --biosample_map ${biosampleMap} \
+        --master_source_table ${genbankSourceTable} \
+        ${'--coverage_table ' + coverage_table} \
+        --comment "${comment}" \
+        --sequencing_tech "${sequencingTech}" \
         --loglevel DEBUG
     mv errorsummary.val errorsummary.val.txt # to keep it separate from the glob
   }
