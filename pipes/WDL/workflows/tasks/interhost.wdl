@@ -80,13 +80,15 @@ task multi_align_mafft_ref {
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
   String?        out_prefix = basename(reference_fasta, '.fasta')
   Int?           mafft_maxIters
-  Int?           mafft_ep
+  Float?         mafft_ep
+  Float?         mafft_gapOpeningPenalty
 
   command {
     interhost.py multichr_mafft \
       ${reference_fasta} ${sep=' ' assemblies_fasta} \
       . \
       ${'--ep' + mafft_ep} \
+      ${'--gapOpeningPenalty' + mafft_gapOpeningPenalty} \
       ${'--maxiters' + mafft_maxIters} \
       --outFilePrefix ${out_prefix} \
       --preservecase \
@@ -103,8 +105,8 @@ task multi_align_mafft_ref {
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "7 GB"
-    cpu: 4
-    dx_instance_type: "mem1_ssd1_x4"
+    cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 
@@ -112,13 +114,15 @@ task multi_align_mafft {
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
   String         out_prefix
   Int?           mafft_maxIters
-  Int?           mafft_ep
+  Float?         mafft_ep
+  Float?         mafft_gapOpeningPenalty
 
   command {
     interhost.py multichr_mafft \
       ${sep=' ' assemblies_fasta} \
       . \
       ${'--ep' + mafft_ep} \
+      ${'--gapOpeningPenalty' + mafft_gapOpeningPenalty} \
       ${'--maxiters' + mafft_maxIters} \
       --outFilePrefix ${out_prefix} \
       --preservecase \
@@ -135,8 +139,8 @@ task multi_align_mafft {
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "7 GB"
-    cpu: 4
-    dx_instance_type: "mem1_ssd1_x4"
+    cpu: 8
+    dx_instance_type: "mem1_ssd1_x8"
   }
 }
 
