@@ -6,6 +6,7 @@ import os, random, collections
 import unittest
 import subprocess
 import pickle
+import sys
 
 import util.misc
 import util.file
@@ -392,5 +393,6 @@ def test_named_args():
     assert getnamedargs(lambda *args, **kwargs: 1) == []
     assert getnamedargs(lambda x: x) == ['x']
     assert getnamedargs(lambda x, *args, **kwargs: x) == ['x']
-    assert getnamedargs(lambda x, *, y: x) == ['x', 'y']
+    if sys.version_info.major > 2:
+        assert getnamedargs(eval('lambda x, *, y: x')) == ['x', 'y']
     
