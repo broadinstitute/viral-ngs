@@ -114,13 +114,16 @@ def main_command(mainfunc):
         the values of the object on as parameters to the function call.
     '''
 
-    argspec = util.misc.getargspec(mainfunc)
-    assert argspec[1:3] == (None, None), 'Command impls with *args or **kwargs not supported'
-    mainfunc_args = set(util.misc.flatten(argspec.args))
+    argspec = util.misc.getfullargspec(mainfunc)
+    assert not argspec.varargs, 'Command impls with *args not supported'
+    named_args = set(util.misc.getnamedargs(mainfunc))
 
     @util.misc.wraps(mainfunc)
     def _main(args):
-        return mainfunc(**util.misc.dict_subset(vars(args), mainfunc_args))
+        args_dict = vars(args)
+        if not argspec.varkw:
+            args_dict = util.misc.dict_subset(args_dict, named_args)
+        return mainfunc(**args_dict)
 
     return _main
 

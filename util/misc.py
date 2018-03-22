@@ -670,7 +670,18 @@ def flatten(d, types_to_flatten=(tuple, list)):
     return [d] if not isinstance(d, types_to_flatten) else \
         functools.reduce(operator.concat, list(map(functools.partial(flatten, types_to_flatten=types_to_flatten), d)), [])
 
-getargspec = getattr(inspect, 'getfullargspec', inspect.getargspec)  # python 2/3 compatibility
+FullArgSpec = collections.namedtuple('FullArgSpec',
+                                     'args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, annotations')
+def getfullargspec(func):
+    """Backport of inspect.getfullargspec() from Python 3 to Python 2"""
+    if hasattr(inspect, 'getfullargspec'): return inspect.getfullargspec(func)
+    argspec = inspect.getargspec(func)
+    return FullArgSpec(argspec[0], argspec[1], argspec[2], argspec[3], kwonlyargs=[], kwonlydefaults={}, annotations={})
+
+def getnamedargs(func):
+    """Return a list of named args -- both positional and keyword-only -- of the given function."""
+    argspec = getfullargspec(func)
+    return flatten(argspec.args + argspec.kwonlyargs)
 
 def dict_subset(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""

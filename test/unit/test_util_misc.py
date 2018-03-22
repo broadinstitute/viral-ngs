@@ -386,3 +386,11 @@ def test_itertools_extras():
     assert list(util.misc.unique_justseen('AAAABBBCCDAABBB')) == 'A B C D A B'.split()
     assert list(util.misc.unique_justseen('ABBCcAD', str.lower)) == 'A B C A D'.split()
 
+def test_named_args():
+    getnamedargs = util.misc.getnamedargs
+    assert getnamedargs(lambda : 1) == []
+    assert getnamedargs(lambda *args, **kwargs: 1) == []
+    assert getnamedargs(lambda x: x) == ['x']
+    assert getnamedargs(lambda x, *args, **kwargs: x) == ['x']
+    assert getnamedargs(lambda x, *, y: x) == ['x', 'y']
+    

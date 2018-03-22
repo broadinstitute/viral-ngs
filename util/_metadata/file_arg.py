@@ -83,7 +83,7 @@ class FileArg(object):
         # sometimes, the exact list of files denoted by a command argument cannot be determined from the argument
         # value alone.  In that case, we can arrange for the function implementing the command to compute the list
         # of files and pass it to the compute_fnames function, through the return value of the command implementation.
-        if inspect.isfunction(self.compute_fnames) and 'cmd_return_value' in util.misc.getargspec(self.compute_fnames).args:
+        if inspect.isfunction(self.compute_fnames) and 'cmd_return_value' in util.misc.getnamedargs(self.compute_fnames):
             self.compute_fnames = functools.partial(self.compute_fnames, cmd_return_value=cmd_result)
 
         def file2info(fname):
