@@ -7,9 +7,6 @@ workflow genbank {
   Array[File]+  assemblies_fasta     # one per genome
   Array[File]+  ref_annotations_tbl  # one per chromosome
 
-  # TO DO: accept an Array[File]+ of mapped bam files to the assemblies
-  # and compute coverage ourselves and produce a coverage_table for prepare_genbank
-
   call interhost.multi_align_mafft_ref as mafft {
     input:
       reference_fasta = reference_fasta,
