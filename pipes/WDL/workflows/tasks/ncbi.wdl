@@ -58,11 +58,12 @@ task download_annotations {
 }
 
 task annot_transfer {
-  File chr_mutli_aln_fasta # fasta; multiple alignments of sample sequences for a single chr
-  File reference_fasta # fasta (may contain multiple chrs, only one with the same name as reference_feature_table will be used)
-  File reference_feature_table # feature table corresponding to the chr in the alignment
+  Array[File]+ mutli_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
+  File         reference_fasta         # fasta; all chromosomes in one file
+  Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
   command {
+    # TO DO: iterate across each chromosome
     ncbi.py tbl_transfer_prealigned \
         ${chr_mutli_aln_fasta} \
         ${reference_fasta} \
@@ -87,12 +88,13 @@ task prepare_genbank {
   Array[File]+ assemblies_fasta
   Array[File]+ annotations_tbl
   File         authors_sbt
-  File?        coverage_table # summary.assembly.txt (from Snakemake)
+  File         biosampleMap
+  File?        coverage_table # summary.assembly.txt (from Snakemake) -- change this to accept a list of mapped bam files and we can create this table ourselves
   File?        genbankSourceTable
-  File?        biosampleMap
   String?      sequencingTech
   String?      comment
-  String       out_prefix = "ncbi_package"
+  String       organism
+  String       molType = "cRNA"
 
   command {
     set -ex -o pipefail
@@ -101,19 +103,24 @@ task prepare_genbank {
         ${authors_sbt} \
         ${sep=' ' assemblies_fasta} \
         . \
-        ${'--master_source_table=' + genbankSourceTable} \
-        ${'--sequencing_tech=' + sequencingTech} \
-        ${'--biosample_map=' + biosampleMap} \
-        ${'--coverage_table=' + coverage_table} \
-        ${'--comment=' + comment} \
+        ${'--master_source_table ' + genbankSourceTable} \
+        ${'--sequencing_tech "' + sequencingTech + '"'} \
+        ${'--coverage_table ' + coverage_table} \
+        ${'--comment "' + comment + '"'} \
+        --biosample_map ${biosampleMap} \
+        --organism "${organism}" \
+        --molType ${molType} \
         --loglevel DEBUG
-    tar -czpvf ${out_prefix}.tar.gz *.val *.cmt *.fsa *.gbf *.sqn *.src *.tbl
+    mv errorsummary.val errorsummary.val.txt # to keep it separate from the glob
   }
 
   output {
     Array[File] sequin_files = glob("*.sqn")
-    File        ncbi_package = "${out_prefix}.tar.gz"
-    File        errorSummary = "errorsummary.val"
+    Array[File] structured_comment_files = glob("*.cmt")
+    Array[File] genbank_preview_files = glob("*.gbf")
+    Array[File] source_table_files = glob("*.src")
+    Array[File] validation_files = glob("*.val")
+    File        errorSummary = "errorsummary.val.txt"
   }
 
   runtime {
