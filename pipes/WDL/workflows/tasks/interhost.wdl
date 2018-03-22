@@ -1,40 +1,40 @@
-task ref_guided_consensus {
-  String sample
-
-  File referenceGenome #fasta
-  File inBam
-  # TODO: input settings must compute chr_names
-  Array[String] chrNames # sampleName-1, sampleName-2, ...
-
-  Int? threads
-  Int? minCoverage
-
-  String? novoalignOptions
-
-  command {
-    assembly.py refine_assembly \
-      "${referenceGenome}" \
-      "${inBam}" \
-      "${sample}.fasta" \
-      --outBam "${sample}.realigned.bam" \
-      --outVcf "${sample}.vcf.gz" \
-      "${'--min_coverage' + minCoverage || '3'}" \
-      "${'--novo_params' + novoalignOptions || '-r Random -l 40 -g 40 -x 20 -t 100'}" \
-      --keep_all_reads \
-      --chr_names "${sep=' ' chrNames+}" \
-      "${'--threads' + threads}"
-  }
-
-  output {
-    File assembly = "${sample}.fasta"
-    File realignedBam = "${sample}.realigned.bam"
-    File variantCalls = "${sample}.vcf.gz"
-  }
-  runtime {
-    memory: "4 GB"
-    docker: "quay.io/broadinstitute/viral-ngs"
-  }
-}
+#task ref_guided_consensus {
+#  String sample
+#
+#  File referenceGenome #fasta
+#  File inBam
+#  # TODO: input settings must compute chr_names
+#  Array[String] chrNames # sampleName-1, sampleName-2, ...
+#
+#  Int? threads
+#  Int? minCoverage
+#
+#  String? novoalignOptions
+#
+#  command {
+#    assembly.py refine_assembly \
+#      "${referenceGenome}" \
+#      "${inBam}" \
+#      "${sample}.fasta" \
+#      --outBam "${sample}.realigned.bam" \
+#      --outVcf "${sample}.vcf.gz" \
+#      "${'--min_coverage' + minCoverage || '3'}" \
+#      "${'--novo_params' + novoalignOptions || '-r Random -l 40 -g 40 -x 20 -t 100'}" \
+#      --keep_all_reads \
+#      --chr_names "${sep=' ' chrNames+}" \
+#      "${'--threads' + threads}"
+#  }
+#
+#  output {
+#    File assembly = "${sample}.fasta"
+#    File realignedBam = "${sample}.realigned.bam"
+#    File variantCalls = "${sample}.vcf.gz"
+#  }
+#  runtime {
+#    memory: "4 GB"
+#    docker: "quay.io/broadinstitute/viral-ngs"
+#  }
+#}
 
 task ref_guided_consensus_aligned_with_dups {
   String sample
@@ -78,7 +78,7 @@ task ref_guided_consensus_aligned_with_dups {
 task multi_align_mafft_ref {
   File           reference_fasta
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
-  String?        out_prefix = basename(reference_fasta, '.fasta')
+  String         out_prefix = basename(reference_fasta, '.fasta')
   Int?           mafft_maxIters
   Float?         mafft_ep
   Float?         mafft_gapOpeningPenalty
