@@ -79,7 +79,7 @@ task annot_transfer {
   }
 
   output {
-    Array[File] transferred_feature_tables = glob("*.tbl")
+    Array[File]+ transferred_feature_tables = glob("*.tbl")
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
