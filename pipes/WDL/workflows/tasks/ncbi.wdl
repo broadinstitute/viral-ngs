@@ -68,7 +68,7 @@ task annot_transfer {
     set -ex -o pipefail
     echo ${multi_aln_fasta} > alignments.txt
     echo ${reference_feature_table} > tbls.txt
-    for i in {sep=' ' $chr_nums}; do
+    for i in ${sep=' ' $chr_nums}; do
       _alignment_fasta=`cat alignments.txt | cut -f $(($i+1)) -d ' '`
       _feature_tbl=`cat tbls.txt | cut -f $(($i+1)) -d ' '`
       ncbi.py tbl_transfer_prealigned \
