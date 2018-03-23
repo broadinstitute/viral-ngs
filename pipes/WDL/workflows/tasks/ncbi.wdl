@@ -66,8 +66,8 @@ task annot_transfer {
 
   command {
     set -ex -o pipefail
-    echo ${multi_aln_fasta} > alignments.txt
-    echo ${reference_feature_table} > tbls.txt
+    echo ${sep=' ' multi_aln_fasta} > alignments.txt
+    echo ${sep=' ' reference_feature_table} > tbls.txt
     for i in ${sep=' ' chr_nums}; do
       _alignment_fasta=`cat alignments.txt | cut -f $(($i+1)) -d ' '`
       _feature_tbl=`cat tbls.txt | cut -f $(($i+1)) -d ' '`
