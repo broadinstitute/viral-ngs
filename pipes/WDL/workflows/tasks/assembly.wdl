@@ -340,6 +340,7 @@ task refine_2x_and_plot {
         --plotWidth 1100 \
         --plotHeight 850 \
         --plotDPI 100 \
+        --plotTitle "${sample_name} coverage plot" \
         --loglevel=DEBUG
     else
       touch ${sample_name}.coverage_plot.pdf
