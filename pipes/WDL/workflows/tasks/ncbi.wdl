@@ -62,7 +62,7 @@ task annot_transfer {
   File         reference_fasta         # fasta; all chromosomes in one file
   Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
-  Array[Integer]  chr_nums=range(length(multi_aln_fasta))
+  Array[Int]   chr_nums=range(length(multi_aln_fasta))
 
   command {
     set -ex -o pipefail
