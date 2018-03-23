@@ -62,15 +62,15 @@ task annot_transfer {
   File         reference_fasta         # fasta; all chromosomes in one file
   Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
-  Integer      n_chromosomes=length(multi_aln_fasta)
+  Array[Integer]  chr_nums=range(length(multi_aln_fasta))
 
   command {
     set -ex -o pipefail
     echo ${multi_aln_fasta} > alignments.txt
     echo ${reference_feature_table} > tbls.txt
-    for i in {1..${n_chromosomes}}; do
-      _alignment_fasta=`cat alignments.txt | cut -f $i -d ' '`
-      _feature_tbl=`cat tbls.txt | cut -f $i -d ' '`
+    for i in {sep=' ' $chr_nums}; do
+      _alignment_fasta=`cat alignments.txt | cut -f $(($i+1)) -d ' '`
+      _feature_tbl=`cat tbls.txt | cut -f $(($i+1)) -d ' '`
       ncbi.py tbl_transfer_prealigned \
           $_alignment_fasta \
           ${reference_fasta} \
