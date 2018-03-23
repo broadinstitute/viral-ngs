@@ -109,8 +109,6 @@ class FileArg(object):
                         for d in util.cmd_plugins.cmd_plugin_mgr.hook.cmd_compute_metadata_from_file_contents(fname=fname):
                             file_info.update(d)
                     
-#                    file_info.update(self.gather_bam_stats(fname))
-#                    file_info.update(self.gather_fasta_stats(fname))
                 except Exception:
                     if fname not in self.optional_fnames:
                         warnings.warn('Error getting file info for {} ({})'.format(fname, traceback.format_exc()))
@@ -127,35 +125,6 @@ class FileArg(object):
     def is_from_dict(val):
         """Tests whether `val` is a valid dict representation of a FileArg object (as constructed by gather_file_info() method)."""
         return isinstance(val, collections.Mapping) and '__FileArg__' in val and isinstance(val['files'], list)
-
-    @staticmethod
-    def gather_bam_stats(fname):
-        """Gather stats for a .bam file"""
-        result = {}
-        if fname.endswith('.bam') and not util.file.ispipe(fname):
-            from tools.samtools import SamtoolsTool
-            result['bam_count'] = SamtoolsTool().count(fname)
-        return result
-
-    @staticmethod
-    def gather_fasta_stats(fname):
-        """Gather stats for a .fasta file"""
-
-        result = {}
-        if not util.file.ispipe(fname) and any(fname.endswith(ext) for ext in '.fasta .fa .fasta.gz .fa.gz'.split()):
-
-            import Bio.SeqIO
-            import assembly
-
-            # should avoid reading whole into memory
-
-            with util.file.open_or_gzopen(fname) as f:
-                seqs = list(Bio.SeqIO.parse(f, 'fasta'))
-            len_unambig = sum(map(assembly.unambig_count, seqs))
-            len_tot = sum(map(len, seqs))
-            result.update(fasta_n_seqs=len(seqs), fasta_len_unambig=len_unambig, fasta_len_tot=len_tot)
-
-        return result
 
     def __str__(self):
         return '{}({})'.format('InFile' if self.mode=='r' else 'OutFile', self.val)
