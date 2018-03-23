@@ -58,16 +58,17 @@ task download_annotations {
 }
 
 task annot_transfer {
-  Array[File]  multi_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
+  Array[File]+ multi_aln_fasta         # fasta; multiple alignments of sample sequences for each chromosome
   File         reference_fasta         # fasta; all chromosomes in one file
   Array[File]+ reference_feature_table # tbl; feature table corresponding to each chromosome in the alignment
 
   command {
     set -ex -o pipefail
-    _per_chr_inputs=${write_tsv(zip(multi_aln_fasta, reference_feature_table))}
-    for _row in `cat $_per_chr_inputs | sed -e $'s/\t/:/'`; do
-      _alignment_fasta=`echo $_row | cut -f 1 -d :`
-      _feature_tbl=`echo $_row | cut -f 2 -d :`
+    echo ${multi_aln_fasta} > alignments.txt
+    echo ${reference_feature_table} > tbls.txt
+    for i in {1..${length(multi_aln_fasta)}}; do
+      _alignment_fasta=`cat alignments.txt | cut -f $i -d ' '`
+      _feature_tbl=`cat tbls.txt | cut -f $i -d ' '`
       ncbi.py tbl_transfer_prealigned \
           $_alignment_fasta \
           ${reference_fasta} \
@@ -91,7 +92,7 @@ task annot_transfer {
 
 task prepare_genbank {
   Array[File]+ assemblies_fasta
-  Array[File]  annotations_tbl
+  Array[File]+ annotations_tbl
   File         authors_sbt
   File         biosampleMap
   File         genbankSourceTable
