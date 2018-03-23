@@ -107,11 +107,20 @@ def gather_version_info(step_id):
 
 def gather_run_env():
     """Gather runtime environment"""
+    env_vars_to_save = (
+        # if running on DNAnexus 
+        'DX_JOB_ID', 'DX_PROJECT_CONTEXT_ID',
+        # if running on travis-ci
+        'TRAVIS_BUILD_ID', 'TRAVIS_JOB_ID', 'TRAVIS_COMMIT',
+    )
     return dict(metadata_dir='',
                 platform=platform.platform(), 
                 cpus=util.misc.available_cpu_count(), host=socket.getfqdn(),
                 user=getpass.getuser(),
-                cwd=os.getcwd(), conda_env=get_conda_env(), got_detailed_env='VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ)
+                cwd=os.getcwd(), conda_env=get_conda_env(), 
+                got_detailed_env='VIRAL_NGS_METADATA_DETAILED_ENV' in os.environ,
+                env_vars = util.misc.dict_subset(os.environ, env_vars_to_save)
+    )
 
 def gather_run_info(beg_time, end_time, cmd_exception_str):
     return dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
