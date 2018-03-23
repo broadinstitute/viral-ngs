@@ -12,6 +12,7 @@ import functools
 import inspect
 
 import util.file
+import util.cmd_plugins
 from util.argparse_arg_types import OptionalFile
 import util._metadata.hashing as hashing
 from . import _log
@@ -104,8 +105,12 @@ class FileArg(object):
                                      mtime=file_stat[stat.ST_MTIME], ctime=file_stat[stat.ST_CTIME])
                     file_info.update(owner=pwd.getpwuid(file_stat[stat.ST_UID]).pw_name)
                     file_info.update(inode=file_stat[stat.ST_INO], device=file_stat[stat.ST_DEV])
-                    file_info.update(self.gather_bam_stats(fname))
-                    file_info.update(self.gather_fasta_stats(fname))
+                    if not util.file.ispipe(fname):
+                        for d in util.cmd_plugins.cmd_plugin_mgr.hook.cmd_compute_metadata_from_file_contents(fname=fname):
+                            file_info.update(d)
+                    
+#                    file_info.update(self.gather_bam_stats(fname))
+#                    file_info.update(self.gather_fasta_stats(fname))
                 except Exception:
                     if fname not in self.optional_fnames:
                         warnings.warn('Error getting file info for {} ({})'.format(fname, traceback.format_exc()))

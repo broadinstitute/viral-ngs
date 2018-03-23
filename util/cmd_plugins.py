@@ -27,6 +27,10 @@ def cmd_handle_file_arg(val, mode, compute_fnames):
         compute_fnames: function that takes `val` and returns a list of denoted files.
     """
 
+@cmd_hookspec
+def cmd_compute_metadata_from_file_contents(fname):
+    """Called to compute bits of metadata from the contents of a file, for metadata recording."""
+
 cmd_plugin_mgr.add_hookspecs(sys.modules[__name__])
 
 #cmd_plugin_mgr.trace.root.setwriter(print)

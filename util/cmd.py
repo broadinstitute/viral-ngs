@@ -289,3 +289,8 @@ def load_cmd_plugins():
 
         util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
         util.cmd_plugins.cmd_plugin_mgr.register(util.metadata)
+
+        for plugin in ('util.bam_stats_plugin', 'util.fasta_stats_plugin'):
+            util.cmd_plugins.cmd_plugin_mgr.register(importlib.import_module(plugin))
+
+        
