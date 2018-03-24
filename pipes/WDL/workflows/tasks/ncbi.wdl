@@ -111,7 +111,7 @@ task prepare_genbank {
         ${authors_sbt} \
         ${sep=' ' assemblies_fasta} \
         . \
-        --molType ${molType} \
+        --mol_type ${molType} \
         --organism "${organism}" \
         --biosample_map ${biosampleMap} \
         --master_source_table ${genbankSourceTable} \
