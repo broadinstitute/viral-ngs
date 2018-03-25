@@ -20,6 +20,8 @@ import fs
 import fs.multifs
 import fs_s3fs
 
+_log = logging.getLogger(__name__)
+
 def metadata_dir():
     """Returns the string describing directories to which metadata was recorded, 
     as specified by the environment variable VIRAL_NGS_METADATA_PATH.
@@ -76,7 +78,7 @@ def load_all_records():
 
 def store_step_record(step_data, write_obj=None):
     """Store step record to metadata database(s)"""
-    print('recording metadata to {}'.format(metadata_dirs_sanitized()))
+    _log.info('recording metadata to {}'.format(metadata_dirs_sanitized()))
     
     json_fname = u'{}.json.gz'.format(step_data['step']['step_id'])
     json_data_gzipped = util.file.to_json_gz(step_data, write_obj=write_obj, filename=json_fname)

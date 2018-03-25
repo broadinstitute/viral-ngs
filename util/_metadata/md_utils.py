@@ -10,14 +10,14 @@ import traceback
 import util.misc
 
 @contextlib.contextmanager
-def errors_as_warnings(msg='handling metadata', mask_errors=True):
-    """Context manager for wrapping non-essential functionality; if mask_errors=True (default), turns errors into warnings, so
-    that errors in non-essential code do not stop primary functionality from being carried out.  If runnning under pytest,
-    exceptions are left as errors.
-
-    Context manager returns a new empty list, to which exception string is appended if exception occurs; this lets later
-    code see if an exception happened.
-    """
+ def errors_as_warnings(msg='handling metadata', mask_errors=True):
+     """Context manager for wrapping non-essential functionality; if mask_errors=True (default), turns errors into
+     warnings, so that errors in non-essential code do not stop primary functionality from being carried out.
+     If runnning under pytest, exceptions are left as errors.
+     
+     Context manager returns a new empty list, to which exception string is appended if exception occurs; this lets later
+     code see if an exception happened.
+     """
 
     exc = []
     try:
@@ -53,7 +53,7 @@ def dict_has_keys(d, keys_str):
 
 def tuple_key_matches(k, patterns):
     """Test whether a nested-dict key `k` (tuple of keys) matches one of the `patterns`.
-    Each pattern is a tuple of strings giving possible values for each position."""
+    Each pattern is a tuple of strings giving possible values for each position in the key."""
     return any(all(str(k_elt) in p_elt.split() for k_elt, p_elt in zip(k, p) if p_elt) for p in patterns if len(k)>=len(p))
 
     

@@ -6,8 +6,6 @@ import Bio.SeqIO
 def cmd_compute_metadata_from_file_contents(fname):
     """Gather stats for a .fasta file"""
 
-    print('FASTA PLUGIN: ', fname)
-
     result = {}
     if not util.file.ispipe(fname) and any(fname.endswith(ext) for ext in '.fasta .fa .fasta.gz .fa.gz'.split()):
 

@@ -1,6 +1,17 @@
-'''This gives a main() function that serves as a nice wrapper
+'''Machinery for implementing a command-line interface, where we have several top-level scripts, each of which
+defines a number of commands.  Examples of top-level scripts are assembly.py, metagenomics.py, intrahost.py .
+
+This gives a main() function that serves as a nice wrapper
 around other commands and presents the ability to serve up multiple
 command-line functions from a single python script.
+
+Plugins:
+
+There is a simple plugin system, based on pytest's pluggy module, which lets you define custom code to be called for 
+every command run, or for every input/output file of a command.  Right now this is used not so
+much for permitting third-party plugins as for organizing viral-ngs code in a way that avoids needless explicit
+dependencies between modules.  cmd_plugins.py defines the available plugin points; load_cmd_plugins() in cmd.py 
+defines which plugins get loaded.
 '''
 
 import os
@@ -290,7 +301,5 @@ def load_cmd_plugins():
         util.cmd_plugins.cmd_plugin_mgr.register(sys.modules[__name__])
         util.cmd_plugins.cmd_plugin_mgr.register(util.metadata)
 
-        for plugin in ('util.bam_stats_plugin', 'util.fasta_stats_plugin'):
+        for plugin in ('util._metadata.bam_stats_plugin', 'util._metadata.fasta_stats_plugin'):
             util.cmd_plugins.cmd_plugin_mgr.register(importlib.import_module(plugin))
-
-        
