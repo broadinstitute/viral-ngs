@@ -1,7 +1,7 @@
 """Unit tests for util.metadata.
 
-Integration tests are implemented as a pytest plugin in tests/conftest.py , which causes the entire test suite to be run under metadata
-recording.
+Integration tests are implemented as a pytest plugin in test/conftest.py , which causes the entire test suite to be run
+under metadata recording.
 """
 
 __author__ = "ilya@broadinstitute.org"

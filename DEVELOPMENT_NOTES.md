@@ -62,3 +62,4 @@ key in test/input/WDL/test_input_*-dnenexus.dx.json).  The S3 bucket is watched 
 viral_ngs_travis_bytes_uploaded and viral_ngs_travis_bucket_all_reqs; they trigger, via SNS, the AWS Lambda 
 function s3_bucket_disabler_lambda, which inactivates the access key.  The travis tests should still succeed if the S3
 bucket is inaccessible, printing a warning.  The S3 bucket has a one-day file retention policy.
+
