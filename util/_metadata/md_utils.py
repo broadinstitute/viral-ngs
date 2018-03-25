@@ -10,14 +10,14 @@ import traceback
 import util.misc
 
 @contextlib.contextmanager
- def errors_as_warnings(msg='handling metadata', mask_errors=True):
-     """Context manager for wrapping non-essential functionality; if mask_errors=True (default), turns errors into
-     warnings, so that errors in non-essential code do not stop primary functionality from being carried out.
-     If runnning under pytest, exceptions are left as errors.
+def errors_as_warnings(msg='handling metadata', mask_errors=True):
+    """Context manager for wrapping non-essential functionality; if mask_errors=True (default), turns errors into
+    warnings, so that errors in non-essential code do not stop primary functionality from being carried out.
+    If runnning under pytest, exceptions are left as errors.
      
-     Context manager returns a new empty list, to which exception string is appended if exception occurs; this lets later
-     code see if an exception happened.
-     """
+    Context manager returns a new empty list, to which exception string is appended if exception occurs; this lets later
+    code see if an exception happened.
+    """
 
     exc = []
     try:
