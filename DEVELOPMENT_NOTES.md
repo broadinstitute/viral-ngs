@@ -48,3 +48,17 @@ Some TO DO improvements for the future:
 
 ### Building documentation
 Documentation is built automatically for certain branches of viral-ngs by [Read the Docs](http://viral-ngs.readthedocs.io/en/latest/). The documentation template files reside within `viral-ngs/docs`, and are formatted in standard docutils [reStructuredText format](http://docutils.sourceforge.net/rst.html). [Pandoc](http://pandoc.org/) may be used for converting from other formats (such as Markdown) to reStructuredText. The `sphinx-argparse` module is used to automatically generate documentation for the argparse parsers used in viral-ngs.
+
+### Testing setup for testing of metadata recording to s3
+
+When running the regression test suite for viral-ngs on travis-ci, we turn on logging of the metadata of executed commands
+to an AWS S3 bucket.  This tests that the logging mechanism does not interfere with normal operation.  Below are the
+AWS elements involved.  AWS IAM user arn:aws:iam::194065838422:user/viral_ngs_travis has only one permission,
+specified by policy arn:aws:iam::194065838422:policy/viral_ngs_travis_policy : to write to the S3 bucket
+arn:aws:s3:::viral-ngs-logs-travis .  This user has one access key, which is passed to the test code using an encrypted
+travis environment variable VIRAL_NGS_METADATA_PATH ; the key is also passed to DNAnexus test code, via a file
+stored in the project "Broad - viral-ngs - dxWDL - CI - private files" as "ilya/metapath" (see stage-0.metadata_path
+key in test/input/WDL/test_input_*-dnenexus.dx.json).  The S3 bucket is watched by CloudWatch alarms
+viral_ngs_travis_bytes_uploaded and viral_ngs_travis_bucket_all_reqs; they trigger, via SNS, the AWS Lambda 
+function s3_bucket_disabler_lambda, which inactivates the access key.  The travis tests should still succeed if the S3
+bucket is inaccessible, printing a warning.  The S3 bucket has a one-day file retention policy.
