@@ -11,6 +11,7 @@ import gzip
 import contextlib
 import warnings
 import shlex
+import logging
 
 import util.misc
 import util.file
