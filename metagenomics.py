@@ -1238,9 +1238,11 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                                                                                                   plural="s" if count_threshold>1 else "" )
                 )
         samples[sample_name] = sample_summary
-    json_summary = json.dumps(samples, sort_keys=True, indent=4, separators=(',', ': '))
-    json_out.write(json_summary)
-    json_out.close()
+
+    if json_out != None:
+        json_summary = json.dumps(samples, sort_keys=True, indent=4, separators=(',', ': '))
+        json_out.write(json_summary)
+        json_out.close()
 
 
     if csv_out != None:
