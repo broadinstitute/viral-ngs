@@ -381,7 +381,8 @@ def fasta2fsa(infname, outdir, biosample=None):
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None):
     with open(cmt_fname, 'wt') as outf:
         outf.write("StructuredCommentPrefix\t##Genome-Assembly-Data-START##\n")
-        outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs {}\n".format(util.version.get_version()))
+        # note: the <tool name> v. <version name> format is required by NCBI, don't remove the " v. "
+        outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs v. {}\n".format(util.version.get_version()))
         if name:
             outf.write("Assembly Name\t{}\n".format(name))
         if coverage:
