@@ -127,6 +127,7 @@ task prepare_genbank {
     Array[File] structured_comment_files = glob("*.cmt")
     Array[File] genbank_preview_files = glob("*.gbf")
     Array[File] source_table_files = glob("*.src")
+    Array[File] fasta_per_chr_files = glob("*.fsa")
     Array[File] validation_files = glob("*.val")
     File        errorSummary = "errorsummary.val.txt"
   }
