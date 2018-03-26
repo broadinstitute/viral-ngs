@@ -18,7 +18,6 @@ task multi_align_mafft_ref {
       --preservecase \
       --localpair \
       --sampleNameListFile ${out_prefix}-sample_names.txt \
-      --verbose \
       --loglevel DEBUG
   }
 
@@ -53,7 +52,6 @@ task multi_align_mafft {
       --preservecase \
       --localpair \
       --sampleNameListFile ${out_prefix}-sample_names.txt \
-      --verbose \
       --loglevel DEBUG
   }
 
