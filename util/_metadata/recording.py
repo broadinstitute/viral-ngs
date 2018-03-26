@@ -275,8 +275,6 @@ def cmd_call_cmd(cmd_main, args, config):
 
             # end: if metadata_db.is_metadata_tracking_enabled() and not enclosing_steps
 
-            return cmd_result
-
         # end: with unpack_outcome(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings()
 
     # end: with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps:
