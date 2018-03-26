@@ -35,10 +35,11 @@ VIRAL_NGS_METADATA_FORMAT='1.0.0'
 
 @util.cmd_plugins.cmd_hookimpl
 def cmd_handle_file_arg(val, mode, compute_fnames):
-    """Handle a command-line argument denoting input or output file(s).
-    Here we wrap the value in a FileArg object, to record, besides the original argument value, whether this arg denotes input or output
-    files, and how to get the names of these files; in the recording module's implementation of the cmd_call_cmd() hook below,
-    the FileArg objects will be replaced with the original argument values (`val`) before calling the original command.
+    """Handle a command-line argument denoting input or output file(s).  Here we wrap the value in a FileArg
+    object, to record, besides the original argument value, whether this arg denotes input or output files,
+    and how to get the names of these files; in the recording module's implementation of the cmd_call_cmd()
+    hook below, the FileArg objects will be replaced with the original argument values (`val`) before calling
+    the original command.
     """
     return FileArg(val, mode, compute_fnames)
 
@@ -46,8 +47,10 @@ def cmd_handle_file_arg(val, mode, compute_fnames):
 
 def create_run_id(t=None):
     """Generate a unique ID for a run (set of steps run as part of one workflow)."""
-    return util.file.string_to_file_name('__'.join(map(str, (time.strftime('%Y%m%d%H%M%S', time.localtime(t))[2:], getpass.getuser(),
-                                                             os.path.basename(os.getcwd()), uuid.uuid4()))))[:210]
+    return util.file.string_to_file_name('__'.join(map(str, 
+                                                       (time.strftime('%Y%m%d%H%M%S', time.localtime(t))[2:], 
+                                                        getpass.getuser(),
+                                                        os.path.basename(os.getcwd()), uuid.uuid4()))))[:210]
 
 def set_run_id():
     """Generate and record in the environment a unique ID for a run (set of steps run as part of one workflow)."""
@@ -106,7 +109,8 @@ def gather_version_info(step_id):
                 code_hash=code_hash)
 
 def gather_run_env():
-    """Gather runtime environment"""
+    """Gather the runtime environment"""
+
     env_vars_to_save = (
         # if running on DNAnexus 
         'DX_JOB_ID', 'DX_PROJECT_CONTEXT_ID',
@@ -123,16 +127,19 @@ def gather_run_env():
     )
 
 def gather_run_info(beg_time, end_time, cmd_exception_str):
+    """Gather information about this run of the command: duration, the command line, and whether the run succeeded."""
+
     return dict(beg_time=beg_time, end_time=end_time, duration=end_time-beg_time,
                 exception=cmd_exception_str,
                 argv=tuple(sys.argv))
 
 def replace_file_args(args):
-    # for args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when adding the args to
-    # the parser, the corresponding values will be of type FileArg, rather than strings.  We must convert these values
-    # to str before calling the original command implementation `cmd_main`.
-    def _replace_file_args(val):
-        if isinstance(val, FileArg): return val.val
+    """For command args denoting input or output files, for which 'type=InFile' or 'type=OutFile' was used when
+    adding the args to the parser, the corresponding values will be of type FileArg, rather than strings.  We
+    must convert these values to str before calling the original command implementation."""
+
+    def _replace_file_args(val): 
+        if isinstance(val, FileArg): return val.val 
         if isinstance(val, (list, tuple)): return list(map(_replace_file_args, val))
         return val
 
@@ -140,6 +147,7 @@ def replace_file_args(args):
         setattr(args, arg, _replace_file_args(val))
 
 def record_step_to_db(step_data, cmd_result):
+
     """Record the record of this step to the metadata database.  In the process, for any FileArg args of the command,
     gather hashsums and other file info for the denoted file(s)."""
 
@@ -205,12 +213,14 @@ def cmd_call_cmd(cmd_main, args, config):
 
     Called from util.cmd.attach_main().
     
-    Args:
-        cmd_main: function implementing the command. Function takes one parameter, an argparse.Namespace, giving the values of the command's
-             arguments.
+    Args: 
+       cmd_main: function implementing the command. Function takes one parameter, an argparse.Namespace,
+        giving the values of the command's arguments.
+       args: the parsed arguments
 
     Returns:
         a wrapper for cmd_main, which has the same signature but adds metadata recording if enabled.
+
     """
 
     args_dict = vars(args).copy()
@@ -262,3 +272,14 @@ def cmd_call_cmd(cmd_main, args, config):
                                          enclosing_steps=enclosing_steps)
                 record_step_to_db(step_data, cmd_result)
                 _log.info('metadata recording took {}s'.format(time.time() - end_time))
+
+            # end: if metadata_db.is_metadata_tracking_enabled() and not enclosing_steps
+
+            return cmd_result
+
+        # end: with unpack_outcome(outcome) as (cmd_result, cmd_exception, cmd_exception_str), errors_as_warnings()
+
+    # end: with util.misc.tmp_set_env('VIRAL_NGS_METADATA_STEPS_RUNNING', step_id, append=True, sep=':') as enclosing_steps:
+# end: def cmd_call_cmd(cmd_main, args, config)
+
+

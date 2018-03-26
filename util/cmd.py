@@ -12,6 +12,11 @@ every command run, or for every input/output file of a command.  Right now this 
 much for permitting third-party plugins as for organizing viral-ngs code in a way that avoids needless explicit
 dependencies between modules.  cmd_plugins.py defines the available plugin points; load_cmd_plugins() in cmd.py 
 defines which plugins get loaded.
+
+Design notes:
+
+Possible alternative to implementing our own CLI framework is to use one of the ones from
+http://docs.python-guide.org/en/latest/scenarios/cli/ .
 '''
 
 import os
