@@ -1168,6 +1168,8 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
     samples = {}
     same_level = False
+
+    Abundance = collections.namedtuple("Abundance", "percent,count")
     
     def indent_len(in_string):
         return len(in_string)-len(in_string.lstrip())
@@ -1185,58 +1187,62 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 if len(line.rstrip('\r\n').strip()) == 0:
                     continue
                 csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
-                row = next(csv.reader([line.strip().rstrip('\n')], dialect="kraken_report"))
+                fieldnames = ["pct_of_reads","num_reads","reads_exc_children","rank","NCBI_tax_ID","sci_name"]
+                row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
                 
-                indent_of_line = indent_len(row[5])
-                row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
+                indent_of_line = indent_len(row["sci_name"])
+                # remove leading/trailing whitespace from each item
+                row = { k:v.strip() for k, v in row.items()}
                 
                 # rows are formatted like so:
                 # 0.00  16  0   D   10239     Viruses
                 #
-                # row[0] Percentage of reads covered by the clade rooted at this taxon
-                # row[1] Number of reads covered by the clade rooted at this taxon
-                # row[2] Number of reads assigned directly to this taxon
-                # row[3] A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
-                # row[4] NCBI taxonomy ID
-                # row[5] indented scientific name
+                # row["pct_of_reads"] Percentage of reads covered by the clade rooted at this taxon
+                # row["num_reads"] Number of reads covered by the clade rooted at this taxon
+                # row["reads_exc_children"] Number of reads assigned directly to this taxon
+                # row["rank"] A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
+                # row["NCBI_tax_ID"] NCBI taxonomy ID
+                # row["sci_name"] indented scientific name
 
-                if indent_of_line == indent_of_selection:
+                if indent_of_line <= indent_of_selection:
                     should_process = False
                     indent_of_selection=-1
 
                 if indent_of_selection == -1:
-                    if row[5].lower() in tax_headings_copy:
-                        tax_headings_copy.remove(row[5].lower())
+                    if row["sci_name"].lower() in tax_headings_copy:
+                        tax_headings_copy.remove(row["sci_name"].lower())
                         
                         should_process = True
                         indent_of_selection = indent_of_line
-                        currently_being_processed = row[5]
-                        sample_summary[row[5]] = collections.OrderedDict()
-                        if row[3] == rank_code(taxlevel_focus):
+                        currently_being_processed = row["sci_name"]
+                        sample_summary[row["sci_name"]] = collections.OrderedDict()
+                        if row["rank"] == rank_code(taxlevel_focus):
                             same_level = True
-                        if row[3] == "-":
+                        if row["rank"] == "-":
                             log.warning("Non-taxonomic parent level selected")
                 
                 if should_process:
-                    if (rank_code(taxlevel_focus) == row[3]):
+                    if (rank_code(taxlevel_focus) == row["rank"]):
                         
-                        if int(row[1])>=count_threshold:
-                            sample_summary[currently_being_processed][row[5]] = [float(row[0]), int(row[1])]
+                        if int(row["num_reads"])>=count_threshold:
+                            sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
 
         
         for k,taxa in sample_summary.items():
             sample_summary[k] = collections.OrderedDict(sorted(taxa.items(), key=lambda item: (item[1][1]) , reverse=True)[:top_n_entries])
 
             if len(list(sample_summary[k].items()))>0:
-                log.info("{f}: most abundant among {heading} at the {level} level: \"{name}\" with {reads} reads ({percent:.2%} of total); included since >{threshold} read{plural}".format(
-                                                                                                  f=f,
-                                                                                                  heading=k, 
-                                                                                                  level=taxlevel_focus, 
-                                                                                                  name=list(sample_summary[k].items())[0][0],
-                                                                                                  reads=list(sample_summary[k].items())[0][1][1],
-                                                                                                  percent=list(sample_summary[k].items())[0][1][0]/100.0,
-                                                                                                  threshold=count_threshold,
-                                                                                                  plural="s" if count_threshold>1 else "" )
+                log.info("{f}: most abundant among {heading} at the {level} level: "
+                            "\"{name}\" with {reads} reads ({percent:.2%} of total); "
+                            "included since >{threshold} read{plural}".format(
+                                                                          f=f,
+                                                                          heading=k, 
+                                                                          level=taxlevel_focus, 
+                                                                          name=list(sample_summary[k].items())[0][0],
+                                                                          reads=list(sample_summary[k].items())[0][1].count,
+                                                                          percent=list(sample_summary[k].items())[0][1].percent/100.0,
+                                                                          threshold=count_threshold,
+                                                                          plural="s" if count_threshold>1 else "" )
                 )
         samples[sample_name] = sample_summary
 
@@ -1268,8 +1274,8 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 sample_dict["sample"] = sample
                 for heading,taxon in taxa.items(): 
                     for entry in taxon.keys():
-                        sample_dict[entry+"-pt"] = taxon[entry][0]
-                        sample_dict[entry+"-ct"] = taxon[entry][1]
+                        sample_dict[entry+"-pt"] = taxon[entry].percent
+                        sample_dict[entry+"-ct"] = taxon[entry].count
                 writer.writerow(sample_dict)
                 
 
