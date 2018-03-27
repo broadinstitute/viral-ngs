@@ -1154,11 +1154,12 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N taxa by read count (default: %(default)s)')
     parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
     parser.add_argument('--noHist', action='store_true', dest="no_hist", help='When topN==1, write out a report by-sample rather than a histogram.')
+    parser.add_argument('--zeroFill', action='store_true', dest="zero_fill", help='When absent from a sample, write zeroes (rather than leaving blank).')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
     return parser
 
-def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist):
+def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill):
     """
         By default, when --taxHeading is at the same level as --taxlevelFocus
         a summary with lines for each sample is emitted. Otherwise, a histogram is returned.
@@ -1249,7 +1250,8 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
         # if we're writing out at the same level as the query header
         # write out the fractions and counts
-        if same_level or (top_n_entries==1 and no_hist):
+        #if same_level or (top_n_entries==1 and no_hist):
+        if same_level or no_hist:
 
             fieldnames = set()
             for sample, taxa in samples.items():
@@ -1258,7 +1260,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                         for k in taxon.keys():
                             fieldnames |= set([k+"-pt",k+"-ct"])
 
-            writer = csv.DictWriter(csv_out, fieldnames=["sample"]+sorted(list(fieldnames)))
+            writer = csv.DictWriter(csv_out, restval=0 if zero_fill else '', fieldnames=["sample"]+sorted(list(fieldnames)))
             writer.writeheader()
 
             for sample, taxa in samples.items():
@@ -1290,7 +1292,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
 
             fieldnames = ["heading","taxon","num_samples"]
-            writer = csv.DictWriter(csv_out, fieldnames=fieldnames)
+            writer = csv.DictWriter(csv_out, restval=0 if zero_fill else '', fieldnames=fieldnames)
             writer.writeheader()
 
             for heading,taxa_counts in summary_counts.items():
