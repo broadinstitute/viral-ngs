@@ -1145,15 +1145,15 @@ class KrakenBuildError(Exception):
 
 
 def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
-    parser.add_argument('summary_files_in', nargs="+", help='Kraken summary text file with tab-delimited taxonomic levels.')
+    parser.add_argument('summary_files_in', nargs="+", help='Kraken-format summary text file with tab-delimited taxonomic levels.')
     parser.add_argument('--jsonOut', dest="json_out", type=argparse.FileType('w'), help='The path to a json file containing the relevant parsed summary data in json format.')
     parser.add_argument('--csvOut', dest="csv_out", type=argparse.FileType('w'), help='The path to a csv file containing sample-specific counts.')
-    parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s)', default="Viruses")
+    parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s). More than one can be specified.', default="Viruses")
     parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="genus", 
                         choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
-    parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N taxa by read count (default: %(default)s)')
+    parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N most abundant taxa by read count (default: %(default)s)')
     parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
-    parser.add_argument('--noHist', action='store_true', dest="no_hist", help='When topN==1, write out a report by-sample rather than a histogram.')
+    parser.add_argument('--noHist', action='store_true', dest="no_hist", help='Write out a report by-sample rather than a histogram.')
     parser.add_argument('--zeroFill', action='store_true', dest="zero_fill", help='When absent from a sample, write zeroes (rather than leaving blank).')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
@@ -1161,8 +1161,13 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
 
 def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill):
     """
-        By default, when --taxHeading is at the same level as --taxlevelFocus
-        a summary with lines for each sample is emitted. Otherwise, a histogram is returned.
+        Aggregates taxonomic abundance data from multiple Kraken-format summary files.
+        It is intended to report information on a particular taxonomic level (--taxlevelFocus; ex. 'species'), 
+        within a higher-level grouping (--taxHeading; ex. 'Viruses'). By default, when --taxHeading 
+        is at the same level as --taxlevelFocus a summary with lines for each sample is emitted. 
+        Otherwise, a histogram is returned. If per-sample information is desired, --noHist can be specified.
+        If --topN is specified, only the top N most abundant taxa are included in the histogram count or per-sample output. 
+        If a number is specified for --countThreshold, only taxa with that number of reads (or greater) are included. 
         Full data returned via --jsonOut (filtered by --topN and --countThreshold), whereas -csvOut returns a summary.
     """
 
