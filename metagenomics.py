@@ -665,6 +665,8 @@ def rank_code(rank):
         return "K"
     elif rank == "superkingdom":
         return "D"
+    elif rank == "unclassified":
+        return "U"
     else:
         return "-"
 
@@ -1149,23 +1151,25 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--jsonOut', dest="json_out", type=argparse.FileType('w'), help='The path to a json file containing the relevant parsed summary data in json format.')
     parser.add_argument('--csvOut', dest="csv_out", type=argparse.FileType('w'), help='The path to a csv file containing sample-specific counts.')
     parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s). More than one can be specified.', default="Viruses")
-    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="genus", 
+    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="species", 
                         choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
-    parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N most abundant taxa by read count (default: %(default)s)')
+    parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N most abundant taxa by read count (default: %(default)s)', default=100)
     parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
-    parser.add_argument('--noHist', action='store_true', dest="no_hist", help='Write out a report by-sample rather than a histogram.')
     parser.add_argument('--zeroFill', action='store_true', dest="zero_fill", help='When absent from a sample, write zeroes (rather than leaving blank).')
+    parser.add_argument('--noHist', action='store_true', dest="no_hist", help='Write out a report by-sample rather than a histogram.')
+    parser.add_argument('--includeRoot', action='store_true', dest="include_root", help='Include the count of reads at the root level and the unclassified bin.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
     return parser
 
-def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill):
+def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill, include_root):
     """
         Aggregates taxonomic abundance data from multiple Kraken-format summary files.
         It is intended to report information on a particular taxonomic level (--taxlevelFocus; ex. 'species'), 
         within a higher-level grouping (--taxHeading; ex. 'Viruses'). By default, when --taxHeading 
         is at the same level as --taxlevelFocus a summary with lines for each sample is emitted. 
         Otherwise, a histogram is returned. If per-sample information is desired, --noHist can be specified.
+        In per-sample data, the suffix "-pt" indicates percentage, so a value of 0.02 is 0.0002 of the total number of reads for the sample.
         If --topN is specified, only the top N most abundant taxa are included in the histogram count or per-sample output. 
         If a number is specified for --countThreshold, only taxa with that number of reads (or greater) are included. 
         Full data returned via --jsonOut (filtered by --topN and --countThreshold), whereas -csvOut returns a summary.
@@ -1182,6 +1186,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
     for f in list(summary_files_in):
         sample_name, extension = os.path.splitext(f)
         sample_summary = {}
+        sample_root_summary = {}
         tax_headings_copy = [s.lower() for s in tax_headings]
 
         with util.file.open_or_gzopen(f, 'rU') as inf:
@@ -1209,6 +1214,13 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 # row["NCBI_tax_ID"] NCBI taxonomy ID
                 # row["sci_name"] indented scientific name
 
+                # if the root-level bins (root, unclassified) should be included, do so, but bypass normal 
+                # stateful parsing logic since root does not have a distinct rank level
+                if row["sci_name"].lower() in ["root","unclassified"] and include_root:
+                    sample_root_summary[row["sci_name"]] = collections.OrderedDict()
+                    sample_root_summary[row["sci_name"]][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
+                    continue
+
                 if indent_of_line <= indent_of_selection:
                     should_process = False
                     indent_of_selection=-1
@@ -1220,15 +1232,16 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                         should_process = True
                         indent_of_selection = indent_of_line
                         currently_being_processed = row["sci_name"]
-                        sample_summary[row["sci_name"]] = collections.OrderedDict()
+                        sample_summary[currently_being_processed] = collections.OrderedDict()
                         if row["rank"] == rank_code(taxlevel_focus):
                             same_level = True
                         if row["rank"] == "-":
                             log.warning("Non-taxonomic parent level selected")
                 
                 if should_process:
-                    if (rank_code(taxlevel_focus) == row["rank"]):
-                        
+                    # skip "-" rank levels since they do not occur at the sample level
+                    # otherwise include the taxon row if the rank matches the desired level of focus
+                    if (row["rank"] != "-" and rank_code(taxlevel_focus) == row["rank"]):                        
                         if int(row["num_reads"])>=count_threshold:
                             sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
 
@@ -1249,6 +1262,12 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                                                                           threshold=count_threshold,
                                                                           plural="s" if count_threshold>1 else "" )
                 )
+
+        if include_root:
+            # include root-level bins (root, unclassified) in the returned data
+            for k,taxa in sample_root_summary.items():
+                assert (k not in sample_summary), "{k} already in sample summary".format(k=k)
+                sample_summary[k] = taxa
         samples[sample_name] = sample_summary
 
     if json_out != None:
@@ -1261,7 +1280,6 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
         # if we're writing out at the same level as the query header
         # write out the fractions and counts
-        #if same_level or (top_n_entries==1 and no_hist):
         if same_level or no_hist:
 
             fieldnames = set()
@@ -1271,7 +1289,13 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                         for k in taxon.keys():
                             fieldnames |= set([k+"-pt",k+"-ct"])
 
-            writer = csv.DictWriter(csv_out, restval=0 if zero_fill else '', fieldnames=["sample"]+sorted(list(fieldnames)))
+            heading_columns = ["sample"]
+            if include_root:
+                root_fields = ["root-pt","root-ct","unclassified-pt","unclassified-ct"]
+                fieldnames -= set(root_fields)
+                heading_columns += root_fields
+
+            writer = csv.DictWriter(csv_out, restval=0 if zero_fill else '', fieldnames=heading_columns+sorted(list(fieldnames)))
             writer.writeheader()
 
             for sample, taxa in samples.items():
