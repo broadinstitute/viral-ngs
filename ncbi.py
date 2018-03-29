@@ -381,6 +381,7 @@ def fasta2fsa(infname, outdir, biosample=None):
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None):
     with open(cmt_fname, 'wt') as outf:
         outf.write("StructuredCommentPrefix\t##Genome-Assembly-Data-START##\n")
+        # note: the <tool name> v. <version name> format is required by NCBI, don't remove the " v. "
         outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs v. {}\n".format(util.version.get_version()))
         if name:
             outf.write("Assembly Name\t{}\n".format(name))
@@ -448,7 +449,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                             outf.write(inf.readline())
                             for line in inf:
                                 row = line.rstrip('\n').split('\t')
-                                if row[0] == sample_base:
+                                if row[0] == sample_base or row[0] == sample:
                                     row[0] = sample
                                     outf.write('\t'.join(row) + '\n')
 
