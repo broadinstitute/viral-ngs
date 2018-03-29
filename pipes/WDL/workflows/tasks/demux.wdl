@@ -111,3 +111,38 @@ task illumina_demux {
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
   }
 }
+
+task merge_and_reheader_bams {
+  Array[File]+  in_bams
+  File?         reheader_table # tsv with 3 cols: field, old value, new value
+  String        out_basename
+
+  command {
+    set -ex -o pipefail
+
+    if [ ${length(in_bams)} -gt 1 ]; then
+      read_utils.py merge_bams ${sep=' ' in_bams} merged.bam --loglevel DEBUG
+    else
+      echo "Skipping merge, only one input file"
+      ln -s ${select_first(in_bams)} merged.bam
+    fi    
+
+    if [ -f ${reheader_table} ]; then
+      read_utils.py merged.bam ${reheader_table} ${out_basename}.bam --loglevel DEBUG
+    else
+      echo "Skipping reheader, no mapping table specified"
+      ln -s merged.bam ${out_basename}.bam
+    fi
+  }
+
+  output {
+    File  out_bam = "${out_basename}.bam"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2000 MB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd2_x4"
+  }
+}

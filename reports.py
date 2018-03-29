@@ -134,6 +134,19 @@ def get_assembly_stats(sample,
     return (header, out)
 
 
+def genome_coverage_stats_only(mapped_bam, chr_name=None, cov_thresholds=(1, 5, 20, 100)):
+    out = {}
+    with pysam.AlignmentFile(mapped_bam, 'rb') as bam:
+        coverages = list([pcol.nsegments for pcol in bam.pileup(chr_name)])
+    if coverages:
+        out['aln2self_cov_median'] = median(coverages)
+        out['aln2self_cov_mean'] = "%0.3f" % mean(coverages)
+        out['aln2self_cov_mean_non0'] = "%0.3f" % mean([n for n in coverages if n > 0])
+        for thresh in cov_thresholds:
+            out['aln2self_cov_%dX' % thresh] = sum(1 for n in coverages if n >= thresh)
+    return out
+
+
 def assembly_stats(samples, outFile, cov_thresholds, assembly_dir, assembly_tmp, align_dir, reads_dir, raw_reads_dir):
     ''' Fetch assembly-level statistics for a given sample '''
     header_written = False
@@ -248,6 +261,54 @@ __commands__.append(('coverage_stats', parser_coverage_stats))
 
 
 #######################
+
+def _get_samples_from_bam(bam):
+    with pysam.AlignmentFile(bam) as af:
+        return set(rg['SM'] for rg in af.header['RG'])
+def _get_chrs_from_bam(bam):
+    with pysam.AlignmentFile(bam) as af:
+        return list(sq['SN'] for sq in af.header['SQ'])
+
+def parser_coverage_only(parser=argparse.ArgumentParser()):
+    parser.add_argument('mapped_bams', nargs='+', help='Aligned-to-self mapped bam files.')
+    parser.add_argument('out_report', help='Output report file.')
+    parser.add_argument('--cov_thresholds',
+                        nargs='+',
+                        type=int,
+                        default=(1, 5, 20, 100),
+                        help='Genome coverage thresholds to report on. (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, coverage_only, split_args=True)
+    return parser
+def coverage_only(mapped_bams, out_report, cov_thresholds=(1, 5, 20, 100)):
+    header = ['sample','aln2self_cov_median', 'aln2self_cov_mean', 'aln2self_cov_mean_non0']
+    header += ['aln2self_cov_%dX' % thresh for thresh in cov_thresholds]
+    with open(out_report, 'wt') as outf:
+        outf.write('\t'.join(header)+'\n')
+        for bam in mapped_bams:
+            # check for index and auto-create if needed
+            with pysam.AlignmentFile(bam) as af:
+                is_indexed = af.has_index()
+            if not is_indexed:
+                pysam.index(bam)
+            # get unique sample name
+            samples = _get_samples_from_bam(bam)
+            if len(samples) != 1:
+                raise Exception("input bam file {} has {} unique samples: {} (require one unique sample)".format(bam, len(samples), str(samples)))
+            sample_name = samples.pop()
+            # get and write coverage stats
+            row = genome_coverage_stats_only(bam, cov_thresholds=cov_thresholds)
+            row['sample'] = sample_name
+            outf.write('\t'.join([str(row.get(h,'')) for h in header])+'\n')
+            # for multi-seg genomes, also do per-chr stats
+            chrs = _get_chrs_from_bam(bam)
+            if len(chrs) > 1:
+                for i in range(len(chrs)):
+                    row = genome_coverage_stats_only(bam, chr_name=chrs[i], cov_thresholds=cov_thresholds)
+                    row['sample'] = "{}-{}".format(sample_name, i+1)
+                    outf.write('\t'.join([str(row.get(h,'')) for h in header])+'\n')
+__commands__.append(('coverage_only', parser_coverage_only))
+
 
 def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCounts=False):
     """ Write or print pairwise alignment summary information for sequences in two FASTA
