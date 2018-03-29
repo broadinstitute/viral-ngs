@@ -106,7 +106,7 @@ class MafftTool(tools.Tool):
 
         if not (retree or localpair or globalpair):
             tool_cmd.append("--auto")
-        tool_cmd.extend(["--thread", "{}".format(util.misc.sanitize_thread_count(threads, tool_max_cores_value=-1))])
+        tool_cmd.extend(["--thread", "{}".format(util.misc.sanitize_thread_count(threads))])
 
         if localpair and globalpair:
             raise Exception("Alignment type must be either local or global, not both.")

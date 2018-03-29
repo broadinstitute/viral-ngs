@@ -97,6 +97,31 @@ task plot_coverage {
 }
 
 
+task coverage_report {
+  Array[File]+ mapped_bams
+  Array[File]  mapped_bam_idx # optional.. speeds it up if you provide it, otherwise we auto-index
+  String       out_report_name="coverage_report.txt"
+
+  command {
+    reports.py coverage_only \
+      ${sep=' ' mapped_bams} \
+      ${out_report_name} \
+      --loglevel DEBUG
+  }
+
+  output {
+    File  coverage_report = "${out_report_name}"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "2000 MB"
+    cpu: 2
+    dx_instance_type: "mem1_ssd2_x4"
+  }
+}
+
+
 task fastqc {
   File reads_bam
 
