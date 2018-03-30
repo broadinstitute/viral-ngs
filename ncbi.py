@@ -64,15 +64,19 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                         raise Exception("this line has only one column?")
                     row[0] = int(row[0])
                     row[1] = int(row[1])
+                    strand = None
                     if row[1] >= row[0]:
+                        strand = '+'
                         row[0] = cmap.mapChr(refSeqID, altid, row[0], -1)[1]
                         row[1] = cmap.mapChr(refSeqID, altid, row[1], 1)[1]
                     else:
                         # negative strand feature
+                        strand = '-'
                         row[0] = cmap.mapChr(refSeqID, altid, row[0], 1)[1]
                         row[1] = cmap.mapChr(refSeqID, altid, row[1], -1)[1]
 
                     if row[0] and row[1]:
+                        # feature completely within bounds
                         feature_keep = True
                     elif row[0] == None and row[1] == None:
                         # feature completely out of bounds
@@ -81,12 +85,39 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     else:
                         # feature overhangs end of sequence
                         if oob_clip:
-                            if row[0] == None:
-                                row[0] = '<1'
-                            if row[1] == None:
-                                row[1] = '>{}'.format(alt_chrlens[altid])
+                            if strand == '+':
+                                # clip pos strand feature
+                                if row[0] == None:
+                                    # clip the beginning
+                                    if row[2] == 'CDS':
+                                        # for CDS features, clip in multiples of 3
+                                        r = (row[1] if row[1] is not None else alt_chrlens[altid])
+                                        row[0] = '<{}'.format((r % 3) + 1)
+                                    else:
+                                        row[0] = '<1'
+                                if row[1] == None:
+                                    # clip the end
+                                    row[1] = '>{}'.format(alt_chrlens[altid])
+                            else:
+                                # clip neg strand feature
+                                if row[0] == None:
+                                    # clip the beginning (right side)
+                                    r = alt_chrlens[altid]
+                                    if row[2] == 'CDS':
+                                        # for CDS features, clip in multiples of 3
+                                        l = (row[1] if row[1] is not None else 1) # new left
+                                        r = r - ((r-l+1) % 3) # create new right in multiples of 3 from left
+                                        if (r-l) < 3:
+                                            # less than a codon remains, drop it
+                                            feature_keep = False
+                                            continue
+                                    row[0] = '>{}'.format(r)
+                                if row[1] == None:
+                                    # clip the end (left side)
+                                    row[1] = '<1'
                             feature_keep = True
                         else:
+                            # drop the partially out of bounds feature
                             feature_keep = False
                             continue
                     line = '\t'.join(map(str, row))
