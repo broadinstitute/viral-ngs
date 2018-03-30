@@ -82,11 +82,19 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                         # feature overhangs end of sequence
                         if oob_clip:
                             if row[0] == None:
-                                row[0] = '<1'
+                                # clip the beginning
+                                if row[2] == 'CDS':
+                                    # for CDS features, clip in multiples of 3
+                                    r = (row[1] if row[1] is not None else alt_chrlens[altid])
+                                    row[0] = '<{}'.format((r % 3) + 1)
+                                else:
+                                    row[0] = '<1'
                             if row[1] == None:
+                                # clip the end
                                 row[1] = '>{}'.format(alt_chrlens[altid])
                             feature_keep = True
                         else:
+                            # drop the partially out of bounds feature
                             feature_keep = False
                             continue
                     line = '\t'.join(map(str, row))
