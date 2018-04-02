@@ -2,7 +2,7 @@
 task multi_align_mafft_ref {
   File           reference_fasta
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
-  String         out_prefix = basename(reference_fasta, '.fasta')
+  String         fasta_basename = basename(reference_fasta, '.fasta')
   Int?           mafft_maxIters
   Float?         mafft_ep
   Float?         mafft_gapOpeningPenalty
@@ -14,16 +14,16 @@ task multi_align_mafft_ref {
       ${'--ep' + mafft_ep} \
       ${'--gapOpeningPenalty' + mafft_gapOpeningPenalty} \
       ${'--maxiters' + mafft_maxIters} \
-      --outFilePrefix ${out_prefix} \
+      --outFilePrefix align_mafft-${fasta_basename} \
       --preservecase \
       --localpair \
-      --sampleNameListFile ${out_prefix}-sample_names.txt \
+      --sampleNameListFile align_mafft-${fasta_basename}-sample_names.txt \
       --loglevel DEBUG
   }
 
   output {
-    File         sampleNamesFile   = "${out_prefix}-sample_names.txt"
-    Array[File]+ alignments_by_chr = glob("${out_prefix}*.fasta")
+    #File         sampleNamesFile   = "align_mafft-${fasta_basename}-sample_names.txt"
+    Array[File]+ alignments_by_chr = glob("align_mafft-${fasta_basename}*.fasta")
   }
 
   runtime {
