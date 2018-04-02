@@ -40,6 +40,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
     with open(ref_tbl, 'rt') as inf:
         with open(out_tbl, 'wt') as outf:
             for line in inf:
+                notes = [] # reset with each new line
                 line = line.rstrip('\r\n')
                 if not line:
                     pass
@@ -85,6 +86,8 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     else:
                         # feature overhangs end of sequence
                         if oob_clip:
+                            if row[2] == 'CDS':
+                                notes.append('sequencing did not capture complete CDS')
                             if strand == '+':
                                 # clip pos strand feature
                                 if row[0] == None:
@@ -97,7 +100,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                                         row[0] = '<1'
                                 if row[1] == None:
                                     # clip the end
-                                    row[1] = '>{}'.format(alt_chrlens[altid])
+                                    row[1] = '<{}'.format(alt_chrlens[altid])
                             else:
                                 # clip neg strand feature
                                 if row[0] == None:
@@ -111,7 +114,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                                             # less than a codon remains, drop it
                                             feature_keep = False
                                             continue
-                                    row[0] = '>{}'.format(r)
+                                    row[0] = '<{}'.format(r)
                                 if row[1] == None:
                                     # clip the end (left side)
                                     row[1] = '<1'
@@ -130,6 +133,8 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                         # skip any lines that refer to an explicit protein_id
                         continue
                 outf.write(line + '\n')
+                for note in notes:
+                    outf.write('\t\t\tnote ' + note + '\n')
 
 
 def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
