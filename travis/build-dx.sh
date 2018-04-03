@@ -48,5 +48,15 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     echo -e "$workflow_name\t$dx_id" >> $COMPILE_SUCCESS
   fi
 done
+
+# Special case: build demux_launcher (a native DNAnexus applet), embedding the
+# demux_plus workflow ID as a default input
+pushd pipes/WDL/dx-launcher
+demux_plus_workflow_id=$(grep demux_plus $COMPILE_SUCCESS | cut -f 2)
+sed "s/DEFAULT_DEMUX_WORKFLOW_ID/$demux_plus_workflow_id/" dxapp.yml.template > dxapp.yml
+dx_id=$(./dx-yml-build --destination /build/$VERSION/)
+echo -e "demux_launcher\t$dx_id" >> $COMPILE_SUCCESS
+popd
+
 # the presence of this file in the project denotes successful build
 dx upload --brief --no-progress --destination /build/$VERSION/ $COMPILE_SUCCESS
