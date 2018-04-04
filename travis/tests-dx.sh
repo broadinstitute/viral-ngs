@@ -42,8 +42,8 @@ done
 # the demux_plus WDL workflow)
 demux_launcher_id=$(grep demux_launcher $COMPILE_SUCCESS | cut -f 2)
 dx_job_id=$(dx run \
-  $demux_launcher_id -y --brief
-  -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y
+  $demux_launcher_id -y --brief \
+  -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
   --name "$VERSION demux_launcher" \
   --destination /tests/$VERSION/demux_launcher)
 echo "Launched demux_launcher as $dx_job_id"
