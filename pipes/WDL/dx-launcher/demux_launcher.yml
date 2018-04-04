@@ -37,7 +37,7 @@ runSpec:
   interpreter: bash
   code: |
     #!/bin/bash
-    
+
     main() {
       set -ex -o pipefail
 
