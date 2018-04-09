@@ -579,7 +579,8 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None, clear_tags=True, tags_to_cl
             tools.bwa.Bwa().align_mem_bam(inBam, db_prefix, aligned_sam, threads=threads, should_index=False, JVMmemory=JVMmemory)
         #with util.file.fifo(name='filtered.sam') as filtered_sam:
             with util.file.tempfname('.filtered.sam') as filtered_sam:
-                tools.samtools.SamtoolsTool().view(['-h','-f0x4'], aligned_sam, filtered_sam)
+                # filter proper pairs
+                tools.samtools.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
                 
                 picardOptions = []
                 if clear_tags:
