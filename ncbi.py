@@ -40,6 +40,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
     with open(ref_tbl, 'rt') as inf:
         with open(out_tbl, 'wt') as outf:
             for line in inf:
+                notes = [] # reset with each new line
                 line = line.rstrip('\r\n')
                 if not line:
                     pass
@@ -64,15 +65,19 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                         raise Exception("this line has only one column?")
                     row[0] = int(row[0])
                     row[1] = int(row[1])
+                    strand = None
                     if row[1] >= row[0]:
+                        strand = '+'
                         row[0] = cmap.mapChr(refSeqID, altid, row[0], -1)[1]
                         row[1] = cmap.mapChr(refSeqID, altid, row[1], 1)[1]
                     else:
                         # negative strand feature
+                        strand = '-'
                         row[0] = cmap.mapChr(refSeqID, altid, row[0], 1)[1]
                         row[1] = cmap.mapChr(refSeqID, altid, row[1], -1)[1]
 
                     if row[0] and row[1]:
+                        # feature completely within bounds
                         feature_keep = True
                     elif row[0] == None and row[1] == None:
                         # feature completely out of bounds
@@ -81,12 +86,41 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                     else:
                         # feature overhangs end of sequence
                         if oob_clip:
-                            if row[0] == None:
-                                row[0] = '<1'
-                            if row[1] == None:
-                                row[1] = '>{}'.format(alt_chrlens[altid])
+                            if row[2] == 'CDS':
+                                notes.append('sequencing did not capture complete CDS')
+                            if strand == '+':
+                                # clip pos strand feature
+                                if row[0] == None:
+                                    # clip the beginning
+                                    if row[2] == 'CDS':
+                                        # for CDS features, clip in multiples of 3
+                                        r = (row[1] if row[1] is not None else alt_chrlens[altid])
+                                        row[0] = '<{}'.format((r % 3) + 1)
+                                    else:
+                                        row[0] = '<1'
+                                if row[1] == None:
+                                    # clip the end
+                                    row[1] = '<{}'.format(alt_chrlens[altid])
+                            else:
+                                # clip neg strand feature
+                                if row[0] == None:
+                                    # clip the beginning (right side)
+                                    r = alt_chrlens[altid]
+                                    if row[2] == 'CDS':
+                                        # for CDS features, clip in multiples of 3
+                                        l = (row[1] if row[1] is not None else 1) # new left
+                                        r = r - ((r-l+1) % 3) # create new right in multiples of 3 from left
+                                        if (r-l) < 3:
+                                            # less than a codon remains, drop it
+                                            feature_keep = False
+                                            continue
+                                    row[0] = '<{}'.format(r)
+                                if row[1] == None:
+                                    # clip the end (left side)
+                                    row[1] = '<1'
                             feature_keep = True
                         else:
+                            # drop the partially out of bounds feature
                             feature_keep = False
                             continue
                     line = '\t'.join(map(str, row))
@@ -99,6 +133,8 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
                         # skip any lines that refer to an explicit protein_id
                         continue
                 outf.write(line + '\n')
+                for note in notes:
+                    outf.write('\t\t\tnote ' + note + '\n')
 
 
 def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
@@ -381,6 +417,7 @@ def fasta2fsa(infname, outdir, biosample=None):
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None):
     with open(cmt_fname, 'wt') as outf:
         outf.write("StructuredCommentPrefix\t##Genome-Assembly-Data-START##\n")
+        # note: the <tool name> v. <version name> format is required by NCBI, don't remove the " v. "
         outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs v. {}\n".format(util.version.get_version()))
         if name:
             outf.write("Assembly Name\t{}\n".format(name))
@@ -448,7 +485,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                             outf.write(inf.readline())
                             for line in inf:
                                 row = line.rstrip('\n').split('\t')
-                                if row[0] == sample_base:
+                                if row[0] == sample_base or row[0] == sample:
                                     row[0] = sample
                                     outf.write('\t'.join(row) + '\n')
 
