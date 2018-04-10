@@ -33,7 +33,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.6'
+TOOL_VERSION = '1.7'
 
 log = logging.getLogger(__name__)
 
