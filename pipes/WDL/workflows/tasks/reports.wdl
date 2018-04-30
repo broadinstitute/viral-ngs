@@ -47,8 +47,8 @@ task plot_coverage {
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
     grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
     samtools view -c ${sample_name}.mapped.bam | tee reads_aligned
-    samtools flagstat ${sample_name}.bam | tee ${sample_name}.bam.flagstat.txt
-    grep properly ${sample_name}.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
+    samtools flagstat ${sample_name}.all.bam | tee ${sample_name}.all.bam.flagstat.txt
+    grep properly ${sample_name}.all.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
     python -c "print (float("`cat bases_aligned`")/"`cat assembly_length`") if "`cat assembly_length`">0 else 0" > mean_coverage
