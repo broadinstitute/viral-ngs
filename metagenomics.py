@@ -1118,9 +1118,9 @@ def parser_kraken_unclassified(parser=argparse.ArgumentParser()):
 __commands__.append(('kraken_unclassified', parser_kraken_unclassified))
 
 
-def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
-                 blast_m8_fn=None, blast_lca_fn=None, blast_report_fn=None,
-                 num_threads=None):
+def blast_run(tool, db, input_fn, tax_dir=None, tax_db=None,
+              blast_m8_fn=None, blast_lca_fn=None, blast_report_fn=None,
+              num_threads=None):
     if blast_report_fn:
         level = 2
     elif blast_lca_fn:
@@ -1148,8 +1148,12 @@ def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
     if level < 1:
         return
 
+    return blast_lca_report(blast_m8_fn, blast_lca_fn=blast_lca_fn, blast_report_fn=blast_report_fn)
+
+
+def blast_lca_report(tax_dir, blast_m8_fn, tax_db=None, blast_lca_fn=None, blast_report_fn=None):
     with contextlib.ExitStack() as ctx:
-        if level > 1 and not blast_lca_fn:
+        if not blast_lca_fn:
             blast_lca_fn = util.file.mkstempfname('.blastn.lca.tsv')
 
         tax_db = tax_db or TaxonomyDb(tax_dir=tax_dir, load_names=True, load_nodes=True)
@@ -1159,14 +1163,28 @@ def blast_report(tool, db, input_fn, tax_dir=None, tax_db=None,
         for _, tax_id in blast_lca(tax_db, blast_m8, blast_lca_f, with_taxids=True):
             hits[tax_id] += 1
 
-        if level < 2:
-            return
+        if not blast_report_fn:
+            return tax_db
 
         blast_report = ctx.enter_context(util.file.open_or_gzopen(blast_report_fn, 'wt'))
         if blast_report_fn:
             for line in kraken_dfs_report(tax_db, hits):
                 print(line, file=blast_report)
-    return tax_db
+
+        return tax_db
+
+def blast_lca_report_run(inBlastTab, taxDb, outBlastLca=None, outBlastReport=None):
+    blast_lca_report(taxDb, inBlastTab, blast_lca_fn=outBlastLca, blast_report_fn=outBlastReport)
+
+def parser_blast_report(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBlastTab', help='Input blast output in tab m8 format.')
+    parser.add_argument('taxDb', help='Taxonomy database.')
+    parser.add_argument('--outBlastLca', help='Output blast read LCAs.')
+    parser.add_argument('--outBlastReport', help='Output blast kraken-style report.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, blast_lca_report_run, split_args=True)
+    return parser
+__commands__.append(('blast_lca_report', parser_blast_report))
 
 
 def blast_taxonomy(inFasta, taxDb=None, ntDb=None, outBlastn=None, outBlastnLca=None, outBlastnReport=None,
@@ -1177,8 +1195,8 @@ def blast_taxonomy(inFasta, taxDb=None, ntDb=None, outBlastn=None, outBlastnLca=
         assert ntDb
         blastn = tools.blast.BlastnTool()
         log.info('Executing blastn on %s', inFasta)
-        tax_db = blast_report(blastn, ntDb, inFasta, tax_dir=taxDb, blast_m8_fn=outBlastn,
-                              blast_lca_fn=outBlastnLca, blast_report_fn=outBlastnReport, num_threads=numThreads)
+        tax_db = blast_run(blastn, ntDb, inFasta, tax_dir=taxDb, blast_m8_fn=outBlastn,
+                           blast_lca_fn=outBlastnLca, blast_report_fn=outBlastnReport, num_threads=numThreads)
         executed = True
 
     if outBlastx or outBlastxLca or outBlastxReport:
@@ -1186,8 +1204,8 @@ def blast_taxonomy(inFasta, taxDb=None, ntDb=None, outBlastn=None, outBlastnLca=
 
         blastx = tools.blast.BlastxTool()
         log.info('Executing blastx on %s', inFasta)
-        blast_report(blastx, nrDb, inFasta, tax_dir=taxDb, tax_db=tax_db, blast_m8_fn=outBlastx,
-                     blast_lca_fn=outBlastxLca, blast_report_fn=outBlastxReport, num_threads=numThreads)
+        blast_run(blastx, nrDb, inFasta, tax_dir=taxDb, tax_db=tax_db, blast_m8_fn=outBlastx,
+                  blast_lca_fn=outBlastxLca, blast_report_fn=outBlastxReport, num_threads=numThreads)
         executed = True
 
     if not executed:
@@ -1200,12 +1218,12 @@ def parser_blast_taxonomy(parser=argparse.ArgumentParser()):
     parser.add_argument('--taxDb', help='Taxonomy database.')
     parser.add_argument('--ntDb', help='Blast NT database path.')
     parser.add_argument('--nrDb', help='Blast NR database path.')
-    parser.add_argument('--outBlastn', help='Result.')
-    parser.add_argument('--outBlastnLca', help='Result.')
-    parser.add_argument('--outBlastnReport', help='Result.')
-    parser.add_argument('--outBlastx', help='Result.')
-    parser.add_argument('--outBlastxLca', help='Result.')
-    parser.add_argument('--outBlastxReport', help='Result.')
+    parser.add_argument('--outBlastn', help='Output BLASTn tab m8 file.')
+    parser.add_argument('--outBlastnLca', help='Output BLASTn LCA assignments.')
+    parser.add_argument('--outBlastnReport', help='Output BLASTn kraken-style report')
+    parser.add_argument('--outBlastx', help='Output BLASTx tab m8 file.')
+    parser.add_argument('--outBlastxLca', help='Output BLASTx LCA assignments.')
+    parser.add_argument('--outBlastxReport', help='Output BLASTx kraken-style report.')
     parser.add_argument('--numThreads', default=1, help='Number of threads (default: %(default)s)')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, blast_taxonomy, split_args=True)
