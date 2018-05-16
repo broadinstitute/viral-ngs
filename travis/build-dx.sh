@@ -54,7 +54,7 @@ done
 demux_plus_workflow_id=$(grep demux_plus $COMPILE_SUCCESS | cut -f 2)
 pushd pipes/WDL/dx-launcher
 sed "s/DEFAULT_DEMUX_WORKFLOW_ID/$demux_plus_workflow_id/" demux_launcher.yml > dxapp.yml
-dx_id=$(./dx-yml-build --destination /build/$VERSION/ | jq -r ".id")
+dx_id=$(./dx-yml-build -a --destination /build/$VERSION/ | jq -r ".id")
 popd
 echo -e "demux_launcher\t$dx_id" >> $COMPILE_SUCCESS
 
