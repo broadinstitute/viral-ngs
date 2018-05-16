@@ -78,15 +78,17 @@ runSpec:
       analyses=()
       for i in $(seq "$lane_count"); do
         folder=$(printf "/%s/L%d" "$run_id" $i)
-        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder -y --brief"
+        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -y --brief"
         echo "$runcmd"
+        set +x
         if [ -n "$api_token" ]; then
           # add API token to run command without copying it into the job log
-          set +x
-          runcmd="$runcmd --auth-token $(cat api_token | tr -d '\n')"
-          set -x
+          runcmd="$runcmd --auth-token $(cat api_token | tr -d '\n') --project-context-id $DX_PROJECT_CONTEXT_ID --folder $DX_PROJECT_CONTEXT_ID:$folder"
+        else
+          runcmd="$runcmd --folder $folder"
         fi
         analysis=$(bash -e -o pipefail -c "$runcmd")
+        set -x
         analyses+=($analysis)
       done
       dx-jobutil-add-output run_tarball $run_tarball
