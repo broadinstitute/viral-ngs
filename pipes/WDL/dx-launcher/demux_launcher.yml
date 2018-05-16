@@ -14,6 +14,10 @@ inputSpec:
   class: string
   help: DNAnexus ID (workflow-xxxx) of the demux/demux-plus workflow to launch on each lane of the run. The workflow and all its parts and dependencies must reside in the current project.
   default: DEFAULT_DEMUX_WORKFLOW_ID
+- name: api_token
+  class: file
+  optional: true
+  help: Optional- to launch each lane demux as a top-level analysis instead of a sub-job, so that the analyses succeed or fail independently, provide a text file containing a DNAnexus API token with at least CONTRIBUTE access to the current project. Protect this file by isolating it in a separate project, viewable only by users who will invoke this launcher.
 outputSpec:
 - name: run_tarball
   class: file
@@ -45,6 +49,10 @@ runSpec:
       runInfo_file_id=$(dx get_details "$upload_sentinel_record" | jq .runinfo_file_id -r)
       dx cat $runInfo_file_id > RunInfo.xml
 
+      if [ -n "$api_token" ]; then
+        dx download -o api_token "$api_token"
+      fi
+
       # Parse the lane count & run ID from RunInfo.xml file
       lane_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@LaneCount)" RunInfo.xml)
       if [ -z "$lane_count" ]; then
@@ -69,7 +77,16 @@ runSpec:
       # launch the demux workflow on each lane
       analyses=()
       for i in $(seq "$lane_count"); do
-        analysis=$(dx run "$demux_workflow_id" -i illumina_demux.flowcell_tgz="$run_tarball" -i illumina_demux.lane=$i --folder $(printf "/%s/L%d" "$run_id" $i) -y --brief)
+        folder=$(printf "/%s/L%d" "$run_id" $i)
+        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder -y --brief"
+        echo "$runcmd"
+        if [ -n "$api_token" ]; then
+          # add API token to run command without copying it into the job log
+          set +x
+          runcmd="$runcmd --auth-token $(cat api_token | tr -d '\n')"
+          set -x
+        fi
+        analysis=$(bash -e -o pipefail -c "$runcmd")
         analyses+=($analysis)
       done
       dx-jobutil-add-output run_tarball $run_tarball
