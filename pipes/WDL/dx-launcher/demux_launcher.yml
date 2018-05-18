@@ -78,7 +78,7 @@ runSpec:
       analyses=()
       for i in $(seq "$lane_count"); do
         folder=$(printf "%s:/%s/L%d" "$DX_PROJECT_CONTEXT_ID" "$run_id" $i)
-        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder -y --brief"
+        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder --name demux:$run_id:L$i -y --brief"
         echo "$runcmd"
         set +x
         if [ -n "$api_token" ]; then
