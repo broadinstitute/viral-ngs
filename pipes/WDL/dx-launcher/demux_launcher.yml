@@ -83,7 +83,7 @@ runSpec:
         set +x
         if [ -n "$api_token" ]; then
           # add API token to run command without copying it into the job log
-          runcmd="DX_JOB_ID= $runcmd --auth-token $(cat api_token | tr -d '\n')"
+          runcmd="unset DX_JOB_ID; $runcmd --auth-token $(cat api_token | tr -d '\n')"
         fi
         analysis=$(bash -e -o pipefail -c "$runcmd")
         set -x
