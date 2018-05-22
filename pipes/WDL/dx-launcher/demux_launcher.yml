@@ -14,6 +14,10 @@ inputSpec:
   class: string
   help: DNAnexus ID (workflow-xxxx) of the demux/demux-plus workflow to launch on each lane of the run. The workflow and all its parts and dependencies must reside in the current project.
   default: DEFAULT_DEMUX_WORKFLOW_ID
+- name: folder
+  class: string
+  default: /
+  help: Output folder in the root project. For this applet, the --destination should be set to / and this input should be used to control the output folder.
 - name: api_token
   class: file
   optional: true
@@ -77,8 +81,8 @@ runSpec:
       # launch the demux workflow on each lane
       analyses=()
       for i in $(seq "$lane_count"); do
-        folder=$(printf "%s:/%s/L%d" "$DX_PROJECT_CONTEXT_ID" "$run_id" $i)
-        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder --name demux:$run_id:L$i -y --brief"
+        folder2=$(printf "%s/L%d" "$folder" "$run_id" $i)
+        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --name demux:$run_id:L$i -y --brief"
         echo "$runcmd"
         set +x
         if [ -n "$api_token" ]; then

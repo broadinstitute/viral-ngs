@@ -45,7 +45,7 @@ dx_job_id=$(dx run \
   $demux_launcher_id -y --brief \
   -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
   --name "$VERSION demux_launcher" \
-  --destination /tests/$VERSION/demux_launcher)
+  -i folder=/tests/$VERSION/demux_launcher)
 echo "Launched demux_launcher as $dx_job_id"
 echo -e "demux_launcher\t$demux_launcher_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
 
