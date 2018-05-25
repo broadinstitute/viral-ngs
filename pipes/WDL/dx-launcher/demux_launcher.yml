@@ -72,7 +72,7 @@ runSpec:
       if [ "$(cat tar_file_ids | wc -l)" -gt 1 ]; then
         # if there are multiple run tarballs, launch a subjob to consolidate them
         # TODO: auto-scale the instance type, here hardcoding one with 640GB space
-        subjob=$(dx-jobutil-new-job consolidate_tars --instance-type mem1_ssd2_x8 -i upload_sentinel_record="$upload_sentinel_record" -i run_id="$run_id")
+        subjob=$(dx-jobutil-new-job consolidate_tars --instance-type mem1_ssd2_x8 -i upload_sentinel_record="$upload_sentinel_record" -i folder="$folder" -i run_id="$run_id")
         run_tarball="$subjob:run_tarball"
       else
         run_tarball=$(cat tar_file_ids | tr -d '\n')
@@ -116,7 +116,8 @@ runSpec:
 
       # tar the consolidated directory and upload
       # TODO: consider zstd/lz4
-      tar_id=$(tar c -C run/ . | pigz -c | dx upload --brief -p --destination $(printf "/%s/%s.tar.gz" "$run_id" "$run_id") -)
+      dx mkdir -p "$folder/$run_id"
+      tar_id=$(tar c -C run/ . | pigz -c | dx upload --brief -p --destination $(printf "%s/%s/%s.tar.gz" "$folder" "$run_id" "$run_id") -)
       dx-jobutil-add-output run_tarball "$tar_id"
     }
 
