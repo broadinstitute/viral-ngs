@@ -358,7 +358,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count, deduplicate_be
         downsamplesam = tools.picard.DownsampleSamTool()
         workers = util.misc.sanitize_thread_count(threads)
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *fp, downsample_target, JVMmemory=str(max(1,int(tools.picard.DownsampleSamTool.jvmMemDefault.rstrip("g"))/workers))+'g'): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=str(max(1,int(tools.picard.DownsampleSamTool.jvmMemDefault.rstrip("g"))/workers))+'g'): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
