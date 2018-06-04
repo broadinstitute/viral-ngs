@@ -77,30 +77,32 @@ runSpec:
       else
         run_tarball=$(cat tar_file_ids | tr -d '\n')
       fi
-
-      # launch the demux workflow on each lane
-      analyses=()
-      output_project=$DX_WORKSPACE_ID
-      for i in $(seq "$lane_count"); do
-        folder2=$(printf "%s/%s/L%d" "$folder" "$run_id" $i)
-        runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --name demux:$run_id:L$i -y --brief"
-        echo "$runcmd"
-        set +x
-        if [ -n "$api_token" ]; then
-          # add API token to run command without copying it into the job log
-          runcmd="unset DX_JOB_ID; $runcmd --auth-token $(cat api_token | tr -d '\n')"
-          output_project=$DX_PROJECT_CONTEXT_ID
-        fi
-        analysis=$(bash -e -o pipefail -c "$runcmd")
-        set -x
-        analyses+=($analysis)
-      done
       dx-jobutil-add-output run_tarball $run_tarball
 
-      # schedule a subjob when all the demux analyses complete, to propagate all their
-      # output files to the output of this job.
-      subjob=$(dx-jobutil-new-job propagate_outputs -i output_project=$output_project -i folder="$folder" -i run_id="$run_id" --depends-on ${analyses[@]})
-      dx-jobutil-add-output demux_outputs $subjob:demux_outputs
+      if [ -n "$demux_workflow_id" ]; then
+        # launch the demux workflow on each lane
+        analyses=()
+        output_project=$DX_WORKSPACE_ID
+        for i in $(seq "$lane_count"); do
+          folder2=$(printf "%s/%s/L%d" "$folder" "$run_id" $i)
+          runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --name demux:$run_id:L$i -y --brief"
+          echo "$runcmd"
+          set +x
+          if [ -n "$api_token" ]; then
+            # add API token to run command without copying it into the job log
+            runcmd="unset DX_JOB_ID; $runcmd --auth-token $(cat api_token | tr -d '\n')"
+            output_project=$DX_PROJECT_CONTEXT_ID
+          fi
+          analysis=$(bash -e -o pipefail -c "$runcmd")
+          set -x
+          analyses+=($analysis)
+        done
+
+        # schedule a subjob when all the demux analyses complete, to propagate all their
+        # output files to the output of this job.
+        subjob=$(dx-jobutil-new-job propagate_outputs -i output_project=$output_project -i folder="$folder" -i run_id="$run_id" --depends-on ${analyses[@]})
+        dx-jobutil-add-output demux_outputs $subjob:demux_outputs
+      fi
     }
 
     consolidate_tars() {
