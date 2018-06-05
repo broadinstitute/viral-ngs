@@ -281,7 +281,7 @@ class TestDownsampleBams(TestCaseWithTmp):
 
         target_count = self.samtools.count(self.smaller_bam)
         # target count not passed in since we are checking that the count of the smaller file is used
-        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir)
+        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -294,7 +294,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 4000
-        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count)
+        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -304,7 +304,7 @@ class TestDownsampleBams(TestCaseWithTmp):
 
     def test_downsample_to_target_count_without_subdir(self):
         target_count = 4000
-        read_utils.main_downsample_bams([self.larger_bam], out_path=None, specified_read_count=target_count)
+        read_utils.main_downsample_bams([self.larger_bam], out_path=None, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(os.path.dirname(self.larger_bam), '*downsampled-*.bam')))
         
@@ -318,7 +318,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 1500
-        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_after=True, specified_read_count=target_count)
+        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_after=True, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -331,7 +331,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 1500
-        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_before=True, specified_read_count=target_count)
+        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_before=True, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -346,4 +346,4 @@ class TestDownsampleBams(TestCaseWithTmp):
         target_count = 20000
 
         with self.assertRaises(ValueError):
-            read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count)
+            read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
