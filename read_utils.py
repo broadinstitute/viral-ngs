@@ -329,8 +329,10 @@ def parser_downsample_bams(parser=argparse.ArgumentParser()):
     return parser
 
 
-def main_downsample_bams(in_bams, out_path, specified_read_count, deduplicate_before, deduplicate_after, picardOptions=None, threads=None, JVMmemory=None):
+def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplicate_before=False, deduplicate_after=False, picardOptions=None, threads=None, JVMmemory=None):
     '''Downsample multiple bam files to the smallest read count in common, or to the specified count.'''
+    if picardOptions is None:
+        picardOptions = []
     opts = list(picardOptions) + []
 
     def get_read_counts(bams):
@@ -349,7 +351,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count, deduplicate_be
         if readcount_requested:
             downsample_target = readcount_requested
             if downsample_target > min(read_counts.values()):
-                log.error("The smallest file has %s reads, which is less than the downsample target specified, %s. Please reduce the target count or omit it to use the read count of the smallest input file." % (min(read_counts.values()), downsample_target))
+                raise ValueError("The smallest file has %s reads, which is less than the downsample target specified, %s. Please reduce the target count or omit it to use the read count of the smallest input file." % (min(read_counts.values()), downsample_target))
         else:
             downsample_target = min(read_counts.values())
         return downsample_target
@@ -364,7 +366,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count, deduplicate_be
                 try:
                     data = future.result()
                 except Exception as exc:
-                    print('%r generated an exception: %s' % (f, exc))
+                    log.error('%r generated an exception: %s' % (f, exc))
 
     def dedup_bams(data_pairs):
         with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
@@ -374,7 +376,9 @@ def main_downsample_bams(in_bams, out_path, specified_read_count, deduplicate_be
                 try:
                     data = future.result()
                 except Exception as exc:
-                    print('%r generated an exception: %s' % (f, exc))
+                    log.error('%r generated an exception: %s' % (f, exc))
+
+    assert(not all(x==True for x in [deduplicate_after,deduplicate_before]))
 
     data_pairs = []
     if deduplicate_before:
