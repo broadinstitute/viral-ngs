@@ -1,6 +1,6 @@
 import "read_utils.wdl" as read_utils
 
-workflow downsample_bams {
+workflow downsample {
     File reads_bam
 
     call read_utils.downsample_bams {
