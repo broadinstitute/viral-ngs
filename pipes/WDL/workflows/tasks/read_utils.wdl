@@ -1,6 +1,6 @@
 
 task downsample_bams {
-  Array[File] reads_bam
+  Array[File]  reads_bam
   Int?         readCount
   Boolean?     deduplicateBefore=false
   Boolean?     deduplicateAfter=false
