@@ -1,7 +1,7 @@
 import "read_utils.wdl" as read_utils
 
 workflow downsample {
-    File reads_bam
+    Array[File] reads_bam
 
     call read_utils.downsample_bams {
         input:
