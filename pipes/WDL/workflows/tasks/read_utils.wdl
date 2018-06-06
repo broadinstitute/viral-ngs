@@ -22,6 +22,7 @@ task downsample_bams {
         --outPath downsampled \
         ${'--readCount' + readCount} \
         $DEDUP_OPTION \
+        --JVMmemory "1g"
   }
 
   output {
@@ -31,6 +32,6 @@ task downsample_bams {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
+    dx_instance_type: "mem1_ssd1_x4"
   }
 }
