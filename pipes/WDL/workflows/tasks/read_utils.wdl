@@ -12,7 +12,7 @@ task downsample_bams {
       DEDUP_OPTION="--deduplicateAfter"
     fi
 
-    if [[ "${deduplicateBefore}" == "true" && "${deduplicateBefore}" == "true" ]]; then
+    if [[ "${deduplicateBefore}" == "true" && "${deduplicateAfter}" == "true" ]]; then
       echo "deduplicateBefore and deduplicateAfter are mutually exclusive. Only one can be used."
       exit 1
     fi
