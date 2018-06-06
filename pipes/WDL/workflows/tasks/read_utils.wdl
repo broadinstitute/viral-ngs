@@ -20,7 +20,7 @@ task downsample_bams {
     read_utils.py downsample_bams \
         ${sep=' ' reads_bam} \
         --outPath downsampled \
-        ${'--readCount' + readCount} \
+        ${'--readCount=' + readCount} \
         $DEDUP_OPTION \
         --JVMmemory "1g"
   }
