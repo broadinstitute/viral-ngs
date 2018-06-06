@@ -6,6 +6,8 @@ import unittest
 import argparse
 import filecmp
 import os
+import glob
+
 import read_utils
 import shutil
 import tempfile
@@ -257,3 +259,91 @@ class TestAlignAndFix(TestCaseWithTmp):
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
         args.func_main(args)
+
+class TestDownsampleBams(TestCaseWithTmp):
+    def setUp(self):
+        super(TestDownsampleBams, self).setUp()
+        orig_larger_bam  = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        orig_smaller_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
+        orig_with_dup    = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned','input.bam')
+        self.larger_bam  = util.file.mkstempfname('.larger.bam')
+        self.smaller_bam = util.file.mkstempfname('.smaller.bam')
+        self.with_dups   = util.file.mkstempfname('.with_dups.bam')
+        shutil.copyfile(orig_larger_bam, self.larger_bam)
+        shutil.copyfile(orig_smaller_bam, self.smaller_bam)
+        shutil.copyfile(orig_with_dup, self.with_dups)
+
+        self.samtools = tools.samtools.SamtoolsTool()
+
+    def test_normalization_to_lowest_cardinality(self):
+        """ Also tests subdir output """
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = self.samtools.count(self.smaller_bam)
+        # target count not passed in since we are checking that the count of the smaller file is used
+        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    def test_downsample_to_target_count(self):
+        """ Also tests subdir output """
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 4000
+        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    def test_downsample_to_target_count_without_subdir(self):
+        target_count = 4000
+        read_utils.main_downsample_bams([self.larger_bam], out_path=None, specified_read_count=target_count, JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(os.path.dirname(self.larger_bam), '*downsampled-*.bam')))
+        
+        print(output_bams)
+        self.assertGreater(len(output_bams), 0, msg="No output files matching *downsampled-*.bam found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    def test_downsample_with_dedup_after(self):
+        """ Also tests subdir output """
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 1500
+        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_after=True, specified_read_count=target_count, JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertLess(self.samtools.count(out_bam), target_count, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    def test_downsample_with_dedup_before(self):
+        """ Also tests subdir output """
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 1500
+        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_before=True, specified_read_count=target_count, JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    def test_downsample_to_too_large_target_count(self):
+        """ Should fail """
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 20000
+
+        with self.assertRaises(ValueError):
+            read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
