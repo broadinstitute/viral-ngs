@@ -333,6 +333,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     '''Downsample multiple bam files to the smallest read count in common, or to the specified count.'''
     if picardOptions is None:
         picardOptions = []
+
     opts = list(picardOptions) + []
 
     def get_read_counts(bams):
@@ -348,7 +349,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     def get_downsample_target_count(bams, readcount_requested):
         read_counts = get_read_counts(bams)
         downsample_target = 0
-        if readcount_requested:
+        if readcount_requested is not None:
             downsample_target = readcount_requested
             if downsample_target > min(read_counts.values()):
                 raise ValueError("The smallest file has %s reads, which is less than the downsample target specified, %s. Please reduce the target count or omit it to use the read count of the smallest input file." % (min(read_counts.values()), downsample_target))
@@ -356,38 +357,38 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
             downsample_target = min(read_counts.values())
         return downsample_target
 
-    def downsample_bams(data_pairs, JVMmemory=None):
+    def downsample_bams(data_pairs, downsample_target, threads=None, JVMmemory=None):
         downsamplesam = tools.picard.DownsampleSamTool()
         workers = util.misc.sanitize_thread_count(threads)
-        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/util.misc.sanitize_thread_count(threads)))+'g'
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=JVMmemory): fp[0] for fp in data_pairs}
+        JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
+        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
                     data = future.result()
                 except Exception as exc:
-                    log.error('%r generated an exception: %s' % (f, exc))
+                    raise
 
-    def dedup_bams(data_pairs, JVMmemory=None):
+    def dedup_bams(data_pairs, threads=None, JVMmemory=None):
         workers = util.misc.sanitize_thread_count(threads)
-        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/util.misc.sanitize_thread_count(threads)))+'g'
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=JVMmemory): fp[0] for fp in data_pairs}
+        JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
+        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
                     data = future.result()
                 except Exception as exc:
-                    log.error('%r generated an exception: %s' % (f, exc))
-
-    assert(not all(x==True for x in [deduplicate_after,deduplicate_before]))
+                    raise
 
     data_pairs = []
     if deduplicate_before:
         with util.file.tempfnames(suffixes=[ '{}.dedup.bam'.format(os.path.splitext(os.path.basename(x))[0]) for x in in_bams]) as deduped_bams:
             data_pairs = list(zip(in_bams, deduped_bams))
-            dedup_bams(data_pairs, JVMmemory)
+            dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
             downsample_target = get_downsample_target_count(deduped_bams, specified_read_count)
             
             if out_path:
@@ -395,29 +396,28 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                 data_pairs = list(zip(deduped_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".bam") for x in in_bams]))
             else:
                 data_pairs = list(zip(deduped_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
-            downsample_bams(data_pairs, JVMmemory)
+            downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
     else:
         downsample_target = get_downsample_target_count(in_bams, specified_read_count)
-   
         if deduplicate_after:
             log.warn("--deduplicateAfter has been specified. Read count of output files is not guaranteed.")
             with util.file.tempfnames(suffixes=[ '{}.downsampled-{}.bam'.format(os.path.splitext(os.path.basename(x))[0], downsample_target) for x in in_bams]) as downsampled_tmp_bams:
                 data_pairs = list(zip(in_bams, downsampled_tmp_bams))
-                downsample_bams(data_pairs, JVMmemory)
+                downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
                 
                 if out_path:
                     util.file.mkdir_p(out_path)
                     data_pairs = list(zip(downsampled_tmp_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".bam") for x in in_bams]))
                 else:
                     data_pairs = list(zip(downsampled_tmp_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
-                dedup_bams(data_pairs, JVMmemory)
+                dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
         else:
             if out_path:
                 util.file.mkdir_p(out_path)
                 data_pairs = list(zip(in_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".bam") for x in in_bams]))
             else:
                 data_pairs = list(zip(in_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
-            downsample_bams(data_pairs, JVMmemory)
+            downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
     return 0
 
 __commands__.append(('downsample_bams', parser_downsample_bams))
