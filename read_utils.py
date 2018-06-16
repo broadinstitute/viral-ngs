@@ -395,7 +395,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                 util.file.mkdir_p(out_path)
                 data_pairs = list(zip(deduped_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".bam") for x in in_bams]))
             else:
-                data_pairs = list(zip(deduped_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
+                data_pairs = list(zip(deduped_bams, [os.path.splitext(x)[0]+".dedup.downsampled-{}.bam".format(downsample_target) for x in in_bams]))
             downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
     else:
         downsample_target = get_downsample_target_count(in_bams, specified_read_count)
@@ -409,7 +409,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                     util.file.mkdir_p(out_path)
                     data_pairs = list(zip(downsampled_tmp_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".bam") for x in in_bams]))
                 else:
-                    data_pairs = list(zip(downsampled_tmp_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
+                    data_pairs = list(zip(downsampled_tmp_bams, [os.path.splitext(x)[0]+".downsampled-{}.dedup.bam".format(downsample_target) for x in in_bams]))
                 dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
         else:
             if out_path:
