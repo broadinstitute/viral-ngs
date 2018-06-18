@@ -19,14 +19,13 @@ task downsample_bams {
     
     read_utils.py downsample_bams \
         ${sep=' ' reads_bam} \
-        --outPath downsampled \
         ${'--readCount=' + readCount} \
         $DEDUP_OPTION \
         --JVMmemory "1g"
   }
 
   output {
-    Array[File] downsampled_bam = glob("downsampled/*.bam")
+    Array[File] downsampled_bam = glob("*.downsampled-*.bam")
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
