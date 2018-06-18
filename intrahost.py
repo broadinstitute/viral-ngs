@@ -460,6 +460,21 @@ def merge_to_vcf(
                     the number of alignment files equals the number of chromosomes / segments
     '''
 
+    guessed_samples = []
+    isnvs_to_use = []
+    if not samples:
+        for isnvs_file in isnvs:
+            if os.path.getsize(isnvs_file) > 0:
+                isnvs_to_use.append(isnvs_file)
+                continue
+            for row in util.file.read_tabfile(isnvs_file):
+                guessed_sample_ID = sampleIDMatch(row[0])
+                if guessed_sample_ID not in guessed_samples:
+                    guessed_samples.append(guessed_sample_ID)
+        isnvs = isnvs_to_use
+
+    samples = samples or guessed_samples
+
     # get IDs and sequence lengths for reference sequence
     with util.file.open_or_gzopen(refFasta, 'r') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
@@ -531,17 +546,17 @@ def merge_to_vcf(
             raise LookupError(
                 "There must be an isnv file for each sample. %s samples, %s isnv files" % (len(samples), len(isnvs)))
 
-        for fileName in alignments:
-            with util.file.open_or_gzopen(fileName, 'r') as inf:
-                # get two independent iterators into the alignment file
-                number_of_aligned_sequences = count_iter_items(Bio.SeqIO.parse(inf, 'fasta'))
-                # -1 is to account for inclusion of reference in the alignement in addition
-                # to the assemblies
-                if not (number_of_aligned_sequences - 1) == len(isnvs) == len(samples):
-                    raise LookupError(
-                        """samples, isnvs, and alignments must have the same number of elements
-                        (plus an extra reference record in the alignment).
-                        %s does not have the right number of sequences""" % fileName)
+        # for fileName in alignments:
+        #     with util.file.open_or_gzopen(fileName, 'r') as inf:
+        #         # get two independent iterators into the alignment file
+        #         number_of_aligned_sequences = count_iter_items(Bio.SeqIO.parse(inf, 'fasta'))
+        #         # -1 is to account for inclusion of reference in the alignement in addition
+        #         # to the assemblies
+        #         if not (number_of_aligned_sequences - 1) == len([x for x in isnvs if os.path.getsize(x)>0]) == len(samples):
+        #             raise LookupError(
+        #                 """samples, isnvs, and alignments must have the same number of elements
+        #                 (plus an extra reference record in the alignment).
+        #                 %s does not have the right number of sequences""" % fileName)
 
         samp_to_isnv = dict(zip(samples, isnvs))
 
@@ -580,7 +595,10 @@ def merge_to_vcf(
                         alignmentFile)
 
                 for s in samplesToUse:
-                    for row in util.file.read_tabfile(samp_to_isnv[sampleIDMatch(s)]):
+                    isnv_filepath = samp_to_isnv[sampleIDMatch(s)]
+                    if os.path.getsize(isnv_filepath) == 0:
+                        continue
+                    for row in util.file.read_tabfile(isnv_filepath):
                         # map ref->sample
                         s_chrom = cm.mapChr(ref_sequence.id, s)
                         if row[0] == s_chrom:
@@ -698,7 +716,6 @@ def merge_to_vcf(
                     iSNVs_n_libs = {}  # {sample : {allele : n libraries > 0, ...}, ...}
                     iSNVs_lib_bias = {}  # {sample : {allele : pval, ...}, ...}
                     for s in samplesToUse:
-
                         # get all rows for this sample and merge allele counts together
                         acounts = dict(itertools.chain.from_iterable(row['allele_counts'] for row in rows if
                                                                      row['sample'] == s))
@@ -800,7 +817,7 @@ def merge_to_vcf(
                         continue
                     alleleMap = dict((a, i) for i, a in enumerate(alleles))
                     # GT col emitted below
-                    genos = [str(alleleMap.get(consAlleles.get(s), '.')) for s in samples]
+                    genos = [str(alleleMap.get(consAlleles.get(s), '.')) for s in samplesToUse]
                     # AF col emitted below, everything excluding the ref allele (one float per non-ref allele)
                     freqs = [(s in iSNVs) and ','.join(map(str, [iSNVs[s].get(a, 0.0) for a in alleles[1:]])) or '.'
                              for s in samplesToUse]
@@ -835,7 +852,7 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
                         help="""The target reference genome. outVcf will use these
             chromosome names, coordinate spaces, and reference alleles""")
     parser.add_argument("outVcf", help="Output VCF file containing all variants")
-    parser.add_argument("--samples", nargs='+', required=True, help="A list of sample names")
+    parser.add_argument("--samples", nargs='*', help="A list of sample names")
     parser.add_argument("--isnvs",
                         nargs='+',
                         required=True,

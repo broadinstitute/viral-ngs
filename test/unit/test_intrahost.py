@@ -152,7 +152,7 @@ class TestIntrahostFilters(unittest.TestCase):
         self.assertEqual(output[0][7:], expected[7:])
 
 
-@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+#@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
@@ -224,8 +224,10 @@ class VcfMergeRunner:
 
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
+        print("self.isnvs[sample]",sample,list(map(str,self.isnvs[sample])))
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
+                print('\t'.join(map(str, row)))
                 outf.write('\t'.join(map(str, row)) + '\n')
         return fn
 
@@ -234,10 +236,9 @@ class VcfMergeRunner:
 
         self.multi_align_samples(retree=retree)
 
-        seqIds = list(itertools.chain.from_iterable(self.sequence_order.values()))
+        intrahost.merge_to_vcf(self.ref, outVcf, self.sample_order, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+                              self.alignedFastas)
 
-        intrahost.merge_to_vcf(self.ref, outVcf, seqIds, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
-                               self.alignedFastas)
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
@@ -295,7 +296,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
 
     def test_empty_output(self):
         ref = makeTempFasta([('ref1', 'ATCGCA')])
-        s1 = makeTempFasta([('s1_1', 'ATCGCA')])
+        s1 = makeTempFasta([('s1-1', 'ATCGCA')])
         emptyfile = util.file.mkstempfname('.txt')
         outVcf = util.file.mkstempfname('.vcf')
         #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
@@ -314,8 +315,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
 
     def test_headers_with_two_samps(self):
         ref = makeTempFasta([('ref1', 'ATCGTTCA'), ('ref2', 'GGCCC')])
-        s1 = makeTempFasta([('s1_1', 'ATCGCA'), ('s1_2', 'GGCCC')])
-        s2 = makeTempFasta([('s2_1', 'ATCGTTCA'), ('s2_2', 'GGCCC')])
+        s1 = makeTempFasta([('s1-1', 'ATCGCA'), ('s1-2', 'GGCCC')])
+        s2 = makeTempFasta([('s2-1', 'ATCGTTCA'), ('s2-2', 'GGCCC')])
         emptyfile = util.file.mkstempfname('.txt')
         outVcf = util.file.mkstempfname('.vcf.gz')
         self.assertRaises(
@@ -332,15 +333,15 @@ class TestVcfMerge(test.TestCaseWithTmp):
 
     def test_simple_snps(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGGAC')])
+        merger.add_genome('s1', [('s1-1', 'ATCGGAC')])
         # ATCGGAC-
-        merger.add_genome('s2', [('s2_1', 'TCGGACT')])
+        merger.add_genome('s2', [('s2-1',  'TCGGACT')])
         # -TCGGACT
-        merger.add_genome('s3', [('s3_1', 'TCGGACT')])
+        merger.add_genome('s3', [('s3-1',  'TCGGACT')])
         # -TCGGACT
-        merger.add_snp('s1', 's1_1', 3, [('C', 80, 80), ('A', 20, 20)])
-        merger.add_snp('s2', 's2_1', 2, [('C', 90, 90), ('A', 10, 10)])
-        merger.add_snp('s3', 's3_1', 5, [('A', 70, 70), ('T', 30, 30)])
+        merger.add_snp('s1', 's1-1', 3, [('C', 80, 80), ('A', 20, 20)])
+        merger.add_snp('s2', 's2-1', 2, [('C', 90, 90), ('A', 10, 10)])
+        merger.add_snp('s3', 's3-1', 5, [('A', 70, 70), ('T', 30, 30)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -360,15 +361,15 @@ class TestVcfMerge(test.TestCaseWithTmp):
 
     def test_snps_with_varying_read_depth(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGGAC')])
+        merger.add_genome('s1', [('s1-1', 'ATCGGAC')])
         # ATCGGAC-
-        merger.add_genome('s2', [('s2_1', 'TCGGACT')])
+        merger.add_genome('s2', [('s2-1', 'TCGGACT')])
         # -TCGGACT
-        merger.add_genome('s3', [('s3_1', 'TCGGACT')])
+        merger.add_genome('s3', [('s3-1', 'TCGGACT')])
         # -TCGGACT
-        merger.add_snp('s1', 's1_1', 3, [('C', 60, 100), ('A', 25, 15)])
-        merger.add_snp('s2', 's2_1', 2, [('C', 12, 6), ('A', 2, 0)])
-        merger.add_snp('s3', 's3_1', 5, [('A', 7, 4), ('T', 2, 3)])
+        merger.add_snp('s1', 's1-1', 3, [('C', 60, 100), ('A', 25, 15)])
+        merger.add_snp('s2', 's2-1', 2, [('C', 12, 6), ('A', 2, 0)])
+        merger.add_snp('s3', 's3-1', 5, [('A', 7, 4), ('T', 2, 3)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -388,12 +389,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
 
     def test_snps_downstream_of_indels(self):
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
-        merger.add_genome('s2', [('s2_1', 'TCGTTGACT')])
-        merger.add_genome('s3', [('s3_1', 'TCGGCCT')])
-        merger.add_snp('s1', 's1_1', 8, [('A', 80, 80), ('C', 20, 20)])
-        merger.add_snp('s2', 's2_1', 7, [('A', 90, 90), ('C', 10, 10)])
-        merger.add_snp('s3', 's3_1', 5, [('C', 70, 70), ('A', 30, 30)])
+        merger.add_genome('s1', [('s1-1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2-1', 'TCGTTGACT')])
+        merger.add_genome('s3', [('s3-1', 'TCGGCCT')])
+        merger.add_snp('s1', 's1-1', 8, [('A', 80, 80), ('C', 20, 20)])
+        merger.add_snp('s2', 's2-1', 7, [('A', 90, 90), ('C', 10, 10)])
+        merger.add_snp('s3', 's3-1', 5, [('C', 70, 70), ('A', 30, 30)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -408,8 +409,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # make sure we can invert the allele frequency of the isnv
         # if necessary to match the reference's definition of ref & alt
         merger = VcfMergeRunner([('ref1', 'ATCGCAC')])
-        merger.add_genome('s1', [('s1_1', 'ATAGCCC')])
-        merger.add_snp('s1', 's1_1', 3, [('C', 10, 10), ('A', 90, 90)])
+        merger.add_genome('s1', [('s1-1', 'ATAGCCC')])
+        merger.add_snp('s1', 's1-1', 3, [('C', 10, 10), ('A', 90, 90)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -426,10 +427,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # S2  A (consensus, no isnv)
         # S3  N (no consensus, no isnv)
         merger = VcfMergeRunner([('ref1', 'ATCG')])
-        merger.add_genome('s1', [('s1_1', 'ATCG')])
-        merger.add_genome('s2', [('s2_1', 'ATAG')])
-        merger.add_genome('s3', [('s3_1', 'ATNG')])
-        merger.add_snp('s1', 's1_1', 3, [('C', 90, 90), ('A', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCG')])
+        merger.add_genome('s2', [('s2-1', 'ATAG')])
+        merger.add_genome('s3', [('s3-1', 'ATNG')])
+        merger.add_snp('s1', 's1-1', 3, [('C', 90, 90), ('A', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -451,12 +452,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # initial invariant base as part of the allele (it's a T -> TAAA
         # variant at position 2).
         merger = VcfMergeRunner([('ref1', 'ATCG')])
-        merger.add_genome('s1', [('s1_1', 'ATCG')])
-        merger.add_genome('s2', [('s2_1', 'ATCG')])
-        merger.add_genome('s3', [('s3_1', 'ATCG')])
-        merger.add_indel('s1', 's1_1', 2, [('', 80, 80), ('AA', 20, 20)])
-        merger.add_indel('s2', 's2_1', 2, [('', 90, 90), ('AT', 10, 10)])
-        merger.add_indel('s3', 's3_1', 2, [('', 80, 80), ('GCC', 15, 15), ('AA', 5, 5)])
+        merger.add_genome('s1', [('s1-1', 'ATCG')])
+        merger.add_genome('s2', [('s2-1', 'ATCG')])
+        merger.add_genome('s3', [('s3-1', 'ATCG')])
+        merger.add_indel('s1', 's1-1', 2, [('', 80, 80), ('AA', 20, 20)])
+        merger.add_indel('s2', 's2-1', 2, [('', 90, 90), ('AT', 10, 10)])
+        merger.add_indel('s3', 's3-1', 2, [('', 80, 80), ('GCC', 15, 15), ('AA', 5, 5)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -477,12 +478,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # a preceeding invariant base. The above example is considered
         # to be a TCG -> T variant at position 2.
         merger = VcfMergeRunner([('ref1', 'ATCGAT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGAT')])
-        merger.add_genome('s2', [('s2_1', 'ATCGAT')])
-        merger.add_genome('s3', [('s3_1', 'ATCGAT')])
-        merger.add_indel('s1', 's1_1', 3, [('CG', 80, 80), ('', 20, 20)])
-        merger.add_indel('s2', 's2_1', 3, [('C', 90, 90), ('', 10, 10)])
-        merger.add_indel('s3', 's3_1', 3, [('CG', 80, 80), ('G', 15, 15), ('', 5, 5)])
+        merger.add_genome('s1', [('s1-1', 'ATCGAT')])
+        merger.add_genome('s2', [('s2-1', 'ATCGAT')])
+        merger.add_genome('s3', [('s3-1', 'ATCGAT')])
+        merger.add_indel('s1', 's1-1', 3, [('CG', 80, 80), ('', 20, 20)])
+        merger.add_indel('s2', 's2-1', 3, [('C', 90, 90), ('', 10, 10)])
+        merger.add_indel('s3', 's3-1', 3, [('CG', 80, 80), ('G', 15, 15), ('', 5, 5)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -500,8 +501,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # S1:   ATCG--CA
         # isnv:       x  (position 5, D1)
         merger = VcfMergeRunner([('ref1', 'ATCGTTCA')])
-        merger.add_genome('s1', [('s1_1', 'ATCGCA')])
-        merger.add_indel('s1', 's1_1', 5, [('C', 90, 90), ('', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGCA')])
+        merger.add_indel('s1', 's1-1', 5, [('C', 90, 90), ('', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -519,12 +520,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     TT    (position 4, ITT)
         # isnv:     TTC   (position 4, ITTC)
         merger = VcfMergeRunner([('ref1', 'ATCGTTCACC')])
-        merger.add_genome('s1', [('s1_1', 'ATCGCACC')])
-        merger.add_genome('s2', [('s2_1', 'ATCGCACC')])
-        merger.add_genome('s3', [('s3_1', 'ATCGCACC')])
-        merger.add_indel('s1', 's1_1', 4, [('', 70, 70), ('T', 30, 30)])
-        merger.add_indel('s2', 's2_1', 4, [('', 80, 80), ('TT', 20, 20)])
-        merger.add_indel('s3', 's3_1', 4, [('', 90, 90), ('TTC', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGCACC')])
+        merger.add_genome('s2', [('s2-1', 'ATCGCACC')])
+        merger.add_genome('s3', [('s3-1', 'ATCGCACC')])
+        merger.add_indel('s1', 's1-1', 4, [('', 70, 70), ('T', 30, 30)])
+        merger.add_indel('s2', 's2-1', 4, [('', 80, 80), ('TT', 20, 20)])
+        merger.add_indel('s3', 's3-1', 4, [('', 90, 90), ('TTC', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -543,12 +544,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     C
         # isnv:      C
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
-        merger.add_genome('s2', [('s2_1', 'TCGTTGACT')])
-        merger.add_genome('s3', [('s3_1', 'TCGTTGACT')])
-        merger.add_snp('s1', 's1_1', 4, [('G', 70, 70), ('C', 30, 30)])
-        merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
-        merger.add_snp('s3', 's3_1', 5, [('T', 90, 90), ('C', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2-1', 'TCGTTGACT')])
+        merger.add_genome('s3', [('s3-1', 'TCGTTGACT')])
+        merger.add_snp('s1', 's1-1', 4, [('G', 70, 70), ('C', 30, 30)])
+        merger.add_snp('s2', 's2-1', 4, [('T', 80, 80), ('C', 20, 20)])
+        merger.add_snp('s3', 's3-1', 5, [('T', 90, 90), ('C', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -569,9 +570,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     C
         # isnv:      C
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
-        merger.add_snp('s1', 's1_1', 5, [('T', 80, 80), ('C', 20, 20)])
-        merger.add_snp('s1', 's1_1', 6, [('T', 90, 90), ('C', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGTTGACT')])
+        merger.add_snp('s1', 's1-1', 5, [('T', 80, 80), ('C', 20, 20)])
+        merger.add_snp('s1', 's1-1', 6, [('T', 90, 90), ('C', 10, 10)])
         self.assertRaises(NotImplementedError, merger.run_and_get_vcf_rows)
 
     def test_deletion_past_end_of_some_consensus(self):
@@ -584,10 +585,10 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # S2:     ATCT
         # S2isnv: ATCC
         merger = VcfMergeRunner([('ref1', 'ATCGAAC')])
-        merger.add_genome('s1', [('s1_1', 'ATCGC')])
-        merger.add_snp('s1', 's1_1', 4, [('G', 70, 70), ('A', 30, 30)])
-        merger.add_genome('s2', [('s2_1', 'ATCT')])
-        merger.add_snp('s2', 's2_1', 4, [('T', 80, 80), ('C', 20, 20)])
+        merger.add_genome('s1', [('s1-1', 'ATCGC')])
+        merger.add_snp('s1', 's1-1', 4, [('G', 70, 70), ('A', 30, 30)])
+        merger.add_genome('s2', [('s2-1', 'ATCT')])
+        merger.add_snp('s2', 's2-1', 4, [('T', 80, 80), ('C', 20, 20)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -613,9 +614,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # S1isnv: AG
         # S2:     A
         merger = VcfMergeRunner([('ref1', 'AT')])
-        merger.add_genome('s1', [('s1_1', 'AT')])
-        merger.add_snp('s1', 's1_1', 2, [('T', 70, 70), ('G', 30, 30)])
-        merger.add_genome('s2', [('s2_1', 'A')])
+        merger.add_genome('s1', [('s1-1', 'AT')])
+        merger.add_snp('s1', 's1-1', 2, [('T', 70, 70), ('G', 30, 30)])
+        merger.add_genome('s2', [('s2-1', 'A')])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -636,14 +637,14 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:      xx   (position 6, D2)  s3          => GT
         # isnv:       x   (position 7, D1)  s4          => GTT
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
-        merger.add_genome('s2', [('s2_1', 'TCGTTGACT')])
-        merger.add_genome('s3', [('s3_1', 'TCGTTGACT')])
-        merger.add_genome('s4', [('s4_1', 'TCGTTGACT')])
-        merger.add_indel('s1', 's1_1', 5, [('TTG', 40, 40), ('TG', 30, 30), ('G', 20, 20), ('', 10, 10)])
-        merger.add_indel('s2', 's2_1', 4, [('T', 80, 80), ('', 20, 20)])
-        merger.add_indel('s3', 's3_1', 5, [('TG', 85, 85), ('G', 10, 10), ('', 5, 5)])
-        merger.add_indel('s4', 's4_1', 6, [('G', 90, 90), ('', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2-1', 'TCGTTGACT')])
+        merger.add_genome('s3', [('s3-1', 'TCGTTGACT')])
+        merger.add_genome('s4', [('s4-1', 'TCGTTGACT')])
+        merger.add_indel('s1', 's1-1', 5, [('TTG', 40, 40), ('TG', 30, 30), ('G', 20, 20), ('', 10, 10)])
+        merger.add_indel('s2', 's2-1', 4, [('T', 80, 80), ('', 20, 20)])
+        merger.add_indel('s3', 's3-1', 5, [('TG', 85, 85), ('G', 10, 10), ('', 5, 5)])
+        merger.add_indel('s4', 's4-1', 6, [('G', 90, 90), ('', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -663,12 +664,12 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # isnv:     ^     (position 5, IA)
         # isnv:      ^    (position 6, IA)
         merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
-        merger.add_genome('s1', [('s1_1', 'ATCGTTGACT')])
-        merger.add_genome('s2', [('s2_1', 'TCGTTGACT')])
-        merger.add_genome('s3', [('s3_1', 'TCGTTGACT')])
-        merger.add_indel('s1', 's1_1', 4, [('', 70, 70), ('A', 30, 30)])
-        merger.add_indel('s2', 's2_1', 4, [('', 80, 80), ('A', 20, 20)])
-        merger.add_indel('s3', 's3_1', 5, [('', 90, 90), ('A', 10, 10)])
+        merger.add_genome('s1', [('s1-1', 'ATCGTTGACT')])
+        merger.add_genome('s2', [('s2-1', 'TCGTTGACT')])
+        merger.add_genome('s3', [('s3-1', 'TCGTTGACT')])
+        merger.add_indel('s1', 's1-1', 4, [('', 70, 70), ('A', 30, 30)])
+        merger.add_indel('s2', 's2-1', 4, [('', 80, 80), ('A', 20, 20)])
+        merger.add_indel('s3', 's3-1', 5, [('', 90, 90), ('A', 10, 10)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
@@ -693,9 +694,9 @@ class TestVcfMerge(test.TestCaseWithTmp):
         # that allele often do not agree between the two rows!
         # So in this scenario, we ought to average them.
         merger = VcfMergeRunner([('ref1', 'ATCG')])
-        merger.add_genome('s1', [('s1_1', 'ATCG')])
-        merger.add_indel('s1', 's1_1', 2, [('', 40, 40), ('A', 20, 20)])
-        merger.add_indel('s1', 's1_1', 3, [('C', 60, 60), ('', 30, 30)])
+        merger.add_genome('s1', [('s1-1', 'ATCG')])
+        merger.add_indel('s1', 's1-1', 2, [('', 40, 40), ('A', 20, 20)])
+        merger.add_indel('s1', 's1-1', 3, [('C', 60, 60), ('', 30, 30)])
         rows = merger.run_and_get_vcf_rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].contig, 'ref1')
