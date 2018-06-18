@@ -71,6 +71,7 @@ class SamtoolsTool(tools.Tool):
 
     def view(self, args, inFile, outFile, regions=None, threads=None):
         regions = regions or []
+        args    = args or []
 
         if '-@' not in args:
             args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
