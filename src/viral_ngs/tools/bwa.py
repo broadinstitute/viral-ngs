@@ -217,7 +217,10 @@ class Bwa(tools.Tool):
         aln_sam = util.file.mkstempfname('.aligned.sam')
         fastq_pipe = samtools.bam2fq_pipe(inReads)
         #with samtools.bam2fq_tmp(inReads) as (fq1, fq2):
-        self.execute('mem', options + ['-p', refDb, '-'], stdout=aln_sam, stdin=fastq_pipe)
+        self.execute('mem', options + ['-p', refDb, '-'], stdout=aln_sam, stdin=fastq_pipe.stdout)
+
+        if fastq_pipe.poll():
+            raise subprocess.CalledProcessError(fastq_pipe.returncode, "samtools.bam2fq_pipe() for {}".format(inReads))
 
         if min_score_to_filter:
             # Filter reads in the alignment based on on their alignment score

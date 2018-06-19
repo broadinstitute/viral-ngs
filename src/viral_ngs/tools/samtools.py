@@ -93,7 +93,7 @@ class SamtoolsTool(tools.Tool):
         tool_cmd = [self.install_and_get_path(), 'bam2fq', '-n', inBam]
         log.debug(' '.join(tool_cmd) + ' |')
         p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
-        return p.stdout
+        return p
 
     def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
         if outFa2 is None:
