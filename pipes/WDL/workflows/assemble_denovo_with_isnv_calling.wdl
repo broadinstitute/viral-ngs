@@ -3,10 +3,11 @@ import "assembly.wdl" as assembly
 import "tasks_intrahost.wdl" as intrahost
 
 workflow assemble_denovo_with_isnv_calling {
+  File reads_unmapped_bam
 
   call taxon_filter.filter_to_taxon {
     input:
-      reads_unmapped_bam = deplete_taxa.cleaned_bam,
+      reads_unmapped_bam = reads_unmapped_bam
   }
 
   call assembly.assemble {
@@ -23,12 +24,12 @@ workflow assemble_denovo_with_isnv_calling {
   call assembly.refine_2x_and_plot {
     input:
       assembly_fasta = scaffold.scaffold_fasta,
-      reads_unmapped_bam = deplete_taxa.cleaned_bam
+      reads_unmapped_bam = reads_unmapped_bam
   }
 
   call intrahost.isnvs_per_sample {
     input:
       assembly_fasta = refine_2x_and_plot.final_assembly_fasta,
-      mapped_bam = deplete_taxa.cleaned_bam
+      mapped_bam = refine_2x_and_plot.aligned_bam
   }
 }

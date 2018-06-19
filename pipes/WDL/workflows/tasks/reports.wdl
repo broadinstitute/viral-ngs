@@ -1,4 +1,5 @@
 
+workflow dummyworkflow {}
 
 task plot_coverage {
   # TO DO: add a BWA option

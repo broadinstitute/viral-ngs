@@ -1,8 +1,10 @@
+workflow dummyworkflow {}
+
 task isnvs_per_sample {
   String sample
 
-  File mappedBam
-  File assembly # fasta
+  File mapped_bam
+  File assembly_fasta
 
   Int? threads
   Int? minReadsPerStrand
@@ -10,8 +12,8 @@ task isnvs_per_sample {
 
   command {
     intrahost.py vphaser_one_sample \
-        "${mappedBam}" \
-        "${assembly}" \
+        "${mapped_bam}" \
+        "${assembly_fasta}" \
          "vphaser2.${sample}.txt.gz" \
          "${'--vphaserNumThreads' + threads}" \
          --removeDoublyMappedReads \
@@ -31,18 +33,20 @@ task isnvs_per_sample {
 task isnvs_vcf {
   Array[File] vphaser2Calls # vphaser output; ex. vphaser2.${sample}.txt.gz
   Array[File] perSegmentMultiAlignments # aligned_##.fasta, where ## is segment number
-  File referenceGenome #fasta
-  File sampleNameList
+  File reference_fasta
 
   Array[String] snpEffRef # list of accessions to build/find snpEff database
-  Array[String] sampleNames # list of sample names
+  Array[String]? sampleNames # list of sample names
   String emailAddress # email address passed to NCBI if we need to download reference sequences
 
   command {
+    SAMPLES="${sep=' ' sampleNames}"
+    if [ -n "$SAMPLES" ]; then SAMPLES="--samples $SAMPLES"; fi
+
     intrahost.py merge_to_vcf  \
-        "${referenceGenome}" \
+        "${reference_fasta}" \
         "isnvs.vcf.gz" \
-        --samples "${sampleNameList}" \
+        $SAMPLES \
         --isnvs "${sep=' ' vphaser2Calls}" \
         --alignments "${sep=' ' perSegmentMultiAlignments}" \
         --strip_chr_version \
@@ -71,19 +75,21 @@ task isnvs_vcf {
 task isnvs_vcf_filtered {
   Array[File] vphaser2Calls # vphaser output; ex. vphaser2.${sample}.txt.gz
   Array[File] perSegmentMultiAlignments # aligned_##.fasta, where ## is segment number
-  File referenceGenome #fasta
-  File sampleNameList
+  File reference_fasta
 
   Array[String] snpEffRef # list of accessions to build/find snpEff database
-  Array[String] sampleNames # list of sample names
+  Array[String]? sampleNames # list of sample names
   String emailAddress # email address passed to NCBI if we need to download reference sequences
   Boolean naiveFilter
 
   command {
+    SAMPLES="${sep=' ' sampleNames}"
+    if [ -n "$SAMPLES" ]; then SAMPLES="--samples $SAMPLES"; fi
+
     intrahost.py merge_to_vcf \
-        "${referenceGenome}" \
+        "${reference_fasta}" \
         "isnvs.vcf.gz" \
-        --samples "${sampleNameList}" \
+        $SAMPLES \
         --isnvs "${sep=' ' vphaser2Calls}" \
         --alignments "${sep=' ' perSegmentMultiAlignments}" \
         --strip_chr_version \

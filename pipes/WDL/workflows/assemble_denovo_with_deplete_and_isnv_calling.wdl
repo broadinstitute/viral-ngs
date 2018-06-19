@@ -31,6 +31,6 @@ workflow assemble_denovo_with_deplete_and_isnv_calling {
   call intrahost.isnvs_per_sample {
     input:
       assembly_fasta = refine_2x_and_plot.final_assembly_fasta,
-      mapped_bam = deplete_taxa.cleaned_bam
+      mapped_bam = refine_2x_and_plot.aligned_bam
   }
 }

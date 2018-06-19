@@ -1,4 +1,6 @@
 
+workflow dummyworkflow {}
+
 # TO DO:
 # kraken_build (input & output tarballs)
 # diamond, bwa, etc

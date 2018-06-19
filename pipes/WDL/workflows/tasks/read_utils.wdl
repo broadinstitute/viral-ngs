@@ -1,4 +1,6 @@
 
+workflow dummyworkflow {}
+
 task downsample_bams {
   Array[File]  reads_bam
   Int?         readCount

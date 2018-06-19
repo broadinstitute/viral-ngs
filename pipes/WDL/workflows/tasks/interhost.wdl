@@ -1,4 +1,6 @@
 
+workflow dummyworkflow {}
+
 task multi_align_mafft_ref {
   File           reference_fasta
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
