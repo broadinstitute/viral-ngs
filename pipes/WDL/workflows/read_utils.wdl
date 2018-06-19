@@ -1,9 +1,9 @@
-import "read_utils.wdl" as read_utils
+import "tasks_read_utils.wdl" as reads
 
 workflow downsample {
     Array[File] reads_bam
 
-    call read_utils.downsample_bams {
+    call reads.downsample_bams {
         input:
             reads_bam = reads_bam
     }
