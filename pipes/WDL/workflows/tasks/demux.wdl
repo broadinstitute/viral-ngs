@@ -123,8 +123,8 @@ task merge_and_reheader_bams {
       ln -s ${select_first(in_bams)} merged.bam
     fi    
 
-    if [ -f ${reheader_table} ]; then
-      read_utils.py merged.bam ${reheader_table} ${out_basename}.bam --loglevel DEBUG
+    if [[ -f "${reheader_table}" ]]; then
+      read_utils.py reheader_bam merged.bam ${reheader_table} ${out_basename}.bam --loglevel DEBUG
     else
       echo "Skipping reheader, no mapping table specified"
       ln -s merged.bam ${out_basename}.bam
