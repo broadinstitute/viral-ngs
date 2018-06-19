@@ -71,10 +71,10 @@ class SamtoolsTool(tools.Tool):
         else:
             subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr, env=env)
 
-        if stdout:
-            stdout.close()
-        if stderr:
-            stderr.close()
+            if stdout:
+                stdout.close()
+            if stderr:
+                stderr.close()
 
     def view(self, args, inFile, outFile, regions=None, background=False):
         regions = regions or []
