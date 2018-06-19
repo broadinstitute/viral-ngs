@@ -10,10 +10,10 @@ workflow align_and_plot {
 
   call reports.plot_coverage {
     input:
-      aligner_options = "-r Random -l 30 -g 40 -x 20 -t 502"
-      sample_name = sample_name
-      assembly_fasta = assembly_fasta
-      reads_unmapped_bam = reads_unmapped_bam
+      aligner_options = "-r Random -l 30 -g 40 -x 20 -t 502",
+      sample_name = sample_name,
+      assembly_fasta = assembly_fasta,
+      reads_unmapped_bam = reads_unmapped_bam,
       gatk_jar = gatk_jar
   }
 }
