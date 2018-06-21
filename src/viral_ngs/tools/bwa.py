@@ -55,6 +55,7 @@ class Bwa(tools.Tool):
             cmd.extend(('-p', output))
         cmd.append(inFasta)
         self.execute('index', cmd)
+        return output
 
     def align_mem_bam(self, inBam, refDb, outBam, options=None,
                       min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False, should_index=True):
@@ -216,7 +217,6 @@ class Bwa(tools.Tool):
 
         aln_sam = util.file.mkstempfname('.aligned.sam')
         fastq_pipe = samtools.bam2fq_pipe(inReads)
-        #with samtools.bam2fq_tmp(inReads) as (fq1, fq2):
         self.execute('mem', options + ['-p', refDb, '-'], stdout=aln_sam, stdin=fastq_pipe.stdout)
 
         if fastq_pipe.poll():
