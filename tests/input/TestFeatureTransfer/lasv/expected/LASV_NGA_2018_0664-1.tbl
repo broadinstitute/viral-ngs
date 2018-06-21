@@ -1,0 +1,12 @@
+>Feature LASV_NGA_2018_0664-1
+12	311	gene
+			gene	Z
+12	311	CDS
+			product	Z protein
+			transl_table	1
+7068	406	gene
+			gene	L
+7068	406	CDS
+			product	polymerase
+			transl_table	1
+
