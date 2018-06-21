@@ -1,0 +1,13 @@
+>Feature LASV_NGA_2018_0026-1
+7	306	gene
+			gene	Z
+7	306	CDS
+			product	Z protein
+			transl_table	1
+<6841	401	gene
+			gene	L
+<6841	401	CDS
+			note	sequencing did not capture complete CDS
+			product	polymerase
+			transl_table	1
+
