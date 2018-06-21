@@ -1,0 +1,12 @@
+>Feature LASV_NGA_2018_1024-2
+37	1509	gene
+			gene	GPC
+37	1509	CDS
+			product	glycoprotein precursor
+			transl_table	1
+3286	1577	gene
+			gene	NP
+3286	1577	CDS
+			product	nucleoprotein
+			transl_table	1
+
