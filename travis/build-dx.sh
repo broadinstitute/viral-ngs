@@ -22,7 +22,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
   else
     workflow_name=`basename $workflow .wdl`
-	  echo "Building $workflow to DNAnexus"
+	  echo "Building $workflow to DNAnexus: /build/$VERSION/$workflow_name"
 
     test_input_json_wdl="test/input/WDL/test_inputs-$workflow_name-dnanexus.json"
     if [ -f "$test_input_json_wdl" ]; then
