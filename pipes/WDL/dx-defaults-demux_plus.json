@@ -2,10 +2,10 @@
   "demux_plus.spikein_db":
     "dx://file-F6PXkF00Yqp3zVXq14fF98Kz",
 
-  "demux_plus.deplete.bwaDbs": [
+  "demux_plus.bwaDbs": [
     "dx://file-F9k7Bx00Z3ybJjvY3ZVj7Z9P"
   ],
-  "demux_plus.deplete.blastDbs": [
+  "demux_plus.blastDbs": [
     "dx://file-F8B3B6Q09y3bZg3j1FqK7bJ9",
     "dx://file-F8BjgXj09y3gkfZGPPQZbZkK",
     "dx://file-F8B3Pp809y3jBpXq7xjxbq94",
