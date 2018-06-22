@@ -1,4 +1,3 @@
-workflow dummyworkflow {}
 
 task isnvs_per_sample {
   String sample

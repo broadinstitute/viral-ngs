@@ -1,6 +1,4 @@
 
-workflow dummyworkflow {}
-
 #task merge_tar_chunks {
 #  Array[File]+  tar_chunks
 #  String        out_filename

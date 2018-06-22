@@ -1,6 +1,4 @@
 
-workflow dummyworkflow {}
-
 # ======================================================================
 # deplete: 
 #   Runs a full human read depletion pipeline and removes PCR duplicates

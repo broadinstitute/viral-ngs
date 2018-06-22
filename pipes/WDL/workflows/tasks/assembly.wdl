@@ -1,6 +1,4 @@
 
-workflow dummyworkflow {}
-
 task assemble {
 
   File    reads_unmapped_bam

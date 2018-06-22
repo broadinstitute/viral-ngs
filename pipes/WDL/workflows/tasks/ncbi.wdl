@@ -1,6 +1,4 @@
 
-workflow dummyworkflow {}
-
 task download_fasta {
   String         out_prefix
   Array[String]+ accessions
