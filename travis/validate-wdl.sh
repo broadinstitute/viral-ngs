@@ -14,7 +14,7 @@ trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 # validate each imported library of tasks on its own
 for tasks in pipes/WDL/workflows/tasks/*.wdl; do
   echo "validating tasks $tasks"
-  if $(hash -r  womtool); then
+  if $(hash -r  womtool &> /dev/null); then
     womtool validate $tasks
   else
     java -jar womtool.jar validate $tasks
@@ -31,7 +31,7 @@ cp ../pipes/WDL/workflows/tasks/*.wdl ../pipes/WDL/workflows/*.wdl .
 for workflow in ../pipes/WDL/workflows/*.wdl; do
   workflow=`basename $workflow`
   echo "validating $workflow"
-  if $(hash -r  womtool); then
+  if $(hash -r  womtool &> /dev/null); then
     womtool validate $workflow
   else
     java -jar ../womtool.jar validate $workflow
