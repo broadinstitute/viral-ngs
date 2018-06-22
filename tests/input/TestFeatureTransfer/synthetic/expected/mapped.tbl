@@ -1,6 +1,6 @@
 >Feature sample
 <1	99	CDS
-			gene	should-be-output-if-not-ignore_ambig_feature_edge
+			product	should-be-output-if-not-ignore_ambig_feature_edge
 <1508	2740	CDS
 			product	should-output-with-fuzzy-lt-start-if-not-ignore_ambig_feature_edge
 225	1703	CDS
