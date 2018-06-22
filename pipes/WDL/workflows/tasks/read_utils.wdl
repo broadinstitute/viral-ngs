@@ -35,5 +35,4 @@ task downsample_bams {
   }
 }
 
-# this exists so womtool can validate this file
-workflow dummyworkflow_read_utils {}
+

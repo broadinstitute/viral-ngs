@@ -208,5 +208,4 @@ task diamond_contigs {
   }
 }
 
-# this exists so womtool can validate this file
-workflow dummyworkflow_metagenomics {}
+

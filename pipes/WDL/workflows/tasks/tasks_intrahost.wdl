@@ -115,5 +115,4 @@ task isnvs_vcf_filtered {
   }
 }
 
-# this exists so womtool can validate this file
-workflow dummyworkflow_tasks_intrahost {}
+

@@ -357,5 +357,3 @@ task refine_2x_and_plot {
     }
 }
 
-# this exists so womtool can validate this file
-workflow dummyworkflow_assembly {}
