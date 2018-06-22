@@ -45,7 +45,11 @@ for workflow in pipes/WDL/workflows/*.wdl; do
       -imports pipes/WDL/workflows/tasks/ \
       -force \
       -destination /build/$VERSION/$workflow_name)
-	  echo "Succeeded: $workflow_name = $dx_id"
+    if [ $? -eq 0 ]; then
+        echo "Succeeded: $workflow_name = $dx_id"
+    else
+        echo "Failed to build: $workflow_name"
+    fi
     echo -e "$workflow_name\t$dx_id" >> $COMPILE_SUCCESS
   fi
 done

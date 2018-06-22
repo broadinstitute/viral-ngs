@@ -1,7 +1,5 @@
 
 task isnvs_per_sample {
-  String sample
-
   File mapped_bam
   File assembly_fasta
 
@@ -9,11 +7,13 @@ task isnvs_per_sample {
   Int? minReadsPerStrand
   Int? maxBias
 
+  String sample_name = basename(basename(mapped_bam, ".bam"), ".all")
+
   command {
     intrahost.py vphaser_one_sample \
         "${mapped_bam}" \
         "${assembly_fasta}" \
-         "vphaser2.${sample}.txt.gz" \
+         "vphaser2.${sample_name}.txt.gz" \
          "${'--vphaserNumThreads' + threads}" \
          --removeDoublyMappedReads \
          "${'--minReadsEach' + minReadsPerStrand}" \
@@ -21,7 +21,7 @@ task isnvs_per_sample {
   }
 
   output {
-    File isnvsFile = "vphaser2.${sample}.txt.gz"
+    File isnvsFile = "vphaser2.${sample_name}.txt.gz"
   }
   runtime {
     memory: "7 GB"
