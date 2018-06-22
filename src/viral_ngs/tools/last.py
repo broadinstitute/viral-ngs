@@ -65,7 +65,10 @@ class Lastal(LastTools):
             ]
             cmd = [str(x) for x in cmd]
             _log.debug('| ' + ' '.join(cmd) + ' |')
-            lastal_pipe = subprocess.Popen(cmd, stdin=fastq_pipe, stdout=subprocess.PIPE)
+            lastal_pipe = subprocess.Popen(cmd, stdin=fastq_pipe.stdout, stdout=subprocess.PIPE)
+
+            if fastq_pipe.poll():
+                raise subprocess.CalledProcessError(fastq_pipe.returncode, "SamtoolsTool().bam2fq_pipe({})".format(inBam))
 
             # strip tab output to just query read ID names and emit
             last_read_id = None
