@@ -181,4 +181,4 @@ task merge_one_per_sample {
 }
 
 # this exists so womtool can validate this file
-workflow dummyworkflow {}
+workflow dummyworkflow_taxon_filter {}

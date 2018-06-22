@@ -141,4 +141,4 @@ task prepare_genbank {
 }
 
 # this exists so womtool can validate this file
-workflow dummyworkflow {}
+workflow dummyworkflow_ncbi {}

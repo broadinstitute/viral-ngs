@@ -89,4 +89,4 @@ task index_ref {
 }
 
 # this exists so womtool can validate this file
-workflow dummyworkflow {}
+workflow dummyworkflow_interhost {}

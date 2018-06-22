@@ -7,7 +7,9 @@ test_dir="wdl_validate_test"
 function cleanup(){
     echo "Cleaning up from WDL womtool; exit code: $?"
     cd "$starting_dir"
-    rm -r $test_dir
+    if [ -d "$test_dir" ]; then
+      rm -r "$test_dir"
+    fi
 }
 trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 
