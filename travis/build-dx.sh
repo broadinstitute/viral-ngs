@@ -40,6 +40,12 @@ for workflow in pipes/WDL/workflows/*.wdl; do
       CMD_DEFAULTS=""
     fi
 
+    # for debugging:
+    java -jar dxWDL.jar compile \
+      $workflow $CMD_INPUT $CMD_DEFAULTS -f \
+      -imports pipes/WDL/workflows/tasks/ \
+      -destination /build/$VERSION/$workflow_name
+
 	  dx_id=$(java -jar dxWDL.jar compile \
       $workflow $CMD_INPUT $CMD_DEFAULTS -f \
       -imports pipes/WDL/workflows/tasks/ \
