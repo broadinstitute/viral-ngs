@@ -8,7 +8,7 @@ workflow assemble_denovo_with_deplete_and_isnv_calling {
 
   call taxon_filter.filter_to_taxon {
     input:
-      reads_unmapped_bam = deplete_taxa.cleaned_bam,
+      reads_unmapped_bam = deplete_taxa.cleaned_bam
   }
 
   call assembly.assemble {
