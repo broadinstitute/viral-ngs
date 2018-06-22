@@ -85,7 +85,7 @@ class SeqFeature(object):
     def add_location(self, location):
         self.locations.append(location)
 
-    def add_location(self, start, location_operator_start, end, location_operator_end, *args, allow_fuzzy=True, **kwargs):
+    def add_location(self, start, location_operator_start, end, location_operator_end, allow_fuzzy=True, *args, **kwargs):
         self.locations.append(SeqLocation(SeqPosition(start, location_operator_start, allow_fuzzy=allow_fuzzy), SeqPosition(end, location_operator_end, allow_fuzzy=allow_fuzzy)))
         # sort with each insertion
         self.sort()
