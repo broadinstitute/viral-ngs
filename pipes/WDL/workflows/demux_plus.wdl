@@ -14,6 +14,9 @@ workflow demux_plus {
 
     File spikein_db
     File trim_clip_db
+    Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+    Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+    Array[File]? bwaDbs
     scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
         call reports.spikein_report as spikein {
             input:
@@ -22,7 +25,10 @@ workflow demux_plus {
         }
         call taxon_filter.deplete_taxa as deplete {
             input:
-                raw_reads_unmapped_bam = raw_reads
+                raw_reads_unmapped_bam = raw_reads,
+                bmtaggerDbs = bmtaggerDbs,
+                blastDbs = blastDbs,
+                bwaDbs = bwaDbs
         }
         call assembly.assemble as spades {
             input:

@@ -1,8 +1,8 @@
 {
-  "assemble_denovo_with_deplete.deplete_taxa.bwaDbs": [
+  "assemble_denovo_with_deplete.bwaDbs": [
     "dx://file-F9k7Bx00Z3ybJjvY3ZVj7Z9P"
   ],
-  "assemble_denovo_with_deplete.deplete_taxa.blastDbs": [
+  "assemble_denovo_with_deplete.blastDbs": [
     "dx://file-F8B3B6Q09y3bZg3j1FqK7bJ9",
     "dx://file-F8BjgXj09y3gkfZGPPQZbZkK",
     "dx://file-F8B3Pp809y3jBpXq7xjxbq94",
