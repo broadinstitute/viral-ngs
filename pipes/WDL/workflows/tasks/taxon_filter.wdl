@@ -179,3 +179,6 @@ task merge_one_per_sample {
     dx_instance_type: "mem1_ssd2_x4"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}

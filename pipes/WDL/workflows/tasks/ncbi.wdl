@@ -139,3 +139,6 @@ task prepare_genbank {
     dx_instance_type: "mem1_ssd1_x2"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}

@@ -142,3 +142,6 @@ task merge_and_reheader_bams {
     dx_instance_type: "mem1_ssd2_x4"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}

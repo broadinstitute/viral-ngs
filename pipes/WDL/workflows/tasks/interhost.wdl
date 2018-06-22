@@ -87,3 +87,6 @@ task index_ref {
     docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}

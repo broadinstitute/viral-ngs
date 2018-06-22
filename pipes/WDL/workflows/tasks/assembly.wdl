@@ -359,3 +359,6 @@ task refine_2x_and_plot {
     dx_instance_type: "mem1_ssd1_x8"
   }
 }
+
+# this exists purely so womtool can validate this file
+workflow dummyworkflow {}

@@ -207,3 +207,6 @@ task diamond_contigs {
     dx_instance_type: "mem3_ssd1_x16"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}

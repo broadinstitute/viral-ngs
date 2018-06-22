@@ -174,3 +174,6 @@ task spikein_report {
     dx_instance_type: "mem1_ssd1_x4"
   }
 }
+
+# this exists so womtool can validate this file
+workflow dummyworkflow {}
