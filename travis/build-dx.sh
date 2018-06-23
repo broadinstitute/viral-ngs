@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail
+#set -e -o pipefail
 
 if [ -z "$DX_API_TOKEN" ]; then
   echo "ERROR: DX_API_TOKEN is not set, this is needed to build dxWDL workflows."
@@ -48,6 +48,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
         echo "Succeeded: $workflow_name = $dx_id"
     else
         echo "Failed to build: $workflow_name"
+        exit $?
     fi
     echo -e "$workflow_name\t$dx_id" >> $COMPILE_SUCCESS
   fi
