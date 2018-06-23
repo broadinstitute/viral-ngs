@@ -70,7 +70,7 @@ task deplete_taxa {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 8
-    dx_instance_type: "mem1_ssd1_x8"
+    dx_instance_type: "mem1_ssd1_x16"
     preemptible: 0
   }
 }
