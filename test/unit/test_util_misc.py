@@ -7,6 +7,7 @@ import unittest
 import subprocess
 import util.misc
 import util.file
+import pytest
 
 
 class TestRunAndPrint(unittest.TestCase):
@@ -209,3 +210,38 @@ class TestConfigIncludes(unittest.TestCase):
 
         self.assertEqual(util.misc.load_config(test_fn('empty.yaml')), {})
 
+def test_as_type():
+    """Test util.misc.as_type()"""
+
+    as_type = util.misc.as_type
+
+    test_data = (
+        ('1', int, 1, int),
+        ('1', (int,), 1, int),
+        ('1', (int, float), 1, int),
+        ('1', (float, int), 1., float),
+        ('1.2', (float, int), 1.2, float),
+        ('1.2', (int, float), 1.2, float),
+        (1, int, 1, int),
+        ('1.', (int, float), 1., float),
+        (1., int, 1, int),
+        (1.2, (int, float), 1, int),
+        ('1e3', (int, float), 1000., float),
+        ('1e3', (float, int), 1000., float),
+        ('1.1e3', (int, float), 1100., float),
+        ('-1.1e3', (float, int), -1100., float),
+    )
+
+    for val, types, out_val, out_type in test_data:
+        result = as_type(val, types)
+        assert result == out_val
+        assert type(result) == out_type
+
+    err_data = (
+        ('1.', int), ('1.', (int,)), ('1e3', int), ('1e3', (int,)), ([1], int),
+        ('', int), ('', (int, float)), ('', (float, int))
+    )
+
+    for val, types in err_data:
+        with pytest.raises(TypeError):
+            as_type(val, types)
