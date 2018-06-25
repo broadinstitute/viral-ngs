@@ -38,28 +38,35 @@ class TestKmc(TestCaseWithTmp):
         if isinstance(s, Seq): return str(s)
         if isinstance(s, SeqRecord): return str(s.seq)
         return s
-
+    
     def _canonize(self, kmer):
         return min(kmer, str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement()))
 
     def _get_seq_kmers(self, seqs, k, canonize_kmers):
-        """Get kmers of string(s) in seqs"""
+        """Get kmers of seq(s)"""
         for seq in util.misc.make_seq(seqs):
+            seq = self._get_seq(seq)
             for i in range(len(seq)-k+1):
                 kmer = seq[i:i+k]
                 yield self._canonize(kmer) if canonize_kmers else kmer
 
+    def _get_seq_kmer_counts(self, seqs, k, canonize_kmers):
+        """Get kmer counts of seq(s)"""
+        return collections.Counter(self._get_seq_kmers(seqs, k, canonize_kmers))
+
     def test_kmer_extraction(self):
 
         test_data = (
-            ('A'*15, 4, {'AAAA':12}),
+            ('A'*15, 4),
         )
 
-        for seqs, k, expected_kmer_counts in test_data:
+        for seqs, k in test_data:
             with util.file.tmp_dir(suffix='kmctest') as t_dir:
                 seq_fasta = os.path.join(t_dir, 'seqs.fasta')
                 Bio.SeqIO.write([SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
-                                           id='seq_%d'.format(i)) for i, seq in enumerate(util.misc.make_seq(seqs))],
+                                           id='seq_%d'.format(i), name='seq_%d'.format(i), 
+                                           description='sequence number %d'.format(i)) 
+                                 for i, seq in enumerate(util.misc.make_seq(seqs))],
                                 seq_fasta, 'fasta')
                 kmer_db = os.path.join(t_dir, 'kmer_db')
                 util.cmd.run_cmd(kmers, 'build_kmer_db', [seq_fasta, kmer_db, '-k', k])
@@ -67,7 +74,7 @@ class TestKmc(TestCaseWithTmp):
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    collections.Counter(self._get_seq_kmers(seqs, k, canonize_kmers=True))
+                    self._get_seq_kmer_counts(seqs, k, canonize_kmers=True)
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:
