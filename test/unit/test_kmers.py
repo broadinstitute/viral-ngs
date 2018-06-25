@@ -42,17 +42,22 @@ class TestKmc(TestCaseWithTmp):
     def _canonize(self, kmer):
         return min(kmer, str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement()))
 
-    def _get_seq_kmers(self, seqs, k, canonize_kmers):
+    def _get_seq_kmers(self, seqs, k, single_strand):
         """Get kmers of seq(s)"""
         for seq in util.misc.make_seq(seqs):
             seq = self._get_seq(seq)
             for i in range(len(seq)-k+1):
                 kmer = seq[i:i+k]
-                yield self._canonize(kmer) if canonize_kmers else kmer
+                yield kmer if single_strand else self._canonize(kmer)
 
-    def _get_seq_kmer_counts(self, seqs, k, canonize_kmers):
+    def _get_seq_kmer_counts(self, seqs, k, single_strand, min_occs=None, max_occs=None):
         """Get kmer counts of seq(s)"""
-        return collections.Counter(self._get_seq_kmers(seqs, k, canonize_kmers))
+        counts = collections.Counter(self._get_seq_kmers(seqs, k, single_strand))
+        if min_occs is not None or max_occs is not None:
+            counts = dict([(kmer, count) for kmer, count in counts.items() \
+                           if (min_occs is None or count >= min_occs) and \
+                           (max_occs is None or count <= max_occs)])
+        return counts
 
     def test_kmer_extraction(self):
 
@@ -77,7 +82,7 @@ class TestKmc(TestCaseWithTmp):
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    self._get_seq_kmer_counts(seqs, k, canonize_kmers=True)
+                    self._get_seq_kmer_counts(seqs, k, single_strand=False)
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:
