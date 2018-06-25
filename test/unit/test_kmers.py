@@ -58,6 +58,9 @@ class TestKmc(TestCaseWithTmp):
 
         test_data = (
             ('A'*15, 4),
+            ('T'*15, 4),
+            ([], 1),
+            (['TCGA'*3, 'ATTT'*5], 7),
         )
 
         for seqs, k in test_data:
