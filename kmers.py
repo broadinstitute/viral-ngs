@@ -33,9 +33,10 @@ log = logging.getLogger(__name__)
 # =================================
 
 def build_kmer_db(seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min_occs=None, max_occs=None,
-                  counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, mem_limit_gb=8, threads=None):
+                  counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, threads=None):
     """Build a database of kmers occurring in given sequences."""
-    tools.kmc.KmcTool().build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap,
+    tools.kmc.KmcTool().build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs, 
+                                      counter_cap=counter_cap, single_strand = single_strand,
                                       kmer_db=kmer_db, mem_limit_gb=mem_limit_gb, threads=threads)
 
 def parser_build_kmer_db(parser=argparse.ArgumentParser()):
@@ -45,6 +46,8 @@ def parser_build_kmer_db(parser=argparse.ArgumentParser()):
     parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int, help='drop kmers with fewer than this many occurrences')
     parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int, help='drop kmers with more than this many occurrences')
     parser.add_argument('--counterCap', '-cs', dest='counter_cap', type=int, default=tools.kmc.DEFAULT_COUNTER_CAP, help='cap kmer counts at this value')
+    parser.add_argument('--singleStrand', '-b', dest='single_strand', default=False, action='store_true', 
+                        help='do not add kmers from reverse complements of input sequences')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=8, type=int, help='Max memory to use, in GB')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, build_kmer_db, split_args=True)
@@ -54,21 +57,21 @@ __commands__.append(('build_kmer_db', parser_build_kmer_db))
 
 # =========================
 
-def dump_kmers(kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
-    """Dump kmers from kmer database to a text file"""
-    tools.kmc.KmcTool().dump_kmers(kmer_db=kmer_db, out_kmers=out_kmers, min_occs=min_occs, max_occs=max_occs, threads=threads)
+def dump_kmer_counts(kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
+    """Dump kmers and their counts from kmer database to a text file"""
+    tools.kmc.KmcTool().dump_kmer_counts(kmer_db=kmer_db, out_kmers=out_kmers, min_occs=min_occs, max_occs=max_occs, threads=threads)
 
-def parser_dump_kmers(parser=argparse.ArgumentParser()):
+def parser_dump_kmer_counts(parser=argparse.ArgumentParser()):
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
     parser.add_argument('out_kmers', help='text file to which to write the kmers')
     parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int, help='drop kmers with fewer than this many occurrences')
     parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int, help='drop kmers with more than this many occurrences')
 
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, dump_kmers, split_args=True)
+    util.cmd.attach_main(parser, dump_kmer_counts, split_args=True)
     return parser
 
-__commands__.append(('dump_kmers', parser_dump_kmers))
+__commands__.append(('dump_kmer_counts', parser_dump_kmer_counts))
 
 # =========================
 

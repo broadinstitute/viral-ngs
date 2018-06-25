@@ -56,7 +56,7 @@ class KmcTool(tools.Tool):
         else: raise RuntimeError('Unknown seq file format: {}'.format(file_type))
 
     def build_kmer_db(self, seq_files, kmer_db, kmer_size=DEFAULT_KMER_SIZE, min_occs=None, max_occs=None, 
-                      counter_cap=DEFAULT_COUNTER_CAP, mem_limit_gb=8, threads=None, kmc_opts=''):
+                      counter_cap=DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, threads=None, kmc_opts=''):
         """Build a database of kmers occurring in the given sequence files.
 
         Inputs:
@@ -71,9 +71,8 @@ class KmcTool(tools.Tool):
           min_occs: ignore kmers occurring fewer than this many times
           max_occs: ignore kmers occurring more than this many times
           counter_cap: when writing kmer counts to the database, cap the values at this number
+          single_strand: if True, do not include kmers from reverse complements of input sequences
           kmc_opts: any additional kmc flags
-
-          
         """
         if min_occs is None: min_occs = 1
         if max_occs is None: max_occs = util.misc.MAX_INT32
@@ -84,14 +83,16 @@ class KmcTool(tools.Tool):
             util.file.dump_file(seq_file_list, '\n'.join(seq_files))
             args = ['-v']
 
-            input_fmt_opts = set(map(self._get_file_format_opt, seq_files))
-            assert len(input_fmt_opts) == 1, "All input files must be of the same format"
-            input_fmt_opt = list(input_fmt_opts)[0]
+            input_fmt_opts_set = set(map(self._get_file_format_opt, seq_files))
+            assert len(input_fmt_opts_set) == 1, "All input files must be of the same format"
+            input_fmt_opt = list(input_fmt_opts_set)[0]
 
-            args += '-f{} -k{} -ci{} -cx{} -cs{} -m{} -r -t{} @{} {}'.format(input_fmt_opt, kmer_size, min_occs, max_occs, counter_cap, mem_limit_gb, threads,
-                                                                              seq_file_list, kmer_db).split()
+            args += '-f{} -k{} -ci{} -cx{} -cs{} -m{} -r -t{}'.format(input_fmt_opt, kmer_size, min_occs, max_occs, 
+                                                                      counter_cap, mem_limit_gb, threads).split()
+            if single_strand: args += ['-b']
             if kmc_opts: args += shlex.split(kmc_opts)
-            args += [t_dir]
+
+            args += ['@'+seq_file_list, kmer_db, t_dir]
             tool_cmd = [self.install_and_get_path()] + args
             log.info('Building kmer database with command: ' + ' '.join(tool_cmd))
             subprocess.check_call(tool_cmd)
@@ -107,13 +108,23 @@ class KmcTool(tools.Tool):
         subprocess.check_call(tool_cmd)
 
 
-    def dump_kmers(self, kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
-        """Dump the kmers from the database to a text file"""
+    def dump_kmer_counts(self, kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
+        """Dump the kmers from the database, with their counts, to a text file"""
         if min_occs is None: min_occs = 1
         if max_occs is None: max_occs = util.misc.MAX_INT32
-        self.execute('transform {} -ci{} -cx{} dump -s {}'.format(self._kmer_db_name(kmer_db), min_occs, max_occs, out_kmers).split(), threads=threads)
+        self.execute('transform {} -ci{} -cx{} dump -s {}'.format(self._kmer_db_name(kmer_db), 
+                                                                  min_occs, max_occs, out_kmers).split(), threads=threads)
         assert os.path.isfile(out_kmers)
 
+    @staticmethod
+    def read_kmer_counts(kmer_counts_txt):
+        """Read kmer counts from a file written by dump_kmer_counts"""
+        counts = {}
+        with open(kmer_counts_txt) as f:
+            for line in f:
+                kmer, count = line.strip().split()
+                counts[kmer] = int(count)
+        return counts
 
     def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None, 
                      read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
