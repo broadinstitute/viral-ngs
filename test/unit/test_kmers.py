@@ -38,9 +38,12 @@ class TestKmc(TestCaseWithTmp):
         if isinstance(s, Seq): return str(s)
         if isinstance(s, SeqRecord): return str(s.seq)
         return s
+
+    def _revcomp(self, kmer):
+        return str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement())
     
     def _canonize(self, kmer):
-        return min(kmer, str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement()))
+        return min(kmer, self._revcomp(kmer))
 
     def _get_seq_kmers(self, seqs, k, single_strand):
         """Get kmers of seq(s)"""
@@ -50,39 +53,44 @@ class TestKmc(TestCaseWithTmp):
                 kmer = seq[i:i+k]
                 yield kmer if single_strand else self._canonize(kmer)
 
-    def _get_seq_kmer_counts(self, seqs, k, single_strand, min_occs=None, max_occs=None):
+    def _get_seq_kmer_counts(self, seqs, args):
         """Get kmer counts of seq(s)"""
-        counts = collections.Counter(self._get_seq_kmers(seqs, k, single_strand))
-        if min_occs is not None or max_occs is not None:
-            counts = dict([(kmer, count) for kmer, count in counts.items() \
-                           if (min_occs is None or count >= min_occs) and \
-                           (max_occs is None or count <= max_occs)])
+        counts = collections.Counter(self._get_seq_kmers(seqs, args.kmer_size, args.single_strand))
+        if args.min_occs is not None or args.max_occs is not None or args.counter_cap is not None:
+            counts = dict([(kmer, count if args.counter_cap is None else min(count, args.counter_cap)) \
+                           for kmer, count in counts.items() \
+                           if (args.min_occs is None or count >= args.min_occs) and \
+                           (args.max_occs is None or count <= args.max_occs)])
         return counts
+
+    def _write_seqs_to_fasta(self, seqs, seqs_fasta):
+        Bio.SeqIO.write([SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
+                                   id='seq_%d'.format(i), name='seq_%d'.format(i), 
+                                   description='sequence number %d'.format(i)) 
+                         for i, seq in enumerate(util.misc.make_seq(seqs))],
+                        seqs_fasta, 'fasta')
 
     def test_kmer_extraction(self):
 
         test_data = (
-            ('A'*15, 4),
-            ('T'*15, 4),
-            ([], 1),
-            (['TCGA'*3, 'ATTT'*5], 7),
+            ('A'*15, '-k 4'),
+            ('T'*15, '-k 4' ),
+            ([], '-k 1'),
+            (['TCGA'*3, 'ATTT'*5], '-k 7'),
         )
 
-        for seqs, k in test_data:
+        for seqs, opts in test_data:
             with util.file.tmp_dir(suffix='kmctest') as t_dir:
-                seq_fasta = os.path.join(t_dir, 'seqs.fasta')
-                Bio.SeqIO.write([SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
-                                           id='seq_%d'.format(i), name='seq_%d'.format(i), 
-                                           description='sequence number %d'.format(i)) 
-                                 for i, seq in enumerate(util.misc.make_seq(seqs))],
-                                seq_fasta, 'fasta')
+                seqs_fasta = os.path.join(t_dir, 'seqs.fasta')
+                self._write_seqs_to_fasta(seqs, seqs_fasta)
                 kmer_db = os.path.join(t_dir, 'kmer_db')
-                util.cmd.run_cmd(kmers, 'build_kmer_db', [seq_fasta, kmer_db, '-k', k])
+                util.cmd.run_cmd(kmers, 'build_kmer_db', opts.split() + [seqs_fasta, kmer_db])
+                args = util.cmd.parse_cmd(kmers, 'build_kmer_db', opts.split() + [seqs_fasta, kmer_db])
 
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    self._get_seq_kmer_counts(seqs, k, single_strand=False)
+                    self._get_seq_kmer_counts(seqs, args)
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:
