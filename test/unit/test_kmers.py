@@ -63,11 +63,14 @@ class TestKmc(TestCaseWithTmp):
                            (args.max_occs is None or count <= args.max_occs)])
         return counts
 
+    def _make_seq_recs(self, seqs):
+        return [SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
+                          id='seq_%d'.format(i), name='seq_%d'.format(i), 
+                          description='sequence number %d'.format(i)) 
+                for i, seq in enumerate(util.misc.make_seq(seqs))]
+
     def _write_seqs_to_fasta(self, seqs, seqs_fasta):
-        Bio.SeqIO.write([SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
-                                   id='seq_%d'.format(i), name='seq_%d'.format(i), 
-                                   description='sequence number %d'.format(i)) 
-                         for i, seq in enumerate(util.misc.make_seq(seqs))],
+        Bio.SeqIO.write(self._make_seq_recs(seqs),
                         seqs_fasta, 'fasta')
 
     def test_kmer_extraction(self):
@@ -77,6 +80,7 @@ class TestKmc(TestCaseWithTmp):
             ('T'*15, '-k 4' ),
             ([], '-k 1'),
             (['TCGA'*3, 'ATTT'*5], '-k 7'),
+            (['TCGA'*3, 'ATTT'*5], '-k 31'),
         )
 
         for seqs, opts in test_data:
@@ -91,6 +95,18 @@ class TestKmc(TestCaseWithTmp):
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
                     self._get_seq_kmer_counts(seqs, args)
+
+    # to test:
+    #   empty bam, empty fasta, empty both
+    #   getting kmers from bam (here just convert the fasta to it?), from fastq,
+    #   from multiple files.
+
+    # def _filter_seqs(self, kmer_counts, seqs, args):
+    #     seqs_out = []
+    #     for seq in util.misc.make_seq(seqs):
+    #         kmerCounts = self.get_seq_km
+            
+        
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:
