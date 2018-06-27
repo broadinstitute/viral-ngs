@@ -16,8 +16,6 @@ if [ ! -f $COMPILE_SUCCESS ]; then
   dx download --no-progress /build/$VERSION/$COMPILE_SUCCESS
 fi
 
-cat "$COMPILE_SUCCESS"
-
 TEST_LAUNCH_ALL="dxWDL-execute_all-launched.txt"
 touch $TEST_LAUNCH_ALL
 for workflow in pipes/WDL/workflows/*.wdl; do
