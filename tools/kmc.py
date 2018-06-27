@@ -145,7 +145,8 @@ class KmcTool(tools.Tool):
                      read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
         """Filter reads based on their kmer contents.
 
-        Note that "occurrence of a kmer" means "occurrence of the kmer or its reverse complement".
+        Note that "occurrence of a kmer" means "occurrence of the kmer or its reverse complement" if kmer_db was built
+        with single_strand==False.
 
         Inputs:
           kmer_db: the kmc kmer database

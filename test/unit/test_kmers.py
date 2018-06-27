@@ -46,17 +46,28 @@ class TestKmc(TestCaseWithTmp):
         """Return the canonical version of a kmer"""
         return min(kmer, self._revcomp(kmer))
 
-    def _get_seq_kmers(self, seqs, k, single_strand):
+    def _get_kmers(self, seqs, k, single_strand):
         """Get kmers of seq(s)"""
         for seq in util.misc.make_seq(seqs):
             seq = self._get_seq(seq)
-            for i in range(len(seq)-k+1):
-                kmer = seq[i:i+k]
-                yield kmer if single_strand else self._canonicalize(kmer)
+            n_kmers = len(seq)-k+1
 
-    def _get_seq_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None, **kw):
+            # mark kmers containing invalid base(s)
+            valid_kmer = [True] * n_kmers
+            for i in range(len(seq)):
+                if seq[i] not in 'TCGA':
+                    invalid_lo = max(0, i-k+1)
+                    invalid_hi = min(n_kmers, i+1)
+                    valid_kmer[invalid_lo:invalid_hi] = [False]*(invalid_hi-invalid_lo)
+
+            for i in range(n_kmers):
+                if valid_kmer[i]:
+                    kmer = seq[i:i+k]
+                    yield kmer if single_strand else self._canonicalize(kmer)
+
+    def _get_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None, **kw):
         """Get kmer counts of seq(s)"""
-        counts = collections.Counter(self._get_seq_kmers(seqs, kmer_size, single_strand))
+        counts = collections.Counter(self._get_kmers(seqs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
             counts = dict((kmer, min(count, counter_cap or count)) \
                           for kmer, count in counts.items() \
@@ -96,7 +107,7 @@ class TestKmc(TestCaseWithTmp):
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    self._get_seq_kmer_counts(seqs, **vars(args))
+                    self._get_kmer_counts(seqs, **vars(args))
 
     # to test:
     #   empty bam, empty fasta, empty both
@@ -108,7 +119,7 @@ class TestKmc(TestCaseWithTmp):
         seqs_out = []
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
         for seq in util.misc.make_seq(seqs):
-            seq_kmer_counts = self._get_seq_kmer_counts(seq, kmer_size, single_strand)
+            seq_kmer_counts = self._get_kmer_counts(seq, kmer_size, single_strand)
             seq_occs = len(seq_kmer_counts & db_kmer_counts)
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*len(seq)) if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
@@ -116,13 +127,29 @@ class TestKmc(TestCaseWithTmp):
                 seqs_out.add(seq)
         return seqs_out
 
-    def test_read_filtering(self):
-        with util.file.tmp_dir(suffix='kmctest') as t_dir:
-            simple_fasta = self.input('simple.fasta')
-            kmer_db = os.path.join(t_dir, 'kmer_db')
-            util.cmd.run_cmd(kmers, 'build_kmer_db', [simple_fasta, kmer_db, '-k', 4])
+    def test_ebola_read_filtering(self):
+        with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
+            kmer_size = 21
+            single_strand = False
+            ebola_fasta = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
+            ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
+            util.cmd.run_cmd(kmers, 'build_kmer_db', [ebola_fasta, ebola_kmer_db, '-k', kmer_size])
+
+            ebola_fasta_seqs = list(Bio.SeqIO.parse(ebola_fasta, 'fasta'))
+            ebola_fasta_kmer_counts = self._get_kmer_counts(ebola_fasta_seqs, kmer_size=kmer_size, single_strand=single_strand)
+
+            kmers_txt = os.path.join(t_dir, 'kmers.txt')
+            util.cmd.run_cmd(kmers, 'dump_kmer_counts', [ebola_kmer_db, kmers_txt])
+
+            kmc_kmer_counts = tools.kmc.KmcTool().read_kmer_counts(kmers_txt)
+
+            assert len(kmc_kmer_counts) == len(ebola_fasta_kmer_counts)
+            assert kmc_kmer_counts == ebola_fasta_kmer_counts
 
 
-            filt_fasta = os.path.join(util.file.get_test_input_path(self), 'filt.fasta')
-            filt_fasta_out = os.path.join(t_dir, 'filtered.fasta')
-            util.cmd.run_cmd(kmers, 'filter_by_kmers', [kmer_db, filt_fasta, filt_fasta_out, '--readMinOccs', 1])
+
+
+            
+            
+            
+            

@@ -77,8 +77,11 @@ __commands__.append(('dump_kmer_counts', parser_dump_kmer_counts))
 
 def filter_by_kmers(kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None, 
                     read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
-    """Filter sequences based on their kmer contents."""
-    print('filter_by_kmers: starting run')
+    """Filter sequences based on their kmer contents.
+
+       Note that 'occurrence of a kmer' means 'occurrence of the kmer or its reverse complement' if kmer_db was built
+       without the --singleStrand flag.
+    """
     tools.kmc.KmcTool().filter_reads(kmer_db=kmer_db, in_reads=in_reads, out_reads=out_reads, db_min_occs=db_min_occs, db_max_occs=db_max_occs,
                                      read_min_occs=read_min_occs, read_max_occs=read_max_occs, hard_mask=hard_mask,
                                      threads=threads)
