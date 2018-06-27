@@ -72,8 +72,8 @@ class SamtoolsTool(tools.Tool):
     def view(self, args, inFile, outFile, regions=None, threads=None):
         regions = regions or []
 
-        if '-@' not in args:
-            args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
+        #if '-@' not in args:
+        #    args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
 
         self.execute('view', args + ['-o', outFile, inFile] + regions)
         #opts = args + ['-o', outFile, inFile] + regions
