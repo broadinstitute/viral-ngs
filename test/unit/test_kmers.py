@@ -56,11 +56,11 @@ class TestKmc(TestCaseWithTmp):
     def _get_seq_kmer_counts(self, seqs, args):
         """Get kmer counts of seq(s)"""
         counts = collections.Counter(self._get_seq_kmers(seqs, args.kmer_size, args.single_strand))
-        if args.min_occs is not None or args.max_occs is not None or args.counter_cap is not None:
-            counts = dict([(kmer, count if args.counter_cap is None else min(count, args.counter_cap)) \
-                           for kmer, count in counts.items() \
-                           if (args.min_occs is None or count >= args.min_occs) and \
-                           (args.max_occs is None or count <= args.max_occs)])
+        if any((args.min_occs, args.max_occs, args.counter_cap)):
+            counts = dict((kmer, min(count, args.counter_cap or count)) \
+                          for kmer, count in counts.items() \
+                          if (count >= (args.min_occs or count)) and \
+                          (count <= (args.max_occs or count)))
         return counts
 
     def _make_seq_recs(self, seqs):
@@ -101,12 +101,10 @@ class TestKmc(TestCaseWithTmp):
     #   getting kmers from bam (here just convert the fasta to it?), from fastq,
     #   from multiple files.
 
-    # def _filter_seqs(self, kmer_counts, seqs, args):
-    #     seqs_out = []
-    #     for seq in util.misc.make_seq(seqs):
-    #         kmerCounts = self.get_seq_km
-            
-        
+    def _filter_seqs(self, kmer_counts, seqs, args):
+        seqs_out = []
+        for seq in util.misc.make_seq(seqs):
+            kmerCounts = self._get_seq_kmer_counts(seqs)
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:
