@@ -473,16 +473,16 @@ def which(application_binary_name):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
 
-def is_nonstr_iterable(x):
-    '''Tests whether `x` is an Iterable other than a string'''
-    return isinstance(x, collections.Iterable) and not isinstance(x,str)
+def is_nonstr_iterable(x, str_types=str):
+    '''Tests whether `x` is an Iterable other than a string.  `str_types` gives the type(s) to treat as strings.'''
+    return isinstance(x, collections.Iterable) and not isinstance(x, str_types)
 
-def make_seq(x):
+def make_seq(x, str_types=str):
     '''Return a tuple containing the items in `x`, or containing just `x` if `x` is a non-string iterable.  Convenient
     for uniformly writing iterations over parameters that may be passed in as either an item or a tuple/list of items.
-    Note that if `x` is an iterator, it will be concretized.
+    Note that if `x` is an iterator, it will be concretized.  `str_types` gives the type(s) to treat as strings.'
     '''
-    return tuple(x) if is_nonstr_iterable(x) else (x,)
+    return tuple(x) if is_nonstr_iterable(x, str_types) else (x,)
 
 def load_yaml_or_json(fname):
     '''Load a dictionary from either a yaml or a json file'''

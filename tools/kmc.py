@@ -190,8 +190,10 @@ class KmcTool(tools.Tool):
             in_reads_fmt = 'q' if in_reads_type in ('.fq', '.fastq') else 'a'
 
             self.execute('filter {} {} -ci{} -cx{} {} -f{} -ci{} -cx{} {}'.format('-hm' if hard_mask else '',
-                                                                                  self._kmer_db_name(kmer_db), db_min_occs, db_max_occs, _in_reads, in_reads_fmt,
-                                                                                  read_min_occs, read_max_occs, _out_reads).split(), threads=threads)
+                                                                                  self._kmer_db_name(kmer_db), 
+                                                                                  db_min_occs, db_max_occs, _in_reads, in_reads_fmt,
+                                                                                  read_min_occs, read_max_occs, _out_reads).split(), 
+                         threads=threads)
 
             if in_reads_type == '.bam':
                 assert out_reads.endswith('.bam')

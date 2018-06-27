@@ -18,6 +18,7 @@ import util.cmd
 import util.file
 import util.misc
 import tools.kmc
+import tools.samtools
 from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 import Bio.SeqIO
@@ -32,7 +33,7 @@ class TestKmc(TestCaseWithTmp):
     def setUp(self):
         super(TestKmc, self).setUp()
 
-    def _get_seq(self, s):
+    def _seq_as_str(self, s):
         """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
         if isinstance(s, Seq): return str(s)
         if isinstance(s, SeqRecord): return str(s.seq)
@@ -48,8 +49,8 @@ class TestKmc(TestCaseWithTmp):
 
     def _get_kmers(self, seqs, k, single_strand):
         """Get kmers of seq(s)"""
-        for seq in util.misc.make_seq(seqs):
-            seq = self._get_seq(seq)
+        for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
+            seq = self._seq_as_str(seq)
             n_kmers = len(seq)-k+1
 
             # mark kmers containing invalid base(s)
@@ -118,13 +119,13 @@ class TestKmc(TestCaseWithTmp):
     def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None, **kw):
         seqs_out = []
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
-        for seq in util.misc.make_seq(seqs):
+        for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
             seq_kmer_counts = self._get_kmer_counts(seq, kmer_size, single_strand)
-            seq_occs = len(seq_kmer_counts & db_kmer_counts)
+            seq_occs = len(seq_kmer_counts.keys() & db_kmer_counts.keys())
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*len(seq)) if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
             if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
-                seqs_out.add(seq)
+                seqs_out.append(seq)
         return seqs_out
 
     def test_ebola_read_filtering(self):
@@ -146,10 +147,18 @@ class TestKmc(TestCaseWithTmp):
             assert len(kmc_kmer_counts) == len(ebola_fasta_kmer_counts)
             assert kmc_kmer_counts == ebola_fasta_kmer_counts
 
+            ebola_reads_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+            with tools.samtools.SamtoolsTool().bam2fa_tmp(ebola_reads_bam) as (ebola_reads_1, ebola_reads_2):
+                ebola_reads_1_filt = os.path.join(t_dir, 'ebola.reads.1.filt.fasta')
+                read_min_occs = 80
+                util.cmd.run_cmd(kmers, 'filter_by_kmers', [ebola_kmer_db, ebola_reads_1, ebola_reads_1_filt,
+                                                            '--readMinOccs', read_min_occs])
+                ebola_reads_1_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1, 'fasta'))
+                ebola_reads_1_filt_expected = self._filter_seqs(kmc_kmer_counts, ebola_reads_1_seqs,
+                                                                kmer_size=kmer_size, single_strand=single_strand,
+                                                                read_min_occs=read_min_occs)
+                ebola_reads_1_filt_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1_filt, 'fasta'))
+                assert 0 < len(ebola_reads_1_filt_seqs) < len(ebola_reads_1_seqs)
+                def SeqRecord_data(r): return (r.id, r.seq)
+                assert  sorted(map(SeqRecord_data, ebola_reads_1_filt_seqs)) == sorted(map(SeqRecord_data, ebola_reads_1_filt_expected))
 
-
-
-            
-            
-            
-            
