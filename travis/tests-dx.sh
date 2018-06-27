@@ -26,7 +26,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     input_json="test/input/WDL/test_inputs-$workflow_name-dnanexus.dx.json"
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
-       dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
+       dx_workflow_id=$(grep -w $workflow_name $COMPILE_SUCCESS | cut -f 2)
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
            -f $input_json \
