@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x -e -o pipefail
+set -e -o pipefail
 
 # obtain version tag
 VERSION=`travis/list-docker-tags.sh | tail -1 | sed 's/:/\//'`
