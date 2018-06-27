@@ -9,6 +9,7 @@ import logging
 import tools
 import util.file
 import os
+import sys
 import os.path
 import subprocess
 import gzip
@@ -55,7 +56,7 @@ class Tbl2AsnTool(tools.Tool):
             tool_cmd += ['-r', outputDir]
         if source_quals:
             tool_cmd.append('-j')
-            tool_cmd.append(' '.join("[{}={}]".format(k, v) for k, v in source_quals))
+            tool_cmd.append('"{}"'.format(' '.join("[{}={}]".format(k, v) for k, v in source_quals)))
         if comment:
             tool_cmd += ['-y', comment]
         if structured_comment_file:
@@ -74,13 +75,17 @@ class Tbl2AsnTool(tools.Tool):
         # See: https://www.ncbi.nlm.nih.gov/IEB/ToolBox/C_DOC/lxr/source/demo/tbl2asn.c#L9674
         # We can try to work around this by examining the output for the upgrade message
         try:
-            subprocess.check_output(tool_cmd, stderr=subprocess.STDOUT)
+            tbl2asn_output = subprocess.check_output(tool_cmd, stderr=subprocess.STDOUT)
+            sys.stdout.write(tbl2asn_output.decode("UTF-8"))
+            sys.stdout.flush()
         except subprocess.CalledProcessError as e:
             old_version_expected_output = "This copy of tbl2asn is more than a year old.  Please download the current version."
             if old_version_expected_output in e.output.decode('UTF-8'):
                 pass
             else:
-                raise
+                sys.stdout.write(e.output.decode("UTF-8"))
+                sys.stdout.flush()
+                raise e
 
     # pylint: enable=W0221
 
