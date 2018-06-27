@@ -201,12 +201,16 @@ class SamtoolsTool(tools.Tool):
                 # process the lines individually and write them or not, depending on 
                 # whether they match regexToMatchForRemoval
                 for read in inb:
-                    # perform a regex match
-                    matches = regex.search(read.cigarstring)
-                    # if the regex was found (or not, if inverted)
-                    if (not invertResult and matches) or (invertResult and not matches):
-                        # continue to the next read (don't write out this one)
-                        continue
+                    if read.cigarstring:
+                        # perform a regex match
+                        matches = regex.search(read.cigarstring)
+                        # if the regex was found (or not, if inverted)
+                        if (not invertResult and matches) or (invertResult and not matches):
+                            # continue to the next read (don't write out this one)
+                            continue
+                    else:
+                        if invertResult:
+                            continue
                     # otherwise write out the line
                     outf.write(read)
 
