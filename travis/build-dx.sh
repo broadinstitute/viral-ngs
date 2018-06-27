@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -e -o pipefail
+set -x -e -o pipefail
 
 if [ -z "$DX_API_TOKEN" ]; then
   echo "ERROR: DX_API_TOKEN is not set, this is needed to build dxWDL workflows."
