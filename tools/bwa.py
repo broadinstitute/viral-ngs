@@ -82,6 +82,8 @@ class Bwa(tools.Tool):
             align_bams = []
 
             threads_for_chunk = int(round(min(max(threads / len(rgs),1),threads),0))+1
+            # worker count limited to 1 for now to reduce in-memory index size resulting from
+            # running multiple copies of bwa in parallel
             workers = 1 #len(rgs) if len(rgs)<threads else threads
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = []# executor.submit(util.file.count_occurrences_in_tsv, filePath, include_noise=includeNoise) for rg in rgs]

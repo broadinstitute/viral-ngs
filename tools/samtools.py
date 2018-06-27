@@ -80,6 +80,8 @@ class SamtoolsTool(tools.Tool):
         regions = regions or []
         args    = args or []
 
+        # -@ seems to result in segfaults in some cases
+        # so this is commented out for now...
         #if '-@' not in args:
         #    args.extend(('-@', str(util.misc.sanitize_thread_count(threads))))
 
