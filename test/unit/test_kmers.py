@@ -11,8 +11,6 @@ import subprocess
 import collections
 import operator
 import functools
-
-
 import argparse
 
 import kmers
@@ -35,14 +33,17 @@ class TestKmc(TestCaseWithTmp):
         super(TestKmc, self).setUp()
 
     def _get_seq(self, s):
+        """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
         if isinstance(s, Seq): return str(s)
         if isinstance(s, SeqRecord): return str(s.seq)
         return s
 
     def _revcomp(self, kmer):
+        """Return the reverse complement of a kmer, given as a string"""
         return str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement())
     
-    def _canonize(self, kmer):
+    def _canonicalize(self, kmer):
+        """Return the canonical version of a kmer"""
         return min(kmer, self._revcomp(kmer))
 
     def _get_seq_kmers(self, seqs, k, single_strand):
@@ -51,27 +52,28 @@ class TestKmc(TestCaseWithTmp):
             seq = self._get_seq(seq)
             for i in range(len(seq)-k+1):
                 kmer = seq[i:i+k]
-                yield kmer if single_strand else self._canonize(kmer)
+                yield kmer if single_strand else self._canonicalize(kmer)
 
-    def _get_seq_kmer_counts(self, seqs, args):
+    def _get_seq_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None, **kw):
         """Get kmer counts of seq(s)"""
-        counts = collections.Counter(self._get_seq_kmers(seqs, args.kmer_size, args.single_strand))
-        if any((args.min_occs, args.max_occs, args.counter_cap)):
-            counts = dict((kmer, min(count, args.counter_cap or count)) \
+        counts = collections.Counter(self._get_seq_kmers(seqs, kmer_size, single_strand))
+        if any((min_occs, max_occs, counter_cap)):
+            counts = dict((kmer, min(count, counter_cap or count)) \
                           for kmer, count in counts.items() \
-                          if (count >= (args.min_occs or count)) and \
-                          (count <= (args.max_occs or count)))
+                          if (count >= (min_occs or count)) and \
+                          (count <= (max_occs or count)))
         return counts
 
     def _make_seq_recs(self, seqs):
+        """Given seq(s) as str(s), return a list of SeqRecords with these seq(s)"""
         return [SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
                           id='seq_%d'.format(i), name='seq_%d'.format(i), 
                           description='sequence number %d'.format(i)) 
                 for i, seq in enumerate(util.misc.make_seq(seqs))]
 
     def _write_seqs_to_fasta(self, seqs, seqs_fasta):
-        Bio.SeqIO.write(self._make_seq_recs(seqs),
-                        seqs_fasta, 'fasta')
+        """Write a .fasta file with the given seq(s)."""
+        Bio.SeqIO.write(self._make_seq_recs(seqs), seqs_fasta, 'fasta')
 
     def test_kmer_extraction(self):
 
@@ -94,17 +96,25 @@ class TestKmc(TestCaseWithTmp):
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
                 assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    self._get_seq_kmer_counts(seqs, args)
+                    self._get_seq_kmer_counts(seqs, **vars(args))
 
     # to test:
     #   empty bam, empty fasta, empty both
     #   getting kmers from bam (here just convert the fasta to it?), from fastq,
     #   from multiple files.
+    #   ambiguity codes, gaps, Ns
 
-    def _filter_seqs(self, kmer_counts, seqs, args):
+    def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None, **kw):
         seqs_out = []
+        read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
         for seq in util.misc.make_seq(seqs):
-            kmerCounts = self._get_seq_kmer_counts(seqs)
+            seq_kmer_counts = self._get_seq_kmer_counts(seq, kmer_size, single_strand)
+            seq_occs = len(seq_kmer_counts & db_kmer_counts)
+            read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*len(seq)) if isinstance(v, float) else v,
+                                                       (read_min_occs, read_max_occs))
+            if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
+                seqs_out.add(seq)
+        return seqs_out
 
     def test_read_filtering(self):
         with util.file.tmp_dir(suffix='kmctest') as t_dir:

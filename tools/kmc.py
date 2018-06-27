@@ -126,6 +126,21 @@ class KmcTool(tools.Tool):
                 counts[kmer] = int(count)
         return counts
 
+    def _infer_filter_reads_params(self, read_min_occs, read_max_occs):
+        if read_min_occs is None and read_max_occs is None:
+            read_min_occs, read_max_occs = 1, util.misc.MAX_INT32
+        elif read_min_occs is None and read_max_occs is not None:
+            read_min_occs = 0.0 if isinstance(read_max_occs, float) else 1
+        elif read_max_occs is None and read_min_occs is not None:
+            read_max_occs = 1.0 if isinstance(read_min_occs, float) else util.misc.MAX_INT32
+
+        assert type(read_min_occs) == type(read_max_occs), \
+            'read_min_occs and read_max_occs must be specified the same way (as kmer count or fraction of read length)'
+        assert read_min_occs <= read_max_occs, 'vals are {} {}'.format(read_min_occs, read_max_occs)
+        assert not isinstance(read_min_occs, float) or 0.0 <= read_min_occs <= read_max_occs <= 1.0
+
+        return read_min_occs, read_max_occs
+
     def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None, 
                      read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
         """Filter reads based on their kmer contents.
@@ -152,16 +167,7 @@ class KmcTool(tools.Tool):
         if db_min_occs is None: db_min_occs=1
         if db_max_occs is None: db_max_occs=util.misc.MAX_INT32
 
-        if read_min_occs is None and read_max_occs is None:
-            read_min_occs, read_max_occs = 1, util.misc.MAX_INT32
-        elif read_min_occs is None and read_max_occs is not None:
-            read_min_occs = 0.0 if isinstance(read_max_occs, float) else 1
-        elif read_max_occs is None and read_min_occs is not None:
-            read_max_occs = 1.0 if isinstance(read_min_occs, float) else util.misc.MAX_INT32
-
-        assert type(read_min_occs) == type(read_max_occs), 'read_min_occs and read_max_occs must be specified the same way (as kmer count or fraction of read length)'
-        assert read_min_occs <= read_max_occs, 'vals are {} {}'.format(read_min_occs, read_max_occs)
-        assert not isinstance(read_min_occs, float) or 0.0 <= read_min_occs <= read_max_occs <= 1.0
+        read_min_occs, read_max_occs = self._infer_filter_reads_params(read_min_occs, read_max_occs)
 
         in_reads_type = util.file.uncompressed_file_type(in_reads)
         _in_reads = in_reads
