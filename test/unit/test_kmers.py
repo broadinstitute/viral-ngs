@@ -121,7 +121,7 @@ class TestKmc(TestCaseWithTmp):
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
             seq_kmer_counts = self._get_kmer_counts(seq, kmer_size, single_strand)
-            seq_occs = len(seq_kmer_counts.keys() & db_kmer_counts.keys())
+            seq_occs = len(set(seq_kmer_counts.keys()) & set(db_kmer_counts.keys()))
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*len(seq)) if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
             if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
