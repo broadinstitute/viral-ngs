@@ -102,8 +102,8 @@ class TestKmc(TestCaseWithTmp):
                 seqs_fasta = os.path.join(t_dir, 'seqs.fasta')
                 self._write_seqs_to_fasta(seqs, seqs_fasta)
                 kmer_db = os.path.join(t_dir, 'kmer_db')
-                util.cmd.run_cmd(kmers, 'build_kmer_db', opts.split() + [seqs_fasta, kmer_db])
-                args = util.cmd.parse_cmd(kmers, 'build_kmer_db', opts.split() + [seqs_fasta, kmer_db])
+                args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
+                                        opts.split() + ['--memLimitGb', 4] + [seqs_fasta, kmer_db]).args_parsed
 
                 kmers_txt = os.path.join(t_dir, 'kmers.txt')
                 util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
@@ -134,7 +134,7 @@ class TestKmc(TestCaseWithTmp):
             single_strand = False
             ebola_fasta = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
-            util.cmd.run_cmd(kmers, 'build_kmer_db', [ebola_fasta, ebola_kmer_db, '-k', kmer_size])
+            util.cmd.run_cmd(kmers, 'build_kmer_db', ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db])
 
             ebola_fasta_seqs = list(Bio.SeqIO.parse(ebola_fasta, 'fasta'))
             ebola_fasta_kmer_counts = self._get_kmer_counts(ebola_fasta_seqs, kmer_size=kmer_size, single_strand=single_strand)

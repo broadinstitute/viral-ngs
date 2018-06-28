@@ -56,7 +56,8 @@ class KmcTool(tools.Tool):
         else: raise RuntimeError('Unknown seq file format: {}'.format(file_type))
 
     def build_kmer_db(self, seq_files, kmer_db, kmer_size=DEFAULT_KMER_SIZE, min_occs=None, max_occs=None, 
-                      counter_cap=DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, threads=None, kmc_opts=''):
+                      counter_cap=DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
+                      threads=None, kmc_opts=''):
         """Build a database of kmers occurring in the given sequence files.
 
         Inputs:
@@ -68,10 +69,17 @@ class KmcTool(tools.Tool):
 
         Params:
           kmer_size: kmer size
+
           min_occs: ignore kmers occurring fewer than this many times
           max_occs: ignore kmers occurring more than this many times
+
           counter_cap: when writing kmer counts to the database, cap the values at this number
+
           single_strand: if True, do not include kmers from reverse complements of input sequences
+        
+          mem_limit_gb: max RAM to use when building kmer database.  Might be exceeded unless `mem_limit_strict` is True.
+          mem_limit_laxness: how strictly to adhere to `mem_limit_gb`: 0=strictly, higher values permit more laxness
+        
           kmc_opts: any additional kmc flags
         """
         if min_occs is None: min_occs = 1
@@ -87,9 +95,12 @@ class KmcTool(tools.Tool):
             assert len(input_fmt_opts_set) == 1, "All input files must be of the same format"
             input_fmt_opt = list(input_fmt_opts_set)[0]
 
-            args += '-f{} -k{} -ci{} -cx{} -cs{} -m{} -r -t{}'.format(input_fmt_opt, kmer_size, min_occs, max_occs, 
-                                                                      counter_cap, mem_limit_gb, threads).split()
+            args += '-f{} -k{} -ci{} -cx{} -cs{} -m{} -t{}'.format(input_fmt_opt, kmer_size, min_occs, max_occs, 
+                                                                   counter_cap, mem_limit_gb, threads).split()
             if single_strand: args += ['-b']
+            if mem_limit_laxness == 0: args += ['-sm']  # strict memory mode
+            elif mem_limit_laxness == 2: args += ['-r'] # RAM-only mode
+
             if kmc_opts: args += shlex.split(kmc_opts)
 
             args += ['@'+seq_file_list, kmer_db, t_dir]

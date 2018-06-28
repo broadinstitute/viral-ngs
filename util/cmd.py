@@ -13,6 +13,8 @@ import logging
 import argparse
 import importlib
 import inspect
+import collections
+
 import util.version
 import util.file
 
@@ -266,6 +268,7 @@ def parse_cmd(module, cmd, args):
     parser_fn = dict(getattr(module, '__commands__'))[cmd]
     return parser_fn(argparse.ArgumentParser()).parse_args(list(map(str, args)))
     
+CmdRunInfo = collections.namedtuple('CmdRunInfo', ['result', 'args_parsed'])
 
 def run_cmd(module, cmd, args):
     """Run command after parsing its arguments with the command's parser.
@@ -274,8 +277,11 @@ def run_cmd(module, cmd, args):
         module: the module object for the script containing the command
         cmd: the command name
         args: list of args to the command
+
+    Returns:
+        an 
     """
     log.info('Calling command {} with args {}'.format(cmd, args))
     args_parsed = parse_cmd(module, cmd, args)
-    return args_parsed.func_main(args_parsed)
-
+    result = args_parsed.func_main(args_parsed)
+    return CmdRunInfo(result=result, args_parsed=args_parsed)
