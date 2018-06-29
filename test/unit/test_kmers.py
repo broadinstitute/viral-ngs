@@ -25,13 +25,15 @@ import Bio.SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
+import pytest
 
-class TestKmc(TestCaseWithTmp):
+class TestKmc(object):
 
     """Test the tool wrapper for KMC kmer counter"""
 
-    def setUp(self):
-        super(TestKmc, self).setUp()
+    def input(self, fname):
+        '''Return the full filename for a file in the test input directory for this test class'''
+        return os.path.join(util.file.get_test_input_path(self), fname)
 
     def _seq_as_str(self, s):
         """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
@@ -87,28 +89,25 @@ class TestKmc(TestCaseWithTmp):
         """Write a .fasta file with the given seq(s)."""
         Bio.SeqIO.write(self._make_seq_recs(seqs), seqs_fasta, 'fasta')
 
-    def test_kmer_extraction(self):
+    @pytest.mark.parametrize("seqs,opts", [
+        ('A'*15, '-k 4'),
+        ('T'*15, '-k 4' ),
+        ([], '-k 1'),
+        (['TCGA'*3, 'ATTT'*5], '-k 7'),
+        (['TCGA'*3, 'ATTT'*5], '-k 31'),
+    ])
+    def test_kmer_extraction(self, seqs, opts):
+        with util.file.tmp_dir(suffix='kmctest') as t_dir:
+            seqs_fasta = os.path.join(t_dir, 'seqs.fasta')
+            self._write_seqs_to_fasta(seqs, seqs_fasta)
+            kmer_db = os.path.join(t_dir, 'kmer_db')
+            args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
+                                    opts.split() + ['--memLimitGb', 4] + [seqs_fasta, kmer_db]).args_parsed
 
-        test_data = (
-            ('A'*15, '-k 4'),
-            ('T'*15, '-k 4' ),
-            ([], '-k 1'),
-            (['TCGA'*3, 'ATTT'*5], '-k 7'),
-            (['TCGA'*3, 'ATTT'*5], '-k 31'),
-        )
-
-        for seqs, opts in test_data:
-            with util.file.tmp_dir(suffix='kmctest') as t_dir:
-                seqs_fasta = os.path.join(t_dir, 'seqs.fasta')
-                self._write_seqs_to_fasta(seqs, seqs_fasta)
-                kmer_db = os.path.join(t_dir, 'kmer_db')
-                args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
-                                        opts.split() + ['--memLimitGb', 4] + [seqs_fasta, kmer_db]).args_parsed
-
-                kmers_txt = os.path.join(t_dir, 'kmers.txt')
-                util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
-                assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                    self._get_kmer_counts(seqs, **vars(args))
+            kmers_txt = os.path.join(t_dir, 'kmers.txt')
+            util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
+            assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
+                self._get_kmer_counts(seqs, **vars(args))
 
     # to test:
     #   empty bam, empty fasta, empty both
