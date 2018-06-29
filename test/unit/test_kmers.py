@@ -137,15 +137,16 @@ class TestKmc(object):
         return seqs_out
 
     @pytest.mark.parametrize("kmer_size", [1,2,3])
-    @pytest.mark.parametrize("single_strand,kmers_fasta,reads_bam,read_min_occs", [
-        (False, 'ebola.fasta', 'G5012.3.subset.bam', 80),
+    @pytest.mark.parametrize("single_strand", [False, True])
+    @pytest.mark.parametrize("kmers_fasta,reads_bam,read_min_occs", [
+        ('ebola.fasta', 'G5012.3.subset.bam', 80),
     ])
     def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
             ebola_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
             kmer_db_args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
-                                            ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db]).args_parsed
+                                            ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db]+(['--singleStrand'] if single_strand else [])).args_parsed
 
             ebola_fasta_seqs = list(Bio.SeqIO.parse(ebola_fasta, 'fasta'))
             ebola_fasta_kmer_counts = self._get_kmer_counts(ebola_fasta_seqs, kmer_size=kmer_size, single_strand=single_strand,
