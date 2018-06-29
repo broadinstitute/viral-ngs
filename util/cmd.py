@@ -279,7 +279,7 @@ def run_cmd(module, cmd, args):
         args: list of args to the command
 
     Returns:
-        an 
+        a CmdRunInfo namedtuple with info about the run
     """
     log.info('Calling command {} with args {}'.format(cmd, args))
     args_parsed = parse_cmd(module, cmd, args)
