@@ -138,8 +138,9 @@ class TestKmc(object):
 
     @pytest.mark.parametrize("kmer_size", [1,2,3])
     @pytest.mark.parametrize("single_strand", [False, True])
-    @pytest.mark.parametrize("kmers_fasta,reads_bam,read_min_occs", [
-        ('ebola.fasta', 'G5012.3.subset.bam', 80),
+    @pytest.mark.parametrize("read_min_occs", [80, .7])
+    @pytest.mark.parametrize("kmers_fasta,reads_bam", [
+        ('ebola.fasta', 'G5012.3.subset.bam'),
     ])
     def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
@@ -176,4 +177,6 @@ class TestKmc(object):
                 def SeqRecord_data(r): return (r.id, r.seq)
                 assert  sorted(map(SeqRecord_data, ebola_reads_1_filt_seqs)) == \
                     sorted(map(SeqRecord_data, ebola_reads_1_filt_expected))
+
+
 
