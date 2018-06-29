@@ -127,11 +127,13 @@ class TestKmc(object):
                 seqs_out.append(seq)
         return seqs_out
 
-    def test_ebola_read_filtering(self):
+    @pytest.mark.parametrize("kmer_size,single_strand,kmers_fasta,reads_bam,read_min_occs", [
+        (21, False, os.path.join(util.file.get_test_input_path(), 'ebola.fasta'), 
+         os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam'), 80),
+    ])
+    def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
-            kmer_size = 21
-            single_strand = False
-            ebola_fasta = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
+            ebola_fasta = kmers_fasta #os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
             util.cmd.run_cmd(kmers, 'build_kmer_db', ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db])
 
@@ -146,10 +148,9 @@ class TestKmc(object):
             assert len(kmc_kmer_counts) == len(ebola_fasta_kmer_counts)
             assert kmc_kmer_counts == ebola_fasta_kmer_counts
 
-            ebola_reads_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+            ebola_reads_bam = reads_bam #os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
             with tools.samtools.SamtoolsTool().bam2fa_tmp(ebola_reads_bam) as (ebola_reads_1, ebola_reads_2):
                 ebola_reads_1_filt = os.path.join(t_dir, 'ebola.reads.1.filt.fasta')
-                read_min_occs = 80
                 util.cmd.run_cmd(kmers, 'filter_by_kmers', [ebola_kmer_db, ebola_reads_1, ebola_reads_1_filt,
                                                             '--readMinOccs', read_min_occs])
                 ebola_reads_1_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1, 'fasta'))
@@ -159,5 +160,6 @@ class TestKmc(object):
                 ebola_reads_1_filt_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1_filt, 'fasta'))
                 assert 0 < len(ebola_reads_1_filt_seqs) < len(ebola_reads_1_seqs)
                 def SeqRecord_data(r): return (r.id, r.seq)
-                assert  sorted(map(SeqRecord_data, ebola_reads_1_filt_seqs)) == sorted(map(SeqRecord_data, ebola_reads_1_filt_expected))
+                assert  sorted(map(SeqRecord_data, ebola_reads_1_filt_seqs)) == \
+                    sorted(map(SeqRecord_data, ebola_reads_1_filt_expected))
 
