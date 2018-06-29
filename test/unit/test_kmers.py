@@ -141,7 +141,7 @@ class TestKmc(object):
     @pytest.mark.parametrize("kmers_fasta,reads_bam,read_min_occs", [
         ('ebola.fasta', 'G5012.3.subset.bam', 80),
     ])
-    def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
+    def test_ebola_read_filtering(self, *, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
             ebola_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
