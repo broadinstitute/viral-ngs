@@ -35,6 +35,11 @@ class TestKmc(object):
         '''Return the full filename for a file in the test input directory for this test class'''
         return os.path.join(util.file.get_test_input_path(self), fname)
 
+    #
+    # To help generate the expected correct output, we reimplement in Python some
+    # of KMC's commands.
+    #
+
     def _seq_as_str(self, s):
         """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
         if isinstance(s, Seq): return str(s)
@@ -118,27 +123,34 @@ class TestKmc(object):
     def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None, **kw):
         seqs_out = []
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
+
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
             seq_kmer_counts = self._get_kmer_counts(seq, kmer_size, single_strand)
-            seq_occs = len(set(seq_kmer_counts.keys()) & set(db_kmer_counts.keys()))
+            seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() if kmer in db_kmer_counts])
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*len(seq)) if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
+            #print('seq=', seq, 'kmer_counts=', seq_kmer_counts, 'seq_occs=', seq_occs)
+
             if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
                 seqs_out.append(seq)
+
         return seqs_out
 
-    @pytest.mark.parametrize("kmer_size,single_strand,kmers_fasta,reads_bam,read_min_occs", [
-        (21, False, os.path.join(util.file.get_test_input_path(), 'ebola.fasta'), 
-         os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam'), 80),
+    @pytest.mark.parametrize("kmer_size", [1,2,3])
+    @pytest.mark.parametrize("single_strand,kmers_fasta,reads_bam,read_min_occs", [
+        (False, 'ebola.fasta', 'G5012.3.subset.bam', 80),
     ])
     def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
-            ebola_fasta = kmers_fasta #os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
+            ebola_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
-            util.cmd.run_cmd(kmers, 'build_kmer_db', ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db])
+            kmer_db_args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
+                                            ['--memLimitGb', 4, '-k', kmer_size, ebola_fasta, ebola_kmer_db]).args_parsed
 
             ebola_fasta_seqs = list(Bio.SeqIO.parse(ebola_fasta, 'fasta'))
-            ebola_fasta_kmer_counts = self._get_kmer_counts(ebola_fasta_seqs, kmer_size=kmer_size, single_strand=single_strand)
+            ebola_fasta_kmer_counts = self._get_kmer_counts(ebola_fasta_seqs, kmer_size=kmer_size, single_strand=single_strand,
+                                                            min_occs=kmer_db_args.min_occs, max_occs=kmer_db_args.max_occs,
+                                                            counter_cap=kmer_db_args.counter_cap)
 
             kmers_txt = os.path.join(t_dir, 'kmers.txt')
             util.cmd.run_cmd(kmers, 'dump_kmer_counts', [ebola_kmer_db, kmers_txt])
@@ -148,17 +160,18 @@ class TestKmc(object):
             assert len(kmc_kmer_counts) == len(ebola_fasta_kmer_counts)
             assert kmc_kmer_counts == ebola_fasta_kmer_counts
 
-            ebola_reads_bam = reads_bam #os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+            ebola_reads_bam = os.path.join(util.file.get_test_input_path(), reads_bam)
             with tools.samtools.SamtoolsTool().bam2fa_tmp(ebola_reads_bam) as (ebola_reads_1, ebola_reads_2):
                 ebola_reads_1_filt = os.path.join(t_dir, 'ebola.reads.1.filt.fasta')
                 util.cmd.run_cmd(kmers, 'filter_by_kmers', [ebola_kmer_db, ebola_reads_1, ebola_reads_1_filt,
                                                             '--readMinOccs', read_min_occs])
                 ebola_reads_1_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1, 'fasta'))
+
                 ebola_reads_1_filt_expected = self._filter_seqs(kmc_kmer_counts, ebola_reads_1_seqs,
                                                                 kmer_size=kmer_size, single_strand=single_strand,
                                                                 read_min_occs=read_min_occs)
                 ebola_reads_1_filt_seqs = tuple(Bio.SeqIO.parse(ebola_reads_1_filt, 'fasta'))
-                assert 0 < len(ebola_reads_1_filt_seqs) < len(ebola_reads_1_seqs)
+                #assert 0 < len(ebola_reads_1_filt_seqs) < len(ebola_reads_1_seqs)
                 def SeqRecord_data(r): return (r.id, r.seq)
                 assert  sorted(map(SeqRecord_data, ebola_reads_1_filt_seqs)) == \
                     sorted(map(SeqRecord_data, ebola_reads_1_filt_expected))
