@@ -572,10 +572,10 @@ class RunInfo(object):
         raise arrow.parser.ParserError("The date string seen in RunInfo.xml ('%s') did not match known Illumina formats: %s" % (rundate,datestring_formats) )
 
     def get_rundate_american(self):
-        return self._get_rundate_obj().format("MM/DD/YYYY")
+        return str(self._get_rundate_obj().format("MM/DD/YYYY"))
 
     def get_rundate_iso(self):
-        return self._get_rundate_obj().format("YYYY-MM-DD")
+        return str(self._get_rundate_obj().format("YYYY-MM-DD"))
 
     def get_machine(self):
         return self.root[0].find('Instrument').text
