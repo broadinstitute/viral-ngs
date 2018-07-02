@@ -30,6 +30,7 @@ trinity=date.2011_11_26
 unzip=6.0
 vphaser2=2.0
 # Python packages below
+arrow=0.12.1
 bedtools=2.26.0
 biopython=1.70
 future==0.16.0

@@ -117,6 +117,16 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_read_structure(), '101T8B8B101T')
         self.assertEqual(runinfo.num_reads(), 2)
 
+    def test_novaseq(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novaseq.xml'))
+        self.assertEqual(runinfo.get_flowcell(), 'HCYTJDMXX')
+        self.assertEqual(runinfo.get_rundate_american(), '06/27/2018')
+        self.assertEqual(runinfo.get_rundate_iso(), '2018-06-27')
+        self.assertEqual(runinfo.get_machine(), 'A00198')
+        self.assertEqual(runinfo.get_read_structure(), '101T8B8B101T')
+        self.assertEqual(runinfo.num_reads(), 2)
+
 
 class TestIlluminaDir(TestCaseWithTmp):
 
