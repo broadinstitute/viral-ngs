@@ -32,6 +32,7 @@ task illumina_demux {
   File    flowcell_tgz
   Int?    lane=1
   File?   samplesheet
+  File?   runinfo
   String? sequencingCenter
 
   String? flowcell
@@ -69,6 +70,7 @@ task illumina_demux {
       ${lane} \
       . \
       ${'--sampleSheet=' + samplesheet} \
+      ${'--runInfo=' + runinfo} \
       ${'--sequencing_center=' + sequencingCenter} \
       --outMetrics=metrics.txt \
       --commonBarcodes=barcodes.txt \
@@ -79,7 +81,7 @@ task illumina_demux {
       ${'--max_no_calls=' + maxNoCalls} \
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
-      ${'--run_start_date=' + runStartDate} \
+      ${'--run_start_date=' + runStartDate} \ 
       --JVMmemory="$mem_in_mb"m \
       --threads=64 \
       --compression_level=5 \
@@ -123,7 +125,7 @@ task merge_and_reheader_bams {
       ln -s ${select_first(in_bams)} merged.bam
     fi    
 
-    if [ -f ${reheader_table} ]; then
+    if [[ -f "${reheader_table}" ]]; then
       read_utils.py reheader_bam merged.bam ${reheader_table} ${out_basename}.bam --loglevel DEBUG
     else
       echo "Skipping reheader, no mapping table specified"
