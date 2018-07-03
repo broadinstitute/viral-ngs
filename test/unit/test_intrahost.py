@@ -224,20 +224,23 @@ class VcfMergeRunner:
 
     def dump_isnv_tmp_file(self, sample):
         fn = util.file.mkstempfname('.txt')
-        print("self.isnvs[sample]",sample,list(map(str,self.isnvs[sample])))
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
-                print('\t'.join(map(str, row)))
                 outf.write('\t'.join(map(str, row)) + '\n')
         return fn
 
-    def run_and_get_vcf_rows(self, retree=1):
+    def run_and_get_vcf_rows(self, retree=1, omit_samplenames=False):
         outVcf = util.file.mkstempfname('.vcf.gz')
 
         self.multi_align_samples(retree=retree)
 
-        intrahost.merge_to_vcf(self.ref, outVcf, self.sample_order, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+        if not omit_samplenames:
+            intrahost.merge_to_vcf(self.ref, outVcf, self.sample_order, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
                               self.alignedFastas)
+        else:
+            intrahost.merge_to_vcf(self.ref, outVcf, [], list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+                              self.alignedFastas)
+
 
         with util.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
@@ -343,6 +346,34 @@ class TestVcfMerge(test.TestCaseWithTmp):
         merger.add_snp('s2', 's2-1', 2, [('C', 90, 90), ('A', 10, 10)])
         merger.add_snp('s3', 's3-1', 5, [('A', 70, 70), ('T', 30, 30)])
         rows = merger.run_and_get_vcf_rows()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].contig, 'ref1')
+        self.assertEqual(rows[0].pos + 1, 3)
+        self.assertEqual(rows[0].ref, 'C')
+        self.assertEqual(rows[0].alt, 'A')
+        self.assertEqual(':'.join(rows[0][0].split(':')[:2]), '0:0.2')
+        self.assertEqual(':'.join(rows[0][1].split(':')[:2]), '0:0.1')
+        self.assertEqual(':'.join(rows[0][2].split(':')[:2]), '0:0.0')
+        self.assertEqual(rows[1].contig, 'ref1')
+        self.assertEqual(rows[1].pos + 1, 6)
+        self.assertEqual(rows[1].ref, 'A')
+        self.assertEqual(rows[1].alt, 'T')
+        self.assertEqual(':'.join(rows[1][0].split(':')[:2]), '0:0.0')
+        self.assertEqual(':'.join(rows[1][1].split(':')[:2]), '0:0.0')
+        self.assertEqual(':'.join(rows[1][2].split(':')[:2]), '0:0.3')
+
+    def test_simple_snps_guess_samplenames(self):
+        merger = VcfMergeRunner([('ref1', 'ATCGGACT')])
+        merger.add_genome('s1', [('s1-1', 'ATCGGAC')])
+        # ATCGGAC-
+        merger.add_genome('s2', [('s2-1',  'TCGGACT')])
+        # -TCGGACT
+        merger.add_genome('s3', [('s3-1',  'TCGGACT')])
+        # -TCGGACT
+        merger.add_snp('s1', 's1-1', 3, [('C', 80, 80), ('A', 20, 20)])
+        merger.add_snp('s2', 's2-1', 2, [('C', 90, 90), ('A', 10, 10)])
+        merger.add_snp('s3', 's3-1', 5, [('A', 70, 70), ('T', 30, 30)])
+        rows = merger.run_and_get_vcf_rows(omit_samplenames=True)
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].contig, 'ref1')
         self.assertEqual(rows[0].pos + 1, 3)
