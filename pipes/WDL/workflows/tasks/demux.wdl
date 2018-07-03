@@ -81,7 +81,7 @@ task illumina_demux {
       ${'--max_no_calls=' + maxNoCalls} \
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
-      ${'--run_start_date=' + runStartDate} \ 
+      ${'--run_start_date=' + runStartDate} \
       --JVMmemory="$mem_in_mb"m \
       --threads=64 \
       --compression_level=5 \
