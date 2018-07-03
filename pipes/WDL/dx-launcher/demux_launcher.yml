@@ -62,9 +62,45 @@ runSpec:
       if [ -z "$lane_count" ]; then
           dx-jobutil-report-error "Could not parse LaneCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
       fi
+
+      surface_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@SurfaceCount)" RunInfo.xml)
+      if [ -z "$surface_count" ]; then
+          dx-jobutil-report-error "Could not parse SurfaceCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+      fi
+
+      swath_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@SwathCount)" RunInfo.xml)
+      if [ -z "$swath_count" ]; then
+          dx-jobutil-report-error "Could not parse SwathCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+      fi
+
+      tile_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@TileCount)" RunInfo.xml)
+      if [ -z "$tile_count" ]; then
+          dx-jobutil-report-error "Could not parse TileCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+      fi
+      
       run_id=$(xmllint --xpath "string(//Run/@Id)" RunInfo.xml)
       if [ -z "$run_id" ]; then
           dx-jobutil-report-error "Could not parse Run@Id from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+      fi
+
+      # total data size more roughly tracks total tile count
+      total_tile_count=$((lane_count*surface_count*swath_count*tile_count))
+
+      if [ "$total_tile_count" -le 50 ]; then 
+          instance_type="mem1_ssd1_x4"
+          echo "Detected $total_tile_count tiles, interpreting as MiSeq run, executing on a $instance_type machine."
+      elif [ "$total_tile_count" -le 150 ]; then 
+          instance_type="mem1_ssd2_x4"
+          echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $instance_type machine."
+      elif [ "$total_tile_count" -le 896 ]; then 
+          instance_type="mem1_hdd2_x32"
+          echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $instance_type machine."
+      elif [ "$total_tile_count" -le 1408 ]; then 
+          instance_type="mem1_hdd2_x32"
+          echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $instance_type machine."
+      elif [ "$total_tile_count" -gt 1408 ]; then 
+          instance_type="mem1_hdd2_x32"
+          echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $instance_type machine."
       fi
 
       run_tarball=""
@@ -85,7 +121,7 @@ runSpec:
         output_project=$DX_WORKSPACE_ID
         for i in $(seq "$lane_count"); do
           folder2=$(printf "%s/%s/L%d" "$folder" "$run_id" $i)
-          runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --name demux:$run_id:L$i -y --brief"
+          runcmd="dx run $demux_workflow_id -i illumina_demux.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --instance-type $instance_type --name demux:$run_id:L$i -y --brief"
           echo "$runcmd"
           set +x
           if [ -n "$api_token" ]; then
