@@ -11,6 +11,7 @@ import logging
 import os
 import os.path
 import re
+import gc
 import csv
 import shutil
 import subprocess
@@ -211,6 +212,8 @@ def main_illumina_demux(args):
     if not picardOpts.get('sequencing_center') and runinfo:
         picardOpts['sequencing_center'] = runinfo.get_machine()
 
+    # manually garbage collect to make sure we have as much RAM free as possible
+    gc.collect()
     if multiplexed_samples:
         tools.picard.IlluminaBasecallsToSamTool().execute(
             illumina.get_BCLdir(),
