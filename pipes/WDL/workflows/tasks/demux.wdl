@@ -42,6 +42,7 @@ task illumina_demux {
   Int?    maxNoCalls
   String? readStructure
   Int?    minimumQuality = 10
+  Int?    threads = 32
   String? runStartDate
 
   parameter_meta {
@@ -83,7 +84,7 @@ task illumina_demux {
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
       --JVMmemory="$mem_in_mb"m \
-      --threads=64 \
+      ${'--threads=' + threads} \
       --compression_level=5 \
       --loglevel=DEBUG
 
