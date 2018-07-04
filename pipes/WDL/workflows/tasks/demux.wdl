@@ -60,8 +60,8 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # find 95% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_85.sh`
+    # find N% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
