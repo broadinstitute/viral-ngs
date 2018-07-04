@@ -15,7 +15,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'fastqc'
-TOOL_VERSION = '0.11.5'
+TOOL_VERSION = '0.11.7'
 
 log = logging.getLogger(__name__)
 
