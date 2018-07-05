@@ -245,3 +245,14 @@ def test_as_type():
     for val, types in err_data:
         with pytest.raises(TypeError):
             as_type(val, types)
+
+def test_subdict():
+    """Test subdict()"""
+    subdict = util.misc.subdict
+    assert subdict({}, {}) == {}
+    assert subdict({1:2}, {}) == {}
+    assert subdict({1:2}, {1}) == {1:2}
+    assert subdict({1:2}, {2}) == {}
+    assert subdict({1:2}, {1,2}) == {1:2}
+    assert subdict({1:2,3:4}, {1,2,3}) == {1:2,3:4}
+    assert subdict({1:2,3:4}, {2,3,5}) == {3:4}

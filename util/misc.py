@@ -608,4 +608,6 @@ def as_type(val, types):
             pass
     raise TypeError('Could not convert {} to any of {}: {}'.format(val, types, errs))
 
-
+def subdict(d, keys):
+    """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
+    return {k: v for k, v in d.items() if k in keys}
