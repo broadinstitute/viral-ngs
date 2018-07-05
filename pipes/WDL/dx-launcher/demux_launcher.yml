@@ -87,22 +87,25 @@ runSpec:
       # total data size more roughly tracks total tile count
       total_tile_count=$((lane_count*surface_count*swath_count*tile_count))
 
-      if [ "$total_tile_count" -le 50 ]; then 
-          instance_type="mem1_ssd1_x4"
-          echo "Detected $total_tile_count tiles, interpreting as MiSeq run, executing on a $instance_type machine."
-      elif [ "$total_tile_count" -le 150 ]; then 
-          instance_type="mem1_ssd2_x4"
-          echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $instance_type machine."
-      elif [ "$total_tile_count" -le 896 ]; then 
-          instance_type="mem1_hdd2_x32"
-          echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $instance_type machine."
-      elif [ "$total_tile_count" -le 1408 ]; then 
-          instance_type="mem1_hdd2_x32"
-          echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $instance_type machine."
-      elif [ "$total_tile_count" -gt 1408 ]; then 
-          instance_type="mem1_hdd2_x32"
-          echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $instance_type machine."
-      fi
+      instance_type="mem3_ssd1_x32"
+      # commented out as all tasks of the workflow inherit the instance type used
+      # we need to scale to suit kraken
+      # if [ "$total_tile_count" -le 50 ]; then 
+      #     instance_type="mem1_ssd1_x4"
+      #     echo "Detected $total_tile_count tiles, interpreting as MiSeq run, executing on a $instance_type machine."
+      # elif [ "$total_tile_count" -le 150 ]; then 
+      #     instance_type="mem1_ssd2_x4"
+      #     echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $instance_type machine."
+      # elif [ "$total_tile_count" -le 896 ]; then 
+      #     instance_type="mem1_hdd2_x32"
+      #     echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $instance_type machine."
+      # elif [ "$total_tile_count" -le 1408 ]; then 
+      #     instance_type="mem1_hdd2_x32"
+      #     echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $instance_type machine."
+      # elif [ "$total_tile_count" -gt 1408 ]; then 
+      #     instance_type="mem1_hdd2_x32"
+      #     echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $instance_type machine."
+      # fi
 
       run_tarball=""
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
