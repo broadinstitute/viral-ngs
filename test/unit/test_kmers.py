@@ -160,7 +160,7 @@ class TestKmc(object):
     def test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
 
-    @pytest.mark.xfail  # kmc bug, reported at https://github.com/refresh-bio/KMC/issues/86
+    @pytest.mark.xfail(reason="kmc bug, reported at https://github.com/refresh-bio/KMC/issues/86")
     @pytest.mark.parametrize("kmer_size", [1])
     @pytest.mark.parametrize("single_strand", [False])
     @pytest.mark.parametrize("read_min_occs", [1])
@@ -170,7 +170,7 @@ class TestKmc(object):
     def test_read_filtering_2(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
         self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
 
-    def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
+    def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs=None, read_max_occs=None):
         """Test read filtering.
         
         Args:
@@ -181,11 +181,13 @@ class TestKmc(object):
         
         """
         with util.file.tmp_dir(suffix='kmctest_reafilt') as t_dir:
+            def _cmdflag(flag, val): return [] if val in (None, False) else ([flag] if val is True else [flag, val])
+
             kmers_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             kmer_db = os.path.join(t_dir, 'kmer_db')
             kmer_db_args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
                                             ['--memLimitGb', 4, '-k', kmer_size, kmers_fasta, kmer_db]
-                                            +(['--singleStrand'] if single_strand else [])).args_parsed
+                                            +_cmdflag('--singleStrand', single_strand)).args_parsed
 
             kmers_fasta_seqs = list(Bio.SeqIO.parse(kmers_fasta, 'fasta'))
             kmers_fasta_kmer_counts = self._get_kmer_counts(kmers_fasta_seqs,
@@ -203,8 +205,9 @@ class TestKmc(object):
             reads_bam = os.path.join(util.file.get_test_input_path(), reads_bam)
             with tools.samtools.SamtoolsTool().bam2fa_tmp(reads_bam) as (reads_1, reads_2):
                 reads_1_filt = os.path.join(t_dir, 'ebola.reads.1.filt.fasta')
-                util.cmd.run_cmd(kmers, 'filter_by_kmers', [kmer_db, reads_1, reads_1_filt,
-                                                            '--readMinOccs', read_min_occs])
+                util.cmd.run_cmd(kmers, 'filter_by_kmers', [kmer_db, reads_1, reads_1_filt] \
+                                                            + _cmdflag('--readMinOccs', read_min_occs) \
+                                                            + _cmdflag('--readMaxOccs', read_max_occs))
                 reads_1_seqs = tuple(Bio.SeqIO.parse(reads_1, 'fasta'))
 
                 reads_1_filt_expected = self._filter_seqs(kmc_kmer_counts, reads_1_seqs,
