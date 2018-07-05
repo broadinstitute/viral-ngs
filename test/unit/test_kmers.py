@@ -31,7 +31,7 @@ class TestKmc(object):
 
     """Test the tool wrapper for KMC kmer counter"""
 
-    def input(self, fname):
+    def _input(self, fname):
         '''Return the full filename for a file in the test input directory for this test class'''
         return os.path.join(util.file.get_test_input_path(self), fname)
 
@@ -39,12 +39,6 @@ class TestKmc(object):
     # To help generate the expected correct output, we reimplement in Python some
     # of KMC's commands.
     #
-
-    def _seq_as_str(self, s):
-        """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
-        if isinstance(s, Seq): return str(s)
-        if isinstance(s, SeqRecord): return str(s.seq)
-        return s
 
     def _revcomp(self, kmer):
         """Return the reverse complement of a kmer, given as a string"""
@@ -54,27 +48,44 @@ class TestKmc(object):
         """Return the canonical version of a kmer"""
         return min(kmer, self._revcomp(kmer))
 
-    def _get_kmers(self, seqs, k, single_strand):
-        """Get kmers of seq(s)"""
+    def _seq_as_str(self, s):
+        """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
+        if isinstance(s, Seq): return str(s)
+        if isinstance(s, SeqRecord): return str(s.seq)
+        return s
+
+    def _yield_seqs_as_strs(self, seqs):
+        """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq or an iterable of these."""
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
+            yield self._seq_as_str(seq)
+
+    def _get_kmers(self, seqs, kmer_size, single_strand):
+        """Yield kmers of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being returned.
+        Note that deduplication is not done, so each occurrence of each kmer is yielded.  Kmers containing non-TCGA bases
+        are skipped.
+        """
+        for seq in self._yield_seqs_as_strs(seqs):
             seq = self._seq_as_str(seq)
-            n_kmers = len(seq)-k+1
+            n_kmers = len(seq)-kmer_size+1
 
             # mark kmers containing invalid base(s)
             valid_kmer = [True] * n_kmers
             for i in range(len(seq)):
                 if seq[i] not in 'TCGA':
-                    invalid_lo = max(0, i-k+1)
+                    invalid_lo = max(0, i-kmer_size+1)
                     invalid_hi = min(n_kmers, i+1)
                     valid_kmer[invalid_lo:invalid_hi] = [False]*(invalid_hi-invalid_lo)
 
             for i in range(n_kmers):
                 if valid_kmer[i]:
-                    kmer = seq[i:i+k]
+                    kmer = seq[i:i+kmer_size]
                     yield kmer if single_strand else self._canonicalize(kmer)
 
     def _get_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None, **kw):
-        """Get kmer counts of seq(s)"""
+        """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being counted.
+        Kmers containing non-TCGA bases are skipped.  Kmers with fewer than `min_occs` or more than `max_occs` occurrences
+        are dropped, and kmer counts capped `counter_cap`, if these args are given.
+        """
         counts = collections.Counter(self._get_kmers(seqs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
             counts = dict((kmer, min(count, counter_cap or count)) \
@@ -83,7 +94,7 @@ class TestKmc(object):
                           (count <= (max_occs or count)))
         return counts
 
-    def _make_seq_recs(self, seqs):
+    def _make_SeqRecords(self, seqs):
         """Given seq(s) as str(s), return a list of SeqRecords with these seq(s)"""
         return [SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
                           id='seq_%d'.format(i), name='seq_%d'.format(i), 
@@ -92,7 +103,7 @@ class TestKmc(object):
 
     def _write_seqs_to_fasta(self, seqs, seqs_fasta):
         """Write a .fasta file with the given seq(s)."""
-        Bio.SeqIO.write(self._make_seq_recs(seqs), seqs_fasta, 'fasta')
+        Bio.SeqIO.write(self._make_SeqRecords(seqs), seqs_fasta, 'fasta')
 
     @pytest.mark.parametrize("seqs,opts", [
         ('A'*15, '-k 4'),
