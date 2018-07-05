@@ -135,7 +135,7 @@ class TestKmc(object):
     #   from multiple files.
     #   ambiguity codes, gaps, Ns
 
-    def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None, **kw):
+    def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None):
         seqs_out = []
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
 
@@ -171,6 +171,15 @@ class TestKmc(object):
         self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
 
     def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
+        """Test read filtering.
+        
+        Args:
+          kmer_size: kmer size
+          single_strand: whether to canonicalize kmers
+          kmers_fasta: kmers for filtering will be extracted from here
+          reads_bam: reads to filter with kmers extracted from kmers_fasta
+        
+        """
         with util.file.tmp_dir(suffix='kmctest_reafilt') as t_dir:
             ebola_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
