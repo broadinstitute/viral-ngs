@@ -28,30 +28,17 @@ https://github.com/dnanexus/viral-ngs/wiki
 Google Cloud Platform: deploy to GCE VM
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The docker image referenced above can be directly `deployed to a Google 
-Compute Engine VM on startup 
-<https://cloud.google.com/compute/docs/containers/deploying-containers>`_.
-The main things you will need to do are:
+The docker image referenced above can be directly `deployed to a Google Compute Engine VM on startup <https://cloud.google.com/compute/docs/containers/deploying-containers>`_. The main things you will need to do are:
 
-* Make sure to allocate a larger-than-default root disk for the VM. 
-Google's Container Optimized OS defaults to a very small disk which
-is not large enough to unpack our Docker image. Increase to at least 20GB
-(or more if you want to localize data).
-
-* When setting up the VM for launch, make sure you open the "Advanced 
-container options" hidden options and select "Allocate a buffer for 
-STDIN" and "Allocate a pseudo-TTY" before launching. Otherwise you won’t 
-be able to ssh into them!
-
-* Sometimes you will need to invoke "bash" manually upon login to get the
-correct environment.
+* Make sure to allocate a larger-than-default root disk for the VM. Google's Container Optimized OS defaults to a very small disk which is not large enough to unpack our Docker image. Increase to at least 20GB (or more if you want to localize data).
+* When setting up the VM for launch, make sure you open the "Advanced container options" hidden options and select "Allocate a buffer for  STDIN" and "Allocate a pseudo-TTY" before launching. Otherwise you won't be able to ssh into them!
+* Sometimes you will need to invoke "bash" manually upon login to get the correct environment.
 
 
 Google Cloud Platform: dsub
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All of the command line functions in viral-ngs are accessible from the 
-docker image_ and can be invoked directly using dsub_.
+All of the command line functions in viral-ngs are accessible from the docker image_ and can be invoked directly using dsub_.
 
 .. _dsub: https://cloud.google.com/genomics/v1alpha2/dsub
 .. _image: https://quay.io/repository/broadinstitute/viral-ngs
