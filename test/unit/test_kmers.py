@@ -27,6 +27,77 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import pytest
 
+class KmcToolPython(object):
+    """A reimplementation of some KMC functionality in Python"""
+
+    def _revcomp(self, kmer):
+        """Return the reverse complement of a kmer, given as a string"""
+        return str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement())
+    
+    def _canonicalize(self, kmer):
+        """Return the canonical version of a kmer"""
+        return min(kmer, self._revcomp(kmer))
+
+    def _seq_as_str(self, s):
+        """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
+        if isinstance(s, Seq): return str(s)
+        if isinstance(s, SeqRecord): return str(s.seq)
+        return s
+
+    def _yield_seqs_as_strs(self, seqs):
+        """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq or an iterable of these."""
+        for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
+            seq = self._seq_as_str(seq)
+            if not any(seq.endswith(ext) for ext in '.fasta .fasta.gz .fastq .fastq.gz .bam'):
+                pass
+
+    #
+    # To help generate the expected correct output, we reimplement in Python some
+    # of KMC's functionality.
+    #
+
+    def _get_kmers(self, seqs, kmer_size, single_strand):
+        """Yield kmers of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being returned.
+        Note that deduplication is not done, so each occurrence of each kmer is yielded.  Kmers containing non-TCGA bases
+        are skipped.
+        """
+        for seq in self._yield_seqs_as_strs(seqs):
+            n_kmers = len(seq)-kmer_size+1
+
+            # mark kmers containing invalid base(s)
+            valid_kmer = [True] * n_kmers
+            for i in range(len(seq)):
+                if seq[i] not in 'TCGA':
+                    invalid_lo = max(0, i-kmer_size+1)
+                    invalid_hi = min(n_kmers, i+1)
+                    valid_kmer[invalid_lo:invalid_hi] = [False]*(invalid_hi-invalid_lo)
+
+            for i in range(n_kmers):
+                if valid_kmer[i]:
+                    kmer = seq[i:i+kmer_size]
+                    yield kmer if single_strand else self._canonicalize(kmer)
+
+    def _get_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None):
+        """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being counted.
+        Kmers containing non-TCGA bases are skipped.  Kmers with fewer than `min_occs` or more than `max_occs` occurrences
+        are dropped, and kmer counts capped `counter_cap`, if these args are given.
+        """
+        counts = collections.Counter(self._get_kmers(seqs, kmer_size, single_strand))
+        if any((min_occs, max_occs, counter_cap)):
+            counts = dict((kmer, min(count, counter_cap or count)) \
+                          for kmer, count in counts.items() \
+                          if (count >= (min_occs or count)) and \
+                          (count <= (max_occs or count)))
+        return counts
+
+    def build_kmer_db(self, seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min_occs=None, max_occs=None,
+                      counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, single_strand=False):
+        """Build the db of kmer counters and write to a text file"""
+        
+
+# end: class KmcToolPython(object)
+
+
 class TestKmc(object):
 
     """Test the tool wrapper for KMC kmer counter"""
@@ -39,11 +110,6 @@ class TestKmc(object):
         """Extract valid args from a Namespace or a dict.  Returns a dict containing keys from `args` that are in `valid_args`;
         `valid_args` is a space-separated list of valid args."""
         return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
-
-    #
-    # To help generate the expected correct output, we reimplement in Python some
-    # of KMC's commands.
-    #
 
     def _revcomp(self, kmer):
         """Return the reverse complement of a kmer, given as a string"""
@@ -63,6 +129,11 @@ class TestKmc(object):
         """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq or an iterable of these."""
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
             yield self._seq_as_str(seq)
+
+    #
+    # To help generate the expected correct output, we reimplement in Python some
+    # of KMC's functionality.
+    #
 
     def _get_kmers(self, seqs, kmer_size, single_strand):
         """Yield kmers of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being returned.
@@ -134,6 +205,7 @@ class TestKmc(object):
     #   getting kmers from bam (here just convert the fasta to it?), from fastq,
     #   from multiple files.
     #   ambiguity codes, gaps, Ns
+    #   bams with different mixes of read groups, mix of paired/unpaired etc
 
     def _filter_seqs(self, db_kmer_counts, seqs, kmer_size, single_strand, read_min_occs=None, read_max_occs=None):
         seqs_out = []
