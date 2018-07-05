@@ -33,10 +33,8 @@ class KmcTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-#            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='kmc',
-#                                                  verifycmd='kmc -h > /dev/null')]
-            install_methods = [tools.PrexistingUnixCommand('/data/sw/KMC/bin/kmc',
-                                                           verifycmd='/data/sw/KMC/bin/kmc -h > /dev/null')]
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='kmc',
+                                                  verifycmd='kmc -h > /dev/null')]
 
         tools.Tool.__init__(self, install_methods=install_methods)
 
