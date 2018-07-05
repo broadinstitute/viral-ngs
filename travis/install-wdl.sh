@@ -19,7 +19,7 @@ cached_fetch_jar_from_github () {
 
 cached_fetch_jar_from_github broadinstitute cromwell womtool 32
 cached_fetch_jar_from_github broadinstitute cromwell cromwell 32
-cached_fetch_jar_from_github dnanexus dxWDL dxWDL 0.66.2
+cached_fetch_jar_from_github dnanexus dxWDL dxWDL 0.68.1
 
 TGZ=dx-toolkit-v0.240.1-ubuntu-14.04-amd64.tar.gz
 if [ ! -f $CACHE_DIR/$TGZ ]; then
