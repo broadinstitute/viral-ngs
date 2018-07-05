@@ -32,6 +32,7 @@ task illumina_demux {
   File    flowcell_tgz
   Int?    lane=1
   File?   samplesheet
+  File?   runinfo
   String? sequencingCenter
 
   String? flowcell
@@ -41,6 +42,7 @@ task illumina_demux {
   Int?    maxNoCalls
   String? readStructure
   Int?    minimumQuality = 10
+  Int?    threads = 32
   String? runStartDate
 
   parameter_meta {
@@ -59,8 +61,8 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # find 95% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_95.sh`
+    # find N% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
@@ -69,6 +71,7 @@ task illumina_demux {
       ${lane} \
       . \
       ${'--sampleSheet=' + samplesheet} \
+      ${'--runInfo=' + runinfo} \
       ${'--sequencing_center=' + sequencingCenter} \
       --outMetrics=metrics.txt \
       --commonBarcodes=barcodes.txt \
@@ -81,7 +84,7 @@ task illumina_demux {
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
       --JVMmemory="$mem_in_mb"m \
-      --threads=64 \
+      ${'--threads=' + threads} \
       --compression_level=5 \
       --loglevel=DEBUG
 

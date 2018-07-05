@@ -11,6 +11,7 @@ import logging
 import os
 import os.path
 import re
+import gc
 import csv
 import shutil
 import subprocess
@@ -19,8 +20,11 @@ import xml.etree.ElementTree
 from collections import defaultdict
 import concurrent.futures
 
+import arrow
+
 import util.cmd
 import util.file
+import util.misc
 import tools.picard
 from util.illumina_indices import IlluminaIndexReference
 
@@ -48,6 +52,11 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                         help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
                                 Default is to look for a SampleSheet.csv in the inDir.''')
+    parser.add_argument('--runInfo',
+                        default=None,
+                        dest="runinfo",
+                        help='''Override RunInfo. Input xml file.
+                                Default is to look for a RunInfo.xml file in the inDir.''')
     parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
     parser.add_argument('--read_structure',
                         help='Override read structure (default: read from RunInfo.xml).',
@@ -91,18 +100,23 @@ def main_illumina_demux(args):
     # prepare
     illumina = IlluminaDirectory(args.inDir)
     illumina.load()
+
+    if args.runinfo:
+        runinfo = RunInfo(args.runinfo)
+    else:
+        runinfo = illumina.get_RunInfo()
     if args.flowcell:
         flowcell = args.flowcell
     else:
-        flowcell = illumina.get_RunInfo().get_flowcell()
+        flowcell = runinfo.get_flowcell()
     if args.run_start_date:
         run_date = args.run_start_date
     else:
-        run_date = illumina.get_RunInfo().get_rundate_american()
+        run_date = runinfo.get_rundate_american()
     if args.read_structure:
         read_structure = args.read_structure
     else:
-        read_structure = illumina.get_RunInfo().get_read_structure()
+        read_structure = runinfo.get_read_structure()
     if args.sampleSheet:
         samples = SampleSheet(args.sampleSheet, only_lane=args.lane)
     else:
@@ -124,7 +138,7 @@ def main_illumina_demux(args):
         tools.picard.CheckIlluminaDirectoryTool().execute(
             illumina.get_BCLdir(),
             args.lane,
-            illumina.get_RunInfo().get_read_structure(),
+            runinfo.get_read_structure(),
             link_locs=link_locs
         )
     except subprocess.CalledProcessError as e:
@@ -145,7 +159,7 @@ def main_illumina_demux(args):
             tools.picard.CheckIlluminaDirectoryTool().execute(
                 illumina.get_BCLdir(),
                 args.lane,
-                illumina.get_RunInfo().get_read_structure(),
+                runinfo.get_read_structure(),
                 link_locs=link_locs
             )
 
@@ -195,9 +209,11 @@ def main_illumina_demux(args):
     picardOpts['read_structure'] = read_structure
     if args.threads:
         picardOpts['num_processors'] = args.threads
-    if not picardOpts.get('sequencing_center') and illumina.get_RunInfo():
-        picardOpts['sequencing_center'] = illumina.get_RunInfo().get_machine()
+    if not picardOpts.get('sequencing_center') and runinfo:
+        picardOpts['sequencing_center'] = runinfo.get_machine()
 
+    # manually garbage collect to make sure we have as much RAM free as possible
+    gc.collect()
     if multiplexed_samples:
         tools.picard.IlluminaBasecallsToSamTool().execute(
             illumina.get_BCLdir(),
@@ -534,27 +550,35 @@ class RunInfo(object):
             log.warn("The provided flowcell ID is longer than 15 characters. Is that correct?")
         return fc
 
-    def get_rundate_american(self):
+    @util.misc.memoize
+    def _get_rundate_obj(self):
+        """
+            Access the text of the <Date> node in the RunInfo.xml file
+            and returns an arrow date object.
+        """
         rundate = self.root[0].find('Date').text
-        if len(rundate) == 6:
-            y, m, d = (rundate[0:2], rundate[2:4], rundate[4:6])
-            y = '20' + y
-        elif len(rundate) == 8:
-            y, m, d = (rundate[0:4], rundate[4:6], rundate[6:8])
-        else:
-            raise Exception()
-        return '%s/%s/%s' % (m, d, y)
+        # possible formats found in RunInfo.xml:
+        #   "170712" (YYMMDD)
+        #   "20170712" (YYYYMMDD)
+        #   "6/27/2018 4:59:20 PM" (M/D/YYYY h:mm:ss A)
+        datestring_formats = [
+            "YYMMDD",
+            "YYYYMMDD",
+            "M/D/YYYY h:mm:ss A"
+        ]
+        for datestring_format in datestring_formats:
+            try:
+                date_parsed = arrow.get(rundate, datestring_format)
+                return date_parsed
+            except arrow.parser.ParserError:
+                pass
+        raise arrow.parser.ParserError("The date string seen in RunInfo.xml ('%s') did not match known Illumina formats: %s" % (rundate,datestring_formats) )
+
+    def get_rundate_american(self):
+        return str(self._get_rundate_obj().format("MM/DD/YYYY"))
 
     def get_rundate_iso(self):
-        rundate = self.root[0].find('Date').text
-        if len(rundate) == 6:
-            y, m, d = (rundate[0:2], rundate[2:4], rundate[4:6])
-            y = '20' + y
-        elif len(rundate) == 8:
-            y, m, d = (rundate[0:4], rundate[4:6], rundate[6:8])
-        else:
-            raise Exception()
-        return '%s-%s-%s' % (y, m, d)
+        return str(self._get_rundate_obj().format("YYYY-MM-DD"))
 
     def get_machine(self):
         return self.root[0].find('Instrument').text
