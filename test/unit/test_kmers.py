@@ -136,26 +136,27 @@ class TestKmc(object):
 
         return seqs_out
 
-    @pytest.mark.parametrize("kmer_size", range(1,31))
+    @pytest.mark.parametrize("kmer_size", [17, 31])
     @pytest.mark.parametrize("single_strand", [False, True])
-    @pytest.mark.parametrize("read_min_occs", [80, .2, .7])
+    @pytest.mark.parametrize("read_min_occs", [80, .7])
     @pytest.mark.parametrize("kmers_fasta,reads_bam", [
         ('ebola.fasta', 'G5012.3.subset.bam'),
     ])
-    def test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
-        self._test_ebola_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
+    def test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
+        self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
 
+    @pytest.mark.xfail  # kmc bug, reported at https://github.com/refresh-bio/KMC/issues/86
     @pytest.mark.parametrize("kmer_size", [1])
     @pytest.mark.parametrize("single_strand", [False])
     @pytest.mark.parametrize("read_min_occs", [1])
     @pytest.mark.parametrize("kmers_fasta,reads_bam", [
-        ('empty.fasta', 'empty.bam'),
+        ('empty.fasta', 'empty.bam')
     ])
     def test_read_filtering_2(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
-        self._test_ebola_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
+        self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
         
-    def _test_ebola_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
-        with util.file.tmp_dir(suffix='kmctest_ebolafilt') as t_dir:
+    def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
+        with util.file.tmp_dir(suffix='kmctest_reafilt') as t_dir:
             ebola_fasta = os.path.join(util.file.get_test_input_path(), kmers_fasta)
             ebola_kmer_db = os.path.join(t_dir, 'ebola_kmer_db')
             kmer_db_args = util.cmd.run_cmd(kmers, 'build_kmer_db', 
