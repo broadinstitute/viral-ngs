@@ -171,10 +171,12 @@ class KmcTool(tools.Tool):
         Params:
           db_min_occs: only consider database kmers with at least this count
           db_max_occs: only consider database kmers with at most this count
-          read_min_occs: only keep reads with at least this many occurrences of kmers from database.  If `as_perc` is True, interpreted as percent
-             of read length
-          read_max_occs: only keep reads with no more than this many occurrence of kmers from the database
+          read_min_occs: only keep reads with at least this many occurrences of kmers from database.  If given as float,
+             interpret as percent of read length in kmers.
+          read_max_occs: only keep reads with no more than this many occurrence of kmers from the database.  If given as float,
+             interpret as percent of read length in kmers.
           hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
+          threads: use this many threads
         """
 
         if db_min_occs is None: db_min_occs=1
