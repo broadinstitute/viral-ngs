@@ -13,7 +13,7 @@ Here is an overview of the Snakemake rule graph:
 .. image:: rulegraph.png
 
 Installation instructions
--------------------------------------------
+-------------------------
 
 It is recommended to install the viral-ngs conda package from the ``broad-viral`` channel, as detailed in the installation section of this documentation.
 
@@ -241,48 +241,6 @@ Running the pipeline directly
 
 After the above setup is complete, run the pipeline directly by calling
 ``snakemake`` within the analysis directory.
-
-Running the pipeline on GridEngine (UGER)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Within ``config.yaml``, set the "project" to one that exists on the
-cluster system.
-
-Inside the analysis directory, run the job submission command. Ex.:
-
-::
-
-    use UGER
-    qsub -cwd -b y -q long -l m_mem_free=4G ./bin/pipes/Broad_UGER/run-pipe.sh
-
-To kill all jobs that exited (qstat status "Eqw") with an error:
-
-::
-
-    qdel $(qstat | grep Eqw | awk '{print $1}')
-
-Running the pipeline on LSF
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Inside the analysis directory, run the job submission command. Ex.:
-
-::
-
-    bsub -o log/run.out -q forest ./bin/pipes/Broad_LSF/run-pipe.sh
-
-If you notice jobs hanging in the **PEND** state, an upstream job may
-have failed. Before killing such jobs, verify that the jobs are pending
-due to their dependency:
-
-::
-
-    bjobs -al | grep -A 1 "PENDING REASONS" | grep -v "PENDING REASONS" | grep -v '^--$'
-
-To kill all **PEND**\ ing jobs:
-
-::
-
-    bkill `bjobs | grep PEND | awk '{print $1}'` > /dev/null
 
 When things go wrong
 ~~~~~~~~~~~~~~~~~~~~
