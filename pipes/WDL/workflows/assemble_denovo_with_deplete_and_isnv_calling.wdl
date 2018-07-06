@@ -1,8 +1,8 @@
 import "taxon_filter.wdl" as taxon_filter
 import "assembly.wdl" as assembly
+import "tasks_intrahost.wdl" as intrahost
 
-workflow assemble_denovo_with_deplete {
-  
+workflow assemble_denovo_with_deplete_and_isnv_calling {
   File raw_reads_unmapped_bam
   Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
@@ -43,5 +43,11 @@ workflow assemble_denovo_with_deplete {
       assembly_fasta = scaffold.scaffold_fasta,
       reads_unmapped_bam = deplete_taxa.cleaned_bam,
       gatk_jar = gatk_jar
+  }
+
+  call intrahost.isnvs_per_sample {
+    input:
+      assembly_fasta = refine_2x_and_plot.final_assembly_fasta,
+      mapped_bam = refine_2x_and_plot.aligned_bam
   }
 }
