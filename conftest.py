@@ -14,6 +14,8 @@ def timer():
 
 
 def pytest_addoption(parser):
+    parser.addoption("--runslow", action="store_true", help="run slow tests")
+
     group = parser.getgroup("terminal reporting", "reporting", after="general")
     group.addoption(
         '--fixture-durations',
@@ -35,7 +37,7 @@ def tmpdir_session(request, tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp('test-session'))
 
     def reset():
-        shutil.rmtree(tmpdir)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     request.addfinalizer(reset)
     return tmpdir
@@ -46,7 +48,7 @@ def tmpdir_module(request, tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp('test-module'))
 
     def reset():
-        shutil.rmtree(tmpdir)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     request.addfinalizer(reset)
     return tmpdir
@@ -61,7 +63,7 @@ def tmpdir_function(request, tmpdir_factory):
     os.environ['TMPDIR'] = new_tempdir
 
     def reset():
-        shutil.rmtree(new_tempdir)
+        shutil.rmtree(new_tempdir, ignore_errors=True)
         tempfile.tmpdir = old_tempdir
         if old_env_tmpdir:
             os.environ['TMPDIR'] = old_env_tmpdir
@@ -114,3 +116,6 @@ class FixtureReporter:
         for row in rows:
             writer.write(" ".join((val.ljust(width) for val, width in zip(row, widths))))
             writer.line()
+
+
+            

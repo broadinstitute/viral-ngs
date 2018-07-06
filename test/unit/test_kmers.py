@@ -137,7 +137,32 @@ class TestKmers(object):
     @pytest.mark.parametrize("max_occs", [None])
     @pytest.mark.parametrize("counter_cap", [255,32])
     @pytest.mark.parametrize("single_strand", [False, True])
-    def test_build_kmer_db(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
+    def test_build_kmer_db_1(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
+        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+
+    @slow_test
+    @pytest.mark.parametrize("seq_files", [['ebola.fasta.gz'], ['empty.bam'], ['empty.bam', 'almost-empty-2.bam']])
+    @pytest.mark.parametrize("kmer_size", [17])
+    @pytest.mark.parametrize("min_occs", [None])
+    @pytest.mark.parametrize("max_occs", [None])
+    @pytest.mark.parametrize("counter_cap", [255])
+    @pytest.mark.parametrize("single_strand", [False])
+    def test_build_kmer_db_2(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
+        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+
+    @slow_test
+    @pytest.mark.parametrize("seq_files", [['TestDepleteHuman/test-reads.bam', 'TestDepleteHuman/test-reads-human.bam']])
+    @pytest.mark.parametrize("kmer_size", [17])
+    @pytest.mark.parametrize("min_occs", [None])
+    @pytest.mark.parametrize("max_occs", [None])
+    @pytest.mark.parametrize("counter_cap", [255])
+    @pytest.mark.parametrize("single_strand", [False])
+    def test_build_kmer_db_3(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
+        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+
+
+
+    def _test_build_kmer_db(self, seq_files, kmer_size, min_occs=None, max_occs=None, counter_cap=255, single_strand=False):
         with util.file.tmp_dir(suffix='test_build_kmer_db') as t_dir:
             self._build_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(), f) for f in util.misc.make_seq(seq_files)], 
                                 kmer_db=os.path.join(t_dir, 'kmer_db'),
