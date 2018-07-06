@@ -37,7 +37,7 @@ def tmpdir_session(request, tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp('test-session'))
 
     def reset():
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
     request.addfinalizer(reset)
     return tmpdir
@@ -48,7 +48,7 @@ def tmpdir_module(request, tmpdir_factory):
     tmpdir = str(tmpdir_factory.mktemp('test-module'))
 
     def reset():
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
     request.addfinalizer(reset)
     return tmpdir
@@ -63,7 +63,7 @@ def tmpdir_function(request, tmpdir_factory):
     os.environ['TMPDIR'] = new_tempdir
 
     def reset():
-        shutil.rmtree(new_tempdir, ignore_errors=True)
+        if os.path.isdir(new_tempdir): shutil.rmtree(new_tempdir)
         tempfile.tmpdir = old_tempdir
         if old_env_tmpdir:
             os.environ['TMPDIR'] = old_env_tmpdir
