@@ -1,5 +1,4 @@
 
-
 task plot_coverage {
   # TO DO: add a BWA option
   # TO DO: make GATK indel-realigner optional
@@ -175,3 +174,5 @@ task spikein_report {
     dx_instance_type: "mem1_ssd1_x4"
   }
 }
+
+

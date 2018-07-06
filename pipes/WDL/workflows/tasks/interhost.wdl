@@ -36,7 +36,7 @@ task multi_align_mafft_ref {
 
 task multi_align_mafft {
   Array[File]+   assemblies_fasta # fasta files, one per sample, multiple chrs per file okay
-  String         out_prefix
+  String         out_prefix = "aligned"
   Int?           mafft_maxIters
   Float?         mafft_ep
   Float?         mafft_gapOpeningPenalty
@@ -87,3 +87,5 @@ task index_ref {
     docker: "quay.io/broadinstitute/viral-ngs"
   }
 }
+
+

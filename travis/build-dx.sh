@@ -22,7 +22,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
   else
     workflow_name=`basename $workflow .wdl`
-	  echo "Building $workflow to DNAnexus"
+	  echo "Building $workflow to DNAnexus: /build/$VERSION/$workflow_name"
 
     test_input_json_wdl="test/input/WDL/test_inputs-$workflow_name-dnanexus.json"
     if [ -f "$test_input_json_wdl" ]; then
@@ -43,8 +43,14 @@ for workflow in pipes/WDL/workflows/*.wdl; do
 	  dx_id=$(java -jar dxWDL.jar compile \
       $workflow $CMD_INPUT $CMD_DEFAULTS -f \
       -imports pipes/WDL/workflows/tasks/ \
+      -project $DX_PROJECT \
       -destination /build/$VERSION/$workflow_name)
-	  echo "Succeeded: $workflow_name = $dx_id"
+    if [ $? -eq 0 ]; then
+        echo "Succeeded: $workflow_name = $dx_id"
+    else
+        echo "Failed to build: $workflow_name"
+        exit $?
+    fi
     echo -e "$workflow_name\t$dx_id" >> $COMPILE_SUCCESS
   fi
 done

@@ -1,3 +1,4 @@
+
 # ======================================================================
 # deplete: 
 #   Runs a full human read depletion pipeline and removes PCR duplicates
@@ -69,7 +70,7 @@ task deplete_taxa {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 8
-    dx_instance_type: "mem1_ssd1_x8"
+    dx_instance_type: "mem1_ssd1_x16"
     preemptible: 0
   }
 }
@@ -178,3 +179,5 @@ task merge_one_per_sample {
     dx_instance_type: "mem1_ssd2_x4"
   }
 }
+
+
