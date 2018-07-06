@@ -135,7 +135,7 @@ runSpec:
         output_project=$DX_WORKSPACE_ID
         for i in $(seq "$lane_count"); do
           folder2=$(printf "%s/%s/reads/L%d" "$folder" "$run_id" $i)
-          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.minimumBaseQuality=$min_base_quality --folder $folder2 --instance-type="{\"stage-0\": \"$demux_instance_type\"}" --name demux:$run_id:L$i -y --brief"
+          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.minimumBaseQuality=$min_base_quality --folder $folder2 --instance-type={\"stage-0\":\"$demux_instance_type\"} --name demux:$run_id:L$i -y --brief"
           echo "$runcmd"
           set +x
           if [ -n "$api_token" ]; then
