@@ -27,9 +27,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import pytest
 
-class TestKmc(object):
+class TestKmers(object):
 
-    """Test the tool wrapper for KMC kmer counter"""
+    """Test commands for manipulating kmers"""
 
     def _input(self, fname):
         '''Return the full filename for a file in the test input directory for this test class'''
@@ -55,7 +55,8 @@ class TestKmc(object):
         return s
 
     def _yield_seqs_as_strs(self, seqs):
-        """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq or an iterable of these."""
+        """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq, a filename of a sequence file,
+        or an iterable of these.  If a filename of a sequence file, all sequences from that file are yielded."""
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
             seq = self._seq_as_str(seq)
             if not any(seq.endswith(ext) for ext in '.fasta .fasta.gz .fastq .fastq.gz .bam'):
@@ -74,7 +75,7 @@ class TestKmc(object):
     # of KMC's functionality.
     #
 
-    def _get_kmers(self, seqs, kmer_size, single_strand):
+    def _compute_kmers(self, seqs, kmer_size, single_strand):
         """Yield kmers of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being returned.
         Note that deduplication is not done, so each occurrence of each kmer is yielded.  Kmers containing non-TCGA bases
         are skipped.
@@ -95,12 +96,12 @@ class TestKmc(object):
                     kmer = seq[i:i+kmer_size]
                     yield kmer if single_strand else self._canonicalize(kmer)
 
-    def _get_kmer_counts(self, seqs, kmer_size, single_strand, min_occs=None, max_occs=None, counter_cap=None):
+    def _compute_kmer_counts(self, seqs, kmer_size, min_occs=None, max_occs=None, counter_cap=None, single_strand=False):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being counted.
         Kmers containing non-TCGA bases are skipped.  Kmers with fewer than `min_occs` or more than `max_occs` occurrences
         are dropped, and kmer counts capped `counter_cap`, if these args are given.
         """
-        counts = collections.Counter(self._get_kmers(seqs, kmer_size, single_strand))
+        counts = collections.Counter(self._compute_kmers(seqs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
             counts = dict((kmer, min(count, counter_cap or count)) \
                           for kmer, count in counts.items() \
@@ -119,6 +120,26 @@ class TestKmc(object):
         """Write a .fasta file with the given seq(s)."""
         Bio.SeqIO.write(self._make_SeqRecords(seqs), seqs_fasta, 'fasta')
 
+    def _build_kmer_db(self, seq_files, kmer_db, **kwargs):
+        kmers.build_kmer_db(seq_files, kmer_db, mem_limit_gb=4, **kwargs)
+        kmers_txt = kmer_db+'.kmer_counts.txt'
+        kmers.dump_kmer_counts(kmer_db, kmers_txt)
+        assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == self._compute_kmer_counts(seq_files, **kwargs)
+        return kmer_db
+
+    @pytest.mark.parametrize("seq_files", ['ebola.fasta'])
+    @pytest.mark.parametrize("kmer_size", [11, 31])
+    @pytest.mark.parametrize("min_occs", [None])
+    @pytest.mark.parametrize("max_occs", [None])
+    @pytest.mark.parametrize("counter_cap", [255,32])
+    @pytest.mark.parametrize("single_strand", [False, True])
+    def test_build_kmer_db(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
+        with util.file.tmp_dir(suffix='test_build_kmer_db') as t_dir:
+            self._build_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(), f) for f in util.misc.make_seq(seq_files)], 
+                                kmer_db=os.path.join(t_dir, 'kmer_db'),
+                                kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap,
+                                single_strand=single_strand)
+            
     @pytest.mark.parametrize("seqs,opts", [
         ('A'*15, '-k 4'),
         ('T'*15, '-k 4' ),
@@ -137,7 +158,7 @@ class TestKmc(object):
             kmers_txt = os.path.join(t_dir, 'kmers.txt')
             util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
             assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                self._get_kmer_counts(seqs, **self._getargs(args, 'kmer_size single_strand min_occs max_occs counter_cap'))
+                self._compute_kmer_counts(seqs, **self._getargs(args, 'kmer_size single_strand min_occs max_occs counter_cap'))
 
     # to test:
     #   empty bam, empty fasta, empty both
@@ -151,7 +172,7 @@ class TestKmc(object):
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs)
 
         for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
-            seq_kmer_counts = self._get_kmer_counts(seq, kmer_size, single_strand)
+            seq_kmer_counts = self._compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand)
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() if kmer in db_kmer_counts])
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*(len(seq)-kmer_size+1)) if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
@@ -201,9 +222,9 @@ class TestKmc(object):
                                             +_cmdflag('--singleStrand', single_strand)).args_parsed
 
             kmers_fasta_seqs = list(Bio.SeqIO.parse(kmers_fasta, 'fasta'))
-            kmers_fasta_kmer_counts = self._get_kmer_counts(kmers_fasta_seqs,
-                                                            **self._getargs(kmer_db_args,
-                                                                            'kmer_size single_strand min_occs max_occs counter_cap'))
+            kmers_fasta_kmer_counts = self._compute_kmer_counts(kmers_fasta_seqs,
+                                                                **self._getargs(kmer_db_args,
+                                                                                'kmer_size single_strand min_occs max_occs counter_cap'))
 
             kmers_txt = os.path.join(t_dir, 'kmers.txt')
             util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
