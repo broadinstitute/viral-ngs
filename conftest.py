@@ -55,22 +55,11 @@ def tmpdir_module(request, tmpdir_factory):
 
 
 @pytest.fixture(autouse=True)
-def tmpdir_function(request, tmpdir_factory):
-    old_tempdir = tempfile.tempdir
-    old_env_tmpdir = os.environ.get('TMPDIR')
-    new_tempdir = str(tmpdir_factory.mktemp('test-function'))
-    tempfile.tempdir = new_tempdir
-    os.environ['TMPDIR'] = new_tempdir
-
-    def reset():
-        if os.path.isdir(new_tempdir): shutil.rmtree(new_tempdir)
-        tempfile.tmpdir = old_tempdir
-        if old_env_tmpdir:
-            os.environ['TMPDIR'] = old_env_tmpdir
-
-    request.addfinalizer(reset)
-    return new_tempdir
-
+def tmpdir_function(request, tmpdir, monkeypatch):
+    tmpdir_str = str(tmpdir)
+    monkeypatch.setattr(tempfile, 'tempdir', tmpdir_str)
+    monkeypatch.setenv('TMPDIR', tmpdir_str)
+    return tmpdir_str
 
 class FixtureReporter:
 
