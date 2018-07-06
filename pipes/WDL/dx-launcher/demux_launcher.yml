@@ -87,32 +87,42 @@ runSpec:
       # total data size more roughly tracks total tile count
       total_tile_count=$((lane_count*surface_count*swath_count*tile_count))
 
-      instance_type="mem3_ssd1_x32"
-      # commented out as all tasks of the workflow inherit the instance type used
-      # we need to scale to suit kraken
-      # if [ "$total_tile_count" -le 50 ]; then 
-      #     instance_type="mem1_ssd1_x4"
-      #     echo "Detected $total_tile_count tiles, interpreting as MiSeq run, executing on a $instance_type machine."
-      # elif [ "$total_tile_count" -le 150 ]; then 
-      #     instance_type="mem1_ssd2_x4"
-      #     echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $instance_type machine."
-      # elif [ "$total_tile_count" -le 896 ]; then 
-      #     instance_type="mem1_hdd2_x32"
-      #     echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $instance_type machine."
-      # elif [ "$total_tile_count" -le 1408 ]; then 
-      #     instance_type="mem1_hdd2_x32"
-      #     echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $instance_type machine."
-      # elif [ "$total_tile_count" -gt 1408 ]; then 
-      #     instance_type="mem1_hdd2_x32"
-      #     echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $instance_type machine."
-      # fi
+      demux_instance_type="mem1_ssd1_x4"
+      if [ "$total_tile_count" -le 50 ]; then 
+          tar_consolidation_instance_size="mem1_ssd1_x4"
+          demux_instance_type="mem1_ssd1_x4"
+          min_base_quality=25
+          echo "Detected $total_tile_count tiles, interpreting as MiSeq run, executing on a $demux_instance_type machine."
+      elif [ "$total_tile_count" -le 150 ]; then
+          tar_consolidation_instance_size="mem1_ssd2_x4"
+          demux_instance_type="mem1_ssd2_x4"
+          min_base_quality=25
+          echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $demux_instance_type machine."
+      elif [ "$total_tile_count" -le 896 ]; then
+          tar_consolidation_instance_size="mem1_hdd2_x32"
+          demux_instance_type="mem1_hdd2_x32"
+          min_base_quality=25
+          echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $demux_instance_type machine."
+      elif [ "$total_tile_count" -le 1408 ]; then
+          tar_consolidation_instance_size="mem1_hdd2_x32"
+          demux_instance_type="mem1_hdd2_x32"
+          min_base_quality=20
+          echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $demux_instance_type machine."
+          echo "  **Note: Q23 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"
+          echo "    See: https://www.illumina.com/content/dam/illumina-marketing/documents/products/appnotes/novaseq-hiseq-q30-app-note-770-2017-010.pdf"
+      elif [ "$total_tile_count" -gt 1408 ]; then
+          tar_consolidation_instance_size="mem1_hdd2_x32"
+          demux_instance_type="mem1_hdd2_x32"
+          min_base_quality=25
+          echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $demux_instance_type machine."
+      fi
 
       run_tarball=""
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
       if [ "$(cat tar_file_ids | wc -l)" -gt 1 ]; then
         # if there are multiple run tarballs, launch a subjob to consolidate them
         # TODO: auto-scale the instance type, here hardcoding one with 640GB space
-        subjob=$(dx-jobutil-new-job consolidate_tars --instance-type mem1_ssd2_x8 -i upload_sentinel_record="$upload_sentinel_record" -i folder="$folder" -i run_id="$run_id")
+        subjob=$(dx-jobutil-new-job consolidate_tars --instance-type="$tar_consolidation_instance_size" -i upload_sentinel_record="$upload_sentinel_record" -i folder="$folder" -i run_id="$run_id")
         run_tarball="$subjob:run_tarball"
       else
         run_tarball=$(cat tar_file_ids | tr -d '\n')
@@ -125,7 +135,7 @@ runSpec:
         output_project=$DX_WORKSPACE_ID
         for i in $(seq "$lane_count"); do
           folder2=$(printf "%s/%s/reads/L%d" "$folder" "$run_id" $i)
-          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i --folder $folder2 --instance-type $instance_type --name demux:$run_id:L$i -y --brief"
+          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.minimumBaseQuality=$min_base_quality --folder $folder2 --instance-type="{\"stage-0\": \"$demux_instance_type\"}" --name demux:$run_id:L$i -y --brief"
           echo "$runcmd"
           set +x
           if [ -n "$api_token" ]; then
@@ -141,7 +151,7 @@ runSpec:
         # schedule a subjob when all the demux analyses complete, to propagate all their
         # output files to the output of this job.
         subjob=$(dx-jobutil-new-job propagate_outputs -i output_project=$output_project -i folder="$folder" -i run_id="$run_id" --depends-on ${analyses[@]})
-        dx-jobutil-add-output demux_outputs $subjob:demux_outputs --class=jobref
+        dx-jobutil-add-output demux_outputs $subjob:demux_outputs --class array:file
       fi
     }
 
