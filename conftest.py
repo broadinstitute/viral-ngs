@@ -1,11 +1,13 @@
 import operator
 import os
-import pytest
 import shutil
 import sys
 import tempfile
 import time
+import contextlib
+import string
 
+import pytest
 
 def timer():
     if sys.version_info < (3, 3):
@@ -29,46 +31,32 @@ def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
+@contextlib.contextmanager
+def _tmpdir_aux(request, tmpdir_factory, scope, name):
+    basetemp = str(tmpdir_factory.getbasetemp())
+    valid_fname_chars = set(string.ascii_letters+string.digits+'-.')
+    max_fname_len = os.pathconf(basetemp, 'PC_NAME_MAX') if 'PC_NAME_MAX' in os.pathconf_names else 100
+    name = ''.join((c if c in valid_fname_chars else '_') for c in name)[:max_fname_len-50]
+    tmpdir = tempfile.mkdtemp(dir=basetemp, prefix='test-{}-{}-'.format(scope, name))
+    yield tmpdir
+    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-session'))
-
-    def reset():
-        shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+    with _tmpdir_aux(request, tmpdir_factory, 'session', id(request.session)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='module')
 def tmpdir_module(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-module'))
-
-    def reset():
-        shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+    with _tmpdir_aux(request, tmpdir_factory, 'module', request.module.__name__) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(autouse=True)
-def tmpdir_function(request, tmpdir_factory):
-    old_tempdir = tempfile.tempdir
-    old_env_tmpdir = os.environ.get('TMPDIR')
-    new_tempdir = str(tmpdir_factory.mktemp('test-function'))
-    tempfile.tempdir = new_tempdir
-    os.environ['TMPDIR'] = new_tempdir
-
-    def reset():
-        shutil.rmtree(new_tempdir)
-        tempfile.tmpdir = old_tempdir
-        if old_env_tmpdir:
-            os.environ['TMPDIR'] = old_env_tmpdir
-
-    request.addfinalizer(reset)
-    return new_tempdir
-
+def tmpdir_function(request, tmpdir_factory, monkeypatch):
+    with _tmpdir_aux(request, tmpdir_factory, 'node', request.node.name) as tmpdir:
+        monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
+        monkeypatch.setenv('TMPDIR', tmpdir)
+        yield tmpdir
 
 class FixtureReporter:
 
