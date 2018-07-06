@@ -246,13 +246,28 @@ def test_as_type():
         with pytest.raises(TypeError):
             as_type(val, types)
 
-def test_subdict():
-    """Test subdict()"""
-    subdict = util.misc.subdict
-    assert subdict({}, {}) == {}
-    assert subdict({1:2}, {}) == {}
-    assert subdict({1:2}, {1}) == {1:2}
-    assert subdict({1:2}, {2}) == {}
-    assert subdict({1:2}, {1,2}) == {1:2}
-    assert subdict({1:2,3:4}, {1,2,3}) == {1:2,3:4}
-    assert subdict({1:2,3:4}, {2,3,5}) == {3:4}
+@pytest.mark.parametrize("iter_d", [False, True])
+@pytest.mark.parametrize("iter_subset", [False, True])
+def test_subdict(iter_d, iter_subset):
+    """Test util.misc.subdict()"""
+    def subdict(d, subset): 
+        return util.misc.subdict(iter(d.items()) if iter_d else d, 
+                                 iter(subset) if iter_subset else subset)
+
+    test_data = (
+        ({}, {}, {}),
+        ({1:2}, {}, {}),
+        ({1:2}, {1}, {1:2}),
+        ({1:2}, {2}, {}),
+        ({1:2}, {1,2}, {1:2}),
+        ({1:2,3:4}, {1,2,3}, {1:2,3:4}),
+        ({1:2,3:4}, {2,3,5}, {3:4}),
+    )
+
+    for d, subset, expected in test_data:
+        assert subdict(d, subset) == expected
+
+        assert subdict(d, subset).keys() == (d.keys() & set(subset))
+        assert subdict(d, {}) == {}
+        assert subdict(d, d.keys()) == d
+        assert subdict(d, list(d.keys())*2) == d

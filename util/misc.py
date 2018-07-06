@@ -610,4 +610,6 @@ def as_type(val, types):
 
 def subdict(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
+    d = dict(d)
+    keys = set(keys)
     return {k: v for k, v in d.items() if k in keys}
