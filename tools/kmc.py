@@ -192,13 +192,12 @@ class KmcTool(tools.Tool):
                 # kmc_tools filter currently requires fasta files to be in fasta-2line format
                 # https://github.com/refresh-bio/KMC/issues/57
                 _in_reads = os.path.join(t_dir, 'in_reads.fasta')
-                with util.file.open_or_gzopen(in_reads, 'rt'):
-                    Bio.SeqIO.convert(in_reads, 'fasta', _in_reads, 'fasta-2line')
+                Bio.SeqIO.convert(in_reads, 'fasta', _in_reads, 'fasta-2line')
             if in_reads_type == '.bam':
                 # kmc_tools filter currently does not support .bam files
                 # https://github.com/refresh-bio/KMC/issues/66
                 _in_reads = os.path.join(t_dir, 'in_reads.fasta')
-                tools.samtools.SamtoolsTool().bam2fa(in_reads, _in_reads, add_mate_num=True)
+                tools.samtools.SamtoolsTool().bam2fa(in_reads, _in_reads)
                 _out_reads = os.path.join(t_dir, 'out_reads.fasta')
 
             in_reads_fmt = 'q' if in_reads_type in ('.fq', '.fastq') else 'a'
@@ -213,7 +212,6 @@ class KmcTool(tools.Tool):
                 assert out_reads.endswith('.bam')
                 passed_read_names = os.path.join(t_dir, 'passed_read_names.txt')
                 read_utils.fasta_read_names(_out_reads, passed_read_names)
-                shutil.copyfile(passed_read_names, '/tmp/passed.txt')
                 tools.picard.FilterSamReadsTool().execute(inBam=in_reads, exclude=False, readList=passed_read_names, outBam=out_reads)
         # end: with util.file.tmp_dir(suffix='kmcfilt') as t_dir
     # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32, read_min_occs=None, read_max_occs=None, threads=None)
