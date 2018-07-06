@@ -72,3 +72,5 @@ tools/conda-cache/
 tools/conda-tools/
 
 *.snakemake/
+
+.pytest_cache

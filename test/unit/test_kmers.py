@@ -19,13 +19,16 @@ import util.file
 import util.misc
 import tools.kmc
 import tools.samtools
-from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
+from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp, \
+    make_slow_test_marker
 
 import Bio.SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import pytest
+
+slow_test = make_slow_test_marker()
 
 class TestKmers(object):
 
@@ -127,7 +130,8 @@ class TestKmers(object):
         assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == self._compute_kmer_counts(seq_files, **kwargs)
         return kmer_db
 
-    @pytest.mark.parametrize("seq_files", ['ebola.fasta'])
+    @slow_test
+    @pytest.mark.parametrize("seq_files", [['ebola.fasta'], ['empty.bam']])
     @pytest.mark.parametrize("kmer_size", [11, 31])
     @pytest.mark.parametrize("min_occs", [None])
     @pytest.mark.parametrize("max_occs", [None])
