@@ -151,7 +151,8 @@ runSpec:
         # schedule a subjob when all the demux analyses complete, to propagate all their
         # output files to the output of this job.
         subjob=$(dx-jobutil-new-job propagate_outputs -i output_project=$output_project -i folder="$folder" -i run_id="$run_id" --depends-on ${analyses[@]})
-        dx-jobutil-add-output demux_outputs $subjob:demux_outputs --class array:file
+        echo $subjob
+        dx-jobutil-add-output demux_outputs $subjob:demux_outputs --array
       fi
     }
 
