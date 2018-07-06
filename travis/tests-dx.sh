@@ -26,12 +26,17 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     input_json="test/input/WDL/test_inputs-$workflow_name-dnanexus.dx.json"
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
-       dx_workflow_id=$(grep $workflow_name $COMPILE_SUCCESS | cut -f 2)
+       dx_workflow_id=$(grep -w "^$workflow_name" $COMPILE_SUCCESS | cut -f 2)
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name)
+       if [ $? -eq 0 ]; then
+           echo "Launched $workflow_name as $dx_job_id"
+       else
+           echo "Failed to build: $workflow_name"
+       fi
        echo "Launched $workflow_name as $dx_job_id"
        echo -e "$workflow_name\t$dx_workflow_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
     fi

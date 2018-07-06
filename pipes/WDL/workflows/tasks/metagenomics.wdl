@@ -207,3 +207,5 @@ task diamond_contigs {
     dx_instance_type: "mem3_ssd1_x16"
   }
 }
+
+
