@@ -1,11 +1,11 @@
 import operator
 import os
-import pytest
 import shutil
 import sys
 import tempfile
 import time
 
+import pytest
 
 def timer():
     if sys.version_info < (3, 3):
@@ -34,25 +34,17 @@ def pytest_configure(config):
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-session'))
-
-    def reset():
-        if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+    basetemp = str(tmpdir_factory.getbasetemp())
+    tmpdir = tempfile.mkdtemp(dir=str(basetemp), prefix='test-session-'+str(id(request.session)+'-'))
+    yield tmpdir
+    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
 @pytest.fixture(scope='module')
 def tmpdir_module(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-module'))
-
-    def reset():
-        if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+    basetemp = str(tmpdir_factory.getbasetemp())
+    tmpdir = tempfile.mkdtemp(dir=str(basetemp), prefix='test-module-'+request.module.__name__+'-')
+    yield tmpdir
+    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
 @pytest.fixture(autouse=True)
 def tmpdir_function(request, tmpdir, monkeypatch):
