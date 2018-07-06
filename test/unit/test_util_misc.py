@@ -267,7 +267,7 @@ def test_subdict(iter_d, iter_subset):
     for d, subset, expected in test_data:
         assert subdict(d, subset) == expected
 
-        assert subdict(d, subset).keys() == (d.keys() & set(subset))
+        assert set(subdict(d, subset).keys()) == (set(d.keys()) & set(subset))
         assert subdict(d, {}) == {}
         assert subdict(d, d.keys()) == d
         assert subdict(d, list(d.keys())*2) == d
