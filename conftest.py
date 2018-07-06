@@ -35,7 +35,7 @@ def pytest_configure(config):
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
     basetemp = str(tmpdir_factory.getbasetemp())
-    tmpdir = tempfile.mkdtemp(dir=str(basetemp), prefix='test-session-'+str(id(request.session)+'-'))
+    tmpdir = tempfile.mkdtemp(dir=str(basetemp), prefix='test-session-'+str(id(request.session))+'-')
     yield tmpdir
     if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
 
