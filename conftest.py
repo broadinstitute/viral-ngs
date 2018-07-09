@@ -36,7 +36,6 @@ def pytest_addoption(parser):
         help="run slow tests."
     ),
 
-
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')

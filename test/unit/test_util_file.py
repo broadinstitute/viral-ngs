@@ -102,4 +102,3 @@ def test_string_to_file_name():
             t_path = os.path.join(tmp_d, util.file.string_to_file_name(test_fname, tmp_d))
             util.file.make_empty(t_path)
             assert os.path.isfile(t_path) and os.path.getsize(t_path) == 0
-
