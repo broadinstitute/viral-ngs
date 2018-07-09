@@ -31,7 +31,7 @@ else:
 def make_slow_test_marker():
     """Create a marker for marking slow tests."""
     return pytest.mark.skipif(
-        not pytest.config.getoption("--runslow"),
+        not pytest.config.getoption("--runslow", default=False),
         reason="need --runslow option to run"
     )
 
