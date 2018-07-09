@@ -24,7 +24,6 @@ import sys
 import subprocess
 import tempfile
 import json
-import time
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -858,7 +857,6 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         assert s2fq.returncode == 0
         diamond_ps.wait()
         assert diamond_ps.returncode == 0
-        time.sleep(2)
 
 __commands__.append(('diamond', parser_diamond))
 
