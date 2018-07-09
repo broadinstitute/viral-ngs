@@ -28,7 +28,7 @@ outputSpec:
   class: file
   help: If the run was uploaded in multiple partial tarballs, they're consolidated and output here. Otherwise the uploaded tarball is echoed.
 - name: demux_outputs_all
-  class: array:auto
+  class: array:file
   help: All files output from the demux/demux-plus analyses
 access:
   network: ["*"]
@@ -159,7 +159,7 @@ runSpec:
         # output files to the output of this job.
         subjob=$(dx-jobutil-new-job propagate_outputs -i output_project=$output_project -i folder="$folder" -i run_id="$run_id" --depends-on ${analyses[@]})
         echo $subjob
-        dx-jobutil-add-output demux_outputs_all $subjob:demux_outputs --class array:auto
+        dx-jobutil-add-output demux_outputs_all $subjob:demux_outputs
       fi
     }
 
