@@ -172,7 +172,7 @@ class Kraken(tools.Tool):
                 log.debug('Calling kraken output command line: %s', cmd)
                 subprocess.check_call(cmd, shell=True, executable='/bin/bash', env=env)
 
-                if bam2fq_ps.poll()
+                if bam2fq_ps.poll():
                     raise subprocess.CalledProcessError(bam2fq_ps.returncode, "SamToFastqTool().execute({})".format(in_bam))
 
 
