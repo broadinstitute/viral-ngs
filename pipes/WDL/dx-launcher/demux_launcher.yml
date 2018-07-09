@@ -129,7 +129,6 @@ runSpec:
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
       if [ "$(cat tar_file_ids | wc -l)" -gt 1 ]; then
         # if there are multiple run tarballs, launch a subjob to consolidate them
-        # TODO: auto-scale the instance type, here hardcoding one with 640GB space
         subjob=$(dx-jobutil-new-job consolidate_tars --instance-type="$tar_consolidation_instance_size" -i upload_sentinel_record="$upload_sentinel_record" -i folder="$folder" -i run_id="$run_id")
         run_tarball="$subjob:run_tarball"
       else
