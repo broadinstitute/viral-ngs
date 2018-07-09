@@ -137,9 +137,9 @@ class Kraken(tools.Tool):
 
                 if outReads:
                     if outReports:
-                        cmd += ' | tee >(gzip --best > {kraken_reads})'
+                        cmd += ' | tee >(pigz --best > {kraken_reads})'
                     else:
-                        cmd += ' | gzip --best > {kraken_reads}'
+                        cmd += ' | pigz --best > {kraken_reads}'
 
                     cmd = cmd.format(kraken_reads=outReads[i])
 
@@ -165,12 +165,15 @@ class Kraken(tools.Tool):
                     'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
                     'CLIPPING_ACTION': 'X'
                 }
-                picard.execute(in_bam, fastq_pipes[i*2], fastq_pipes[i*2 + 1],
-                               picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                               JVMmemory=picard.jvmMemDefault, background=True)
+                bam2fq_ps = picard.execute(in_bam, fastq_pipes[i*2], fastq_pipes[i*2 + 1],
+                    picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                    JVMmemory=picard.jvmMemDefault, background=True)
 
                 log.debug('Calling kraken output command line: %s', cmd)
                 subprocess.check_call(cmd, shell=True, executable='/bin/bash', env=env)
+
+                if bam2fq_ps.poll():
+                    raise subprocess.CalledProcessError(bam2fq_ps.returncode, "SamToFastqTool().execute({})".format(in_bam))
 
 
     def classify(self, inBam, db, outReads, numThreads=None):
