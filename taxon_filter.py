@@ -697,7 +697,7 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
     new_fasta = None
     if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
         if inputFasta.endswith('.gz'):
-            decompressor = ['gzip', '-dc']
+            decompressor = ['pigz', '-dc']
         else:
             decompressor = ['lz4', '-d']
         new_fasta = util.file.mkstempfname('.fasta')
@@ -748,7 +748,7 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     new_fasta = None
     if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
         if inputFasta.endswith('.gz'):
-            decompressor = ['gzip', '-dc']
+            decompressor = ['pigz', '-dc']
         else:
             decompressor = ['lz4', '-d']
         new_fasta = util.file.mkstempfname('.fasta')
@@ -795,7 +795,7 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
     new_fasta = None
     if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
         if inputFasta.endswith('.gz'):
-            decompressor = ['gzip', '-dc']
+            decompressor = ['pigz', '-dc']
         else:
             decompressor = ['lz4', '-d']
         new_fasta = util.file.mkstempfname('.fasta')
