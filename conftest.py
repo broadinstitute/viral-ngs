@@ -4,6 +4,10 @@ import shutil
 import sys
 import tempfile
 import time
+import contextlib
+import string
+
+import util.file
 
 import pytest
 
@@ -14,8 +18,6 @@ def timer():
 
 
 def pytest_addoption(parser):
-    parser.addoption("--runslow", action="store_true", help="run slow tests")
-
     group = parser.getgroup("terminal reporting", "reporting", after="general")
     group.addoption(
         '--fixture-durations',
@@ -26,32 +28,36 @@ def pytest_addoption(parser):
         help="show N slowest fixture durations (N=0 for all)."
     ),
 
-
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
+@contextlib.contextmanager
+def _tmpdir_aux(request, tmpdir_factory, scope, name):
+    """Create and return a temporary directory; remove it and its contents on context exit."""
+    with util.file.tmp_dir(dir=str(tmpdir_factory.getbasetemp()),
+                           prefix='test-{}-{}-'.format(scope, name)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
-    basetemp = str(tmpdir_factory.getbasetemp())
-    tmpdir = tempfile.mkdtemp(dir=basetemp, prefix='test-session-'+str(id(request.session))+'-')
-    yield tmpdir
-    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
+    """Create a session-scope temporary directory."""
+    with _tmpdir_aux(request, tmpdir_factory, 'session', id(request.session)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='module')
 def tmpdir_module(request, tmpdir_factory):
-    basetemp = str(tmpdir_factory.getbasetemp())
-    tmpdir = tempfile.mkdtemp(dir=basetemp, prefix='test-module-'+request.module.__name__+'-')
-    yield tmpdir
-    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
+    """Create a module-scope temporary directory."""
+    with _tmpdir_aux(request, tmpdir_factory, 'module', request.module.__name__) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(autouse=True)
-def tmpdir_function(request, tmpdir, monkeypatch):
-    tmpdir_str = str(tmpdir)
-    monkeypatch.setattr(tempfile, 'tempdir', tmpdir_str)
-    monkeypatch.setenv('TMPDIR', tmpdir_str)
-    return tmpdir_str
+def tmpdir_function(request, tmpdir_factory, monkeypatch):
+    """Create a temporary directory and set it to be used by the tempfile module and as the TMPDIR environment variable."""
+    with _tmpdir_aux(request, tmpdir_factory, 'node', request.node.name) as tmpdir:
+        monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
+        monkeypatch.setenv('TMPDIR', tmpdir)
+        yield tmpdir
 
 class FixtureReporter:
 
@@ -97,6 +103,3 @@ class FixtureReporter:
         for row in rows:
             writer.write(" ".join((val.ljust(width) for val, width in zip(row, widths))))
             writer.line()
-
-
-            
