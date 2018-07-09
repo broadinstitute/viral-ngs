@@ -15,11 +15,13 @@ import shutil
 import errno
 import logging
 import json
-import util.cmd
-import util.misc
 import sys
 import io
 import csv
+import inspect
+
+import util.cmd
+import util.misc
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -151,14 +153,24 @@ def tempfnames(suffixes, *args, **kwargs):
 def tmp_dir(*args, **kwargs):
     """Create and return a temporary directory, which is cleaned up on context exit
     unless keep_tmp() is True."""
+
+    _args = inspect.getcallargs(tempfile.mkdtemp, *args, **kwargs)
+    length_margin = 6
+    for pfx_sfx in ('prefix', 'suffix'):
+        if _args[pfx_sfx]: 
+            _args[pfx_sfx] = string_to_file_name(_args[pfx_sfx], file_system_path=_args['dir'], length_margin=length_margin)
+            length_margin += len(_args[pfx_sfx].encode('utf-8'))
+
+    name = None
     try:
-        name = tempfile.mkdtemp(*args, **kwargs)
+        name = tempfile.mkdtemp(**_args)
         yield name
     finally:
-        if keep_tmp():
-            log.debug('keeping tempdir ' + name)
-        else:
-            shutil.rmtree(name)
+        if name is not None:
+            if keep_tmp():
+                log.debug('keeping tempdir ' + name)
+            else:
+                shutil.rmtree(name, ignore_errors=True)
 
 @contextlib.contextmanager
 def pushd_popd(target_dir):
@@ -567,11 +579,34 @@ def temp_catted_files(input_files, suffix=None, prefix=None):
     finally:
         os.remove(fn)
 
+def _get_pathconf(file_system_path, param_suffix, default):
+    """Return a pathconf parameter value for a filesystem.
+    """
+    param_str = [s for s in os.pathconf_names if s.endswith(param_suffix)]
+    if len(param_str) == 1:
+        try:
+            return os.pathconf(file_system_path, param_str[0])
+        except OSError:
+            pass
+    return default
 
-def string_to_file_name(string_value):
+def max_file_name_length(file_system_path):
+    """Return the maximum valid length of a filename (path component) on the given filesystem."""
+    return _get_pathconf(file_system_path, '_NAME_MAX', 80)-1
+
+def max_path_length(file_system_path):
+    """Return the maximum valid length of a path on the given filesystem."""
+    return _get_pathconf(file_system_path, '_PATH_MAX', 255)-1
+
+def string_to_file_name(string_value, file_system_path=None, length_margin=0):
+    """Constructs a valid file name from a given string, replacing or deleting invalid characters.
+    If `file_system_path` is given, makes sure the file name is valid on that file system.
+    If `length_margin` is given, ensure a string that long can be added to filename without breaking length limits.
+    """
     replacements_dict = {
         "\\": "-", # win directory separator
         "/": "-", # posix directory separator
+        os.sep: "-", # directory separator
         "^": "_", # caret
         "&": "_and_", # background
         "\"": "", # double quotes
@@ -615,6 +650,16 @@ def string_to_file_name(string_value):
 
     # remove leading or trailing periods (no hidden files (*NIX) or missing file extensions (NTFS))
     string_value = string_value.strip(".")
+
+    # comply with file name length limits
+    if file_system_path is not None:
+        max_len = max(1, max_file_name_length(file_system_path) - length_margin)
+        string_value = string_value[:max_len]
+        while len(string_value.encode('utf-8')) > max_len:
+            string_value = string_value[-1]
+
+    # ensure all the character removals did not make the name empty
+    string_value = string_value or '_'
 
     return string_value
 

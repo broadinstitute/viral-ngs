@@ -7,6 +7,8 @@ import time
 import contextlib
 import string
 
+import util.file
+
 import pytest
 
 def timer():
@@ -26,45 +28,32 @@ def pytest_addoption(parser):
         help="show N slowest fixture durations (N=0 for all)."
     ),
 
-
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
-def _max_fname_len(file_system_path, default_max_len=80):
-    name_max_str = [s for s in os.pathconf_names if s.endswith('_NAME_MAX')]
-    if len(name_max_str) == 1:
-        try:
-            return os.pathconf(file_system_path, name_max_str[0])
-        except OSError:
-            pass
-    return default_max_len
-
-def _make_fname_valid(file_system_path, fname, len_margin):
-    valid_fname_chars = set(string.ascii_letters+string.digits+'-.')
-    max_len = _max_fname_len(file_system_path)-len_margin
-    return ''.join((c if c in valid_fname_chars else '_') for c in fname[:max_len])
-
 @contextlib.contextmanager
 def _tmpdir_aux(request, tmpdir_factory, scope, name):
-    basetemp = str(tmpdir_factory.getbasetemp())
-    name = _make_fname_valid(file_system_path=basetemp, fname=name, len_margin=50)
-    tmpdir = tempfile.mkdtemp(dir=basetemp, prefix='test-{}-{}-'.format(scope, name))
-    yield tmpdir
-    if os.path.isdir(tmpdir): shutil.rmtree(tmpdir)
+    """Create and return a temporary directory; remove it and its contents on context exit."""
+    with util.file.tmp_dir(dir=str(tmpdir_factory.getbasetemp()),
+                           prefix='test-{}-{}-'.format(scope, name)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
+    """Create a session-scope temporary directory."""
     with _tmpdir_aux(request, tmpdir_factory, 'session', id(request.session)) as tmpdir:
         yield tmpdir
 
 @pytest.fixture(scope='module')
 def tmpdir_module(request, tmpdir_factory):
+    """Create a module-scope temporary directory."""
     with _tmpdir_aux(request, tmpdir_factory, 'module', request.module.__name__) as tmpdir:
         yield tmpdir
 
 @pytest.fixture(autouse=True)
 def tmpdir_function(request, tmpdir_factory, monkeypatch):
+    """Create a temporary directory and set it to be used by the tempfile module and as the TMPDIR environment variable."""
     with _tmpdir_aux(request, tmpdir_factory, 'node', request.node.name) as tmpdir:
         monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
         monkeypatch.setenv('TMPDIR', tmpdir)
