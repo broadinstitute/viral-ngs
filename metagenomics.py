@@ -842,7 +842,7 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
 
         if outReads is not None:
             # Interstitial save of stdout to output file
-            cmd += ' | tee >(gzip --best > {out})'.format(out=outReads)
+            cmd += ' | tee >(pigz --best > {out})'.format(out=outReads)
 
         diamond_ps = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
 
