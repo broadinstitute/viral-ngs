@@ -656,7 +656,7 @@ def string_to_file_name(string_value, file_system_path=None, length_margin=0):
         max_len = max(1, max_file_name_length(file_system_path) - length_margin)
         string_value = string_value[:max_len]
         while len(string_value.encode('utf-8')) > max_len:
-            string_value = string_value[-1]
+            string_value = string_value[:-1]
 
     # ensure all the character removals did not make the name empty
     string_value = string_value or '_'
