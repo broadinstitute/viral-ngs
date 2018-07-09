@@ -27,7 +27,7 @@ outputSpec:
 - name: run_tarball
   class: file
   help: If the run was uploaded in multiple partial tarballs, they're consolidated and output here. Otherwise the uploaded tarball is echoed.
-- name: demux_outputs
+- name: demux_outputs_all
   class: array:file
   help: All files output from the demux/demux-plus analyses
 access:
@@ -122,6 +122,8 @@ runSpec:
           demux_threads=$(echo "$demux_instance_type" | cut -dx -f2)
           echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $demux_instance_type machine."
       fi
+      echo "For detailed information on instance types, see:"
+      echo "   https://wiki.dnanexus.com/api-specification-v1.0.0/instance-types#Full-list-of-AWS-instance-types"
 
       run_tarball=""
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
