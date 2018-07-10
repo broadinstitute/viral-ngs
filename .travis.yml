@@ -26,7 +26,7 @@ cache:
   directories:
     - $HOME/misc_cache
     - $HOME/miniconda
-  timeout: 480
+  timeout: 1000
 
 #stages:
 #  - build
