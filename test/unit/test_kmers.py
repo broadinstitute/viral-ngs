@@ -23,13 +23,13 @@ import tools.samtools
 
 slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
-def _inp(fname):
-    '''Return the full filename for a file in the test input directory'''
-    return os.path.join(util.file.get_test_input_path(), fname)
-
 class TestKmers(object):
 
     """Test commands for manipulating kmers"""
+
+    def _inp(self, fname):
+        '''Return the full filename for a file in the test input directory'''
+        return os.path.join(util.file.get_test_input_path(self), fname)
 
     @staticmethod
     def _getargs(args, valid_args):
@@ -159,13 +159,20 @@ class TestKmers(object):
     @pytest.mark.parametrize("seq_files", [['empty.fasta']])
     @pytest.mark.parametrize("kmer_size", [1])
     @pytest.mark.parametrize("threads", [10, pytest.param(11, marks=pytest.mark.xfail)])
-    def test_build_kmer_db_fail_on_over_10_threads(self, seq_files, kmer_size, threads):
+    def test_build_kmer_db_kmc_bug_1_fail_on_over_10_threads(self, seq_files, kmer_size, threads):
+        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, threads=threads)
+
+    @pytest.mark.parametrize("seq_files", [['tcgaattt.fasta']])
+    @pytest.mark.parametrize("kmer_size", [7])
+    @pytest.mark.parametrize("threads", [10, pytest.param(11, marks=pytest.mark.xfail)])
+    def test_build_kmer_db_kmc_bug_2_wrong_result_on_over_10_threads(self, seq_files, kmer_size, threads):
         self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, threads=threads)
 
 
     def _test_build_kmer_db(self, seq_files, **kwargs):
+        """Build kmer db from `seq_files` in temp dir, and check it for correctness."""
         with util.file.tmp_dir(suffix='test_build_kmer_db') as t_dir:
-            self._build_and_check_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(self), f)
+            self._build_and_check_kmer_db(seq_files=[self._inp(f)
                                                      for f in util.misc.make_seq(seq_files)],
                                           kmer_db=os.path.join(t_dir, 'kmer_db'),
                                           **kwargs)
