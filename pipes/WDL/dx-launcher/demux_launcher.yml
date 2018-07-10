@@ -102,8 +102,8 @@ runSpec:
           demux_threads=$(echo "$demux_instance_type" | cut -dx -f2)
           echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run, executing on a $demux_instance_type machine."
       elif [ "$total_tile_count" -le 896 ]; then
-          tar_consolidation_instance_size="mem1_ssd2_x36"
-          demux_instance_type="mem1_ssd2_x36"
+          tar_consolidation_instance_size="mem1_ssd1_x32"
+          demux_instance_type="mem1_ssd1_x32"
           min_base_quality=25
           demux_threads=$(echo "$demux_instance_type" | cut -dx -f2)
           echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run, executing on a $demux_instance_type machine."
