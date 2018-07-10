@@ -42,7 +42,7 @@ task illumina_demux {
   Int?    maxNoCalls
   String? readStructure
   Int?    minimumQuality = 10
-  Int?    threads = 32
+  Int?    threads = 36
   String? runStartDate
 
   parameter_meta {
@@ -105,7 +105,7 @@ task illumina_demux {
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "16 GB"
-    cpu: 32
+    cpu: 36
     dx_instance_type: "mem1_ssd2_x36"
     preemptible: 0  # this is the very first operation before scatter, so let's get it done quickly & reliably
   }
