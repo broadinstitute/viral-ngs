@@ -5,6 +5,7 @@ __author__ = "ilya@broadinstitute.org"
 import os
 import collections
 import argparse
+import inspect
 
 from test import assert_equal_contents, assert_equal_bam_reads, make_slow_test_marker
 
@@ -22,6 +23,9 @@ import tools.kmc
 import tools.samtools
 
 slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
+
+def locals_sans_self():
+    return {k: v for k, v in inspect.currentframe().f_back.f_locals.items() if k != 'self'}
 
 class TestKmers(object):
 
@@ -160,14 +164,13 @@ class TestKmers(object):
     @pytest.mark.parametrize("kmer_size", [1])
     @pytest.mark.parametrize("threads", [10, pytest.param(11, marks=pytest.mark.xfail)])
     def test_build_kmer_db_kmc_bug_1_fail_on_over_10_threads(self, seq_files, kmer_size, threads):
-        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, threads=threads)
+        self._test_build_kmer_db(**locals_sans_self())
 
     @pytest.mark.parametrize("seq_files", [['tcgaattt.fasta']])
     @pytest.mark.parametrize("kmer_size", [7])
     @pytest.mark.parametrize("threads", [10, pytest.param(11, marks=pytest.mark.xfail)])
     def test_build_kmer_db_kmc_bug_2_wrong_result_on_over_10_threads(self, seq_files, kmer_size, threads):
-        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, threads=threads)
-
+        self._test_build_kmer_db(**locals_sans_self())
 
     def _test_build_kmer_db(self, seq_files, **kwargs):
         """Build kmer db from `seq_files` in temp dir, and check it for correctness."""
