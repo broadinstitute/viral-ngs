@@ -439,9 +439,6 @@ def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count
             any other value - this function will return that value.
             some commonly used values for tools are -1, 0, and None.
     '''
-    if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
-        threads = 1
-
     max_cores = available_cpu_count()
 
     if threads is None:

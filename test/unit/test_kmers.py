@@ -23,13 +23,13 @@ import tools.samtools
 
 slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
+def _inp(fname):
+    '''Return the full filename for a file in the test input directory'''
+    return os.path.join(util.file.get_test_input_path(), fname)
+
 class TestKmers(object):
 
     """Test commands for manipulating kmers"""
-
-    def _input(self, fname):
-        '''Return the full filename for a file in the test input directory for this test class'''
-        return os.path.join(util.file.get_test_input_path(self), fname)
 
     @staticmethod
     def _getargs(args, valid_args):
@@ -100,11 +100,13 @@ class TestKmers(object):
                     yield kmer if single_strand else self._canonicalize(kmer)
 
     def _compute_kmer_counts(self, seqs, kmer_size, min_occs=None, max_occs=None,
-                             counter_cap=None, single_strand=False):
+                             counter_cap=None, single_strand=False, threads=None):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is
         canonicalized before being counted.  Kmers containing non-TCGA bases are skipped.
         Kmers with fewer than `min_occs` or more than `max_occs` occurrences
         are dropped, and kmer counts capped at `counter_cap`, if these args are given.
+        `threads` is currently ignored but needed so we can call this routine with same args
+        as kmc.
         """
         counts = collections.Counter(self._compute_kmers(seqs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
@@ -138,49 +140,42 @@ class TestKmers(object):
     @slow_test
     @pytest.mark.parametrize("seq_files", [['ebola.fasta'], ['empty.bam']])
     @pytest.mark.parametrize("kmer_size", [11, 31])
-    @pytest.mark.parametrize("min_occs", [None])
-    @pytest.mark.parametrize("max_occs", [None])
     @pytest.mark.parametrize("counter_cap", [255, 32])
     @pytest.mark.parametrize("single_strand", [False, True])
-    def test_build_kmer_db_1(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
-        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+    def test_build_kmer_db_1(self, seq_files, kmer_size, counter_cap, single_strand):
+        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, counter_cap=counter_cap, single_strand=single_strand)
 
-    @slow_test
     @pytest.mark.parametrize("seq_files", [['ebola.fasta.gz'], ['empty.bam'], ['empty.bam', 'almost-empty-2.bam']])
     @pytest.mark.parametrize("kmer_size", [17])
-    @pytest.mark.parametrize("min_occs", [None])
-    @pytest.mark.parametrize("max_occs", [None])
-    @pytest.mark.parametrize("counter_cap", [255])
-    @pytest.mark.parametrize("single_strand", [False])
-    def test_build_kmer_db_2(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
-        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+    def test_build_kmer_db_2(self, seq_files, kmer_size):
+        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size)
 
-    @slow_test
-    @pytest.mark.parametrize("seq_files", [['TestDepleteHuman/test-reads.bam',
-                                            'TestDepleteHuman/test-reads-human.bam']])
+    @pytest.mark.parametrize("seq_files", [['test-reads.bam',
+                                            'test-reads-human.bam']])
     @pytest.mark.parametrize("kmer_size", [17])
-    @pytest.mark.parametrize("min_occs", [None])
-    @pytest.mark.parametrize("max_occs", [None])
-    @pytest.mark.parametrize("counter_cap", [255])
-    @pytest.mark.parametrize("single_strand", [False])
-    def test_build_kmer_db_3(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
-        self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
+    def test_build_kmer_db_two_files(self, seq_files, kmer_size):
+        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size)
 
-    def _test_build_kmer_db(self, seq_files, kmer_size, min_occs=None, max_occs=None, counter_cap=255,
-                            single_strand=False):
+    @pytest.mark.parametrize("seq_files", [['empty.fasta']])
+    @pytest.mark.parametrize("kmer_size", [1])
+    @pytest.mark.parametrize("threads", [10, pytest.param(11, marks=pytest.mark.xfail)])
+    def test_build_kmer_db_fail_on_over_10_threads(self, seq_files, kmer_size, threads):
+        self._test_build_kmer_db(seq_files=seq_files, kmer_size=kmer_size, threads=threads)
+
+
+    def _test_build_kmer_db(self, seq_files, **kwargs):
         with util.file.tmp_dir(suffix='test_build_kmer_db') as t_dir:
-            self._build_and_check_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(), f)
+            self._build_and_check_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(self), f)
                                                      for f in util.misc.make_seq(seq_files)],
                                           kmer_db=os.path.join(t_dir, 'kmer_db'),
-                                          kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs,
-                                          counter_cap=counter_cap,
-                                          single_strand=single_strand)
+                                          **kwargs)
 
     @pytest.mark.parametrize("seqs,opts", [
         ('A'*15, '-k 4'),
         ('T'*15, '-k 4'),
-        ([], '-k 1'),
-        (['TCGA'*3, 'ATTT'*5], '-k 7'),
+        ([], '-k 1 --threads 1'),
+        (['TCGA'*3, 'ATTT'*5], '-k 7 --threads 1'),
+        pytest.param(['TCGA'*3, 'ATTT'*5], '-k 7 --threads 2'),
         (['TCGA'*3, 'ATTT'*5], '-k 31'),
     ])
     def test_kmer_extraction(self, seqs, opts):
@@ -233,14 +228,10 @@ class TestKmers(object):
         self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
 
     @pytest.mark.xfail(reason="kmc bug, reported at https://github.com/refresh-bio/KMC/issues/86")
-    @pytest.mark.parametrize("kmer_size", [1])
-    @pytest.mark.parametrize("single_strand", [False])
-    @pytest.mark.parametrize("read_min_occs", [1])
-    @pytest.mark.parametrize("kmers_fasta,reads_bam", [
-        ('empty.fasta', 'empty.bam')
-    ])
-    def test_read_filtering_2(self, kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs):
-        self._test_read_filtering(kmer_size, single_strand, kmers_fasta, reads_bam, read_min_occs)
+    @pytest.mark.parametrize("args", [dict(kmer_size=1, single_strand=False, read_min_occs=1, kmers_fasta='empty.fasta',
+                                           reads_bam='empty.bam')])
+    def test_read_filtering_fail_1(self, args):
+        self._test_read_filtering(**args)
 
     def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam,
                              read_min_occs=None, read_max_occs=None):
