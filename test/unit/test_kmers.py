@@ -74,8 +74,9 @@ class TestKmers(object):
                         for rec in Bio.SeqIO.parse(f, util.file.uncompressed_file_type(seq)[1:]):
                             yield str(rec.seq)
     #
-    # To help generate the expected correct output, we reimplement in Python some
-    # of KMC's functionality.
+    # To help generate the expected correct output, we reimplement in simple Python code some
+    # of KMC's functionality.   This is also to make up for KMC's lack of a public test suite
+    # ( https://github.com/refresh-bio/KMC/issues/55 ).
     #
 
     def _compute_kmers(self, seqs, kmer_size, single_strand):
@@ -102,7 +103,7 @@ class TestKmers(object):
     def _compute_kmer_counts(self, seqs, kmer_size, min_occs=None, max_occs=None, counter_cap=None, single_strand=False):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is canonicalized before being counted.
         Kmers containing non-TCGA bases are skipped.  Kmers with fewer than `min_occs` or more than `max_occs` occurrences
-        are dropped, and kmer counts capped `counter_cap`, if these args are given.
+        are dropped, and kmer counts capped at `counter_cap`, if these args are given.
         """
         counts = collections.Counter(self._compute_kmers(seqs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
@@ -123,7 +124,9 @@ class TestKmers(object):
         """Write a .fasta file with the given seq(s)."""
         Bio.SeqIO.write(self._make_SeqRecords(seqs), seqs_fasta, 'fasta')
 
-    def _build_kmer_db(self, seq_files, kmer_db, **kwargs):
+    def _build_and_check_kmer_db(self, seq_files, kmer_db, **kwargs):
+        """Build a database of kmers from given sequence file(s), and check its correctness.  Args are the same as to
+        kmers.buidl_kemr_db()."""
         kmers.build_kmer_db(seq_files, kmer_db, mem_limit_gb=4, **kwargs)
         kmers_txt = kmer_db+'.kmer_counts.txt'
         kmers.dump_kmer_counts(kmer_db, kmers_txt)
@@ -160,14 +163,13 @@ class TestKmers(object):
     def test_build_kmer_db_3(self, seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand):
         self._test_build_kmer_db(seq_files, kmer_size, min_occs, max_occs, counter_cap, single_strand)
 
-
-
     def _test_build_kmer_db(self, seq_files, kmer_size, min_occs=None, max_occs=None, counter_cap=255, single_strand=False):
         with util.file.tmp_dir(suffix='test_build_kmer_db') as t_dir:
-            self._build_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(), f) for f in util.misc.make_seq(seq_files)], 
-                                kmer_db=os.path.join(t_dir, 'kmer_db'),
-                                kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap,
-                                single_strand=single_strand)
+            self._build_and_check_kmer_db(seq_files=[os.path.join(util.file.get_test_input_path(), f) 
+                                                     for f in util.misc.make_seq(seq_files)], 
+                                          kmer_db=os.path.join(t_dir, 'kmer_db'),
+                                          kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap,
+                                          single_strand=single_strand)
             
     @pytest.mark.parametrize("seqs,opts", [
         ('A'*15, '-k 4'),
