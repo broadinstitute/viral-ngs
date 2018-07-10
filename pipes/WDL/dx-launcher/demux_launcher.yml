@@ -183,5 +183,5 @@ runSpec:
 
     propagate_outputs() {
       set -ex -o pipefail
-      dx find data --brief --project $output_project --folder "$folder/$run_id" | cut -d ':' -f2 |  xargs -t -i dx-jobutil-add-output demux_outputs --class array:file "{}"
+      dx find data --brief --class file --project $output_project --folder "$folder/$run_id/reads" | cut -d ':' -f2 |  xargs -t -i dx-jobutil-add-output demux_outputs --class array:file "{}"
     }
