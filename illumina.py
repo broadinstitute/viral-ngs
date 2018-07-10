@@ -212,6 +212,9 @@ def main_illumina_demux(args):
     if not picardOpts.get('sequencing_center') and runinfo:
         picardOpts['sequencing_center'] = runinfo.get_machine()
 
+    if picardOpts.get('sequencing_center'):
+        picardOpts["sequencing_center"] = util.file.string_to_file_name(picardOpts["sequencing_center"])
+
     # manually garbage collect to make sure we have as much RAM free as possible
     gc.collect()
     if multiplexed_samples:
@@ -875,7 +878,7 @@ def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=Non
     if sequencing_center is None and runInfo:
         sequencing_center = runInfo.get_machine()
     if sequencing_center:
-        picardOpts['SEQUENCING_CENTER'] = sequencing_center
+        picardOpts['SEQUENCING_CENTER'] = util.file.string_to_file_name(sequencing_center)
     picardOpts['PLATFORM_UNIT'] = '.'.join((flowcell, '1', barcode))
     if len(flowcell) > 5:
         flowcell = flowcell[:5]
