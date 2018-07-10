@@ -22,7 +22,7 @@ inputSpec:
 - name: sequencing_center
   class: string
   optional: true
-  help: Optional- the name of the sequencing center specified in the demultiplexing output (bam files)
+  help: Optional- the name of the sequencing center to be included in the demultiplexed output (bam files). Please avoid spaces and special characters.
 - name: api_token
   class: file
   optional: true
