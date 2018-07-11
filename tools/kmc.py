@@ -6,6 +6,7 @@
 import logging
 import os
 import os.path
+import sys
 import subprocess
 import shlex
 
@@ -118,6 +119,7 @@ class KmcTool(tools.Tool):
             args += ['@'+seq_file_list, kmer_db, t_dir]
             tool_cmd = [self.install_and_get_path()] + args
             log.info('Building kmer database with command: %s', ' '.join(tool_cmd))
+            print('\nBuilding kmer database with command: ' + ' '.join(tool_cmd), file=sys.stderr)
             subprocess.check_call(tool_cmd)
             assert os.path.isfile(kmer_db+'.kmc_pre') and os.path.isfile(kmer_db+'.kmc_suf'), \
                 'kmer database files not created: {}'.format(kmer_db)
@@ -127,6 +129,7 @@ class KmcTool(tools.Tool):
         threads = util.misc.sanitize_thread_count(threads)
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-v', '-t{}'.format(threads)] + list(map(str, args))
         log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
+        print('\nRunning kmc_tools command: {}'.format(' '.join(tool_cmd)), file=sys.stderr)
         subprocess.check_call(tool_cmd)
 
 
