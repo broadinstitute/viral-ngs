@@ -112,6 +112,12 @@ def _yield_seqs_as_strs(seqs):
                     for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq)[1:]):
                         yield str(rec.seq)
 
+def _getargs(args, valid_args):
+    """Extract valid args from a Namespace or a dict.  Returns a dict containing keys from `args`
+    that are in `valid_args`; `valid_args` is a space-separated list of valid args."""
+    return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
+
+
 @pytest.fixture(scope='module')
 def kmer_db_fixture(request, tmpdir_module):
     """Build a database of kmers from given sequence file(s)"""
@@ -132,12 +138,6 @@ class TestKmers(object):
     def _inp(self, fname):
         '''Return the full filename for a file in the test input directory'''
         return os.path.join(util.file.get_test_input_path(self), fname)
-
-    @staticmethod
-    def _getargs(args, valid_args):
-        """Extract valid args from a Namespace or a dict.  Returns a dict containing keys from `args`
-        that are in `valid_args`; `valid_args` is a space-separated list of valid args."""
-        return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
 
     def _compute_kmer_counts(self, seq_files, **kwargs):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is
@@ -259,9 +259,9 @@ class TestKmers(object):
 
             kmers_fasta_seqs = list(Bio.SeqIO.parse(kmers_fasta, 'fasta'))
             kmers_fasta_kmer_counts = self._compute_kmer_counts(kmers_fasta_seqs,
-                                                                **self._getargs(kmer_db_args,
-                                                                                'kmer_size single_strand '
-                                                                                'min_occs max_occs counter_cap'))
+                                                                **_getargs(kmer_db_args,
+                                                                           'kmer_size single_strand '
+                                                                           'min_occs max_occs counter_cap'))
 
             kmers_txt = os.path.join(t_dir, 'kmers.txt')
             util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
