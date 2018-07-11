@@ -27,19 +27,17 @@ slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 def locals_sans_self():
     return {k: v for k, v in inspect.currentframe().f_back.f_locals.items() if k != 'self'}
 
-class TestKmers(object):
+def locals_dict(vars):
+    return {k: v for k, v in inspect.currentframe().f_back.f_locals.items() if k in vars.split()}
 
-    """Test commands for manipulating kmers"""
+class SimpleKmcImpl(object):
+    """Reimplementation of some kmc functions in simple Python code."""
 
-    def _inp(self, fname):
-        '''Return the full filename for a file in the test input directory'''
-        return os.path.join(util.file.get_test_input_path(self), fname)
-
-    @staticmethod
-    def _getargs(args, valid_args):
-        """Extract valid args from a Namespace or a dict.  Returns a dict containing keys from `args`
-        that are in `valid_args`; `valid_args` is a space-separated list of valid args."""
-        return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
+    #
+    # To help generate the expected correct output, we reimplement in simple Python code some
+    # of KMC's functionality.   This is also to make up for KMC's lack of a public test suite
+    # ( https://github.com/refresh-bio/KMC/issues/55 ).
+    #
 
     @staticmethod
     def _revcomp(kmer):
@@ -50,44 +48,13 @@ class TestKmers(object):
         """Return the canonical version of a kmer"""
         return min(kmer, self._revcomp(kmer))
 
-    @staticmethod
-    def _seq_as_str(s):  # pylint: disable=invalid-name
-        """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
-        if isinstance(s, Seq):
-            return str(s)
-        if isinstance(s, SeqRecord):
-            return str(s.seq)
-        return s
-
-    def _yield_seqs_as_strs(self, seqs):
-        """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecod/Seq, a filename of a sequence file,
-        or an iterable of these.  If a filename of a sequence file, all sequences from that file are yielded."""
-        for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
-            seq = self._seq_as_str(seq)
-            if not any(seq.endswith(ext) for ext in '.fasta .fasta.gz .fastq .fastq.gz .bam'):
-                yield seq
-            else:
-                with util.file.tmp_dir(suffix='seqs_as_strs') as t_dir:
-                    if seq.endswith('.bam'):
-                        t_fa = os.path.join(t_dir, 'bam2fa.fasta')
-                        tools.samtools.SamtoolsTool().bam2fa(seq, t_fa)
-                        seq = t_fa
-                    with util.file.open_or_gzopen(seq, 'rt') as seq_f:
-                        for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq)[1:]):
-                            yield str(rec.seq)
-    #
-    # To help generate the expected correct output, we reimplement in simple Python code some
-    # of KMC's functionality.   This is also to make up for KMC's lack of a public test suite
-    # ( https://github.com/refresh-bio/KMC/issues/55 ).
-    #
-
-    def _compute_kmers(self, seqs, kmer_size, single_strand):
+    def _compute_kmers(self, seq_strs, kmer_size, single_strand, **ignore):
         """Yield kmers of seq(s).  Unless `single_strand` is True, each kmer
         is canonicalized before being returned.  Note that
         deduplication is not done, so each occurrence of each kmer is
         yielded.  Kmers containing non-TCGA bases are skipped.
         """
-        for seq in self._yield_seqs_as_strs(seqs):
+        for seq in seq_strs:
             n_kmers = len(seq)-kmer_size+1
 
             # mark kmers containing invalid base(s)
@@ -103,16 +70,14 @@ class TestKmers(object):
                     kmer = seq[i:i+kmer_size]
                     yield kmer if single_strand else self._canonicalize(kmer)
 
-    def _compute_kmer_counts(self, seqs, kmer_size, min_occs=None, max_occs=None,
-                             counter_cap=None, single_strand=False, threads=None):
+    def _compute_kmer_counts(self, seq_strs, kmer_size, min_occs=None, max_occs=None,
+                             counter_cap=None, single_strand=False, **kwargs):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is
         canonicalized before being counted.  Kmers containing non-TCGA bases are skipped.
         Kmers with fewer than `min_occs` or more than `max_occs` occurrences
         are dropped, and kmer counts capped at `counter_cap`, if these args are given.
-        `threads` is currently ignored but needed so we can call this routine with same args
-        as kmc.
         """
-        counts = collections.Counter(self._compute_kmers(seqs, kmer_size, single_strand))
+        counts = collections.Counter(self._compute_kmers(seq_strs, kmer_size, single_strand))
         if any((min_occs, max_occs, counter_cap)):
             counts = dict((kmer, min(count, counter_cap or count)) \
                           for kmer, count in counts.items() \
@@ -120,26 +85,77 @@ class TestKmers(object):
                           (count <= (max_occs or count)))
         return counts
 
+# end: class SimpleKmcImpl    
+
+def _seq_as_str(s):  # pylint: disable=invalid-name
+    """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
+    if isinstance(s, Seq):
+        return str(s)
+    if isinstance(s, SeqRecord):
+        return str(s.seq)
+    return s
+
+def _yield_seqs_as_strs(seqs):
+    """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecord/Seq, a filename of a sequence file,
+    or an iterable of these.  If a filename of a sequence file, all sequences from that file are yielded."""
+    for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
+        seq = _seq_as_str(seq)
+        if not any(seq.endswith(ext) for ext in '.fasta .fasta.gz .fastq .fastq.gz .bam'):
+            yield seq
+        else:
+            with util.file.tmp_dir(suffix='seqs_as_strs') as t_dir:
+                if seq.endswith('.bam'):
+                    t_fa = os.path.join(t_dir, 'bam2fa.fasta')
+                    tools.samtools.SamtoolsTool().bam2fa(seq, t_fa)
+                    seq = t_fa
+                with util.file.open_or_gzopen(seq, 'rt') as seq_f:
+                    for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq)[1:]):
+                        yield str(rec.seq)
+
+@pytest.fixture(scope='module')
+def kmer_db_fixture(request, tmpdir_module):
+    """Build a database of kmers from given sequence file(s)"""
+    with util.file.tmp_dir(dir=tmpdir_module, suffix='build_kmer_db') as t_dir:
+        k_db = os.path.join(t_dir, 'bld_kmer_db')
+        kmers.build_kmer_db(kmer_db=k_db, mem_limit_gb=4, **request.param)
+        kmers_txt = k_db+'.kmer_counts.txt'
+        kmers.dump_kmer_counts(k_db, kmers_txt)
+    #    assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == self._compute_kmer_counts(**args)
+        return argparse.Namespace(kmer_db=k_db, kmc_kmer_counts=tools.kmc.KmcTool().read_kmer_counts(kmers_txt),
+                                  computed_kmer_counts=1)
+
+
+class TestKmers(object):
+
+    """Test commands for manipulating kmers"""
+
+    def _inp(self, fname):
+        '''Return the full filename for a file in the test input directory'''
+        return os.path.join(util.file.get_test_input_path(self), fname)
+
     @staticmethod
-    def _make_SeqRecords(seqs):  # pylint: disable=invalid-name
-        """Given seq(s) as str(s), return a list of SeqRecords with these seq(s)"""
-        return [SeqRecord(Seq(seq, IUPAC.unambiguous_dna),
-                          id='seq_{}'.format(i), name='seq_{}'.format(i),
-                          description='sequence number {}'.format(i))
-                for i, seq in enumerate(util.misc.make_seq(seqs))]
+    def _getargs(args, valid_args):
+        """Extract valid args from a Namespace or a dict.  Returns a dict containing keys from `args`
+        that are in `valid_args`; `valid_args` is a space-separated list of valid args."""
+        return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
 
-    def _write_seqs_to_fasta(self, seqs, seqs_fasta):
-        """Write a .fasta file with the given seq(s)."""
-        Bio.SeqIO.write(self._make_SeqRecords(seqs), seqs_fasta, 'fasta')
+    def _compute_kmer_counts(self, seq_files, **kwargs):
+        """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is
+        canonicalized before being counted.  Kmers containing non-TCGA bases are skipped.
+        Kmers with fewer than `min_occs` or more than `max_occs` occurrences
+        are dropped, and kmer counts capped at `counter_cap`, if these args are given.
+        """
+        return SimpleKmcImpl()._compute_kmer_counts(seq_strs=_yield_seqs_as_strs(seq_files), **kwargs)
 
-    def _build_and_check_kmer_db(self, seq_files, kmer_db, **kwargs):
+    def _build_and_check_kmer_db(self, **kwargs):
         """Build a database of kmers from given sequence file(s), and check its correctness.  Args are the same as to
-        kmers.buidl_kemr_db()."""
-        kmers.build_kmer_db(seq_files, kmer_db, mem_limit_gb=4, **kwargs)
-        kmers_txt = kmer_db+'.kmer_counts.txt'
-        kmers.dump_kmer_counts(kmer_db, kmers_txt)
-        assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == self._compute_kmer_counts(seq_files, **kwargs)
-        return kmer_db
+        kmers.build_kemr_db()."""
+        args = inspect.getcallargs(kmers.build_kmer_db, mem_limit_gb=4, **kwargs)
+        kmers.build_kmer_db(**args)
+        kmers_txt = args['kmer_db']+'.kmer_counts.txt'
+        kmers.dump_kmer_counts(args['kmer_db'], kmers_txt)
+        assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == self._compute_kmer_counts(**args)
+        return args['kmer_db']
 
     @slow_test
     @pytest.mark.parametrize("seq_files", [['ebola.fasta'], ['empty.bam']])
@@ -179,29 +195,6 @@ class TestKmers(object):
                                                      for f in util.misc.make_seq(seq_files)],
                                           kmer_db=os.path.join(t_dir, 'kmer_db'),
                                           **kwargs)
-
-    @pytest.mark.parametrize("seqs,opts", [
-        ('A'*15, '-k 4'),
-        ('T'*15, '-k 4'),
-        ([], '-k 1 --threads 1'),
-        (['TCGA'*3, 'ATTT'*5], '-k 7 --threads 1'),
-        pytest.param(['TCGA'*3, 'ATTT'*5], '-k 7 --threads 2'),
-        (['TCGA'*3, 'ATTT'*5], '-k 31'),
-    ])
-    def test_kmer_extraction(self, seqs, opts):
-        with util.file.tmp_dir(suffix='kmctest') as t_dir:
-            seqs_fasta = os.path.join(t_dir, 'seqs.fasta')
-            self._write_seqs_to_fasta(seqs, seqs_fasta)
-            kmer_db = os.path.join(t_dir, 'kmer_db')
-            args = util.cmd.run_cmd(kmers, 'build_kmer_db',
-                                    opts.split() + ['--memLimitGb', 4] + [seqs_fasta, kmer_db]).args_parsed
-
-            kmers_txt = os.path.join(t_dir, 'kmers.txt')
-            util.cmd.run_cmd(kmers, 'dump_kmer_counts', [kmer_db, kmers_txt])
-            assert tools.kmc.KmcTool().read_kmer_counts(kmers_txt) == \
-                self._compute_kmer_counts(seqs,
-                                          **self._getargs(args,
-                                                          'kmer_size single_strand min_occs max_occs counter_cap'))
 
     # to test:
     #   empty bam, empty fasta, empty both
@@ -298,5 +291,11 @@ class TestKmers(object):
 
     # end: def _test_read_filtering(self, kmer_size, single_strand, kmers_fasta, reads_bam,
     #                               read_min_occs=None, read_max_occs=None)
+
+    def _test_filter_by_kmers(kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None,
+                              read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
+        """Test the operation of filter_by_kmers"""
+        pass
+
 
 # end: class TestKmers(object)
