@@ -96,7 +96,8 @@ class KmcTool(tools.Tool):
         seq_files = util.misc.make_seq(seq_files)
         kmer_db = self._kmer_db_name(kmer_db)
         threads = util.misc.sanitize_thread_count(threads)
-        with util.file.tmp_dir(suffix='kmcdb') as t_dir, util.file.tempfname(suffix='kmcfiles') as seq_file_list:
+        with util.file.tmp_dir(suffix='_kmc_db') as t_dir, \
+             util.file.tempfname(suffix='_kmc_seq_files') as seq_file_list:
             util.file.dump_file(seq_file_list, '\n'.join(seq_files))
             args = ['-v']
 
