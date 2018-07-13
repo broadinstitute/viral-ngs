@@ -34,9 +34,13 @@ def get_feature_table_id(featureTableFile):
                     raise Exception("not sure how to handle a non-Feature record")
                 seqid = line[len('>Feature '):].strip()
                 if not (
-                    (seqid.startswith('gb|') or seqid.startswith('ref|')) and seqid.endswith('|') and len(seqid) > 4):
-                    raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
-                seqid = '|'.join(seqid.split('|')[1:-1])
+                    (seqid.startswith('gb|') or seqid.startswith('ref|'))):
+                    raise Exception("reference annotation ID does not appear to refer to a GenBank or RefSeq accession: %s" % seqid)
+                m = re.search(r"(?P<db>(?:gb|ref))\|(?:(?P<accession>[a-zA-Z0-9\.]+))+.*", seqid)
+                if m:
+                   seqid = m.group("accession")
+                else:
+                    raise Exception("Error parsing accession: %s" % seqid)
                 return seqid
 
 def _seq_chunks(seq, n):
