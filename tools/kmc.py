@@ -11,6 +11,7 @@ import subprocess
 import shlex
 import argparse
 import shutil
+import re
 
 import Bio.SeqIO
 
@@ -171,7 +172,7 @@ class KmcTool(tools.Tool):
         See https://github.com/refresh-bio/KMC/issues/83
         """
         output = self.execute(['info', self._kmer_db_name(kmer_db)], return_output=True, threads=1)
-        db_info = dict(map(str.strip, line.split(':')) for line in output.strip().split('\n'))
+        db_info = dict(re.split('\\s+:\\s+', line.strip()) for line in output.strip().split('\n'))
         def fix_val(v):
             return v=='yes' if v in ('yes', 'no') else util.misc.as_type(v, (int, str))
         db_info = {k: fix_val(v) for k, v in db_info.items()}
