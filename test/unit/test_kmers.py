@@ -144,6 +144,7 @@ class KmcPy(object):
 kmcpy = KmcPy()
 
 def _inp(fname):
+    """Return full path to a test input file for this module"""
     return os.path.join(util.file.get_test_input_path(), 'TestKmers', fname)
 
 def _stringify(par): 
@@ -200,8 +201,8 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
       reads_bam: reads to filter with kmers extracted from kmers_fasta
 
     """
-    assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_pre')
-    assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_suf')
+    assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
+
     reads_file = _inp(reads_file)
     reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util.file.uncompressed_file_type(reads_file))
 

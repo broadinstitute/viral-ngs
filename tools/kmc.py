@@ -49,6 +49,11 @@ class KmcTool(tools.Tool):
         base, ext = os.path.splitext(kmer_db)
         return base if ext in ('.kmc_pre', '.kmc_suf') else kmer_db
 
+    def is_kmer_db(self, kmer_db):
+        """Quickly check that the given kmer database exists"""
+        kmer_db = self._kmer_db_name(kmer_db)
+        return os.path.isfile(kmer_db + '.kmc_pre') and os.path.isfile(kmer_db + '.kmc_suf')
+
     def _get_file_format_opt(self, fname):
         """Get the KMC command-line option to specify file format"""
         file_type = util.file.uncompressed_file_type(fname)
