@@ -28,10 +28,7 @@ def build_kmer_db(seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min
                   counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
                   threads=None):
     """Build a database of kmers occurring in given sequences."""
-    tools.kmc.KmcTool().build_kmer_db(seq_files=seq_files, kmer_db=kmer_db,
-                                      kmer_size=kmer_size, min_occs=min_occs, max_occs=max_occs,
-                                      counter_cap=counter_cap, single_strand=single_strand,
-                                      mem_limit_gb=mem_limit_gb, mem_limit_laxness=mem_limit_laxness, threads=threads)
+    tools.kmc.KmcTool().build_kmer_db(**locals())
 
 def parser_build_kmer_db(parser=argparse.ArgumentParser()):
     """Create parser for build_kmer_db"""
@@ -61,8 +58,7 @@ __commands__.append(('build_kmer_db', parser_build_kmer_db))
 
 def dump_kmer_counts(kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
     """Dump kmers and their counts from kmer database to a text file"""
-    tools.kmc.KmcTool().dump_kmer_counts(kmer_db=kmer_db, out_kmers=out_kmers,
-                                         min_occs=min_occs, max_occs=max_occs, threads=threads)
+    tools.kmc.KmcTool().dump_kmer_counts(**locals())
 
 def parser_dump_kmer_counts(parser=argparse.ArgumentParser()):
     """Create parser for dump_kmer_counts"""
@@ -81,17 +77,14 @@ __commands__.append(('dump_kmer_counts', parser_dump_kmer_counts))
 
 # =========================
 
-def filter_by_kmers(kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None,
+def filter_by_kmers(kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
                     read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
     """Filter sequences based on their kmer contents.
 
        Note that 'occurrence of a kmer' means 'occurrence of the kmer or its reverse complement' if kmer_db was built
        without the --singleStrand flag.
     """
-    tools.kmc.KmcTool().filter_reads(kmer_db=kmer_db, in_reads=in_reads, out_reads=out_reads,
-                                     db_min_occs=db_min_occs, db_max_occs=db_max_occs,
-                                     read_min_occs=read_min_occs, read_max_occs=read_max_occs, hard_mask=hard_mask,
-                                     threads=threads)
+    tools.kmc.KmcTool().filter_reads(**locals())
 
 def parser_filter_by_kmers(parser=argparse.ArgumentParser()):
     """Create parser for filter_by_kmers"""

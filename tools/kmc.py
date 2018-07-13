@@ -205,7 +205,7 @@ class KmcTool(tools.Tool):
         return read_min_occs, read_max_occs
     # end: def _infer_filter_reads_params(read_min_occs, read_max_occs)
 
-    def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None,
+    def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
                      read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
         """Filter reads based on their kmer contents.
 
@@ -231,11 +231,6 @@ class KmcTool(tools.Tool):
           hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
           threads: use this many threads
         """
-
-        if db_min_occs is None:
-            db_min_occs = 1
-        if db_max_occs is None:
-            db_max_occs = util.misc.MAX_INT32
 
         read_min_occs, read_max_occs = self._infer_filter_reads_params(read_min_occs, read_max_occs)
 
