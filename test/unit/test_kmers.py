@@ -150,17 +150,16 @@ def _stringify(par):
     return util.file.string_to_file_name(str(par))
 
 BUILD_KMER_DB_TESTS = [
-    ('empty.fasta', ''),
     ('ebola.fasta.gz', '-k 7 --threads 2'),
     ('almost-empty-2.bam', '-k 23 --singleStrand'),
     ('almost-empty-2.bam', '-k 5 --minOccs 1 --maxOccs 5 --counterCap 3 --threads 2'),
     ('test-reads.bam test-reads-human.bam', '-k 17'),
+    pytest.param(('empty.fasta', ''), marks=pytest.mark.xfail(reason="https://github.com/refresh-bio/KMC/issues/86")),
     pytest.param(('tcgaattt', ' -k 7 --threads 11'),
                  marks=(pytest.mark.skipif(util.misc.available_cpu_count() < 11,
                                            reason='needs 11+ threads to show bug'),
-                        pytest.mark.xfail(reason='kmc bug 1', run=False)))
+                        pytest.mark.xfail(reason='kmc bug')))
 ]
-
 
 @pytest.fixture(scope='module',
                 params=BUILD_KMER_DB_TESTS,
@@ -217,6 +216,4 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
 @pytest.mark.parametrize("reads_file,filter_opts",
                          [('ebola.fasta', '')], ids=_stringify)
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
-    if not kmer_db_fixture.kmc_kmer_counts: pytest.xfail(reason="https://github.com/refresh-bio/KMC/issues/86")
     _test_filter_by_kmers(**locals())
-
