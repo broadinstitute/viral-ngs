@@ -150,11 +150,11 @@ def _stringify(par):
     return util.file.string_to_file_name(str(par))
 
 BUILD_KMER_DB_TESTS = [
+    ('empty.fasta', ''),
     ('ebola.fasta.gz', '-k 7 --threads 2'),
     ('almost-empty-2.bam', '-k 23 --singleStrand'),
     ('almost-empty-2.bam', '-k 5 --minOccs 1 --maxOccs 5 --counterCap 3 --threads 2'),
     ('test-reads.bam test-reads-human.bam', '-k 17'),
-    pytest.param(('empty.fasta', ''), marks=pytest.mark.xfail(reason="https://github.com/refresh-bio/KMC/issues/86")),
     pytest.param(('tcgaattt', ' -k 7 --threads 11'),
                  marks=(pytest.mark.skipif(util.misc.available_cpu_count() < 11,
                                            reason='needs 11+ threads to show bug'),
@@ -171,11 +171,10 @@ def kmer_db_fixture(request, tmpdir_module):
     seq_files = list(map(_inp, seq_files.split()))
     kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + opts.split() + ['--memLimitGb', 4]).args_parsed
+    kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
 
-    kmers_txt = k_db+'.kmer_counts.txt'
-    kmers.dump_kmer_counts(kmer_db=k_db, out_kmers=kmers_txt, threads=kmer_db_args.threads)
-
-    yield argparse.Namespace(kmer_db=k_db, kmc_kmer_counts=tools.kmc.KmcTool().read_kmer_counts(kmers_txt),
+    yield argparse.Namespace(kmer_db=k_db,
+                             kmc_kmer_counts=kmc_kmer_counts,
                              kmer_db_args = kmer_db_args)
 
 def test_build_kmer_db(kmer_db_fixture):

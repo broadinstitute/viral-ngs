@@ -9,6 +9,8 @@ import os.path
 import sys
 import subprocess
 import shlex
+import argparse
+import shutil
 
 import Bio.SeqIO
 
@@ -42,14 +44,12 @@ class KmcTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    @staticmethod
-    def _kmer_db_name(kmer_db):
+    def _kmer_db_name(self, kmer_db):
         """Return the kmer database path, given either the db path of the file name of the .kmc_pre or .kmc_suf file"""
         base, ext = os.path.splitext(kmer_db)
         return base if ext in ('.kmc_pre', '.kmc_suf') else kmer_db
 
-    @staticmethod
-    def _get_file_format_opt(fname):
+    def _get_file_format_opt(self, fname):
         """Get the KMC command-line option to specify file format"""
         file_type = util.file.uncompressed_file_type(fname)
         if file_type in ('.fasta', '.fa'):
@@ -125,14 +125,16 @@ class KmcTool(tools.Tool):
             assert os.path.isfile(kmer_db+'.kmc_pre') and os.path.isfile(kmer_db+'.kmc_suf'), \
                 'kmer database files not created: {}'.format(kmer_db)
 
-    def execute(self, args, threads=None):  # pylint: disable=arguments-differ
+    def execute(self, args, threads=None, return_output=False):  # pylint: disable=arguments-differ
         """Run kmc_tools with the given args"""
         threads = util.misc.sanitize_thread_count(threads)
-        tool_cmd = [self.install_and_get_path()+'_tools'] + ['-v', '-t{}'.format(threads)] + list(map(str, args))
+        tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
         log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
         print('\nRunning kmc_tools command: {}'.format(' '.join(tool_cmd)), file=sys.stderr)
-        subprocess.check_call(tool_cmd)
-
+        if not return_output:
+            subprocess.check_call(tool_cmd)
+        else:
+            return util.misc.run_and_print(tool_cmd, buffered=False, check=True, silent=True).stdout.decode('utf-8')
 
     def dump_kmer_counts(self, kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
         """Dump the kmers from the database, with their counts, to a text file"""
@@ -145,33 +147,58 @@ class KmcTool(tools.Tool):
                      threads=threads)
         assert os.path.isfile(out_kmers)
 
-    @staticmethod
-    def read_kmer_counts(kmer_counts_txt):
+    def read_kmer_counts(self, kmer_counts_txt):
         """Read kmer counts from a file written by dump_kmer_counts"""
         counts = {}
-        with open(kmer_counts_txt) as kmers_f:
+        with util.file.open_or_gzopen(kmer_counts_txt) as kmers_f:
             for line in kmers_f:
                 kmer, count = line.strip().split()
                 counts[kmer] = int(count)
         return counts
 
-    @staticmethod
-    def _infer_filter_reads_params(read_min_occs, read_max_occs):
+    def get_kmer_counts(self, kmer_db, **kwargs):
+        """Extract and return the kmer counts from the kmer database as a dict."""
+        with util.file.tempfname(prefix='tmp_get_kmer_counts', suffix='.txt') as kmer_counts_file:
+            self.dump_kmer_counts(kmer_db, out_kmers=kmer_counts_file, **kwargs)
+            return self.read_kmer_counts(kmer_counts_file)
+
+    def get_kmer_db_info(self, kmer_db):
+        """Return params of a kmer db.
+        See https://github.com/refresh-bio/KMC/issues/83
+        """
+        output = self.execute(['info', self._kmer_db_name(kmer_db)], return_output=True, threads=1)
+        db_info = dict(map(str.strip, line.split(':')) for line in output.strip().split('\n'))
+        def fix_val(v):
+            return v=='yes' if v in ('yes', 'no') else util.misc.as_type(v, (int, str))
+        db_info = {k: fix_val(v) for k, v in db_info.items()}
+
+        return argparse.Namespace(kmer_size=db_info['k'], single_strand=not db_info['both strands'],
+                                  min_occs=db_info['cutoff min'],
+                                  max_occs=db_info['cutoff max'],
+                                  counter_size_bytes=int(db_info['counter size'].split()[0]),
+                                  total_kmers=db_info['total k-mers'])
+
+    def _infer_filter_reads_params(self, read_min_occs, read_max_occs):
+        """If only one of `read_min_occs`/`read_max_occs` is specified, infer the implied
+        value of the other.  Since these params can be specified either as absolute kmer counts
+        or as fractions of read length in kmers, we use the type of the specified parameter
+        to infer the omitted one."""
+
         if read_min_occs is None and read_max_occs is None:
-            read_min_occs, read_max_occs = 1, util.misc.MAX_INT32
+            read_min_occs, read_max_occs = 0, util.misc.MAX_INT32
         elif read_min_occs is None and read_max_occs is not None:
-            read_min_occs = 0.0 if isinstance(read_max_occs, float) else 1
+            read_min_occs = 0.0 if isinstance(read_max_occs, float) else 0
         elif read_max_occs is None and read_min_occs is not None:
             read_max_occs = 1.0 if isinstance(read_min_occs, float) else util.misc.MAX_INT32
-
 
         # pylint: disable=unidiomatic-typecheck
         assert type(read_min_occs) == type(read_max_occs), \
             'read_min_occs and read_max_occs must be specified the same way (as kmer count or fraction of read length)'
-        assert read_min_occs <= read_max_occs, 'vals are {} {}'.format(read_min_occs, read_max_occs)
+        assert 0 <= read_min_occs <= read_max_occs, 'vals are {} {}'.format(read_min_occs, read_max_occs)
         assert not isinstance(read_min_occs, float) or 0.0 <= read_min_occs <= read_max_occs <= 1.0
 
         return read_min_occs, read_max_occs
+    # end: def _infer_filter_reads_params(read_min_occs, read_max_occs)
 
     def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=None, db_max_occs=None,
                      read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
@@ -225,20 +252,29 @@ class KmcTool(tools.Tool):
 
             in_reads_fmt = 'q' if in_reads_type in ('.fq', '.fastq') else 'a'
 
-            self.execute('filter {} {} -ci{} -cx{} {} -f{} -ci{} -cx{} {}'.format('-hm' if hard_mask else '',
-                                                                                  self._kmer_db_name(kmer_db),
-                                                                                  db_min_occs, db_max_occs,
-                                                                                  _in_reads, in_reads_fmt,
-                                                                                  read_min_occs, read_max_occs,
-                                                                                  _out_reads).split(),
-                         threads=threads)
+            if os.path.getsize(self._kmer_db_name(kmer_db)+'.kmc_suf') == 8:
+                assert self.get_kmer_db_info(kmer_db).total_kmers == 0
+                # kmc has a bug filtering on empty kmer databases:
+                # https://github.com/refresh-bio/KMC/issues/86
+                if float(read_min_occs) > 0.0:
+                    util.file.make_empty(_out_reads)
+                else:
+                    shutil.copyfile(in_reads, out_reads)
+            else:
+                self.execute('filter {} {} -ci{} -cx{} {} -f{} -ci{} -cx{} {}'.format('-hm' if hard_mask else '',
+                                                                                      self._kmer_db_name(kmer_db),
+                                                                                      db_min_occs, db_max_occs,
+                                                                                      _in_reads, in_reads_fmt,
+                                                                                      read_min_occs, read_max_occs,
+                                                                                      _out_reads).split(),
+                             threads=threads)
 
             if in_reads_type == '.bam':
                 assert out_reads.endswith('.bam')
-                passed_read_names = os.path.join(t_dir, 'passed_read_names.txt')
-                read_utils.fasta_read_names(_out_reads, passed_read_names)
+                passing_read_names = os.path.join(t_dir, 'passing_read_names.txt')
+                read_utils.fasta_read_names(_out_reads, passing_read_names)
                 tools.picard.FilterSamReadsTool().execute(inBam=in_reads, exclude=False,
-                                                          readList=passed_read_names, outBam=out_reads)
+                                                          readList=passing_read_names, outBam=out_reads)
         # end: with util.file.tmp_dir(suffix='kmcfilt') as t_dir
     # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
     #                       read_min_occs=None, read_max_occs=None, threads=None)
