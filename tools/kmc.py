@@ -28,7 +28,7 @@ TOOL_VERSION = '3.1.0'
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-DEFAULT_KMER_SIZE = 27
+DEFAULT_KMER_SIZE = 25
 DEFAULT_COUNTER_CAP = 255         # default for "cap counter values at" params
 
 class KmcTool(tools.Tool):

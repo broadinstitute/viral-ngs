@@ -38,10 +38,11 @@ def parser_build_kmer_db(parser=argparse.ArgumentParser()):
     parser.add_argument('seq_files', nargs='+',
                         help='Files from which to extract kmers (fasta/fastq/bam, fasta/fastq may be .gz or .bz2)')
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
-    parser.add_argument('--kmerSize', '-k', dest='kmer_size', type=int, default=tools.kmc.DEFAULT_KMER_SIZE,help='kmer size')
-    parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int,
+    parser.add_argument('--kmerSize', '-k', dest='kmer_size', type=int, default=tools.kmc.DEFAULT_KMER_SIZE,
+                        help='kmer size')
+    parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int, default=1,
                         help='drop kmers with fewer than this many occurrences')
-    parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int,
+    parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int, default=util.misc.MAX_INT32,
                         help='drop kmers with more than this many occurrences')
     parser.add_argument('--counterCap', '-cs', dest='counter_cap', type=int,
                         default=tools.kmc.DEFAULT_COUNTER_CAP, help='cap kmer counts at this value')
@@ -67,9 +68,9 @@ def parser_dump_kmer_counts(parser=argparse.ArgumentParser()):
     """Create parser for dump_kmer_counts"""
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
     parser.add_argument('out_kmers', help='text file to which to write the kmers')
-    parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int,
+    parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int, default=1,
                         help='drop kmers with fewer than this many occurrences')
-    parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int,
+    parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int, default=util.misc.MAX_INT32,
                         help='drop kmers with more than this many occurrences')
 
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))

@@ -180,7 +180,14 @@ def kmer_db_fixture(request, tmpdir_module):
 def test_build_kmer_db(kmer_db_fixture):
     assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_pre')
     assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_suf')
+
+    kmer_db_info = tools.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
+    assert kmer_db_info.kmer_size == kmer_db_fixture.kmer_db_args.kmer_size
+    assert kmer_db_info.min_occs == kmer_db_fixture.kmer_db_args.min_occs
+    assert kmer_db_info.max_occs == kmer_db_fixture.kmer_db_args.max_occs
+
     kmcpy_kmer_counts = kmcpy.compute_kmer_counts(**vars(kmer_db_fixture.kmer_db_args))
+    assert kmer_db_info.total_kmers == len(kmcpy_kmer_counts)
     assert kmer_db_fixture.kmc_kmer_counts == kmcpy_kmer_counts
 
 def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
