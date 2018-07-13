@@ -132,7 +132,6 @@ class KmcPy(object):
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*(len(seq)-kmer_size+1)) # pylint: disable=cell-var-from-loop
                                                        if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
-            #print('seq=', seq, 'kmer_counts=', seq_kmer_counts, 'seq_occs=', seq_occs)
 
             if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
                 seqs_out.append(seq)
@@ -179,8 +178,7 @@ def kmer_db_fixture(request, tmpdir_module):
                              kmer_db_args = kmer_db_args)
 
 def test_build_kmer_db(kmer_db_fixture):
-    assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_pre')
-    assert os.path.isfile(kmer_db_fixture.kmer_db+'.kmc_suf')
+    assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
     kmer_db_info = tools.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
     assert kmer_db_info.kmer_size == kmer_db_fixture.kmer_db_args.kmer_size
