@@ -136,19 +136,19 @@ class KmcTool(tools.Tool):
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
         log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
 
+        result = None
         if not return_output:
             subprocess.check_call(tool_cmd)
         else:
-            return util.misc.run_and_print(tool_cmd, buffered=False, check=True, silent=True).stdout.decode('utf-8')
+            result = util.misc.run_and_print(tool_cmd, buffered=False, check=True, silent=True).stdout.decode('utf-8')
+        log.info('Done running kmc_tools command: %s', ' '.join(tool_cmd))
+        return result
 
-    def dump_kmer_counts(self, kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
+
+    def dump_kmer_counts(self, kmer_db, out_kmers, min_occs=1, max_occs=util.misc.MAX_INT32, threads=None):
         """Dump the kmers from the database, with their counts, to a text file"""
-        if min_occs is None:
-            min_occs = 1
-        if max_occs is None:
-            max_occs = util.misc.MAX_INT32
-        self.execute('transform {} -ci{} -cx{} dump -s {}'.format(self._kmer_db_name(kmer_db),
-                                                                  min_occs, max_occs, out_kmers).split(),
+        self.execute('transform {} -ci{} -cx{} dump {}'.format(self._kmer_db_name(kmer_db),
+                                                               min_occs, max_occs, out_kmers).split(),
                      threads=threads)
         assert os.path.isfile(out_kmers)
 
@@ -163,7 +163,7 @@ class KmcTool(tools.Tool):
 
     def get_kmer_counts(self, kmer_db, **kwargs):
         """Extract and return the kmer counts from the kmer database as a dict."""
-        with util.file.tempfname(prefix='tmp_get_kmer_counts', suffix='.txt') as kmer_counts_file:
+        with util.file.tempfname(suffix='_kmer_cnts.txt') as kmer_counts_file:
             self.dump_kmer_counts(kmer_db, out_kmers=kmer_counts_file, **kwargs)
             return self.read_kmer_counts(kmer_counts_file)
 
@@ -233,6 +233,7 @@ class KmcTool(tools.Tool):
         """
 
         read_min_occs, read_max_occs = self._infer_filter_reads_params(read_min_occs, read_max_occs)
+        log.debug('IN FILTER_READS: read_min_occs=%s read_max_occs=%s', read_min_occs, read_max_occs)
 
         in_reads_type = util.file.uncompressed_file_type(in_reads)
         _in_reads = in_reads
