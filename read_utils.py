@@ -1413,7 +1413,7 @@ def fasta_read_names(in_fasta, out_read_names):
 def read_names(in_reads, out_read_names, threads=None):
     """Extract read names from a sequence file"""
     _in_reads = in_reads
-    with util.file.tmp_dir(suffix='readnames') as t_dir:
+    with util.file.tmp_dir(suffix='_read_names.txt') as t_dir:
         if in_reads.endswith('.bam'):
             _in_reads = os.path.join(t_dir, 'reads.fasta')
             tools.samtools.SamtoolsTool().bam2fa(in_reads, _in_reads)
