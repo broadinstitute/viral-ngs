@@ -12,7 +12,7 @@
 7500	7578	
 			product	three-ranges-all-output-sorted
 4000	4027	CDS
-7000	<9012	
+7000	>9012	
 			note	sequencing did not capture complete CDS
 			product	two-ranges-with-second-truncated-downstream
 5379	5454	CDS
