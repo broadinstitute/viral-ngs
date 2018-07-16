@@ -91,9 +91,9 @@ def parser_filter_by_kmers(parser=argparse.ArgumentParser()):
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
     parser.add_argument('in_reads', help='input reads, as fasta/fastq/bam')
     parser.add_argument('out_reads', help='output reads')
-    parser.add_argument('--dbMinOccs', dest='db_min_occs', type=int,
+    parser.add_argument('--dbMinOccs', dest='db_min_occs', type=int, default=1,
                         help='ignore datatbase kmers with count below this')
-    parser.add_argument('--dbMaxOccs', dest='db_max_occs', type=int,
+    parser.add_argument('--dbMaxOccs', dest='db_max_occs', type=int, default=util.misc.MAX_INT32,
                         help='ignore datatbase kmers with count above this')
     int_or_float = functools.partial(util.misc.as_type, **dict(types=(int, float)))
     parser.add_argument('--readMinOccs', dest='read_min_occs', type=int_or_float,
