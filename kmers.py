@@ -56,7 +56,7 @@ __commands__.append(('build_kmer_db', parser_build_kmer_db))
 
 # =========================
 
-def dump_kmer_counts(kmer_db, out_kmers, min_occs=None, max_occs=None, threads=None):
+def dump_kmer_counts(kmer_db, out_kmers, min_occs=1, max_occs=util.misc.MAX_INT32, threads=None):
     """Dump kmers and their counts from kmer database to a text file"""
     tools.kmc.KmcTool().dump_kmer_counts(**locals())
 
