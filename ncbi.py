@@ -92,7 +92,8 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
                             start.location_operator = '<'
                     if end.position == None:
                         # clip the end
-                        end.position = '<{}'.format(alt_chrlens[altid])
+                        end.position = '{}'.format(alt_chrlens[altid])
+                        end.location_operator = '>'
                 else:
                     # clip neg strand feature
                     if start.position == None:
