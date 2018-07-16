@@ -5,9 +5,9 @@
 			note	sequencing did not capture complete CDS
 			product	glycoprotein precursor
 			transl_table	1
-<2580	1267	gene
+>2580	1267	gene
 			gene	NP
-<2580	1267	CDS
+>2580	1267	CDS
 			note	sequencing did not capture complete CDS
 			product	nucleoprotein
 			transl_table	1

@@ -5,9 +5,9 @@
 			note	sequencing did not capture complete CDS
 			product	Z protein
 			transl_table	1
-<6915	290	gene
+>6915	290	gene
 			gene	L
-<6913	290	CDS
+>6913	290	CDS
 			note	sequencing did not capture complete CDS
 			product	polymerase
 			transl_table	1
