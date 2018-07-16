@@ -10,7 +10,7 @@ import inspect
 import logging
 import traceback
 
-from test import assert_equal_contents, assert_equal_bam_reads
+from test import assert_equal_contents, assert_equal_bam_reads, make_slow_test_marker
 
 import Bio.SeqIO
 from Bio.Seq import Seq
@@ -27,6 +27,8 @@ import tools.kmc
 import tools.samtools
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
 #################################
 # Some general utils used below #
@@ -82,19 +84,15 @@ def _strip_mate_num(rec_id):
 
 
 class KmcPy(object):
-    """Reimplementation of some kmc functions in simple Python code."""
+    """Reimplementation of some kmc functions in simple Python code.
 
-    #
-    # To help generate the expected correct output, we reimplement in simple Python code some
-    # of KMC's functionality.   This is also to make up for KMC's lack of a public test suite
-    # ( https://github.com/refresh-bio/KMC/issues/55 ).
-    #
+    To help generate the expected correct output, we reimplement in simple Python code some
+    of KMC's functionality.   This is also to make up for KMC's lack of a public test suite
+    ( https://github.com/refresh-bio/KMC/issues/55 ).
+    """
 
     def _revcomp(self, kmer):
         """Return the reverse complement of a kmer, given as a string"""
-        if not isinstance(kmer, str):
-            print('TRACEBACK!!', file=sys.stderr)
-            traceback.print_stack()
         assert isinstance(kmer, str)
         return str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement())
 
@@ -152,22 +150,18 @@ class KmcPy(object):
         read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs) # pylint: disable=protected-access
 
         seqs_ids_out = set()
-        occ_counts = []
         for rec in _yield_seq_recs(in_reads):
             seq = str(rec.seq)
             seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand)
             assert not single_strand
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() \
                             if kmer in db_kmers])
-            seq_occs2 = len([i for i in range(len(seq)) if seq[i:i+kmer_size] in db_kmers or self._revcomp(seq[i:i+kmer_size]) in db_kmers])
-            assert seq_occs == seq_occs2
 
             read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*(len(seq)-kmer_size+1)) # pylint: disable=cell-var-from-loop
                                                        if isinstance(v, float) else v,
                                                        (read_min_occs, read_max_occs))
-            occ_counts.append(len(seq)-kmer_size+1)
 
-            if (read_min_occs_seq or seq_occs) <= seq_occs <= (read_max_occs_seq or seq_occs):
+            if read_min_occs_seq <= seq_occs <= read_max_occs_seq:
                 seqs_ids_out.add(_strip_mate_num(rec.id))
 
         return seqs_ids_out
@@ -195,26 +189,29 @@ BUILD_KMER_DB_TESTS = [
                         pytest.mark.xfail(reason='kmc bug')))
 ]
 
-call_hist = []
-
 @pytest.fixture(scope='module',
                 params=BUILD_KMER_DB_TESTS,
                 ids=_stringify)
 def kmer_db_fixture(request, tmpdir_module):
-    """Build a database of kmers from given sequence file(s)"""
+    """Build a database of kmers from given sequence file(s) using given options.
+
+    Fixture param: a 2-tuple (seq_files, kmer_db_opts)
+    Fixture return:
+       an argparse.Namespace() with the following attrs:
+          kmer_db: path to the kmer db created from seq_files
+          kmc_kmer_counts: map from kmer to count, as computed by kmc
+          kmc_db_args: the result of parsing kmer_db_opts
+    """
     k_db = os.path.join(tmpdir_module, 'bld_kmer_db')
-    seq_files, opts = request.param
+    seq_files, kmer_db_opts = request.param
     seq_files = list(map(_inp, seq_files.split()))
     kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
-                                    args=seq_files + [k_db] + opts.split() + ['--memLimitGb', 4]).args_parsed
+                                    args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
     kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
 
-    result = argparse.Namespace(kmer_db=k_db,
-                                kmc_kmer_counts=kmc_kmer_counts,
-                                kmer_db_args=kmer_db_args)
-    log.info('KMER_DB_FIXTURE: CALLHIST=%s param=%s %s %d', call_hist, request.param, tmpdir_module, id(result))
-    call_hist.append(request.param)
-    yield result
+    yield argparse.Namespace(kmer_db=k_db,
+                             kmc_kmer_counts=kmc_kmer_counts,
+                             kmer_db_args=kmer_db_args)
 
 def test_build_kmer_db(kmer_db_fixture):
     assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
@@ -247,13 +244,6 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
-    sub_kmer_counts_kmc = tools.kmc.KmcTool().get_kmer_counts(kmer_db_fixture.kmer_db, min_occs=filter_args.db_min_occs,
-                                                              max_occs=filter_args.db_max_occs)
-    sub_kmer_counts_kmcpy = kmcpy.filter_kmers(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
-                                               db_min_occs=filter_args.db_min_occs,
-                                               db_max_occs=filter_args.db_max_occs)
-    assert len(sub_kmer_counts_kmc) == len(sub_kmer_counts_kmcpy)
-
     filtered_seqs_ids_expected = kmcpy.filter_seqs(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
                                                    kmer_size=kmer_db_fixture.kmer_db_args.kmer_size,
                                                    single_strand=kmer_db_fixture.kmer_db_args.single_strand,
@@ -263,21 +253,16 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
     read_utils.read_names(reads_file_out, reads_file_out_ids)
     reads_file_out_ids_normed = set(map(_strip_mate_num, util.file.slurp_file(reads_file_out_ids).strip().split()))
 
-    # log.info('reads_orig %d reads_filt %d', len(set(_yield_seqs_as_strs(reads_file))),
-    #          len(set(_yield_seqs_as_strs(reads_file_out))))
-    # reads_out_from_kmc = set(_yield_seqs_as_strs(reads_file_out))
-    # reads_out_from_kmcpy = set(filtered_seqs_expected)
-    # log.debug('a-b=%d', len(reads_out_from_kmc - reads_out_from_kmcpy))
-    # log.debug('e.g. %s', sorted(reads_out_from_kmc - reads_out_from_kmcpy)[0])
-    # log.debug('b-a=%d', len(reads_out_from_kmcpy - reads_out_from_kmc))
-    # assert len(reads_out_from_kmc) == len(reads_out_from_kmcpy)
+    log.debug('FILT %d %d', len(list(_yield_seq_recs(reads_file))), len(list(_yield_seq_recs(reads_file_out))))
+
     assert reads_file_out_ids_normed == filtered_seqs_ids_expected
 
 # end: def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 
 
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta', '-k 17')], ids=_stringify, scope='module', indirect=True)
-@pytest.mark.parametrize("reads_file", ['G5012.3.testreads.bam'])
+@pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
+                                        'G5012.3.subset.bam'])
 @pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 70'])
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     _test_filter_by_kmers(**locals())
