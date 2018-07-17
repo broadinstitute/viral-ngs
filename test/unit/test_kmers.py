@@ -8,6 +8,7 @@ import collections
 import argparse
 import inspect
 import logging
+import itertools
 import traceback
 
 from test import assert_equal_contents, assert_equal_bam_reads, make_slow_test_marker
@@ -215,6 +216,9 @@ def kmer_db_fixture(request, tmpdir_module):
 
 @pytest.mark.parametrize("kmer_db_fixture", BUILD_KMER_DB_TESTS, ids=_stringify, indirect=["kmer_db_fixture"])
 def test_build_kmer_db(kmer_db_fixture):
+    _test_build_kmer_db(kmer_db_fixture)
+
+def _test_build_kmer_db(kmer_db_fixture):
     assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
     kmer_db_info = tools.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
@@ -225,6 +229,29 @@ def test_build_kmer_db(kmer_db_fixture):
     kmcpy_kmer_counts = kmcpy.compute_kmer_counts(**vars(kmer_db_fixture.kmer_db_args))
     assert kmer_db_info.total_kmers == len(kmcpy_kmer_counts)
     assert kmer_db_fixture.kmc_kmer_counts == kmcpy_kmer_counts
+
+###########
+SEQ_FILES = [ 'empty.fasta',
+              'ebola.fasta.gz',
+              'almost-empty-2.bam',
+              'test-reads.bam',
+              'test-reads-human.bam',
+              'tcgaattt.fasta'
+]
+
+KMER_SIZES = [1, 2, 7, 17, 27, 31, 55, 63]
+STRAND_OPTS = ['', '--singleStrand']
+NTHREADS = [1, 2, 8, 12]
+COMBO_OPTS = [(seq_file, '-k{} {} --threads {}'.format(kmer_size, strand_opt, nthreads))
+              for seq_file, kmer_size, strand_opt, nthreads in itertools.product(SEQ_FILES, KMER_SIZES, STRAND_OPTS, NTHREADS)]
+
+@slow_test
+@pytest.mark.parametrize("kmer_db_fixture", COMBO_OPTS, ids=_stringify, indirect=["kmer_db_fixture"])
+def test_build_kmer_db_combo(kmer_db_fixture):
+    _test_build_kmer_db(kmer_db_fixture)
+
+
+##############################################################################################
 
 def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     """Test read filtering.
