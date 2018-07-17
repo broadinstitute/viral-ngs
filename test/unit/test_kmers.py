@@ -231,19 +231,26 @@ def _test_build_kmer_db(kmer_db_fixture):
     assert kmer_db_fixture.kmc_kmer_counts == kmcpy_kmer_counts
 
 ###########
-SEQ_FILES = [ 'empty.fasta',
-              'ebola.fasta.gz',
-              'almost-empty-2.bam',
-              'test-reads.bam',
-              'test-reads-human.bam',
-              'tcgaattt.fasta'
+SEQ_FILES = [ 
+    # 'empty.fasta',
+    # 'ebola.fasta.gz',
+    # 'almost-empty-2.bam',
+    # 'test-reads.bam',
+    # 'test-reads-human.bam',
+    # 'tcgaattt.fasta',
+    'G5012.3.fasta',
+    'G5012.3.mini.bam',
 ]
 
 KMER_SIZES = [1, 2, 7, 17, 27, 31, 55, 63]
+#KMER_SIZES = [1, 17, 31, 55]
 STRAND_OPTS = ['', '--singleStrand']
-NTHREADS = [1, 2, 8, 12]
-COMBO_OPTS = [(seq_file, '-k{} {} --threads {}'.format(kmer_size, strand_opt, nthreads))
-              for seq_file, kmer_size, strand_opt, nthreads in itertools.product(SEQ_FILES, KMER_SIZES, STRAND_OPTS, NTHREADS)]
+KMER_OCCS_OPTS = [ '', '--minOccs 1', '--minOccs 10', '--maxOccs 10' ]
+NTHREADS = [1, 8]
+COMBO_OPTS = [(seq_file, '-k{} {} {} --threads {}'.format(kmer_size, strand_opt, kmer_occs_opt, nthreads))
+              for seq_file, kmer_size, strand_opt, kmer_occs_opt, nthreads \
+              in itertools.product(SEQ_FILES, KMER_SIZES, STRAND_OPTS,
+                                   KMER_OCCS_OPTS, NTHREADS)]
 
 @slow_test
 @pytest.mark.parametrize("kmer_db_fixture", COMBO_OPTS, ids=_stringify, indirect=["kmer_db_fixture"])
