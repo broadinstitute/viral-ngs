@@ -67,7 +67,7 @@ class KmcTool(tools.Tool):
         else:
             raise RuntimeError('Unknown seq file format: {}'.format(file_type))
 
-    def build_kmer_db(self, seq_files, kmer_db, kmer_size=DEFAULT_KMER_SIZE, min_occs=None, max_occs=None,
+    def build_kmer_db(self, seq_files, kmer_db, kmer_size=DEFAULT_KMER_SIZE, min_occs=1, max_occs=util.misc.MAX_INT32,
                       counter_cap=DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
                       threads=None, kmc_opts=''):
         """Build a database of kmers occurring in the given sequence files.
@@ -95,13 +95,9 @@ class KmcTool(tools.Tool):
 
           kmc_opts: any additional kmc flags
         """
-        if min_occs is None:
-            min_occs = 1
-        if max_occs is None:
-            max_occs = util.misc.MAX_INT32
         seq_files = util.misc.make_seq(seq_files)
         kmer_db = self._kmer_db_name(kmer_db)
-        threads = util.misc.sanitize_thread_count(threads)
+        threads = util.misc.sanitize_thread_count(threads, max(1, mem_limit_gb-2))
         with util.file.tmp_dir(suffix='_kmc_db') as t_dir, \
              util.file.tempfname(suffix='_kmc_seq_files') as seq_file_list:
             util.file.dump_file(seq_file_list, '\n'.join(seq_files))
@@ -132,7 +128,7 @@ class KmcTool(tools.Tool):
 
     def execute(self, args, threads=None, return_output=False):  # pylint: disable=arguments-differ
         """Run kmc_tools with the given args"""
-        threads = util.misc.sanitize_thread_count(threads)
+        threads = util.misc.sanitize_thread_count(threads, 8)
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
         log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
 
@@ -149,7 +145,7 @@ class KmcTool(tools.Tool):
         """Dump the kmers from the database, with their counts, to a text file"""
         self.execute('transform {} -ci{} -cx{} dump {}'.format(self._kmer_db_name(kmer_db),
                                                                min_occs, max_occs, out_kmers).split(),
-                     threads=threads)
+                     threads=1)
         assert os.path.isfile(out_kmers)
 
     def read_kmer_counts(self, kmer_counts_txt):
@@ -216,6 +212,7 @@ class KmcTool(tools.Tool):
           hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
           threads: use this many threads
         """
+        log.debug('FILTER_READS: locals=%s dbinfo=%s', locals(), self.get_kmer_db_info(kmer_db))
 
         abs_thresholds = (read_min_occs, read_max_occs) != (0, util.misc.MAX_INT32)
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
