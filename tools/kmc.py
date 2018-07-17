@@ -24,7 +24,7 @@ import util.misc
 
 
 TOOL_NAME = 'kmc'
-TOOL_VERSION = '3.1.0'
+TOOL_VERSION = '3.1.0rc1'
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -97,9 +97,7 @@ class KmcTool(tools.Tool):
         """
         seq_files = util.misc.make_seq(seq_files)
         kmer_db = self._kmer_db_name(kmer_db)
-        # kmc seems to have issues when the thread count gets high relative to memory:
-        # https://github.com/refresh-bio/KMC/issues/92
-        threads = util.misc.sanitize_thread_count(threads, max(1, mem_limit_gb-2))
+        threads = util.misc.sanitize_thread_count(threads)
         with util.file.tmp_dir(suffix='_kmc_db') as t_dir, \
              util.file.tempfname(suffix='_kmc_seq_files') as seq_file_list:
             util.file.dump_file(seq_file_list, '\n'.join(seq_files))
@@ -130,7 +128,7 @@ class KmcTool(tools.Tool):
 
     def execute(self, args, threads=None, return_output=False):  # pylint: disable=arguments-differ
         """Run kmc_tools with the given args"""
-        threads = util.misc.sanitize_thread_count(threads, 8)
+        threads = util.misc.sanitize_thread_count(threads)
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
         log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
 
@@ -147,7 +145,7 @@ class KmcTool(tools.Tool):
         """Dump the kmers from the database, with their counts, to a text file"""
         self.execute('transform {} -ci{} -cx{} dump {}'.format(self._kmer_db_name(kmer_db),
                                                                min_occs, max_occs, out_kmers).split(),
-                     threads=1)
+                     threads=threads)
         assert os.path.isfile(out_kmers)
 
     def read_kmer_counts(self, kmer_counts_txt):
