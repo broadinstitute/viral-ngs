@@ -34,12 +34,6 @@ slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 # Some general utils used below #
 #################################
 
-def locals_sans_self():
-    return {k: v for k, v in inspect.currentframe().f_back.f_locals.items() if k != 'self'}
-
-def locals_dict(vars):
-    return {k: v for k, v in inspect.currentframe().f_back.f_locals.items() if k in vars.split()}
-
 def _seq_as_str(s):  # pylint: disable=invalid-name
     """Return a sequence as a str, regardless of whether it was a str, a Seq or a SeqRecord"""
     if isinstance(s, Seq):
@@ -267,11 +261,18 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
 
 # end: def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 
+@pytest.mark.parametrize("kmer_db_fixture", [('empty.fasta', '')], ids=_stringify, indirect=["kmer_db_fixture"])
+@pytest.mark.parametrize("reads_file", ['empty.fasta', 'tcgaattt.fasta', 'G5012.3.subset.bam'])
+@pytest.mark.parametrize("filter_opts", ['', '--readMinOccs 1', '--readMaxOccs 2'])
+def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
+    _test_filter_by_kmers(**locals())
 
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta.gz', '-k 7')], ids=_stringify, indirect=["kmer_db_fixture"])
 @pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
                                         'G5012.3.subset.bam'])
 @pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 70',
-                                         '--dbMinOccs 4 --readMinOccsFrac .6'])
+                                         '--dbMinOccs 4 --readMinOccsFrac .6',
+                                         '--readMinOccsFrac .4 --readMaxOccsFrac .55'])
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     _test_filter_by_kmers(**locals())
+
