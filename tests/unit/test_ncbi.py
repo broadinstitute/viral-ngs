@@ -23,7 +23,7 @@ class TestCommandHelp(unittest.TestCase):
 
 class TestFeatureTransfer(TestCaseWithTmp):
     def setUp(self):
-        TestCaseWithTmp.setUp(self)
+        super(TestFeatureTransfer, self).setUp()
         self.input_dir = util.file.get_test_input_path(self)
 
     def test_synthetic_feature_table(self):
