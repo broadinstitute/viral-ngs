@@ -144,12 +144,13 @@ class KmcPy(object):
         return result
 
     def filter_seqs(self, db_kmer_counts, in_reads, kmer_size, single_strand,
-                    db_min_occs, db_max_occs, read_min_occs, read_max_occs, **ignore):
+                    db_min_occs, db_max_occs, read_min_occs, read_max_occs,
+                    read_min_occs_frac, read_max_occs_frac, **ignore):
         log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
         db_kmers= self.filter_kmers(db_kmer_counts=db_kmer_counts, db_min_occs=db_min_occs, db_max_occs=db_max_occs)
-        read_min_occs, read_max_occs = tools.kmc.KmcTool()._infer_filter_reads_params(read_min_occs, read_max_occs) # pylint: disable=protected-access
 
         seqs_ids_out = set()
+        rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
         for rec in _yield_seq_recs(in_reads):
             seq = str(rec.seq)
             seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand)
@@ -157,9 +158,12 @@ class KmcPy(object):
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() \
                             if kmer in db_kmers])
 
-            read_min_occs_seq, read_max_occs_seq = map(lambda v: int(v*(len(seq)-kmer_size+1)) # pylint: disable=cell-var-from-loop
-                                                       if isinstance(v, float) else v,
-                                                       (read_min_occs, read_max_occs))
+            if rel_thresholds:
+                n_seq_kmers = len(seq)-kmer_size+1
+                read_min_occs_seq, read_max_occs_seq = (int(read_min_occs_frac * n_seq_kmers),
+                                                        int(read_max_occs_frac * n_seq_kmers))
+            else:
+                read_min_occs_seq, read_max_occs_seq = (read_min_occs, read_max_occs)
 
             if read_min_occs_seq <= seq_occs <= read_max_occs_seq:
                 seqs_ids_out.add(_strip_mate_num(rec.id))
@@ -263,6 +267,7 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta', '-k 17')], ids=_stringify, scope='module', indirect=True)
 @pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
                                         'G5012.3.subset.bam'])
-@pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 70'])
+@pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 70',
+                                         '--dbMinOccs 4 --readMinOccsFrac .6'])
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     _test_filter_by_kmers(**locals())

@@ -183,30 +183,9 @@ class KmcTool(tools.Tool):
                                   counter_size_bytes=int(db_info['counter size'].split()[0]),
                                   total_kmers=db_info['total k-mers'])
 
-    def _infer_filter_reads_params(self, read_min_occs, read_max_occs):
-        """If only one of `read_min_occs`/`read_max_occs` is specified, infer the implied
-        value of the other.  Since these params can be specified either as absolute kmer counts
-        or as fractions of read length in kmers, we use the type of the specified parameter
-        to infer the omitted one."""
-
-        if read_min_occs is None and read_max_occs is None:
-            read_min_occs, read_max_occs = 0, util.misc.MAX_INT32
-        elif read_min_occs is None and read_max_occs is not None:
-            read_min_occs = 0.0 if isinstance(read_max_occs, float) else 0
-        elif read_max_occs is None and read_min_occs is not None:
-            read_max_occs = 1.0 if isinstance(read_min_occs, float) else util.misc.MAX_INT32
-
-        # pylint: disable=unidiomatic-typecheck
-        assert type(read_min_occs) == type(read_max_occs), \
-            'read_min_occs and read_max_occs must be specified the same way (as kmer count or fraction of read length)'
-        assert 0 <= read_min_occs <= read_max_occs, 'vals are {} {}'.format(read_min_occs, read_max_occs)
-        assert not isinstance(read_min_occs, float) or 0.0 <= read_min_occs <= read_max_occs <= 1.0
-
-        return read_min_occs, read_max_occs
-    # end: def _infer_filter_reads_params(read_min_occs, read_max_occs)
-
     def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
-                     read_min_occs=None, read_max_occs=None, hard_mask=False, threads=None):
+                     read_min_occs=0, read_max_occs=util.misc.MAX_INT32,
+                     read_min_occs_frac=0.0, read_max_occs_frac=1.0, hard_mask=False, threads=None):
         """Filter reads based on their kmer contents.
 
         Note that "occurrence of a kmer" means "occurrence of the kmer or its reverse complement" if kmer_db was built
@@ -224,21 +203,31 @@ class KmcTool(tools.Tool):
         Params:
           db_min_occs: only consider database kmers with at least this count
           db_max_occs: only consider database kmers with at most this count
-          read_min_occs: only keep reads with at least this many occurrences of kmers from database.  If given as float,
-             interpret as percent of read length in kmers.
+
+          read_min_occs: only keep reads with at least this many occurrences of kmers from database.
           read_max_occs: only keep reads with no more than this many occurrence of kmers from the database.
-             If given as float, interpret as percent of read length in kmers.
+          read_min_occs_frac: only keep reads with at least this many occurrences of kmers from database,
+             interpreted as a fraction of read length in kmers
+          read_max_occs_frac: only keep reads with no more than this many occurrence of kmers from the database.
+             interpreted as a fraction of read length in kmers.
+
+          (Note: minimal read kmer content can be given as absolute counts or fraction of read length, but not both).
+
           hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
           threads: use this many threads
         """
 
-        read_min_occs, read_max_occs = self._infer_filter_reads_params(read_min_occs, read_max_occs)
-        log.debug('IN FILTER_READS: read_min_occs=%s read_max_occs=%s', read_min_occs, read_max_occs)
+        abs_thresholds = (read_min_occs, read_max_occs) != (0, util.misc.MAX_INT32)
+        rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
+        assert not (abs_thresholds and rel_thresholds), \
+            "Mixing absolute and relative thresholds for kmer content not currently supported"
+        assert 0 <= read_min_occs <= read_max_occs <= util.misc.MAX_INT32
+        assert 0.0 <= read_min_occs_frac <= read_max_occs_frac <= 1.0
 
         in_reads_type = util.file.uncompressed_file_type(in_reads)
         _in_reads = in_reads
         _out_reads = out_reads
-        with util.file.tmp_dir(suffix='kmcfilt') as t_dir:
+        with util.file.tmp_dir(suffix='_kmcfilt') as t_dir:
             if in_reads_type in ('.fa', '.fasta'):
                 # kmc_tools filter currently requires fasta files to be in fasta-2line format
                 # https://github.com/refresh-bio/KMC/issues/57
@@ -257,17 +246,19 @@ class KmcTool(tools.Tool):
                 assert self.get_kmer_db_info(kmer_db).total_kmers == 0
                 # kmc has a bug filtering on empty kmer databases:
                 # https://github.com/refresh-bio/KMC/issues/86
-                if float(read_min_occs) > 0.0:
+                if read_min_occs > 0 or read_min_occs_frac > 0.0:
                     util.file.make_empty(_out_reads)
                 else:
                     shutil.copyfile(in_reads, out_reads)
             else:
-                self.execute('filter {} {} -ci{} -cx{} {} -f{} -ci{} -cx{} {}'.format('-hm' if hard_mask else '',
-                                                                                      self._kmer_db_name(kmer_db),
-                                                                                      db_min_occs, db_max_occs,
-                                                                                      _in_reads, in_reads_fmt,
-                                                                                      read_min_occs, read_max_occs,
-                                                                                      _out_reads).split(),
+                thresholds_opt = ' -ci{} -cx{}'.format(*((read_min_occs, read_max_occs) if abs_thresholds else \
+                                                         (read_min_occs_frac, read_max_occs_frac)))
+                self.execute('filter {} {} -ci{} -cx{} {} -f{} {} {}'.format('-hm' if hard_mask else '',
+                                                                             self._kmer_db_name(kmer_db),
+                                                                             db_min_occs, db_max_occs,
+                                                                             _in_reads, in_reads_fmt,
+                                                                             thresholds_opt,
+                                                                             _out_reads).split(),
                              threads=threads)
 
             if in_reads_type == '.bam':
@@ -277,8 +268,7 @@ class KmcTool(tools.Tool):
                 tools.picard.FilterSamReadsTool().execute(inBam=in_reads, exclude=False,
                                                           readList=passing_read_names, outBam=out_reads)
         # end: with util.file.tmp_dir(suffix='kmcfilt') as t_dir
-    # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
-    #                       read_min_occs=None, read_max_occs=None, threads=None)
+    # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32, ...)
 
     def kmers_binary_op(self, op, kmer_db1, kmer_db2, kmer_db_out, threads=None):  # pylint: disable=invalid-name
         """Perform a simple binary operation on two kmer sets"""
