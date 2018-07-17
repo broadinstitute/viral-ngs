@@ -23,7 +23,7 @@ class TestPerSample(test.TestCaseWithTmp):
         strand-bias filtering and adds library-bias statistics.
     '''
 
-    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+    #@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_indels(self):
         # Files here were created as follows:
         # ref.indels.fasta is Seed-stock-137_S2_L001_001.fasta
@@ -58,7 +58,7 @@ class TestPerSample(test.TestCaseWithTmp):
         intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=0, removeDoublyMappedReads=True)
         assert os.path.getsize(outTab) == 0
 
-    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+    #@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_2libs(self):
         # in.2libs.bam was created by "manually" editing in.bam and moving about
         # 1/3 of the reads to ReadGroup2.
@@ -70,7 +70,7 @@ class TestPerSample(test.TestCaseWithTmp):
         expected = os.path.join(myInputDir, 'vphaser_one_sample_2libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
-    @unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+    #@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
     def test_vphaser_one_sample_3libs_and_chi2(self):
         # In addition to testing that we can handle 3 libraries, this is testing
         #    the chi2_contingency approximation to fisher_exact. The 4th, 5th,
