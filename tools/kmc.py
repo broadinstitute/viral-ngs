@@ -97,6 +97,8 @@ class KmcTool(tools.Tool):
         """
         seq_files = util.misc.make_seq(seq_files)
         kmer_db = self._kmer_db_name(kmer_db)
+        # kmc seems to have issues when the thread count gets high relative to memory:
+        # https://github.com/refresh-bio/KMC/issues/92
         threads = util.misc.sanitize_thread_count(threads, max(1, mem_limit_gb-2))
         with util.file.tmp_dir(suffix='_kmc_db') as t_dir, \
              util.file.tempfname(suffix='_kmc_seq_files') as seq_file_list:
@@ -246,7 +248,7 @@ class KmcTool(tools.Tool):
                 if read_min_occs > 0 or read_min_occs_frac > 0.0:
                     util.file.make_empty(_out_reads)
                 else:
-                    shutil.copyfile(in_reads, out_reads)
+                    shutil.copyfile(_in_reads, _out_reads)
             else:
                 thresholds_opt = ' -ci{} -cx{}'.format(*((read_min_occs, read_max_occs) if abs_thresholds else \
                                                          (read_min_occs_frac, read_max_occs_frac)))
