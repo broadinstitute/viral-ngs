@@ -205,13 +205,17 @@ def _inp(fname):
 def _stringify(par): 
     return util.file.string_to_file_name(str(par))
 
-BUILD_KMER_DB_TESTS = [
-    ('empty.fasta', ''),
-    ('ebola.fasta.gz', '-k 7'),
+KMER_DBS_EMPTY = [('empty.fasta', '')]
+
+KMER_DBS_SMALL = [
+     ('ebola.fasta.gz', '-k 7'),
     ('almost-empty-2.bam', '-k 23 --singleStrand'),
     ('almost-empty-2.bam', '-k 5 --minOccs 1 --maxOccs 5 --counterCap 3'),
-    ('test-reads.bam test-reads-human.bam', '-k 17'),
     ('tcgaattt.fasta', '-k 7')
+]
+
+KMER_DBS_MEDIUM = [
+    ('test-reads.bam test-reads-human.bam', '-k 17'),
 ]
 
 @pytest.fixture(scope='module', ids=_stringify)
@@ -237,7 +241,8 @@ def kmer_db_fixture(request, tmpdir_module):
                              kmer_db_args=kmer_db_args)
 
 
-@pytest.mark.parametrize("kmer_db_fixture", BUILD_KMER_DB_TESTS, ids=_stringify, indirect=["kmer_db_fixture"])
+@pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL+KMER_DBS_MEDIUM,
+                         ids=_stringify, indirect=["kmer_db_fixture"])
 def test_build_kmer_db(kmer_db_fixture):
     _test_build_kmer_db(kmer_db_fixture)
 
@@ -336,8 +341,7 @@ def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_functi
     _test_filter_by_kmers(**locals())
 
 
-@pytest.mark.parametrize("kmer_db_fixture", [('empty.fasta', ''),
-                                             ('almost-empty-2.bam', '')], ids=_stringify, indirect=["kmer_db_fixture"])
+@pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL[:1], ids=_stringify, indirect=["kmer_db_fixture"])
 @pytest.mark.parametrize("set_to_val", [1, util.misc.MAX_INT32])
 def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
     db_with_set_counts = os.path.join(tmpdir_function, 'set_counts_db')
