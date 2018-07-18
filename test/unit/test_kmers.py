@@ -269,7 +269,7 @@ KMER_SIZES = [1, 2, 7, 17, 27, 31, 55, 63]
 #KMER_SIZES = [1, 17, 31, 55]
 STRAND_OPTS = ['', '--singleStrand']
 KMER_OCCS_OPTS = [ '', '--minOccs 1', '--minOccs 10', '--maxOccs 10' ]
-NTHREADS = [1, 8]
+NTHREADS = [1, 2, 12]
 COMBO_OPTS = [(seq_file, '-k{} {} {} --threads {}'.format(kmer_size, strand_opt, kmer_occs_opt, nthreads))
               for seq_file, kmer_size, strand_opt, kmer_occs_opt, nthreads \
               in itertools.product(SEQ_FILES, KMER_SIZES, STRAND_OPTS,
@@ -335,3 +335,29 @@ def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_f
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     _test_filter_by_kmers(**locals())
 
+
+@pytest.mark.parametrize("kmer_db_fixture", [('empty.fasta', ''),
+                                             ('almost-empty-2.bam', '')], ids=_stringify, indirect=["kmer_db_fixture"])
+@pytest.mark.parametrize("set_to_val", [1, util.misc.MAX_INT32])
+def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
+    db_with_set_counts = os.path.join(tmpdir_function, 'set_counts_db')
+    util.cmd.run_cmd(module=kmers, cmd='kmers_set_counts',
+                     args=[kmer_db_fixture.kmer_db, set_to_val, db_with_set_counts])
+    new_counts = tools.kmc.KmcTool().get_kmer_counts(db_with_set_counts)
+    assert set(new_counts.keys()) == set(kmer_db_fixture.kmc_kmer_counts.keys())
+    assert not new_counts  or  set(new_counts.values()) == set([set_to_val])
+
+# to test:
+#   seqs with Ns, with non-standard letters; emit warning?
+#   empty/non-empty kmer db and filter seqs
+#   short/long kmers, with/without short-kmer optimization
+#   more/less memory, various memory modes
+#   note that if mark cmd arg types, then can auto-generate tests
+#   and at least regtest for consistency
+#   bams with read groups, with mix of single and paired reads
+#   records with revcomp-palindromic kmers, without
+#   random subset of a file
+#   can infer which args are inputs if they come from test/input
+#
+#   realistic test case
+#
