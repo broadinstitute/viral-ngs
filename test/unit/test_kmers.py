@@ -44,17 +44,19 @@ def _seq_as_str(s):  # pylint: disable=invalid-name
     return s
 
 def _yield_seq_recs(seq_file):
-    """Yield sequence records from the file, regardless of format"""
+    """Yield sequence records from the file, regardless of file format."""
     with util.file.tmp_dir(suffix='_seqs_as_strs') as t_dir:
         if seq_file.endswith('.bam'):
             t_fa = os.path.join(t_dir, 'bam2fa.fasta')
-            tools.samtools.SamtoolsTool().bam2fa(seq_file, t_fa)
+            tools.samtools.SamtoolsTool().bam2fa(seq_file, t_fa, append_mate_num=True)
             seq_file = t_fa
         with util.file.open_or_gzopen(seq_file, 'rt') as seq_f:
             for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq_file)[1:]):
                 yield rec
 
-def _list_seq_recs(seq_file): return list(_yield_seq_recs(seq_file))
+def _list_seq_recs(seq_file):
+    """Return a list of sequence records from the file, regardless of file format."""
+    return list(_yield_seq_recs(seq_file))
 
 
 def _yield_seqs_as_strs(seqs):
@@ -68,7 +70,10 @@ def _yield_seqs_as_strs(seqs):
             for rec in _yield_seq_recs(seq):
                 yield str(rec.seq)
 
-def _list_seqs_as_strs(seqs): return list(_yield_seqs_as_strs(seqs))
+def _list_seqs_as_strs(seqs):
+    """Return a list of sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecord/Seq, a filename of a sequence file,
+    or an iterable of these.  If a filename of a sequence file, all sequences from that file are yielded."""
+    return list(_yield_seqs_as_strs(seqs))
 
 def _getargs(args, valid_args):
     """Extract valid args from an argparse.Namespace or a dict.  Returns a dict containing keys from `args`
@@ -111,7 +116,7 @@ class KmcPy(object):
             # mark kmers containing invalid base(s)
             valid_kmer = [True] * n_kmers
             for i in range(len(seq)):  # pylint: disable=consider-using-enumerate
-                if seq[i] not in 'TCGA':
+                if seq[i].upper() not in 'TCGA':
                     invalid_lo = max(0, i-kmer_size+1)
                     invalid_hi = min(n_kmers, i+1)
                     valid_kmer[invalid_lo:invalid_hi] = [False]*(invalid_hi-invalid_lo)
@@ -121,7 +126,13 @@ class KmcPy(object):
                     kmer = seq[i:i+kmer_size]
                     yield kmer if single_strand else self._canonicalize(kmer)
 
-    def _compute_kmers(self, *args, **kw): return list(self._compute_kmers_iter(*args, **kw))
+    def _compute_kmers(self, *args, **kw):
+        """Return list of kmers of seq(s).  Unless `single_strand` is True, each kmer
+        is canonicalized before being returned.  Note that
+        deduplication is not done, so each occurrence of each kmer is
+        yielded.  Kmers containing non-TCGA bases are skipped.
+        """
+        return list(self._compute_kmers_iter(*args, **kw))
 
     def compute_kmer_counts(self, seq_files, kmer_size, min_occs=None, max_occs=None,
                             counter_cap=None, single_strand=False, **ignore):
@@ -152,12 +163,18 @@ class KmcPy(object):
 
         seqs_ids_out = set()
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
-        for rec in _list_seq_recs(in_reads):
+        in_recs = _list_seq_recs(in_reads)
+
+        seq_occs_hist = collections.Counter()
+        mate_cnt = collections.Counter()
+
+        for rec in in_recs:
             seq = str(rec.seq)
             seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand)
             assert not single_strand
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() \
                             if kmer in db_kmers])
+            seq_occs_hist[seq_occs] += 1
 
             if rel_thresholds:
                 n_seq_kmers = len(seq)-kmer_size+1
@@ -167,7 +184,13 @@ class KmcPy(object):
                 read_min_occs_seq, read_max_occs_seq = (read_min_occs, read_max_occs)
 
             if read_min_occs_seq <= seq_occs <= read_max_occs_seq:
-                seqs_ids_out.add(_strip_mate_num(rec.id))
+                seqs_ids_out.add(rec.id)
+                mate_cnt[rec.id[-2:] if rec.id[-2:] in ('/1', '/2') else '/0'] += 1
+
+
+        log.debug('kmer occs histogram: %s', sorted(seq_occs_hist.items()))
+        log.debug('filter_seqs: %d of %d passed; mate_cnt=%s', len(seqs_ids_out), len(in_recs),
+                  mate_cnt)
 
         return seqs_ids_out
 
@@ -279,19 +302,21 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
+    log.debug('Running filte: kmer_db_args=%s filter_arg=%s', kmer_db_fixture.kmer_db_args, filter_args)
     filtered_seqs_ids_expected = kmcpy.filter_seqs(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
                                                    kmer_size=kmer_db_fixture.kmer_db_args.kmer_size,
                                                    single_strand=kmer_db_fixture.kmer_db_args.single_strand,
                                                    **vars(filter_args))
 
-    reads_file_out_ids = reads_file_out+'.ids.txt'
-    read_utils.read_names(reads_file_out, reads_file_out_ids)
-    reads_file_out_ids_normed = set(map(_strip_mate_num, util.file.slurp_file(reads_file_out_ids).strip().split()))
+    reads_file_out_ids_txt = reads_file_out+'.ids.txt'
+    read_utils.read_names(reads_file_out, reads_file_out_ids_txt)
+    reads_out_ids = util.file.slurp_file(reads_file_out_ids_txt).strip().split()
 
     log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
               kmer_db_fixture.kmer_db, reads_file, filter_opts)
+    def normed_read_ids(ids): return set(map(_strip_mate_num, ids))
 
-    assert reads_file_out_ids_normed == filtered_seqs_ids_expected
+    assert normed_read_ids(reads_out_ids) == normed_read_ids(filtered_seqs_ids_expected)
 
 # end: def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 
@@ -304,7 +329,7 @@ def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_f
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta.gz', '-k 7')], ids=_stringify, indirect=["kmer_db_fixture"])
 @pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
                                         'G5012.3.subset.bam'])
-@pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 70',
+@pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 93',
                                          '--dbMinOccs 4 --readMinOccsFrac .6',
                                          '--readMinOccsFrac .4 --readMaxOccsFrac .55'])
 def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
