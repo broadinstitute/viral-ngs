@@ -8,7 +8,7 @@ __author__ = 'Kristian Andersen <andersen@broadinstitute.org>, Daniel Park <dpar
 from snakemake.utils import makedirs
 import os, os.path, time
 
-localrules: download_reference_genome, download_lastal_sources, build_lastal_db
+localrules: download_reference_genome, download_lastal_sources
 
 rule all_annot:
     input:
