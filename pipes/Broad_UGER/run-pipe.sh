@@ -15,6 +15,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# if a conda environment is active, deactivate it
+if [[ ! -z "${CONDA_PREFIX}" ]]; then
+    echo "deactivating env: $CONDA_PREFIX"
+    source deactivate
+fi
 
 # load necessary Broad dotkits
 source /broad/software/scripts/useuse
