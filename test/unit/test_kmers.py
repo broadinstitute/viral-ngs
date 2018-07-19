@@ -396,26 +396,9 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     log.debug('op=%s', op)
     args = util.cmd.run_cmd(module=kmers, cmd='kmers_binary_op',
                             args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
-    log.debug('ARGS=%s', args)
+
     kmc_counts = tools.kmc.KmcTool().get_kmer_counts(db_result)
     kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
                                    result_counter_cap=args.result_counter_cap)
 
     assert kmc_counts == kmcpy_counts
-
-# to test:
-#   seqs with Ns, with non-standard letters; emit warning?
-#   empty/non-empty kmer db and filter seqs
-#   short/long kmers, with/without short-kmer optimization
-#   more/less memory, various memory modes
-#   note that if mark cmd arg types, then can auto-generate tests
-#   and at least regtest for consistency
-#   bams with read groups, with mix of single and paired reads
-#   records with revcomp-palindromic kmers, without
-#   random subset of a file
-#   can infer which args are inputs if they come from test/input
-#
-#   realistic test case
-#
-#   option to run valgrind and/or sanitized versions
-#
