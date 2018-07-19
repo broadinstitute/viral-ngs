@@ -929,8 +929,9 @@ def repack_tarballs(out_compressed_tarball, input_compressed_tarballs, extract_t
                             tar_out.addfile(fileinfo, fileobj=FileDiverter(fileinfo, fileobj, written_mirror_file=target_path))
                         # if this is not a file (dir, symlink, etc.) use the disk roundtrip since it's fast enough
                         else:
-                            tar_in.extract(fileinfo, path=extract_to_disk_path)
-                            tar_out.add(os.path.join(extract_to_disk_path, fileinfo.name))
+                            outfile = tar_in.extract(fileinfo, path=extract_to_disk_path)
+                            with pushd_popd(extract_to_disk_path):
+                                tar_out.add(fileinfo.name)
                         
                     else:
                         # alternative implementation:
