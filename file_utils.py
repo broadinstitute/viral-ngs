@@ -19,11 +19,11 @@ log = logging.getLogger(__name__)
 # ***  merge_tarballs   ***
 # ==============================
 
-def merge_tarballs(in_tarballs, out_tarball, threads, extract_to_disk_path=None, pipe_hint=None):
+def merge_tarballs(out_tarball, in_tarballs, threads=None, extract_to_disk_path=None, pipe_hint=None):
     ''' Merges separate tarballs into one tarball
         data can be piped in and/or out
     '''
-    util.file.repack_tarballs(in_tarballs, out_tarball, threads=threads, extract_to_disk_path=extract_to_disk_path, pipe_hint=pipe_hint)
+    util.file.repack_tarballs(out_tarball, in_tarballs, threads=threads, extract_to_disk_path=extract_to_disk_path, pipe_hint=pipe_hint)
     return 0
 def parser_merge_tarballs(parser=argparse.ArgumentParser()):
     parser.add_argument(

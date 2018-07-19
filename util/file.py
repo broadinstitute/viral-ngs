@@ -833,7 +833,7 @@ def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
         yield rec
 
 
-def repack_tarballs(input_compressed_tarballs, out_compressed_tarball, extract_to_disk_path=None, extract_numeric_owner=False, avoid_disk_roundtrip=True, ignore_zeros=True, pipe_hint=None, threads=None):
+def repack_tarballs(out_compressed_tarball, input_compressed_tarballs, extract_to_disk_path=None, extract_numeric_owner=False, avoid_disk_roundtrip=True, ignore_zeros=True, pipe_hint=None, threads=None):
     threads = util.misc.sanitize_thread_count(threads)
 
     def choose_compressor(filepath, threads=8):
@@ -856,6 +856,8 @@ def repack_tarballs(input_compressed_tarballs, out_compressed_tarball, extract_t
             compressor = ['cat']
             return_obj["decompress_cmd"] = compressor
             return_obj["compress_cmd"] = compressor
+        else:
+            raise IOError("An input file of unknown type was provided: %s" % filepath)
         return return_obj
 
     def create_containing_dirs(path):
@@ -939,11 +941,17 @@ def repack_tarballs(input_compressed_tarballs, out_compressed_tarball, extract_t
                     fileobj = tar_in.extractfile(fileinfo)
                     tar_out.addfile(fileinfo, fileobj=fileobj)
 
+                
                 fileinfo = tar_in.next()
-
+            pigz_ps.stdout.flush()
+            pigz_ps.wait()
+            tar_in.close()
             if pigz_ps.poll():
                 raise subprocess.CalledProcessError(pigz_ps.returncode, "Call error %s" % pigz_ps.returncode)
 
         tar_out.close()
+        out_compress_ps.stdin.flush()
+        out_compress_ps.stdin.close()
+        out_compress_ps.wait()
         if out_compress_ps.poll():
             raise subprocess.CalledProcessError(out_compress_ps.returncode, "Call error %s" % out_compress_ps.returncode)
