@@ -142,24 +142,22 @@ class KmcPy(object):
         are dropped, and kmer counts capped at `counter_cap`, if these args are given.
         """
         counts = collections.Counter(self._compute_kmers(_list_seqs_as_strs(seq_files), kmer_size, single_strand))
-        if any((min_occs, max_occs, counter_cap)):
-            counts = dict((kmer, min(count, counter_cap or count)) \
-                          for kmer, count in counts.items() \
-                          if (count >= (min_occs or count)) and \
-                          (count <= (max_occs or count)))
-        return counts
+        return self.filter_kmer_counts(counts=counts, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap)
 
-    def filter_kmers(self, db_kmer_counts, db_min_occs, db_max_occs):
-        log.debug('filtering %d kmers', len(db_kmer_counts))
-        result = {kmer for kmer, count in db_kmer_counts.items() if db_min_occs <= count <= db_max_occs}
-        log.debug('done filtering %d kmers, got %d', len(db_kmer_counts), len(result))
+    def filter_kmer_counts(self, counts, min_occs=None, max_occs=None, counter_cap=None, **ignore):
+        result = collections.Counter({kmer : min(count, counter_cap or count) \
+                                      for kmer, count in counts.items() \
+                                      if (count >= (min_occs or count)) and \
+                                      (count <= (max_occs or count))})
+        log.debug('filter_kmer_counts: len(counts)=%d min_occs=%s max_occs=%s counter_cap=%s len(result)=%d',
+                  len(counts), min_occs, max_occs, counter_cap, len(result))
         return result
 
     def filter_seqs(self, db_kmer_counts, in_reads, kmer_size, single_strand,
                     db_min_occs, db_max_occs, read_min_occs, read_max_occs,
                     read_min_occs_frac, read_max_occs_frac, **ignore):
-        log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
-        db_kmers= self.filter_kmers(db_kmer_counts=db_kmer_counts, db_min_occs=db_min_occs, db_max_occs=db_max_occs)
+        #log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
+        db_kmers = self.filter_kmer_counts(counts=db_kmer_counts, min_occs=db_min_occs, max_occs=db_max_occs).keys()
 
         seqs_ids_out = set()
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
@@ -194,6 +192,22 @@ class KmcPy(object):
 
         return seqs_ids_out
 
+    def binary_op(self, op, kmer_counts_1, kmer_counts_2, result_counter_cap=255):
+        assert isinstance(kmer_counts_1, collections.Counter)
+        assert isinstance(kmer_counts_2, collections.Counter)
+        if op == 'intersect':
+            result = kmer_counts_1 & kmer_counts_2
+        elif op == 'union':
+            result = collections.Counter({ k: (kmer_counts_1[k] + kmer_counts_2[k])
+                                           for k in(kmer_counts_1.keys() | kmer_counts_2.keys()) })
+        elif op == 'kmers_subtract':
+            result = collections.Counter(util.misc.subdict(kmer_counts_1, set(kmer_counts_1.keys()) - set(kmer_counts_2.keys())))
+        elif op == 'counters_subtract':
+            result = kmer_counts_1 - kmer_counts_2
+        else:
+            raise ValueError('Unknown operation: {}'.format(op))
+        return self.filter_kmer_counts(counts=result, counter_cap=result_counter_cap)
+
 # end: class KmcPy    
 
 kmcpy = KmcPy()
@@ -204,6 +218,37 @@ def _inp(fname):
 
 def _stringify(par): 
     return util.file.string_to_file_name(str(par))
+
+def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
+    """Build a database of kmers from given sequence file(s) using given options.
+
+    Args:
+       t_dir: dir where to build the kmer dbase
+       val_cache: a dict where results can be cached
+       seq_files: a string of sequence file name(s), space-separated
+       kmer_db_opts: options to build_kmer_db command, as one string
+    Returns:
+       an argparse.Namespace() with the following attrs:
+          kmer_db: path to the kmer db created from seq_files
+          kmc_kmer_counts: map from kmer to count, as computed by kmc
+          kmc_db_args: the result of parsing kmer_db_opts
+    """
+    key = (seq_files, kmer_db_opts)
+    if key in val_cache:
+        return val_cache[key]
+
+    # factor out this function and memoize it, or just implement memoization here.
+    # or the cache can itself be a module-level fixture object.
+
+    k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
+    seq_files = list(map(_inp, seq_files.split()))
+    kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
+                                    args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
+    kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
+    log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
+    return val_cache.setdefault(key, argparse.Namespace(kmer_db=k_db,
+                                                        kmc_kmer_counts=kmc_kmer_counts,
+                                                        kmer_db_args=kmer_db_args))
 
 KMER_DBS_EMPTY = [('empty.fasta', '')]
 
@@ -218,28 +263,17 @@ KMER_DBS_MEDIUM = [
     ('test-reads.bam test-reads-human.bam', '-k 17'),
 ]
 
-@pytest.fixture(scope='module', ids=_stringify)
-def kmer_db_fixture(request, tmpdir_module):
-    """Build a database of kmers from given sequence file(s) using given options.
+@pytest.fixture(scope='module')
+def dict_module():
+    return dict()
 
-    Fixture param: a 2-tuple (seq_files, kmer_db_opts)
-    Fixture return:
-       an argparse.Namespace() with the following attrs:
-          kmer_db: path to the kmer db created from seq_files
-          kmc_kmer_counts: map from kmer to count, as computed by kmc
-          kmc_db_args: the result of parsing kmer_db_opts
-    """
-    k_db = os.path.join(tmpdir_module, 'bld_kmer_db')
-    seq_files, kmer_db_opts = request.param
-    seq_files = list(map(_inp, seq_files.split()))
-    kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
-                                    args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
-    kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
-    log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', request.param, len(kmc_kmer_counts), k_db)
-    yield argparse.Namespace(kmer_db=k_db,
-                             kmc_kmer_counts=kmc_kmer_counts,
-                             kmer_db_args=kmer_db_args)
+@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL)
+def kmer_db_fixture(request, tmpdir_module, dict_module):
+    yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
 
+@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL)
+def kmer_db_fixture2(request, tmpdir_module, dict_module):
+    yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
 
 @pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL+KMER_DBS_MEDIUM,
                          ids=_stringify, indirect=["kmer_db_fixture"])
@@ -351,6 +385,26 @@ def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
     assert set(new_counts.keys()) == set(kmer_db_fixture.kmc_kmer_counts.keys())
     assert not new_counts  or  set(new_counts.values()) == set([set_to_val])
 
+
+@pytest.mark.parametrize("op", ('intersect', 'union', 'kmers_subtract', 'counters_subtract'))
+def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function):
+    if kmer_db_fixture.kmer_db_args.kmer_size != kmer_db_fixture2.kmer_db_args.kmer_size:
+        pytest.skip('can only do binary ops on kmers with same size')
+    db_result = os.path.join(tmpdir_function, 'op_result')
+    log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
+    log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
+    log.debug('op=%s', op)
+    args = util.cmd.run_cmd(module=kmers, cmd='kmers_binary_op',
+                            args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
+    log.debug('ARGS=%s', args)
+    kmc_counts = tools.kmc.KmcTool().get_kmer_counts(db_result)
+    kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
+                                   result_counter_cap=args.result_counter_cap)
+
+    assert len(kmc_counts) == len(kmcpy_counts)
+    assert kmc_counts.keys() == kmcpy_counts.keys()
+    assert kmc_counts == kmcpy_counts
+
 # to test:
 #   seqs with Ns, with non-standard letters; emit warning?
 #   empty/non-empty kmer db and filter seqs
@@ -364,4 +418,6 @@ def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
 #   can infer which args are inputs if they come from test/input
 #
 #   realistic test case
+#
+#   option to run valgrind and/or sanitized versions
 #

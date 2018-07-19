@@ -117,10 +117,12 @@ __commands__.append(('filter_by_kmers', parser_filter_by_kmers))
 
 # =========================
 
-def kmers_binary_op(op, kmer_db1, kmer_db2, kmer_db_out, threads=None):  # pylint: disable=invalid-name
+def kmers_binary_op(op, kmer_db1, kmer_db2, kmer_db_out,
+                    result_min_occs=1, result_max_occs=util.misc.MAX_INT32,
+                    result_counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, threads=None):  # pylint: disable=invalid-name
     """Perform a simple binary operation on kmer sets."""
 
-    tools.kmc.KmcTool().kmers_binary_op(op, kmer_db1, kmer_db2, kmer_db_out, threads=threads)
+    tools.kmc.KmcTool().kmers_binary_op(**locals())
 
 def parser_kmers_binary_op(parser=argparse.ArgumentParser()):
     """Create parser forkmers_binary_op"""
@@ -129,6 +131,12 @@ def parser_kmers_binary_op(parser=argparse.ArgumentParser()):
     parser.add_argument('kmer_db1', help='first kmer set')
     parser.add_argument('kmer_db2', help='second kmer set')
     parser.add_argument('kmer_db_out', help='output kmer db')
+    parser.add_argument('--resultMinOccs', dest='result_min_occs', type=int, default=1,
+                        help='from the result drop kmers with counts below this')
+    parser.add_argument('--resultMaxOccs', dest='result_max_occs', type=int, default=util.misc.MAX_INT32,
+                        help='from the result drop kmers with counts above this')
+    parser.add_argument('--resultCounterCap', dest='result_counter_cap', type=int, default=tools.kmc.DEFAULT_COUNTER_CAP,
+                        help='cap output counters at this value')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kmers_binary_op, split_args=True)
     return parser
@@ -140,7 +148,7 @@ __commands__.append(('kmers_binary_op', parser_kmers_binary_op))
 def kmers_set_counts(kmer_db_in, value, kmer_db_out, threads=None):
     """Copy the kmer database, setting all kmer counts in the output to the given value."""
 
-    tools.kmc.KmcTool().set_kmer_counts(kmer_db_in, value, kmer_db_out, threads=threads)
+    tools.kmc.KmcTool().set_kmer_counts(**locals())
 
 def parser_kmers_set_counts(parser=argparse.ArgumentParser()):
     """Create parser for kmers_set_counts"""
