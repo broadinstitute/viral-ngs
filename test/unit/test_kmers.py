@@ -198,8 +198,8 @@ class KmcPy(object):
         if op == 'intersect':
             result = kmer_counts_1 & kmer_counts_2
         elif op == 'union':
-            result = collections.Counter({ k: (kmer_counts_1[k] + kmer_counts_2[k])
-                                           for k in(kmer_counts_1.keys() | kmer_counts_2.keys()) })
+            result = collections.Counter({k: (kmer_counts_1[k] + kmer_counts_2[k])
+                                          for k in (set(kmer_counts_1.keys()) | set(kmer_counts_2.keys()))})
         elif op == 'kmers_subtract':
             result = collections.Counter(util.misc.subdict(kmer_counts_1, set(kmer_counts_1.keys()) - set(kmer_counts_2.keys())))
         elif op == 'counters_subtract':
@@ -401,8 +401,6 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
                                    result_counter_cap=args.result_counter_cap)
 
-    assert len(kmc_counts) == len(kmcpy_counts)
-    assert kmc_counts.keys() == kmcpy_counts.keys()
     assert kmc_counts == kmcpy_counts
 
 # to test:
