@@ -59,7 +59,11 @@ done
 # demux_plus workflow ID as a default input
 demux_plus_workflow_id=$(grep demux_plus $COMPILE_SUCCESS | cut -f 2)
 pushd pipes/WDL/dx-launcher
-sed "s/DEFAULT_DEMUX_WORKFLOW_ID/$demux_plus_workflow_id/" demux_launcher.yml > dxapp.yml
+cp consolidate_run_tarballs.yml dxapp.yml
+dx_id=$(./dx-yml-build -a --destination /build/$VERSION/ | jq -r ".id")
+echo -e "consolidate_run_tarballs\t$dx_id" >> $COMPILE_SUCCESS
+sed "s/DEFAULT_DEMUX_WORKFLOW_ID/$demux_plus_workflow_id/" demux_launcher.yml \
+  | sed "s/DEFAULT_CONSOLIDATE_RUN_TARBALLS_APPLET_ID/$dx_id/" > dxapp.yml
 dx_id=$(./dx-yml-build -a --destination /build/$VERSION/ | jq -r ".id")
 popd
 echo -e "demux_launcher\t$dx_id" >> $COMPILE_SUCCESS
