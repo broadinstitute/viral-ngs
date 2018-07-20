@@ -879,6 +879,7 @@ def repack_tarballs(out_compressed_tarball, input_compressed_tarballs, extract_t
             self.extract_numeric_owner = extract_numeric_owner
 
         def __del__(self):
+            self.written_mirror_file.flush()
             self.written_mirror_file.close()
 
             tar_in.chown(self.fileinfo, self.written_mirror_file.name, self.extract_numeric_owner)
@@ -916,7 +917,7 @@ def repack_tarballs(out_compressed_tarball, input_compressed_tarballs, extract_t
             fileinfo = tar_in.next()
             while fileinfo is not None:
                 if extract_to_disk_path:
-                    target_path = os.path.join(extract_to_disk_path, fileinfo.name).lstrip("/").rstrip("/")
+                    target_path = os.path.normpath(os.path.join(extract_to_disk_path, fileinfo.name).rstrip("/"))
                     containing_path = os.path.dirname(target_path)
                     create_containing_dirs(containing_path)
 
