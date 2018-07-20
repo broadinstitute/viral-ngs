@@ -26,7 +26,7 @@ import tools.samtools
 
 from test import make_slow_test_marker
 
-log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+_log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
@@ -155,14 +155,14 @@ class KmcPy(object):
                                       for kmer, count in counts.items() \
                                       if (count >= (min_occs or count)) and \
                                       (count <= (max_occs or count))})
-        log.debug('filter_kmer_counts: len(counts)=%d min_occs=%s max_occs=%s counter_cap=%s len(result)=%d',
+        _log.debug('filter_kmer_counts: len(counts)=%d min_occs=%s max_occs=%s counter_cap=%s len(result)=%d',
                   len(counts), min_occs, max_occs, counter_cap, len(result))
         return result
 
     def filter_seqs(self, db_kmer_counts, in_reads, kmer_size, single_strand,
                     db_min_occs, db_max_occs, read_min_occs, read_max_occs,
                     read_min_occs_frac, read_max_occs_frac, **ignore):
-        #log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
+        #_log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
         db_kmers = self.filter_kmer_counts(counts=db_kmer_counts, min_occs=db_min_occs, max_occs=db_max_occs).keys()
 
         seqs_ids_out = set()
@@ -192,9 +192,9 @@ class KmcPy(object):
                 mate_cnt[rec.id[-2:] if rec.id[-2:] in ('/1', '/2') else '/0'] += 1
 
 
-        log.debug('kmer occs histogram: %s', sorted(seq_occs_hist.items()))
-        log.debug('filter_seqs: %d of %d passed; mate_cnt=%s', len(seqs_ids_out), len(in_recs),
-                  mate_cnt)
+        _log.debug('kmer occs histogram: %s', sorted(seq_occs_hist.items()))
+        _log.debug('filter_seqs: %d of %d passed; mate_cnt=%s', len(seqs_ids_out), len(in_recs),
+                   mate_cnt)
 
         return seqs_ids_out
 
@@ -251,7 +251,7 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
     kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
-    log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
+    _log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
     return val_cache.setdefault(key, argparse.Namespace(kmer_db=k_db,
                                                         kmc_kmer_counts=kmc_kmer_counts,
                                                         kmer_db_args=kmer_db_args))
@@ -347,7 +347,7 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
-    log.debug('Running filte: kmer_db_args=%s filter_arg=%s', kmer_db_fixture.kmer_db_args, filter_args)
+    _log.debug('Running filte: kmer_db_args=%s filter_arg=%s', kmer_db_fixture.kmer_db_args, filter_args)
     filtered_seqs_ids_expected = kmcpy.filter_seqs(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
                                                    kmer_size=kmer_db_fixture.kmer_db_args.kmer_size,
                                                    single_strand=kmer_db_fixture.kmer_db_args.single_strand,
@@ -357,8 +357,8 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
     read_utils.read_names(reads_file_out, reads_file_out_ids_txt)
     reads_out_ids = util.file.slurp_file(reads_file_out_ids_txt).strip().split()
 
-    log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
-              kmer_db_fixture.kmer_db, reads_file, filter_opts)
+    _log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
+               kmer_db_fixture.kmer_db, reads_file, filter_opts)
     def normed_read_ids(ids): return set(map(_strip_mate_num, ids))
 
     assert normed_read_ids(reads_out_ids) == normed_read_ids(filtered_seqs_ids_expected)
@@ -397,9 +397,9 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     if kmer_db_fixture.kmer_db_args.kmer_size != kmer_db_fixture2.kmer_db_args.kmer_size:
         pytest.skip('can only do binary ops on kmers with same size')
     db_result = os.path.join(tmpdir_function, 'op_result')
-    log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
-    log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
-    log.debug('op=%s', op)
+    _log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
+    _log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
+    _log.debug('op=%s', op)
     args = util.cmd.run_cmd(module=kmers, cmd='kmers_binary_op',
                             args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
 
