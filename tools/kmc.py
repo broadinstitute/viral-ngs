@@ -27,8 +27,9 @@ import util.misc
 TOOL_NAME = 'kmc'
 TOOL_VERSION = '3.1.1rc1'
 
-log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+_log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+_chk = util.misc.chk
 
 DEFAULT_KMER_SIZE = 25
 DEFAULT_COUNTER_CAP = 255         # default for "cap counter values at" params
@@ -105,7 +106,7 @@ class KmcTool(tools.Tool):
             args = ['-v']
 
             input_fmt_opts_set = set(map(self._get_file_format_opt, seq_files))
-            assert len(input_fmt_opts_set) == 1, "All input files must be of the same format"
+            _chk(len(input_fmt_opts_set) == 1, "All input sequence files must be in the same format")
             input_fmt_opt = list(input_fmt_opts_set)[0]
 
             args += '-f{} -k{} -ci{} -cx{} -cs{} -m{} -t{}'.format(input_fmt_opt, kmer_size, min_occs, max_occs,
@@ -122,23 +123,23 @@ class KmcTool(tools.Tool):
 
             args += ['@'+seq_file_list, kmer_db, t_dir]
             tool_cmd = [self.install_and_get_path()] + args
-            log.info('Building kmer database with command: %s', ' '.join(tool_cmd))
+            _log.info('Building kmer database with command: %s', ' '.join(tool_cmd))
             subprocess.check_call(tool_cmd)
-            assert os.path.isfile(kmer_db+'.kmc_pre') and os.path.isfile(kmer_db+'.kmc_suf'), \
-                'kmer database files not created: {}'.format(kmer_db)
+            _chk(os.path.isfile(kmer_db+'.kmc_pre') and os.path.isfile(kmer_db+'.kmc_suf'),
+                'kmer database files not created: {}'.format(kmer_db))
 
     def execute(self, args, threads=None, return_output=False):  # pylint: disable=arguments-differ
         """Run kmc_tools with the given args"""
         threads = util.misc.sanitize_thread_count(threads)
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
-        log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
+        _log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
 
         result = None
         if not return_output:
             subprocess.check_call(tool_cmd)
         else:
             result = util.misc.run_and_print(tool_cmd, buffered=False, check=True, silent=True).stdout.decode('utf-8')
-        log.info('Done running kmc_tools command: %s', ' '.join(tool_cmd))
+        _log.info('Done running kmc_tools command: %s', ' '.join(tool_cmd))
         return result
 
 
@@ -147,7 +148,7 @@ class KmcTool(tools.Tool):
         self.execute('transform {} -ci{} -cx{} dump {}'.format(self._kmer_db_name(kmer_db),
                                                                min_occs, max_occs, out_kmers).split(),
                      threads=threads)
-        assert os.path.isfile(out_kmers)
+        _chk(os.path.isfile(out_kmers), 'dump_kmer_counts: output file not created')
 
     def read_kmer_counts(self, kmer_counts_txt):
         """Read kmer counts from a file written by dump_kmer_counts, as collections.Counter"""
@@ -216,14 +217,16 @@ class KmcTool(tools.Tool):
           hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
           threads: use this many threads
         """
-        log.debug('FILTER_READS: locals=%s dbinfo=%s', locals(), self.get_kmer_db_info(kmer_db))
+        _log.debug('FILTER_READS: locals=%s dbinfo=%s', locals(), self.get_kmer_db_info(kmer_db))
 
         abs_thresholds = (read_min_occs, read_max_occs) != (0, util.misc.MAX_INT32)
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
-        assert not (abs_thresholds and rel_thresholds), \
-            "Mixing absolute and relative thresholds for kmer content not currently supported"
-        assert 0 <= read_min_occs <= read_max_occs <= util.misc.MAX_INT32
-        assert 0.0 <= read_min_occs_frac <= read_max_occs_frac <= 1.0
+        _chk(not (abs_thresholds and rel_thresholds),
+             "Mixing absolute and relative thresholds for kmer content not currently supported")
+        _chk(0 <= read_min_occs <= read_max_occs <= util.misc.MAX_INT32,
+             'Invalid kmer contents thresholds')
+        _chk(0.0 <= read_min_occs_frac <= read_max_occs_frac <= 1.0,
+             'Invalid kmer contents thresholds')
 
         in_reads_type = util.file.uncompressed_file_type(in_reads)
         _in_reads = in_reads
@@ -246,7 +249,8 @@ class KmcTool(tools.Tool):
             in_reads_fmt = 'q' if in_reads_type in ('.fq', '.fastq') else 'a'
 
             if os.path.getsize(self._kmer_db_name(kmer_db)+'.kmc_suf') == 8:
-                assert self.get_kmer_db_info(kmer_db).total_kmers == 0
+                _chk(self.get_kmer_db_info(kmer_db).total_kmers == 0,
+                     'Something odd: did kmc file format change?')
                 # kmc has a bug filtering on empty kmer databases:
                 # https://github.com/refresh-bio/KMC/issues/86
                 if read_min_occs > 0 or read_min_occs_frac > 0.0:
@@ -265,7 +269,7 @@ class KmcTool(tools.Tool):
                              threads=threads)
 
             if in_reads_type == '.bam':
-                assert out_reads.endswith('.bam')
+                _chk(out_reads.endswith('.bam'), 'output from .bam to non-.bam not yet supported')
                 passing_read_names = os.path.join(t_dir, 'passing_read_names.txt')
                 read_utils.fasta_read_names(_out_reads, passing_read_names)
                 tools.picard.FilterSamReadsTool().execute(inBam=in_reads, exclude=False,
@@ -284,7 +288,7 @@ class KmcTool(tools.Tool):
                       '-ci{}'.format(result_min_occs),
                       '-cx{}'.format(result_max_occs),
                       '-cs{}'.format(result_counter_cap)], threads=threads)
-        assert self.is_kmer_db(kmer_db_out)
+        _chk(self.is_kmer_db(kmer_db_out), 'kmer_binary_op: output not created')
 
     def set_kmer_counts(self, kmer_db_in, value, kmer_db_out, threads=None):
         """Create a copy of the kmer database with all counts set to specified value"""
@@ -292,6 +296,6 @@ class KmcTool(tools.Tool):
         kmer_db_in, kmer_db_out = map(self._kmer_db_name, (kmer_db_in, kmer_db_out))
         # db1_min_occs, db1_max_occs, db2_min_occs, db2_max_occs, db_out_min_occs, db_out_max_occs,
         self.execute(['transform', kmer_db_in, 'set_counts', value, kmer_db_out], threads=threads)
-        assert self.is_kmer_db(kmer_db_out)
+        _chk(self.is_kmer_db(kmer_db_out), 'set_kmer_counts: output not created')
 
 # end: class KmcTool(tools.Tool)

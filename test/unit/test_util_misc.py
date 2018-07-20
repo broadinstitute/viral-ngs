@@ -271,3 +271,13 @@ def test_subdict(iter_d, iter_subset):
         assert subdict(d, {}) == {}
         assert subdict(d, d.keys()) == d
         assert subdict(d, list(d.keys())*2) == d
+
+def test_chk():
+    chk = util.misc.chk
+    chk(True, 'no error')
+    with pytest.raises(RuntimeError):
+        chk(False)
+    with pytest.raises(RuntimeError):
+        chk(2 == 3, 'Something wrong')
+    with pytest.raises(TypeError):
+        chk(isinstance(None, int), 'Expected an int', TypeError)

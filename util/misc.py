@@ -613,3 +613,10 @@ def subdict(d, keys):
     d = dict(d)
     keys = set(keys)
     return {k: v for k, v in d.items() if k in keys}
+
+def chk(condition, message='Check failed', exc=RuntimeError):
+    """Check a condition, raise an exception if condition is False."""
+    if not condition:
+        raise exc(message)
+
+    
