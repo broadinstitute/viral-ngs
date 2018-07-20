@@ -167,6 +167,9 @@ class KmcTool(tools.Tool):
     def get_kmer_db_info(self, kmer_db):
         """Return params of a kmer db.
         See https://github.com/refresh-bio/KMC/issues/83
+
+        Returns: an argparse.Namespace() with attributes kmer_size, min_occs, max_occs,
+           counter_size_bytes, and total_kmers.
         """
         output = self.execute(['info', self._kmer_db_name(kmer_db)], return_output=True, threads=1)
         db_info = dict(re.split('\\s+:\\s+', line.strip()) for line in output.strip().split('\n'))

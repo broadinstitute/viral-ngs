@@ -6,12 +6,9 @@ import os
 import sys
 import collections
 import argparse
-import inspect
 import logging
 import itertools
-import traceback
-
-from test import assert_equal_contents, assert_equal_bam_reads, make_slow_test_marker
+import unittest
 
 import Bio.SeqIO
 from Bio.Seq import Seq
@@ -26,6 +23,8 @@ import util.file
 import util.misc
 import tools.kmc
 import tools.samtools
+
+from test import make_slow_test_marker
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 

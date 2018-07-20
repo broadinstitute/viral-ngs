@@ -15,7 +15,7 @@ The viral-ngs package installed by `conda install viral-ngs` from the [broad-vir
 #### Adding a new top-level python script
 When adding a new top-level python script, say newscript.py:
 - in docs/ create newscript.rst, and add newscript to docs/cmdline.rst
-- in the unit test for it, test/unit/test_newscript.py, add a TestCommandHelp class to test all commands (see assembly.py for an example)
+- in the unit test for it, test/unit/test_newscript.py, import unittest and add a TestCommandHelp class to test all commands (see assembly.py for an example)
 - in .travis.yml, to each PYTEST_ADDOPTS line add --cov newscript to turn on coverage measurement
 - in packaging/conda-recipe/viral-ngs-template/meta.yaml, under test commands, add a test command for newscript.py
 
