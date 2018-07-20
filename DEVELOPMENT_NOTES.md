@@ -12,6 +12,13 @@ When adding a new tool or dependency to viral-ngs, check to see if a conda packa
 #### Changing dependency versions
 The viral-ngs package installed by `conda install viral-ngs` from the [broad-viral channel](https://anaconda.org/broad-viral/viral-ngs) depends on a conda build recipe distributed in this repository. The recipe files source the various Python and binary depedencies of viral-ngs as conda packages, including version numbers, from the `requirements-*.txt` files within this repository.
 
+#### Adding a new top-level python script
+When adding a new top-level python script, say newscript.py:
+- in docs/ create newscript.rst, and add newscript to docs/cmdline.rst
+- in the unit test for it, test/unit/test_newscript.py, add a TestCommandHelp class to test all commands (see assembly.py for an example)
+- in .travis.yml, to each PYTEST_ADDOPTS line add --cov newscript to turn on coverage measurement
+- in packaging/conda-recipe/viral-ngs-template/meta.yaml, under test commands, add a test command for newscript.py
+
 ### (Automated) testing 
 [Travis CI](https://travis-ci.org/broadinstitute/viral-ngs) performs automated unit and integration tests for viral-ngs on each branch and pull request. Unit tests are run on each new branch commit, and longer integration tests are performed on pull requests to help ensure the stability of the `master` branch. Pull requests are gated to ensure merging to `master` is allowed only if all tests pass. The Travis configuration is specified in `.travis.yml`, and relies on files stored within `viral-ngs/travis/`.
 

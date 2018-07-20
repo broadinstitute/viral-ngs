@@ -9,9 +9,11 @@ Command line tools
    interhost
    intrahost
    read_utils
+   kmers
    reports
    illumina
    broad_utils
    ncbi
+   
 
 

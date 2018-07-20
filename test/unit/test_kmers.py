@@ -31,6 +31,13 @@ log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
+class TestCommandHelp(unittest.TestCase):
+
+    def test_help_parser_for_each_command(self):
+        for cmd_name, parser_fun in kmers.__commands__:
+            parser = parser_fun(argparse.ArgumentParser())
+            helpstring = parser.format_help()
+
 #################################
 # Some general utils used below #
 #################################
