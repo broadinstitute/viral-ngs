@@ -4,10 +4,12 @@ __author__ = "tomkinsc@broadinstitute.org"
 
 # built-ins
 import os
+import sys
 import tempfile
 import unittest
 import argparse
 import tarfile
+import subprocess
 
 # module-specific
 import file_utils
@@ -49,6 +51,43 @@ class TestTarballMerger(TestCaseWithTmp):
         for i in range(len(raw_files)):
             inf = os.path.join(self.input_dir,"raw-input",raw_files[i])
             outf = os.path.join(temp_dir,raw_files[i])
+
+            assert_equal_contents(self, inf, outf)
+
+
+    def test_merge_with_extract_repack_from_disk(self):
+        """
+            Simple round-trip test
+        """
+        temp_dir = tempfile.gettempdir()
+        raw_files = ["file{}".format(x) for x in range(1,5)]
+
+        input_files = [os.path.join(self.input_dir, "compressed-input", x+".tar.gz") for x in raw_files]
+        
+
+        out_tarball_file = os.path.join(temp_dir,"out.tar.gz")
+        out_extracted_path = os.path.join(temp_dir,"extracted")
+
+        util.file.repack_tarballs( out_tarball_file,
+                                    input_files,
+                                    extract_to_disk_path=out_extracted_path,
+                                    avoid_disk_roundtrip=False
+                                    )
+
+        tb = tarfile.open(out_tarball_file)
+        tb.extractall(path=temp_dir)
+
+        # inspect merged
+        for i in range(len(raw_files)):
+            inf = os.path.join(self.input_dir,"raw-input",raw_files[i])
+            outf = os.path.join(temp_dir,raw_files[i])
+
+            assert_equal_contents(self, inf, outf)
+
+        # inspect extracted
+        for i in range(len(raw_files)):
+            inf = os.path.join(self.input_dir,"raw-input",raw_files[i])
+            outf = os.path.join(out_extracted_path,raw_files[i])
 
             assert_equal_contents(self, inf, outf)
 
