@@ -852,7 +852,6 @@ def repack_tarballs(out_compressed_tarball,
             return_obj["decompress_cmd"] = compressor + ["-dc"]
             return_obj["compress_cmd"] = compressor + ["-c"]
         elif re.search(r'\.?bz2$', filepath):
-            #compressor = 'lbzip2 {threads}'.format(threads="-n "+str(threads) if threads else "")
             compressor = 'lbzip2 {threads}'.format(threads="-n "+str(threads) if threads else "").split()
             return_obj["decompress_cmd"] = compressor + ["-dc"]
             return_obj["compress_cmd"] = compressor + ["-c"]
