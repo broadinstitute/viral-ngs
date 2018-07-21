@@ -31,7 +31,7 @@ runSpec:
   code: |
     #!/bin/bash
 
-    consolidate_tars() {
+    main() {
       set -ex -o pipefail
 
       # sequentially unpack the run tarballs
