@@ -146,7 +146,7 @@ runSpec:
         fi
         subjob=$(bash -e -o pipefail -c "$runcmd")
         set -x
-        run_tarball="$subjob:run_tarball"
+        run_tarball="$subjob:consolidated_run_tarball"
       else
         run_tarball=$(cat tar_file_ids | tr -d '\n')
       fi
