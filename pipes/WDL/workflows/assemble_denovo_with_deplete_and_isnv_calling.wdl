@@ -4,12 +4,7 @@ import "tasks_intrahost.wdl" as intrahost
 
 workflow assemble_denovo_with_deplete_and_isnv_calling {
   
-  File raw_reads_unmapped_bam
-
-  call taxon_filter.deplete_taxa {
-    input:
-      raw_reads_unmapped_bam = raw_reads_unmapped_bam
-  }
+  call taxon_filter.deplete_taxa
 
   call taxon_filter.filter_to_taxon {
     input:

@@ -3,12 +3,7 @@ import "assembly.wdl" as assembly
 
 workflow assemble_denovo_with_deplete {
   
-  File raw_reads_unmapped_bam
-
-  call taxon_filter.deplete_taxa {
-    input:
-      raw_reads_unmapped_bam = raw_reads_unmapped_bam
-  }
+  call taxon_filter.deplete_taxa
 
   call taxon_filter.filter_to_taxon {
     input:
