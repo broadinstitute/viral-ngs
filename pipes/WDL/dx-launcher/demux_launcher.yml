@@ -137,7 +137,7 @@ runSpec:
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
       if [ "$(cat tar_file_ids | wc -l)" -gt 1 ]; then
         # if there are multiple run tarballs, launch a subjob to consolidate them
-        runcmd="dx run $consolidate_run_tarballs_applet_id --instance-type=$tar_consolidation_instance_size -i upload_sentinel_record=$(dx-jobutil-parse-link "$record_id") -i folder=$folder -i run_id=$run_id -y --brief"
+        runcmd="dx run $consolidate_run_tarballs_applet_id --instance-type=$tar_consolidation_instance_size -i upload_sentinel_record=$(dx-jobutil-parse-link "$upload_sentinel_record") -i folder=$folder -i run_id=$run_id -y --brief"
         echo "$runcmd"
         set +x
         if [ -n "$api_token" ]; then
