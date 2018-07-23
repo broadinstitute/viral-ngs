@@ -19,6 +19,7 @@ import sys
 import io
 import csv
 import inspect
+import tarfile
 
 import util.cmd
 import util.misc
@@ -830,3 +831,125 @@ def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
             }
         rec = SeqRecord(jseq, id=rid, description='', letter_annotations=labbrevs)
         yield rec
+
+
+def repack_tarballs(out_compressed_tarball, 
+                    input_compressed_tarballs, 
+                    extract_to_disk_path=None, 
+                    extract_numeric_owner=False, 
+                    avoid_disk_roundtrip=True, 
+                    ignore_zeros=True, 
+                    pipe_hint_in=None, 
+                    pipe_hint_out=None, 
+                    threads=None):
+    threads = util.misc.sanitize_thread_count(threads)
+
+    def choose_compressor(filepath, threads=8):
+        return_obj = {}
+        filepath = filepath.lower()
+        if re.search(r'(\.?tgz|\.?gz)$', filepath):
+            compressor = 'pigz {threads}'.format(threads="-p "+str(threads) if threads else "").split()
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?bz2$', filepath):
+            compressor = 'lbzip2 {threads}'.format(threads="-n "+str(threads) if threads else "").split()
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?lz4$', filepath):
+            compressor = ['lz4']
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?tar$', filepath):
+            compressor = ['cat']
+            return_obj["decompress_cmd"] = compressor
+            return_obj["compress_cmd"] = compressor
+        else:
+            raise IOError("An input file of unknown type was provided: %s" % filepath)
+        return return_obj
+
+    class FileDiverter(object):
+        """
+            This reads bytes from a TarInfo file stream, writes them to a disk file
+            and returns the buffered bytes as they are read
+        """
+        def __init__(self, fileinfo, fileobj, written_mirror_file=None, extract_numeric_owner=False):
+            self.written_mirror_file = open(written_mirror_file,"wb")
+            self.fileinfo = fileinfo
+            self.fileobj = fileobj
+            self.extract_numeric_owner = extract_numeric_owner
+
+        def __del__(self):
+            self.written_mirror_file.close()
+
+            tar_in.chown(self.fileinfo, self.written_mirror_file.name, self.extract_numeric_owner)
+            if not self.fileinfo.issym():
+                tar_in.chmod(self.fileinfo, self.written_mirror_file.name)
+                tar_in.utime(self.fileinfo, self.written_mirror_file.name)
+
+        def read(self, size):
+            assert size is not None
+            
+            buf = self.fileobj.read(size)
+            self.written_mirror_file.write(buf)
+            return buf
+
+    if extract_to_disk_path and not os.path.isdir(extract_to_disk_path):
+        mkdir_p(extract_to_disk_path)
+
+    if out_compressed_tarball == "-":
+        if not pipe_hint_out:
+            raise IOError("cannot autodetect compression for stdoud unless pipeOutHint provided")
+        compressor = choose_compressor(pipe_hint_out)["compress_cmd"]
+        outfile = None
+    else:
+        compressor =choose_compressor(out_compressed_tarball)["compress_cmd"]
+        outfile = open(out_compressed_tarball, "w")
+
+    out_compress_ps = subprocess.Popen(compressor, stdout=sys.stdout if out_compressed_tarball == "-" else outfile, stdin=subprocess.PIPE)
+
+    tar_out = tarfile.open(fileobj=out_compress_ps.stdin, mode="w|")
+
+    for in_compressed_tarball in input_compressed_tarballs:
+        if in_compressed_tarball != "-":
+            pigz_ps = subprocess.Popen(choose_compressor(in_compressed_tarball)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE)
+        else:
+            if not pipe_hint_in:
+                raise IOError("cannot autodetect compression for stdin unless pipeInHint provided")
+            pigz_ps = subprocess.Popen(choose_compressor(pipe_hint_in)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE, stdin=sys.stdin)
+        tar_in = tarfile.open(fileobj=pigz_ps.stdout, mode="r|", ignore_zeros=True)
+
+        fileinfo = tar_in.next()
+        while fileinfo is not None:
+            if extract_to_disk_path:
+                target_path = os.path.normpath(os.path.join(extract_to_disk_path, fileinfo.name).rstrip("/"))
+                containing_path = os.path.dirname(target_path)
+                mkdir_p(containing_path)
+
+                if avoid_disk_roundtrip and fileinfo.isreg():
+                    # avoid disk round trip for regular files (don't re-read from disk to write to new tar)
+                    fileobj = tar_in.extractfile(fileinfo)
+                    tar_out.addfile(fileinfo, fileobj=FileDiverter(fileinfo, fileobj, written_mirror_file=target_path))
+                else:
+                    # write  to disk, add to new tarball from disk
+                    outfile = tar_in.extract(fileinfo, path=extract_to_disk_path)
+                    with pushd_popd(extract_to_disk_path):
+                        tar_out.add(fileinfo.name)
+            else:
+                # if we're not extracting to disk, stream directly between tarballs
+                fileobj = tar_in.extractfile(fileinfo)
+                tar_out.addfile(fileinfo, fileobj=fileobj)
+
+            fileinfo = tar_in.next()
+        pigz_ps.wait()
+        tar_in.close()
+        if pigz_ps.returncode != 0:
+            raise subprocess.CalledProcessError(pigz_ps.returncode, "Call error %s" % pigz_ps.returncode)
+
+    tar_out.close()
+    out_compress_ps.stdin.close()
+    out_compress_ps.wait()
+    if out_compress_ps.returncode != 0:
+        raise subprocess.CalledProcessError(out_compress_ps.returncode, "Call error %s" % out_compress_ps.returncode)
+    
+    if outfile is not None:
+        outfile.close()
