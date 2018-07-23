@@ -18,7 +18,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'bwa'
-TOOL_VERSION = '0.7.15'
+TOOL_VERSION = '0.7.17'
 
 log = logging.getLogger(__name__)
 
