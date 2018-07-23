@@ -1,7 +1,7 @@
 LOCUS       JQ610682                1089 bp    RNA     linear   VRL 31-JAN-2014
 DEFINITION  Orungo virus isolate UGMP 359 segment 8, complete sequence.
 ACCESSION   JQ610682
-VERSION     JQ610682.1  GI:421991512
+VERSION     JQ610682.1
 KEYWORDS    .
 SOURCE      Orungo virus (ORUV)
   ORGANISM  Orungo virus
@@ -45,7 +45,6 @@ FEATURES             Location/Qualifiers
                      /codon_start=1
                      /product="NS2"
                      /protein_id="AFX73394.1"
-                     /db_xref="GI:421991513"
                      /translation="MAQEVKRKFTRTVCIYDPQNRTFCGRSAAMVCNSYYTIKMGRTT
                      QCGVSPVPVPKSYVLEIPDVGSYRILDGQDSISVIVTETGVEATSERWEEWKFEGVNC
                      VPMVVQTEIGKGLIDMEIKFSKGMGLVKPYVKNEVSRTEIPRLPGASVIDTPIRDYRQ
@@ -53,10 +52,6 @@ FEATURES             Location/Qualifiers
                      NWDQPTDSDDEDEESKRVTTQSNADTEEQVTFEDCITDQYFSKTGEFAKKYPEMLAGL
                      SAKMPSETGRFTKILTTRKAQWNNVPLFELDPNGFTYHFSKLGNSTRIFCVQRDLSYM
                      VLPAGQGLK"
-     misc_feature    26..1042
-                     /note="Bluetongue virus non-structural protein NS2;
-                     Region: BTV_NS2; pfam04514"
-                     /db_xref="CDD:113290"
 ORIGIN      
         1 gtaaaaaatc tcctctcttt tcacgatggc tcaagaagtt aagagaaagt tcactagaac
        61 agtgtgcatc tatgatccac aaaatcgcac attctgtggt cgaagtgccg cgatggtgtg
