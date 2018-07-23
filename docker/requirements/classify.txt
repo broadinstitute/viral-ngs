@@ -1,6 +1,6 @@
 blast=2.7.1
 bmtagger=3.101
-bwa=0.7.15
+bwa=0.7.17
 cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
 diamond=0.9.10
