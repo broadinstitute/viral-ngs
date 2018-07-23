@@ -44,7 +44,7 @@ runSpec:
 
       # tar the consolidated directory and upload
       # TODO: consider zstd/lz4
-      dx mkdir -p "$run_id"
-      tar_id=$(tar c -C run/ . | pigz -c | dx upload --brief -p --destination $(printf "%s/%s.tar.gz" "$run_id" "$run_id") -)
+      dx mkdir -p "$run_id/runs"
+      tar_id=$(tar c -C run/ . | pigz -c | dx upload --brief -p --destination $(printf "%s/runs/%s.tar.gz" "$run_id" "$run_id") -)
       dx-jobutil-add-output consolidated_run_tarball "$tar_id"
     }
