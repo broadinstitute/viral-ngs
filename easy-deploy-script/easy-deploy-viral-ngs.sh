@@ -283,13 +283,13 @@ function install_tools(){
         fi
     fi
 
-    # if the gatk jar file exists, call gatk-register
+    # if the gatk jar file exists, call gatk3-register
     if [ -e "$GATK_JAR_PATH" ]; then
         echo "GATK found: $GATK_JAR_PATH"
-        gatk-register $GATK_JAR_PATH
+        gatk3-register $GATK_JAR_PATH
     else
         echo "GATK jar could not be found on this system for GATK version $EXPECTED_GATK_VERSION"
-        echo "Please activate the viral-ngs conda environment and 'gatk-register /path/to/GenomeAnalysisTK.jar'"
+        echo "Please activate the viral-ngs conda environment and 'gatk3-register /path/to/GenomeAnalysisTK.jar'"
         exit 0
     fi
 

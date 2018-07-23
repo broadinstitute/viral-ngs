@@ -52,12 +52,14 @@ def _seq_chunks(seq, n):
 def _fetch_from_nuccore(accessionList, destinationDir, emailAddress,
                         forceOverwrite=False, rettype="fasta", retmode="text",
                         fileExt=None, combinedFilePrefix=None, removeSeparateFiles=False,
-                        chunkSize=1):
+                        chunkSize=1, api_key=None):
     """
         This function downloads and saves files from NCBI nuccore.
     """
     db = "nuccore"
     Entrez.email = emailAddress
+    if api_key is not None:
+        Entrez.api_key = api_key
     Entrez.tool = "https://github.com/broadinstitute/viral-ngs"
 
     maxChunkSize = 500
@@ -181,10 +183,11 @@ def fetch_fastas_from_genbank(
         fileExt=None,
         rettype="fasta",
         retmode="text",
-        chunkSize=1):
+        chunkSize=1, 
+        api_key=None):
     return _fetch_from_nuccore(
         accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
-        removeSeparateFiles, chunkSize)
+        removeSeparateFiles, chunkSize, api_key=api_key)
 
 
 def fetch_feature_tables_from_genbank(
@@ -197,10 +200,11 @@ def fetch_feature_tables_from_genbank(
         fileExt=None,
         rettype="ft",
         retmode="text",
-        chunkSize=1):
+        chunkSize=1,
+        api_key=None):
     return _fetch_from_nuccore(
         accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
-        removeSeparateFiles, chunkSize)
+        removeSeparateFiles, chunkSize, api_key=api_key)
 
 
 def fetch_full_records_from_genbank(
@@ -213,7 +217,8 @@ def fetch_full_records_from_genbank(
         fileExt=None,
         rettype="gb",
         retmode="text",
-        chunkSize=1):
+        chunkSize=1,
+        api_key=None):
     return _fetch_from_nuccore(
         accessionList, destinationDir, emailAddress, forceOverwrite, rettype, retmode, fileExt, combinedFilePrefix,
-        removeSeparateFiles, chunkSize)
+        removeSeparateFiles, chunkSize, api_key=api_key)
