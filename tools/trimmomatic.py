@@ -8,7 +8,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = "trimmomatic"
-TOOL_VERSION = "0.36"
+TOOL_VERSION = "0.38"
 
 _log = logging.getLogger(__name__)
 
