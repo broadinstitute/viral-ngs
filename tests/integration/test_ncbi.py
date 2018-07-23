@@ -35,10 +35,9 @@ class TestNcbiFetch(TestCaseWithTmp):
         self.myInputDir = util.file.get_test_input_path(self)
 
     def perform_download_and_check(self, parser_func, additional_args, expected_files, null_files):
+        temp_dir = tempfile.gettempdir()
 
-        tempDir = tempfile.gettempdir()
-
-        args = ["viral-ngs-test@example.com", tempDir]
+        args = ["viral-ngs-test@example.com", temp_dir]
         args.extend(self.accessions)
         args.extend(additional_args)
 
@@ -48,14 +47,14 @@ class TestNcbiFetch(TestCaseWithTmp):
         # check that each file that each expected file was downloaded
         # and that the contents match what they should be
         for fileName in expected_files:
-            createdFilePath = os.path.join(tempDir, fileName)
+            createdFilePath = os.path.join(temp_dir, fileName)
             log.info("createdFilePath: {}".format(createdFilePath))
             assert os.path.exists(
                 createdFilePath), "File that should have been created does not exist: %s" % createdFilePath
             self.assertEqualContents(createdFilePath, os.path.join(self.myInputDir, fileName))
 
         for fileName in null_files:
-            shouldNotExistFilePath = os.path.join(tempDir, fileName)
+            shouldNotExistFilePath = os.path.join(temp_dir, fileName)
             assert not os.path.exists(
                 shouldNotExistFilePath), "File exists but it should not: %s" % shouldNotExistFilePath
 

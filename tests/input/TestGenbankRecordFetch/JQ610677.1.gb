@@ -1,7 +1,7 @@
 LOCUS       JQ610677                2781 bp    RNA     linear   VRL 31-JAN-2014
 DEFINITION  Orungo virus isolate UGMP 359 segment 3, complete sequence.
 ACCESSION   JQ610677
-VERSION     JQ610677.1  GI:421991502
+VERSION     JQ610677.1
 KEYWORDS    .
 SOURCE      Orungo virus (ORUV)
   ORGANISM  Orungo virus
@@ -45,7 +45,6 @@ FEATURES             Location/Qualifiers
                      /codon_start=1
                      /product="VP3"
                      /protein_id="AFX73389.1"
-                     /db_xref="GI:421991503"
                      /translation="MAHADAKGSDPEREALRKNPYLDGDVLGTAGGQVLSVFALTEIL
                      QKVRQTQAELAAHAIDLDGPVPEITGVIKKIAELVDTVPYEVRDSPPISYKTLSMQSR
                      DFVIQVDQYYEQISQIGGDVGEDEPMEFYKTMLEKVRYLRKSGAFILRGIKTRDYRGN
@@ -62,10 +61,6 @@ FEATURES             Location/Qualifiers
                      PPRLLITNYDYNVALLQANLGQFKSALRRILDDGGWVMFGGMLRNVRLKIYDSKPGED
                      VLSELPYLYSEKVENGLRFVSLKYARRATIYFLMYKVEYSNTPDALISVNPTYTMTKI
                      YTNKRLVRKVRSPDVLNIVNKRVVAYKTKMRLIDITSALRLGVKLAAPTV"
-     misc_feature    72..2735
-                     /note="Orbivirus VP3 (T2) protein; Region: Orbi_VP3;
-                     pfam01700"
-                     /db_xref="CDD:145054"
 ORIGIN      
         1 gtatatattc cttcgcgatg gcgcatgcgg atgctaaagg aagtgatccg gagagagagg
        61 cgttgaggaa gaacccttat ctagatggag acgtcttggg aaccgcaggc ggccaagttt
