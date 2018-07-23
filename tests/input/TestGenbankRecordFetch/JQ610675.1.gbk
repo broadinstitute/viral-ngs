@@ -1,7 +1,7 @@
 LOCUS       JQ610675                3942 bp    RNA     linear   VRL 31-JAN-2014
 DEFINITION  Orungo virus isolate UGMP 359 segment 1, complete sequence.
 ACCESSION   JQ610675
-VERSION     JQ610675.1  GI:421991498
+VERSION     JQ610675.1
 KEYWORDS    .
 SOURCE      Orungo virus (ORUV)
   ORGANISM  Orungo virus
@@ -45,7 +45,6 @@ FEATURES             Location/Qualifiers
                      /codon_start=1
                      /product="VP1"
                      /protein_id="AFX73387.1"
-                     /db_xref="GI:421991499"
                      /translation="MVITVEGAWLVRRALQRFLKFSKIDGESAVYEFYRYSSNIREIR
                      RKHGTRYKMHDEELERRRDSGKLRFKGMQVVVESTWMEILGKGRTTDEIEIFRSSILS
                      LDELNPEEEFLRNYASSDKEHPSYLFVRGRAVNEMQIYGDMPIKAWLSFLVECEVEYG
@@ -69,10 +68,6 @@ FEATURES             Location/Qualifiers
                      VLEKIGTAHAVQDLTTIFQLMNIESKVAHRLAEYIASERVRFDALSIAKRGICGDEFS
                      MSLDVCTERFAERFMELPAQFTKTERDIAILYAAQLTMLRCAANLDLRKIKIGVSADH
                      VKRFKQRQARFKTHLPKMRTVTRLITPERISARLVQHQFT"
-     misc_feature    25..3915
-                     /note="Orbivirus RNA-dependent RNA polymerase (VP1);
-                     Region: Orbi_VP1; pfam05788"
-                     /db_xref="CDD:253387"
 ORIGIN      
         1 gtataattag gaatggtcat cactgtggaa ggtgcgtggc tggtgagacg ggcgttgcaa
        61 cgttttttga agttcagtaa aatcgacggg gaatcagcag tttatgagtt ctataggtat
