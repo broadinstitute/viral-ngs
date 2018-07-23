@@ -1,5 +1,5 @@
 {
-  "stage-0.flowcell_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qY0j09y3Q5FbKKK3k4gzq" } },
+  "stage-1.flowcell_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qY0j09y3Q5FbKKK3k4gzq" } },
   "stage-1.samplesheet":  { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F8F32gQ09y3VJ4kjBzvgZkKv" } },
   "stage-1.maxMismatches": 0,
   "stage-1.minimumQuality": 25,
@@ -11,6 +11,6 @@
 	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BzBpkK80x0z8GBQPfZ4kgPKp" } }
   ],
 
-  "stage-0.kraken_db_tar_lz4": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qZg809y3Qvp7j7vgFKj4Z" } },
-  "stage-0.krona_taxonomy_db_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F4z0fgj07FZ8jg8yP7yz0Qzb" } }
+  "stage-3.kraken_db_tar_lz4": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qZg809y3Qvp7j7vgFKj4Z" } },
+  "stage-3.krona_taxonomy_db_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F4z0fgj07FZ8jg8yP7yz0Qzb" } }
 }
