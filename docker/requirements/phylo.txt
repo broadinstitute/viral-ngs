@@ -31,7 +31,7 @@ unzip=6.0
 vphaser2=2.0
 # Python packages below
 arrow=0.12.1
-bedtools=2.26.0
+bedtools=2.27.1
 biopython=1.72
 future==0.16.0
 matplotlib=1.5.3
