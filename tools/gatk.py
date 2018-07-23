@@ -22,7 +22,7 @@ _log = logging.getLogger(__name__)
 
 
 TOOL_NAME = 'gatk'
-TOOL_VERSION = '3.6'
+TOOL_VERSION = '3.8'
 
 class GATKTool(tools.Tool):
     jvmMemDefault = '2g'
