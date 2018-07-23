@@ -19,4 +19,4 @@ Contents
    cmdline
    pipes-wdl
    pipes-snakemake
-   development
+..   development
