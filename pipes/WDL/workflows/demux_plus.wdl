@@ -6,11 +6,7 @@ import "reports.wdl" as reports
 
 workflow demux_plus {
 
-    File flowcell_tgz
-    call demux.illumina_demux as illumina_demux {
-        input:
-            flowcell_tgz = flowcell_tgz
-    }
+    call demux.illumina_demux as illumina_demux
 
     File spikein_db
     File trim_clip_db
@@ -38,12 +34,8 @@ workflow demux_plus {
         }
     }
 
-    File kraken_db_tar_lz4
-    File krona_taxonomy_db_tgz
     call metagenomics.kraken as kraken {
         input:
-            reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
-            kraken_db_tar_lz4 = kraken_db_tar_lz4,
-            krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
+            reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams
     }
 }
