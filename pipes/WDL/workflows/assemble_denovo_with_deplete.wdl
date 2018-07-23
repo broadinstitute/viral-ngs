@@ -1,11 +1,11 @@
-import "tasks_taxon_filter.wdl" as filter
+import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
 
 workflow assemble_denovo_with_deplete {
   
-  call filter.deplete_taxa
+  call taxon_filter.deplete_taxa
 
-  call filter.filter_to_taxon {
+  call taxon_filter.filter_to_taxon {
     input:
       reads_unmapped_bam = deplete_taxa.cleaned_bam
   }
