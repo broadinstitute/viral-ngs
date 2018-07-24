@@ -285,7 +285,7 @@ __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))
 
 
 def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                 removeSeparateFiles, chunkSize):
+                 removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves the FASTA files
         from the Genbank CoreNucleotide database given a given list of accession IDs.
@@ -298,11 +298,12 @@ def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, co
                                            removeSeparateFiles,
                                            fileExt,
                                            "fasta",
-                                           chunkSize=chunkSize)
+                                           chunkSize=chunkSize,
+                                           api_key=api_key)
 
 
 def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                         removeSeparateFiles, chunkSize):
+                         removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
@@ -315,11 +316,12 @@ def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverw
                                                    removeSeparateFiles,
                                                    fileExt,
                                                    "ft",
-                                                   chunkSize=chunkSize)
+                                                   chunkSize=chunkSize,
+                                                   api_key=api_key)
 
 
 def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                          removeSeparateFiles, chunkSize):
+                          removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves
         full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
@@ -332,18 +334,26 @@ def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOver
                                                  removeSeparateFiles,
                                                  fileExt,
                                                  "gb",
-                                                 chunkSize=chunkSize)
+                                                 chunkSize=chunkSize,
+                                                 api_key=api_key)
 
 
 def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
     parser.add_argument("emailAddress",
-                        help="""Your email address. To access the Genbank CoreNucleotide database,
+                        help="""Your email address. To access Genbank databases,
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access. This email address should
         be registered with NCBI. To register an email address, simply send
         an email to eutilities@ncbi.nlm.nih.gov including your email address and
         the tool name (tool='https://github.com/broadinstitute/viral-ngs').""")
+    parser.add_argument("--api_key",
+                        dest="api_key",
+                        help="""Your NCBI API key. If an API key is not provided, NCBI 
+                        requests are limited to 3/second. If an API key is provided, 
+                        requests may be submitted at a rate up to 10/second. 
+                        For more information, see: https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/
+                        """)
     parser.add_argument("destinationDir", help="Output directory with where .fasta and .tbl files will be saved")
     parser.add_argument("accession_IDs", nargs='+', help="List of Genbank nuccore accession IDs")
     parser.add_argument('--forceOverwrite',

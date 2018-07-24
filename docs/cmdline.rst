@@ -14,6 +14,4 @@ Command line tools
    illumina
    broad_utils
    ncbi
-   
-
-
+   file_utils

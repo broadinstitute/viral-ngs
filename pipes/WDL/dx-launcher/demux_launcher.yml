@@ -15,6 +15,10 @@ inputSpec:
   class: string
   help: DNAnexus ID (workflow-xxxx) of the demux/demux-plus workflow to launch on each lane of the run. The workflow and all its parts and dependencies must reside in the current project.
   default: DEFAULT_DEMUX_WORKFLOW_ID
+- name: consolidate_run_tarballs_applet_id
+  class: string
+  help: DNAnexus ID (applet-xxxx) of the consolidate_run_tarballs applet to use when needed; must reside in the current project.
+  default: DEFAULT_CONSOLIDATE_RUN_TARBALLS_APPLET_ID
 - name: folder
   class: string
   default: /
@@ -133,8 +137,16 @@ runSpec:
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
       if [ "$(cat tar_file_ids | wc -l)" -gt 1 ]; then
         # if there are multiple run tarballs, launch a subjob to consolidate them
-        subjob=$(dx-jobutil-new-job consolidate_tars --instance-type="$tar_consolidation_instance_size" -i upload_sentinel_record="$upload_sentinel_record" -i folder="$folder" -i run_id="$run_id")
-        run_tarball="$subjob:run_tarball"
+        runcmd="dx run $consolidate_run_tarballs_applet_id --instance-type=$tar_consolidation_instance_size -i upload_sentinel_record=$(dx-jobutil-parse-link "$upload_sentinel_record") -i run_id=$run_id --folder $folder -y --brief"
+        echo "$runcmd"
+        set +x
+        if [ -n "$api_token" ]; then
+          # add API token to run command without copying it into the job log
+          runcmd="unset DX_JOB_ID; $runcmd --auth-token $(cat api_token | tr -d '\n')"
+        fi
+        subjob=$(bash -e -o pipefail -c "$runcmd")
+        set -x
+        run_tarball="$subjob:consolidated_run_tarball"
       else
         run_tarball=$(cat tar_file_ids | tr -d '\n')
       fi
@@ -151,7 +163,7 @@ runSpec:
         fi
         for i in $(seq "$lane_count"); do
           folder2=$(printf "%s/%s/reads/L%d" "$folder" "$run_id" $i)
-          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.minimumBaseQuality=$min_base_quality -i illumina_demux.threads=$demux_threads $sequencing_center_input --folder $folder2 --instance-type illumina_demux=$demux_instance_type --name demux:$run_id:L$i -y --brief"
+          runcmd="dx run $demux_workflow_id -i stage-1.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.minimumBaseQuality=$min_base_quality -i illumina_demux.threads=$demux_threads $sequencing_center_input --folder $folder2 --instance-type illumina_demux=$demux_instance_type --name demux:$run_id:L$i -y --brief"
           echo "$runcmd"
           set +x
           if [ -n "$api_token" ]; then
@@ -170,24 +182,6 @@ runSpec:
         echo $subjob
         dx-jobutil-add-output demux_outputs_all $subjob:demux_outputs
       fi
-    }
-
-    consolidate_tars() {
-      set -ex -o pipefail
-
-      # sequentially unpack the run tarballs
-      dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
-      mkdir run/
-      while read tar_file_id; do
-        dx cat "$tar_file_id" | pigz -dc | tar xf - -C run/ --owner root --group root --no-same-owner
-      done < tar_file_ids
-      du -sh run/
-
-      # tar the consolidated directory and upload
-      # TODO: consider zstd/lz4
-      dx mkdir -p "$folder/$run_id"
-      tar_id=$(tar c -C run/ . | pigz -c | dx upload --brief -p --destination $(printf "%s/%s/%s.tar.gz" "$folder" "$run_id" "$run_id") -)
-      dx-jobutil-add-output run_tarball "$tar_id"
     }
 
     propagate_outputs() {
