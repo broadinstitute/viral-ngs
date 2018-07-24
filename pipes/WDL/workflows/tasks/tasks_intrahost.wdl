@@ -46,12 +46,6 @@ task isnvs_vcf {
     SAMPLES="${sep=' ' sampleNames}"
     if [ -n "$SAMPLES" ]; then SAMPLES="--samples $SAMPLES"; fi
 
-    if [[ "${naiveFilter}" == "true" ]]; then
-      naive_filter="--naive_filter"
-    else
-      naive_filter=""
-    fi
-
     providedSnpRefAccessions="${sep=' ' snpEffRef}"
     if [ -n "$providedSnpRefAccessions" ]; then 
       snpRefAccessions="$providedSnpRefAccessions";
@@ -68,7 +62,7 @@ task isnvs_vcf {
         --isnvs ${sep=' ' vphaser2Calls} \
         --alignments ${sep=' ' perSegmentMultiAlignments} \
         --strip_chr_version \
-        $naive_filter \
+        ${true="--naive_filter" false="" naive_filter} \
         --parse_accession
         
     interhost.py snpEff \
