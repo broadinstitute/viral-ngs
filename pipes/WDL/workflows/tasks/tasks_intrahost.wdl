@@ -54,7 +54,7 @@ task isnvs_vcf {
     if [ -n "$providedSnpRefAccessions" ]; then 
       snpRefAccessions="$providedSnpRefAccessions";
     else
-      snpRefAccessions="$(python -c "$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('$reference_fasta', 'fasta'))))")")"
+      snpRefAccessions="$(python -c "$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('${reference_fasta}', 'fasta'))))")")"
     fi
 
     intrahost.py merge_to_vcf \
