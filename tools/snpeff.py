@@ -76,7 +76,7 @@ class SnpEff(tools.Tool):
         self.known_dbs.add(dbname)
         self.installed_dbs.add(dbname)
 
-    def create_db(self, accessions, emailAddress, JVMmemory):
+    def create_db(self, accessions, emailAddress=None, JVMmemory=None):
         sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
@@ -129,7 +129,7 @@ class SnpEff(tools.Tool):
                     self.installed_dbs.add(row['Genome'])
                 yield row
 
-    def annotate_vcf(self, inVcf, genomes, outVcf, emailAddress, JVMmemory=None):
+    def annotate_vcf(self, inVcf, genomes, outVcf, emailAddress=None, JVMmemory=None):
         """
         Annotate variants in VCF file with translation consequences using snpEff.
         """

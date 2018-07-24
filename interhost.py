@@ -328,7 +328,7 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("genomes", nargs='+', help="genome name (snpEff db name, or NCBI accessions)")
     parser.add_argument("outVcf", help="Output VCF file")
-    parser.add_argument("emailAddress",
+    parser.add_argument("--emailAddress",
                         help="""Your email address. To access the Genbank CoreNucleotide database,
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact

@@ -37,7 +37,7 @@ task isnvs_vcf {
 
   Array[String] snpEffRef # list of accessions to build/find snpEff database
   Array[String]? sampleNames # list of sample names
-  String emailAddress # email address passed to NCBI if we need to download reference sequences
+  String? emailAddress # email address passed to NCBI if we need to download reference sequences
   Boolean naiveFilter=false
 
   command {
@@ -64,7 +64,7 @@ task isnvs_vcf {
         isnvs.vcf.gz \
         ${sep=' ' snpEffRef} \
         isnvs.annot.vcf.gz \
-        ${emailAddress}
+        ${'--emailAddress=' + emailAddress}
 
     intrahost.py iSNV_table \
         isnvs.annot.vcf.gz \
