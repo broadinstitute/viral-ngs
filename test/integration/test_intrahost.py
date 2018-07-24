@@ -17,6 +17,7 @@ import tools.mafft
 import util.file
 import util.vcf
 import test
+from test import TestCaseWithTmp
 import tools
 
 class TestPerSample(test.TestCaseWithTmp):
@@ -90,7 +91,7 @@ class TestPerSample(test.TestCaseWithTmp):
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)
 
-class TestSnpEff(test.TestCaseWithTmp):
+class TestSnpEff(TestCaseWithTmp):
     def test_snpeff(self):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)

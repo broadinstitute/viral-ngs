@@ -12,6 +12,7 @@ import logging
 
 # third-party
 import Bio.SeqIO
+import pytest
 
 # intra-project
 import util.file
@@ -80,22 +81,9 @@ def assert_md5_equal_to_line_in_file(testCase, filename, checksum_file, msg=None
 
     testCase.assertEqual(hash_md5.hexdigest(), expected_checksum, msg=msg)
 
+@pytest.mark.usefixtures('tmpdir_class')
 class TestCaseWithTmp(unittest.TestCase):
     'Base class for tests that use tempDir'
-
-    @classmethod
-    def setUpClass(cls):
-        cls._class_tempdir = util.file.set_tmp_dir(cls.__name__)
-
-    def setUp(self):
-        util.file.set_tmp_dir(type(self).__name__)
-
-    @classmethod
-    def tearDownClass(cls):
-        util.file.destroy_tmp_dir(cls._class_tempdir)
-
-    def tearDown(self):
-        util.file.destroy_tmp_dir()
 
     def assertEqualContents(self, f1, f2):
         assert_equal_contents(self, f1, f2)

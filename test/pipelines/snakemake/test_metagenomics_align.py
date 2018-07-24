@@ -9,9 +9,8 @@ from test.pipelines.snakemake import snake
 from test.integration.test_metagenomics_align import * # for pytest fixtures
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
-def test_pipes(bwa_db, taxonomy_db, input_bam):
-    temp_dir = tempfile.gettempdir()
-    runner = snake.SnakemakeRunner(workdir=temp_dir)
+def test_pipes(tmpdir_function, bwa_db, taxonomy_db, input_bam):
+    runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'align_rna_db': bwa_db,
         'taxonomy_db': taxonomy_db,

@@ -11,9 +11,8 @@ from test.integration.test_diamond import * # for pytest fixtures
 
 @pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
-def test_pipes(diamond_db, taxonomy_db, krona_db, input_bam):
-    temp_dir = tempfile.gettempdir()
-    runner = snake.SnakemakeRunner(workdir=temp_dir)
+def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
+    runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'diamond_db': diamond_db,
         'taxonomy_db': taxonomy_db,
