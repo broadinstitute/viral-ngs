@@ -1,5 +1,5 @@
-import "interhost.wdl" as interhost
-import "ncbi.wdl" as ncbi
+import "tasks_interhost.wdl" as interhost
+import "tasks_ncbi.wdl" as ncbi
 
 workflow genbank {
 
