@@ -12,6 +12,7 @@ import logging
 
 # third-party
 import Bio.SeqIO
+import pytest
 
 # intra-project
 import util.file
