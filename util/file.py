@@ -350,7 +350,7 @@ def open_or_gzopen(fname, *opts, **kwargs):
         return gzip.open(fname, *gz_opts, **kwargs)
     else:
         if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
-            return open(fname, *open_opts, **kwargs, encoding="utf-8-sig")
+            return io.open(fname, *open_opts, **kwargs, encoding="utf-8-sig")
         else:
             return open(fname, *open_opts, **kwargs)
 
