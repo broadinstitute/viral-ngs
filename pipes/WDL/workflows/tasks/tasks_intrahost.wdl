@@ -7,7 +7,7 @@ task isnvs_per_sample {
   Int? minReadsPerStrand
   Int? maxBias
 
-  String sample_name = basename(basename(mapped_bam, ".bam"), ".all")
+  String sample_name = basename(basename(basename(mapped_bam, ".bam"), ".all"), ".mapped")
 
   command {
     intrahost.py vphaser_one_sample \
