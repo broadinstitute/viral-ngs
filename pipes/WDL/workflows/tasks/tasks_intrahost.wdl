@@ -41,6 +41,8 @@ task isnvs_vcf {
   Boolean naiveFilter=false
 
   command {
+    set -ex -o pipefail
+
     SAMPLES="${sep=' ' sampleNames}"
     if [ -n "$SAMPLES" ]; then SAMPLES="--samples $SAMPLES"; fi
 
@@ -67,12 +69,14 @@ task isnvs_vcf {
         --alignments ${sep=' ' perSegmentMultiAlignments} \
         --strip_chr_version \
         $naive_filter \
-        --parse_accession && \
+        --parse_accession
+        
     interhost.py snpEff \
         isnvs.vcf.gz \
         $snpRefAccessions \
         isnvs.annot.vcf.gz \
-        ${'--emailAddress=' + emailAddress} && \
+        ${'--emailAddress=' + emailAddress}
+
     intrahost.py iSNV_table \
         isnvs.annot.vcf.gz \
         isnvs.annot.txt.gz
