@@ -54,8 +54,10 @@ task isnvs_vcf {
     if [ -n "$providedSnpRefAccessions" ]; then 
       snpRefAccessions="$providedSnpRefAccessions";
     else
-      snpRefAccessions="$(python -c "$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('${reference_fasta}', 'fasta'))))")")"
+      snpRefAccessions="$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('${reference_fasta}', 'fasta'))))")"
     fi
+
+    echo "snpRefAccessions: $snpRefAccessions"
 
     intrahost.py merge_to_vcf \
         ${reference_fasta} \
@@ -65,15 +67,12 @@ task isnvs_vcf {
         --alignments ${sep=' ' perSegmentMultiAlignments} \
         --strip_chr_version \
         $naive_filter \
-        --parse_accession
-
+        --parse_accession && \
     interhost.py snpEff \
         isnvs.vcf.gz \
         $snpRefAccessions \
         isnvs.annot.vcf.gz \
-        ${'--emailAddress=' + emailAddress}
-        
-
+        ${'--emailAddress=' + emailAddress} && \
     intrahost.py iSNV_table \
         isnvs.annot.vcf.gz \
         isnvs.annot.txt.gz
