@@ -18,7 +18,6 @@ When upgrading the GATK to a new version:
 - in pipes/config.yaml change the GATK_PATH to point to the correct GATK directory containing GenomeAnalysisTK.jar.
   May need to untar a .tar.bz2 from /humgen/gsa-hpprojects/GATK/bin/ into /idi/sabeti-scratch/shared-resources/software/gatk/ .
 - in tools/gatk.py change TOOL_VERSION_TUPLE at the top
-- in .travis.yml change the version in GATK_PATH
 - in travis/install-gatk.sh change GATK_VERSION at the top
 - in easy-deploy-script/easy-deploy-viral-ngs.sh 
 
