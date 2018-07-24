@@ -52,7 +52,7 @@ task isnvs_vcf {
 
     providedSnpRefAccessions="${sep=' ' snpEffRef}"
     if [ -n "$providedSnpRefAccessions" ]; then 
-      snpRefAccessions="${snpEffRef}";
+      snpRefAccessions="$providedSnpRefAccessions";
     else
       snpRefAccessions="$(python -c "$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('$reference_fasta', 'fasta'))))")")"
     fi

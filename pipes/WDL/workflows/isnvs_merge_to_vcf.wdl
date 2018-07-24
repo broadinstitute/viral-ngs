@@ -1,4 +1,4 @@
-import "interhost.wdl" as interhost
+import "tasks_interhost.wdl" as interhost
 import "tasks_intrahost.wdl" as tasks_intrahost
 
 workflow isnvs_merge_to_vcf {
