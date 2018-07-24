@@ -1,26 +1,33 @@
 #!/bin/bash
 set -e -o pipefail
 
-if [ -z "$BUNDLE_SECRET" ]; then
-  echo "ERROR: GATK is missing, but secret key is not set for auto-download."
-  exit 1
+GATK_VERSION=3.8
+GATK_BUILD=1-0-gf15c1c3ef
+GATK_URL="https://software.broadinstitute.org/gatk/download/auth?package=GATK-archive&version=${GATK_VERSION}-${GATK_BUILD}"
+GATK_TAR=GenomeAnalysisTK-${GATK_VERSION}.tar
+GATK_JAR=${CACHE_DIR}/GenomeAnalysisTK.jar
+GATK_JAR_MD5=186aee868bb7cffc18007966ace8d053
 
-elif [ -f "$CACHE_DIR/GenomeAnalysisTK.jar" ]; then
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    MD5_PROG=md5
+else
+    MD5_PROG=md5sum
+fi
+
+if [ -f "${GATK_JAR}" ]; then
   echo "GATK already exists in cache, skipping download"
 
 else
-  echo "Fetching encrypted GATK bundle for Travis"
+  echo "Fetching GATK bundle for Travis"
   pwd
-  wget --quiet https://storage.googleapis.com/sabeti-public/software_testing/GenomeAnalysisTK-3.6.tar.gz.enc
-  openssl aes-256-cbc -d -k "$BUNDLE_SECRET" -in GenomeAnalysisTK-3.6.tar.gz.enc -out GenomeAnalysisTK-3.6.tar.gz
-  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-    md5 GenomeAnalysisTK-3.6.tar.gz
-  else
-    md5sum GenomeAnalysisTK-3.6.tar.gz
-  fi
+  wget --quiet "${GATK_URL}" -O ${GATK_TAR}
+
   # It appears that GATK tarball is produced on OS X leading to warnings
   TAR_OPTS=
   [[ "$TRAVIS_OS_NAME" = "linux" ]] && TAR_OPTS="--warning=no-unknown-keyword"
-  tar "$TAR_OPTS" -xzvpf GenomeAnalysisTK-3.6.tar.gz -C "$CACHE_DIR"
-
+  tar "$TAR_OPTS" -xvpf ${GATK_TAR} -C "$CACHE_DIR"
+  mv ${CACHE_DIR}/GenomeAnalysisTK-${GATK_VERSION}-${GATK_BUILD}/GenomeAnalysisTK.jar ${GATK_JAR}
+  rmdir ${CACHE_DIR}/GenomeAnalysisTK-${GATK_VERSION}-${GATK_BUILD}
 fi
+
+${MD5_PROG} --strict -c <(echo ${GATK_JAR_MD5} ${GATK_JAR})

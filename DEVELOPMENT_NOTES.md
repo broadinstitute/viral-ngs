@@ -12,6 +12,16 @@ When adding a new tool or dependency to viral-ngs, check to see if a conda packa
 #### Changing dependency versions
 The viral-ngs package installed by `conda install viral-ngs` from the [broad-viral channel](https://anaconda.org/broad-viral/viral-ngs) depends on a conda build recipe distributed in this repository. The recipe files source the various Python and binary depedencies of viral-ngs as conda packages, including version numbers, from the `requirements-*.txt` files within this repository.
 
+#### Upgrading GATK
+When upgrading the GATK to a new version:
+- in requirements-conda.txt change the gatk version
+- in pipes/config.yaml change the GATK_PATH to point to the correct GATK directory containing GenomeAnalysisTK.jar.
+  May need to untar a .tar.bz2 from /humgen/gsa-hpprojects/GATK/bin/ into /idi/sabeti-scratch/shared-resources/software/gatk/ .
+- in tools/gatk.py change TOOL_VERSION_TUPLE at the top
+- in .travis.yml change the version in GATK_PATH
+- in travis/install-gatk.sh change GATK_VERSION at the top
+- in easy-deploy-script/easy-deploy-viral-ngs.sh 
+
 ### (Automated) testing 
 [Travis CI](https://travis-ci.org/broadinstitute/viral-ngs) performs automated unit and integration tests for viral-ngs on each branch and pull request. Unit tests are run on each new branch commit, and longer integration tests are performed on pull requests to help ensure the stability of the `master` branch. Pull requests are gated to ensure merging to `master` is allowed only if all tests pass. The Travis configuration is specified in `.travis.yml`, and relies on files stored within `viral-ngs/travis/`.
 
