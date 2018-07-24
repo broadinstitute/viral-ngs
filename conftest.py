@@ -32,32 +32,50 @@ def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
+#
+# Fixtures for creating a temp dir at session/module/class/function scope.
+# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a 
+# tempdir in the most secure/race-condition-free manner possible.
+# Also, since util.file.tmp_dir() is used, the tempdir contens can be
+# preserved for debugging by setting the environment variable VIRAL_NGS_TMP_DIRKEEP.
+#
+
 @contextlib.contextmanager
-def _tmpdir_aux(request, tmpdir_factory, scope, name):
+def _tmpdir_aux(base_dir, scope, name):
     """Create and return a temporary directory; remove it and its contents on context exit."""
-    with util.file.tmp_dir(dir=str(tmpdir_factory.getbasetemp()),
+    with util.file.tmp_dir(dir=base_dir,
                            prefix='test-{}-{}-'.format(scope, name)) as tmpdir:
         yield tmpdir
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
     """Create a session-scope temporary directory."""
-    with _tmpdir_aux(request, tmpdir_factory, 'session', id(request.session)) as tmpdir:
+    with _tmpdir_aux(str(tmpdir_factory.getbasetemp()),
+                     'session', id(request.session)) as tmpdir:
         yield tmpdir
 
 @pytest.fixture(scope='module')
-def tmpdir_module(request, tmpdir_factory):
+def tmpdir_module(request, tmpdir_session):
     """Create a module-scope temporary directory."""
-    with _tmpdir_aux(request, tmpdir_factory, 'module', request.module.__name__) as tmpdir:
+    with _tmpdir_aux(tmpdir_session, 'module', request.module.__name__) as tmpdir:
+        yield tmpdir
+
+@pytest.fixture(scope='class')
+def tmpdir_class(request, tmpdir_module):
+    """Create a class-scope temporary directory."""
+    with _tmpdir_aux(tmpdir_module, 'class',
+                     request.cls.__name__ if request.cls else '__noclass__') as tmpdir:
         yield tmpdir
 
 @pytest.fixture(autouse=True)
-def tmpdir_function(request, tmpdir_factory, monkeypatch):
+def tmpdir_function(request, tmpdir_class, monkeypatch):
     """Create a temporary directory and set it to be used by the tempfile module and as the TMPDIR environment variable."""
-    with _tmpdir_aux(request, tmpdir_factory, 'node', request.node.name) as tmpdir:
+    with _tmpdir_aux(tmpdir_class, 'node', request.node.name) as tmpdir:
         monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
         monkeypatch.setenv('TMPDIR', tmpdir)
         yield tmpdir
+
+#############################################################################################
 
 class FixtureReporter:
 

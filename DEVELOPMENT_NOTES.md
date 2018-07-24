@@ -54,6 +54,5 @@ Some TO DO improvements for the future:
    - Second-stage jobs that pull the docker image should utilize quay.io's torrent squashed image pull to reduce the time spent pulling our Docker image (currently about 5 minutes to pull from DockerHub).
    - Alternatively, we can explore creating a minimal docker image that installs only the conda pip packages (and perhaps extremely common conda tools like samtools and Picard) and leaves the rest of the conda tools out, letting them dynamically install themselves as needed using our dynamic tool install code.
 
-
 ### Building documentation
 Documentation is built automatically for certain branches of viral-ngs by [Read the Docs](http://viral-ngs.readthedocs.io/en/latest/). The documentation template files reside within `viral-ngs/docs`, and are formatted in standard docutils [reStructuredText format](http://docutils.sourceforge.net/rst.html). [Pandoc](http://pandoc.org/) may be used for converting from other formats (such as Markdown) to reStructuredText. The `sphinx-argparse` module is used to automatically generate documentation for the argparse parsers used in viral-ngs.
