@@ -67,13 +67,6 @@ def tmpdir_class(request, tmpdir_module):
                      request.cls.__name__ if request.cls else '__noclass__') as tmpdir:
         yield tmpdir
 
-@pytest.fixture(scope='class')
-def tmpdir_class(request, tmpdir_factory):
-    """Create a class-scope temporary directory."""
-    with _tmpdir_aux(request, tmpdir_factory, 'class',
-                     request.module.__name__ + ('.' + request.cls.__name__ if request.cls else '')) as tmpdir:
-        yield tmpdir
-
 @pytest.fixture(autouse=True)
 def tmpdir_function(request, tmpdir_class, monkeypatch):
     """Create a temporary directory and set it to be used by the tempfile module and as the TMPDIR environment variable."""
