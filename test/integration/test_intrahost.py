@@ -12,7 +12,10 @@ import unittest
 
 # module-specific
 import intrahost
+import interhost
+import tools.mafft
 import util.file
+import util.vcf
 import test
 import tools
 
@@ -86,3 +89,53 @@ class TestPerSample(test.TestCaseWithTmp):
         intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_3libs_expected.txt')
         self.assertEqualContents(outTab, expected)
+
+class TestSnpEff(test.TestCaseWithTmp):
+    def test_snpeff(self):
+        temp_dir = tempfile.gettempdir()
+        input_dir = util.file.get_test_input_path(self)
+
+        ref_fasta      = os.path.join(input_dir,"ref-rabies-JQ685920.fasta")
+        assembly_fasta = os.path.join(input_dir,"RBV16.fasta")
+        isnv_calls     = os.path.join(input_dir,"vphaser2.RBV16.mapped.txt.gz")
+
+        # align sample to reference to create MSA
+        msa_fasta = util.file.mkstempfname('.fasta')
+        expected_msa_fasta = os.path.join(input_dir,"msa.fasta")
+        args = [ref_fasta, assembly_fasta, msa_fasta, "--localpair", "--preservecase"]
+        args = interhost.parser_align_mafft(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        test.assert_equal_contents(self, msa_fasta, expected_msa_fasta)
+
+        # merge (one) VCF to merged vcf
+        merged_vcf = os.path.join(temp_dir,"merged.vcf.gz")
+        expected_merged_vcf = os.path.join(input_dir,"merged.vcf.gz")
+        args = [ref_fasta, merged_vcf, "--isnvs", isnv_calls, "--alignments", msa_fasta, "--strip_chr_version", "--parse_accession"]
+        args = intrahost.parser_merge_to_vcf(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        vcf = util.vcf.VcfReader(merged_vcf)
+        expected_vcf = util.vcf.VcfReader(expected_merged_vcf)
+        rows = list(vcf.get())
+        expected_rows = list(expected_vcf.get())
+        self.assertEqual(rows, expected_rows)
+
+        # run snpEff against merged VCF to predict SNP effects
+        eff_vcf = os.path.join(temp_dir,"ann_eff.vcf.gz")
+        expected_eff_vcf = os.path.join(input_dir,"ann_eff.vcf.gz")
+        args = [merged_vcf, "JQ685920", eff_vcf, "--emailAddress=test@example.com"]
+        args = interhost.parser_snpEff(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        vcf = util.vcf.VcfReader(eff_vcf)
+        expected_vcf = util.vcf.VcfReader(expected_eff_vcf)
+        rows = list(vcf.get())
+        expected_rows = list(expected_vcf.get())
+        self.assertEqual(rows, expected_rows)
+
+        # create tabular iSNV output
+        eff_txt = os.path.join(temp_dir,"ann_eff.txt.gz")
+        expected_eff_txt = os.path.join(input_dir,"ann_eff.txt.gz")
+        args = [eff_vcf, eff_txt]
+        args = intrahost.parser_iSNV_table(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        for outrow, expectedrow in zip(util.file.read_tabfile(eff_txt),util.file.read_tabfile(expected_eff_txt)):
+            self.assertEqual(outrow, expectedrow)
