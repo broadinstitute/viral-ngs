@@ -62,7 +62,7 @@ task isnvs_vcf {
         --isnvs ${sep=' ' vphaser2Calls} \
         --alignments ${sep=' ' perSegmentMultiAlignments} \
         --strip_chr_version \
-        ${true="--naive_filter" false="" naive_filter} \
+        ${true="--naive_filter" false="" naiveFilter} \
         --parse_accession
         
     interhost.py snpEff \
