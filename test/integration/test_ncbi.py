@@ -20,7 +20,7 @@ import util.file
 log = logging.getLogger(__name__)
 
 
-skip_test = False
+skip_test = True
 
 @unittest.skipIf(skip_test, "test is marked to be skipped")
 class TestNcbiFetch(TestCaseWithTmp):
