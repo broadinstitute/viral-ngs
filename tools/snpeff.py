@@ -117,6 +117,7 @@ class SnpEff(tools.Tool):
         self.known_dbs = set()
         for line in command_ps.stdout.decode("utf-8").splitlines():
             line = line.strip()
+            print(line)
             if not split_points:
                 if not line.startswith('Genome'):
                     raise Exception()
