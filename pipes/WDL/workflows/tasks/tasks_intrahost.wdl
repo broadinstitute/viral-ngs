@@ -35,7 +35,7 @@ task isnvs_vcf {
   Array[File] perSegmentMultiAlignments # aligned_##.fasta, where ## is segment number
   File reference_fasta
 
-  Array[String] snpEffRef # list of accessions to build/find snpEff database
+  Array[String]? snpEffRef # list of accessions to build/find snpEff database
   Array[String]? sampleNames # list of sample names
   String? emailAddress # email address passed to NCBI if we need to download reference sequences
   Boolean naiveFilter=false
@@ -50,6 +50,13 @@ task isnvs_vcf {
       naive_filter=""
     fi
 
+    providedSnpRefAccessions="${sep=' ' snpEffRef}"
+    if [ -n "$providedSnpRefAccessions" ]; then 
+      snpRefAccessions="${snpEffRef}";
+    else
+      snpRefAccessions="$(python -c "$(python -c "from Bio import SeqIO; print(' '.join(list(s.id for s in SeqIO.parse('$reference_fasta', 'fasta'))))")")"
+    fi
+
     intrahost.py merge_to_vcf \
         ${reference_fasta} \
         isnvs.vcf.gz \
@@ -62,13 +69,14 @@ task isnvs_vcf {
 
     interhost.py snpEff \
         isnvs.vcf.gz \
-        ${sep=' ' snpEffRef} \
+        $snpRefAccessions \
         isnvs.annot.vcf.gz \
         ${'--emailAddress=' + emailAddress}
+        
 
     intrahost.py iSNV_table \
         isnvs.annot.vcf.gz \
-        isnvs.annot.txt.gz \
+        isnvs.annot.txt.gz
   }
 
   output {
