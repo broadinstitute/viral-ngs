@@ -349,10 +349,7 @@ def open_or_gzopen(fname, *opts, **kwargs):
         gz_opts = [gz_mode]+list(opts)[1:]
         return gzip.open(fname, *gz_opts, **kwargs)
     else:
-        if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
-            return io.open(fname, *open_opts,  encoding="utf-8-sig", **kwargs)
-        else:
-            return open(fname, *open_opts, **kwargs)
+        return open(fname, *open_opts, **kwargs)
 
 
 def read_tabfile_dict(inFile):
