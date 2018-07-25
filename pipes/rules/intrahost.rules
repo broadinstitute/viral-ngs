@@ -56,7 +56,7 @@ rule isnvs_vcf:
         UGER          = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid         = "all",
         snpEff_ref    = " ".join(config["accessions_for_ref_genome_build"]),
-        email_address = config["email_point_of_contact_for_ncbi"]
+        email_address = "--emailAddress "+config["email_point_of_contact_for_ncbi"] if config["email_point_of_contact_for_ncbi"] else ""
     run:
         shell("{config[bin_dir]}/intrahost.py merge_to_vcf {input.ref_genome} {output.raw_vcf}"
             + " --samples " + " ".join(read_samples_file(config["samples_assembly"]))
@@ -92,7 +92,7 @@ rule isnvs_vcf_filtered:
         UGER         = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
         logid        = "all",
         snpEff_ref   = " ".join(config["accessions_for_ref_genome_build"]),
-        emailAddress = config["email_point_of_contact_for_ncbi"],
+        email_address = "--emailAddress "+config["email_point_of_contact_for_ncbi"] if config["email_point_of_contact_for_ncbi"] else "",
         naiveFilter  = "--naive_filter" if config["vcf_merge_naive_filter"] else ""
     run:
         shell("{config[bin_dir]}/intrahost.py merge_to_vcf {input.ref_genome} {output.raw_vcf}"
