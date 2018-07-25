@@ -44,6 +44,10 @@ task illumina_demux {
   Int?    minimumQuality = 10
   Int?    threads = 36
   String? runStartDate
+  Int?    maxReadsInRamPerTile
+  Int?    maxRecordsInRam
+  Boolean? forceGC=true
+
 
   parameter_meta {
     flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
@@ -83,8 +87,11 @@ task illumina_demux {
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
+      ${'--max_reads_in_ram_per_tile=' + maxReadsInRamPerTile} \
+      ${'--max_records_in_ram=' + maxRecordsInRam} \
       --JVMmemory="$mem_in_mb"m \
       ${'--threads=' + threads} \
+      ${true='--force_gc=true' false="--force_gc=false" forceGC} \
       --compression_level=5 \
       --loglevel=DEBUG
 
