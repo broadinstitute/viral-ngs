@@ -138,7 +138,7 @@ class KmcTool(tools.Tool):
         if not return_output:
             subprocess.check_call(tool_cmd)
         else:
-            result = util.misc.run_and_print(tool_cmd, buffered=False, check=True, silent=True).stdout.decode('utf-8')
+            result = subprocess.check_output(tool_cmd).decode('utf-8')
         _log.info('Done running kmc_tools command: %s', ' '.join(tool_cmd))
         return result
 
@@ -292,7 +292,7 @@ class KmcTool(tools.Tool):
 
     def set_kmer_counts(self, kmer_db_in, value, kmer_db_out, threads=None):
         """Create a copy of the kmer database with all counts set to specified value"""
-        assert 1 <= value <= util.misc.MAX_INT32, 'can only set kmer counts to a positive 32-bit int'
+        _chk(1 <= value <= util.misc.MAX_INT32, 'can only set kmer counts to a positive 32-bit int')
         kmer_db_in, kmer_db_out = map(self._kmer_db_name, (kmer_db_in, kmer_db_out))
         # db1_min_occs, db1_max_occs, db2_min_occs, db2_max_occs, db_out_min_occs, db_out_max_occs,
         self.execute(['transform', kmer_db_in, 'set_counts', value, kmer_db_out], threads=threads)
