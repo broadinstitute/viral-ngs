@@ -111,7 +111,7 @@ class SnpEff(tools.Tool):
     def available_databases(self):
         # do not capture stderr, since snpEff writes 'Picked up _JAVA_OPTIONS'
         # which is not helpful for reading the stdout of the databases command
-        command_ps = self.execute("databases", args=[], stderr=subprocess.DEVNULL)
+        command_ps = self.execute("databases", args=[], stderr=os.devnull)
 
         split_points = []
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
