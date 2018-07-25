@@ -553,7 +553,6 @@ class RunInfo(object):
             log.warn("The provided flowcell ID is longer than 15 characters. Is that correct?")
         return fc
 
-    @util.misc.memoize
     def _get_rundate_obj(self):
         """
             Access the text of the <Date> node in the RunInfo.xml file

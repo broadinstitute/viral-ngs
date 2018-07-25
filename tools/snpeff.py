@@ -22,9 +22,9 @@ import util.genbank
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = 'snpeff'
-TOOL_VERSION = '4.1l'
+TOOL_VERSION = '4.3.1t'
 
-URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_1l_core.zip'
+URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_3t_core.zip'
 
 
 class SnpEff(tools.Tool):
@@ -43,7 +43,7 @@ class SnpEff(tools.Tool):
     def version(self):
         return "4.1"
 
-    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
         if not JVMmemory:
             JVMmemory = self.jvmMemDefault
 
@@ -59,7 +59,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run_and_print(tool_cmd, stdin=stdin, buffered=True, silent=("databases" in command), check=True)
+        return util.misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=("databases" in command), check=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -76,7 +76,7 @@ class SnpEff(tools.Tool):
         self.known_dbs.add(dbname)
         self.installed_dbs.add(dbname)
 
-    def create_db(self, accessions, emailAddress, JVMmemory):
+    def create_db(self, accessions, emailAddress=None, JVMmemory=None):
         sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
@@ -109,27 +109,30 @@ class SnpEff(tools.Tool):
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
-        command_ps = self.execute("databases", args=[])
+        # do not capture stderr, since snpEff writes 'Picked up _JAVA_OPTIONS'
+        # which is not helpful for reading the stdout of the databases command
+        with open(os.devnull, "wb") as devnull:
+            command_ps = self.execute("databases", args=[], stderr=devnull)
 
-        split_points = []
-        keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
-        self.installed_dbs = set()
-        self.known_dbs = set()
-        for line in command_ps.stdout.decode("utf-8").splitlines():
-            line = line.strip()
-            if not split_points:
-                if not line.startswith('Genome'):
-                    raise Exception()
-                split_points = list(line.index(key) for key in keys)
-            elif not line.startswith('----'):
-                indexes = split_points + [len(line)]
-                row = dict((keys[i], line[indexes[i]:indexes[i + 1]].strip()) for i in range(len(split_points)))
-                self.known_dbs.add(row['Genome'])
-                if row.get('Status') == 'OK':
-                    self.installed_dbs.add(row['Genome'])
-                yield row
+            split_points = []
+            keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
+            self.installed_dbs = set()
+            self.known_dbs = set()
+            for line in command_ps.stdout.decode("utf-8").splitlines():
+                line = line.strip()
+                if not split_points:
+                    if not line.startswith('Genome'):
+                        raise Exception()
+                    split_points = list(line.index(key) for key in keys)
+                elif not line.startswith('----'):
+                    indexes = split_points + [len(line)]
+                    row = dict((keys[i], line[indexes[i]:indexes[i + 1]].strip()) for i in range(len(split_points)))
+                    self.known_dbs.add(row['Genome'])
+                    if row.get('Status') == 'OK':
+                        self.installed_dbs.add(row['Genome'])
+                    yield row
 
-    def annotate_vcf(self, inVcf, genomes, outVcf, emailAddress, JVMmemory=None):
+    def annotate_vcf(self, inVcf, genomes, outVcf, emailAddress=None, JVMmemory=None):
         """
         Annotate variants in VCF file with translation consequences using snpEff.
         """

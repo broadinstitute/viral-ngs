@@ -754,11 +754,11 @@ def main_reheader_bam(args):
     ''' Copy a BAM file (inBam to outBam) while renaming elements of the BAM header.
         The mapping file specifies which (key, old value, new value) mappings. For
         example:
-            LB  lib1  lib_one
-            SM  sample1 Sample_1
-            SM  sample2 Sample_2
-            SM  sample3 Sample_3
-            CN  broad   BI
+            LB	lib1	lib_one
+            SM	sample1	Sample_1
+            SM	sample2	Sample_2
+            SM	sample3	Sample_3
+            CN	broad	BI
     '''
     # read mapping file
     mapper = dict((a + ':' + b, a + ':' + c) for a, b, c in util.file.read_tabfile(args.rgMap))

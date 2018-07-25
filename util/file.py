@@ -377,7 +377,7 @@ def read_tabfile_dict(inFile):
                     # truncate the row to the header length, and only include extra items if they are not spaces
                     # (takes care of the case where the user may enter an extra space at the end of a row)
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
-                assert len(header) == len(row)
+                assert len(header) == len(row), "%s != %s" % (len(header), len(row))
                 yield dict((k, v) for k, v in zip(header, row) if v)
 
 
