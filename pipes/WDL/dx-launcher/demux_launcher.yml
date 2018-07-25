@@ -121,7 +121,7 @@ runSpec:
           min_base_quality=20
           demux_threads=20 # with NovaSeq-size output, OOM errors can sporadically occur with higher thread counts
           echo "Detected $total_tile_count tiles, interpreting as NovaSeq run, executing on a $demux_instance_type machine."
-          echo "  **Note: Q23 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"
+          echo "  **Note: Q20 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"
           echo "    See: https://www.illumina.com/content/dam/illumina-marketing/documents/products/appnotes/novaseq-hiseq-q30-app-note-770-2017-010.pdf"
       elif [ "$total_tile_count" -gt 1408 ]; then
           tar_consolidation_instance_size="mem1_ssd2_x36"
