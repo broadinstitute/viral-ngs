@@ -485,7 +485,7 @@ def merge_to_vcf(
         guessed_samples = samplenames_from_isnvs + list(samplenames_from_alignments-(refnames|set(samplenames_from_isnvs)))
         log.info("guessed sample names %s" % guessed_samples)
 
-    samples = samples or guessed_samples
+    samples = samples if samples is not None and len(samples)>0 else guessed_samples
 
     samp_to_isnv = {}
     # if we had to guess sample names, match them up to isnv files
@@ -627,6 +627,7 @@ def merge_to_vcf(
                         for sampleName in samplesToUse:
                             if seq.id == sampleName:
                                 samp_to_seqIndex[sampleName] = seq.seq.ungap('-')
+                                break
 
                 if not len(samp_to_seqIndex) == len(samplesToUse):
                     raise LookupError(
