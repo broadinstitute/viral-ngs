@@ -220,7 +220,7 @@ except ImportError:
                 os.remove(stderr_fn)
 
 
-def run_and_print(args, stdout=None, stderr=None,
+def run_and_print(args, stdout=None, stderr=subprocess.STDOUT,
                   stdin=None, shell=False, env=None, cwd=None,
                   timeout=None, silent=False, buffered=False, check=False,
                   loglevel=None):
@@ -229,9 +229,7 @@ def run_and_print(args, stdout=None, stderr=None,
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
-
-    stderr = stderr or subprocess.STDOUT
-
+    
     if loglevel:
         silent = False
     if not buffered:
