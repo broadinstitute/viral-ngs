@@ -149,4 +149,11 @@ class TestSnpEff(TestCaseWithTmp):
         args = intrahost.parser_iSNV_table(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
         for outrow, expectedrow in zip(util.file.read_tabfile(eff_txt),util.file.read_tabfile(expected_eff_txt)):
-            self.assertEqual(outrow, expectedrow)
+            for colout, colexpected in zip(outrow, expectedrow):
+                # if it casts to float, perform approx comparison
+                try:
+                    f1=float(colout)
+                    f2=float(colexpected)
+                    self.assertAlmostEqual(f1, f1)
+                except ValueError:
+                    self.assertEqual(colout, colexpected)
