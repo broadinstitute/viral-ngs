@@ -19,6 +19,15 @@ When adding a new top-level python script, say newscript.py:
 - in .travis.yml, to each PYTEST_ADDOPTS line add --cov newscript to turn on coverage measurement
 - in packaging/conda-recipe/viral-ngs-template/meta.yaml, under test commands, add a test command for newscript.py
 
+#### Upgrading GATK
+When upgrading the GATK to a new version:
+- in requirements-conda.txt change the gatk version
+- in pipes/config.yaml change the GATK_PATH to point to the correct GATK directory containing GenomeAnalysisTK.jar.
+  May need to untar a .tar.bz2 from /humgen/gsa-hpprojects/GATK/bin/ into /idi/sabeti-scratch/shared-resources/software/gatk/ .
+- in tools/gatk.py change TOOL_VERSION_TUPLE at the top
+- in travis/install-gatk.sh change GATK_VERSION at the top
+- in easy-deploy-script/easy-deploy-viral-ngs.sh 
+
 ### (Automated) testing 
 [Travis CI](https://travis-ci.org/broadinstitute/viral-ngs) performs automated unit and integration tests for viral-ngs on each branch and pull request. Unit tests are run on each new branch commit, and longer integration tests are performed on pull requests to help ensure the stability of the `master` branch. Pull requests are gated to ensure merging to `master` is allowed only if all tests pass. The Travis configuration is specified in `.travis.yml`, and relies on files stored within `viral-ngs/travis/`.
 
@@ -51,7 +60,6 @@ Some TO DO improvements for the future:
    - Unit tests for Python 3.6, and possibly the conda package build, should occur within the Docker container.
    - Second-stage jobs that pull the docker image should utilize quay.io's torrent squashed image pull to reduce the time spent pulling our Docker image (currently about 5 minutes to pull from DockerHub).
    - Alternatively, we can explore creating a minimal docker image that installs only the conda pip packages (and perhaps extremely common conda tools like samtools and Picard) and leaves the rest of the conda tools out, letting them dynamically install themselves as needed using our dynamic tool install code.
-
 
 ### Building documentation
 Documentation is built automatically for certain branches of viral-ngs by [Read the Docs](http://viral-ngs.readthedocs.io/en/latest/). The documentation template files reside within `viral-ngs/docs`, and are formatted in standard docutils [reStructuredText format](http://docutils.sourceforge.net/rst.html). [Pandoc](http://pandoc.org/) may be used for converting from other formats (such as Markdown) to reStructuredText. The `sphinx-argparse` module is used to automatically generate documentation for the argparse parsers used in viral-ngs.
