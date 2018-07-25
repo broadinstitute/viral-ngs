@@ -487,6 +487,30 @@ def merge_to_vcf(
 
     samples = samples or guessed_samples
 
+    samp_to_isnv = {}
+    # if we had to guess sample names, match them up to isnv files
+    if len(guessed_samples)>0:
+        matched_samples = []
+        matched_isnv_files = []
+        for sample in samples:
+            sample_found=False
+            for isnvs_file in isnvs:
+                for row in util.file.read_tabfile(isnvs_file):
+                    if sample==sampleIDMatch(row[0]):
+                        samp_to_isnv[sample] = isnvs_file
+                        sample_found=True
+                        matched_samples.append(sample)
+                        matched_isnv_files.append(isnvs_file)
+                        break
+                if sample_found:
+                    break
+        samples = matched_samples
+        isnvs = matched_isnv_files
+    else:
+        samp_to_isnv = dict(zip(samples, isnvs))
+
+    log.info(samp_to_isnv)
+
     # get IDs and sequence lengths for reference sequence
     with util.file.open_or_gzopen(refFasta, 'r') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
@@ -567,21 +591,13 @@ def merge_to_vcf(
                 # to the assemblies
 
                 # if we had to guess samples only check that the number of isnv files == number of alignments
-                if len(guessed_samples)>0:
-                    if not (number_of_aligned_sequences - 1) == num_isnv_files:
-                        raise LookupError(
-                            """The number of isnv files provided (%s) and must equal the number of sequences
-                            seen in the alignment (%s) (plus an extra reference record in the alignment).
-                            %s does not have the right number of sequences""" % (num_isnv_files,number_of_aligned_sequences - 1,fileName))
-                else:
+                if len(guessed_samples)==0:
                     if not (number_of_aligned_sequences - 1) == num_isnv_files == len(samples):
                         raise LookupError(
                             """The number of isnv files provided (%s) and must equal the number of sequences
                             seen in the alignment (%s) (plus an extra reference record in the alignment), 
                             as well as the number of sample names provided (%s)
                             %s does not have the right number of sequences""" % (num_isnv_files,number_of_aligned_sequences - 1,len(samples),fileName))
-
-        samp_to_isnv = dict(zip(samples, isnvs))
 
         # one reference chrom at a time
         with open(refFasta, 'r') as inf:
