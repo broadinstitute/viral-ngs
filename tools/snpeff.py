@@ -43,7 +43,7 @@ class SnpEff(tools.Tool):
     def version(self):
         return "4.1"
 
-    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None):    # pylint: disable=W0221
+    def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
         if not JVMmemory:
             JVMmemory = self.jvmMemDefault
 
@@ -59,7 +59,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run_and_print(tool_cmd, stdin=stdin, buffered=True, silent=("databases" in command), check=True)
+        return util.misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=("databases" in command), check=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -109,7 +109,9 @@ class SnpEff(tools.Tool):
             self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
-        command_ps = self.execute("databases", args=[])
+        # do not capture stderr, since snpEff writes 'Picked up _JAVA_OPTIONS'
+        # which is not helpful for reading the stdout of the databases command
+        command_ps = self.execute("databases", args=[], stderr=subprocess.DEVNULL)
 
         split_points = []
         keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']

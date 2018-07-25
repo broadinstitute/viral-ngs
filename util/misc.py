@@ -229,6 +229,9 @@ def run_and_print(args, stdout=None, stderr=None,
     This is useful for nose, which has difficulty capturing stdout of
     subprocess invocations.
     '''
+
+    stderr = stderr or subprocess.STDOUT
+
     if loglevel:
         silent = False
     if not buffered:
@@ -238,7 +241,7 @@ def run_and_print(args, stdout=None, stderr=None,
                     args,
                     stdin=stdin,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    stderr=stderr,
                     env=env,
                     cwd=cwd,
                     timeout=timeout,
@@ -268,7 +271,7 @@ def run_and_print(args, stdout=None, stderr=None,
                 raise(e)
         else:
             result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         stderr=stderr, env=env, cwd=cwd,
                          timeout=timeout, check=check)
             if not silent and not loglevel:
                 print(result.stdout.decode('utf-8'))
@@ -281,7 +284,7 @@ def run_and_print(args, stdout=None, stderr=None,
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
         process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, env=env,
+                                    stderr=stderr, env=env,
                                     cwd=cwd)
         output = []
         while process.poll() is None:
