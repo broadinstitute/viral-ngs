@@ -140,8 +140,8 @@ class KmcPy(object):
         """
         return list(self._compute_kmers_iter(*args, **kw))
 
-    def compute_kmer_counts(self, seq_files, kmer_size, min_occs=None, max_occs=None,
-                            counter_cap=None, single_strand=False, **ignore):
+    def compute_kmer_counts(self, seq_files, kmer_size, min_occs, max_occs,
+                            counter_cap, single_strand, **ignore):
         """Yield kmer counts of seq(s).  Unless `single_strand` is True, each kmer is
         canonicalized before being counted.  Kmers containing non-TCGA bases are skipped.
         Kmers with fewer than `min_occs` or more than `max_occs` occurrences
@@ -150,7 +150,7 @@ class KmcPy(object):
         counts = collections.Counter(self._compute_kmers(_list_seqs_as_strs(seq_files), kmer_size, single_strand))
         return self.filter_kmer_counts(counts=counts, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap)
 
-    def filter_kmer_counts(self, counts, min_occs=None, max_occs=None, counter_cap=None, **ignore):
+    def filter_kmer_counts(self, counts, min_occs=None, max_occs=None, counter_cap=None):
         result = collections.Counter({kmer : min(count, counter_cap or count) \
                                       for kmer, count in counts.items() \
                                       if (count >= (min_occs or count)) and \
@@ -174,7 +174,9 @@ class KmcPy(object):
 
         for rec in in_recs:
             seq = str(rec.seq)
-            seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand)
+            seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand,
+                                                       min_occs=1, max_occs=util.misc.MAX_INT32,
+                                                       counter_cap=util.misc.MAX_INT32)
             assert not single_strand
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() \
                             if kmer in db_kmers])
