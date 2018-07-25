@@ -111,25 +111,26 @@ class SnpEff(tools.Tool):
     def available_databases(self):
         # do not capture stderr, since snpEff writes 'Picked up _JAVA_OPTIONS'
         # which is not helpful for reading the stdout of the databases command
-        command_ps = self.execute("databases", args=[], stderr=os.devnull)
+        with open(os.devnull, "wb") as devnull:
+            command_ps = self.execute("databases", args=[], stderr=devnull)
 
-        split_points = []
-        keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
-        self.installed_dbs = set()
-        self.known_dbs = set()
-        for line in command_ps.stdout.decode("utf-8").splitlines():
-            line = line.strip()
-            if not split_points:
-                if not line.startswith('Genome'):
-                    raise Exception()
-                split_points = list(line.index(key) for key in keys)
-            elif not line.startswith('----'):
-                indexes = split_points + [len(line)]
-                row = dict((keys[i], line[indexes[i]:indexes[i + 1]].strip()) for i in range(len(split_points)))
-                self.known_dbs.add(row['Genome'])
-                if row.get('Status') == 'OK':
-                    self.installed_dbs.add(row['Genome'])
-                yield row
+            split_points = []
+            keys = ['Genome', 'Organism', 'Status', 'Bundle', 'Database']
+            self.installed_dbs = set()
+            self.known_dbs = set()
+            for line in command_ps.stdout.decode("utf-8").splitlines():
+                line = line.strip()
+                if not split_points:
+                    if not line.startswith('Genome'):
+                        raise Exception()
+                    split_points = list(line.index(key) for key in keys)
+                elif not line.startswith('----'):
+                    indexes = split_points + [len(line)]
+                    row = dict((keys[i], line[indexes[i]:indexes[i + 1]].strip()) for i in range(len(split_points)))
+                    self.known_dbs.add(row['Genome'])
+                    if row.get('Status') == 'OK':
+                        self.installed_dbs.add(row['Genome'])
+                    yield row
 
     def annotate_vcf(self, inVcf, genomes, outVcf, emailAddress=None, JVMmemory=None):
         """
