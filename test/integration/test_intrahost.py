@@ -156,4 +156,4 @@ class TestSnpEff(TestCaseWithTmp):
                     f2=float(colexpected)
                     self.assertAlmostEqual(f1, f1)
                 except ValueError:
-                    self.assertEqual(colout, colexpected)
+                    self.assertEqual(sorted(sorted(colout.split(","))), sorted(sorted(colexpected.split(","))))
