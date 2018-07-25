@@ -20,6 +20,7 @@ When upgrading the GATK to a new version:
 - in tools/gatk.py change TOOL_VERSION_TUPLE at the top
 - in travis/install-gatk.sh change GATK_VERSION at the top
 - in easy-deploy-script/easy-deploy-viral-ngs.sh 
+- in docker/rundocker.sh 
 
 ### (Automated) testing 
 [Travis CI](https://travis-ci.org/broadinstitute/viral-ngs) performs automated unit and integration tests for viral-ngs on each branch and pull request. Unit tests are run on each new branch commit, and longer integration tests are performed on pull requests to help ensure the stability of the `master` branch. Pull requests are gated to ensure merging to `master` is allowed only if all tests pass. The Travis configuration is specified in `.travis.yml`, and relies on files stored within `viral-ngs/travis/`.
