@@ -100,7 +100,6 @@ class TestSnpEff(TestCaseWithTmp):
     def capsys(self, capsys):
         self.capsys = capsys
 
-    #@unittest.skipIf(True, "test is marked to be skipped")
     def test_snpeff(self):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)
