@@ -21,7 +21,7 @@ parallel=20160622
 picard=2.18.9
 pigz=2.4
 prinseq=0.20.4
-samtools=1.7
+samtools=1.9
 snpeff=4.3.1t
 spades=3.11.1
 tbl2asn=25.6
@@ -35,6 +35,6 @@ bedtools=2.27.1
 biopython=1.72
 future==0.16.0
 matplotlib=1.5.3
-pysam=0.14.1
+pysam=0.15.0
 pybedtools=0.7.10
 PyYAML=3.12
