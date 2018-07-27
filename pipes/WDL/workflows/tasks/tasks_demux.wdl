@@ -36,7 +36,7 @@ task illumina_demux {
   String? sequencingCenter
 
   String? flowcell
-  Int?    minimumBaseQuality
+  Int?    minimumBaseQuality = 10
   Int?    maxMismatches = 1
   Int?    minMismatchDelta
   Int?    maxNoCalls
@@ -78,7 +78,6 @@ task illumina_demux {
         echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run."
     elif [ "$total_tile_count" -le 1408 ]; then
         mem_in_mb=$(/opt/viral-ngs/source/docker/mem_in_mb_80.sh)
-        demux_min_base_quality=20
         demux_threads=20 # with NovaSeq-size output, OOM errors can sporadically occur with higher thread counts
         echo "Detected $total_tile_count tiles, interpreting as NovaSeq run."
         echo "  **Note: Q20 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"
