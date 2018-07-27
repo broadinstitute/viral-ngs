@@ -243,15 +243,17 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     """
     key = (seq_files, kmer_db_opts)
     if key in val_cache:
+        _log.debug('reusing cached kmer db: %s', key)
         return val_cache[key]
 
-    # factor out this function and memoize it, or just implement memoization here.
-    # or the cache can itself be a module-level fixture object.
+    _log.debug('constructing kmer db: %s', key)
 
     k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
+    assert not tools.kmc.KmcTool().is_kmer_db(k_db)
     seq_files = list(map(_inp, seq_files.split()))
     kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
+    assert tools.kmc.KmcTool().is_kmer_db(k_db)
     kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
     _log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
     return val_cache.setdefault(key, argparse.Namespace(kmer_db=k_db,
@@ -275,11 +277,11 @@ KMER_DBS_MEDIUM = [
 def dict_module():
     return dict()
 
-@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL)
+@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL, ids=_stringify)
 def kmer_db_fixture(request, tmpdir_module, dict_module):
     yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
 
-@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL)
+@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL, ids=_stringify)
 def kmer_db_fixture2(request, tmpdir_module, dict_module):
     yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
 
@@ -397,7 +399,7 @@ def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
 @pytest.mark.parametrize("op", ('intersect', 'union', 'kmers_subtract', 'counters_subtract'))
 def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function):
     if kmer_db_fixture.kmer_db_args.kmer_size != kmer_db_fixture2.kmer_db_args.kmer_size:
-        pytest.skip('can only do binary ops on kmers with same size')
+        pytest.skip('(always skip) binary ops not defined on kmers of different size')
     db_result = os.path.join(tmpdir_function, 'op_result')
     _log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
     _log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
