@@ -458,7 +458,7 @@ class CollectIlluminaLaneMetricsTool(PicardTools):
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
-    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 25, 'num_processors': 0}
+    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 1, 'minimum_base_quality': 10, 'num_processors': 0}
     option_list = (
         'read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
         'minimum_quality', 'compress_outputs', 'num_processors'
@@ -502,7 +502,6 @@ class IlluminaBasecallsToSamTool(PicardTools):
         'max_reads_in_ram_per_tile': 200000,
         'max_records_in_ram': 1000000,
         'num_processors': 0,
-        'force_gc': False,
         'include_non_pf_reads': False,
         'compression_level': 7,
     }
