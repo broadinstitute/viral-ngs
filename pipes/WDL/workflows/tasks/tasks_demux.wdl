@@ -77,7 +77,7 @@ task illumina_demux {
     elif [ "$total_tile_count" -le 896 ]; then
         echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run."
     elif [ "$total_tile_count" -le 1408 ]; then
-        max_reads_in_ram_per_tile="150000"
+        mem_in_mb=$(/opt/viral-ngs/source/docker/mem_in_mb_80.sh)
         demux_min_base_quality=20
         demux_threads=20 # with NovaSeq-size output, OOM errors can sporadically occur with higher thread counts
         echo "Detected $total_tile_count tiles, interpreting as NovaSeq run."
