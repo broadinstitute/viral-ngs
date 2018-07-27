@@ -68,7 +68,31 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $FLOWCELL_DIR/RunInfo.xml")
+    # full RunInfo.xml path
+    RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    # Parse the lane count & run ID from RunInfo.xml file
+    lane_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@LaneCount)" $RUNINFO_FILE)
+    if [ -z "$lane_count" ]; then
+        echo "Could not parse LaneCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+    fi
+
+    surface_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@SurfaceCount)" $RUNINFO_FILE)
+    if [ -z "$surface_count" ]; then
+        echo "Could not parse SurfaceCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+    fi
+
+    swath_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@SwathCount)" $RUNINFO_FILE)
+    if [ -z "$swath_count" ]; then
+        echo "Could not parse SwathCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+    fi
+
+    tile_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@TileCount)" $RUNINFO_FILE)
+    if [ -z "$tile_count" ]; then
+        echo "Could not parse TileCount from RunInfo.xml. Please check RunInfo.xml is properly formatted"
+    fi
+
+    # total data size more roughly tracks total tile count
+    total_tile_count=$((lane_count*surface_count*swath_count*tile_count))
 
     if [ "$total_tile_count" -le 50 ]; then
         echo "Detected $total_tile_count tiles, interpreting as MiSeq run."

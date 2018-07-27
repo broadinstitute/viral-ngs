@@ -7,7 +7,7 @@ set -e -o pipefail
 CONDA_PACKAGE_OUTDIR=packaging/conda-packages
 echo "Rendering and building conda package..."
 echo "Python binary: $(which python)"
-echo "Python version: $(python --version)"
+echo "Python version: $(python --version 2>&1)"
 # Render recipe from template and dependency files, setting the tag as the current version
 # if this is a tag build+upload, otherwise just test building
 
@@ -17,9 +17,10 @@ if [ -z "$ANACONDA_TOKEN" ]; then
     exit 1
 fi
 
-conda config --set anaconda_upload yes
+conda config --set anaconda_upload no
 if [ -n "$TRAVIS_TAG" ]; then
-    # This is an official release
+    # This is an official release, upload it
+    conda config --set anaconda_upload yes
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
@@ -39,11 +40,10 @@ else
     fi
 
     SANITIZED_BRANCH_NAME="$(echo $BRANCH_NAME | sed 's/-/_/g')"
-    CONDA_PKG_VERSION="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-/$1+dev-/' | sed 's/-/_/g')_$(echo $SANITIZED_BRANCH_NAME)"
+    CONDA_PKG_VERSION="$(git describe --tags --always | sed 's/^v//' | perl -lape 's/(\d+.\d+.\d+)-?/$1+dev/' | sed 's/-/_/g')_$(echo $SANITIZED_BRANCH_NAME)"
     echo "Building conda package version $CONDA_PKG_VERSION"
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
-    CONDA_PERL=5.22.0 conda build --no-anaconda-upload -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
-
+    CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
 fi
