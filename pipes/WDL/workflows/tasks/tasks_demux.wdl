@@ -69,7 +69,7 @@ task illumina_demux {
       --loglevel=DEBUG
 
     # full RunInfo.xml path
-    $RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 2 -name RunInfo.xml)"
+    $RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 2 -name RunInfo.xml -print -quit)"
     total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $RUNINFO_FILE")
 
     if [ "$total_tile_count" -le 50 ]; then
