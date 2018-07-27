@@ -68,12 +68,9 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # full flowcell path
-    $FLOWCELL_PATH_FULL="$FLOWCELL_DIR/$(basename $(cd $FLOWCELL_DIR && find . -type d -maxdepth 1 | tail -n 1))"
-
-    ls /opt/viral-ngs/source/docker
-    ls $FLOWCELL_PATH_FULL
-    total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $FLOWCELL_PATH_FULL/RunInfo.xml")
+    # full RunInfo.xml path
+    $RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 2 -name RunInfo.xml)"
+    total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $RUNINFO_FILE")
 
     if [ "$total_tile_count" -le 50 ]; then
         echo "Detected $total_tile_count tiles, interpreting as MiSeq run."
