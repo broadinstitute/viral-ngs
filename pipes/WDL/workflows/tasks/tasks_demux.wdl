@@ -68,6 +68,7 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
+    ls /opt/viral-ngs/source/docker
     ls $FLOWCELL_DIR
     total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $FLOWCELL_DIR/RunInfo.xml")
 
