@@ -36,14 +36,18 @@ task illumina_demux {
   String? sequencingCenter
 
   String? flowcell
-  Int?    minimumBaseQuality
+  Int?    minimumBaseQuality = 10
   Int?    maxMismatches = 1
   Int?    minMismatchDelta
   Int?    maxNoCalls
   String? readStructure
   Int?    minimumQuality = 10
-  Int?    threads = 36
+  Int?    threads = 30
   String? runStartDate
+  Int?    maxReadsInRamPerTile
+  Int?    maxRecordsInRam
+  Boolean? forceGC=true
+
 
   parameter_meta {
     flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
@@ -51,6 +55,9 @@ task illumina_demux {
 
   command {
     set -ex -o pipefail
+
+    # find N% memory
+    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_85.sh`
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -61,8 +68,39 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # find N% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+    total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $FLOWCELL_DIR/RunInfo.xml")
+
+    if [ "$total_tile_count" -le 50 ]; then
+        echo "Detected $total_tile_count tiles, interpreting as MiSeq run."
+    elif [ "$total_tile_count" -le 150 ]; then
+        echo "Detected $total_tile_count tiles, interpreting as HiSeq2k run."
+    elif [ "$total_tile_count" -le 896 ]; then
+        echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run."
+    elif [ "$total_tile_count" -le 1408 ]; then
+        mem_in_mb=$(/opt/viral-ngs/source/docker/mem_in_mb_80.sh)
+        demux_threads=20 # with NovaSeq-size output, OOM errors can sporadically occur with higher thread counts
+        echo "Detected $total_tile_count tiles, interpreting as NovaSeq run."
+        echo "  **Note: Q20 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"
+        echo "    See: https://www.illumina.com/content/dam/illumina-marketing/documents/products/appnotes/novaseq-hiseq-q30-app-note-770-2017-010.pdf"
+    elif [ "$total_tile_count" -gt 1408 ]; then
+        demux_threads=$(echo "$demux_instance_type" | cut -dx -f2)
+        echo "Tile count: $total_tile_count tiles (unknown instrument type)."
+    fi
+
+    # use the passed-in (or default) WDL value first, then fall back to the auto-scaled value
+    # if the result of this is null (nothing is passed in, no autoscaled value, no param is passed to the command)
+    if [ -n "${minimumBaseQuality}" ]; then demux_min_base_quality="${minimumBaseQuality}"; else demux_min_base_quality="$demux_min_base_quality"; fi
+    if [ -n "$demux_min_base_quality" ]; then demux_min_base_quality="--minimum_base_quality=$demux_min_base_quality";fi
+    
+    if [ -n "${threads}" ]; then demux_threads="${threads}"; else demux_threads="$demux_threads"; fi
+    if [ -n "$demux_threads" ]; then demux_threads="--threads=$demux_threads"; fi
+    
+
+    if [ -n "${maxReadsInRamPerTile}" ]; then max_reads_in_ram_per_tile="${maxReadsInRamPerTile}"; else max_reads_in_ram_per_tile="$max_reads_in_ram_per_tile"; fi
+    if [ -n "$max_reads_in_ram_per_tile" ]; then max_reads_in_ram_per_tile="--max_reads_in_ram_per_tile=$max_reads_in_ram_per_tile"; fi
+    
+    if [ -n "${maxRecordsInRam}" ]; then max_records_in_ram="${maxRecordsInRam}"; else max_records_in_ram="$max_records_in_ram"; fi
+    if [ -n "$max_records_in_ram" ]; then max_records_in_ram="--max_records_in_ram=$max_records_in_ram"; fi
 
     # note that we are intentionally setting --threads to about 2x the core
     # count. seems to still provide speed benefit (over 1x) when doing so.
@@ -76,15 +114,18 @@ task illumina_demux {
       --outMetrics=metrics.txt \
       --commonBarcodes=barcodes.txt \
       ${'--flowcell=' + flowcell} \
-      ${'--minimum_base_quality=' + minimumBaseQuality} \
+      $demux_min_base_quality \
       ${'--max_mismatches=' + maxMismatches} \
       ${'--min_mismatch_delta=' + minMismatchDelta} \
       ${'--max_no_calls=' + maxNoCalls} \
       ${'--read_structure=' + readStructure} \
       ${'--minimum_quality=' + minimumQuality} \
       ${'--run_start_date=' + runStartDate} \
+      $max_reads_in_ram_per_tile \
+      $max_records_in_ram \
       --JVMmemory="$mem_in_mb"m \
-      ${'--threads=' + threads} \
+      $demux_threads \
+      ${true='--force_gc=true' false="--force_gc=false" forceGC} \
       --compression_level=5 \
       --loglevel=DEBUG
 
