@@ -68,8 +68,11 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
+    echo "FLOWCELL_DIR: $FLOWCELL_DIR"
+    ls "$FLOWCELL_DIR"
+
     # full RunInfo.xml path
-    $RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
     echo "RunInfo.xml: $RUNINFO_FILE"
     total_tile_count=$("/opt/viral-ngs/source/docker/run_tile_count.sh $RUNINFO_FILE")
 
