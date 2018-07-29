@@ -267,7 +267,8 @@ KMER_DBS_SMALL = [
     ('almost-empty-2.bam', '-k 23 --singleStrand'),
     ('almost-empty-2.bam', '-k 5 --minOccs 1 --maxOccs 5 --counterCap 3'),
     ('tcgaattt.fasta', '-k 7'),
-    ('ambig_bases.fasta', '-k 7')
+    ('ambig_bases.fasta', '-k 7'),
+    ('palindromic_kmers.fasta', '-k 7')
 ]
 
 KMER_DBS_MEDIUM = [
