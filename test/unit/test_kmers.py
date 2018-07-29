@@ -263,10 +263,11 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
 KMER_DBS_EMPTY = [('empty.fasta', '')]
 
 KMER_DBS_SMALL = [
-     ('ebola.fasta.gz', '-k 7'),
+    ('ebola.fasta.gz', '-k 7'),
     ('almost-empty-2.bam', '-k 23 --singleStrand'),
     ('almost-empty-2.bam', '-k 5 --minOccs 1 --maxOccs 5 --counterCap 3'),
-    ('tcgaattt.fasta', '-k 7')
+    ('tcgaattt.fasta', '-k 7'),
+    ('ambig_bases.fasta', '-k 7')
 ]
 
 KMER_DBS_MEDIUM = [
