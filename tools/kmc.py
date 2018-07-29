@@ -129,7 +129,7 @@ class KmcTool(tools.Tool):
                 'kmer database files not created: {}'.format(kmer_db))
 
     def execute(self, args, threads=None, return_output=False):  # pylint: disable=arguments-differ
-        """Run kmc_tools with the given args"""
+        """Run kmc_tools with the given args.  If `return_output` is True, returns the stdout output."""
         threads = util.misc.sanitize_thread_count(threads)
         tool_cmd = [self.install_and_get_path()+'_tools'] + ['-t{}'.format(threads)] + list(map(str, args))
         _log.info('Running kmc_tools command: %s', ' '.join(tool_cmd))
@@ -144,7 +144,8 @@ class KmcTool(tools.Tool):
 
 
     def dump_kmer_counts(self, kmer_db, out_kmers, min_occs=1, max_occs=util.misc.MAX_INT32, threads=None):
-        """Dump the kmers from the database, with their counts, to a text file"""
+        """Dump the kmers from the database, with their counts, to a text file.  Kmers with counts
+        below `min_occs` or above `max_occs` are ignored."""
         self.execute('transform {} -ci{} -cx{} dump {}'.format(self._kmer_db_name(kmer_db),
                                                                min_occs, max_occs, out_kmers).split(),
                      threads=threads)
@@ -160,14 +161,16 @@ class KmcTool(tools.Tool):
         return counts
 
     def get_kmer_counts(self, kmer_db, **kwargs):
-        """Extract and return the kmer counts from the kmer database as a dict."""
+        """Extract and return the kmer counts from the kmer database as a dict.  `kwargs` are passed through
+        to read_kmer_counts()."""
         with util.file.tempfname(suffix='_kmer_cnts.txt') as kmer_counts_file:
             self.dump_kmer_counts(kmer_db, out_kmers=kmer_counts_file, **kwargs)
             return self.read_kmer_counts(kmer_counts_file)
 
     def get_kmer_db_info(self, kmer_db):
         """Return params of a kmer db.
-        See https://github.com/refresh-bio/KMC/issues/83
+        This functionality is not documented in KMC docs but is supported
+        ( https://github.com/refresh-bio/KMC/issues/83 )
 
         Returns: an argparse.Namespace() with attributes kmer_size, min_occs, max_occs,
            counter_size_bytes, and total_kmers.

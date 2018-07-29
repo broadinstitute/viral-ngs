@@ -77,18 +77,43 @@ __commands__.append(('dump_kmer_counts', parser_dump_kmer_counts))
 
 # =========================
 
-def filter_by_kmers(kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
-                    read_min_occs=0, read_max_occs=util.misc.MAX_INT32, 
-                    read_min_occs_frac=0.0, read_max_occs_frac=1.0, hard_mask=False, threads=None):
-    """Filter sequences based on their kmer contents.
+def filter_reads(kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32,
+                 read_min_occs=0, read_max_occs=util.misc.MAX_INT32, 
+                 read_min_occs_frac=0.0, read_max_occs_frac=1.0, hard_mask=False, threads=None):
+    """Filter reads based on their kmer contents.
 
-       Note that 'occurrence of a kmer' means 'occurrence of the kmer or its reverse complement' if kmer_db was built
-       without the --singleStrand flag.
+    Note that "occurrence of a kmer" means "occurrence of the kmer or its reverse complement" if kmer_db was built
+    with single_strand==False.
+
+    Inputs:
+        kmer_db: the kmc kmer database
+        in_reads: the reads to filter.  can be a .fasta or .fastq or .bam; fasta or fastq can be compressed
+             with gzip or bzip2.  If a .bam, a read pair is kept if either mate passes the filter.
+
+    Outputs:
+        out_reads: file to which filtered reads are written.  type is determined from extension,
+             same types as above are supported.
+
+    Params:
+        db_min_occs: only consider database kmers with at least this count
+        db_max_occs: only consider database kmers with at most this count
+
+        read_min_occs: only keep reads with at least this many occurrences of kmers from database.
+        read_max_occs: only keep reads with no more than this many occurrence of kmers from the database.
+        read_min_occs_frac: only keep reads with at least this many occurrences of kmers from database,
+             interpreted as a fraction of read length in kmers
+        read_max_occs_frac: only keep reads with no more than this many occurrence of kmers from the database.
+             interpreted as a fraction of read length in kmers.
+
+        (Note: minimal read kmer content can be given as absolute counts or fraction of read length, but not both).
+
+        hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
+        threads: use this many threads
     """
     tools.kmc.KmcTool().filter_reads(**locals())
 
-def parser_filter_by_kmers(parser=argparse.ArgumentParser()):
-    """Create parser for filter_by_kmers"""
+def parser_filter_reads(parser=argparse.ArgumentParser()):
+    """Create parser for filter_reads"""
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
     parser.add_argument('in_reads', help='input reads, as fasta/fastq/bam')
     parser.add_argument('out_reads', help='output reads')
@@ -110,10 +135,10 @@ def parser_filter_by_kmers(parser=argparse.ArgumentParser()):
                         action='store_true',
                         help='In the output reads, mask the invalid kmers')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, filter_by_kmers, split_args=True)
+    util.cmd.attach_main(parser, filter_reads, split_args=True)
     return parser
 
-__commands__.append(('filter_by_kmers', parser_filter_by_kmers))
+__commands__.append(('filter_reads', parser_filter_reads))
 
 # =========================
 

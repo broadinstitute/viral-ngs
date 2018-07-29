@@ -148,22 +148,38 @@ class KmcPy(object):
         are dropped, and kmer counts capped at `counter_cap`, if these args are given.
         """
         counts = collections.Counter(self._compute_kmers(_list_seqs_as_strs(seq_files), kmer_size, single_strand))
-        return self.filter_kmer_counts(counts=counts, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap)
+        return self._filter_kmer_counts(counts=counts, min_occs=min_occs, max_occs=max_occs, counter_cap=counter_cap)
 
-    def filter_kmer_counts(self, counts, min_occs=None, max_occs=None, counter_cap=None):
-        result = collections.Counter({kmer : min(count, counter_cap or count) \
-                                      for kmer, count in counts.items() \
-                                      if (count >= (min_occs or count)) and \
-                                      (count <= (max_occs or count))})
-        _log.debug('filter_kmer_counts: len(counts)=%d min_occs=%s max_occs=%s counter_cap=%s len(result)=%d',
-                  len(counts), min_occs, max_occs, counter_cap, len(result))
-        return result
+    def _filter_kmer_counts(self, counts, min_occs=None, max_occs=None, counter_cap=None):
+        """From a dict of kmer counts, drop kmers with counts below `min_occs` or above `max_occs`, and
+        cap counter values at `counter_cap`."""
+        return collections.Counter({kmer : min(count, counter_cap or count) \
+                                    for kmer, count in counts.items() \
+                                    if (count >= (min_occs or count)) and \
+                                    (count <= (max_occs or count))})
 
-    def filter_seqs(self, db_kmer_counts, in_reads, kmer_size, single_strand,
+
+    def filter_reads(self, db_kmer_counts, in_reads, kmer_size, single_strand,
                     db_min_occs, db_max_occs, read_min_occs, read_max_occs,
                     read_min_occs_frac, read_max_occs_frac, **ignore):
+        """Fiter sequences based on their kmer contents; returns the ids of the passing seqs.
+
+        Inputs:
+           in_reads: sequences to filter, as a fasta/fastq/bam
+
+        Params:
+           db_kmer_counts: a collections.Counter mapping kmers to their counts in the kmer database
+           kmer_size: kmer size
+           single_strand: if False, kmers are canonicalized
+           db_min_occs: drop from db_kmer_counts kmers with counts below this
+           db_max_occs: drop from db_kmer_counts kmers with counts above this
+           read_min_occs: drop reads with fewer than this many occurrences of kmers from the database
+           read_max_occs: drop reads with more than this many occurrences of kmers from the database
+           read_min_occs_frac: drop reads with fewer than this fraction of many occurrences of kmers from the database
+           read_max_occs_frac: drop reads with more than this many occurrences of kmers from the database
+        """
         #_log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
-        db_kmers = self.filter_kmer_counts(counts=db_kmer_counts, min_occs=db_min_occs, max_occs=db_max_occs).keys()
+        db_kmers = self._filter_kmer_counts(counts=db_kmer_counts, min_occs=db_min_occs, max_occs=db_max_occs).keys()
 
         seqs_ids_out = set()
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
@@ -195,7 +211,7 @@ class KmcPy(object):
 
 
         _log.debug('kmer occs histogram: %s', sorted(seq_occs_hist.items()))
-        _log.debug('filter_seqs: %d of %d passed; mate_cnt=%s', len(seqs_ids_out), len(in_recs),
+        _log.debug('filter_reads: %d of %d passed; mate_cnt=%s', len(seqs_ids_out), len(in_recs),
                    mate_cnt)
 
         return seqs_ids_out
@@ -209,12 +225,13 @@ class KmcPy(object):
             result = collections.Counter({k: (kmer_counts_1[k] + kmer_counts_2[k])
                                           for k in (set(kmer_counts_1.keys()) | set(kmer_counts_2.keys()))})
         elif op == 'kmers_subtract':
-            result = collections.Counter(util.misc.subdict(kmer_counts_1, set(kmer_counts_1.keys()) - set(kmer_counts_2.keys())))
+            result = collections.Counter(util.misc.subdict(kmer_counts_1,
+                                                           set(kmer_counts_1.keys()) - set(kmer_counts_2.keys())))
         elif op == 'counters_subtract':
             result = kmer_counts_1 - kmer_counts_2
         else:
             raise ValueError('Unknown operation: {}'.format(op))
-        return self.filter_kmer_counts(counts=result, counter_cap=result_counter_cap)
+        return self._filter_kmer_counts(counts=result, counter_cap=result_counter_cap)
 
 # end: class KmcPy    
 
@@ -224,8 +241,9 @@ def _inp(fname):
     """Return full path to a test input file for this module"""
     return os.path.join(util.file.get_test_input_path(), 'TestKmers', fname)
 
-def _stringify(par): 
-    return util.file.string_to_file_name(str(par))
+def _stringify(arg):
+    """Return a string based on `arg`, suitable for use as a pytest test id"""
+    return util.file.string_to_file_name(str(arg))
 
 def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     """Build a database of kmers from given sequence file(s) using given options.
@@ -334,7 +352,7 @@ def test_build_kmer_db_combo(kmer_db_fixture):
 
 ##############################################################################################
 
-def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
+def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
     """Test read filtering.
 
     Args:
@@ -349,15 +367,15 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
     reads_file = _inp(reads_file)
     reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util.file.uncompressed_file_type(reads_file))
 
-    filter_args = util.cmd.run_cmd(module=kmers, cmd='filter_by_kmers',
+    filter_args = util.cmd.run_cmd(module=kmers, cmd='filter_reads',
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
     _log.debug('Running filte: kmer_db_args=%s filter_arg=%s', kmer_db_fixture.kmer_db_args, filter_args)
-    filtered_seqs_ids_expected = kmcpy.filter_seqs(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
-                                                   kmer_size=kmer_db_fixture.kmer_db_args.kmer_size,
-                                                   single_strand=kmer_db_fixture.kmer_db_args.single_strand,
-                                                   **vars(filter_args))
+    filtered_ids_expected = kmcpy.filter_reads(db_kmer_counts=kmer_db_fixture.kmc_kmer_counts,
+                                               kmer_size=kmer_db_fixture.kmer_db_args.kmer_size,
+                                               single_strand=kmer_db_fixture.kmer_db_args.single_strand,
+                                               **vars(filter_args))
 
     reads_file_out_ids_txt = reads_file_out+'.ids.txt'
     read_utils.read_names(reads_file_out, reads_file_out_ids_txt)
@@ -367,15 +385,15 @@ def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_funct
                kmer_db_fixture.kmer_db, reads_file, filter_opts)
     def normed_read_ids(ids): return set(map(_strip_mate_num, ids))
 
-    assert normed_read_ids(reads_out_ids) == normed_read_ids(filtered_seqs_ids_expected)
+    assert normed_read_ids(reads_out_ids) == normed_read_ids(filtered_ids_expected)
 
-# end: def _test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
+# end: def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 
 @pytest.mark.parametrize("kmer_db_fixture", [('empty.fasta', '')], ids=_stringify, indirect=["kmer_db_fixture"])
 @pytest.mark.parametrize("reads_file", ['empty.fasta', 'tcgaattt.fasta', 'G5012.3.subset.bam'])
 @pytest.mark.parametrize("filter_opts", ['', '--readMinOccs 1', '--readMaxOccs 2'])
 def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
-    _test_filter_by_kmers(**locals())
+    _test_filter_reads(**locals())
 
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta.gz', '-k 7')], ids=_stringify, indirect=["kmer_db_fixture"])
 @pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
@@ -383,8 +401,8 @@ def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_f
 @pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 93',
                                          '--dbMinOccs 4 --readMinOccsFrac .6',
                                          '--readMinOccsFrac .4 --readMaxOccsFrac .55'])
-def test_filter_by_kmers(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
-    _test_filter_by_kmers(**locals())
+def test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function):
+    _test_filter_reads(**locals())
 
 
 @pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL[:1], ids=_stringify, indirect=["kmer_db_fixture"])
