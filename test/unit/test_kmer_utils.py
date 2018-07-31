@@ -382,8 +382,8 @@ def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function
     read_utils.read_names(reads_file_out, reads_file_out_ids_txt)
     reads_out_ids = util.file.slurp_file(reads_file_out_ids_txt).strip().split()
 
-    # _log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
-    #            kmer_db_fixture.kmer_db, reads_file, filter_opts)
+    _log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
+               kmer_db_fixture.kmer_db, reads_file, filter_opts)
     def normed_read_ids(ids): return set(map(_strip_mate_num, ids))
 
     assert normed_read_ids(reads_out_ids) == normed_read_ids(filtered_ids_expected)
