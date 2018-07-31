@@ -224,6 +224,7 @@ class KmcTool(tools.Tool):
 
         abs_thresholds = (read_min_occs, read_max_occs) != (0, util.misc.MAX_INT32)
         rel_thresholds = (read_min_occs_frac, read_max_occs_frac) != (0., 1.)
+        if not (abs_thresholds or rel_thresholds): abs_thresholds = True
         _chk(not (abs_thresholds and rel_thresholds),
              "Mixing absolute and relative thresholds for kmer content not currently supported")
         _chk(0 <= read_min_occs <= read_max_occs <= util.misc.MAX_INT32,
