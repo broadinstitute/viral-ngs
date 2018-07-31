@@ -17,15 +17,16 @@ if [ -z "$ANACONDA_TOKEN" ]; then
     exit 1
 fi
 
-conda config --set anaconda_upload yes
+conda config --set anaconda_upload no
 if [ -n "$TRAVIS_TAG" ]; then
-    # This is an official release
+    # This is an official release, upload it
+    conda config --set anaconda_upload yes
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
     CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
 
-elif [[ $TRAVIS_BRANCH != "master" ]]; then
+else
     # This is a development build
 
     # make a directory to hold the built conda package
@@ -44,6 +45,5 @@ elif [[ $TRAVIS_BRANCH != "master" ]]; then
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
-    CONDA_PERL=5.22.0 conda build --no-anaconda-upload -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
-
+    CONDA_PERL=5.22.0 conda build -c broad-viral -c r -c bioconda -c conda-forge -c defaults --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
 fi
