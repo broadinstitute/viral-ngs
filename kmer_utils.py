@@ -82,6 +82,9 @@ def filter_reads(kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.m
                  read_min_occs_frac=0.0, read_max_occs_frac=1.0, hard_mask=False, threads=None):
     """Filter reads based on their kmer contents.
 
+    Can also be used to filter contigs or reference sequences, but we'll refer to filtering of reads
+    in the documentation.
+
     Note that "occurrence of a kmer" means "occurrence of the kmer or its reverse complement" if kmer_db was built
     with single_strand==False.
 
@@ -127,7 +130,7 @@ def parser_filter_reads(parser=argparse.ArgumentParser()):
                         help='filter out reads with more than this many db kmers')
     parser.add_argument('--readMinOccsFrac', dest='read_min_occs_frac', type=float, default=0.0,
                         help='filter out reads with fewer than this many db kmers, '
-                        'as fraction of read length')
+                        'interpreted as fraction of read length')
     parser.add_argument('--readMaxOccsFrac', dest='read_max_occs_frac', type=float, default=1.0,
                         help='filter out reads with more than this many db kmers, '
                         'interpreted as fraction of read length')

@@ -1,4 +1,4 @@
-"""Unit tests for kmers.py"""
+"""Unit tests for kmer_utils.py"""
 
 __author__ = "ilya@broadinstitute.org"
 
@@ -16,7 +16,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import pytest
 
-import kmers
+import kmer_utils
 import read_utils
 import util.cmd
 import util.file
@@ -33,7 +33,7 @@ slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in kmers.__commands__:
+        for cmd_name, parser_fun in kmer_utils.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -175,10 +175,11 @@ class KmcPy(object):
            db_max_occs: drop from db_kmer_counts kmers with counts above this
            read_min_occs: drop reads with fewer than this many occurrences of kmers from the database
            read_max_occs: drop reads with more than this many occurrences of kmers from the database
-           read_min_occs_frac: drop reads with fewer than this fraction of many occurrences of kmers from the database
-           read_max_occs_frac: drop reads with more than this many occurrences of kmers from the database
+           read_min_occs_frac: only keep reads with at least this many occurrences of kmers from database,
+             interpreted as a fraction of read length in kmers
+           read_max_occs_frac: only keep reads with no more than this many occurrence of kmers from the database.
+             interpreted as a fraction of read length in kmers.
         """
-        #_log.debug('kmercounts=%s', sorted(collections.Counter(db_kmer_counts.values()).items()))
         db_kmers = self._filter_kmer_counts(counts=db_kmer_counts, min_occs=db_min_occs, max_occs=db_max_occs).keys()
 
         seqs_ids_out = set()
@@ -269,7 +270,7 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
     assert not tools.kmc.KmcTool().is_kmer_db(k_db)
     seq_files = list(map(_inp, seq_files.split()))
-    kmer_db_args = util.cmd.run_cmd(module=kmers, cmd='build_kmer_db',
+    kmer_db_args = util.cmd.run_cmd(module=kmer_utils, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
     assert tools.kmc.KmcTool().is_kmer_db(k_db)
     kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
@@ -367,7 +368,7 @@ def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function
     reads_file = _inp(reads_file)
     reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util.file.uncompressed_file_type(reads_file))
 
-    filter_args = util.cmd.run_cmd(module=kmers, cmd='filter_reads',
+    filter_args = util.cmd.run_cmd(module=kmer_utils, cmd='filter_reads',
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
@@ -409,7 +410,7 @@ def test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 @pytest.mark.parametrize("set_to_val", [1, util.misc.MAX_INT32])
 def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
     db_with_set_counts = os.path.join(tmpdir_function, 'set_counts_db')
-    util.cmd.run_cmd(module=kmers, cmd='kmers_set_counts',
+    util.cmd.run_cmd(module=kmer_utils, cmd='kmers_set_counts',
                      args=[kmer_db_fixture.kmer_db, set_to_val, db_with_set_counts])
     new_counts = tools.kmc.KmcTool().get_kmer_counts(db_with_set_counts)
     assert set(new_counts.keys()) == set(kmer_db_fixture.kmc_kmer_counts.keys())
@@ -424,7 +425,7 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     _log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
     _log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
     _log.debug('op=%s', op)
-    args = util.cmd.run_cmd(module=kmers, cmd='kmers_binary_op',
+    args = util.cmd.run_cmd(module=kmer_utils, cmd='kmers_binary_op',
                             args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
 
     kmc_counts = tools.kmc.KmcTool().get_kmer_counts(db_result)

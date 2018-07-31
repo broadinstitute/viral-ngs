@@ -9,7 +9,7 @@ Command line tools
    interhost
    intrahost
    read_utils
-   kmers
+   kmer_utils
    reports
    illumina
    broad_utils
