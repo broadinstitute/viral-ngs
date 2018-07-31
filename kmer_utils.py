@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # =================================
 
-def build_kmer_db(seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min_occs=None, max_occs=None,
+def build_kmer_db(seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min_occs=1, max_occs=util.misc.MAX_INT32,
                   counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
                   threads=None):
     """Build a database of kmers occurring in given sequences."""
