@@ -18,7 +18,7 @@ def timer():
 
 
 def pytest_addoption(parser):
-    group = parser.getgroup("terminal reporting", "reporting", after="general")
+    group = parser.getgroup("reporting", description="terminal reporting", after="general")
     group.addoption(
         '--fixture-durations',
         action="store",
@@ -26,6 +26,14 @@ def pytest_addoption(parser):
         default=None,
         metavar="N",
         help="show N slowest fixture durations (N=0 for all)."
+    )
+
+    group = parser.getgroup("test_selection", description="test selection", after="general")
+    group.addoption(
+        '--runslow',
+        action="store_true",
+        default=False,
+        help="run slow tests."
     ),
 
 def pytest_configure(config):

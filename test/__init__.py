@@ -28,6 +28,12 @@ if 'PYTEST_XDIST_WORKER_COUNT' in os.environ:
 else:
     _CPUS = available_cpu_count()
 
+def make_slow_test_marker():
+    """Create a marker for marking slow tests."""
+    return pytest.mark.skipif(
+        not pytest.config.getoption("--runslow", default=False),
+        reason="need --runslow option to run"
+    )
 
 def assert_equal_contents(testCase, filename1, filename2):
     'Assert contents of two files are equal for a unittest.TestCase'
