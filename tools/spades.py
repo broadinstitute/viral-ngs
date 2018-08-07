@@ -18,7 +18,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'spades'
-TOOL_VERSION = '3.11.1'
+TOOL_VERSION = '3.12.0'
 
 log = logging.getLogger(__name__)
 
