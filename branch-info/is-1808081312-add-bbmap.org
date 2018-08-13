@@ -1,0 +1,3 @@
+Branch is-1808081312-add-bbmap:
+
+Adding tool wrapper for BBMap aligners and related tools.
