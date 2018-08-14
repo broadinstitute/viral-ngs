@@ -857,7 +857,6 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
         assert s2fq.returncode == 0
         diamond_ps.wait()
         assert diamond_ps.returncode == 0
-
 __commands__.append(('diamond', parser_diamond))
 
 
