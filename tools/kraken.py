@@ -196,7 +196,8 @@ class Kraken(tools.Tool):
         picard = tools.picard.SamToFastqTool()
         picard_opts = {
             'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-            'CLIPPING_ACTION': 'X'
+            'CLIPPING_ACTION': 'X',
+            'VERBOSITY': 'INFO'
         }
         picard.execute(inBam, tmp_fastq1, tmp_fastq2,
                        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
