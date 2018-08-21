@@ -13,7 +13,7 @@ import tools.samtools
 import tools.picard
 
 TOOL_NAME = 'bbmap'
-TOOL_VERSION = '38.20'
+TOOL_VERSION = '38.22'
 
 _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
