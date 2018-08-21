@@ -19,7 +19,7 @@ task plot_coverage {
     # prep GATK
     mkdir gatk
     if [[ ${gatk_jar} == *.tar.bz2 ]]; then
-      tar -xjvf ${gatk_jar} -C gatk
+      tar -xjvf ${gatk_jar} -C gatk --no-same-owner
     else
       ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     fi
