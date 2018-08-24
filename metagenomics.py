@@ -1182,7 +1182,7 @@ def filter_bam_to_taxa( in_bam,
                         tax_id_col=2,
                         JVMmemory=None ):
     """
-        Filter an input bam file to only include reads that have been mapped to specified 
+        Filter an (already classified) input bam file to only include reads that have been mapped to specified 
         taxonomic IDs or scientific names. This requires a classification file, as produced 
         by tools such as Kraken, as well as the NCBI taxonomy database.
     """
