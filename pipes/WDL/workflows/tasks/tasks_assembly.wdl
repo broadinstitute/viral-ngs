@@ -184,7 +184,7 @@ task refine {
         # prep GATK
         mkdir gatk
         if [[ ${gatk_jar} == *.tar.bz2 ]]; then
-          tar -xjvf ${gatk_jar} -C gatk
+          tar -xjvof ${gatk_jar} -C gatk
         else
           ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
         fi
@@ -255,7 +255,7 @@ task refine_2x_and_plot {
         # prep GATK
         mkdir gatk
         if [[ ${gatk_jar} == *.tar.bz2 ]]; then
-          tar -xjvf ${gatk_jar} -C gatk
+          tar -xjvof ${gatk_jar} -C gatk
         else
           ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
         fi
