@@ -9,6 +9,7 @@ import os
 import tempfile
 import logging
 import subprocess
+import shutil
 
 # third-party
 import pysam
@@ -41,7 +42,7 @@ class SnpEff(tools.Tool):
         super(SnpEff, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return "4.1"
+        return TOOL_VERSION
 
     def execute(self, command, args, JVMmemory=None, stdin=None, stdout=None, stderr=None):    # pylint: disable=W0221
         if not JVMmemory:
@@ -59,7 +60,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=("databases" in command), check=True)
+        return util.misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=command in ("databases","build"), check=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -101,12 +102,40 @@ class SnpEff(tools.Tool):
                 removeSeparateFiles=False
             )
 
-            add_genomes_to_snpeff_config_file(config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
+            # create a temp config file in the same location as the original
+            # since the data dir for the built database has a relative
+            # location by default
+            tmp_config_file = config_file+".temp"
+
+            # build a new snpEff database using the downloaded genbank file
+            # Note that if the snpEff command fails for some reason,
+            # we should take care to not include an entry for the database
+            # in the config file, which is the record of installed databases.
+            # In the event the build fails, the config file must reflect
+            # databases present in the data_dir, otherwise calls to execute snpEff will
+            # fail if the data_dir lacks databases for entries listed in the config file.
+
+            # make a temp copy of the old config file
+            shutil.copyfile(config_file, tmp_config_file)
+
+            # add the new genome to the temp config file
+            # since snpEff will not attempt to build unless the
+            # database is in the config file
+            add_genomes_to_snpeff_config_file(tmp_config_file, [(databaseId, sortedAccessionString, sortedAccessionString)])
+
+            try:
+                args = ['-genbank', '-v', databaseId, "-c", tmp_config_file]
+                self.execute('build', args, JVMmemory=JVMmemory)
+            except:
+                # remove temp config file if the database build failed
+                shutil.unlink(tmp_config_file)
+                raise
+
+            # copy the temp config including the built database 
+            # if the execute('build') command did not raise an exception
+            shutil.move(tmp_config_file, config_file)
             self.known_dbs.add(databaseId)
             self.installed_dbs.add(databaseId)
-
-            args = ['-genbank', '-v', databaseId]
-            self.execute('build', args, JVMmemory=JVMmemory)
 
     def available_databases(self):
         # do not capture stderr, since snpEff writes 'Picked up _JAVA_OPTIONS'
