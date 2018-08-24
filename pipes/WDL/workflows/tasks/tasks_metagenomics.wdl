@@ -157,10 +157,15 @@ task filter_bam_to_taxa {
       $TAX_NAMES \
       $TAX_IDs \
       --loglevel=DEBUG
+
+      samtools view -c ${classified_bam} | tee classified_taxonomic_filter_read_count_pre
+      samtools view -c "${input_basename}_filtered.bam" | tee classified_taxonomic_filter_read_count_post
   }
 
   output {
     File bam_filtered_to_taxa = "${input_basename}_filtered.bam"
+    Int  classified_taxonomic_filter_read_count_pre  = read_int("classified_taxonomic_filter_read_count_pre")
+    Int  classified_taxonomic_filter_read_count_post = read_int("classified_taxonomic_filter_read_count_post")
   }
 
   runtime {
