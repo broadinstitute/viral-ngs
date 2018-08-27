@@ -164,7 +164,8 @@ def gather_expected_command_metadata_for_each_test():
 # Checking of command metadata from each test against expectation
 ####################################################################
 
-@pytest.fixture(autouse='true')
+#@pytest.fixture(autouse='true')
+@pytest.fixture()
 def check_metadata_of_cmds_in_test(request, tmpdir_factory):
     """Checks that the metadata of commands executed during each test has not changed.
     
