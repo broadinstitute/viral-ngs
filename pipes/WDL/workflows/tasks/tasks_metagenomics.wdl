@@ -138,7 +138,7 @@ task filter_bam_to_taxa {
     set -ex -o pipefail
 
     # decompress DB to /mnt/db
-    metagenomics.py extract_tarball \
+    read_utils.py extract_tarball \
       ${ncbi_taxonomy_db_tgz} . \
       --loglevel=DEBUG
 
