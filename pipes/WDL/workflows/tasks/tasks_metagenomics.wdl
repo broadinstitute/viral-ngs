@@ -127,6 +127,7 @@ task filter_bam_to_taxa {
   File ncbi_taxonomy_db_tgz # nodes.dmp names.dmp
   Array[String]? taxonomic_names
   Array[Int]? taxonomic_ids
+  Boolean? withoutChildren=false
 
   String input_basename = basename(classified_bam, ".bam")
 
@@ -156,6 +157,7 @@ task filter_bam_to_taxa {
       taxonomy/names.dmp \
       $TAX_NAMES \
       $TAX_IDs \
+      ${true='--without-children' false='' withoutChildren} \
       --loglevel=DEBUG
 
       samtools view -c ${classified_bam} | tee classified_taxonomic_filter_read_count_pre
