@@ -1152,15 +1152,15 @@ class KrakenBuildError(Exception):
 
 def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input bam file.')
-    parser.add_argument('in_reads_to_tax_ID_map_file', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')    
+    parser.add_argument('read_IDs_to_tax_IDs', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')    
     parser.add_argument('out_bam', help='Output bam file, filtered to the taxa specified')
-    parser.add_argument('in_taxdb_nodes_path', help='nodes.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
-    parser.add_argument('in_taxdb_names_path', help='names.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
+    parser.add_argument('nodes_dmp', help='nodes.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
+    parser.add_argument('names_dmp', help='names.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
     parser.add_argument('--taxNames', nargs="+", dest="tax_names", help='The taxonomic names to include. More than one can be specified. Mapped to Tax IDs by lowercase exact match only. Ex. "Viruses" This is in addition to any taxonomic IDs provided.')
     parser.add_argument('--taxIDs', nargs="+", type=int, dest="tax_ids", help='The NCBI taxonomy IDs to include. More than one can be specified. This is in addition to any taxonomic names provided.')
-    parser.add_argument('--omit_children', action='store_true', dest="omit_children", help='Omit reads classified more specifically than each taxon specified (without this a taxon and its children are included).')
-    parser.add_argument('--read_id_col', type=int, dest="read_id_col", help='The (zero-indexed) number of the column in in_reads_to_tax_ID_map_file containing read IDs. (default: %(default)s)', default=1)
-    parser.add_argument('--tax_id_col', type=int, dest="tax_id_col", help='The (zero-indexed) number of the column in in_reads_to_tax_ID_map_file containing Taxonomy IDs. (default: %(default)s)', default=2)
+    parser.add_argument('--without-children', action='store_true', dest="omit_children", help='Omit reads classified more specifically than each taxon specified (without this a taxon and its children are included).')
+    parser.add_argument('--read_id_col', type=int, dest="read_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing read IDs. (default: %(default)s)', default=1)
+    parser.add_argument('--tax_id_col', type=int, dest="tax_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing Taxonomy IDs. (default: %(default)s)', default=2)
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -1171,10 +1171,10 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     return parser    
 
 def filter_bam_to_taxa( in_bam, 
-                        in_reads_to_tax_ID_map_file,
+                        read_IDs_to_tax_IDs,
                         out_bam,
-                        in_taxdb_nodes_path, 
-                        in_taxdb_names_path, 
+                        nodes_dmp, 
+                        names_dmp, 
                         tax_names=None, 
                         tax_ids=None,
                         omit_children=False,
@@ -1189,39 +1189,34 @@ def filter_bam_to_taxa( in_bam,
     tax_ids = set(tax_ids) if tax_ids else set()
     tax_names = tax_names or []
     # use TaxonomyDb() class above and tree traversal/collection functions above 
-    db = TaxonomyDb(nodes_path=in_taxdb_nodes_path, names_path=in_taxdb_names_path, load_nodes=True, load_names=True)
+    db = TaxonomyDb(nodes_path=nodes_dmp, names_path=names_dmp, load_nodes=True, load_names=True)
     db.children = parents_to_children(db.parents)
 
-    paired_read_base_pattern = re.compile(r'^(.*)/[1-2]$')
+    paired_read_base_pattern = re.compile(r'^(.*?)(/[1-2])?$')
 
     # get taxIDs for each of the heading values specifed (exact matches only)
     tax_ids_from_headings = set()
     for heading in tax_names:
         # map heading to taxID
-        name_pattern = re.compile(heading.lower())
+        name_pattern = re.compile(heading, flags=re.IGNORECASE)
         for row_tax_id, names in db.names.items():
             found_heading = False
-            if type(names) == list:
-                # if taxID->list (of names)
-                for name in names:
-                    if name_pattern.match(name.lower()):
-                        tax_ids_from_headings.add(row_tax_id)
-                        log.debug("Found taxName match: %s -> %s" % (row_tax_id,name))
-                        found_heading = True
-                        break
-                if found_heading:
-                    break
-            else:
-                # if taxID->str
-                if name_pattern.match(names.lower()):
+            if type(names) != list:
+                # if taxID->str, create list (of names) with cardinality=1
+                names = [names]
+            for name in names:
+                if name_pattern.match(name):
                     tax_ids_from_headings.add(row_tax_id)
-                    log.debug("Found taxName match: %s -> %s" % (row_tax_id,names))
+                    log.debug("Found taxName match: %s -> %s" % (row_tax_id,name))
+                    found_heading = True
                     break
+            if found_heading:
+                break
 
     tax_ids |= tax_ids_from_headings
 
-    log.debug("tax_ids %s" % tax_ids)
-    log.debug("tax_names %s" % tax_names)
+    log.debug("tax_ids %s", tax_ids)
+    log.debug("tax_names %s", tax_names)
 
     # extend tax_ids to include IDs of children
     tax_ids_to_include = set()
@@ -1237,7 +1232,7 @@ def filter_bam_to_taxa( in_bam,
     with util.file.tempfname(".txt.gz") as temp_read_list:
         with open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
             read_ids_written = 0
-            for row in util.file.read_tabfile(in_reads_to_tax_ID_map_file):
+            for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
                 assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
                 read_id = row[read_id_col]
@@ -1247,7 +1242,7 @@ def filter_bam_to_taxa( in_bam,
                 read_id_match = re.match(paired_read_base_pattern,read_id)
                 if (read_id_match and
                     read_tax_id in tax_ids_to_include):
-                    log.debug("Found matching read ID: %s" % read_id_match.group(1))
+                    log.debug("Found matching read ID: %s", read_id_match.group(1))
                     read_IDs_file.write(read_id_match.group(1)+"\n")
                     read_ids_written+=1
 
