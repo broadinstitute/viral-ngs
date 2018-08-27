@@ -15,7 +15,6 @@ import multiprocessing
 import time
 
 import util.file
-import tools.samtools
 
 from util._metadata import _log
 
@@ -123,6 +122,8 @@ def canonicalize_bam(fname, hash_algorithm):  # pragma: no cover
 
     with util.file.tempfnames(suffixes=('.oldhr.txt','.newhdr.txt', 'canon.bam')) as (old_header_fname, 
                                                                                       new_header_fname, canon_bam):
+        import tools.samtools
+
         # make this a plugin call
         tools.samtools.SamtoolsTool().dumpHeader(fname, old_header_fname)
         with open(new_header_fname, 'wb') as out_h, open(old_header_fname, 'rb') as in_h:
