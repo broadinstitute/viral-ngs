@@ -264,6 +264,7 @@ class TestAlignAndFix(TestCaseWithTmp):
 
         with util.file.tempfname('.cov_stats.tsv') as cov_stats_tsv:
             util.cmd.run_cmd(reports, 'coverage_stats', [outBamFiltered, '--out_tsv', cov_stats_tsv])
+            shutil.copyfile(cov_stats_tsv, '/tmp/cov_stats.tsv')
             self.assertEqualContents(cov_stats_tsv, tst_inp('TestAlignAndFix/expected.G5012.3.mini.cov.{}.tsv'.format(aligner)))
 
 class TestDownsampleBams(TestCaseWithTmp):
