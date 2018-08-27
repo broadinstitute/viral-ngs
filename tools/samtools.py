@@ -33,7 +33,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.6'
+TOOL_VERSION = '1.9'
 
 log = logging.getLogger(__name__)
 
@@ -56,23 +56,34 @@ class SamtoolsTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, command, args, stdout=None, stderr=None):    # pylint: disable=W0221
+    def execute(self, command, args, stdout=None, stderr=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
         log.debug(' '.join(tool_cmd))
         if stdout:
             stdout = open(stdout, 'w')
         if stderr:
             stderr = open(stderr, 'w')
-        subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr)
-        if stdout:
-            stdout.close()
-        if stderr:
-            stderr.close()
 
-    def view(self, args, inFile, outFile, regions=None):
+        env = os.environ.copy()
+        env.pop('JAVA_HOME', None)
+        if background:
+            subprocess.Popen(tool_cmd, stdout=stdout, stderr=stderr, env=env)
+        else:
+            subprocess.check_call(tool_cmd, stdout=stdout, stderr=stderr, env=env)
+
+            if stdout:
+                stdout.close()
+            if stderr:
+                stderr.close()
+
+    def view(self, args, inFile, outFile, regions=None, threads=None, background=False):
         regions = regions or []
+        args    = args or []
 
-        self.execute('view', args + ['-o', outFile, inFile] + regions)
+        # -@ seems to result in segfaults in some cases
+        # so this is commented out for now...
+
+        self.execute('view', args + ['-o', outFile, inFile] + regions, background=background)
         #opts = args + ['-o', outFile, inFile] + regions
         #pysam.view(*opts)
 
@@ -86,7 +97,7 @@ class SamtoolsTool(tools.Tool):
         tool_cmd = [self.install_and_get_path(), 'bam2fq', '-n', inBam]
         log.debug(' '.join(tool_cmd) + ' |')
         p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
-        return p.stdout
+        return p
 
     def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
         if outFa2 is None:
@@ -201,12 +212,16 @@ class SamtoolsTool(tools.Tool):
                 # process the lines individually and write them or not, depending on 
                 # whether they match regexToMatchForRemoval
                 for read in inb:
-                    # perform a regex match
-                    matches = regex.search(read.cigarstring)
-                    # if the regex was found (or not, if inverted)
-                    if (not invertResult and matches) or (invertResult and not matches):
-                        # continue to the next read (don't write out this one)
-                        continue
+                    if read.cigarstring:
+                        # perform a regex match
+                        matches = regex.search(read.cigarstring)
+                        # if the regex was found (or not, if inverted)
+                        if (not invertResult and matches) or (invertResult and not matches):
+                            # continue to the next read (don't write out this one)
+                            continue
+                    else:
+                        if invertResult:
+                            continue
                     # otherwise write out the line
                     outf.write(read)
 

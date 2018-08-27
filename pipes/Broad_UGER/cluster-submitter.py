@@ -31,7 +31,7 @@ blacklisted_nodes = os.listdir(blacklisted_node_dir)
 jobname = "{rule}-{jobid}".format(rule=props["rule"], jobid=sm_jobid)
 if props["params"].get("logid"):
     jobname = "{rule}-{id}".format(rule=props["rule"], id=props["params"]["logid"])
-cmdline = "qsub -P {proj_name} -N {jobname} -cwd -r y ".format(proj_name='sabeti_lab', jobname=jobname)
+cmdline = "qsub -N {jobname} -cwd -r y ".format(jobname=jobname)
 
 # log file output
 cmdline += "-o {logdir} -j y ".format(logdir=LOGDIR)

@@ -19,7 +19,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '2.17.6'
+TOOL_VERSION = '2.18.11'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
@@ -74,13 +74,13 @@ class PicardTools(tools.Tool):
 class RevertSamTool(PicardTools):
     subtoolName = 'RevertSam'
 
-    def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, inBam, outBam, picardOptions=None, JVMmemory=None, background=False):    # pylint: disable=W0221
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             shutil.copyfile(inBam, outBam)
         else:
             picardOptions = picardOptions or []
             opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam]
-            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory, background=background)
 
 
 class CheckIlluminaDirectoryTool(PicardTools):
@@ -330,6 +330,9 @@ class MergeSamFilesTool(PicardTools):
     def execute(self, inBams, outBam, picardOptions=None, JVMmemory=None, background=None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
+        if not any(opt.startswith('USE_THREADING') for opt in picardOptions):
+            picardOptions.append('USE_THREADING=true')
+
         opts = ['INPUT=' + bam for bam in inBams] + ['OUTPUT=' + outBam]
         PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory=JVMmemory, background=background)
 
@@ -455,7 +458,7 @@ class CollectIlluminaLaneMetricsTool(PicardTools):
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
-    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 25, 'num_processors': 0}
+    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 1, 'minimum_base_quality': 10, 'num_processors': 0}
     option_list = (
         'read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
         'minimum_quality', 'compress_outputs', 'num_processors'
@@ -499,7 +502,6 @@ class IlluminaBasecallsToSamTool(PicardTools):
         'max_reads_in_ram_per_tile': 200000,
         'max_records_in_ram': 1000000,
         'num_processors': 0,
-        'force_gc': False,
         'include_non_pf_reads': False,
         'compression_level': 7,
     }

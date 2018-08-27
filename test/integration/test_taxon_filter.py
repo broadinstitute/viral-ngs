@@ -31,7 +31,7 @@ class TestDepleteHuman(TestCaseWithTmp):
     def setUp(self):
         TestCaseWithTmp.setUp(self)
         self.tempDir = tempfile.mkdtemp()
-        myInputDir = util.file.get_test_input_path(self)
+        myInputDir = util.file.get_test_input_path()
         ref_fasta = os.path.join(myInputDir, '5kb_human_from_chr6.fasta')
         self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
 

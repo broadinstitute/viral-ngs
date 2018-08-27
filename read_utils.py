@@ -19,8 +19,11 @@ import shutil
 import sys
 import functools
 import concurrent.futures
+from contextlib import contextmanager
+import functools
 
 from Bio import SeqIO
+import pysam
 
 import util.cmd
 import util.file
@@ -183,6 +186,23 @@ __commands__.append(('mkdup_picard', parser_mkdup_picard))
 # ***  revert_bam_picard   ***
 # =============================
 
+def parser_revert_sam_common(parser=argparse.ArgumentParser()):
+    parser.add_argument('--clearTags', dest='clear_tags', default=False, action='store_true', 
+                        help='When supplying an aligned input file, clear the per-read attribute tags')
+    parser.add_argument("--tagsToClear", type=str, nargs='+', dest="tags_to_clear", default=["XT", "X0", "X1", "XA", 
+                        "AM", "SM", "BQ", "CT", "XN", "OC", "OP"], 
+                        help='A space-separated list of tags to remove from all reads in the input bam file (default: %(default)s)')
+    parser.add_argument('--doNotSanitize', dest="do_not_sanitize", action='store_true')
+    try:
+        parser.add_argument(
+            '--JVMmemory',
+            default=tools.picard.RevertSamTool.jvmMemDefault,
+            help='JVM virtual memory size (default: %(default)s)'
+        )
+    except argparse.ArgumentError:
+        # if --JVMmemory is already present in the parser, continue on...
+        pass
+    return parser
 
 def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', type=InFile, help='Input reads, BAM format.')
@@ -198,19 +218,67 @@ def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
         nargs='*',
         help='Optional arguments to Picard\'s RevertSam, OPTIONNAME=value ...'
     )
+    parser = parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_revert_bam_picard)
+    util.cmd.attach_main(parser, main_revert_bam_picard, split_args=True)
     return parser
 
 
-def main_revert_bam_picard(args):
+def main_revert_bam_picard(inBam, outBam, clear_tags=False, tags_to_clear=None, picardOptions=None, JVMmemory=None):
     '''Revert BAM to raw reads'''
-    opts = list(args.picardOptions)
-    tools.picard.RevertSamTool().execute(args.inBam, args.outBam, picardOptions=opts, JVMmemory=args.JVMmemory)
+    picardOptions = picardOptions or []
+    tags_to_clear = tags_to_clear or []
+
+    if clear_tags:
+        for tag in tags_to_clear:
+            picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+
+    tools.picard.RevertSamTool().execute(inBam, outBam, picardOptions=picardOptions, JVMmemory=JVMmemory)
     return 0
-
-
 __commands__.append(('revert_bam_picard', parser_revert_bam_picard))
+
+@contextmanager
+def revert_bam_if_aligned(inBam, revert_bam=None, clear_tags=True, tags_to_clear=None, picardOptions=None, JVMmemory="4g", sanitize=False):
+    '''
+        revert the bam file if aligned. 
+        If a revertBam file path is specified, it is used, otherwise a temp file is created.
+    '''
+
+    revertBamOut = revert_bam if revert_bam else util.file.mkstempfname('.bam')
+    picardOptions = picardOptions or []
+    tags_to_clear = tags_to_clear or []
+
+    outBam = inBam
+    with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as bam:
+        # if it looks like the bam is aligned, revert it
+        if 'SQ' in bam.header and len(bam.header['SQ'])>0:
+            if clear_tags:
+                for tag in tags_to_clear:
+                    picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+
+            if not any(opt.startswith("SORT_ORDER") for opt in picardOptions):
+                picardOptions.append('SORT_ORDER=queryname')
+
+            if sanitize and not any(opt.startswith("SANITIZE") for opt in picardOptions):
+                picardOptions.append('SANITIZE=true')
+
+            tools.picard.RevertSamTool().execute(
+                inBam, revertBamOut, picardOptions=picardOptions 
+            )
+            outBam = revertBamOut
+        else:
+            # if we don't need to produce a revertBam file
+            # but the user has specified one anyway
+            # simply touch the output
+            if revert_bam:
+                log.warning("An output was specified for 'revertBam', but the input is unaligned, so RevertSam was not needed. Touching the output.")
+                util.file.touch(revertBamOut)
+                # TODO: error out? run RevertSam anyway?
+
+    yield outBam
+
+    if revert_bam == None:
+        os.unlink(revertBamOut)
 
 # =========================
 # ***  generic picard   ***
@@ -301,6 +369,128 @@ def main_sort_bam(args):
 
 
 __commands__.append(('sort_bam', parser_sort_bam))
+
+# ====================
+# ***  downsample_bams  ***
+# ====================
+
+def parser_downsample_bams(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_bams', help='Input bam files.', nargs='+')
+    parser.add_argument('--outPath', dest="out_path", type=str, help="""Output path. If not provided, 
+                        downsampled bam files will be written to the same paths as each 
+                        source bam file""")
+    parser.add_argument('--readCount', dest="specified_read_count", type=int, help='The number of reads to downsample to.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--deduplicateBefore', action='store_true', dest="deduplicate_before", help='de-duplicate reads before downsampling.')
+    group.add_argument('--deduplicateAfter', action='store_true', dest="deduplicate_after", help='de-duplicate reads after downsampling.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.DownsampleSamTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--picardOptions',
+        default=[],
+        nargs='*',
+        help='Optional arguments to Picard\'s DownsampleSam, OPTIONNAME=value ...'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_downsample_bams, split_args=True)
+    return parser
+
+
+def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplicate_before=False, deduplicate_after=False, picardOptions=None, threads=None, JVMmemory=None):
+    '''Downsample multiple bam files to the smallest read count in common, or to the specified count.'''
+    if picardOptions is None:
+        picardOptions = []
+
+    opts = list(picardOptions) + []
+
+    def get_read_counts(bams):
+        samtools = tools.samtools.SamtoolsTool()
+        # get read counts for bam files provided
+        read_counts = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+            for x, result in zip(bams, executor.map(samtools.count, bams)):
+                read_counts[x] = int(result)
+
+        return read_counts
+
+    def get_downsample_target_count(bams, readcount_requested):
+        read_counts = get_read_counts(bams)
+        downsample_target = 0
+        if readcount_requested is not None:
+            downsample_target = readcount_requested
+            if downsample_target > min(read_counts.values()):
+                raise ValueError("The smallest file has %s reads, which is less than the downsample target specified, %s. Please reduce the target count or omit it to use the read count of the smallest input file." % (min(read_counts.values()), downsample_target))
+        else:
+            downsample_target = min(read_counts.values())
+        return downsample_target
+
+    def downsample_bams(data_pairs, downsample_target, threads=None, JVMmemory=None):
+        downsamplesam = tools.picard.DownsampleSamTool()
+        workers = util.misc.sanitize_thread_count(threads)
+        JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
+        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            for future in concurrent.futures.as_completed(future_to_file):
+                f = future_to_file[future]
+                try:
+                    data = future.result()
+                except Exception as exc:
+                    raise
+
+    def dedup_bams(data_pairs, threads=None, JVMmemory=None):
+        workers = util.misc.sanitize_thread_count(threads)
+        JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
+        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            for future in concurrent.futures.as_completed(future_to_file):
+                f = future_to_file[future]
+                try:
+                    data = future.result()
+                except Exception as exc:
+                    raise
+
+    data_pairs = []
+    if deduplicate_before:
+        with util.file.tempfnames(suffixes=[ '{}.dedup.bam'.format(os.path.splitext(os.path.basename(x))[0]) for x in in_bams]) as deduped_bams:
+            data_pairs = list(zip(in_bams, deduped_bams))
+            dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
+            downsample_target = get_downsample_target_count(deduped_bams, specified_read_count)
+            
+            if out_path:
+                util.file.mkdir_p(out_path)
+                data_pairs = list(zip(deduped_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".dedup.downsampled-{}.bam".format(downsample_target)) for x in in_bams]))
+            else:
+                data_pairs = list(zip(deduped_bams, [os.path.splitext(x)[0]+".dedup.downsampled-{}.bam".format(downsample_target) for x in in_bams]))
+            downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
+    else:
+        downsample_target = get_downsample_target_count(in_bams, specified_read_count)
+        if deduplicate_after:
+            log.warn("--deduplicateAfter has been specified. Read count of output files is not guaranteed.")
+            with util.file.tempfnames(suffixes=[ '{}.downsampled-{}.bam'.format(os.path.splitext(os.path.basename(x))[0], downsample_target) for x in in_bams]) as downsampled_tmp_bams:
+                data_pairs = list(zip(in_bams, downsampled_tmp_bams))
+                downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
+                
+                if out_path:
+                    util.file.mkdir_p(out_path)
+                    data_pairs = list(zip(downsampled_tmp_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".downsampled-{}.dedup.bam").format(downsample_target) for x in in_bams]))
+                else:
+                    data_pairs = list(zip(downsampled_tmp_bams, [os.path.splitext(x)[0]+".downsampled-{}.dedup.bam".format(downsample_target) for x in in_bams]))
+                dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
+        else:
+            if out_path:
+                util.file.mkdir_p(out_path)
+                data_pairs = list(zip(in_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".downsampled-{}.bam".format(downsample_target)) for x in in_bams]))
+            else:
+                data_pairs = list(zip(in_bams, [os.path.splitext(x)[0]+".downsampled-{}.bam".format(downsample_target) for x in in_bams]))
+            downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
+    return 0
+
+__commands__.append(('downsample_bams', parser_downsample_bams))
 
 # ====================
 # ***  merge_bams  ***
@@ -568,11 +758,11 @@ def main_reheader_bam(args):
     ''' Copy a BAM file (inBam to outBam) while renaming elements of the BAM header.
         The mapping file specifies which (key, old value, new value) mappings. For
         example:
-            LB  lib1  lib_one
-            SM  sample1 Sample_1
-            SM  sample2 Sample_2
-            SM  sample3 Sample_3
-            CN  broad   BI
+            LB	lib1	lib_one
+            SM	sample1	Sample_1
+            SM	sample2	Sample_2
+            SM	sample3	Sample_3
+            CN	broad	BI
     '''
     # read mapping file
     mapper = dict((a + ':' + b, a + ':' + c) for a, b, c in util.file.read_tabfile(args.rgMap))

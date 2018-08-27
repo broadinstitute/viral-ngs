@@ -25,9 +25,7 @@ bmtagger_dbs_remove:
   - "s3://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
 
 bwa_dbs_remove:
-  - "s3://sabeti-public-dbs/bmtagger/hg19"
-  - "s3://sabeti-public-dbs/bmtagger/GRCh37.68_ncRNA-GRCh37.68_transcripts-HS_rRNA_mitRNA"
-  - "s3://sabeti-public-dbs/bmtagger/metagenomics_contaminants_v3"
+  - "s3://sabeti-public-dbs/bwa/hg19"
 
 # Path for the directory containing blast databases used for additional depletion
 # See: ftp://ftp.ncbi.nih.gov/blast/documents/formatdb.html
@@ -89,7 +87,7 @@ env_vars:
   # The directory path to the location of the GATK jar file.
   # It must be explicitly given since GATK has to be licensed and downloaded
   # manually out of band.
-  GATK_PATH: "/humgen/gsa-hpprojects/GATK/bin/GenomeAnalysisTK-3.6-0-g89b7209"
+  GATK_PATH: "/idi/sabeti-scratch/shared-resources/software/gatk/GenomeAnalysisTK-3.8-0-ge9d806836"
 
   # The directory path to the Novocraft utilities, including Novoalign.
   # Without this path specified, single-threaded unlicensed Novoalign will be used.
@@ -312,16 +310,16 @@ genbank:
 
 #    |----------------- Cluster execution parameters----------------------------
 
-# The project name passed to the cluster scheduler (currently unused)
-project: "viral_ngs"
+## The project name passed to the cluster scheduler (currently unused)
+#project: "viral_ngs"
 
-# Broad-specific LSF cluster scheduler parameters
-LSF_queues:
-  short: "-W 4:00"
-  long: "-q forest"
-  bigmem: "-q flower"
+## Broad-specific LSF cluster scheduler parameters
+#LSF_queues:
+#  short: "-W 4:00"
+#  long: "-q forest"
+#  bigmem: "-q flower"
 
-# Broad-specific UGER cluster scheduler parameters
-UGER_queues:
-  short: "-l h_rt=04:00:00"
-  long: "-l h_rt=36:00:00"
+## Broad-specific UGER cluster scheduler parameters
+#UGER_queues:
+#  short: "-l h_rt=04:00:00"
+#  long: "-l h_rt=36:00:00"

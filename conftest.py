@@ -1,11 +1,15 @@
 import operator
 import os
-import pytest
 import shutil
 import sys
 import tempfile
 import time
+import contextlib
+import string
 
+import util.file
+
+import pytest
 
 def timer():
     if sys.version_info < (3, 3):
@@ -24,51 +28,54 @@ def pytest_addoption(parser):
         help="show N slowest fixture durations (N=0 for all)."
     ),
 
-
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
+#
+# Fixtures for creating a temp dir at session/module/class/function scope.
+# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a 
+# tempdir in the most secure/race-condition-free manner possible.
+# Also, since util.file.tmp_dir() is used, the tempdir contens can be
+# preserved for debugging by setting the environment variable VIRAL_NGS_TMP_DIRKEEP.
+#
+
+@contextlib.contextmanager
+def _tmpdir_aux(base_dir, scope, name):
+    """Create and return a temporary directory; remove it and its contents on context exit."""
+    with util.file.tmp_dir(dir=base_dir,
+                           prefix='test-{}-{}-'.format(scope, name)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='session')
 def tmpdir_session(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-session'))
-
-    def reset():
-        shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+    """Create a session-scope temporary directory."""
+    with _tmpdir_aux(str(tmpdir_factory.getbasetemp()),
+                     'session', id(request.session)) as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(scope='module')
-def tmpdir_module(request, tmpdir_factory):
-    tmpdir = str(tmpdir_factory.mktemp('test-module'))
+def tmpdir_module(request, tmpdir_session):
+    """Create a module-scope temporary directory."""
+    with _tmpdir_aux(tmpdir_session, 'module', request.module.__name__) as tmpdir:
+        yield tmpdir
 
-    def reset():
-        shutil.rmtree(tmpdir)
-
-    request.addfinalizer(reset)
-    return tmpdir
-
+@pytest.fixture(scope='class')
+def tmpdir_class(request, tmpdir_module):
+    """Create a class-scope temporary directory."""
+    with _tmpdir_aux(tmpdir_module, 'class',
+                     request.cls.__name__ if request.cls else '__noclass__') as tmpdir:
+        yield tmpdir
 
 @pytest.fixture(autouse=True)
-def tmpdir_function(request, tmpdir_factory):
-    old_tempdir = tempfile.tempdir
-    old_env_tmpdir = os.environ.get('TMPDIR')
-    new_tempdir = str(tmpdir_factory.mktemp('test-function'))
-    tempfile.tempdir = new_tempdir
-    os.environ['TMPDIR'] = new_tempdir
+def tmpdir_function(request, tmpdir_class, monkeypatch):
+    """Create a temporary directory and set it to be used by the tempfile module and as the TMPDIR environment variable."""
+    with _tmpdir_aux(tmpdir_class, 'node', request.node.name) as tmpdir:
+        monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
+        monkeypatch.setenv('TMPDIR', tmpdir)
+        yield tmpdir
 
-    def reset():
-        shutil.rmtree(new_tempdir)
-        tempfile.tmpdir = old_tempdir
-        if old_env_tmpdir:
-            os.environ['TMPDIR'] = old_env_tmpdir
-
-    request.addfinalizer(reset)
-    return new_tempdir
-
+#############################################################################################
 
 class FixtureReporter:
 

@@ -12,13 +12,16 @@ import collections
 import shutil
 import os
 import os.path
+
 import Bio.SeqIO
+
 import util.cmd
 import util.file
 import util.version
 import util.genbank
 import tools.tbl2asn
 import interhost
+import util.feature_table
 
 log = logging.getLogger(__name__)
 
@@ -30,78 +33,103 @@ def fasta_chrlens(fasta):
             out[seq.id] = len(seq)
     return out
 
-
-def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False):
+def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ignore_ambig_feature_edge=False):
     """
         This function is the feature transfer machinery used by tbl_transfer()
         and tbl_transfer_prealigned(). cmap is an instance of CoordMapper.
     """
 
-    with open(ref_tbl, 'rt') as inf:
-        with open(out_tbl, 'wt') as outf:
-            for line in inf:
-                line = line.rstrip('\r\n')
-                if not line:
-                    pass
-                elif line.startswith('>'):
-                    # sequence identifier
-                    if not line.startswith('>Feature '):
-                        raise Exception("not sure how to handle a non-Feature record")
-                    refID = line[len('>Feature '):].strip()
-                    if not ((refID.startswith('gb|') or refID.startswith('ref|')) and refID.endswith('|') and
-                                len(refID) > 4):
-                        raise Exception("reference annotation does not refer to a GenBank or RefSeq accession")
-                    refID = '|'.join(refID.split('|')[1:-1])
-                    refSeqID = [x for x in cmap.keys() if refID in x][0]
-                    #altid = cmap.mapChr(refSeqID, altid)
-                    altid = list(set(cmap.keys()) - set([refSeqID]))[0]  # cmap.mapChr(refSeqID, altid)
-                    line = '>Feature ' + altid
-                    feature_keep = True
-                elif line[0] != '\t':
-                    # feature with numeric coordinates (map them)
-                    row = line.split('\t')
-                    if not len(row) >= 2:
-                        raise Exception("this line has only one column?")
-                    row[0] = int(row[0])
-                    row[1] = int(row[1])
-                    if row[1] >= row[0]:
-                        row[0] = cmap.mapChr(refSeqID, altid, row[0], -1)[1]
-                        row[1] = cmap.mapChr(refSeqID, altid, row[1], 1)[1]
-                    else:
-                        # negative strand feature
-                        row[0] = cmap.mapChr(refSeqID, altid, row[0], 1)[1]
-                        row[1] = cmap.mapChr(refSeqID, altid, row[1], -1)[1]
+    ft = util.feature_table.FeatureTable(ref_tbl)
+    remapped_ft = util.feature_table.FeatureTable()
 
-                    if row[0] and row[1]:
-                        feature_keep = True
-                    elif row[0] == None and row[1] == None:
-                        # feature completely out of bounds
-                        feature_keep = False
-                        continue
-                    else:
-                        # feature overhangs end of sequence
-                        if oob_clip:
-                            if row[0] == None:
-                                row[0] = '<1'
-                            if row[1] == None:
-                                row[1] = '>{}'.format(alt_chrlens[altid])
-                            feature_keep = True
+    # sequence identifier
+    refSeqID = [x for x in cmap.keys() if ft.refID in x][0]
+    altid = list(set(cmap.keys()) - set([refSeqID]))[0]
+    ft.refID = altid
+
+    # feature with numeric coordinates (map them)
+    def remap_function(start, end, feature):
+        """
+            start/end are SeqPositions from util.feature_table
+        """
+        strand = None
+        if end.position >= start.position:
+            strand = '+'
+            start.position = cmap.mapChr(refSeqID, altid, start.position, -1)[1]
+            end.position = cmap.mapChr(refSeqID, altid, end.position, 1)[1]
+        else:
+            # negative strand feature
+            strand = '-'
+            start.position = cmap.mapChr(refSeqID, altid, start.position, 1)[1]
+            end.position = cmap.mapChr(refSeqID, altid, end.position, -1)[1]
+
+        if ignore_ambig_feature_edge:
+            start.location_operator = None
+            end.location_operator = None
+        
+        if start.position and end.position:
+            # feature completely within bounds
+            return (start, end)
+        elif start.position == None and end.position == None:
+            # feature completely out of bounds
+            return (None, None)
+        else:
+            # feature overhangs end of sequence
+            if oob_clip:
+                if feature.type == "CDS":
+                    feature.add_note("sequencing did not capture complete CDS")
+                if strand == '+':
+                    # clip pos strand feature
+                    if start.position == None:
+                        # clip the beginning
+                        if feature.type == 'CDS':
+                            # for CDS features, clip in multiples of 3
+                            r = (end.position if end.position is not None else alt_chrlens[altid])
+                            start.position = '{}'.format((r % 3) + 1)
+                            start.location_operator = '<'
                         else:
-                            feature_keep = False
-                            continue
-                    line = '\t'.join(map(str, row))
+                            start.position = '1'
+                            start.location_operator = '<'
+                    if end.position == None:
+                        # clip the end
+                        end.position = '{}'.format(alt_chrlens[altid])
+                        end.location_operator = '>'
                 else:
-                    # feature notes
-                    if not feature_keep:
-                        # skip any lines that follow a skipped feature
-                        continue
-                    elif 'protein_id' in line:
-                        # skip any lines that refer to an explicit protein_id
-                        continue
-                outf.write(line + '\n')
+                    # clip neg strand feature
+                    if start.position == None:
+                        # clip the beginning (right side)
+                        r = alt_chrlens[altid]
+                        if feature.type == 'CDS':
+                            # for CDS features, clip in multiples of 3
+                            l = (end.position if end.position is not None else 1) # new left
+                            r = r - ((r-l+1) % 3) # create new right in multiples of 3 from left
+                            if (r-l) < 3:
+                                # less than a codon remains, drop it
+                                return (None, None)
+                        start.position = '{}'.format(r)
+                        start.location_operator = '<'
+                    if end.position == None:
+                        # clip the end (left side)
+                        end.position = '1'
+                        end.location_operator = '<'
+            else:
+                return (None, None)
+        return (start, end)
+
+    ft.remap_locations(remap_function)
+
+    with open(out_tbl, 'wt') as outf:
+        exclude_patterns = [
+            # regexp, matched anywhere in line
+            r"protein_id"
+        ]
+        for line in ft.lines(exclude_patterns=exclude_patterns):
+            outf.write(str(line) + '\n')
+        # extra newline at the end
+        outf.write('\n')
 
 
-def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
+def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False, ignore_ambig_feature_edge=False):
     ''' This function takes an NCBI TBL file describing features on a genome
         (genes, etc) and transfers them to a new genome.
     '''
@@ -109,7 +137,7 @@ def tbl_transfer(ref_fasta, ref_tbl, alt_fasta, out_tbl, oob_clip=False):
     cmap.align_and_load_sequences([ref_fasta, alt_fasta])
     alt_chrlens = fasta_chrlens(alt_fasta)
 
-    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
+    tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip, ignore_ambig_feature_edge)
 
 
 def parser_tbl_transfer(parser=argparse.ArgumentParser()):
@@ -124,6 +152,15 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
                but truncate any features that are partly out of bounds''')
+    parser.add_argument('--ignoreAmbigFeatureEdge',
+                        dest="ignore_ambig_feature_edge",
+                        default=False,
+                        action='store_true',
+                        help='''Ambiguous feature behavior.
+        False: features specified as ambiguous ("<####" or ">####") are mapped, 
+               where possible
+        True:  features specified as ambiguous ("<####" or ">####") are interpreted
+               as exact values''')
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer, split_args=True)
     return parser
@@ -132,7 +169,7 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
 
-def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, oob_clip=False):
+def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, oob_clip=False, ignore_ambig_feature_edge=False):
     """
         This breaks out the ref and alt sequences into separate fasta files, and then
         creates unified files containing the reference sequence first and the alt second. Each of these unified files
@@ -210,8 +247,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
             alt_chrlens[seq.id] = len(seq.seq.ungap("-"))
             alt_chrlens[matchingRefSeq.id] = len(matchingRefSeq.seq.ungap("-"))
 
-            tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip)
-
+            tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip, ignore_ambig_feature_edge)
 
 def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
     parser.add_argument("inputFasta",
@@ -231,6 +267,15 @@ def parser_tbl_transfer_prealigned(parser=argparse.ArgumentParser()):
         False: drop all features that are completely or partly out of bounds
         True:  drop all features completely out of bounds
                but truncate any features that are partly out of bounds''')
+    parser.add_argument('--ignoreAmbigFeatureEdge',
+                        dest="ignore_ambig_feature_edge",
+                        default=False,
+                        action='store_true',
+                        help='''Ambiguous feature behavior.
+        False: features specified as ambiguous ("<####" or ">####") are mapped, 
+               where possible
+        True:  features specified as ambiguous ("<####" or ">####") are interpreted
+               as exact values''')
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, tbl_transfer_prealigned, split_args=True)
     return parser
@@ -240,7 +285,7 @@ __commands__.append(('tbl_transfer_prealigned', parser_tbl_transfer_prealigned))
 
 
 def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                 removeSeparateFiles, chunkSize):
+                 removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves the FASTA files
         from the Genbank CoreNucleotide database given a given list of accession IDs.
@@ -253,11 +298,12 @@ def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, co
                                            removeSeparateFiles,
                                            fileExt,
                                            "fasta",
-                                           chunkSize=chunkSize)
+                                           chunkSize=chunkSize,
+                                           api_key=api_key)
 
 
 def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                         removeSeparateFiles, chunkSize):
+                         removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
@@ -270,11 +316,12 @@ def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverw
                                                    removeSeparateFiles,
                                                    fileExt,
                                                    "ft",
-                                                   chunkSize=chunkSize)
+                                                   chunkSize=chunkSize,
+                                                   api_key=api_key)
 
 
 def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOverwrite, combinedFilePrefix, fileExt,
-                          removeSeparateFiles, chunkSize):
+                          removeSeparateFiles, chunkSize, api_key=None):
     '''
         This function downloads and saves
         full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
@@ -287,18 +334,26 @@ def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOver
                                                  removeSeparateFiles,
                                                  fileExt,
                                                  "gb",
-                                                 chunkSize=chunkSize)
+                                                 chunkSize=chunkSize,
+                                                 api_key=api_key)
 
 
 def parser_fetch_reference_common(parser=argparse.ArgumentParser()):
     parser.add_argument("emailAddress",
-                        help="""Your email address. To access the Genbank CoreNucleotide database,
+                        help="""Your email address. To access Genbank databases,
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access. This email address should
         be registered with NCBI. To register an email address, simply send
         an email to eutilities@ncbi.nlm.nih.gov including your email address and
         the tool name (tool='https://github.com/broadinstitute/viral-ngs').""")
+    parser.add_argument("--api_key",
+                        dest="api_key",
+                        help="""Your NCBI API key. If an API key is not provided, NCBI 
+                        requests are limited to 3/second. If an API key is provided, 
+                        requests may be submitted at a rate up to 10/second. 
+                        For more information, see: https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/
+                        """)
     parser.add_argument("destinationDir", help="Output directory with where .fasta and .tbl files will be saved")
     parser.add_argument("accession_IDs", nargs='+', help="List of Genbank nuccore accession IDs")
     parser.add_argument('--forceOverwrite',

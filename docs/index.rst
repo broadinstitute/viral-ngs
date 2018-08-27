@@ -17,5 +17,6 @@ Contents
    description
    install
    cmdline
-   pipeuse
-   development
+   pipes-wdl
+   pipes-snakemake
+..   development

@@ -18,10 +18,14 @@ import errno
 import logging
 import json
 import hashlib
-import util.misc
 import sys
 import csv
 import builtins
+import inspect
+import tarfile
+
+import util.cmd
+import util.misc
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -157,14 +161,24 @@ def tempfnames(suffixes, *args, **kwargs):
 def tmp_dir(*args, **kwargs):
     """Create and return a temporary directory, which is cleaned up on context exit
     unless keep_tmp() is True."""
+
+    _args = inspect.getcallargs(tempfile.mkdtemp, *args, **kwargs)
+    length_margin = 6
+    for pfx_sfx in ('prefix', 'suffix'):
+        if _args[pfx_sfx]: 
+            _args[pfx_sfx] = string_to_file_name(_args[pfx_sfx], file_system_path=_args['dir'], length_margin=length_margin)
+            length_margin += len(_args[pfx_sfx].encode('utf-8'))
+
+    name = None
     try:
-        name = tempfile.mkdtemp(*args, **kwargs)
+        name = tempfile.mkdtemp(**_args)
         yield name
     finally:
-        if keep_tmp():
-            log.debug('keeping tempdir ' + name)
-        else:
-            shutil.rmtree(name)
+        if name is not None:
+            if keep_tmp():
+                log.debug('keeping tempdir ' + name)
+            else:
+                shutil.rmtree(name, ignore_errors=True)
 
 @contextlib.contextmanager
 def pushd_popd(target_dir):
@@ -387,7 +401,7 @@ def read_tabfile_dict(inFile):
                     # truncate the row to the header length, and only include extra items if they are not spaces
                     # (takes care of the case where the user may enter an extra space at the end of a row)
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
-                assert len(header) == len(row)
+                assert len(header) == len(row), "%s != %s" % (len(header), len(row))
                 yield dict((k, v) for k, v in zip(header, row) if v)
 
 
@@ -596,11 +610,34 @@ def temp_catted_files(input_files, suffix=None, prefix=None):
     finally:
         os.remove(fn)
 
+def _get_pathconf(file_system_path, param_suffix, default):
+    """Return a pathconf parameter value for a filesystem.
+    """
+    param_str = [s for s in os.pathconf_names if s.endswith(param_suffix)]
+    if len(param_str) == 1:
+        try:
+            return os.pathconf(file_system_path, param_str[0])
+        except OSError:
+            pass
+    return default
 
-def string_to_file_name(string_value):
+def max_file_name_length(file_system_path):
+    """Return the maximum valid length of a filename (path component) on the given filesystem."""
+    return _get_pathconf(file_system_path, '_NAME_MAX', 80)-1
+
+def max_path_length(file_system_path):
+    """Return the maximum valid length of a path on the given filesystem."""
+    return _get_pathconf(file_system_path, '_PATH_MAX', 255)-1
+
+def string_to_file_name(string_value, file_system_path=None, length_margin=0):
+    """Constructs a valid file name from a given string, replacing or deleting invalid characters.
+    If `file_system_path` is given, makes sure the file name is valid on that file system.
+    If `length_margin` is given, ensure a string that long can be added to filename without breaking length limits.
+    """
     replacements_dict = {
         "\\": "-", # win directory separator
         "/": "-", # posix directory separator
+        os.sep: "-", # directory separator
         "^": "_", # caret
         "&": "_and_", # background
         "\"": "", # double quotes
@@ -644,6 +681,16 @@ def string_to_file_name(string_value):
 
     # remove leading or trailing periods (no hidden files (*NIX) or missing file extensions (NTFS))
     string_value = string_value.strip(".")
+
+    # comply with file name length limits
+    if file_system_path is not None:
+        max_len = max(1, max_file_name_length(file_system_path) - length_margin)
+        string_value = string_value[:max_len]
+        while len(string_value.encode('utf-8')) > max_len:
+            string_value = string_value[:-1]
+
+    # ensure all the character removals did not make the name empty
+    string_value = string_value or '_'
 
     return string_value
 
@@ -879,3 +926,125 @@ def from_json_gz(json_data_gzipped):
             json_bytes = gzip_obj.read()
     json_str = json_bytes.decode()
     return util.misc.byteify(json.loads(json_str))
+
+def repack_tarballs(out_compressed_tarball, 
+                    input_compressed_tarballs, 
+                    extract_to_disk_path=None, 
+                    extract_numeric_owner=False, 
+                    avoid_disk_roundtrip=True, 
+                    ignore_zeros=True, 
+                    pipe_hint_in=None, 
+                    pipe_hint_out=None, 
+                    threads=None):
+    threads = util.misc.sanitize_thread_count(threads)
+
+    def choose_compressor(filepath, threads=8):
+        return_obj = {}
+        filepath = filepath.lower()
+        if re.search(r'(\.?tgz|\.?gz)$', filepath):
+            compressor = 'pigz {threads}'.format(threads="-p "+str(threads) if threads else "").split()
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?bz2$', filepath):
+            compressor = 'lbzip2 {threads}'.format(threads="-n "+str(threads) if threads else "").split()
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?lz4$', filepath):
+            compressor = ['lz4']
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?tar$', filepath):
+            compressor = ['cat']
+            return_obj["decompress_cmd"] = compressor
+            return_obj["compress_cmd"] = compressor
+        else:
+            raise IOError("An input file of unknown type was provided: %s" % filepath)
+        return return_obj
+
+    class FileDiverter(object):
+        """
+            This reads bytes from a TarInfo file stream, writes them to a disk file
+            and returns the buffered bytes as they are read
+        """
+        def __init__(self, fileinfo, fileobj, written_mirror_file=None, extract_numeric_owner=False):
+            self.written_mirror_file = open(written_mirror_file,"wb")
+            self.fileinfo = fileinfo
+            self.fileobj = fileobj
+            self.extract_numeric_owner = extract_numeric_owner
+
+        def __del__(self):
+            self.written_mirror_file.close()
+
+            tar_in.chown(self.fileinfo, self.written_mirror_file.name, self.extract_numeric_owner)
+            if not self.fileinfo.issym():
+                tar_in.chmod(self.fileinfo, self.written_mirror_file.name)
+                tar_in.utime(self.fileinfo, self.written_mirror_file.name)
+
+        def read(self, size):
+            assert size is not None
+            
+            buf = self.fileobj.read(size)
+            self.written_mirror_file.write(buf)
+            return buf
+
+    if extract_to_disk_path and not os.path.isdir(extract_to_disk_path):
+        mkdir_p(extract_to_disk_path)
+
+    if out_compressed_tarball == "-":
+        if not pipe_hint_out:
+            raise IOError("cannot autodetect compression for stdoud unless pipeOutHint provided")
+        compressor = choose_compressor(pipe_hint_out)["compress_cmd"]
+        outfile = None
+    else:
+        compressor =choose_compressor(out_compressed_tarball)["compress_cmd"]
+        outfile = open(out_compressed_tarball, "w")
+
+    out_compress_ps = subprocess.Popen(compressor, stdout=sys.stdout if out_compressed_tarball == "-" else outfile, stdin=subprocess.PIPE)
+
+    tar_out = tarfile.open(fileobj=out_compress_ps.stdin, mode="w|")
+
+    for in_compressed_tarball in input_compressed_tarballs:
+        if in_compressed_tarball != "-":
+            pigz_ps = subprocess.Popen(choose_compressor(in_compressed_tarball)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE)
+        else:
+            if not pipe_hint_in:
+                raise IOError("cannot autodetect compression for stdin unless pipeInHint provided")
+            pigz_ps = subprocess.Popen(choose_compressor(pipe_hint_in)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE, stdin=sys.stdin)
+        tar_in = tarfile.open(fileobj=pigz_ps.stdout, mode="r|", ignore_zeros=True)
+
+        fileinfo = tar_in.next()
+        while fileinfo is not None:
+            if extract_to_disk_path:
+                target_path = os.path.normpath(os.path.join(extract_to_disk_path, fileinfo.name).rstrip("/"))
+                containing_path = os.path.dirname(target_path)
+                mkdir_p(containing_path)
+
+                if avoid_disk_roundtrip and fileinfo.isreg():
+                    # avoid disk round trip for regular files (don't re-read from disk to write to new tar)
+                    fileobj = tar_in.extractfile(fileinfo)
+                    tar_out.addfile(fileinfo, fileobj=FileDiverter(fileinfo, fileobj, written_mirror_file=target_path))
+                else:
+                    # write  to disk, add to new tarball from disk
+                    outfile = tar_in.extract(fileinfo, path=extract_to_disk_path)
+                    with pushd_popd(extract_to_disk_path):
+                        tar_out.add(fileinfo.name)
+            else:
+                # if we're not extracting to disk, stream directly between tarballs
+                fileobj = tar_in.extractfile(fileinfo)
+                tar_out.addfile(fileinfo, fileobj=fileobj)
+
+            fileinfo = tar_in.next()
+        pigz_ps.wait()
+        tar_in.close()
+        if pigz_ps.returncode != 0:
+            raise subprocess.CalledProcessError(pigz_ps.returncode, "Call error %s" % pigz_ps.returncode)
+
+    tar_out.close()
+    out_compress_ps.stdin.close()
+    out_compress_ps.wait()
+    if out_compress_ps.returncode != 0:
+        raise subprocess.CalledProcessError(out_compress_ps.returncode, "Call error %s" % out_compress_ps.returncode)
+    
+    if outfile is not None:
+        outfile.close()
+

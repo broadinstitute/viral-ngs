@@ -3,8 +3,9 @@
 __author__ = "ilya@broadinstitute.org"
 
 import os, os.path
-import pytest
+import builtins
 import util.file
+import pytest
 
 def testTempFiles():
     '''Test creation of tempfiles using context managers, as well as dump_file/slurp_file routines'''
@@ -133,3 +134,23 @@ def test_json_gz_serialization():
         return x
 
     assert util.file.from_json_gz(util.file.to_json_gz([1, set((2,3))], write_obj=sets_as_lists)) == [1, [2, 3]]
+
+def test_string_to_file_name():
+    """Test util.file.string_to_file_name()"""
+
+    unichr = getattr(builtins, 'unichr', chr)
+
+    test_fnames = (
+        'simple', 'simple.dat', 'a/b', '/a', '/a/b', '/a/b/', 'a\\b', 
+        'a^b&c|d" e::f!g;*?`test`', '(somecmd -f --flag < input > output) && ls',
+        'long' * 8000, 'oddchars\\xAA\\o037',
+        ''.join(map(chr, range(128))) * 20,
+        ''.join(map(unichr, range(1000))),
+        )
+
+    with util.file.tmp_dir() as tmp_d:
+        for test_fname in test_fnames:
+            t_path = os.path.join(tmp_d, util.file.string_to_file_name(test_fname, tmp_d))
+            util.file.make_empty(t_path)
+            assert os.path.isfile(t_path) and os.path.getsize(t_path) == 0
+

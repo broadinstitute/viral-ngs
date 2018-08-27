@@ -1,5 +1,5 @@
-import "demux.wdl" as tasks_demux
+import "tasks_demux.wdl" as tasks_demux
 
 workflow demux_only {
-  call tasks_demux.illumina_demux
+    call tasks_demux.illumina_demux
 }

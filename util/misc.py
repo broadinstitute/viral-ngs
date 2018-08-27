@@ -224,7 +224,7 @@ except ImportError:
                 os.remove(stderr_fn)
 
 
-def run_and_print(args, stdout=None, stderr=None,
+def run_and_print(args, stdout=None, stderr=subprocess.STDOUT,
                   stdin=None, shell=False, env=None, cwd=None,
                   timeout=None, silent=False, buffered=False, check=False,
                   loglevel=None):
@@ -242,7 +242,7 @@ def run_and_print(args, stdout=None, stderr=None,
                     args,
                     stdin=stdin,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    stderr=stderr,
                     env=env,
                     cwd=cwd,
                     timeout=timeout,
@@ -272,7 +272,7 @@ def run_and_print(args, stdout=None, stderr=None,
                 raise(e)
         else:
             result = run(args, stdin=stdin, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                         stderr=stderr, env=env, cwd=cwd,
                          timeout=timeout, check=check)
             if not silent and not loglevel:
                 print(result.stdout.decode('utf-8'))
@@ -285,7 +285,7 @@ def run_and_print(args, stdout=None, stderr=None,
         'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
 
         process = subprocess.Popen(args, stdin=stdin, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, env=env,
+                                    stderr=stderr, env=env,
                                     cwd=cwd)
         output = []
         while process.poll() is None:

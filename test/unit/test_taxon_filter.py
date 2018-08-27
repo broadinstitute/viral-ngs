@@ -93,7 +93,7 @@ class TestBmtagger(TestCaseWithTmp):
     def setUp(self):
         TestCaseWithTmp.setUp(self)
         self.tempDir = tempfile.mkdtemp()
-        ref_fasta = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
+        ref_fasta = os.path.join(util.file.get_test_input_path(), '5kb_human_from_chr6.fasta')
         self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
         taxon_filter.bmtagger_build_db(ref_fasta, self.tempDir, "5kb_human_from_chr6", word_size=8)
 
@@ -109,7 +109,7 @@ class TestBmtagger(TestCaseWithTmp):
     @unittest.skip("too slow for real word size of 18bp")
     def test_deplete_bmtagger_fasta_db(self):
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
-        ref_fasta = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
+        ref_fasta = os.path.join(util.file.get_test_input_path(), '5kb_human_from_chr6.fasta')
         outBam = util.file.mkstempfname('-out.bam')
         args = taxon_filter.parser_deplete_bam_bmtagger(argparse.ArgumentParser()).parse_args([
             inBam, ref_fasta, outBam, '--srprismMemory', '1500'])
@@ -341,7 +341,7 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         TestCaseWithTmp.setUp(self)
         self.tempDir = tempfile.mkdtemp()
         commonInputDir = util.file.get_test_input_path()
-        ref_fasta = os.path.join(commonInputDir, 'TestDepleteHuman', '5kb_human_from_chr6.fasta')
+        ref_fasta = os.path.join(commonInputDir, '5kb_human_from_chr6.fasta')
         self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
 
         # create blast db

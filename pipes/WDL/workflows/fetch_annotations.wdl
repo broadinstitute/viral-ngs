@@ -1,7 +1,5 @@
-import "ncbi.wdl" as ncbi
+import "tasks_ncbi.wdl" as ncbi
 
 workflow fetch_annotations {
-
-  call ncbi.download_annotations as download
-
+    call ncbi.download_annotations
 }

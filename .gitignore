@@ -79,3 +79,6 @@ cromwell-*.jar
 dxWDL-*.jar
 wdltool-*.jar
 womtool-*.jar
+
+.pytest_cache/
+

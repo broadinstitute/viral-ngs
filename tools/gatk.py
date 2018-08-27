@@ -22,7 +22,8 @@ _log = logging.getLogger(__name__)
 
 
 TOOL_NAME = 'gatk'
-TOOL_VERSION = '3.6'
+TOOL_VERSION_TUPLE = (3, 8)
+TOOL_VERSION = '.'.join(map(str, TOOL_VERSION_TUPLE))
 
 class GATKTool(tools.Tool):
     jvmMemDefault = '2g'
@@ -42,7 +43,7 @@ class GATKTool(tools.Tool):
                         require_executability=False
                     )
                 )
-        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable="gatk3"))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, command, gatkOptions=None, JVMmemory=None):    # pylint: disable=W0221
@@ -101,10 +102,11 @@ class GATKTool(tools.Tool):
             '-out_mode', 'EMIT_ALL_SITES',
             '-dt', 'NONE',
             '--num_threads', threads,
-            '-stand_call_conf', 0,
-            '-stand_emit_conf', 0,
             '-A', 'AlleleBalance',
         ]
+        if TOOL_VERSION_TUPLE < (3, 7):
+            opts += ['-stand_call_conf', 0, '-stand_emit_conf', 0]  # deprecated in 3.7+
+
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
 
     def local_realign(self, inBam, refFasta, outBam, JVMmemory=None, threads=None):

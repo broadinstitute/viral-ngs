@@ -4,10 +4,10 @@
   "stage-1.maxMismatches": 0,
   "stage-1.minimumQuality": 25,
 
-  "stage-2.deplete_bmtaggerDbs": [
+  "stage-0.bmtaggerDbs": [
 	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
   ],
-  "stage-2.deplete_blastDbs": [
+  "stage-0.blastDbs": [
 	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BzBpkK80x0z8GBQPfZ4kgPKp" } }
   ],
 
