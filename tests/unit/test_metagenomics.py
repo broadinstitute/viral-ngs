@@ -18,7 +18,7 @@ import tools.picard
 import metagenomics
 import util.file
 import util.misc
-from test import TestCaseWithTmp, _CPUS
+from test import TestCaseWithTmp, assert_equal_bam_reads, _CPUS
 
 if six.PY2:
     from StringIO import StringIO
@@ -309,3 +309,47 @@ def test_coverage_lca(taxa_db):
     assert metagenomics.coverage_lca([6, 7, 8], taxa_db.parents) == 6
     assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents, 50) == 7
     assert metagenomics.coverage_lca([9], taxa_db.parents) is None
+
+class TestBamFilter(TestCaseWithTmp):
+    def test_bam_filter_simple(self):
+        temp_dir = tempfile.gettempdir()
+        input_dir = util.file.get_test_input_path(self)
+        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
+        
+        filtered_bam = util.file.mkstempfname('.bam')
+        args = [
+            os.path.join(input_dir,"input.bam"),
+            os.path.join(input_dir,"input.kraken-reads.tsv.gz"),
+            filtered_bam,
+            os.path.join(taxonomy_dir,"nodes.dmp"),
+            os.path.join(taxonomy_dir,"names.dmp"),
+            "--taxNames",
+            "Ebolavirus"
+        ]
+        args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        expected_bam = os.path.join(input_dir,"expected.bam")
+        assert_equal_bam_reads(self, filtered_bam, expected_bam)
+
+    def test_bam_filter_by_tax_id(self):
+        temp_dir = tempfile.gettempdir()
+        input_dir = util.file.get_test_input_path(self)
+        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
+        
+        filtered_bam = util.file.mkstempfname('.bam')
+        args = [
+            os.path.join(input_dir,"input.bam"),
+            os.path.join(input_dir,"input.kraken-reads.tsv.gz"),
+            filtered_bam,
+            os.path.join(taxonomy_dir,"nodes.dmp"),
+            os.path.join(taxonomy_dir,"names.dmp"),
+            "--taxIDs",
+            "186538"
+        ]
+        args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        expected_bam = os.path.join(input_dir,"expected.bam")
+        assert_equal_bam_reads(self, filtered_bam, expected_bam)
+
