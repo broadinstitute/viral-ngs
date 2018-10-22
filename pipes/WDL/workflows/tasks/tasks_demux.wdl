@@ -153,7 +153,9 @@ task illumina_demux {
       --compression_level=5 \
       --loglevel=DEBUG
 
-    rm -f Unmatched.bam
+    mkdir -p unmatched
+    mv Unmatched.bam unmatched/
+
     for bam in *.bam; do
       fastqc_out=$(basename $bam .bam)_fastqc.html
       reports.py fastqc $bam $fastqc_out
@@ -164,6 +166,7 @@ task illumina_demux {
     File        metrics                  = "metrics.txt"
     File        commonBarcodes           = "barcodes.txt"
     Array[File] raw_reads_unaligned_bams = glob("*.bam")
+    File        unmatched_reads_bam      = "unmatched/Unmatched.bam"
     Array[File] raw_reads_fastqc         = glob("*_fastqc.html")
   }
 
