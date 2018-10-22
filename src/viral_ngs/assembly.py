@@ -352,6 +352,7 @@ def assemble_spades(
     spades_opts='',
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
+    min_contig_len=0,
     kmer_sizes=(55,65),
     n_reads=10000000,
     outReads=None,
@@ -377,6 +378,7 @@ def assemble_spades(
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
+                                               min_contig_len=min_contig_len,
                                                kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
                                                spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
@@ -401,6 +403,8 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
+    parser.add_argument('--minContigLen', dest='min_contig_len', type=int, default=0,
+                        help='only output contigs longer than this many bp')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
