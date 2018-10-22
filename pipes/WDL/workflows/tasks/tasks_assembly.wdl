@@ -6,7 +6,7 @@ task assemble {
     Int?    spades_n_reads=10000000
 
     String? assembler="trinity"  # trinity, spades, or trinity-spades
-    Boolean? alwaysSucceed=false
+    Boolean? always_succeed=false
 
     String  cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
     # do this in two steps in case the input doesn't actually have "taxfilt" in the name
@@ -26,7 +26,7 @@ task assemble {
             ${trim_clip_db} \
             ${sample_name}.assembly1-trinity.fasta \
             ${'--n_reads=' + trinity_n_reads} \
-     	    ${true='--always_succeed' false="" alwaysSucceed} \
+     	    ${true='--alwaysSucceed' false="" always_succeed} \
             --JVMmemory "$mem_in_mb"m \
             --outReads=${sample_name}.subsamp.bam \
             --loglevel=DEBUG
@@ -37,7 +37,7 @@ task assemble {
             ${trim_clip_db} \
             ${sample_name}.assembly1-spades.fasta \
             ${'--nReads=' + spades_n_reads} \
-	    ${true="--alwaysSucceed" false="" alwaysSucceed} \
+	    ${true="--alwaysSucceed" false="" always_succeed} \
             --memLimitGb $mem_in_gb \
             --outReads=${sample_name}.subsamp.bam \
             --loglevel=DEBUG
@@ -50,7 +50,7 @@ task assemble {
             ${'--n_reads=' + trinity_n_reads} \
             --JVMmemory "$mem_in_mb"m \
             --outReads=${sample_name}.subsamp.bam \
-     	    ${true='--always_succeed' false='' alwaysSucceed} \
+     	    ${true='--always_succeed' false='' always_succeed \
             --loglevel=DEBUG
           assembly.py assemble_spades \
             ${reads_unmapped_bam} \
@@ -58,7 +58,7 @@ task assemble {
             ${sample_name}.assembly1-spades.fasta \
             --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
             ${'--nReads=' + spades_n_reads} \
-     	    ${true='--alwaysSucceed' false='' alwaysSucceed} \
+     	    ${true='--alwaysSucceed' false='' always_succeed \
             --memLimitGb $mem_in_gb \
             --loglevel=DEBUG
 
