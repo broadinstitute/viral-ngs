@@ -50,7 +50,7 @@ task assemble {
             ${'--n_reads=' + trinity_n_reads} \
             --JVMmemory "$mem_in_mb"m \
             --outReads=${sample_name}.subsamp.bam \
-     	    ${true='--always_succeed' false='' always_succeed \
+     	    ${true='--always_succeed' false='' always_succeed} \
             --loglevel=DEBUG
           assembly.py assemble_spades \
             ${reads_unmapped_bam} \
@@ -58,7 +58,7 @@ task assemble {
             ${sample_name}.assembly1-spades.fasta \
             --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
             ${'--nReads=' + spades_n_reads} \
-     	    ${true='--alwaysSucceed' false='' always_succeed \
+     	    ${true='--alwaysSucceed' false='' always_succeed} \
             --memLimitGb $mem_in_gb \
             --loglevel=DEBUG
 
