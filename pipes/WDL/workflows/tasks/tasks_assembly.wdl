@@ -60,11 +60,8 @@ task assemble {
             ${sample_name}.assembly1-spades.fasta \
             --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
             ${'--nReads=' + spades_n_reads} \
-<<<<<<< HEAD
      	    ${true='--alwaysSucceed' false='' always_succeed} \
-=======
             ${'--minContigLen=' + spades_min_contig_len} \
->>>>>>> master
             --memLimitGb $mem_in_gb \
             --loglevel=DEBUG
 
