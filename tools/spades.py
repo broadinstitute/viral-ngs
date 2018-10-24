@@ -107,6 +107,15 @@ class SpadesTool(tools.Tool):
                         else:
                             raise
 
+                    # work around the bug that spades may succeed yet not create the transcripts.fasta file
+                    if not os.path.isfile(transcripts_fname):
+                        msg = 'SPAdes failed to make transcripts.fasta for k={}'.format(kmer_size)
+                        if always_succeed:
+                            log.warning(msg)
+                            util.file.make_empty(transcripts_fname)
+                        else:
+                            raise RuntimeError(msg)
+
                     if min_contig_len:
                         transcripts = Bio.SeqIO.parse(transcripts_fname, 'fasta')
                         transcripts_sans_short = [r for r in transcripts if len(r.seq) >= min_contig_len]
