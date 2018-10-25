@@ -183,6 +183,15 @@ class TestAssembleSpades(TestCaseWithTmp):
             assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
+    def test_always_succeed(self):
+        inDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(inDir, '..', 'almost-empty.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
+        with util.file.tempfname('.fasta') as outFasta:
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta, spades_opts='--bad-option',
+                                     always_succeed=True)
+            self.assertEqual(os.path.getsize(outFasta), 0)
+
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
     ''' Test the trim_rmdup_subsamp command '''
 
