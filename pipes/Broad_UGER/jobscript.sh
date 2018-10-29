@@ -4,12 +4,12 @@
 
 source /broad/software/scripts/useuse
 use UGER
-use Python-3.4
+use .anaconda3-5.0.1
 CONDAENVDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["conda_env_dir"]));f.close()'`
 MINICONDADIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["miniconda_dir"]));f.close()'`
 BINDIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["bin_dir"]));f.close()'`
 DATADIR=`python -c 'import yaml; import os; f=open("config.yaml");print(os.path.realpath(yaml.safe_load(f)["data_dir"]));f.close()'`
-unuse Python-3.4
+unuse .anaconda3-5.0.1
 
 export PATH="$MINICONDADIR/bin:$PATH"
 
