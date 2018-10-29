@@ -43,6 +43,8 @@ threads = threads or 1
 if mem:
     # on UGER, memory requests are per-core (according to BITS as of Sept. 6, 2016)
     mem_per_core = round((int(mem)*1024)/int(threads), 2)
+    # increase memory requested to reflect new JVM-UGER changes requiring greater memory headroom
+    mem_per_core = round(mem_per_core*1.1,2)
     if blacklisted_nodes:
         # Pass h= as the hostname parameter; it accepts a regex, so
         # invert the match to blacklist hostnames
