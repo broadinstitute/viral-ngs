@@ -68,8 +68,15 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # full RunInfo.xml path
-    RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    # if we are overriding the RunInfo file, use the path of the file provided. Otherwise find the file
+    if [ -n "${runinfo}" ]; then
+      RUNINFO_FILE="${runinfo}"
+    else
+      # full RunInfo.xml path
+      RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    fi
+
+    
     # Parse the lane count & run ID from RunInfo.xml file
     lane_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@LaneCount)" $RUNINFO_FILE)
     if [ -z "$lane_count" ]; then
