@@ -122,17 +122,20 @@ To deactivate the conda environment::
 Easy deployment script for viral-ngs
 ------------------------------------
 
-**viral-ngs** can be deployed with help of a shell script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects.  The script is available from the repository `broadinstitute/viral-ngs-deploy <https://github.com/broadinstitute/viral-ngs/tree/master/easy-deploy-script>`_.
+**viral-ngs** can be deployed with help of a shell script, ``easy-deploy/easy-deploy-viral-ngs.sh``. This script will install an independent copy of viral-ngs from the latest source, install all dependencies, and make it simple to activate the viral-ngs environment and create projects.  The script is available from the repository `broadinstitute/viral-ngs <https://github.com/broadinstitute/viral-ngs/tree/master/easy-deploy-script>`_.
 
+After downloading the script and making it executable, viral-ngs can be installed on a 64-bit macOS or Linux system via::
+
+  ./easy-deploy-viral-ngs.sh setup
 
 One-line install command 
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After downloading the easy-install shell script, this one-line command will install viral-ngs on a 64-bit macOS or Linux system::
+This one-line command will install viral-ngs on a 64-bit macOS or Linux system::
 
-  ./easy-deploy-script/easy-deploy-viral-ngs.sh setup
+  wget https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh && chmod a+x ./easy-deploy-viral-ngs.sh && ./easy-deploy-viral-ngs.sh setup
 
-One-line install command for Broad Institute users
+One-line install command for Broad Institute cluster users
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This one-line command will download the ``easy-deploy-viral-ngs.sh`` script and setup viral-ngs in the current working directory. Simply ssh to one of the Broad login nodes and paste this command::
