@@ -97,7 +97,7 @@ def webfile_readlines(uriToGet):
 def strip_protocol(uri, relative=False):
 
     def parse_address(text):
-        return re.search("^(?P<protocol>[a-zA-Z]+\://){1}(?P<path_remainder>.*)$", text)
+        return re.search(r"^(?P<protocol>[a-zA-Z0-9]+\://){1}(?P<path_remainder>.*)$", text)
 
     if parse_address(uri):
         if not relative:
