@@ -61,7 +61,7 @@ rule diamond:
         reads    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
     resources:
         threads = int(config.get("number_of_threads", 1)),
-        mem     = 120
+        mem_mb     = 120*1000
     params:
         UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
     run:
@@ -82,13 +82,13 @@ rule align_rna:
         nodupes_lca    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
     resources:
         threads = int(config.get("number_of_threads", 1)),
-        mem     = 7
+        mem_mb     = 7*1000
     params:
         UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
     run:
         rna_bwa_path_prefix = strip_protocol(config["align_rna_db"], relative=True)
         taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py align_rna {input.bam} "+rna_bwa_path_prefix+" "+taxonomy_db_prefix+" {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outReads {output.nodupes_lca} --dupeReads {output.lca} --JVMmemory {resources.mem}g --threads {resources.threads}")
+        shell("{config[bin_dir]}/metagenomics.py align_rna {input.bam} "+rna_bwa_path_prefix+" "+taxonomy_db_prefix+" {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outReads {output.nodupes_lca} --dupeReads {output.lca} --JVMmemory {resources.mem_mb}m --threads {resources.threads}")
 
 if config['kraken_execution'] == 'multiple':
     kraken_samples = []
@@ -135,7 +135,7 @@ if config['kraken_execution'] == 'multiple':
             reads = all_kraken_reads['raw']
         resources:
             threads = int(config.get("number_of_threads", 1)),
-            mem     = 120
+            mem_mb     = 120*1000
         params:
             UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
             kraken_db = config['kraken_db'],
@@ -151,7 +151,7 @@ if config['kraken_execution'] == 'multiple':
             reads = all_kraken_reads['cleaned']
         resources:
             threads = int(config.get("number_of_threads", 1)),
-            mem     = 120
+            mem_mb     = 120*1000
         params:
             UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
             kraken_db = config['kraken_db'],
@@ -168,7 +168,7 @@ else:
             reads  = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
         resources:
             threads = int(config.get("number_of_threads", 1)),
-            mem     = 120
+            mem_mb     = 120*1000
         params:
             UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
             kraken_db = config['kraken_db'],
@@ -203,7 +203,7 @@ rule krona_import_taxonomy:
     output:
         os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_nodupes}.krona.html")
     resources:
-        mem=32
+        mem_mb=32*1000
     run:
         krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
         shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")
