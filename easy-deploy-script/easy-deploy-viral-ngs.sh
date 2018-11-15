@@ -351,11 +351,23 @@ function create_project(){
     fi
 
     if [ -z "$OMIT_UGER_PROJECT_FILES" ]; then
-        if [ ! -L "$PROJECT_PATH/run-pipe_UGER.sh" ]; then
-            ln -s "$VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh" "$PROJECT_PATH/run-pipe_UGER.sh"
-        fi
-        if [ ! -L "$PROJECT_PATH/run-pipe.sh" ]; then
-            ln -s "run-pipe_UGER.sh" "$PROJECT_PATH/run-pipe.sh"
+        # environment var JOB_ID is defined on UGER 
+        # if we are not running this on UGER, assume local execution
+        if [ -z "$JOB_ID" ]; then
+            if [ ! -L "$PROJECT_PATH/run-pipe_local.sh" ]; then
+                ln -s "$VIRAL_NGS_PATH/pipes/run-pipe.sh" "$PROJECT_PATH/run-pipe_local.sh"
+            fi
+            if [ ! -L "$PROJECT_PATH/run-pipe.sh" ]; then
+                ln -s "$PROJECT_PATH/run-pipe_local.sh" "$PROJECT_PATH/run-pipe.sh"
+            fi
+        # if we ARE running this on UGER, link in the UGER run-pipe script
+        else
+            if [ ! -L "$PROJECT_PATH/run-pipe_UGER.sh" ]; then
+                ln -s "$VIRAL_NGS_PATH/pipes/Broad_UGER/run-pipe.sh" "$PROJECT_PATH/run-pipe_UGER.sh"
+            fi
+            if [ ! -L "$PROJECT_PATH/run-pipe.sh" ]; then
+                ln -s "run-pipe_UGER.sh" "$PROJECT_PATH/run-pipe.sh"
+            fi
         fi
     fi
 

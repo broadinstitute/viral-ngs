@@ -22,7 +22,7 @@ export PATH="$MINICONDADIR/bin:$PATH"
 source activate "$CONDAENVDIR"
 
 # invoke Snakemake in cluster mode with custom wrapper scripts
-snakemake --timestamp --rerun-incomplete --keep-going --nolock \
+snakemake --rerun-incomplete --keep-going --nolock \
 	--jobs 100000 --immediate-submit \
         --latency-wait 20 \
 	--config mode=LSF job_profiler="$BINDIR/pipes/Broad_LSF/lsf-report.py" \

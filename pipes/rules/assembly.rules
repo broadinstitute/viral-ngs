@@ -63,12 +63,14 @@ rule assemble_spades:
             clipDb = objectify_remote(config["trim_clip_db"])
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
     resources: 
-            mem_mb=12*1000,
+            mem_mb=16*1000,
             threads=int(config.get("number_of_threads", 1))
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
     run:
-            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {resources.mem_mb}")
+            # give spades a bit less than the rule specifies
+            mem = int(resources.mem_mb * 0.90)
+            shell("{config[bin_dir]}/assembly.py assemble_spades {input.taxfilt_reads} {input.clipDb} {output.contigs_spades} --nReads {params.n_reads} --threads {resources.threads} --memLimitGb {mem}")
 
 
 rule assemble_trinity_spades:
