@@ -63,7 +63,7 @@ rule assemble_spades:
             clipDb = objectify_remote(config["trim_clip_db"])
     output: contigs_spades=config["tmp_dir"] +'/'+config["subdirs"]["assembly"]+'/{sample}.assembly1-spades.fasta'
     resources: 
-            mem_mb=16*1000,
+            mem_mb=18*1000,
             threads=int(config.get("number_of_threads", 1))
     params: n_reads=str(config["spades_n_reads"]),
             logid="{sample}"
