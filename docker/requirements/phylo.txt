@@ -4,6 +4,7 @@ bwa=0.7.17
 cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
 diamond=0.9.10
+kmc=3.1.1rc1
 gatk=3.8
 kraken=1.0.0_fork3
 krona=2.7
