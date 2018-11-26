@@ -1,5 +1,6 @@
 '''This gives a number of useful quick methods for dealing with
-tab-text files and gzipped files.
+tab-text files and gzipped files, as well as fasta files, plus
+general file-handling routines.
 '''
 
 __author__ = "dpark@broadinstitute.org"
@@ -130,17 +131,22 @@ def mkstempfname(suffix='', prefix='tmp', directory=None, text=False):
 
 @contextlib.contextmanager
 def tempfname(*args, **kwargs):
-    '''Create a tempfile name on context entry, delete the file (if it exists) on context exit.'''
+    '''Create a tempfile name on context entry, delete the file (if it exists) on context exit.
+    The file is kept for debugging purposes if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    '''
     fn = mkstempfname(*args, **kwargs)
     try:
         yield fn
     finally:
-        if os.path.isfile(fn): os.unlink(fn)
+        if os.path.isfile(fn) and not keep_tmp():
+            os.unlink(fn)
 
 
 @contextlib.contextmanager
 def tempfnames(suffixes, *args, **kwargs):
-    '''Create a set of tempfile names on context entry, delete the files (if they exist) on context exit.'''
+    '''Create a set of tempfile names on context entry, delete the files (if they exist) on context exit.
+    The files are kept for debugging purposes if the environment variable VIRAL_NGS_TMP_DIRKEEP is set.
+    '''
     fns = [mkstempfname(sfx, *args, **kwargs) for sfx in suffixes]
     try:
         yield fns
@@ -832,6 +838,12 @@ def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
         rec = SeqRecord(jseq, id=rid, description='', letter_annotations=labbrevs)
         yield rec
 
+def uncompressed_file_type(fname):
+    """Return the original file extension of either a compressed or an uncompressed file."""
+    base, ext = os.path.splitext(fname)
+    if ext in ('.gz', '.bz2'):
+        base, ext = os.path.splitext(base)
+    return ext
 
 def repack_tarballs(out_compressed_tarball, 
                     input_compressed_tarballs, 
@@ -953,3 +965,4 @@ def repack_tarballs(out_compressed_tarball,
     
     if outfile is not None:
         outfile.close()
+

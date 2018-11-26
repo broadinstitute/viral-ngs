@@ -12,6 +12,7 @@ import multiprocessing
 import sys
 import copy
 import yaml, json
+import time
 
 import util.file
 
@@ -19,7 +20,8 @@ log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
 
-import time
+MAX_INT32 = (2 ** 31)-1
+
 @contextlib.contextmanager
 def timer(prefix):
     start = time.time()
@@ -471,16 +473,16 @@ def which(application_binary_name):
             link_resolved_path = os.path.realpath(full_path)
             return link_resolved_path
 
-def is_nonstr_iterable(x):
-    '''Tests whether `x` is an Iterable other than a string'''
-    return isinstance(x, collections.Iterable) and not isinstance(x,str)
+def is_nonstr_iterable(x, str_types=str):
+    '''Tests whether `x` is an Iterable other than a string.  `str_types` gives the type(s) to treat as strings.'''
+    return isinstance(x, collections.Iterable) and not isinstance(x, str_types)
 
-def make_seq(x):
+def make_seq(x, str_types=str):
     '''Return a tuple containing the items in `x`, or containing just `x` if `x` is a non-string iterable.  Convenient
     for uniformly writing iterations over parameters that may be passed in as either an item or a tuple/list of items.
-    Note that if `x` is an iterator, it will be concretized.
+    Note that if `x` is an iterator, it will be concretized.  `str_types` gives the type(s) to treat as strings.'
     '''
-    return tuple(x) if is_nonstr_iterable(x) else (x,)
+    return tuple(x) if is_nonstr_iterable(x, str_types) else (x,)
 
 def load_yaml_or_json(fname):
     '''Load a dictionary from either a yaml or a json file'''
@@ -594,3 +596,27 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
             log.warning('Config param {} has been renamed to {}; old name accepted for now'.format(old_param, new_param))
 
     return result
+
+def as_type(val, types):
+    """Try converting `val`to each of `types` in turn, returning the first one that succeeds."""
+    errs = []
+    for type in make_seq(types):
+        try:
+            return type(val)
+        except Exception as e:
+            errs.append(e)
+            pass
+    raise TypeError('Could not convert {} to any of {}: {}'.format(val, types, errs))
+
+def subdict(d, keys):
+    """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""
+    d = dict(d)
+    keys = set(keys)
+    return {k: v for k, v in d.items() if k in keys}
+
+def chk(condition, message='Check failed', exc=RuntimeError):
+    """Check a condition, raise an exception if condition is False."""
+    if not condition:
+        raise exc(message)
+
+    

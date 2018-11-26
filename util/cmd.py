@@ -11,6 +11,10 @@ import sys
 import shutil
 import logging
 import argparse
+import importlib
+import inspect
+import collections
+
 import util.version
 import util.file
 
@@ -174,7 +178,7 @@ def make_parser(commands, description):
             # so sphinx-argparse doesnt't render "Undocumented"
             if (not help_str) and os.environ.get('READTHEDOCS') or 'sphinx' in sys.modules:
                 help_str = "   "
-            p = subparsers.add_parser(cmd_name, help=help_str)
+            p = subparsers.add_parser(cmd_name, help=help_str, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
             cmd_parser(p)
     return parser
 
@@ -212,8 +216,7 @@ def main_argparse(commands, description):
             ret = args.func_main(args)
         finally:
             if (hasattr(args, 'tmp_dirKeep') and args.tmp_dirKeep) or util.file.keep_tmp():
-                log.exception(
-                    "Exception occurred while running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
+                log.debug("After running %s, saving tmp_dir at %s", args.command, tempfile.tempdir)
             else:
                 shutil.rmtree(tempfile.tempdir)
     else:
@@ -257,4 +260,28 @@ def check_input(condition, error_msg):
     if not condition:
         raise BadInputError(error_msg)
 
+def parse_cmd(module, cmd, args):
+    """Parse arguments `args` to command `cmd` from module `module`."""
+    if isinstance(module, str): 
+        module = importlib.import_module(module)
+    assert inspect.ismodule(module)
+    parser_fn = dict(getattr(module, '__commands__'))[cmd]
+    return parser_fn(argparse.ArgumentParser()).parse_args(list(map(str, args)))
     
+CmdRunInfo = collections.namedtuple('CmdRunInfo', ['result', 'args_parsed'])
+
+def run_cmd(module, cmd, args):
+    """Run command after parsing its arguments with the command's parser.
+    
+    Args:
+        module: the module object for the script containing the command
+        cmd: the command name
+        args: list of args to the command
+
+    Returns:
+        a CmdRunInfo namedtuple with info about the run
+    """
+    log.info('Calling command {} with args {}'.format(cmd, args))
+    args_parsed = parse_cmd(module, cmd, args)
+    result = args_parsed.func_main(args_parsed)
+    return CmdRunInfo(result=result, args_parsed=args_parsed)
