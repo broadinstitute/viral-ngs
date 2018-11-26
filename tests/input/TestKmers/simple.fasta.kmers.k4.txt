@@ -1,0 +1,3 @@
+ATCG	6
+GATC	3
+TCGA	4

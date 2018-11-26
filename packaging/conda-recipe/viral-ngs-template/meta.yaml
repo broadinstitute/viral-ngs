@@ -67,6 +67,7 @@ test:
     - "metagenomics.py -h &> /dev/null"
     - "ncbi.py -h &> /dev/null"
     - "read_utils.py -h &> /dev/null"
+    - "kmer_utils.py -h &> /dev/null"
     - "reports.py -h &> /dev/null"
     - "taxon_filter.py -h &> /dev/null"
 

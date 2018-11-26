@@ -1394,6 +1394,40 @@ def main_extract_tarball(*args, **kwargs):
     print(util.file.extract_tarball(*args, **kwargs))
 __commands__.append(('extract_tarball', parser_extract_tarball))
 
+# =========================
+
+def fasta_read_names(in_fasta, out_read_names):
+    """Save the read names of reads in a .fasta file to a text file"""
+    with util.file.open_or_gzopen(in_fasta) as in_fasta_f, open(out_read_names, 'wt') as out_read_names_f:
+        last_read_name = None
+        for line in in_fasta_f:
+            if line.startswith('>'):
+                read_name = line[1:].strip()
+                if read_name.endswith('/1') or read_name.endswith('/2'):
+                    read_name = read_name[:-2]
+                if read_name != last_read_name:
+                    out_read_names_f.write(read_name+'\n')
+                last_read_name = read_name
+
+
+def read_names(in_reads, out_read_names, threads=None):
+    """Extract read names from a sequence file"""
+    _in_reads = in_reads
+    with util.file.tmp_dir(suffix='_read_names.txt') as t_dir:
+        if in_reads.endswith('.bam'):
+            _in_reads = os.path.join(t_dir, 'reads.fasta')
+            tools.samtools.SamtoolsTool().bam2fa(in_reads, _in_reads)
+        fasta_read_names(_in_reads, out_read_names)
+
+def parser_read_names(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_reads', help='the input reads ([compressed] fasta or bam)')
+    parser.add_argument('out_read_names', help='the read names')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, read_names, split_args=True)
+    return parser
+
+__commands__.append(('read_names', parser_read_names))
+
 
 # =========================
 

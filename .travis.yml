@@ -11,6 +11,7 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR"
   - PYTHONIOENCODING=UTF8
+  - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov kmer_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
   
   - DOCKER_REGISTRY="quay.io"
   - DOCKER_REPO_PROD="quay.io/broadinstitute/viral-ngs"
@@ -157,7 +158,6 @@ jobs:
       sudo: required
       env:
         - TRAVIS_JOB=test_py27
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -176,7 +176,6 @@ jobs:
       sudo: required
       env:
         - TRAVIS_JOB=test_py36
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -197,7 +196,6 @@ jobs:
       sudo: required
       env:
         - TRAVIS_JOB=test_snakemake
-        - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -215,7 +213,6 @@ jobs:
     #  stage: test
     #  env:
     #    - TRAVIS_JOB=test_py36_in_docker
-    #    - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov reports --cov taxon_filter --cov tools --cov util"
     #  install:
     #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
     #    - docker pull $DOCKER_TAG
