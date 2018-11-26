@@ -35,7 +35,8 @@ workflow demux_plus {
             input:
                 assembler = "spades",
                 reads_unmapped_bam = deplete.cleaned_bam,
-                trim_clip_db = trim_clip_db
+                trim_clip_db = trim_clip_db,
+                always_succeed = true
         }
     }
 

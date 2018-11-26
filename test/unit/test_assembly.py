@@ -154,12 +154,12 @@ class TestAssembleSpades(TestCaseWithTmp):
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, min_contig_len=180, out_fasta=outFasta)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
             #print('test_assembly_contigs_lens:', contig_lens, file=sys.stderr)
-            self.assertEqual(contig_lens, [168, 170, 177, 180, 184, 187, 190, 191, 194, 197, 211, 243, 244, 247, 288, 328, 348, 430])
+            self.assertEqual(contig_lens, [180, 184, 187, 190, 191, 194, 197, 211, 243, 244, 247, 288, 328, 348, 430])
 
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
@@ -181,6 +181,15 @@ class TestAssembleSpades(TestCaseWithTmp):
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         with util.file.tempfname('fasta') as outFasta:
             assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
+            self.assertEqual(os.path.getsize(outFasta), 0)
+
+    def test_always_succeed(self):
+        inDir = util.file.get_test_input_path(self)
+        inBam = os.path.join(inDir, '..', 'almost-empty.bam')
+        clipDb = os.path.join(inDir, 'clipDb.fasta')
+        with util.file.tempfname('.fasta') as outFasta:
+            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta, spades_opts='--bad-option',
+                                     always_succeed=True)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):

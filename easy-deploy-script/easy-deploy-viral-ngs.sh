@@ -73,7 +73,7 @@ if [ $current_prefix_length -ge $CONDA_PREFIX_LENGTH_LIMIT ]; then
     exit 80
 fi
 
-python_check=$(hash python)
+python_check=$(hash python &> /dev/null || hash python3 &> /dev/null)
 if [ $? -ne 0 ]; then
     echo "It looks like Python is not installed. Exiting."
     if [[ $sourced -eq 0 ]]; then
@@ -83,7 +83,14 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-ram_check=$(python -c "bytearray(768000000)" &> /dev/null)
+python3_check=$(hash python3 &> /dev/null)
+if [ $? -eq 0 ]; then
+    python_to_use="$(which python3)"
+fi
+
+$python_to_use --version
+
+ram_check=$($python_to_use -c "bytearray(768000000)" &> /dev/null)
 if [ $? -ne 0 ]; then
     echo ""
     echo "Unable to allocate 768MB."
@@ -200,7 +207,7 @@ function install_miniconda(){
     else
         echo "Downloading and installing Miniconda..."
 
-        if [[ "$(python -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
+        if [[ "$($python_to_use -c 'import os; print(os.uname()[0])')" == "Darwin" ]]; then
             miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
         else
             miniconda_url=https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
