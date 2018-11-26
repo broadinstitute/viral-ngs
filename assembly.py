@@ -352,10 +352,11 @@ def assemble_spades(
     spades_opts='',
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
+    min_contig_len=0,
     kmer_sizes=(55,65),
     n_reads=10000000,
     outReads=None,
-    mask_errors=False,
+    always_succeed=False,
     max_kmer_sizes=1,
     mem_limit_gb=8,
     threads=None,
@@ -377,7 +378,8 @@ def assemble_spades(
             tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
-                                               kmer_sizes=kmer_sizes, mask_errors=mask_errors, max_kmer_sizes=max_kmer_sizes,
+                                               min_contig_len=min_contig_len,
+                                               kmer_sizes=kmer_sizes, always_succeed=always_succeed, max_kmer_sizes=max_kmer_sizes,
                                                spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
         except subprocess.CalledProcessError as e:
@@ -401,6 +403,11 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
+    parser.add_argument('--alwaysSucceed', dest='always_succeed', default=False, action='store_true',
+                        help='if assembly fails for any reason, output an empty contigs file, rather than failing with '
+                        'an error code')
+    parser.add_argument('--minContigLen', dest='min_contig_len', type=int, default=0,
+                        help='only output contigs longer than this many bp')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -411,7 +418,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
 __commands__.append(('assemble_spades', parser_assemble_spades))
 
 def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_gb=4, time_soft_limit_minutes=60.0,
-                    random_seed=0, gap2seq_opts='', mask_errors=False):
+                    random_seed=0, gap2seq_opts='', always_succeed=False):
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
     try:
@@ -419,7 +426,7 @@ def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_g
                                             mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
                                             random_seed=random_seed)
     except Exception as e:
-        if not mask_errors:
+        if not always_succeed:
             raise
         log.warning('Gap-filling failed (%s); ignoring error, emulating successful run where simply no gaps were filled.')
         shutil.copyfile(in_scaffold, out_scaffold)
@@ -432,7 +439,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
-    parser.add_argument('--maskErrors', dest='mask_errors', default=False, action='store_true',
+    parser.add_argument('--maskErrors', dest='always_succeed', default=False, action='store_true',
                         help='In case of any error, just copy in_scaffold to out_scaffold, emulating a successful run that simply could not '
                         'fill any gaps.')
     parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')

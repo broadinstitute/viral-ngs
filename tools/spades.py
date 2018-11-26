@@ -11,6 +11,8 @@ import random
 import shlex
 import tempfile
 
+import Bio.SeqIO
+
 import tools
 import tools.samtools
 import tools.picard
@@ -40,8 +42,8 @@ class SpadesTool(tools.Tool):
         subprocess.check_call(tool_cmd)
 
     def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None,
-                 contigs_untrusted=None, kmer_sizes=(55,65), mask_errors=False, max_kmer_sizes=1, 
-                 filter_contigs=False, mem_limit_gb=8, threads=None, spades_opts=''):
+                 contigs_untrusted=None, kmer_sizes=(55,65), always_succeed=False, max_kmer_sizes=1, 
+                 filter_contigs=False, min_contig_len=0, mem_limit_gb=8, threads=None, spades_opts=''):
         '''Assemble contigs from RNA-seq reads and (optionally) pre-existing contigs.
 
         Inputs:
@@ -54,9 +56,10 @@ class SpadesTool(tools.Tool):
         Params:
             kmer_sizes: if given, use these kmer sizes and combine the resulting contigs.  kmer size of 0 or None means use size auto-selected
               by SPAdes based on read length.
-            mask_errors: if True, if spades fails with an error for a kmer size, pretend it just produced no contigs for that kmer size
+            always_succeed: if True, if spades fails with an error for a kmer size, pretend it just produced no contigs for that kmer size
             max_kmer_sizes: if this many kmer sizes succeed, do not try further ones
             filter_contigs: if True, outputs only "long and reliable transcripts with rather high expression" (per SPAdes docs)
+            min_contig_len: drop contigs shorter than this many bp
             mem_limit_gb: max memory to use, in gigabytes
             threads: number of threads to use
             spades_opts: additional options to pass to spades
@@ -72,6 +75,7 @@ class SpadesTool(tools.Tool):
         threads = util.misc.sanitize_thread_count(threads)
 
         util.file.make_empty(contigs_out)
+        contigs_cumul_count = 0
 
         if ((reads_fwd and reads_bwd and os.path.getsize(reads_fwd) > 0 and os.path.getsize(reads_bwd) > 0) or
             (reads_unpaired and os.path.getsize(reads_unpaired) > 0)):
@@ -97,14 +101,41 @@ class SpadesTool(tools.Tool):
                     try:
                         self.execute(args=args)
                     except Exception as e:
-                        if mask_errors:
+                        if always_succeed:
                             log.warning('SPAdes failed for k={}: {}'.format(kmer_size, e))
                             util.file.make_empty(transcripts_fname)
                         else:
                             raise
 
-                    util.file.concat(transcripts_fname, contigs_out, append=True)
+                    # work around the bug that spades may succeed yet not create the transcripts.fasta file
+                    if not os.path.isfile(transcripts_fname):
+                        msg = 'SPAdes failed to make transcripts.fasta for k={}'.format(kmer_size)
+                        if always_succeed:
+                            log.warning(msg)
+                            util.file.make_empty(transcripts_fname)
+                        else:
+                            raise RuntimeError(msg)
+
+                    if min_contig_len:
+                        transcripts = Bio.SeqIO.parse(transcripts_fname, 'fasta')
+                        transcripts_sans_short = [r for r in transcripts if len(r.seq) >= min_contig_len]
+                        transcripts_fname = os.path.join(spades_dir, 'transcripts_over_{}bp.fasta'.format(min_contig_len))
+                        Bio.SeqIO.write(transcripts_sans_short, transcripts_fname, 'fasta')
+
+                    contigs_cumul = os.path.join(spades_dir, 'contigs_cumul.{}.fasta'.format(contigs_cumul_count))
+                    contigs_cumul_count += 1
+
+                    util.file.concat(inputFilePaths=(contigs_out, transcripts_fname), outputFilePath=contigs_cumul, append=True)
+                    shutil.copyfile(contigs_cumul, contigs_out)
+
                     if os.path.getsize(transcripts_fname):
                         kmer_sizes_succeeded += 1
                         if kmer_sizes_succeeded >= max_kmer_sizes:
                             break
+                # end: with util.file.tmp_dir('_spades') as spades_dir
+            # end: for kmer_size in util.misc.make_seq(kmer_sizes)
+        # if input non-empty
+    # end: def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None, ...)
+# end: class SpadesTool(tools.Tool)
+
+

@@ -68,8 +68,15 @@ task illumina_demux {
       ${flowcell_tgz} $FLOWCELL_DIR \
       --loglevel=DEBUG
 
-    # full RunInfo.xml path
-    RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    # if we are overriding the RunInfo file, use the path of the file provided. Otherwise find the file
+    if [ -n "${runinfo}" ]; then
+      RUNINFO_FILE="${runinfo}"
+    else
+      # full RunInfo.xml path
+      RUNINFO_FILE="$(find $FLOWCELL_DIR -type f -maxdepth 3 -name RunInfo.xml | head -n 1)"
+    fi
+
+    
     # Parse the lane count & run ID from RunInfo.xml file
     lane_count=$(xmllint --xpath "string(//Run/FlowcellLayout/@LaneCount)" $RUNINFO_FILE)
     if [ -z "$lane_count" ]; then
@@ -153,7 +160,9 @@ task illumina_demux {
       --compression_level=5 \
       --loglevel=DEBUG
 
-    rm -f Unmatched.bam
+    mkdir -p unmatched
+    mv Unmatched.bam unmatched/
+
     for bam in *.bam; do
       fastqc_out=$(basename $bam .bam)_fastqc.html
       reports.py fastqc $bam $fastqc_out
@@ -164,6 +173,7 @@ task illumina_demux {
     File        metrics                  = "metrics.txt"
     File        commonBarcodes           = "barcodes.txt"
     Array[File] raw_reads_unaligned_bams = glob("*.bam")
+    File        unmatched_reads_bam      = "unmatched/Unmatched.bam"
     Array[File] raw_reads_fastqc         = glob("*_fastqc.html")
   }
 

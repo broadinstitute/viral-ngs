@@ -121,6 +121,63 @@ task krona {
   }
 }
 
+task filter_bam_to_taxa {
+  File classified_bam
+  File classified_reads_txt_gz
+  File ncbi_taxonomy_db_tgz # nodes.dmp names.dmp
+  Array[String]? taxonomic_names
+  Array[Int]? taxonomic_ids
+  Boolean? withoutChildren=false
+
+  String input_basename = basename(classified_bam, ".bam")
+
+  parameter_meta {
+    ncbi_taxonomy_db_tgz              : "stream" # for DNAnexus, until WDL implements the File| type
+  }
+
+  command {
+    set -ex -o pipefail
+
+    # decompress DB to /mnt/db
+    read_utils.py extract_tarball \
+      ${ncbi_taxonomy_db_tgz} . \
+      --loglevel=DEBUG
+
+    TAX_NAMES="${sep=' ' taxonomic_names}"
+    if [ -n "$TAX_NAMES" ]; then TAX_NAMES="--taxNames $TAX_NAMES"; fi
+
+    TAX_IDs="${sep=' ' taxonomic_ids}"
+    if [ -n "$TAX_IDs" ]; then TAX_IDs="--taxIDs $TAX_IDs"; fi
+
+    metagenomics.py filter_bam_to_taxa \
+      ${classified_bam} \
+      ${classified_reads_txt_gz} \
+      "${input_basename}_filtered.bam" \
+      taxonomy/nodes.dmp \
+      taxonomy/names.dmp \
+      $TAX_NAMES \
+      $TAX_IDs \
+      ${true='--without-children' false='' withoutChildren} \
+      --loglevel=DEBUG
+
+      samtools view -c ${classified_bam} | tee classified_taxonomic_filter_read_count_pre
+      samtools view -c "${input_basename}_filtered.bam" | tee classified_taxonomic_filter_read_count_post
+  }
+
+  output {
+    File bam_filtered_to_taxa = "${input_basename}_filtered.bam"
+    Int  classified_taxonomic_filter_read_count_pre  = read_int("classified_taxonomic_filter_read_count_pre")
+    Int  classified_taxonomic_filter_read_count_post = read_int("classified_taxonomic_filter_read_count_post")
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "4 GB"
+    cpu: 1
+    dx_instance_type: "mem1_ssd2_x2"
+  }
+
+}
 
 task diamond_contigs {
   File  contigs_fasta
