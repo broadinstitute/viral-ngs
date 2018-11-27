@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wrappers around Snakemake for use on the Broad UGER cluster
+# Wrappers around Snakemake for execution on a single instance
 
 # determine the directory of this script
 SCRIPT_DIRECTORY=$(dirname $(readlink --canonicalize-existing $0))
