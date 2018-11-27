@@ -37,7 +37,7 @@ cmdline = "qsub -N {jobname} -cwd -r y ".format(jobname=jobname)
 cmdline += "-o {logdir} -j y ".format(logdir=LOGDIR)
 
 # pass memory resource request to cluster
-mem = props.get('resources', {}).get('mem')
+mem = int(props.get('resources', {}).get('mem_mb'))/1000
 threads = props.get('resources', {}).get('threads')
 threads = threads or 1
 if mem:
