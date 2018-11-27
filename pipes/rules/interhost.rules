@@ -40,7 +40,7 @@ rule ref_guided_consensus:
         config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.vcf.gz',
         config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.fasta'
     resources: 
-        mem     = 4,
+        mem_mb     = 4*1000,
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF               = config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -60,7 +60,7 @@ rule ref_guided_consensus_aligned_with_dups:
     output: 
         config["data_dir"]+'/'+config["subdirs"]["align_ref"]+'/{sample}.realigned.only_aligned.bam'
     resources:
-        mem     = 8,
+        mem_mb     = 8*1000,
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
@@ -85,7 +85,7 @@ rule ref_guided_diversity:
         os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.fasta'),
         os.path.join(config["data_dir"], config["subdirs"]["interhost"], 'ref_guided.vcf.gz')
     resources: 
-        mem=8
+        mem_mb=8*1000
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
         UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
@@ -95,7 +95,7 @@ rule ref_guided_diversity:
         shell("cat " + " ".join(input.in_fastas) + " > {output[0]}")
         merge_vcfs(input.in_vcfs, os.path.splitext(input.ref_genome_files[0])[0]+".fasta", output[1])
 
-def multi_align_mafft_memory(_, input):
+def multi_align_mafft_memory_mb(_, input):
     sample_count = len(list(read_samples_file(config["samples_assembly"])))
     if sample_count in range(0,50):
         mem=8
@@ -103,7 +103,7 @@ def multi_align_mafft_memory(_, input):
         mem=16
     elif sample_count >= 100:
         mem=32
-    return mem
+    return mem*1000
 
 rule multi_align_mafft:
     input:
@@ -119,7 +119,7 @@ rule multi_align_mafft:
                                         subdir=config["subdirs"]["multialign_ref"],
                                         chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))        
     resources: 
-        mem     = multi_align_mafft_memory,
+        mem_mb     = multi_align_mafft_memory_mb,
         threads = int(config.get("number_of_threads", 1))
     params: 
         LSF      = config.get('LSF_queues', {}).get('short', '-W 4:00'),

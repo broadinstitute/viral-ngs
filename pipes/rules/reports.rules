@@ -48,7 +48,7 @@ rule fastqc_report:
     output: 
         config["reports_dir"]+'/fastqc/{sample}/{adjective}'
     resources: 
-        mem = 3
+        mem_mb = 3*1000
     params: 
         LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
         UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),
@@ -99,7 +99,7 @@ if config.get("spikeins_db"):
         output: 
             config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
         resources: 
-            mem = 3
+            mem_mb = 3*1000
         params: 
             LSF   = config.get('LSF_queues', {}).get('short', '-W 4:00'),
             UGER  = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00'),

@@ -74,7 +74,7 @@ rule annot_transfer:
             samp=read_samples_file(config["samples_assembly"]),
             chrom=range(1, len(config["accessions_for_ref_genome_build"])+1))
     resources:  
-        mem = 4
+        mem_mb = 4*1000
     params:     
         LSF  = config.get('LSF_queues', {}).get('short', '-W 4:00'),
         UGER = config.get('UGER_queues', {}).get('short', '-l h_rt=04:00:00')
