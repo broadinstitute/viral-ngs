@@ -71,6 +71,19 @@ def test_check_paths(tmpdir):
     util.file.make_empty(join(writable_dir, 'myempty.dat'))
     check_paths(read_and_write=join(writable_dir, 'myempty.dat'))
 
+def test_uncompressed_file_type():
+    """Test util.file.uncompressed_file_type()"""
+    uft = util.file.uncompressed_file_type
+    assert uft('test.fasta.gz') == '.fasta'
+    assert uft('test.fasta.bz2') == '.fasta'
+    assert uft('test.fasta') == '.fasta'
+    assert uft('test.gz') == ''
+
+    assert uft('/tmp/test.fasta.gz') == '.fasta'
+    assert uft('/test/dir/test.fasta.bz2') == '.fasta'
+    assert uft('/a/b/c/test.fasta') == '.fasta'
+    assert uft('/a/test.gz') == ''
+
 def test_string_to_file_name():
     """Test util.file.string_to_file_name()"""
 

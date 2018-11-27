@@ -99,9 +99,9 @@ class SamtoolsTool(tools.Tool):
         p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
         return p
 
-    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None):
+    def bam2fa(self, inBam, outFa1, outFa2=None, outFa0=None, append_mate_num=False):
         if outFa2 is None:
-            args = ['-n']
+            args = ['-N' if append_mate_num else '-n']
         else:
             args = ['-1', outFa1, '-2', outFa2]
         if outFa0:
