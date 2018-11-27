@@ -1,0 +1,14 @@
+>Feature gb|KM821998.1|
+59	1531	gene
+			gene	GPC
+59	1531	CDS
+			product	glycoprotein precursor
+			transl_table	1
+			protein_id	gb|AIT17576.1|
+3308	1599	gene
+			gene	NP
+3308	1599	CDS
+			product	nucleoprotein
+			transl_table	1
+			protein_id	gb|AIT17577.1|
+
