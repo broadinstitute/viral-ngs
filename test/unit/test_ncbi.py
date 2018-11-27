@@ -11,6 +11,7 @@ import argparse
 # module-specific
 import ncbi
 import util.file
+import util.genbank
 from test import assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents, assert_md5_equal_to_line_in_file
 
 
@@ -20,6 +21,27 @@ class TestCommandHelp(unittest.TestCase):
         for cmd_name, parser_fun in ncbi.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
+
+class TestFeatureReader(TestCaseWithTmp):
+    def setUp(self):
+        super(TestFeatureReader, self).setUp()
+        self.input_dir = util.file.get_test_input_path(self)
+
+    def test_read_seq_id_simple(self):
+        accessions = ('GU481072.1', 'GU481073.1',
+            'KM821772.1', 'KM821773.1')
+        for acc in accessions:
+            self.assertEqual(acc, util.genbank.get_feature_table_id(os.path.join(self.input_dir, acc+'.tbl')))
+
+    def test_read_seq_id_different_fnames(self):
+        self.assertEqual('KM821998.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+            'test1-S.tbl')))
+        self.assertEqual('KM821997.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+            'test2-L.tbl')))
+
+    def test_read_seq_id_refseq(self):
+        self.assertEqual('NC_026438.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+            'NC_026438.1.tbl')))
 
 class TestFeatureTransfer(TestCaseWithTmp):
     def setUp(self):
