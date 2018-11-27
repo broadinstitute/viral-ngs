@@ -1,0 +1,14 @@
+>Feature gb|KM821772.1|
+57	356	gene
+			gene	Z
+57	356	CDS
+			product	Z protein
+			transl_table	1
+			protein_id	gb|AIT17124.1|
+7118	456	gene
+			gene	L
+7118	456	CDS
+			product	polymerase
+			transl_table	1
+			protein_id	gb|AIT17125.1|
+
