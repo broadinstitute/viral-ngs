@@ -500,7 +500,7 @@ def makeFastaFile(seqs, outFasta):
 
 def bam_is_sorted(bam_file_path):
     # Should perhaps be in samtools.py once it moves to pysam
-    samfile = pysam.AlignmentFile(bam_file_path, "rb")
+    samfile = pysam.AlignmentFile(bam_file_path, "rb", check_sq=False)
     if "HD" in samfile.header and "SO" in samfile.header["HD"]:
         return samfile.header["HD"]["SO"] in ("coordinate") # also: "queryname"
     else:
