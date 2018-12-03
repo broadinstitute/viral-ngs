@@ -10,6 +10,7 @@ import contextlib
 import logging
 import os
 import os.path
+import platform
 import resource
 import subprocess
 import tempfile
@@ -74,6 +75,9 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
+        trinity_env = dict(os.environ)
+        if 'OSTYPE' not in trinity_env:
+            trinity_env['OSTYPE'] = platform.system().lower()
         with unlimited_stack():
             subprocess.check_call(cmd)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
