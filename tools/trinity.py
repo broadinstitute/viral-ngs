@@ -79,6 +79,6 @@ class TrinityTool(tools.Tool):
         if 'OSTYPE' not in trinity_env:
             trinity_env['OSTYPE'] = platform.system().lower()
         with unlimited_stack():
-            subprocess.check_call(cmd)
+            subprocess.check_call(cmd, env=trinity_env)
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
