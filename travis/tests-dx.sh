@@ -16,6 +16,26 @@ if [ ! -f $COMPILE_SUCCESS ]; then
   dx download --no-progress /build/$VERSION/$COMPILE_SUCCESS
 fi
 
+function dx_run_timeout_args {
+    #
+    # Constructs command-line arguments to 'dx run' command
+    # to set a timeout on the applets run by the workflow
+    #
+
+    local dx_workflow_id="$1"
+
+    local dx_applet_ids=$(dx describe $dx_workflow_id | grep applet- | awk '{print $2;}')
+    local comma=""
+    local timeout_args="--extra-args '{\"timeoutPolicyByExecutable\":{"
+    for dx_applet_id in $dx_applet_ids
+    do
+	timeout_args="${timeout_args}${comma} \"$dx_applet_id\": {\"*\": {\"minutes\": 3}}"
+	comma=","
+    done
+    local timeout_args="$timeout_args }}'"
+    echo $timeout_args
+}
+
 TEST_LAUNCH_ALL="dxWDL-execute_all-launched.txt"
 touch $TEST_LAUNCH_ALL
 for workflow in pipes/WDL/workflows/*.wdl; do
@@ -31,7 +51,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
            $dx_workflow_id -y --brief \
            -f $input_json \
            --name "$VERSION $workflow_name" \
-           --destination /tests/$VERSION/$workflow_name)
+           --destination /tests/$VERSION/$workflow_name \
+	   $(timeout_args $dx_workflow_id))
        if [ $? -eq 0 ]; then
            echo "Launched $workflow_name as $dx_job_id"
        else
@@ -50,7 +71,8 @@ dx_job_id=$(dx run \
   $demux_launcher_id -y --brief \
   -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
   --name "$VERSION demux_launcher" \
-  -i folder=/tests/$VERSION/demux_launcher)
+  -i folder=/tests/$VERSION/demux_launcher \
+  $(dx_run_timeout_args $demux_launcher_id))
 echo "Launched demux_launcher as $dx_job_id"
 echo -e "demux_launcher\t$demux_launcher_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
 
