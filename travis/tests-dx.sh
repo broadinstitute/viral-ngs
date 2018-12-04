@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail
+set -e -o pipefail -x
 
 # obtain version tag
 VERSION=`travis/list-docker-tags.sh | tail -1 | sed 's/:/\//'`
@@ -52,7 +52,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name \
-	   $(timeout_args $dx_workflow_id))
+	   $(dx_run_timeout_args $dx_workflow_id) \
+	   )
        if [ $? -eq 0 ]; then
            echo "Launched $workflow_name as $dx_job_id"
        else
@@ -72,7 +73,8 @@ dx_job_id=$(dx run \
   -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
   --name "$VERSION demux_launcher" \
   -i folder=/tests/$VERSION/demux_launcher \
-  $(dx_run_timeout_args $demux_launcher_id))
+  $(dx_run_timeout_args $demux_launcher_id) \
+  )
 echo "Launched demux_launcher as $dx_job_id"
 echo -e "demux_launcher\t$demux_launcher_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
 
