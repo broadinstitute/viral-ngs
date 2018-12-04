@@ -282,17 +282,34 @@ class MummerTool(tools.Tool):
                     # (# assembled segments)
                     continue
 
+                def frac_unambig(seqs):
+                    assert len(set(map(len, alt_seqs_f)))                    
+                    n_tot = len(seqs[0])
+                    n_unambig = 0
+                    for i in range(n_tot):
+                        bases_here = [s[i] for s in seqs]
+                        if len(set(bases_here)) == 1:
+                            n_unambig += 1
+                    return float(n_unambig) / float(n_tot)
+
                 # construct scaffolded sequence for this chromosome
                 seq = []
                 for _, left, right, n_features, features in fs.get_intervals(c):
                     # get all proposed sequences for this specific region
                     alt_seqs = []
-                    for f in features:
-                        try:
-                            alt_seqs.append(alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2]))
-                        except AmbiguousAlignmentException:
-                            log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
-                            pass
+                    for consider_ambig_aligns in (False, True):
+                        for f in features:
+                            alt_seqs_f = alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
+                            if len(alt_seqs_f) == 1:
+                                alt_seqs.append(alt_seqs_f[0])
+                            elif consider_ambig_aligns and len(alt_seqs_f) < 3 and len(set(map(len, alt_seqs_f))) < 2 and \
+                                 frac_unambig(alt_seqs_f) > .99:
+                                alt_seqs.append(alt_seqs_f[0])
+                            else:
+                                log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
+                                pass
+                        if alt_seqs:
+                            break
 
                     # pick the "right" one and glue together into a chromosome
                     ranked_unique_seqs = contig_chooser(alt_seqs, right-left+1, "%s:%d-%d" % (c, left, right))
@@ -541,8 +558,8 @@ class AlignsReader(object):
         '''
         return str(self.reference_seq.seq[start-1:stop])
 
-    def retrieve_alt_by_ref(self, start, stop, aln_start=None, aln_stop=None):
-        ''' Retrieve a sub-sequence from the alternate (2nd) sequence in the
+    def retrieve_alts_by_ref(self, start, stop, aln_start=None, aln_stop=None):
+        ''' Retrieve sub-sequence(s) from the alternate (2nd) sequence in the
             alignment using coordinates relative to the reference sequence.
             No gaps will be emitted.
             Required: start-stop interval must be wholly contained within
@@ -550,11 +567,11 @@ class AlignsReader(object):
         '''
 
         # grab the one alignment that contains this window
-        aln = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
+        alns = list(a for a in self.alignments if a[1]<=start and a[2]>=stop)
         if aln_start is not None and aln_stop is not None:
             # if specified, restrict to a specific alignment that comes from show-tiling
             # (sometimes show-aligns is more promiscuous than show-tiling)
-            new_aln = []
+            new_alns = []
             for a in aln:
                 if a[1] > aln_start or a[2] < aln_stop:
                     log.debug("dropping undesired alignment: %s(%s):%s-%s to %s(%s):%s-%s (%s:%s-%s requested)",
@@ -562,37 +579,40 @@ class AlignsReader(object):
                         self.seq_ids[1], a[3], a[4], a[5],
                         self.seq_ids[0], aln_start, aln_stop)
                 else:
-                    new_aln.append(a)
-            aln = new_aln
-        if len(aln) != 1:
-            log.error("invalid %s:%d-%d -> %s specified, %d alignments found that contain it",
+                    new_alns.append(a)
+            alns = new_alns
+        if len(alns) != 1:
+            log.warning("invalid %s:%d-%d -> %s specified, %d alignments found that contain it",
                 self.seq_ids[0], start, stop, self.seq_ids[1], len(aln))
-            for x in aln:
-                log.debug("alignment: %s", str(x[:6]))
-            raise AmbiguousAlignmentException()
-        aln = aln[0]
+            for aln in alns:
+                log.debug("alignment: %s", str(aln[:6]))
+
+        return [self._aln_to_alt_seq(aln, start, stop) for aln in alns]
+
+    def _aln_to_alt_seq(self, aln, start, stop):
+        """Given an alignment of a contig to ref, return the contig sequence aligned to a given stretch of ref"""
         ref_l, ref_r, ref_seq, alt_seq = (aln[1], aln[2], aln[-2], aln[-1])
 
         # convert desired start/stop relative to this reference window
         #  such that 0 <= start <= stop <= ref_r-ref_l+1
-        start = start - ref_l
-        stop = stop - ref_l
+        aln_start = start - ref_l
+        aln_stop = stop - ref_l
 
         # travel down alignment until we've reached the left edge
         #  (because of gaps, you must check each position one by one)
-        #  end loop when ref_seq[:i_left] contains {start} bases
+        #  end loop when ref_seq[:i_left] contains {aln_start} bases
         n_ref_bases = 0
         i_left = 0
-        while n_ref_bases < start:
+        while n_ref_bases < aln_start:
             if ref_seq[i_left] != '-':
                 n_ref_bases += 1
             i_left += 1
 
         # travel down alignment until we've reached the right edge
         #  (because of gaps, you must check each position one by one)
-        #  end loop when ref_seq[:i_right] contains {stop} bases
+        #  end loop when ref_seq[:i_right] contains {aln_stop} bases
         i_right = i_left
-        while n_ref_bases < stop:
+        while n_ref_bases < aln_stop:
             if ref_seq[i_right] != '-':
                 n_ref_bases += 1
             i_right += 1
@@ -601,6 +621,6 @@ class AlignsReader(object):
             i_right += 1
 
         # grab the alternate sequence and strip gaps
-        alt_seq = alt_seq[i_left:i_right+1].replace('-','')
-        return alt_seq
+        return alt_seq[i_left:i_right+1].replace('-','')
+
 
