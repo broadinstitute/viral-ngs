@@ -31,8 +31,8 @@ function dx_run_timeout_args {
     local timeout_args="{\"timeoutPolicyByExecutable\":{"
     for dx_applet_id in $dx_applet_ids
     do
-	timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"hours\":3}}"
-	comma=","
+        timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"hours\":3}}"
+        comma=","
     done
     timeout_args="$timeout_args}}"
     echo $timeout_args
@@ -55,8 +55,8 @@ for workflow in pipes/WDL/workflows/*.wdl; do
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name \
-	   --extra-args $timeout_args \
-	   )
+           --extra-args $timeout_args \
+           )
        if [ $? -eq 0 ]; then
            echo "Launched $workflow_name as $dx_job_id"
        else
