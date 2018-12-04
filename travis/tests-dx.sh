@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail
+set -e -o pipefail -x
 
 # obtain version tag
 VERSION=`travis/list-docker-tags.sh | tail -1 | sed 's/:/\//'`
@@ -23,8 +23,10 @@ function dx_run_timeout_args {
     #
 
     local dx_workflow_id="$1"
+    local dx_extra_applet_id="$2"
 
-    local dx_applet_ids=$(dx describe $dx_workflow_id | grep applet- | awk '{print $2;}')
+    local dx_workflow_applet_ids=$(dx describe $dx_workflow_id | grep applet- | awk '{print $2;}')
+    local dx_applet_ids="$dx_workflow_applet_ids $dx_extra_applet_id"
     local comma=""
     local timeout_args="{\"timeoutPolicyByExecutable\":{"
     for dx_applet_id in $dx_applet_ids
@@ -69,7 +71,8 @@ done
 # Special case: run test for the demux_launcher native applet (which invokes
 # the demux_plus WDL workflow)
 demux_launcher_id=$(grep demux_launcher $COMPILE_SUCCESS | cut -f 2)
-timeout_args=$(dx_run_timeout_args $demux_launcher_id)
+demux_plus_workflow_id=$(grep demux_plus $COMPILE_SUCCESS | cut -f 2)
+timeout_args=$(dx_run_timeout_args $demux_plus_workflow_id $demux_launcher_id)
 dx_job_id=$(dx run \
   $demux_launcher_id -y --brief \
   -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
