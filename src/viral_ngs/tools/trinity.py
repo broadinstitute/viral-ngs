@@ -10,6 +10,7 @@ import contextlib
 import logging
 import os
 import os.path
+import platform
 import resource
 import subprocess
 import tempfile
@@ -74,7 +75,22 @@ class TrinityTool(tools.Tool):
             '--output', outdir
         ]
         log.debug(' '.join(cmd))
+
+        #
+        # Fix some quirks of the Trinity.pl script
+        #
+        trinity_env = dict(os.environ)
+        # Ensure OSTYPE is set
+        if 'OSTYPE' not in trinity_env:
+            trinity_env['OSTYPE'] = platform.system().lower()
+        # Ensure _JAVA_OPTIONS is not set: OpenJDK java always prints a message to stdout that it picked up
+        # _JAVA_OPTIONS, which confuses Trinity.pl's attempt to get the java version.
+        # Note that the Java heap options will still be passed to trinity via the --bflyHeapSpace parameter.
+        if '_JAVA_OPTIONS' in trinity_env:
+            del trinity_env['_JAVA_OPTIONS']
+
         with unlimited_stack():
-            subprocess.check_call(cmd)
+            subprocess.check_call(cmd, env=trinity_env)
+
         shutil.copyfile(os.path.join(outdir, 'Trinity.fasta'), outFasta)
         shutil.rmtree(outdir, ignore_errors=True)
