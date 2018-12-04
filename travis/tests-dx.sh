@@ -29,10 +29,10 @@ function dx_run_timeout_args {
     local timeout_args="--extra-args '{\"timeoutPolicyByExecutable\":{"
     for dx_applet_id in $dx_applet_ids
     do
-	timeout_args="${timeout_args}${comma} \"$dx_applet_id\": {\"*\": {\"minutes\": 3}}"
+	timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"minutes\":3}}"
 	comma=","
     done
-    local timeout_args="$timeout_args }}'"
+    local timeout_args="$timeout_args}}'"
     echo $timeout_args
 }
 
