@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail -x
+set -e -o pipefail
 
 # obtain version tag
 VERSION=`travis/list-docker-tags.sh | tail -1 | sed 's/:/\//'`
@@ -18,8 +18,8 @@ fi
 
 function dx_run_timeout_args {
     #
-    # Constructs command-line arguments to 'dx run' command
-    # to set a timeout on the applets run by the workflow
+    # Construct command-line arguments for 'dx run' command
+    # to set a timeout on the applets it runs
     #
 
     local dx_workflow_id="$1"
@@ -29,10 +29,10 @@ function dx_run_timeout_args {
     local timeout_args="{\"timeoutPolicyByExecutable\":{"
     for dx_applet_id in $dx_applet_ids
     do
-	timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"minutes\":3}}"
+	timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"hours\":3}}"
 	comma=","
     done
-    local timeout_args="$timeout_args}}"
+    timeout_args="$timeout_args}}"
     echo $timeout_args
 }
 
@@ -48,7 +48,6 @@ for workflow in pipes/WDL/workflows/*.wdl; do
        # launch simple test cases on DNAnexus CI project
        dx_workflow_id=$(grep -w "^$workflow_name" $COMPILE_SUCCESS | cut -f 2)
        timeout_args=$(dx_run_timeout_args $dx_workflow_id)
-       echo "GOT TIMEOUT ARGS: $timeout_args"
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
            -f $input_json \
