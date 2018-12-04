@@ -26,13 +26,13 @@ function dx_run_timeout_args {
 
     local dx_applet_ids=$(dx describe $dx_workflow_id | grep applet- | awk '{print $2;}')
     local comma=""
-    local timeout_args="--extra-args '{\"timeoutPolicyByExecutable\":{"
+    local timeout_args="{\"timeoutPolicyByExecutable\":{"
     for dx_applet_id in $dx_applet_ids
     do
 	timeout_args="${timeout_args}${comma}\"$dx_applet_id\":{\"*\":{\"minutes\":3}}"
 	comma=","
     done
-    local timeout_args="$timeout_args}}'"
+    local timeout_args="$timeout_args}}"
     echo $timeout_args
 }
 
@@ -47,12 +47,14 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     if [ -f $input_json ]; then
        # launch simple test cases on DNAnexus CI project
        dx_workflow_id=$(grep -w "^$workflow_name" $COMPILE_SUCCESS | cut -f 2)
+       timeout_args=$(dx_run_timeout_args $dx_workflow_id)
+       echo "GOT TIMEOUT ARGS: $timeout_args"
        dx_job_id=$(dx run \
            $dx_workflow_id -y --brief \
            -f $input_json \
            --name "$VERSION $workflow_name" \
            --destination /tests/$VERSION/$workflow_name \
-	   $(dx_run_timeout_args $dx_workflow_id) \
+	   --extra-args $timeout_args \
 	   )
        if [ $? -eq 0 ]; then
            echo "Launched $workflow_name as $dx_job_id"
@@ -68,12 +70,13 @@ done
 # Special case: run test for the demux_launcher native applet (which invokes
 # the demux_plus WDL workflow)
 demux_launcher_id=$(grep demux_launcher $COMPILE_SUCCESS | cut -f 2)
+timeout_args=$(dx_run_timeout_args $demux_launcher_id)
 dx_job_id=$(dx run \
   $demux_launcher_id -y --brief \
   -i upload_sentinel_record=record-Bv8qkgQ0jy198GK0QVz2PV8Y \
   --name "$VERSION demux_launcher" \
   -i folder=/tests/$VERSION/demux_launcher \
-  $(dx_run_timeout_args $demux_launcher_id) \
+  --extra-args $timeout_args \
   )
 echo "Launched demux_launcher as $dx_job_id"
 echo -e "demux_launcher\t$demux_launcher_id\t$dx_job_id" >> $TEST_LAUNCH_ALL
