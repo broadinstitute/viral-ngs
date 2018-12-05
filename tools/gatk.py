@@ -44,6 +44,7 @@ class GATKTool(tools.Tool):
                     )
                 )
         install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable="gatk3"))
+        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable="gatk"))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, command, gatkOptions=None, JVMmemory=None):    # pylint: disable=W0221
