@@ -284,14 +284,14 @@ class MummerTool(tools.Tool):
 
                 def frac_unambig(seqs):
                     """Given a list of seqs of the same length, return the fraction of positions on which they all agree"""
-                    assert len(set(map(len, alt_seqs_f)))                    
+                    util.misc.chk(len(set(map(len, alt_seqs_f))) == 1)
                     n_tot = len(seqs[0])
                     n_unambig = 0
                     for i in range(n_tot):
                         bases_here = [s[i] for s in seqs]
                         if len(set(bases_here)) == 1:
                             n_unambig += 1
-                    return float(n_unambig) / float(n_tot)
+                    return float(n_unambig) / float(n_tot or 1.0)
 
                 # construct scaffolded sequence for this chromosome
                 seq = []
@@ -303,12 +303,11 @@ class MummerTool(tools.Tool):
                             alt_seqs_f = alnReaders[(c, f[-1][0])].retrieve_alts_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
                             if len(alt_seqs_f) == 1:
                                 alt_seqs.append(alt_seqs_f[0])
-                            elif consider_ambig_aligns and len(alt_seqs_f) < 3 and len(set(map(len, alt_seqs_f))) < 2 and \
-                                 frac_unambig(alt_seqs_f) > .99:
-                                alt_seqs.append(alt_seqs_f[0])
-                            else:
-                                log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
-                                pass
+                            elif consider_ambig_aligns:
+                                if len(alt_seqs_f) < 3 and len(set(map(len, alt_seqs_f))) < 2 and frac_unambig(alt_seqs_f) > .99:
+                                    alt_seqs.append(alt_seqs_f[0])
+                                else:
+                                    log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
                         if alt_seqs:
                             # if have a non-unambiguous alignment, don't consider ambiguous ones
                             break
