@@ -54,8 +54,6 @@ ENV \
 # verifies that conda-installed python libraries are working.
 RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; assembly.py --version"
 
-RUN apt-get install ttf-dejavu -y
-
 ## A wrapper script to load the viral-ngs environment, switch to
 ## a non-root user, and then run any commands desired
 #ENTRYPOINT ["/opt/viral-ngs/source/docker/gosu-entrypoint.sh"]
