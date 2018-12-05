@@ -299,7 +299,7 @@ class MummerTool(tools.Tool):
                     alt_seqs = []
                     for consider_ambig_aligns in (False, True):
                         for f in features:
-                            alt_seqs_f = alnReaders[(c, f[-1][0])].retrieve_alt_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
+                            alt_seqs_f = alnReaders[(c, f[-1][0])].retrieve_alts_by_ref(left, right, aln_start=f[1], aln_stop=f[2])
                             if len(alt_seqs_f) == 1:
                                 alt_seqs.append(alt_seqs_f[0])
                             elif consider_ambig_aligns and len(alt_seqs_f) < 3 and len(set(map(len, alt_seqs_f))) < 2 and \
@@ -572,7 +572,7 @@ class AlignsReader(object):
             # if specified, restrict to a specific alignment that comes from show-tiling
             # (sometimes show-aligns is more promiscuous than show-tiling)
             new_alns = []
-            for a in aln:
+            for a in alns:
                 if a[1] > aln_start or a[2] < aln_stop:
                     log.debug("dropping undesired alignment: %s(%s):%s-%s to %s(%s):%s-%s (%s:%s-%s requested)",
                         self.seq_ids[0], a[0], a[1], a[2],
@@ -583,7 +583,7 @@ class AlignsReader(object):
             alns = new_alns
         if len(alns) != 1:
             log.warning("invalid %s:%d-%d -> %s specified, %d alignments found that contain it",
-                self.seq_ids[0], start, stop, self.seq_ids[1], len(aln))
+                self.seq_ids[0], start, stop, self.seq_ids[1], len(alns))
             for aln in alns:
                 log.debug("alignment: %s", str(aln[:6]))
 
