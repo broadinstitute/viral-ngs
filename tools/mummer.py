@@ -283,6 +283,7 @@ class MummerTool(tools.Tool):
                     continue
 
                 def frac_unambig(seqs):
+                    """Given a list of seqs of the same length, return the fraction of positions on which they all agree"""
                     assert len(set(map(len, alt_seqs_f)))                    
                     n_tot = len(seqs[0])
                     n_unambig = 0
@@ -309,6 +310,7 @@ class MummerTool(tools.Tool):
                                 log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
                                 pass
                         if alt_seqs:
+                            # if have a non-unambiguous alignment, don't consider ambiguous ones
                             break
 
                     # pick the "right" one and glue together into a chromosome
