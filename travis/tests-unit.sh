@@ -1,7 +1,5 @@
 #!/bin/bash
 
-echo Running unit tests; OSTYPE=${OSTYPE}
-java -version
 pytest --cov-append test/unit
 
 rc=$?; if [[ $rc != 0 ]]; then sleep 10; exit $rc; fi

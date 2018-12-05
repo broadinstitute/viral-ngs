@@ -1,8 +1,5 @@
 #!/bin/bash
 
-echo Running long tests; OSTYPE=${OSTYPE}
-java -version
-
 pytest --cov-append test/integration
 
 rc=$?; if [[ $rc != 0 ]]; then sleep 10; exit $rc; fi
