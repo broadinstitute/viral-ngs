@@ -209,7 +209,8 @@ class MummerTool(tools.Tool):
             aligner='nucmer', extend=None, breaklen=None,
             maxgap=None, minmatch=None, mincluster=None,
             min_contig_coverage_diff=0.0,
-            min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200):
+            min_pct_id=0.6, min_pct_contig_aligned=None, min_contig_len=200,
+            ambig_max_aligns=2, ambig_max_lens=1, ambig_max_frac=.01):
         ''' Re-implement a less buggy version of MUMmer's pseudomolecule
             feature to scaffold contigs onto a reference genome.
         '''
@@ -282,15 +283,13 @@ class MummerTool(tools.Tool):
                     # (# assembled segments)
                     continue
 
+                def n_diff_vals(*vals): return len(set(vals))
+                def n_diff_lens(seqs): return n_diff_vals(*map(len, seqs))
                 def frac_unambig(seqs):
                     """Given a list of seqs of the same length, return the fraction of positions on which they all agree"""
-                    util.misc.chk(len(set(map(len, alt_seqs_f))) == 1)
+                    util.misc.chk(n_diff_lens(alt_seqs_f) == 1, 'ambig_max_lens>1 not currently supported')
                     n_tot = len(seqs[0])
-                    n_unambig = 0
-                    for i in range(n_tot):
-                        bases_here = [s[i] for s in seqs]
-                        if len(set(bases_here)) == 1:
-                            n_unambig += 1
+                    n_unambig = list(map(n_diff_vals, *seqs)).count(1)
                     return float(n_unambig) / float(n_tot or 1.0)
 
                 # construct scaffolded sequence for this chromosome
@@ -304,10 +303,12 @@ class MummerTool(tools.Tool):
                             if len(alt_seqs_f) == 1:
                                 alt_seqs.append(alt_seqs_f[0])
                             elif consider_ambig_aligns:
-                                if len(alt_seqs_f) < 3 and len(set(map(len, alt_seqs_f))) < 2 and frac_unambig(alt_seqs_f) > .99:
+                                if len(alt_seqs_f) <= ambig_max_aligns and n_diff_lens(alt_seqs_f) <= ambig_max_lens and \
+                                   frac_unambig(alt_seqs_f) > (1.0 - ambig_max_frac):
                                     alt_seqs.append(alt_seqs_f[0])
+                                    log.info("using ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
                                 else:
-                                    log.warn("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
+                                    log.warning("dropping ambiguous alignment to ref seq {} at [{},{}]".format(c, f[1], f[2]))
                         if alt_seqs:
                             # if have a non-unambiguous alignment, don't consider ambiguous ones
                             break
