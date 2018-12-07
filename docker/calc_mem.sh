@@ -34,7 +34,7 @@ if [ -e /sys/fs/cgroup/memory/memory.limit_in_bytes ]
 then
     MEM_IN_BYTES=`cat /sys/fs/cgroup/memory/memory.limit_in_bytes`
 else
-    MEM_IN_BYTES=$(head -n1 /proc/meminfo | awk '{print int($2*1024)}' )
+    MEM_IN_BYTES=$(head -n1 /proc/meminfo | awk '{printf "%d", int($2*1024)}' )
 fi
 
-echo $MEM_IN_BYTES $MEM_FRACTION $DIVIDER | awk '{print int($1*$2/100/1024/1024/$3)}'
+echo $MEM_IN_BYTES $MEM_FRACTION $DIVIDER | awk '{printf "%d", int($1*$2/100/1024/1024/$3)}'
