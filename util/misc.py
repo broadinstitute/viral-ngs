@@ -418,7 +418,10 @@ def available_cpu_count():
     try:
         def get_cpu_val(name):
             return float(util.file.slurp_file('/sys/fs/cgroup/cpu/cpu.'+name).strip())
-        cgroup_cpus = int(get_cpu_val('cfs_quota_us') / get_cpu_val('cfs_period_us'))
+        cfs_quota = get_cpu_val('cfs_quota_us')
+        cfs_period = get_cpu_val('cfs_quota_us')
+        log.info('cfs_quota %s, cfs_period %s', cfs_quota, cfs_period)
+        cgroup_cpus = max(1, int(cfs_quota / cfs_period))
     except Exception:
         pass
 
@@ -434,6 +437,8 @@ def available_cpu_count():
     except IOError:
         pass
 
+    log.info('cgroup_cpus %d, proc_cpus %d, multproc cpus %d'
+             cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
     return min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
 
 def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
