@@ -437,7 +437,7 @@ def available_cpu_count():
     except IOError:
         pass
 
-    log.info('cgroup_cpus %d, proc_cpus %d, multproc cpus %d'
+    log.info('cgroup_cpus %d, proc_cpus %d, multproc cpus %d',
              cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
     return min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
 
