@@ -413,6 +413,19 @@ def available_cpu_count():
 
     Adapted from http://stackoverflow.com/a/1006301/715090
     """
+
+    cgroup_cpus = MAX_INT32
+    try:
+        def get_cpu_val(name):
+            return float(util.file.slurp_file('/sys/fs/cgroup/cpu/cpu.'+name).strip())
+        cfs_quota = get_cpu_val('cfs_quota_us')
+        cfs_period = get_cpu_val('cfs_quota_us')
+        log.debug('cfs_quota %s, cfs_period %s', cfs_quota, cfs_period)
+        cgroup_cpus = max(1, int(cfs_quota / cfs_period))
+    except Exception:
+        pass
+
+    proc_cpus = MAX_INT32
     try:
         with open('/proc/self/status') as f:
             status = f.read()
@@ -420,11 +433,13 @@ def available_cpu_count():
         if m:
             res = bin(int(m.group(1).replace(',', ''), 16)).count('1')
             if res > 0:
-                return min(res, multiprocessing.cpu_count())
+                proc_cpus = res
     except IOError:
         pass
 
-    return multiprocessing.cpu_count()
+    log.debug('cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d',
+              cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
+    return min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
 
 def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
     ''' Given a user specified thread count, this function will:

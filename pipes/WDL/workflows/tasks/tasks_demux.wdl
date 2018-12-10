@@ -57,7 +57,7 @@ task illumina_demux {
     set -ex -o pipefail
 
     # find N% memory
-    mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_85.sh`
+    mem_in_mb=`/opt/viral-ngs/source/docker/calc_mem.py mb 85`
 
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
@@ -108,7 +108,7 @@ task illumina_demux {
     elif [ "$total_tile_count" -le 896 ]; then
         echo "Detected $total_tile_count tiles, interpreting as HiSeq4k run."
     elif [ "$total_tile_count" -le 1408 ]; then
-        mem_in_mb=$(/opt/viral-ngs/source/docker/mem_in_mb_80.sh)
+        mem_in_mb=$(/opt/viral-ngs/source/docker/calc_mem.py mb 80)
         demux_threads=20 # with NovaSeq-size output, OOM errors can sporadically occur with higher thread counts
         echo "Detected $total_tile_count tiles, interpreting as NovaSeq run."
         echo "  **Note: Q20 threshold used since NovaSeq with RTA3 writes only four Q-score values: 2, 12, 23, and 37.**"

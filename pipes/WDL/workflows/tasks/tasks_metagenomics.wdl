@@ -203,7 +203,7 @@ task diamond_contigs {
     DIAMOND_TAXDB_DIR=$(mktemp -d)
 
     # find 90% memory
-    mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
+    mem_in_gb=`/opt/viral-ngs/source/docker/calc_mem.py gb 90`
 
     # decompress DBs to /mnt/db
     cat ${diamond_db_lz4} | lz4 -d > $TMPDIR/diamond_db.dmnd &
