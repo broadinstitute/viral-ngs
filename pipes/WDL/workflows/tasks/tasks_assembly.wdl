@@ -18,8 +18,8 @@ task assemble {
         set -ex -o pipefail
 
         # find 90% memory
-        mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
-        mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
+        mem_in_mb=`/opt/viral-ngs/source/docker/calc_mem.py mb 90`
+        mem_in_gb=`/opt/viral-ngs/source/docker/calc_mem.py gb 90`
 
         if [[ "${assembler}" == "trinity" ]]; then
           assembly.py assemble_trinity \
@@ -110,7 +110,7 @@ task scaffold {
         set -ex -o pipefail
 
         # find 90% memory
-        mem_in_gb=`/opt/viral-ngs/source/docker/mem_in_gb_90.sh`
+        mem_in_gb=`/opt/viral-ngs/source/docker/calc_mem.py gb 90`
 
         assembly.py order_and_orient \
           ${contigs_fasta} \
@@ -187,7 +187,7 @@ task refine {
         set -ex -o pipefail
 
         # find 90% memory
-        mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+        mem_in_mb=`/opt/viral-ngs/source/docker/calc_mem.py mb 90`
 
         # prep GATK
         mkdir gatk
@@ -258,7 +258,7 @@ task refine_2x_and_plot {
         set -ex -o pipefail
 
         # find 90% memory
-        mem_in_mb=`/opt/viral-ngs/source/docker/mem_in_mb_90.sh`
+        mem_in_mb=`/opt/viral-ngs/source/docker/calc_mem.py mb 90`
 
         # prep GATK
         mkdir gatk
