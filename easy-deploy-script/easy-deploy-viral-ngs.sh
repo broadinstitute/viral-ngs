@@ -50,7 +50,7 @@ fi
 
 SELF_UPDATE_URL="https://raw.githubusercontent.com/broadinstitute/viral-ngs/master/easy-deploy-script/easy-deploy-viral-ngs.sh"
 
-CONDA_CHANNEL_STRING="-c broad-viral -c bioconda -c conda-forge -c defaults -c r"
+CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
 
 if [ -z "$VIRAL_NGS_PACKAGE" ]; then
     VIRAL_NGS_PACKAGE="viral-ngs"
@@ -236,21 +236,21 @@ function install_viral_ngs_conda(){
     # provide an avenue to specify a package path, or to use a previously-built local package
     if [ $# -eq 2 ]; then
         if [ "$2" == "--use-local" ]; then
-            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" --use-local $VIRAL_NGS_PACKAGE || exit 1
+            conda install -q  $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" --use-local $VIRAL_NGS_PACKAGE || exit 1
             echo "using local...."
             exit 0
         else
-            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" $2 || exit 1
+            conda install -q  $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" $2 || exit 1
         fi
 
     elif [ $# -eq 3 ]; then
         if [ "$2" == "--viral-ngs-version" ]; then
-            conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE=$3 || exit 1
+            conda install -q  $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE=$3 || exit 1
         else
             echo "--viral-ngs-version specified but no version given"
         fi
     elif [ $# -eq 1 ]; then
-        conda install -q  $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE || exit 1
+        conda install -q  $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" $VIRAL_NGS_PACKAGE || exit 1
     fi
 }
 
@@ -269,9 +269,9 @@ function install_viral_ngs_git(){
 
 function install_viral_ngs_conda_dependencies() {
     if [[ $(absolute_path "$VIRAL_CONDA_ENV_PATH") == $(absolute_path "$MINICONDA_PATH") ]]; then
-        conda install -q $CONDA_CHANNEL_STRING --override-channels -y --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+        conda install -q $CONDA_CHANNEL_STRING -y --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
     else
-        conda install -q $CONDA_CHANNEL_STRING --override-channels -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
+        conda install -q $CONDA_CHANNEL_STRING -y -p $VIRAL_CONDA_ENV_PATH --file "$VIRAL_NGS_PATH/requirements-conda.txt" --file "$VIRAL_NGS_PATH/requirements-py3.txt" --file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" || exit 1
     fi
 }
 
@@ -463,7 +463,7 @@ function check_viral_ngs_version(){
             echo "Checking viral-ngs version..."
             CURRENT_VER="$(conda list --no-pip viral-ngs | grep viral-ngs | grep -v packages | awk -F' ' '{print $2}')"
             # perhaps a better way...
-            AVAILABLE_VER="$(conda search --override-channels -f  $CONDA_CHANNEL_STRING --override-channels viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
+            AVAILABLE_VER="$(conda search -f $CONDA_CHANNEL_STRING viral-ngs --json | grep version | tail -n 1 | awk -F' ' '{print $2}' | perl -lape 's/[\",]+//g')"
             if [ "$CURRENT_VER" != "$AVAILABLE_VER" ]; then
                 echo ""
                 echo "============================================================================================================"
@@ -561,9 +561,9 @@ else
             if [ ! -d "$VIRAL_CONDA_ENV_PATH" ]; then
                 # provide an option to use Python 2 in the conda environment
                 if [ "$1" == "setup-py2" ]; then
-                    conda create -q $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" python=2 || exit 1
+                    conda create -q $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" python=2 || exit 1
                 else
-                    conda create -q $CONDA_CHANNEL_STRING --override-channels -y -p "$VIRAL_CONDA_ENV_PATH" python=3.6 || exit 1
+                    conda create -q $CONDA_CHANNEL_STRING -y -p "$VIRAL_CONDA_ENV_PATH" python=3.6 || exit 1
                 fi
 
                 if [[ "$1" == "setup-git" || "$1" == "setup-git-local" ]]; then
@@ -648,7 +648,7 @@ else
                         if [ -L "$VIRAL_NGS_PATH" ]; then
                             rm $VIRAL_NGS_PATH # remove symlink
                         fi
-                        conda update -y $CONDA_CHANNEL_STRING --override-channels viral-ngs
+                        conda update -y $CONDA_CHANNEL_STRING viral-ngs
 
                         # recreate symlink to folder for latest viral-ngs in conda-env/opt/
                         symlink_viral_ngs
