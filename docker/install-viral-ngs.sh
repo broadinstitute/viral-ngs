@@ -15,6 +15,8 @@
 
 set -e -o pipefail
 
+CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
+
 mkdir -p $INSTALL_PATH/viral-ngs-etc
 if [ ! -f $INSTALL_PATH/viral-ngs-etc/viral-ngs ]; then
 	ln -s $VIRAL_NGS_PATH $INSTALL_PATH/viral-ngs-etc/viral-ngs
@@ -29,12 +31,12 @@ sync
 # manually install it ourselves instead of using easy-deploy
 if [[ "$1" == "minimal" ]]; then
 	# a more minimal set of tools (smaller docker image?)
-	conda install --override-channels -y \
-		-q -c broad-viral -c bioconda -c conda-forge -c defaults -c r \
+	conda install -y \
+		-q $CONDA_CHANNEL_STRING \
 		--file "$VIRAL_NGS_PATH/requirements-minimal.txt"
 else
-	conda install --override-channels -y \
-		-q -c broad-viral -c bioconda -c conda-forge -c defaults -c r \
+	conda install -y \
+		-q $CONDA_CHANNEL_STRING \
 		--file "$VIRAL_NGS_PATH/requirements-py3.txt" \
 		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
 		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt"
