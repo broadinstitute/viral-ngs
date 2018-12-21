@@ -20,7 +20,7 @@ build:
 requirements:
   build:
     - python
-    - java-jdk >=7
+    - openjdk >=8
     - perl
     {% for item in build_requirements %}
     {{ item }}
@@ -31,7 +31,7 @@ requirements:
 
   run:
     - python
-    - java-jdk >=7
+    - openjdk >=8
     - perl
     {% for item in run_requirements %}
     {{ item }}
