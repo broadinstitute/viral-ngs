@@ -38,7 +38,7 @@ jobs:
   include:
 
     - language: java
-      jdk: oraclejdk8
+      jdk: openjdk8
       sudo: required
       addons:
         apt:
@@ -101,7 +101,7 @@ jobs:
     #    - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
     #
     #- language: java
-    #  jdk: oraclejdk8
+    #  jdk: openjdk8
     #  stage: build
     #  env:
     #    - TRAVIS_JOB=build_dxWDL
@@ -115,7 +115,7 @@ jobs:
     #    - travis/validate-wdl.sh
     #    - travis/build-dx.sh
     #- language: java
-    #  jdk: oraclejdk8
+    #  jdk: openjdk8
     #  stage: test
     #  env:
     #    - TRAVIS_JOB=test_cromwell
