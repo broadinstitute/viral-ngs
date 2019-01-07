@@ -51,11 +51,11 @@ jobs:
         # DOCKER_PASS (for Quay.io)
         - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
         ## DOCKER_USER_MIRROR (for DockerHub)
-        - secure: NErgcpFHK3Q51idZumScyRlr6PJjuFirHXlJJSPFhtKBh1Gg+z2Z3DLoFCOTibIyJSVo38T2eA53daM3VmPWb3kd4brrLjjoH7a3i/838IJjIDLpFULAc3uzP7PGckEiXb8gB1lQB/IaeDiWWUL2SbzMOdLABpANpR1AYmF00VI=
+        - secure: "l1zrlhvi9wd8GKyBbVtTV/TgVue6XMyJPJu4hIgAuWJrCMZbNONQZjwggjfeeU1xmVj/sB2VI8QO9NVPxojT9eKl3naXkHiQHABy/6IBmHjwnd8mSQa5iEfrO1CG3iDLkxiqZt6rVlLvMERY++3xC6b4YbKy/CrLrL9skKlkwYk="
         ## DOCKER_PASS_MIRROR (for DockerHub)
-        - secure: PGfcYRtbZJSa09ZPGguBWyZAiUBnRkQRgowg3qasK4hT2vlhXOqgSmQNwRHHbUZA7d/s11u6Q4732L1+JnelnFc9yDTVDguawvM9ENrDYjDe4bZPMqbxsUWOCSPSd8JSjvcOtg+BLGhzmwxYFIRl5jOoS8Wkvos1fRpKbYNRY20=
+        - secure: "HIKIS4RN5J6FsClFOl1RYslh8bSgflcMgQ6tmd/fybdplDAEKd9wesQio3d4wKJyWlUk80gyH+o1HZ/hZTAci9/gFrCjUC3q2vTZROnPFoSOi6L9ouDyGwF4TwsrRTxhJ2SEajTIYitRz9jtP9rqHWcdlJ7LzRILNVSTgDviKCY="
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: RENKuendRiAmWxn+lgGF+XXPUHzfRDHGUaP4uR5mpnKOqGKVZX3uadFv/w1POuyxIR7QEt0EcgtbjJYsvEioyQRwsYQe9f1ekQU1k6+cyPS/eDqvwciXA2M+yqjNdAafQu4drN+aNV7qC8ZEU0MZXk3IaItB4g8z5ZfxfM54+m0=
+        - secure: "QAJeDEcf1WaN13uZjQQpBTnkBppvkqLr7/rj4ihXy9U2qQ4GtS0/x4/RmWwvwqCKrTRak+yiSW4vHu873cfVN/LoQp5T18a78lb9UB6rrpLA/ZGVfaibuxpoVeEuCDNQ5RQ+hRUTRsGvJX6Vaw2GyyzDl3yPBWjgABRbKG1skJg="
         - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
       install:
         #- travis/upgrade-docker.sh
@@ -143,7 +143,7 @@ jobs:
       env:
         - TRAVIS_JOB=build_conda
         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-        - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+        - secure: "l22WxtgUlNLtz7+Ado2WgxRTd7VXMybk504MhLWo27JfmDETkWGRATyL/7Hbu1BFj3Gp1g/CLLGaiHDKVs+vFgat/3hXfArZL+n78btyaU1rW/5xoGpg4J+Fpc0pI8xlXUtGnMNzU6gwT5wB7EBN5vve78J7lfDD71CMI2xJzQY="
       install:
         - source travis/install-conda.sh
         - travis/install-conda-build.sh
