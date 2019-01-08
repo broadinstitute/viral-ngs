@@ -55,7 +55,7 @@ jobs:
         ## DOCKER_PASS_MIRROR (for DockerHub)
         - secure: "Vzm7gwu/h1Gg8wg4ulYipSmdW0BMT7n0DIi8Pf6AgNFle1dvW7/LC21rHOQbI+ClJj7nV9v/Qv/nkbpbH7XmJ/F/dW5B7mf07mmk2VR+Ncl0ThOEsSWBQF6Md4HTnU3fUREvTxY17AgMjSKx6ErppirNetmnmJ4Ogcusv4N33Fo="
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
+        - secure: "BnUw6ceEClSBFJjZgCy6GebD1ENxaHp3En05maWExdx0xyCb+T09XM1BrsCpPOv25npVUt8Q/YB6YpAiSGMT+RUwdiGj4OtaJb+I3HY/2fT1P7eCIEVITQhtGy5e/vFnavSk0eKzCV09z94c1kqjG3JnTocpPUa1W3JBxVr96vs="
         - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
       install:
         #- travis/upgrade-docker.sh
