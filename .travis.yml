@@ -51,11 +51,11 @@ jobs:
         # DOCKER_PASS (for Quay.io)
         - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
         ## DOCKER_USER_MIRROR (for DockerHub)
-        - secure: "l1zrlhvi9wd8GKyBbVtTV/TgVue6XMyJPJu4hIgAuWJrCMZbNONQZjwggjfeeU1xmVj/sB2VI8QO9NVPxojT9eKl3naXkHiQHABy/6IBmHjwnd8mSQa5iEfrO1CG3iDLkxiqZt6rVlLvMERY++3xC6b4YbKy/CrLrL9skKlkwYk="
+        - secure: "cEf0IdgJapIVX+rchN/Q+PgCYFXmUjfBBATlOt6KSQfozGc3YvT8BxtIaRj5v+fARc/gymBPfy2ZWfaLG9jWMdbjML7NIfMl2gRAHDuJSerl6xlYWrioIPe0zs7pBPT0JyRjqi0Gt9VJltn6CUBSbqK32TheLAKA1YJJqWoQOWo="
         ## DOCKER_PASS_MIRROR (for DockerHub)
-        - secure: "HIKIS4RN5J6FsClFOl1RYslh8bSgflcMgQ6tmd/fybdplDAEKd9wesQio3d4wKJyWlUk80gyH+o1HZ/hZTAci9/gFrCjUC3q2vTZROnPFoSOi6L9ouDyGwF4TwsrRTxhJ2SEajTIYitRz9jtP9rqHWcdlJ7LzRILNVSTgDviKCY="
+        - secure: "Vzm7gwu/h1Gg8wg4ulYipSmdW0BMT7n0DIi8Pf6AgNFle1dvW7/LC21rHOQbI+ClJj7nV9v/Qv/nkbpbH7XmJ/F/dW5B7mf07mmk2VR+Ncl0ThOEsSWBQF6Md4HTnU3fUREvTxY17AgMjSKx6ErppirNetmnmJ4Ogcusv4N33Fo="
         # DX_API_TOKEN (for DNAnexus builds)
-        - secure: "QAJeDEcf1WaN13uZjQQpBTnkBppvkqLr7/rj4ihXy9U2qQ4GtS0/x4/RmWwvwqCKrTRak+yiSW4vHu873cfVN/LoQp5T18a78lb9UB6rrpLA/ZGVfaibuxpoVeEuCDNQ5RQ+hRUTRsGvJX6Vaw2GyyzDl3yPBWjgABRbKG1skJg="
+        - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
         - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
       install:
         #- travis/upgrade-docker.sh
@@ -106,7 +106,7 @@ jobs:
     #  env:
     #    - TRAVIS_JOB=build_dxWDL
     #    # DX_API_TOKEN (for DNAnexus builds)
-    #    - secure: laEq3qUZr6Dmvv1RvwvapNRNFxbWubkmGGmAqw/v1o8BcHuIL6lSvz2fZnvlMK8J8ySfL/4tawsgIU7bnh3H57u9bZdR37pNZthZ+4jguegKg8R5dpCxftEQRkgNN1C2LdTzkOYZvXq6i7tXHiDUJN2aWeElf6UDqspdbSFM+L0=
+    #    - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
     #    - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
     #  install:
     #    - travis/install-wdl.sh
@@ -143,7 +143,7 @@ jobs:
       env:
         - TRAVIS_JOB=build_conda
         # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-        - secure: "l22WxtgUlNLtz7+Ado2WgxRTd7VXMybk504MhLWo27JfmDETkWGRATyL/7Hbu1BFj3Gp1g/CLLGaiHDKVs+vFgat/3hXfArZL+n78btyaU1rW/5xoGpg4J+Fpc0pI8xlXUtGnMNzU6gwT5wB7EBN5vve78J7lfDD71CMI2xJzQY="
+        - secure: "cDKRuVUr2NMZk933RHMMYKDCfU2gZfe3VJLNG82zsj47rrfoRzUsDny71v27OuydgjICiBWGuFAl4alNBVkzQWGt7G1DaFVLn48SwqtnG4u0KAUVX32b/0sw7OrXRDDqD5pr5Q8J59xwxSKQmmXFXlMbZpSEeREf8c3Yn6pvm2c="
       install:
         - source travis/install-conda.sh
         - travis/install-conda-build.sh
@@ -230,7 +230,7 @@ jobs:
     #  env:
     #    - TRAVIS_JOB=build_conda_in_docker
     #    # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-    #    - secure: SLPB86BpMIiNncMioxVk9cLrqaSNt8F1QDtxkrdLq9j7wXzFqGa7cipG6UJ6Om7GvoF49DpACfGPTA4ycr+T4cH3pWXpBHrBhV8TyKJb23cOmg5+7zqJQTzuwNqKOT7t9rnBkf1uzVXBcgqKaD6XW/nEvNFK00I0cvjlCp8vgxE=
+    #    - secure: "cDKRuVUr2NMZk933RHMMYKDCfU2gZfe3VJLNG82zsj47rrfoRzUsDny71v27OuydgjICiBWGuFAl4alNBVkzQWGt7G1DaFVLn48SwqtnG4u0KAUVX32b/0sw7OrXRDDqD5pr5Q8J59xwxSKQmmXFXlMbZpSEeREf8c3Yn6pvm2c="
     #  install:
     #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
     #    - docker pull $DOCKER_TAG
