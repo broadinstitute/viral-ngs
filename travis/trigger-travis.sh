@@ -13,7 +13,7 @@
 # For example:
 #   trigger-travis.sh typetools checker-framework `cat ~/private/.travis-access-token` "Trigger for testing"
 #
-# where --pro means to use travis-ci.com instead of travis-ci.org, and
+# where --pro means to use travis-ci.com instead of travis-ci.com, and
 # where TRAVIS_ACCESS_TOKEN is, or ~/private/.travis-access-token contains,
 # the Travis access token.
 #
@@ -25,16 +25,16 @@
 #    sudo apt-get install ruby-dev && sudo gem install travis
 # Don't do "sudo apt-get install travis" which installs a trajectory analyzer.)
 # Note that the Travis access token output by `travis token` differs from the
-# Travis token available at https://travis-ci.org/profile .
+# Travis token available at https://travis-ci.com/profile .
 # If you store it in in a file, make sure the file is not readable by others,
 # for example by running:  chmod og-rwx ~/private
 
 # To use this script to trigger a dependent build in Travis, do two things:
 #
 # 1. Set an environment variable TRAVIS_ACCESS_TOKEN by navigating to
-#   https://travis-ci.org/MYGITHUBID/MYGITHUBPROJECT/settings
+#   https://travis-ci.com/MYGITHUBID/MYGITHUBPROJECT/settings
 # The TRAVIS_ACCESS_TOKEN environment variable will be set when Travis runs
-# the job, but won't be visible to anyone browsing https://travis-ci.org/.
+# the job, but won't be visible to anyone browsing https://travis-ci.com/.
 #
 # 2. Add the following before_install and after_script block to your
 # .travis.yml file, where you replace OTHERGITHUB* by a specific downstream
@@ -113,7 +113,7 @@ if [ "$1" = "--pro" ] ; then
   TRAVIS_URL=travis-ci.com
   shift
 else
-  TRAVIS_URL=travis-ci.org
+  TRAVIS_URL=travis-ci.com
 fi
 
 if [ "$1" = "--branch" ] ; then
