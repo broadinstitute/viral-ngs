@@ -47,9 +47,9 @@ jobs:
       env:
         - TRAVIS_JOB=docker_wdl
         # DOCKER_USER (for Quay.io)
-        - secure: R5NXHDxFzoogYf2qlk9O0G7xWJ8JCD/y4XA06Vq902udfFWy+O4h7ftGTHjwQdyufrZFUZEhXNbXPX/xMTn73u/puKr5m4lm8Bg1aVDUumyDmyQqxwQsnSF0fOld+FEG5j1FnT7Mf5V+F96KUH6/YXjndAjYxGSEUsJQ+C413YY=
+        - secure: "A+Ej5Xa/BKWkcGl1DSWTZCvchaanKE0/7NuPnNtT+PA4xVoM4w8Rj4e4fBBclCcCH+y0hg4pkS8UptB7NjLVdXXn/ytFNcLj7asuaPxheOLIRddQ0fGEVpYeM3ZCU25Mb8LI1nQECpJMl1TE4HaxOVunfN7MSxo1SQ0GlQ98YGo="
         # DOCKER_PASS (for Quay.io)
-        - secure: ZrX/Hq6T3X1Nw83+wjoAia9h6g00o8hV/dJAONnWYflpeSc16AKs8d4bBKPxE+rW+8I8JzoUWpdgN9Zq87+Vd3la8V4S1NCw7iZFYshzOZIbXtJZIC18NqsWDL5Kg0Ud08Y5GlI14Rjyc/zWmn5LmAHbZLk9EudtrcUmUmce1Ek=
+        - secure: "V+2MVaKXpMdno91MIF8fTqsRORT4GyheeVXzjVSC28IlyMntGe5N0wBI0nC/NdfQD3DH7MYRltDH/CgE2kcu1tWNGQK9hupClBzxz2X++md995DeyV+fTdkVnsQIYIrLfq/Lw0PuO3gYX7UATur1jevewpf+LbL7/Ar2mYE2pgY="
         ## DOCKER_USER_MIRROR (for DockerHub)
         - secure: "cEf0IdgJapIVX+rchN/Q+PgCYFXmUjfBBATlOt6KSQfozGc3YvT8BxtIaRj5v+fARc/gymBPfy2ZWfaLG9jWMdbjML7NIfMl2gRAHDuJSerl6xlYWrioIPe0zs7pBPT0JyRjqi0Gt9VJltn6CUBSbqK32TheLAKA1YJJqWoQOWo="
         ## DOCKER_PASS_MIRROR (for DockerHub)
