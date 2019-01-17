@@ -1,3 +1,4 @@
+from __future__ import print_function
 import operator
 import os
 import shutil
@@ -7,8 +8,8 @@ import time
 import contextlib
 import string
 import inspect
-import functools
 import copy
+import functools
 
 import util.misc
 import util.file
@@ -100,14 +101,17 @@ def monkeypatch_function_result(monkeypatch):
         patch_result = patch_kwargs.pop('patch_result', None)
         patch_exception = patch_kwargs.pop('patch_exception', None)
         util.misc.chk(patch_exception is None or patch_result is None)
-        patch_call_args = inspect.getcallargs(f, *patch_args, **patch_kwargs)
+        get_call_args = functools.partial(inspect.getcallargs, util.misc.unwrap(f))
+        patch_call_args = get_call_args(*patch_args, **patch_kwargs)
 
-        @functools.wraps(f)
+        @util.misc.wraps(f)
         def patched_f(*args, **kwargs):
-            if inspect.getcallargs(f, *args, **kwargs) != patch_call_args:
+            if get_call_args(*args, **kwargs) != patch_call_args:
                 return f(*args, **kwargs)
+
             if patch_exception:
                 raise patch_exception
+
             return patch_result
 
         f_module = inspect.getmodule(f)

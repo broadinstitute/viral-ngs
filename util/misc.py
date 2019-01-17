@@ -634,3 +634,13 @@ def chk(condition, message='Check failed', exc=RuntimeError):
     """Check a condition, raise an exception if condition is False."""
     if not condition:
         raise exc(message)
+
+def wraps(f):
+    """Like functools.wraps but sets __wrapped__ even on Python 2.7"""
+    wrapper = functools.wraps(f)
+    wrapper.__wrapped__ = f
+    return wrapper
+
+def unwrap(f):
+    """Find the original function under layers of wrappers"""
+    return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
