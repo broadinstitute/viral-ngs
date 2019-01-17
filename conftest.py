@@ -94,18 +94,27 @@ def monkeypatch_function_result(monkeypatch):
 
     @contextlib.contextmanager
     def _set_function_result(f, *patch_args, **patch_kwargs):
-        """Within the context, calls to funciton `f` with `patch_args` and `patch_kwargs` will return the (keyword-only)
-        `patch_result`, or raise the (keyword-only) `patch_exception` if that is given."""
+        """Within the context, calls to funciton `f` with `patch_args` and `patch_kwargs` will return the
+        `patch_result`, or raise the `patch_exception` if that is given.
+        Note that for patch_args, f will not be called, so any side effects of it won't happen.
+        The function will be patched in `patch_module`, or in `f` 's module if `patch_module` is None.
+        The arguments `patch_result`, `patch_exception` and `patch_module` are keyword-only.
+        """
 
         patch_kwargs = copy.copy(patch_kwargs)
         patch_result = patch_kwargs.pop('patch_result', None)
         patch_exception = patch_kwargs.pop('patch_exception', None)
         util.misc.chk(patch_exception is None or patch_result is None)
+        patch_module = patch_kwargs.pop('patch_module', inspect.getmodule(f))
         get_call_args = functools.partial(inspect.getcallargs, util.misc.unwrap(f))
         patch_call_args = get_call_args(*patch_args, **patch_kwargs)
 
+        msg = functools.partial(print, file=sys.stderr)
+
         @util.misc.wraps(f)
         def patched_f(*args, **kwargs):
+            msg('patched_f', f, 'args=', args, 'get_call_args=', get_call_args(*args, **kwargs),
+                ' patch_call_args=', patch_call_args)
             if get_call_args(*args, **kwargs) != patch_call_args:
                 return f(*args, **kwargs)
 
@@ -114,10 +123,9 @@ def monkeypatch_function_result(monkeypatch):
 
             return patch_result
 
-        f_module = inspect.getmodule(f)
-        util.misc.chk(inspect.ismodule(f_module) and getattr(f_module, f.__name__) == f)
+        util.misc.chk(inspect.ismodule(patch_module) and getattr(patch_module, f.__name__) == f)
         with monkeypatch.context() as m:
-            m.setattr(f_module, f.__name__, patched_f)
+            m.setattr(patch_module, f.__name__, patched_f)
             yield
 
     return _set_function_result

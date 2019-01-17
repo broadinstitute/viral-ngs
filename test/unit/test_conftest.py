@@ -1,33 +1,42 @@
 """Unit tests for pytest customizations"""
 
+import sys
+import os
+import os.path
+import functools
 import pytest
 
-def func_A(x, y=0):
-    return x+y
+import util.misc
+from util.file import slurp_file, get_test_input_path
+
 
 def test_monkeypatch_function_result(monkeypatch_function_result):
-    assert func_A(1) == 1
-    with monkeypatch_function_result(func_A, 1, patch_result=2):
-        assert func_A(1) == 2
-    assert func_A(1) == 1
+    assert list(util.misc.unique([])) == []
+    with monkeypatch_function_result(util.misc.unique, [], patch_result=[1]):
+        assert list(util.misc.unique([])) == [1]
+        assert list(util.misc.unique([2,1,2])) == [2, 1]
+    assert list(util.misc.unique([])) == []
 
-    with monkeypatch_function_result(func_A, x=1, patch_result=2):
-        assert func_A(1) == 2
-    assert func_A(1) == 1
-    
-    assert func_A(2, y=2) == 4
-    with monkeypatch_function_result(func_A, 2, y=2, patch_result=100):
-        assert func_A(2, y=2) == 100
-        assert func_A(2) == 2
-        assert func_A(2, 5) == 7
+    inp = functools.partial(os.path.join, get_test_input_path())
 
-    with pytest.raises(RuntimeError):
-        with monkeypatch_function_result(func_A, 2, y=2, patch_exception=RuntimeError()):
-            func_A(2, y=2)
+    with pytest.raises(Exception):
+        slurp_file('/some/file')
 
-    with monkeypatch_function_result(func_A, 2, y=2, patch_result=100), \
-         monkeypatch_function_result(func_A, x=3, patch_result=200):
-        assert func_A(2, y=2) == 100
-        assert func_A(3, y=0) == 200
-        assert func_A(4, y=0) == 4
+    with monkeypatch_function_result(slurp_file, '/some/file', patch_result='some_content',
+                                     patch_module=sys.modules[__name__]):
+        assert slurp_file('/some/file') == 'some_content'
+        assert slurp_file(inp('ebov-makona.fasta')).startswith('>KJ660346.2')
+        with monkeypatch_function_result(slurp_file, inp('ebov-makona.fasta'), patch_result='something_else',
+                                         patch_module=sys.modules[__name__]):
+            assert slurp_file('/some/file') == 'some_content'
+            assert slurp_file(inp('ebov-makona.fasta')) == 'something_else'
+        assert slurp_file(inp('ebov-makona.fasta')).startswith('>KJ660346.2')
 
+        with monkeypatch_function_result(slurp_file, inp('ebov-makona.fasta'), patch_exception=RuntimeError(),
+                                         patch_module=sys.modules[__name__]):
+            with pytest.raises(Exception):
+                slurp_file(inp('ebov-makona.fasta'))
+            assert slurp_file('/some/file') == 'some_content'
+
+    with pytest.raises(Exception):
+        slurp_file('/some/file')
