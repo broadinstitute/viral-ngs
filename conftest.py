@@ -6,7 +6,10 @@ import tempfile
 import time
 import contextlib
 import string
+import inspect
+import functools
 
+import util.misc
 import util.file
 
 import pytest
@@ -82,6 +85,37 @@ def tmpdir_function(request, tmpdir_class, monkeypatch):
         monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
         monkeypatch.setenv('TMPDIR', tmpdir)
         yield tmpdir
+
+@pytest.fixture
+def monkeypatch_function_result(monkeypatch):
+    """Patches result of a function for specified args"""
+
+    @contextlib.contextmanager
+    def _set_function_result(f, *patch_args, **patch_kwargs):
+        """Within the context, calls to funciton `f` with `patch_args` and `patch_kwargs` will return the (keyword-only)
+        `patch_result`, or raise the (keyword-only) `patch_exception` if that is given."""
+
+        patch_result = patch_kwargs.get('patch_result', None)
+        patch_exception = patch_kwargs.get('patch_exception', None)
+        patch_kwargs = {k: v for k, v in patch_kwargs.items() if k not in ('patch_result', 'patch_exception')}
+        util.misc.chk(patch_exception is None or patch_result is None)
+        patch_call_args = inspect.getcallargs(f, *patch_args, **patch_kwargs)
+
+        @functools.wraps(f)
+        def patched_f(*args, **kwargs):
+            if inspect.getcallargs(f, *args, **kwargs) != patch_call_args:
+                return f(*args, **kwargs)
+            if patch_exception:
+                raise patch_exception
+            return patch_result
+
+        f_module = inspect.getmodule(f)
+        util.misc.chk(inspect.ismodule(f_module) and getattr(f_module, f.__name__) == f)
+        with monkeypatch.context() as m:
+            m.setattr(f_module, f.__name__, patched_f)
+            yield
+
+    return _set_function_result
 
 #############################################################################################
 
