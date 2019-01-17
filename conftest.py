@@ -8,6 +8,7 @@ import contextlib
 import string
 import inspect
 import functools
+import copy
 
 import util.misc
 import util.file
@@ -95,9 +96,9 @@ def monkeypatch_function_result(monkeypatch):
         """Within the context, calls to funciton `f` with `patch_args` and `patch_kwargs` will return the (keyword-only)
         `patch_result`, or raise the (keyword-only) `patch_exception` if that is given."""
 
-        patch_result = patch_kwargs.get('patch_result', None)
-        patch_exception = patch_kwargs.get('patch_exception', None)
-        patch_kwargs = {k: v for k, v in patch_kwargs.items() if k not in ('patch_result', 'patch_exception')}
+        patch_kwargs = copy.copy(patch_kwargs)
+        patch_result = patch_kwargs.pop('patch_result', None)
+        patch_exception = patch_kwargs.pop('patch_exception', None)
         util.misc.chk(patch_exception is None or patch_result is None)
         patch_call_args = inspect.getcallargs(f, *patch_args, **patch_kwargs)
 
