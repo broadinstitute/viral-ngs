@@ -1,4 +1,3 @@
-from __future__ import print_function
 import operator
 import os
 import shutil
@@ -109,12 +108,8 @@ def monkeypatch_function_result(monkeypatch):
         get_call_args = functools.partial(inspect.getcallargs, util.misc.unwrap(f))
         patch_call_args = get_call_args(*patch_args, **patch_kwargs)
 
-        msg = functools.partial(print, file=sys.stderr)
-
         @util.misc.wraps(f)
         def patched_f(*args, **kwargs):
-            msg('patched_f', f, 'args=', args, 'get_call_args=', get_call_args(*args, **kwargs),
-                ' patch_call_args=', patch_call_args)
             if get_call_args(*args, **kwargs) != patch_call_args:
                 return f(*args, **kwargs)
 
