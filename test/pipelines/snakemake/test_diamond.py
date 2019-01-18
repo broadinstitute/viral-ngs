@@ -6,7 +6,7 @@ import sys
 import pytest
 
 import tools
-from test.pipelines.snakemake import snake
+snake = pytest.importorskip('test.pipelines.snake').snake
 from test.integration.test_diamond import * # for pytest fixtures
 
 @pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")

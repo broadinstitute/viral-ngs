@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from test.pipelines.snakemake import snake
+snake = pytest.importorskip('test.pipelines.snake').snake
 from test.integration.test_kraken import * # for pytest fixtures
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")

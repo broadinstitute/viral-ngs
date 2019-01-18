@@ -157,7 +157,8 @@ jobs:
       #stage: test
       sudo: required
       env:
-        - TRAVIS_JOB=test_py27
+        - TRAVIS_JOB=test_py27_part1
+	- PYTEST_EXTRA_OPTS="--tests-part 1 4"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -165,8 +166,123 @@ jobs:
         - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
-        - travis/tests-unit.sh
-        - travis/tests-long.sh
+        - travis/tests-pytest.sh
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 2.7
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py27_part2
+	- PYTEST_EXTRA_OPTS="--tests-part 2 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 2.7
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py27_part3
+	- PYTEST_EXTRA_OPTS="--tests-part 3 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py36_part1
+	- PYTEST_EXTRA_OPTS="--tests-part 1 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      after_success:
+        - coveralls
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py36_part2
+	- PYTEST_EXTRA_OPTS="--tests-part 2 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      after_success:
+        - coveralls
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py36_part3
+	- PYTEST_EXTRA_OPTS="--tests-part 3 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      after_success:
+        - coveralls
+      before_cache:
+        - conda clean --all --yes
+
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py36_part4
+	- PYTEST_EXTRA_OPTS="--tests-part 4 4"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      after_success:
+        - coveralls
       before_cache:
         - conda clean --all --yes
 
@@ -185,25 +301,6 @@ jobs:
       script:
         - travis/tests-long.sh
         - travis/tests-unit.sh
-      after_success:
-        - coveralls
-      before_cache:
-        - conda clean --all --yes
-
-    - language: python
-      python: 3.6
-      #stage: test
-      sudo: required
-      env:
-        - TRAVIS_JOB=test_snakemake
-      before_install: travis/before_install.sh
-      install:
-        - source travis/install-conda.sh
-        - travis/install-gatk.sh
-        - travis/install-tools.sh
-        - source travis/activate-conda.sh
-      script:
-        - travis/tests-snakemake.sh
       after_success:
         - coveralls
       before_cache:
