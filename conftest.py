@@ -35,7 +35,8 @@ def pytest_addoption(parser):
         default=False,
         help="run slow tests."
     )
-    group.addoption('--tests-part', type=int, nargs=2, help="this is part k of N")
+    group.addoption('--parts-tot', type=int, help="total number of parts")
+    group.addoption('--part-num', type=int, help="number of this part")
 
 
 def pytest_configure(config):
@@ -43,8 +44,9 @@ def pytest_configure(config):
     config.pluginmanager.register(reporter, 'fixturereporter')
 
 def pytest_collection_modifyitems(session, config, items):
-    part_num, tot_parts = config.getoption('--tests-part', default=(0,0))
-    if tot_parts:
+    part_num = config.getoption('--part-num', default=None)
+    tot_parts = config.getoption('--parts-tot', default=None)
+    if part_num and tot_parts:
         util.misc.chk(1 <= part_num <= tot_parts)
         items.sort(key=operator.attrgetter('nodeid'))
         all_nodeids = [item.nodeid for item in items]
