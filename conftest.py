@@ -44,6 +44,9 @@ def pytest_configure(config):
     config.pluginmanager.register(reporter, 'fixturereporter')
 
 def pytest_collection_modifyitems(session, config, items):
+    if not config.getoption('--runslow', default=False):
+        items[:] = [item for item in items if not item.get_closest_marker(name='slow')]
+
     part_num = config.getoption('--part-num', default=None)
     tot_parts = config.getoption('--parts-tot', default=None)
     if part_num and tot_parts:
