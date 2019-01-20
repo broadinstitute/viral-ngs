@@ -60,6 +60,10 @@ def pytest_collection_modifyitems(session, config, items):
         part_beg = (part_num - 1) * part_size
         part_end = part_beg+part_size+1
         items[:] = items[part_beg:part_end]
+        config.post_collection_msgs.append('part {} of {}: collected items {}-{} of {}'.format(part_num, tot_parts,
+                                                                                               part_beg+1, part_end,
+                                                                                               len(all_nodeids)))
+
 
 def pytest_report_collectionfinish(config, startdir, items):
     return getattr(config, 'post_collection_msgs')
