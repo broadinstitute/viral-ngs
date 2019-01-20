@@ -246,6 +246,13 @@ def _stringify(arg):
     """Return a string based on `arg`, suitable for use as a pytest test id"""
     return util.file.string_to_file_name(str(arg))
 
+def _get_build_db_args(t_dir, seq_files, kmer_db_opts):
+    key = (seq_files, kmer_db_opts)
+    k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
+    seq_files = list(map(_inp, seq_files.split()))
+    return util.cmd.parse_cmd(module=kmer_utils, cmd='build_kmer_db',
+                              args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4])
+
 def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     """Build a database of kmers from given sequence file(s) using given options.
 
@@ -302,9 +309,10 @@ def dict_module():
 def kmer_db_fixture(request, tmpdir_module, dict_module):
     yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
 
-@pytest.fixture(scope='module', params=KMER_DBS_EMPTY+KMER_DBS_SMALL, ids=_stringify)
-def kmer_db_fixture2(request, tmpdir_module, dict_module):
-    yield _do_build_kmer_db(tmpdir_module, dict_module, *request.param)
+@pytest.fixture(scope='module', params=[p for p in itertools.product(KMER_DBS_EMPTY+KMER_DBS_SMALL, repeat=2) if _get_build_db_args('/tmp', *p[0]).kmer_size == _get_build_db_args('/tmp', *p[1]).kmer_size], ids=_stringify)
+def kmer_db_pair_fixture(request, tmpdir_module, dict_module):
+    yield (_do_build_kmer_db(tmpdir_module, dict_module, *(request.param[0])),
+           _do_build_kmer_db(tmpdir_module, dict_module, *(request.param[1])))
 
 @pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL+KMER_DBS_MEDIUM,
                          ids=_stringify, indirect=["kmer_db_fixture"])
@@ -418,18 +426,16 @@ def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
 
 
 @pytest.mark.parametrize("op", ('intersect', 'union', 'kmers_subtract', 'counters_subtract'))
-def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function):
-    if kmer_db_fixture.kmer_db_args.kmer_size != kmer_db_fixture2.kmer_db_args.kmer_size:
-        pytest.skip('(always skip) binary ops not defined on kmers of different size')
+def test_kmers_binary_op(kmer_db_pair_fixture, op, tmpdir_function):
     db_result = os.path.join(tmpdir_function, 'op_result')
-    _log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
-    _log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
+    _log.debug('fixture1args=%s', kmer_db_pair_fixture[0].kmer_db_args)
+    _log.debug('fixture2args=%s', kmer_db_pair_fixture[1].kmer_db_args)
     _log.debug('op=%s', op)
     args = util.cmd.run_cmd(module=kmer_utils, cmd='kmers_binary_op',
-                            args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
+                            args=[op, kmer_db_pair_fixture[0].kmer_db, kmer_db_pair_fixture[1].kmer_db, db_result]).args_parsed
 
     kmc_counts = tools.kmc.KmcTool().get_kmer_counts(db_result)
-    kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
+    kmcpy_counts = kmcpy.binary_op(op, kmer_db_pair_fixture[0].kmc_kmer_counts, kmer_db_pair_fixture[1].kmc_kmer_counts,
                                    result_counter_cap=args.result_counter_cap)
 
     assert kmc_counts == kmcpy_counts
