@@ -42,10 +42,13 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
+    config.post_collection_msgs = []
 
 def pytest_collection_modifyitems(session, config, items):
     if not config.getoption('--runslow', default=False):
-        items[:] = [item for item in items if not item.get_closest_marker(name='slow')]
+        non_slow_items = [item for item in items if not item.get_closest_marker(name='slow')]
+        config.post_collection_msgs.append('skipped collection of {} slow tests'.format(len(items) - len(non_slow_items)))
+        items[:] = non_slow_items
 
     part_num = config.getoption('--part-num', default=None)
     tot_parts = config.getoption('--parts-tot', default=None)
@@ -57,6 +60,9 @@ def pytest_collection_modifyitems(session, config, items):
         part_beg = (part_num - 1) * part_size
         part_end = part_beg+part_size+1
         items[:] = items[part_beg:part_end]
+
+def pytest_report_collectionfinish(config, startdir, items):
+    return getattr(config, 'post_collection_msgs')
 
 #
 # Fixtures for creating a temp dir at session/module/class/function scope.
