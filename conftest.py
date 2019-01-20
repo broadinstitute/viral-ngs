@@ -34,11 +34,26 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="run slow tests."
-    ),
+    )
+    group.addoption('--parts-tot', type=int, help="total number of parts")
+    group.addoption('--part-num', type=int, help="number of this part")
+
 
 def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
+
+def pytest_collection_modifyitems(session, config, items):
+    part_num = config.getoption('--part-num', default=None)
+    tot_parts = config.getoption('--parts-tot', default=None)
+    if part_num and tot_parts:
+        util.misc.chk(1 <= part_num <= tot_parts)
+        items.sort(key=operator.attrgetter('nodeid'))
+        all_nodeids = [item.nodeid for item in items]
+        part_size = max(1, int(float(len(all_nodeids)) / float(tot_parts)))
+        part_beg = (part_num - 1) * part_size
+        part_end = part_beg+part_size+1
+        items[:] = items[part_beg:part_end]
 
 #
 # Fixtures for creating a temp dir at session/module/class/function scope.
