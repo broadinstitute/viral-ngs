@@ -358,15 +358,20 @@ def open_or_gzopen(fname, *opts, **kwargs):
         return open(fname, *open_opts, **kwargs)
 
 
-def read_tabfile_dict(inFile):
+def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limit=None):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
     with open_or_gzopen(inFile, 'rU') as inf:
         header = None
+        lines_read=0
         for line in inf:
+            lines_read+=1
             row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
-            if line.startswith('#'):
+            # skip empty lines/rows
+            if len("".join(row)) == 0 or (skip_prefix and line.startswith(skip_prefix)):
+                continue
+            if line.startswith(header_prefix):
                 row[0] = row[0][1:]
                 header = [item for item in row if len(item)]
             elif header is None:
@@ -379,6 +384,9 @@ def read_tabfile_dict(inFile):
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row), "%s != %s" % (len(header), len(row))
                 yield dict((k, v) for k, v in zip(header, row) if v)
+            
+            if rowcount_limit and lines_read==rowcount_limit:
+                break
 
 
 def read_tabfile(inFile):
