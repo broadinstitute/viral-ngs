@@ -160,7 +160,7 @@ task illumina_demux {
       --compression_level=5 \
       --loglevel=DEBUG
 
-    illumina.py guess_barcodes barcodes.txt metrics.txt barcodes_outliers.txt
+    illumina.py guess_barcodes --expected_assigned_fraction=0 barcodes.txt metrics.txt barcodes_outliers.txt
 
     mkdir -p unmatched
     mv Unmatched.bam unmatched/
