@@ -617,19 +617,19 @@ class IlluminaBarcodeHelper(object):
         """
         assigned_read_count = sum(self.sample_to_read_counts.values())
         total_read_count = assigned_read_count+self.unassigned_read_count
-        fraction_assigned = assigned_read_count/total_read_count
+        fraction_assigned = float(assigned_read_count)/float(total_read_count)
         log.info("fraction_assigned %s", fraction_assigned)
         if fraction_assigned < expected_assigned_fraction:
             raise UncertainSamplesheetError("Only {:.0%} of reads were assigned to barcode pairs listed in the samplesheet. Check the sample sheet for errors.".format(fraction_assigned))
 
         num_samples = len(self.sample_to_read_counts)
-        log_obs_fractions_of_pool = [ -math.log(x/total_read_count,10) if x>0 
+        log_obs_fractions_of_pool = [ -math.log(float(x)/float(total_read_count),10) if x>0 
                                         else 0 
                                         for x in 
                                         list(self.sample_to_read_counts.values())+[self.unassigned_read_count]
                                     ]
 
-        log_exp_fractions_of_pool = [-math.log(1/(num_samples-number_of_negative_controls),10)]*num_samples + [0]
+        log_exp_fractions_of_pool = [-math.log(1.0/float(num_samples-number_of_negative_controls),10)]*num_samples + [0]
 
         residuals = [obs-exp for (obs,exp) in zip(log_obs_fractions_of_pool,log_exp_fractions_of_pool)]
         resid_stdev = self.stddevp(residuals) #essentially RMSE
@@ -637,7 +637,7 @@ class IlluminaBarcodeHelper(object):
         resid_median = self.median(residuals) # median error
 
         # modifed zscore using median to reduce influence of outliers
-        zscores_residual_relative_to_median = [(1 * (x-resid_median))/resid_stdev for x in residuals]
+        zscores_residual_relative_to_median = [float(1.0 * (x-resid_median))/resid_stdev for x in residuals]
         # only consider LOW variance
         indices_of_outliers = [i for i,v in enumerate(zscores_residual_relative_to_median[:-1]) if v > outlier_threshold]
         indices_of_outliers += [i for i,v in enumerate(list(self.sample_to_read_counts.values())[:-1]) if v==0]
