@@ -321,6 +321,11 @@ def mkdir_p(dirpath):
         else:
             raise
 
+def touch_p(path):
+    '''Touch file, making parent directories if they don't exist.'''
+    mkdir_p(os.path.dirname(path))
+    open(path, 'a').close()
+
 
 def open_or_gzopen(fname, *opts, **kwargs):
     mode = 'r'
@@ -973,4 +978,3 @@ def repack_tarballs(out_compressed_tarball,
     
     if outfile is not None:
         outfile.close()
-
