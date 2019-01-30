@@ -281,3 +281,18 @@ def test_chk():
         chk(2 == 3, 'Something wrong')
     with pytest.raises(TypeError):
         chk(isinstance(None, int), 'Expected an int', TypeError)
+
+def test_available_cpu_count(monkeypatch_function_result):
+    reported_cpu_count = util.misc.available_cpu_count()
+
+    assert reported_cpu_count >= int(os.environ.get('PYTEST_XDIST_WORKER_COUNT', '1'))
+
+    with monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+        assert util.misc.available_cpu_count() == 1
+
+    assert util.misc.available_cpu_count() == reported_cpu_count
+
+    with monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+        assert util.misc.available_cpu_count() == reported_cpu_count
