@@ -15,6 +15,9 @@ import util.file
 
 import pytest
 
+import test.stubs
+import tools
+
 def timer():
     if sys.version_info < (3, 3):
         return time.time()
@@ -46,7 +49,7 @@ def pytest_configure(config):
 
 #
 # Fixtures for creating a temp dir at session/module/class/function scope.
-# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a 
+# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a
 # tempdir in the most secure/race-condition-free manner possible.
 # Also, since util.file.tmp_dir() is used, the tempdir contens can be
 # preserved for debugging by setting the environment variable VIRAL_NGS_TMP_DIRKEEP.
@@ -93,11 +96,15 @@ def monkeypatch_function_result(monkeypatch):
 
     @contextlib.contextmanager
     def _set_function_result(f, *patch_args, **patch_kwargs):
-        """Within the context, calls to funciton `f` with `patch_args` and `patch_kwargs` will return the
-        `patch_result`, or raise the `patch_exception` if that is given.
-        Note that for patch_args, f will not be called, so any side effects of it won't happen.
-        The function will be patched in `patch_module`, or in `f` 's module if `patch_module` is None.
-        The arguments `patch_result`, `patch_exception` and `patch_module` are keyword-only.
+        """Within the context, calls to function `f` with `patch_args` and `patch_kwargs` will return the
+        `patch_result` (a keyword-only arg), or raise the `patch_exception` (a keyword-only arg) if that is given.
+        Note that for the patched args, f will not be called, so any side effects of it won't happen.
+        The function will be patched in the module `patch_module` (a keyword-only arg), or in `f` 's module
+        if `patch_module` is None.  The keyword-only args `patch_result`, `patch_exception` and `patch_module`
+        will be removed from `patch_kwargs` before calling f.  This context manager monkeypatches f for exactly
+        one argument combination; multiple argument combos can be patched by nesting calls to this context manager.
+
+        For a usage example, see test.unit.test_util_misc.test_available_cpu_count() .
         """
 
         patch_kwargs = copy.copy(patch_kwargs)
@@ -124,6 +131,13 @@ def monkeypatch_function_result(monkeypatch):
             yield
 
     return _set_function_result
+
+@pytest.fixture(scope='module', autouse=True)
+def stub_conda(request):
+    cls = tools.CondaPackage
+    tools.CondaPackage = test.stubs.StubCondaPackage
+    yield
+    tools.CondaPackage = cls
 
 #############################################################################################
 
