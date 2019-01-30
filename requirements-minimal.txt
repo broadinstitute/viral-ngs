@@ -1,6 +1,6 @@
 lbzip2=2.5
 lz4-bin=131
-fastqc=0.11.5
+fastqc=0.11.7
 picard=2.18.11
 pigz=2.4
 samtools=1.9
