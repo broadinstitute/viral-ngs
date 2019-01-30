@@ -11,6 +11,9 @@ import util.file
 
 import pytest
 
+import test.stubs
+import tools
+
 def timer():
     if sys.version_info < (3, 3):
         return time.time()
@@ -42,7 +45,7 @@ def pytest_configure(config):
 
 #
 # Fixtures for creating a temp dir at session/module/class/function scope.
-# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a 
+# Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a
 # tempdir in the most secure/race-condition-free manner possible.
 # Also, since util.file.tmp_dir() is used, the tempdir contens can be
 # preserved for debugging by setting the environment variable VIRAL_NGS_TMP_DIRKEEP.
@@ -82,6 +85,15 @@ def tmpdir_function(request, tmpdir_class, monkeypatch):
         monkeypatch.setattr(tempfile, 'tempdir', tmpdir)
         monkeypatch.setenv('TMPDIR', tmpdir)
         yield tmpdir
+
+
+@pytest.fixture(scope='module', autouse=True)
+def stub_conda(request):
+    cls = tools.CondaPackage
+    tools.CondaPackage = test.stubs.StubCondaPackage
+    yield
+    tools.CondaPackage = cls
+
 
 #############################################################################################
 

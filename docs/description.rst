@@ -66,7 +66,7 @@ Intrahost variant identification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Intrahost variants (iSNVs) were called from each sample's read alignments using
-`V-Phaser2 <http://dx.doi.org/10.1186/1471-2164-14-674>`_
+`V-Phaser2 <https://doi.org/10.1186/1471-2164-14-674>`_
 and subjected to an initial set of filters:
 variant calls with fewer than five forward or reverse reads
 or more than a 10-fold strand bias were eliminated.
