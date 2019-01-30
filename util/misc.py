@@ -419,10 +419,11 @@ def available_cpu_count():
         def get_cpu_val(name):
             return float(util.file.slurp_file('/sys/fs/cgroup/cpu/cpu.'+name).strip())
         cfs_quota = get_cpu_val('cfs_quota_us')
-        cfs_period = get_cpu_val('cfs_quota_us')
-        log.debug('cfs_quota %s, cfs_period %s', cfs_quota, cfs_period)
-        cgroup_cpus = max(1, int(cfs_quota / cfs_period))
-    except Exception:
+        if cfs_quota > 0:
+            cfs_period = get_cpu_val('cfs_period_us')
+            log.debug('cfs_quota %s, cfs_period %s', cfs_quota, cfs_period)
+            cgroup_cpus = max(1, int(cfs_quota / cfs_period))
+    except Exception as e:
         pass
 
     proc_cpus = MAX_INT32
@@ -634,4 +635,12 @@ def chk(condition, message='Check failed', exc=RuntimeError):
     if not condition:
         raise exc(message)
 
-    
+def wraps(f):
+    """Like functools.wraps but sets __wrapped__ even on Python 2.7"""
+    wrapper = functools.wraps(f)
+    wrapper.__wrapped__ = f
+    return wrapper
+
+def unwrap(f):
+    """Find the original function under layers of wrappers"""
+    return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
