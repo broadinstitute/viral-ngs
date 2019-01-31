@@ -234,6 +234,45 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         for sample_name in names_to_validate:
             assert util.file.string_to_file_name(sample_name) in sample_names
 
+
+class TestIlluminaBarcodeHelper(TestCaseWithTmp):
+    def test_one_correction(self):
+        dir_prefix = "one_correction"
+        in_dir = util.file.get_test_input_path(self)
+        in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
+        in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
+        out_report = util.file.mkstempfname('.txt')
+        expected = os.path.join(in_dir,dir_prefix,"expected.txt")
+
+        args = [in_barcodes, in_metrics, out_report]
+        args = illumina.parser_guess_barcodes(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        self.assertEqualContents(out_report, expected)
+
+    def test_ambiguous(self):
+        dir_prefix = "ambiguous"
+        in_dir = util.file.get_test_input_path(self)
+        in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
+        in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
+        out_report = util.file.mkstempfname('.txt')
+        expected = os.path.join(in_dir,dir_prefix,"expected.txt")
+
+        args = [in_barcodes, in_metrics, out_report]
+        args = illumina.parser_guess_barcodes(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        self.assertEqualContents(out_report, expected)
+
+    def test_few_assigned(self):
+        dir_prefix = "few_assigned"
+        in_dir = util.file.get_test_input_path(self)
+        in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
+        in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
+        out_report = util.file.mkstempfname('.txt')
+
+        self.assertRaises(Exception, illumina.main_guess_barcodes, in_barcodes, in_metrics, out_report)
+
 class TestMiseqToBam(TestCaseWithTmp):
 
     def test_paired_1(self):

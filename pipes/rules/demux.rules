@@ -81,7 +81,8 @@ rule illumina_demux:
     output: 
         config['tmp_dir']+'/'+config['subdirs']['demux']+'/bams_per_lane/{flowcell}.{lane}/Unmatched.bam',
         config['reports_dir']+'/barcodes/barcodes-metrics-{flowcell}.{lane}.txt',
-        config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt'
+        config['reports_dir']+'/barcodes/common-barcodes-{flowcell}.{lane}.txt',
+        config['reports_dir']+'/barcodes/outlier-barcodes-{flowcell}.{lane}.txt'
     resources: 
         mem_mb = 8*1000,
         threads = 16
@@ -100,6 +101,7 @@ rule illumina_demux:
             if lane.get(opt):
                 opts += ' --%s=%s' % (opt, lane[opt])
         shell("{config[bin_dir]}/illumina.py illumina_demux {input[0]} {wildcards.lane} {outdir} --sampleSheet={input[1]} --sequencing_center={params.center} --outMetrics={output[1]} --commonBarcodes={output[2]} --flowcell={wildcards.flowcell} {opts}")
+        shell("{config[bin_dir]}/illumina.py guess_barcodes --expected_assigned_fraction=0 {output[2]} {output[1]} {output[3]}")
 
 
 def demux_move_bams_inputs(wildcards):
