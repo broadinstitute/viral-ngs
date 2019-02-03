@@ -9,6 +9,15 @@
 """
 
 import re, functools
+import csv
+import copy
+import math
+import logging
+from collections import OrderedDict, defaultdict
+
+import util.file
+
+log = logging.getLogger(__name__)
 
 def memoize(obj):
     cache = obj.cache = {}
@@ -543,3 +552,278 @@ class IlluminaIndexReference(object):
             for neighbor_seq in self.neighbors(seq, distance=distance):
                 possible_indices |= set(self.index_for_seq(neighbor_seq, kit=kit, instrument=instrument))
         return sorted(list(possible_indices))
+
+class UncertainSamplesheetError(Exception):
+    pass
+
+class IlluminaBarcodeHelper(object):
+    index_reference = IlluminaIndexReference()
+    def __init__(self, barcode_counts, picard_metrics, sample_name, rows_limit=1000):
+        # (barcode1,barcode2): count
+        self.barcodes_seen = OrderedDict()
+        # barcode: illumina index name (N507, etc.)
+        self.barcode_name_map = OrderedDict()
+        # sample_name: (barcode1,barcode2)
+        self.sample_to_barcodes = OrderedDict()
+        # list of all sample names (barcode_name from Picard metrics file)
+        self.samples = []
+        # sample_name: count
+        self.sample_to_read_counts = OrderedDict()
+        # unresolved barcode pair count
+        self.unassigned_read_count = 0
+
+        # read Picard demux metrics file
+        for row in util.file.read_tabfile_dict(picard_metrics, skip_prefix="#"):
+            barcodes = tuple(row["BARCODE"].split("-"))
+            if "BARCODE_NAME" in row:
+                self.sample_to_barcodes[row["BARCODE_NAME"]]       = barcodes
+                self.samples.append(row["BARCODE_NAME"])
+                self.sample_to_read_counts[row["BARCODE_NAME"]] = int(row["READS"])
+            elif all(re.match(r'^N+$',barcode) for barcode in barcodes):
+                self.unassigned_read_count = int(row["READS"])
+                continue
+
+        # read barcodes seen in the file, in the format:
+        #Barcode1   Likely_Index_Names1 Barcode2    Likely_Index_Names2 Count
+        #CTCTCTAC   N707    AAGGAGTA    S507,[N|S|E]507 40324834
+        for row in util.file.read_tabfile_dict(barcode_counts, rowcount_limit=rows_limit):
+            self.barcodes_seen[(row["Barcode1"],row["Barcode2"])] = int(row["Count"])
+            self.barcode_name_map[row["Barcode1"]] = row["Likely_Index_Names1"]
+            self.barcode_name_map[row["Barcode2"]] = row["Likely_Index_Names2"]
+
+    def outlier_barcodes(self, outlier_threshold=0.675, expected_assigned_fraction=0.7, number_of_negative_controls=1):
+        """
+            This identifies samples listed in the Picard metrics (derived from 
+            the sample sheet) that are believed to have an anomalously low 
+            number of reads after demultiplexing, based on the following assumptions:
+             - The pool of samples will have (at least) one negative control that should yield zero reads
+             - The total number of reads should be evenly distributed among the rest of the samples
+               since the nucleic acid concentration should be roughly balanced in the pool
+             - The variation among what should be evenly distributed is gaussian
+            
+
+            A warning is raised if <70% of the total reads are assigned (likely indicating
+            multiple problems with the samplesheet).
+
+            Loosely based on the method for outlier detection specified in
+                Boris Iglewicz and David Hoaglin (1993), 
+                "Volume 16: How to Detect and Handle Outliers", 
+                The ASQC Basic References in Quality Control: Statistical Techniques
+
+            Params:
+            outlier_threshold (float): 0.675 corresponds to 75th percentile
+            expected_assigned_fraction (float): fraction of reads assigned to samples
+            number_of_negative_controls (int): the number of samples in the pool expected to have zero reads
+        """
+        assigned_read_count = sum(self.sample_to_read_counts.values())
+        total_read_count = assigned_read_count+self.unassigned_read_count
+        fraction_assigned = float(assigned_read_count)/float(total_read_count)
+        log.info("fraction_assigned %s", fraction_assigned)
+        if fraction_assigned < expected_assigned_fraction:
+            raise UncertainSamplesheetError("Only {:.0%} of reads were assigned to barcode pairs listed in the samplesheet. Check the sample sheet for errors.".format(fraction_assigned))
+
+        num_samples = len(self.sample_to_read_counts)
+        log_obs_fractions_of_pool = [ -math.log(float(x)/float(total_read_count),10) if x>0 
+                                        else 0 
+                                        for x in 
+                                        list(self.sample_to_read_counts.values())+[self.unassigned_read_count]
+                                    ]
+
+        log_exp_fractions_of_pool = [-math.log(1.0/float(num_samples-number_of_negative_controls),10)]*num_samples + [0]
+
+        residuals = [obs-exp for (obs,exp) in zip(log_obs_fractions_of_pool,log_exp_fractions_of_pool)]
+        resid_stdev = self.stddevp(residuals) #essentially RMSE
+        resid_mean = self.mean(residuals) # mean error
+        resid_median = self.median(residuals) # median error
+
+        # modifed zscore using median to reduce influence of outliers
+        zscores_residual_relative_to_median = [float(1.0 * (x-resid_median))/resid_stdev for x in residuals]
+        # only consider LOW variance
+        indices_of_outliers = [i for i,v in enumerate(zscores_residual_relative_to_median[:-1]) if v > outlier_threshold]
+        indices_of_outliers += [i for i,v in enumerate(list(self.sample_to_read_counts.values())[:-1]) if v==0]
+        names_of_outlier_samples = [(list(self.sample_to_read_counts.keys()))[i] for i in indices_of_outliers]
+        log.warning("outlier samples")
+        for s in names_of_outlier_samples:
+            log.warning("\t%s (%s reads)", s,self.sample_to_read_counts[s])
+
+        return names_of_outlier_samples
+
+    @classmethod
+    def mean(cls, nums):
+        return sum(nums) / len(nums)
+
+    @classmethod
+    def stddevp(cls, nums):
+        """population standard deviation of nums"""
+        mn = cls.mean(nums)
+        variance = sum([(e-mn)**2 for e in nums]) / len(nums)
+        return math.sqrt(variance)
+
+    @classmethod
+    def median(cls, nums):
+        length = len(nums)
+        if length < 1:
+            return None
+        if length % 2 == 1:
+            # if this is a list with an odd number of elements, 
+            # return the middle element from a sorted version of the list
+            return sorted(nums)[length//2]
+        else:
+            # otherwise if the list has an even number of elements
+            # return the interpolated mean of the middle two numbers
+            return sum(sorted(nums)[length//2-1:length//2+1])/2.0
+
+
+    def guess_barcodes_for_sample(self, sample_name):
+        """
+            This guesses the barcode value for a sample name,
+            based on the following:
+             - a list is made of novel barcode pairs seen in the data, but not in the picard metrics
+             - for the sample in question, get the most abundant novel barcode pair where one of the 
+               barcodes seen in the data matches one of the barcodes in the picard metrics (partial match)
+             - if there are no partial matches, get the most abundant novel barcode pair 
+
+            Limitations:
+             - If multiple samples share a barcode with multiple novel barcodes, disentangling them
+               is difficult or impossible
+        """
+        # output_header = ["sample_name",
+        #                     "expected_barcode_1","expected_barcode_1_name",
+        #                     "expected_barcode_2","expected_barcode_2_name"
+        #                     "expected_barcodes_read_count",
+        #                     "guessed_barcode_1","guessed_barcode_1_name",
+        #                     "guessed_barcode_2","guessed_barcode_2_name"
+        #                     "guessed_barcodes_read_count",
+        #                     "match_type"
+        #                 ]
+
+        out_dict = OrderedDict()
+        out_dict["sample_name"] = sample_name
+
+        barcodes_seen_novel = copy.deepcopy(self.barcodes_seen)
+
+        # From barcodes seen in data, collect barcode pairs not expected based on sample sheet
+        novel_barcode_pairs = []
+
+        for barcode_pair in self.barcodes_seen.keys():
+            if barcode_pair not in self.sample_to_barcodes.values():
+                novel_barcode_pairs.append(barcode_pair)
+            else:
+                del barcodes_seen_novel[barcode_pair]
+
+        out_dict["expected_barcode_1"]           = self.sample_to_barcodes[sample_name][0]
+        out_dict["expected_barcode_1_name"]      = ",".join(self.index_reference.guess_index(self.sample_to_barcodes[sample_name][0]))
+        out_dict["expected_barcode_2"]           = self.sample_to_barcodes[sample_name][1]
+        out_dict["expected_barcode_2_name"]      = ",".join(self.index_reference.guess_index(self.sample_to_barcodes[sample_name][1]))
+        out_dict["expected_barcodes_read_count"] = self.sample_to_read_counts[sample_name]
+
+        claimed_barcodes = self.sample_to_barcodes[sample_name]
+
+        found_partial_match = False
+        putative_match = None
+        # barcodes_seen_novel is sorted by read count, desc
+        for (barcode_pair,count) in barcodes_seen_novel.items():
+            if barcode_pair[0]==claimed_barcodes[0] or barcode_pair[1]==claimed_barcodes[1]:
+                found_partial_match=True
+                putative_match = barcode_pair
+                out_dict["match_type"] = "one_barcode_match"
+                break
+
+        # find index of match to help determine if it is a reasonable guess
+        idx_of_match = -1
+        for (idx,(barcode_pair,count)) in enumerate(self.barcodes_seen.items()):
+            if barcode_pair==putative_match:
+                idx_of_match=idx
+                break
+
+        # if the one-barcode match is too far down the list of barcode pairs seen
+        # (farther down than 1.5x the number of samples)
+        if not found_partial_match or idx_of_match>(len(self.sample_to_read_counts)*1.5):
+            for (barcode_pair,count) in barcodes_seen_novel.items():
+                # return the most pair with greatest count
+                putative_match = barcode_pair
+                out_dict["match_type"] = "high_count_novel_pair"
+                break
+        
+        out_dict["guessed_barcode_1"]           = putative_match[0]
+        out_dict["guessed_barcode_1_name"]      = self.barcode_name_map[putative_match[0]]
+        out_dict["guessed_barcode_2"]           = putative_match[1]
+        out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
+        out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
+
+        return out_dict
+
+
+    def find_uncertain_barcodes(self, sample_names=None, outlier_threshold=0.675, expected_assigned_fraction=0.7, number_of_negative_controls=1, readcount_threshold=None):
+        """
+            If sample_names is specified, barcodes for the named samples 
+            will be re-examined. 
+
+            If readcount_threshold is specified, this will be used as the
+            cutoff above which sample barcodes will not be re-examined.
+            If this is not specified, outliers will be detected automatically.
+        """
+        samples_to_examine = sample_names or []
+
+        guessed_barcodes = []
+
+        if not samples_to_examine:
+            if readcount_threshold:
+                for sample_name,count in self.sample_to_read_counts.values():
+                    if count < readcount_threshold:
+                        samples_to_examine.append(sample_name)
+            else:
+                samples_to_examine = self.outlier_barcodes(outlier_threshold=outlier_threshold, expected_assigned_fraction=expected_assigned_fraction, number_of_negative_controls=number_of_negative_controls)
+
+        for s in samples_to_examine:
+            guessed_barcodes.append(self.guess_barcodes_for_sample(s))
+
+        consolidated_guesses = defaultdict(list)
+
+        for row in guessed_barcodes:
+            consolidated_guesses[(row["guessed_barcode_1"],row["guessed_barcode_2"])].append(row)
+
+        final_guesses = []
+
+        def clear_guessed_fields(sample,match_reason,fields_to_clear=None):
+            fields_to_clear = fields_to_clear or ["guessed_barcode_1", "guessed_barcode_2",
+                                                    "guessed_barcode_1_name", "guessed_barcode_2_name",
+                                                    "guessed_barcodes_read_count"]
+            for field in fields_to_clear:
+                sample[field] = None
+            sample["match_type"] = match_reason
+            return sample
+
+        for barcode_pair,samples in consolidated_guesses.items():
+            if len(samples) > 1:
+                log.warning("Ambiguous! Multiple samples corresponding to guessed barcodes %s:", barcode_pair)
+                for sample in samples:
+                    log.warning("\t%s expected (%s,%s); -> Guessed (%s,%s); match type: %s", sample["sample_name"], sample["expected_barcode_1"],sample["expected_barcode_2"],sample["guessed_barcode_1"],sample["guessed_barcode_2"],sample["match_type"])
+    
+                    final_guesses.append(clear_guessed_fields(sample, "alternative_indices_uncertain"))
+            else:
+                for sample in samples:
+                    if sample["guessed_barcodes_read_count"] < sample["expected_barcodes_read_count"]:
+                        final_guesses.append(clear_guessed_fields(sample, "alternatives_have_lower_read_counts"))
+                    else:
+                        final_guesses.append(sample)
+
+        return final_guesses
+
+    def write_guessed_barcodes(self, out_tsv, guessed_barcodes):
+        output_header = ["sample_name",
+                            "expected_barcode_1","expected_barcode_2",
+                            "expected_barcode_1_name","expected_barcode_2_name",
+                            "expected_barcodes_read_count",
+                            "guessed_barcode_1", "guessed_barcode_2",
+                            "guessed_barcode_1_name", "guessed_barcode_2_name",
+                            "guessed_barcodes_read_count",
+                            "match_type"
+                        ]
+
+        with open(out_tsv, 'w') as tsvfile:
+            csv.register_dialect('dict_tsv', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
+            writer = csv.DictWriter(tsvfile, fieldnames=output_header, dialect="dict_tsv")
+
+            writer.writeheader()
+            writer.writerows(guessed_barcodes)
