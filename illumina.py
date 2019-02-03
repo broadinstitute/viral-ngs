@@ -26,7 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 import tools.picard
-from util.illumina_indices import IlluminaIndexReference
+from util.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 
 log = logging.getLogger(__name__)
 
@@ -437,6 +437,96 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
         writer.writerows(mapped_counts)
 
     log.info("done")
+
+# ======================================
+# ***  guess_low-abundance_barcodes  ***
+# ======================================
+
+def parser_guess_barcodes(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_barcodes', help='The barcode counts file produced by common_barcodes.')
+    parser.add_argument('in_picard_metrics', help='The demultiplexing read metrics produced by Picard.')
+    parser.add_argument('out_summary_tsv', help='''Path to the summary file (.tsv format). It includes several columns: 
+                                            (sample_name, expected_barcode_1, expected_barcode_2, 
+                                            expected_barcode_1_name, expected_barcode_2_name, 
+                                            expected_barcodes_read_count, guessed_barcode_1, 
+                                            guessed_barcode_2, guessed_barcode_1_name, 
+                                            guessed_barcode_2_name, guessed_barcodes_read_count, 
+                                            match_type), 
+                                            where the expected values are those used by Picard during demultiplexing
+                                            and the guessed values are based on the barcodes seen among the data.''')
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--readcount_threshold',
+                        default=None,
+                        type=int,
+                        help='''If specified, guess barcodes for samples with fewer than this many reads.''')
+    group.add_argument('--sample_names',
+                        nargs='*',
+                        help='If specified, only guess barcodes for these sample names.',
+                        type=str,
+                        default=None)
+    parser.add_argument('--outlier_threshold', 
+                        help='threshold of how far from unbalanced a sample must be to be considered an outlier.',
+                        type=float,
+                        default=0.675)
+    parser.add_argument('--expected_assigned_fraction', 
+                        help='The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.',
+                        type=float,
+                        default=0.7)
+    parser.add_argument('--number_of_negative_controls',
+                        help='The number of negative controls in the pool, for calculating expected number of reads in the rest of the pool.',
+                        type=int,
+                        default=1)
+
+    parser.add_argument('--rows_limit',
+                        default=1000,
+                        type=int,
+                        help='''The number of rows to use from the in_barcodes.''')
+
+    
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_guess_barcodes, split_args=True)
+    return parser
+
+def main_guess_barcodes(in_barcodes, 
+                        in_picard_metrics, 
+                        out_summary_tsv, 
+                        sample_names, 
+                        outlier_threshold, 
+                        expected_assigned_fraction, 
+                        number_of_negative_controls, 
+                        readcount_threshold, 
+                        rows_limit):
+    """
+        Guess the barcode value for a sample name,
+            based on the following:
+             - a list is made of novel barcode pairs seen in the data, but not in the picard metrics
+             - for the sample in question, get the most abundant novel barcode pair where one of the 
+               barcodes seen in the data matches one of the barcodes in the picard metrics (partial match)
+             - if there are no partial matches, get the most abundant novel barcode pair 
+
+            Limitations:
+             - If multiple samples share a barcode with multiple novel barcodes, disentangling them
+               is difficult or impossible
+
+        The names of samples to guess are selected:
+          - explicitly by name, passed via argument, OR
+          - explicitly by read count threshold, OR
+          - automatically (if names or count threshold are omitted)
+            based on basic outlier detection of deviation from an assumed-balanced pool with
+            some number of negative controls
+    """
+
+    bh = util.illumina_indices.IlluminaBarcodeHelper(in_barcodes, in_picard_metrics, rows_limit)
+    guessed_barcodes = bh.find_uncertain_barcodes(sample_names=sample_names, 
+                                                    outlier_threshold=outlier_threshold, 
+                                                    expected_assigned_fraction=expected_assigned_fraction, 
+                                                    number_of_negative_controls=number_of_negative_controls, 
+                                                    readcount_threshold=readcount_threshold)
+    bh.write_guessed_barcodes(out_summary_tsv, guessed_barcodes)
+
+__commands__.append(('guess_barcodes', parser_guess_barcodes))
+
 
 # ============================
 # ***  IlluminaDirectory   ***
