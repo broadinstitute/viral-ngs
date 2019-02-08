@@ -96,7 +96,7 @@ rule illumina_demux:
         shutil.rmtree(outdir, ignore_errors=True)
         makedirs(set(map(os.path.dirname, output)))
         lane = get_one_lane_from_run(wildcards.flowcell, wildcards.lane, config['seqruns_demux'])
-        opts = '--threads={} --JVMmemory={}g'.format(resources.threads, resources.mem_mb)
+        opts = '--threads={} --JVMmemory={}m'.format(resources.threads, resources.mem_mb)
         for opt in ('minimum_base_quality', 'max_mismatches', 'min_mismatch_delta', 'max_no_calls', 'read_structure', 'minimum_quality', 'run_start_date'):
             if lane.get(opt):
                 opts += ' --%s=%s' % (opt, lane[opt])
