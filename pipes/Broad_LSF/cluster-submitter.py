@@ -26,7 +26,7 @@ if "-N" not in props["params"].get("LSF", ""):
     cmdline += "-oo {logdir}/LSF-{jobname}.txt ".format(logdir=LOGDIR, jobname=jobname)
 
 # pass memory resource request to LSF
-mem = int(props.get('resources', {}).get('mem_mb'))/1000
+mem = int(props.get('resources', {}).get('mem_mb',1000))/1000
 if mem:
     cmdline += '-R "rusage[mem={}]" -M {} '.format(mem, 2 * int(mem))
 
