@@ -49,4 +49,6 @@ else # if it does not exist, we need to install miniconda
     conda install --quiet -y openjdk==8.0.112
 fi
 
+# update certs
+conda update --quiet openssl pyopenssl ca-certificates certifi
 conda info -a # for debugging
