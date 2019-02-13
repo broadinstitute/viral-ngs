@@ -21,6 +21,7 @@ import io
 import csv
 import inspect
 import tarfile
+import builtins
 
 import util.cmd
 import util.misc
@@ -41,6 +42,7 @@ import pysam
 
 log = logging.getLogger(__name__)
 
+FileNotFoundError = getattr(builtins, 'FileNotFoundError', OSError)
 
 class StringNotFoundException(Exception):
     """When a substring is not found."""
