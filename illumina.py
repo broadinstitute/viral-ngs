@@ -598,19 +598,15 @@ class IlluminaDirectory(object):
     def get_RunInfo(self):
         if self.runinfo is None:
             runinfo_file = os.path.join(self.path, 'RunInfo.xml')
-            if os.path.isfile(runinfo_file):
-                self.runinfo = RunInfo(os.path.join(self.path, 'RunInfo.xml'))
-            else:
-                raise util.file.FileNotFoundError('Missing runinfo file: {}'.format(runinfo_file))
+            util.file.check_paths(runinfo_file)
+            self.runinfo = RunInfo(runinfo_file)
         return self.runinfo
 
     def get_SampleSheet(self, only_lane=None):
         if self.samplesheet is None:
             samplesheet_file = os.path.join(self.path, 'SampleSheet.csv')
-            if os.path.isfile(samplesheet_file):
-                self.samplesheet = SampleSheet(os.path.join(self.path, 'SampleSheet.csv'), only_lane=only_lane)
-            else:
-                raise util.file.FileNotFoundError('Missing samplesheet file: {}'.format(samplesheet_file))
+            util.file.check_paths(samplesheet_file)
+            self.samplesheet = SampleSheet(samplesheet_file, only_lane=only_lane)
         return self.samplesheet
 
     def get_intensities_dir(self):
