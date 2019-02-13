@@ -50,5 +50,5 @@ else # if it does not exist, we need to install miniconda
 fi
 
 # update certs
-conda update --quiet openssl pyopenssl ca-certificates certifi
+conda update --quiet -y openssl pyopenssl ca-certificates certifi
 conda info -a # for debugging
