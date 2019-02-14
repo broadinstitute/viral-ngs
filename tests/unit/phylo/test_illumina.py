@@ -192,9 +192,9 @@ class TestIlluminaDir(TestCaseWithTmp):
     def test_tarball_fail_missing_data(self):
         inDir = util.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-runinfo.tar.gz')) as idir:
-            self.assertRaises(Exception, idir.get_SampleSheet())
+            self.assertRaises(Exception, idir.get_SampleSheet)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-samplesheet.tar.gz')) as idir:
-            self.assertRaises(Exception, idir.get_RunInfo())
+            self.assertRaises(Exception, idir.get_RunInfo)
 
 
 class TestDifficultSampleNames(TestCaseWithTmp):
