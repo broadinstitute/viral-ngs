@@ -13,6 +13,9 @@ task plot_coverage {
   String? aligner="novoalign" # novoalign or bwa
   String? aligner_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
 
+  Boolean? skip_mark_dupes=false
+  Boolean? plot_only_non_duplicates=false
+
   command {
     set -ex -o pipefail
 
@@ -37,6 +40,7 @@ task plot_coverage {
       --GATK_PATH gatk/ \
       --aligner ${aligner} \
       --aligner_options "${aligner_options}" \
+      ${true='--skipMarkDupes' false="" skip_mark_dupes} \
       --JVMmemory=3g \
       --loglevel=DEBUG
 
@@ -56,6 +60,11 @@ task plot_coverage {
     # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
 
+    PLOT_DUPE_OPTION=""
+    if [[ "${skip_mark_dupes}" != "true" ]]; then
+      PLOT_DUPE_OPTION="${true='--plotOnlyNonDuplicates' false="" plot_only_non_duplicates}"
+    fi
+
     # plot coverage
     if [ $(cat reads_aligned) != 0 ]; then
       reports.py plot_coverage \
@@ -65,6 +74,7 @@ task plot_coverage {
         --plotWidth 1100 \
         --plotHeight 850 \
         --plotDPI 100 \
+        $PLOT_DUPE_OPTION \
         --plotTitle "${sample_name} coverage plot" \
         --loglevel=DEBUG
     else
