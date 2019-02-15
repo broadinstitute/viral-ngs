@@ -1,5 +1,6 @@
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
+import "tasks_reports.wdl" as reports
 
 workflow assemble_denovo_with_deplete {
   
@@ -26,4 +27,6 @@ workflow assemble_denovo_with_deplete {
       assembly_fasta = scaffold.scaffold_fasta,
       reads_unmapped_bam = deplete_taxa.cleaned_bam
   }
+  
+  call reports.software_version
 }

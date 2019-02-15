@@ -5,4 +5,6 @@ workflow align_and_plot {
         input:
             aligner_options = "-r Random -l 30 -g 40 -x 20 -t 502"
     }
+    
+    call reports.software_version
 }

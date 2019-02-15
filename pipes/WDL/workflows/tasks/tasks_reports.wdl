@@ -186,4 +186,22 @@ task spikein_report {
   }
 }
 
+task software_version {
+  command {
+    set -ex -o pipefail
+    reports.py --version > "current_software_version.txt"
+  }
+
+  output {
+    String software_version = read_string("current_software_version.txt")
+  }
+
+  runtime {
+    memory: "2 GB"
+    cpu: 1
+    docker: "quay.io/broadinstitute/viral-ngs"
+    dx_instance_type: "mem1_ssd1_x4"
+  }
+}
+
 

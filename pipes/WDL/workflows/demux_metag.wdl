@@ -5,6 +5,7 @@ import "tasks_metagenomics.wdl" as metagenomics
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
 import "tasks_reports.wdl" as reports
+import "tasks_reports.wdl" as reports
 
 workflow demux_metag {
   File krona_taxonomy_db_tgz
@@ -38,5 +39,7 @@ workflow demux_metag {
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
       krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
   }
+
+  call reports.software_version
 
 }
