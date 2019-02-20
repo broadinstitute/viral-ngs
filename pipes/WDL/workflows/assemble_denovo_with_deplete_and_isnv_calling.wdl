@@ -1,7 +1,6 @@
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
 import "tasks_intrahost.wdl" as intrahost
-import "tasks_reports.wdl" as reports
 
 workflow assemble_denovo_with_deplete_and_isnv_calling {
   
@@ -35,5 +34,4 @@ workflow assemble_denovo_with_deplete_and_isnv_calling {
       mapped_bam = refine_2x_and_plot.aligned_bam
   }
 
-  call reports.software_version
 }

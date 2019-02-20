@@ -1,6 +1,5 @@
 import "tasks_interhost.wdl" as interhost
 import "tasks_ncbi.wdl" as ncbi
-import "tasks_reports.wdl" as reports
 
 workflow genbank {
 
@@ -25,5 +24,4 @@ workflow genbank {
             annotations_tbl = annot.transferred_feature_tables
     }
 
-    call reports.software_version
 }

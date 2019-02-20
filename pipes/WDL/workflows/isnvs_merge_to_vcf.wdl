@@ -1,6 +1,5 @@
 import "tasks_interhost.wdl" as interhost
 import "tasks_intrahost.wdl" as tasks_intrahost
-import "tasks_reports.wdl" as reports
 
 workflow isnvs_merge_to_vcf {
     File          reference_fasta
@@ -11,12 +10,11 @@ workflow isnvs_merge_to_vcf {
             reference_fasta = reference_fasta,
             assemblies_fasta = assemblies_fasta
     }
-    
+
     call tasks_intrahost.isnvs_vcf {
         input:
             perSegmentMultiAlignments = mafft.alignments_by_chr,
             reference_fasta = reference_fasta
     }
 
-    call reports.software_version
 }

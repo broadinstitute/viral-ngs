@@ -1,7 +1,6 @@
 import "tasks_metagenomics.wdl" as metagenomics
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
-import "tasks_reports.wdl" as reports
 
 workflow contigs {
 
@@ -14,7 +13,5 @@ workflow contigs {
     }
 
   # TO DO: taxonomic classification of contigs
-
-    call reports.software_version
 
 }

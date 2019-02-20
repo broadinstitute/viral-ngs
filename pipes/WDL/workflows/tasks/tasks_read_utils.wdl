@@ -26,7 +26,8 @@ task downsample_bams {
   }
 
   output {
-    Array[File] downsampled_bam = glob("output/*.downsampled-*.bam")
+    Array[File] downsampled_bam  = glob("output/*.downsampled-*.bam")
+    String      viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"

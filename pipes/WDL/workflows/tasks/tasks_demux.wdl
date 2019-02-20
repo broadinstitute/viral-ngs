@@ -178,6 +178,7 @@ task illumina_demux {
     Array[File] raw_reads_unaligned_bams = glob("*.bam")
     File        unmatched_reads_bam      = "unmatched/Unmatched.bam"
     Array[File] raw_reads_fastqc         = glob("*_fastqc.html")
+    String      viralngs_version         = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -213,7 +214,8 @@ task merge_and_reheader_bams {
   }
 
   output {
-    File  out_bam = "${out_basename}.bam"
+    File   out_bam          = "${out_basename}.bam"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {

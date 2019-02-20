@@ -39,6 +39,4 @@ workflow demux_metag {
       krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
   }
 
-  call reports.software_version
-
 }

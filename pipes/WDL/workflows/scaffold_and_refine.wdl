@@ -1,5 +1,4 @@
 import "tasks_assembly.wdl" as assembly
-import "tasks_reports.wdl" as reports
 
 workflow scaffold_and_refine {
     File reads_unmapped_bam
@@ -15,5 +14,4 @@ workflow scaffold_and_refine {
             reads_unmapped_bam = reads_unmapped_bam
     }
 
-    call reports.software_version
 }
