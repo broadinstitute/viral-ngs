@@ -1,17 +1,20 @@
 #!/usr/bin/env python
 
-import os
+import os, os.path
 import sys
 
 import pytest
 
 import tools
 from test.pipelines.snakemake import snake
-from test.integration.test_diamond import * # for pytest fixtures
+from test.integration.test_diamond import fastq_to_sam, sam_to_fastq, diamond, krona, db_type, input_bam, \
+    input_fastqs, taxonomy_db, diamond_db, krona_db, test_diamond
 
 @pytest.mark.skipif(tools.is_osx(), reason="not currently tested under OSX")
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, diamond_db, taxonomy_db, krona_db, input_bam):
+    join = os.path.join
+
     runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'diamond_db': diamond_db,

@@ -11,7 +11,7 @@ env:
   - PIP_DIR="$HOME/virtualenv"
   - GATK_PATH="$CACHE_DIR"
   - PYTHONIOENCODING=UTF8
-  - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov kmer_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
+  - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov kmer_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils --parts-tot=2"
   
   - DOCKER_REGISTRY="quay.io"
   - DOCKER_REPO_PROD="quay.io/broadinstitute/viral-ngs"
@@ -159,7 +159,8 @@ jobs:
       #stage: test
       sudo: required
       env:
-        - TRAVIS_JOB=test_py27
+        - TRAVIS_JOB=test_py27_part1
+        - PYTEST_EXTRA_OPTS="--part-num 1"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -167,17 +168,33 @@ jobs:
         - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
-        - travis/tests-unit.sh
-        - travis/tests-long.sh
+        - travis/tests-pytest.sh
       before_cache:
         - conda clean --all --yes
-
+    - language: python
+      python: 2.7
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py27_part2
+        - PYTEST_EXTRA_OPTS="--part-num 2"
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-pytest.sh
+      before_cache:
+        - conda clean --all --yes
     - language: python
       python: 3.6
       #stage: test
       sudo: required
       env:
-        - TRAVIS_JOB=test_py36
+        - TRAVIS_JOB=test_py36_part1
+        - PYTEST_EXTRA_OPTS="--part-num 1"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -185,8 +202,7 @@ jobs:
         - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
-        - travis/tests-long.sh
-        - travis/tests-unit.sh
+        - travis/tests-pytest.sh
       after_success:
         - coveralls
       before_cache:
@@ -197,7 +213,8 @@ jobs:
       #stage: test
       sudo: required
       env:
-        - TRAVIS_JOB=test_snakemake
+        - TRAVIS_JOB=test_py36_part2
+        - PYTEST_EXTRA_OPTS="--part-num 2"
       before_install: travis/before_install.sh
       install:
         - source travis/install-conda.sh
@@ -205,12 +222,11 @@ jobs:
         - travis/install-tools.sh
         - source travis/activate-conda.sh
       script:
-        - travis/tests-snakemake.sh
+        - travis/tests-pytest.sh
       after_success:
         - coveralls
       before_cache:
         - conda clean --all --yes
-
     #- language: python
     #  stage: test
     #  env:

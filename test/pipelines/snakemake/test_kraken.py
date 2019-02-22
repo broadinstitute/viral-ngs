@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 
-import os
+import os, os.path
+
 import sys
 
 import pytest
 
 from test.pipelines.snakemake import snake
-from test.integration.test_kraken import * # for pytest fixtures
+from test.integration.test_kraken import input_bam, kraken, krona, db_type, kraken_db, krona_db
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="Python version is too old for snakemake.")
 def test_pipes(tmpdir_function, kraken_db, krona_db, input_bam):
+    join = os.path.join
     runner = snake.SnakemakeRunner(workdir=tmpdir_function)
     override_config = {
         'kraken_db': kraken_db,

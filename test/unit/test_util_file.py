@@ -40,14 +40,15 @@ def testTempFiles():
 
                 tmp_fns.append(fn)
 
-        assert os.path.isfile(my_tmp_fn) and not os.path.isfile(my_tmp_fns[0]) and not os.path.isfile(my_tmp_fns[1])
+        assert os.path.isfile(my_tmp_fn)
+        assert util.file.keep_tmp() or (not os.path.isfile(my_tmp_fns[0]) and not os.path.isfile(my_tmp_fns[1]))
 
         largeString = 'A' * (2*1024*1024)
         util.file.dump_file(fname=my_tmp_fn, value=largeString)
         with pytest.raises(RuntimeError):
             util.file.slurp_file(my_tmp_fn, maxSizeMb=1)
 
-    assert not os.path.isfile(my_tmp_fn)
+    assert util.file.keep_tmp() or not os.path.isfile(my_tmp_fn)
 
 def test_check_paths(tmpdir):
     '''Test the util.file.check_paths()'''

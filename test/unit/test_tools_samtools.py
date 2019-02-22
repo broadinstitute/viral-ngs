@@ -78,6 +78,7 @@ class TestToolSamtools(TestCaseWithTmp):
             for fa in (fa1, fa2):
                 assert len(list(Bio.SeqIO.parse(fa, 'fasta')))==1
 
-        assert not os.path.isfile(fa1) and not os.path.isfile(fa2)
+        assert util.file.keep_tmp() or (not os.path.isfile(fa1) and not os.path.isfile(fa2))
+
 
 
