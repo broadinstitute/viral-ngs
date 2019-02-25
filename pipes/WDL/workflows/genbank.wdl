@@ -23,4 +23,5 @@ workflow genbank {
             assemblies_fasta = assemblies_fasta,
             annotations_tbl = annot.transferred_feature_tables
     }
+
 }
