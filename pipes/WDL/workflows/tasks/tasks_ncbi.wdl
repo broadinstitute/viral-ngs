@@ -13,7 +13,8 @@ task download_fasta {
   }
 
   output {
-    File sequences_fasta = "${out_prefix}.fasta"
+    File   sequences_fasta  = "${out_prefix}.fasta"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -44,9 +45,10 @@ task download_annotations {
   }
 
   output {
-    File        combined_fasta = "${combined_out_prefix}.fasta"
-    Array[File] genomes_fasta  = glob("*.fasta")
-    Array[File] features_tbl   = glob("*.tbl")
+    File        combined_fasta   = "${combined_out_prefix}.fasta"
+    Array[File] genomes_fasta    = glob("*.fasta")
+    Array[File] features_tbl     = glob("*.tbl")
+    String      viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -83,6 +85,7 @@ task annot_transfer {
 
   output {
     Array[File]+ transferred_feature_tables = glob("*.tbl")
+    String       viralngs_version           = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -123,13 +126,14 @@ task prepare_genbank {
   }
 
   output {
-    Array[File] sequin_files = glob("*.sqn")
+    Array[File] sequin_files             = glob("*.sqn")
     Array[File] structured_comment_files = glob("*.cmt")
-    Array[File] genbank_preview_files = glob("*.gbf")
-    Array[File] source_table_files = glob("*.src")
-    Array[File] fasta_per_chr_files = glob("*.fsa")
-    Array[File] validation_files = glob("*.val")
-    File        errorSummary = "errorsummary.val.txt"
+    Array[File] genbank_preview_files    = glob("*.gbf")
+    Array[File] source_table_files       = glob("*.src")
+    Array[File] fasta_per_chr_files      = glob("*.fsa")
+    Array[File] validation_files         = glob("*.val")
+    File        errorSummary             = "errorsummary.val.txt"
+    String      viralngs_version         = "viral-ngs_version_unknown"
   }
 
   runtime {

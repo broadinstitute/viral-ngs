@@ -74,9 +74,10 @@ task assemble {
     }
 
     output {
-        File contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
-        File subsampBam           = "${sample_name}.subsamp.bam"
-        Int  subsample_read_count = read_int("subsample_read_count")
+        File   contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
+        File   subsampBam           = "${sample_name}.subsamp.bam"
+        Int    subsample_read_count = read_int("subsample_read_count")
+        String viralngs_version     = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -160,6 +161,7 @@ task scaffold {
         File   scaffolding_chosen_ref      = "${sample_name}.scaffolding_chosen_ref.fasta"
         File   scaffolding_stats           = "${sample_name}.scaffolding_stats.txt"
         File   scaffolding_alt_contigs     = "${sample_name}.scaffolding_alt_contigs.fasta"
+        String viralngs_version            = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -214,8 +216,9 @@ task refine {
     }
 
     output {
-        File refined_assembly_fasta = "${assembly_basename}.refined.fasta"
-        File sites_vcf_gz           = "${assembly_basename}.sites.vcf.gz"
+        File    refined_assembly_fasta = "${assembly_basename}.refined.fasta"
+        File   sites_vcf_gz            = "${assembly_basename}.sites.vcf.gz"
+        String viralngs_version        = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -356,6 +359,7 @@ task refine_2x_and_plot {
         Int  read_pairs_aligned          = read_int("read_pairs_aligned")
         Int  bases_aligned               = read_int("bases_aligned")
         Float mean_coverage              = read_float("mean_coverage")
+        String viralngs_version          = "viral-ngs_version_unknown"
     }
 
     runtime {

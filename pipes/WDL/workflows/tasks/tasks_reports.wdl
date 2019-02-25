@@ -83,19 +83,20 @@ task plot_coverage {
   }
 
   output {
-    File  aligned_bam                 = "${sample_name}.all.bam"
-    File  aligned_bam_idx             = "${sample_name}.all.bai"
-    File  aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
-    File  aligned_only_reads_bam      = "${sample_name}.mapped.bam"
-    File  aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
-    File  aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
-    File  coverage_plot               = "${sample_name}.coverage_plot.pdf"
-    Int   assembly_length             = read_int("assembly_length")
-    Int   assembly_length_unambiguous = read_int("assembly_length_unambiguous")
-    Int   reads_aligned               = read_int("reads_aligned")
-    Int   read_pairs_aligned          = read_int("read_pairs_aligned")
-    Int   bases_aligned               = read_int("bases_aligned")
-    Float mean_coverage               = read_float("mean_coverage")
+    File   aligned_bam                 = "${sample_name}.all.bam"
+    File   aligned_bam_idx             = "${sample_name}.all.bai"
+    File   aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
+    File   aligned_only_reads_bam      = "${sample_name}.mapped.bam"
+    File   aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
+    File   aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
+    File   coverage_plot               = "${sample_name}.coverage_plot.pdf"
+    Int    assembly_length             = read_int("assembly_length")
+    Int    assembly_length_unambiguous = read_int("assembly_length_unambiguous")
+    Int    reads_aligned               = read_int("reads_aligned")
+    Int    read_pairs_aligned          = read_int("read_pairs_aligned")
+    Int    bases_aligned               = read_int("bases_aligned")
+    Float  mean_coverage               = read_float("mean_coverage")
+    String viralngs_version            = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -143,7 +144,8 @@ task fastqc {
   }
 
   output {
-    File fastqc_html = "${reads_basename}_fastqc.html"
+    File   fastqc_html      = "${reads_basename}_fastqc.html"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -175,7 +177,8 @@ task spikein_report {
   }
 
   output {
-    File report = "${reads_basename}.spike_count.txt"
+    File   report           = "${reads_basename}.spike_count.txt"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -185,5 +188,4 @@ task spikein_report {
     dx_instance_type: "mem1_ssd1_x4"
   }
 }
-
 
