@@ -44,8 +44,11 @@ else # if it does not exist, we need to install miniconda
     conda config --add channels bioconda
     conda config --add channels conda-forge
     conda config --add channels broad-viral
-    conda install --quiet -y conda #conda=4.2 # pin to 4.2.* until this is fixed: https://github.com/conda/conda-build/issues/1666
-    conda config --set auto_update_conda false
+    # Use recommendations from https://github.com/bioconda/bioconda-recipes/issues/13774
+    conda update --quiet -y conda
+    # conda config --set channel_priority strict
+    travis_wait conda install --quiet -y pycryptosat
+    conda config --set sat_solver pycryptosat
     conda install --quiet -y openjdk==8.0.112
 fi
 
