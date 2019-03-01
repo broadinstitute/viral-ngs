@@ -576,7 +576,7 @@ class IlluminaBarcodeHelper(object):
         for row in util.file.read_tabfile_dict(picard_metrics, skip_prefix="#"):
             barcodes = tuple(row["BARCODE"].split("-"))
             if "BARCODE_NAME" in row:
-                self.sample_to_barcodes[row["BARCODE_NAME"]]       = barcodes
+                self.sample_to_barcodes[row["BARCODE_NAME"]] = barcodes
                 self.samples.append(row["BARCODE_NAME"])
                 self.sample_to_read_counts[row["BARCODE_NAME"]] = int(row["READS"])
             elif all(re.match(r'^N+$',barcode) for barcode in barcodes):
@@ -587,9 +587,11 @@ class IlluminaBarcodeHelper(object):
         #Barcode1   Likely_Index_Names1 Barcode2    Likely_Index_Names2 Count
         #CTCTCTAC   N707    AAGGAGTA    S507,[N|S|E]507 40324834
         for row in util.file.read_tabfile_dict(barcode_counts, rowcount_limit=rows_limit):
-            self.barcodes_seen[(row["Barcode1"],row["Barcode2"])] = int(row["Count"])
+            if (row["Barcode1"],row.get("Barcode2",None)) not in self.barcodes_seen:
+                self.barcodes_seen[(row["Barcode1"],row.get("Barcode2",None))] = int(row["Count"])
             self.barcode_name_map[row["Barcode1"]] = row["Likely_Index_Names1"]
-            self.barcode_name_map[row["Barcode2"]] = row["Likely_Index_Names2"]
+            if "Barcode2" in row and row["Barcode2"]:
+                self.barcode_name_map[row["Barcode2"]] = row["Likely_Index_Names2"]
 
     def outlier_barcodes(self, outlier_threshold=0.675, expected_assigned_fraction=0.7, number_of_negative_controls=1):
         """
@@ -711,30 +713,35 @@ class IlluminaBarcodeHelper(object):
             else:
                 del barcodes_seen_novel[barcode_pair]
 
+        is_dual_index = len(self.sample_to_barcodes[sample_name]) > 1
+
         out_dict["expected_barcode_1"]           = self.sample_to_barcodes[sample_name][0]
         out_dict["expected_barcode_1_name"]      = ",".join(self.index_reference.guess_index(self.sample_to_barcodes[sample_name][0]))
-        out_dict["expected_barcode_2"]           = self.sample_to_barcodes[sample_name][1]
-        out_dict["expected_barcode_2_name"]      = ",".join(self.index_reference.guess_index(self.sample_to_barcodes[sample_name][1]))
-        out_dict["expected_barcodes_read_count"] = self.sample_to_read_counts[sample_name]
+        if is_dual_index:
+            out_dict["expected_barcode_2"]           = self.sample_to_barcodes[sample_name][1]
+            out_dict["expected_barcode_2_name"]      = ",".join(self.index_reference.guess_index(self.sample_to_barcodes[sample_name][1]))
+            out_dict["expected_barcodes_read_count"] = self.sample_to_read_counts[sample_name]
 
         claimed_barcodes = self.sample_to_barcodes[sample_name]
 
         found_partial_match = False
         putative_match = None
-        # barcodes_seen_novel is sorted by read count, desc
-        for (barcode_pair,count) in barcodes_seen_novel.items():
-            if barcode_pair[0]==claimed_barcodes[0] or barcode_pair[1]==claimed_barcodes[1]:
-                found_partial_match=True
-                putative_match = barcode_pair
-                out_dict["match_type"] = "one_barcode_match"
-                break
 
-        # find index of match to help determine if it is a reasonable guess
-        idx_of_match = -1
-        for (idx,(barcode_pair,count)) in enumerate(self.barcodes_seen.items()):
-            if barcode_pair==putative_match:
-                idx_of_match=idx
-                break
+        if is_dual_index:
+        # barcodes_seen_novel is sorted by read count, desc
+            for (barcode_pair,count) in barcodes_seen_novel.items():
+                if barcode_pair[0]==claimed_barcodes[0] or barcode_pair[1]==claimed_barcodes[1]:
+                    found_partial_match=True
+                    putative_match = barcode_pair
+                    out_dict["match_type"] = "one_barcode_match"
+                    break
+
+            # find index of match to help determine if it is a reasonable guess
+            idx_of_match = -1
+            for (idx,(barcode_pair,count)) in enumerate(self.barcodes_seen.items()):
+                if barcode_pair==putative_match:
+                    idx_of_match=idx
+                    break
 
         # if the one-barcode match is too far down the list of barcode pairs seen
         # (farther down than 1.5x the number of samples)
@@ -747,9 +754,10 @@ class IlluminaBarcodeHelper(object):
         
         out_dict["guessed_barcode_1"]           = putative_match[0]
         out_dict["guessed_barcode_1_name"]      = self.barcode_name_map[putative_match[0]]
-        out_dict["guessed_barcode_2"]           = putative_match[1]
-        out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
-        out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
+        if is_dual_index:
+            out_dict["guessed_barcode_2"]           = putative_match[1]
+            out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
+            out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
 
         return out_dict
 
@@ -781,7 +789,7 @@ class IlluminaBarcodeHelper(object):
         consolidated_guesses = defaultdict(list)
 
         for row in guessed_barcodes:
-            consolidated_guesses[(row["guessed_barcode_1"],row["guessed_barcode_2"])].append(row)
+            consolidated_guesses[(row["guessed_barcode_1"],row.get("guessed_barcode_2",None))].append(row)
 
         final_guesses = []
 
@@ -790,7 +798,8 @@ class IlluminaBarcodeHelper(object):
                                                     "guessed_barcode_1_name", "guessed_barcode_2_name",
                                                     "guessed_barcodes_read_count"]
             for field in fields_to_clear:
-                sample[field] = None
+                if field in sample:
+                    sample[field] = None
             sample["match_type"] = match_reason
             return sample
 
@@ -798,7 +807,7 @@ class IlluminaBarcodeHelper(object):
             if len(samples) > 1:
                 log.warning("Ambiguous! Multiple samples corresponding to guessed barcodes %s:", barcode_pair)
                 for sample in samples:
-                    log.warning("\t%s expected (%s,%s); -> Guessed (%s,%s); match type: %s", sample["sample_name"], sample["expected_barcode_1"],sample["expected_barcode_2"],sample["guessed_barcode_1"],sample["guessed_barcode_2"],sample["match_type"])
+                    log.warning("\t%s expected (%s,%s); -> Guessed (%s,%s); match type: %s", sample["sample_name"], sample["expected_barcode_1"],sample.get("expected_barcode_2",""),sample["guessed_barcode_1"],sample.get("guessed_barcode_2",""),sample["match_type"])
     
                     final_guesses.append(clear_guessed_fields(sample, "alternative_indices_uncertain"))
             else:
@@ -807,11 +816,10 @@ class IlluminaBarcodeHelper(object):
                         final_guesses.append(clear_guessed_fields(sample, "alternatives_have_lower_read_counts"))
                     else:
                         final_guesses.append(sample)
-
         return final_guesses
 
     def write_guessed_barcodes(self, out_tsv, guessed_barcodes):
-        output_header = ["sample_name",
+        possible_header_cols = ["sample_name",
                             "expected_barcode_1","expected_barcode_2",
                             "expected_barcode_1_name","expected_barcode_2_name",
                             "expected_barcodes_read_count",
@@ -820,10 +828,15 @@ class IlluminaBarcodeHelper(object):
                             "guessed_barcodes_read_count",
                             "match_type"
                         ]
+        output_header_columns = []
+        for header_key in possible_header_cols:
+            for row in guessed_barcodes:
+                if header_key in row.keys() and header_key not in output_header_columns:
+                    output_header_columns.append(header_key)
 
         with open(out_tsv, 'w') as tsvfile:
             csv.register_dialect('dict_tsv', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
-            writer = csv.DictWriter(tsvfile, fieldnames=output_header, dialect="dict_tsv")
+            writer = csv.DictWriter(tsvfile, fieldnames=output_header_columns, dialect="dict_tsv")
 
             writer.writeheader()
             writer.writerows(guessed_barcodes)
