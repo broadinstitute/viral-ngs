@@ -6,204 +6,88 @@ samples = list(read_samples_file(config.get("samples_metagenomics")))
 rule all_metagenomics:
     input:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.raw.{method}.report"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa.nodupes']),
+                    "{sample}.raw.{method}.report"), sample=samples, method=['krakenuniq']),
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa', 'rna_bwa_nodupes'])
+                    "{sample}.raw.{method}.krona.html"), sample=samples, method=['krakenuniq'])
 
 
 rule all_metagenomics_host_depleted:
     input:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.cleaned.{method}.report"), sample=samples, method=['kraken', 'rna_bwa']),
+                    "{sample}.cleaned.{method}.report"), sample=samples, method=['krakenuniq']),
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                    "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['kraken', 'rna_bwa'])
+                    "{sample}.cleaned.{method}.krona.html"), sample=samples, method=['krakenuniq'])
 
-
-method_props = {
-    'diamond': {
-        'reads_ext': 'diamond.lca.gz',
-    },
-    'kraken': {
-        'reads_ext': 'kraken.reads.gz',
-    },
-    'rna_bwa': {
-        'reads_ext': 'rna_bwa.lca.gz',
-    },
-    'rna_bwa_nodupes': {
-        'reads_ext': 'rna_bwa.lca_nodupes.gz',
-    }
-}
 
 taxfiles = [
-                'names.dmp',
-                'nodes.dmp',
-                'merged.dmp'
-            ]
-
-taxfiles_kraken = [
-                'names.dmp',
-                'nodes.dmp'
+    'names.dmp',
+    'nodes.dmp',
 ]
 
 taxfiles_krona = [
-                'taxonomy.tab',
+    'taxonomy.tab',
 ]
 
-rna_bwa_ext = ['sa', 'bwt', 'amb', 'sa', 'ann', 'pac']
 
-rule diamond:
+rule kaiju:
     input:
-        bam         = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
-        diamond_db  = objectify_remote(expand("{path_prefix}.{ext}", path_prefix=config["diamond_db"], ext=["dmnd"])),
-        taxonomy_db = objectify_remote(expand("{path_prefix}/{taxfile}", path_prefix=config["taxonomy_db"], taxfile=taxfiles))
+        bam       = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
+        kaiju_db  = objectify_remote(config['kaiju_db']),
+        taxonomy_db = objectify_remote(expand("{path_prefix}/{taxfile}", path_prefix=config['taxonomy_db'], taxfile=taxfiles))
     output:
-        report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.report"),
-        reads    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.diamond.lca.gz")
+        report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kaiju.report"),
+        reads  = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kaiju.reads.gz")
+    resources:
+        threads = int(config.get("number_of_threads", 1)),
+        mem_mb  = 50*1000
+    params:
+        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=12:00:00')
+    run:
+        taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
+        shell("{config[bin_dir]}/metagenomics.py kaiju {input.bam} {input.kaiju_db} "+taxonomy_db_prefix+" {output.report} --outReads {output.reads} --threads {resources.threads}")
+
+
+rule krakenuniq:
+    input:
+        bam = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
+    output:
+        report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.krakenuniq.report"),
+        reads  = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.krakenuniq.reads.gz")
     resources:
         threads = int(config.get("number_of_threads", 1)),
         mem_mb     = 120*1000
     params:
         UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
-    run:
-        diamond_db_prefix  = os.path.splitext(strip_protocol(config["diamond_db"], relative=True))[0]
-        taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py diamond {input.bam} "+diamond_db_prefix+" "+taxonomy_db_prefix+" {output.report} --outReads {output.reads} --threads {resources.threads}")
-
-rule align_rna:
-    input:
-        bam         = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
-        rna_bwa_db  = objectify_remote(expand("{path_prefix}.{ext}", path_prefix=config["align_rna_db"], ext=rna_bwa_ext)),
-        taxonomy_db = objectify_remote(expand("{path_prefix}/{taxfile}", path_prefix=config["taxonomy_db"], taxfile=taxfiles))
-    output:
-        report         = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.report"),
-        nodupes_report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.nodupes.report"),
-        bam            = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.bam"),
-        lca            = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca.gz"),
-        nodupes_lca    = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.rna_bwa.lca_nodupes.gz")
-    resources:
-        threads = int(config.get("number_of_threads", 1)),
-        mem_mb     = 7*1000
-    params:
-        UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00')
-    run:
-        rna_bwa_path_prefix = strip_protocol(config["align_rna_db"], relative=True)
-        taxonomy_db_prefix = strip_protocol(config["taxonomy_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py align_rna {input.bam} "+rna_bwa_path_prefix+" "+taxonomy_db_prefix+" {output.nodupes_report} --dupeReport {output.report} --outBam {output.bam} --outReads {output.nodupes_lca} --dupeReads {output.lca} --JVMmemory {resources.mem_mb}m --threads {resources.threads}")
-
-if config['kraken_execution'] == 'multiple':
-    kraken_samples = []
-    all_kraken_inputs = {}
-    all_kraken_reports = {}
-    all_kraken_reads = {}
-    for adjective in ('raw', 'cleaned'):
-        for sample in samples:
-            kraken_report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective}.kraken.report".format(
-                sample=sample, adjective=adjective))
-            kraken_input = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam".format(
-                sample=sample, adjective=adjective))
-            try:
-                itime = os.path.getmtime(kraken_input)
-                otime = os.path.getmtime(kraken_report)
-            except OSError:
-                kraken_samples.append(sample)
-                continue
-            if itime > otime:
-                kraken_samples.append(sample)
-        if not kraken_samples:
-            kraken_samples = samples.copy()
-
-        all_kraken_inputs[adjective] = expand(
-            os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam"),
-            sample=kraken_samples, adjective=adjective)
-        all_kraken_reports[adjective] = expand(
-            os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective}.kraken.report"),
-            sample=kraken_samples, adjective=adjective)
-        all_kraken_reads[adjective] = expand(
-            os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective}.kraken.reads.gz"),
-            sample=kraken_samples, adjective=adjective)
-
-    kraken_shell = textwrap.dedent("""\
-    {config[bin_dir]}/metagenomics.py kraken {params.kraken_db} {input.bams} --outReads {output.reads} --outReports {output.reports} \
-    {params.lock_memory} --threads {resources.threads}
-    """)
-
-    rule kraken_multiple_raw:
-        input:
-            bams = all_kraken_inputs['raw']
-        output:
-            reports = all_kraken_reports['raw'],
-            reads = all_kraken_reads['raw']
-        resources:
-            threads = int(config.get("number_of_threads", 1)),
-            mem_mb     = 120*1000
-        params:
-            UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
-            kraken_db = config['kraken_db'],
-            lock_memory = ' --lockMemory' if config.get('kraken_lock_memory') else ''
-        shell:
-            kraken_shell
-
-    rule kraken_multiple_cleaned:
-        input:
-            bams = all_kraken_inputs['cleaned']
-        output:
-            reports = all_kraken_reports['cleaned'],
-            reads = all_kraken_reads['cleaned']
-        resources:
-            threads = int(config.get("number_of_threads", 1)),
-            mem_mb     = 120*1000
-        params:
-            UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
-            kraken_db = config['kraken_db'],
-            lock_memory = ' --lockMemory' if config.get('kraken_lock_memory') else ''
-        shell:
-            kraken_shell
-
-else:
-    rule kraken:
-        input:
-            bam = os.path.join(config["data_dir"], config["subdirs"]["per_sample"], "{sample}.{adjective}.bam")
-        output:
-            report = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.report"),
-            reads  = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.kraken.reads.gz")
-        resources:
-            threads = int(config.get("number_of_threads", 1)),
-            mem_mb     = 120*1000
-        params:
-            UGER = config.get('UGER_queues', {}).get('long', '-l h_rt=36:00:00'),
-            kraken_db = config['kraken_db'],
-            lock_memory = ' --lockMemory' if config.get('kraken_lock_memory') else ''
-        shell:
-            """
-            {config[bin_dir]}/metagenomics.py kraken {params.kraken_db} {input.bam} --outReads {output.reads} --outReports {output.report} \
-            {params.lock_memory} --threads {resources.threads}
-            """
+    shell:
+        """
+        {config[bin_dir]}/metagenomics.py krakenuniq {config[krakenuniq_db]} {input.bam} --outReads {output.reads} --outReports {output.report} \
+        --threads {resources.threads}
+        """
 
 
-rule all_kraken:
+rule all_krakenuniq:
     input:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                            "{sample}.raw.kraken.report"), sample=samples),
+                            "{sample}.raw.krakenuniq.report"), sample=samples),
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                            "{sample}.raw.kraken.krona.html"), sample=samples)
+                            "{sample}.raw.krakenuniq.krona.html"), sample=samples)
 
-rule all_kraken_host_depleted:
+rule all_krakenuniq_host_depleted:
     input:
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                            "{sample}.cleaned.kraken.report"), sample=samples),
+                            "{sample}.cleaned.krakenuniq.report"), sample=samples),
         expand(os.path.join(config["data_dir"], config["subdirs"]["metagenomics"],
-                            "{sample}.cleaned.kraken.krona.html"), sample=samples)
+                            "{sample}.cleaned.krakenuniq.krona.html"), sample=samples)
 
 
 rule krona_import_taxonomy:
     input:
-        tsv = lambda wildcards: os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], \
-           ".".join([wildcards.sample, wildcards.adjective, method_props[wildcards.method]['reads_ext']])),
-        krona_db = objectify_remote(expand("{path_prefix}/{kronafile}", path_prefix=config["krona_db"], kronafile=taxfiles_krona))#["taxonomy.tab", "gi_taxid.dat"]))
+        tsv = os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective}.{method}.report"),
+        krona_db = objectify_remote(expand("{path_prefix}/{kronafile}", path_prefix=config["krona_db"], kronafile=taxfiles_krona))
     output:
-        os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,kraken|diamond|rna_bwa|rna_bwa_nodupes}.krona.html")
+        os.path.join(config["data_dir"], config["subdirs"]["metagenomics"], "{sample}.{adjective,raw|cleaned}.{method,krakenuniq|kaiju}.krona.html")
     resources:
         mem_mb=32*1000
     run:
         krona_db_prefix = strip_protocol(config["krona_db"], relative=True)
-        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank")
+        shell("{config[bin_dir]}/metagenomics.py krona {input.tsv} "+krona_db_prefix+" {output} --noRank --inputType {wildcards.method}")

@@ -47,11 +47,7 @@ else # if it does not exist, we need to install miniconda
     # Use recommendations from https://github.com/bioconda/bioconda-recipes/issues/13774
     conda update --quiet -y conda
     # conda config --set channel_priority strict
-    travis_wait conda install --quiet -y pycryptosat
-    conda config --set sat_solver pycryptosat
-    conda install --quiet -y openjdk==8.0.112
 fi
 
 # update certs
-conda update --quiet -y openssl pyopenssl ca-certificates certifi
 conda info -a # for debugging
