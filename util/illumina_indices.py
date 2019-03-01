@@ -576,7 +576,7 @@ class IlluminaBarcodeHelper(object):
         for row in util.file.read_tabfile_dict(picard_metrics, skip_prefix="#"):
             barcodes = tuple(row["BARCODE"].split("-"))
             if "BARCODE_NAME" in row:
-                self.sample_to_barcodes[row["BARCODE_NAME"]]       = barcodes
+                self.sample_to_barcodes[row["BARCODE_NAME"]] = barcodes
                 self.samples.append(row["BARCODE_NAME"])
                 self.sample_to_read_counts[row["BARCODE_NAME"]] = int(row["READS"])
             elif all(re.match(r'^N+$',barcode) for barcode in barcodes):
@@ -590,7 +590,6 @@ class IlluminaBarcodeHelper(object):
             if (row["Barcode1"],row.get("Barcode2",None)) not in self.barcodes_seen:
                 self.barcodes_seen[(row["Barcode1"],row.get("Barcode2",None))] = int(row["Count"])
             self.barcode_name_map[row["Barcode1"]] = row["Likely_Index_Names1"]
-            #self.barcode_name_map[row["Barcode2"]] = row["Likely_Index_Names2"]
             if "Barcode2" in row and row["Barcode2"]:
                 self.barcode_name_map[row["Barcode2"]] = row["Likely_Index_Names2"]
 
