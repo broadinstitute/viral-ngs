@@ -396,7 +396,7 @@ def replaceAlleles(sample, seq, vcf_records):
             if not samp_geno:
                 continue
             if isinstance(samp_geno, list):
-                log.warn(
+                log.warning(
                     "TO DO: add code to turn hets into IUPAC ambiguity codes (%s %s = %s).",
                     i, sample, '/'.join(samp_geno))
                 continue

@@ -427,7 +427,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                     # more complicated scenario. choose randomly.
                     # perhaps in future, vote based on aligned read count?
                     if len(alt_seqs)>1:
-                        log.warn("choosing random contig from %d choices of most popular length in %s" % (len(alt_seqs), coords_debug))
+                        log.warning("choosing random contig from %d choices of most popular length in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
             else:
                 # no clear winner on replacement length
@@ -436,13 +436,13 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                     # choose randomly among same-as-ref-length sequences
                     alt_seqs = alt_ref_len_seqs
                     if len(alt_seqs)>1:
-                        log.warn("choosing random contig from %d choices of reference length in %s" % (len(alt_seqs), coords_debug))
+                        log.warning("choosing random contig from %d choices of reference length in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
                 else:
                     # no clear winner and all replacement lengths are different from reference length
                     # just choose randomly
                     if len(alt_seqs)>1:
-                        log.warn("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
+                        log.warning("choosing random contig from %d choices in %s" % (len(alt_seqs), coords_debug))
                     new_seq = random.choice(alt_seqs)
         other_seqs = list(s for s in other_seqs if s!=new_seq)
     return [new_seq] + other_seqs
@@ -624,5 +624,3 @@ class AlignsReader(object):
 
         # grab the alternate sequence and strip gaps
         return alt_seq[i_left:i_right+1].replace('-','')
-
-

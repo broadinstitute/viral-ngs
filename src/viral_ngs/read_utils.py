@@ -466,7 +466,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     else:
         downsample_target = get_downsample_target_count(in_bams, specified_read_count)
         if deduplicate_after:
-            log.warn("--deduplicateAfter has been specified. Read count of output files is not guaranteed.")
+            log.warning("--deduplicateAfter has been specified. Read count of output files is not guaranteed.")
             with util.file.tempfnames(suffixes=[ '{}.downsampled-{}.bam'.format(os.path.splitext(os.path.basename(x))[0], downsample_target) for x in in_bams]) as downsampled_tmp_bams:
                 data_pairs = list(zip(in_bams, downsampled_tmp_bams))
                 downsample_bams(data_pairs, downsample_target, threads=threads, JVMmemory=JVMmemory)
@@ -923,7 +923,7 @@ def _merge_fastqs_and_mvicuna(lb, files):
                             outf.write(line)
                     os.unlink(fn)
                 else:
-                    log.warn(
+                    log.warning(
                         """no reads found in %s,
                                 assuming that's because there's no reads in that read group""", fn
                     )
@@ -1204,7 +1204,7 @@ def align_and_fix(
         final file to mapped/non-dupe reads.
     '''
     if not (outBamAll or outBamFiltered):
-        log.warn("are you sure you meant to do nothing?")
+        log.warning("are you sure you meant to do nothing?")
         return
 
     assert aligner in ["novoalign", "bwa"]
