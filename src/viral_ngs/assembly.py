@@ -302,7 +302,7 @@ def assemble_trinity(
         tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     except subprocess.CalledProcessError as e:
         if always_succeed:
-            log.warn("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
+            log.warning("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
             util.file.make_empty(outFasta)
         else:
             raise DenovoAssemblyError('denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. '
@@ -1411,7 +1411,7 @@ def vcfrow_parse_and_call_snps(vcfrow, samples, min_dp=0, major_cutoff=0.5, min_
                 continue
             geno = alleles
             if info_dp and float(dp) / info_dp < min_dp_ratio:
-                log.warn(
+                log.warning(
                     "dropping invariant call at %s:%s-%s %s (%s) due to low DP ratio (%s / %s = %s < %s)", c, start,
                     stop, sample, geno, dp, info_dp, float(dp) / info_dp, min_dp_ratio
                 )
