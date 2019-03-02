@@ -73,7 +73,7 @@ class MvicunaTool(tools.Tool):
 
             Actually, more interestingly, this doesn't work at all.
         """
-        _log.warn("MVicuna duplicate removal doesn't work for single-end reads. Copying input to output and allowing all reads to pass.")
+        _log.warning("MVicuna duplicate removal doesn't work for single-end reads. Copying input to output and allowing all reads to pass.")
         shutil.copyfile(inFastq, outFastq)
         '''
         tmp1OutPair = (
