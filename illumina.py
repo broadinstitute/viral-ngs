@@ -170,7 +170,7 @@ def main_illumina_demux(args):
     else:
         assert samples==None, "A SampleSheet may not be provided unless 'B' is present in the read_structure"
         if args.commonBarcodes:
-            log.warn("--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file.")
+            log.warning("--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file.")
             util.file.touch(args.commonBarcodes)
 
     # B in read structure indicates barcoded multiplexed samples
@@ -644,7 +644,7 @@ class RunInfo(object):
         # <= 15 to limit the bytes added to each bam record
         assert len(fc) >= 5,"The flowcell ID must be five or more characters in length"
         if len(fc) > 15:
-            log.warn("The provided flowcell ID is longer than 15 characters. Is that correct?")
+            log.warning("The provided flowcell ID is longer than 15 characters. Is that correct?")
         return fc
 
     def _get_rundate_obj(self):
@@ -832,7 +832,7 @@ class SampleSheet(object):
             row['run'] = row['library']
         if len(set(row['run'] for row in self.rows)) != len(self.rows):
             if self.allow_non_unique:
-                log.warn("non-unique library IDs in this lane")
+                log.warning("non-unique library IDs in this lane")
                 unique_count = {}
                 for row in self.rows:
                     unique_count.setdefault(row['library'], 0)
