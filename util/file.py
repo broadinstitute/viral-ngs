@@ -326,6 +326,17 @@ def touch_p(path, times=None):
     mkdir_p(os.path.dirname(path))
     touch(path, times=times)
 
+
+def maybe_compressed(fn):
+    fn_gz = fn + '.gz'
+    if os.path.exists(fn):
+        return fn
+    elif os.path.exists(fn_gz):
+        return fn_gz
+    else:
+        raise FileNotFoundError(fn)
+
+
 def open_or_gzopen(fname, *opts, **kwargs):
     mode = 'r'
     open_opts = list(opts)

@@ -13,6 +13,7 @@ import pytest
 
 import mock
 from mock import patch
+import ncbitax
 
 import tools.picard
 import metagenomics
@@ -32,61 +33,6 @@ class TestCommandHelp(unittest.TestCase):
         for cmd_name, parser_fun in metagenomics.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
-
-
-@patch('metagenomics.kraken_dfs_report')
-class TestDiamondCalls(TestCaseWithTmp):
-    def setUp(self):
-        super().setUp()
-        patcher = patch('subprocess.Popen')
-        self.addCleanup(patcher.stop)
-        self.mock_popen = patcher.start()
-        self.mock_popen.return_value.returncode = 0
-
-        patcher = patch('tools.picard.SamToFastqTool')
-        self.addCleanup(patcher.stop)
-        self.mock_s2f = patcher.start()
-        self.mock_s2f.return_value.execute.return_value.returncode = 0
-
-        patcher = patch('tools.diamond.Diamond', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_diamond = patcher.start()
-
-        # Can't open unwritten named pipes
-        if six.PY2:
-            patcher = patch('__builtin__.open', mock.mock_open(read_data="id1\t1\n"))
-        else:
-            patcher = patch('builtins.open', mock.mock_open(read_data="id1\t1\n"))
-        self.addCleanup(patcher.stop)
-        patcher.start()
-
-        # mock_open doesn't have __next__ for csv.reader
-        patcher = patch('metagenomics.taxa_hits_from_tsv', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_taxa_hits = patcher.start()
-        self.mock_taxa_hits.return_value = Counter({1: 100, 2: 40})
-
-        self.inBam = util.file.mkstempfname('.bam')
-        self.db = tempfile.mkdtemp('db')
-        self.tax_db = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple', 'db', 'taxonomy')
-
-    def test_output_reads(self, mock_dfs):
-        out_report = util.file.mkstempfname('report.txt')
-        out_reads = util.file.mkstempfname('lca.gz')
-
-        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, outReads=out_reads)
-
-        cmd = self.mock_popen.call_args[0][0]
-        self.assertIn(out_reads, cmd)
-        assert isinstance(metagenomics.kraken_dfs_report.call_args[0][0], metagenomics.TaxonomyDb)
-
-    def test_num_threads(self, mock_dfs):
-        out_report = util.file.mkstempfname('report.txt')
-        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, threads=11)
-        expected_threads = min(11, _CPUS)
-        expected_threads = '--threads {}'.format(expected_threads)
-        cmd = self.mock_popen.call_args[0][0]
-        self.assertIn(expected_threads, cmd)
 
 
 class TestKronaCalls(TestCaseWithTmp):
@@ -111,7 +57,7 @@ class TestKronaCalls(TestCaseWithTmp):
 
 @pytest.fixture
 def taxa_db_simple():
-    db = metagenomics.TaxonomyDb()
+    db = ncbitax.TaxonomyDb()
     db.gis = {1:2, 2:3, 3:4, 4:5}
     db.parents = {1: 1, 2: 1, 3: 2, 4: 3, 5: 4}
     return db
@@ -119,7 +65,7 @@ def taxa_db_simple():
 
 @pytest.fixture
 def taxa_db(parents, names, ranks):
-    db = metagenomics.TaxonomyDb()
+    db = ncbitax.TaxonomyDb()
     db.parents = parents
     db.names = names
     db.ranks = ranks
@@ -212,18 +158,6 @@ def test_push_up_tree_hits(parents):
             Counter({1: 19}))
 
 
-def test_parents_to_children(parents):
-    children = metagenomics.parents_to_children(parents)
-    assert children[1] == [3]
-
-
-def test_rank_code():
-    assert metagenomics.rank_code('species') == 'S'
-    assert metagenomics.rank_code('genus') == 'G'
-    assert metagenomics.rank_code('superkingdom') == 'D'
-    assert metagenomics.rank_code('nonexist') == '-'
-
-
 def test_blast_records(simple_m8):
     test_path = join(util.file.get_test_input_path(),
                              'TestTaxonomy')
@@ -286,36 +220,12 @@ def test_translate_gi_to_tax_id(taxa_db_simple):
     assert metagenomics.translate_gi_to_tax_id(taxa_db_simple, blast1) == expected
 
 
-def test_kraken_dfs_report(taxa_db):
-    hits = Counter({1: 101, 3: 103, 10: 105, 12: 107})
-
-    expected = textwrap.dedent('''\
-    100.00\t416\t101\t-\t1\troot
-    75.72\t315\t103\tD\t3\t  three
-    50.96\t212\t0\t-\t6\t    six
-    25.24\t105\t105\t-\t10\t      ten
-    25.72\t107\t0\t-\t7\t      seven
-    25.72\t107\t0\t-\t8\t        eight
-    25.72\t107\t107\tS\t12\t          twelve
-    ''')
-    report = metagenomics.kraken_dfs_report(taxa_db, hits)
-    text_report = '\n'.join(list(report)) + '\n'
-    assert text_report == expected
-
-
-def test_coverage_lca(taxa_db):
-    assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents) == 6
-    assert metagenomics.coverage_lca([1, 3], taxa_db.parents) == 1
-    assert metagenomics.coverage_lca([6, 7, 8], taxa_db.parents) == 6
-    assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents, 50) == 7
-    assert metagenomics.coverage_lca([9], taxa_db.parents) is None
-
 class TestBamFilter(TestCaseWithTmp):
     def test_bam_filter_simple(self):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)
         taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
-        
+
         filtered_bam = util.file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
@@ -336,7 +246,7 @@ class TestBamFilter(TestCaseWithTmp):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)
         taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
-        
+
         filtered_bam = util.file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
@@ -352,4 +262,3 @@ class TestBamFilter(TestCaseWithTmp):
 
         expected_bam = os.path.join(input_dir,"expected.bam")
         assert_equal_bam_reads(self, filtered_bam, expected_bam)
-
