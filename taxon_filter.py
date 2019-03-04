@@ -247,6 +247,71 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 
 
 # ==============================
+# ***  deplete kraken2  ***
+# ==============================
+def parser_deplete_bam_kraken2(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_bam', metavar='inBam', help='Input BAM file.')
+    parser.add_argument('db', help='Kraken2 database directory.')
+    parser.add_argument('out_bam', metavar='outBam', help='Output BAM file.')
+    parser.add_argument('--taxDb', dest='tax_dir', help='Directory to NCBI taxonomy db')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser.add_argument('-p', '--pThreshold', dest='p_threshold', default=0.5, help='Kraken p threshold')
+    parser.add_argument('--filterTaxid', dest='filter_taxid', type=int, help='Taxid to filter/deplete out')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_deplete_bam_kraken2)
+    return parser
+
+def main_deplete_bam_kraken2(args):
+    '''Use kraken2 to deplete input reads against several databases.'''
+
+    kraken2 = tools.kraken.Kraken2()
+    with util.file.tempfname() as k_reads_fn, util.file.tempfname() as k_report_fn:
+        kraken2.classify(args.db, args.tax_db, args.in_bam,
+                         output_report=k_report_fn, output_reads=k_reads_fn,
+                         num_threads=threads)
+        metagenomics.extract_kraken_unclassified(
+            k_reads_fn, args.in_bam, out_bam,
+            filter_taxid=args.filter_taxid, tax_dir=args.tax_dir,
+            p_threshold=args.p_threshold)
+
+__commands__.append(('deplete_bam_kraken2', parser_deplete_bam_kraken2))
+
+
+def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
+
+    tmpDb = None
+    if len(refDbs)>1 and not any(
+            not os.path.exists(db)  # indexed db prefix
+            or os.path.isdir(db)       # indexed db in directory
+            or (os.path.isfile(db) and ('.tar' in db or '.tgz' in db or '.zip' in db)) # packaged indexed db
+            for db in refDbs):
+        # this is a scenario where all refDbs are unbuilt fasta
+        # files. we can simplify and speed up execution by
+        # concatenating them all and running deplete_method
+        # just once
+        tmpDb = mkstempfname('.fasta')
+        merge_compressed_files(refDbs, tmpDb, sep='\n')
+        refDbs = [tmpDb]
+
+    samtools = tools.samtools.SamtoolsTool()
+    tmpBamIn = inBam
+    for db in refDbs:
+        if not samtools.isEmpty(tmpBamIn):
+            tmpBamOut = mkstempfname('.bam')
+            deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
+            if tmpBamIn != inBam:
+                os.unlink(tmpBamIn)
+            tmpBamIn = tmpBamOut
+    shutil.copyfile(tmpBamIn, outBam)
+
+    if tmpDb:
+        os.unlink(tmpDb)
+
+# ==============================
 # ***  deplete_bmtagger_bam  ***
 # ==============================
 

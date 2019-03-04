@@ -52,7 +52,7 @@ def setup_dummy_simple(workdir, sample_names=('G1234', 'G5678', 'G3671.1_r1', 'G
     shutil.copy(os.path.join(util.file.get_project_path(), 'pipes', 'Snakefile'), workdir)
 
     with open(os.path.join(util.file.get_project_path(), 'pipes', 'config.yaml')) as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     def translate_remote_s3(uri):
       remote_path = uri[5:]

@@ -6,6 +6,7 @@ from collections import Counter
 import copy
 import os.path
 from os.path import join
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -26,32 +27,22 @@ else:
     from io import StringIO
 
 
-class TestCommandHelp(unittest.TestCase):
-
-    def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in metagenomics.__commands__:
-            parser = parser_fun(argparse.ArgumentParser())
-            helpstring = parser.format_help()
+def test_help_parser_for_each_command():
+    for cmd_name, parser_fun in metagenomics.__commands__:
+        parser = parser_fun(argparse.ArgumentParser())
+        helpstring = parser.format_help()
 
 
-class TestKronaCalls(TestCaseWithTmp):
-
-    def setUp(self):
-        super().setUp()
-        patcher = patch('tools.krona.Krona', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_krona = patcher.start()
-
-        self.inTsv = util.file.mkstempfname('.tsv')
-        self.db = tempfile.mkdtemp('db')
-
-    def test_krona_import_taxonomy(self):
-        out_html = util.file.mkstempfname('.html')
-        metagenomics.krona(self.inTsv, self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
-                           noHits=True, noRank=True, inputType='tsv')
-        self.mock_krona().import_taxonomy.assert_called_once_with(
-            self.db, [self.inTsv], out_html, query_column=3, taxid_column=5, score_column=7,
-            no_hits=True, no_rank=True, magnitude_column=None, root_name=os.path.basename(self.inTsv))
+def test_krona_import_taxonomy(mocker):
+    p = mocker.patch('tools.krona.Krona', autospec=True)
+    out_html = util.file.mkstempfname('.html')
+    in_tsv = util.file.mkstempfname('.tsv')
+    db = tempfile.mkdtemp('db')
+    metagenomics.krona(in_tsv, db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
+                        noHits=True, noRank=True, inputType='tsv')
+    p().import_taxonomy.assert_called_once_with(
+        db, [in_tsv], out_html, query_column=3, taxid_column=5, score_column=7,
+        no_hits=True, no_rank=True, magnitude_column=None, root_name=os.path.basename(in_tsv))
 
 
 @pytest.fixture
@@ -123,8 +114,7 @@ def ranks():
 
 @pytest.fixture
 def simple_m8():
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
     return open(join(test_path, 'simple.m8'))
 
 
@@ -170,8 +160,7 @@ def test_rank_code():
 
 
 def test_blast_records(simple_m8):
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
     with simple_m8 as f:
         records = list(metagenomics.blast_records(f))
     assert len(records) == 110
@@ -180,8 +169,7 @@ def test_blast_records(simple_m8):
 
 
 def test_blast_lca(taxa_db_simple, simple_m8):
-    test_path = join(util.file.get_test_input_path(),
-                             'TestTaxonomy')
+    test_path = join(util.file.get_test_input_path(), 'TestTaxonomy')
     expected = textwrap.dedent("""\
     C\tM04004:13:000000000-AGV3H:1:1101:12068:2105\t2
     C\tM04004:13:000000000-AGV3H:1:1101:13451:2146\t2
@@ -283,45 +271,64 @@ def test_kaiju(mocker):
     p.assert_called_with('db.fmi', 'tax_db', 'input.bam', output_report='output.report', num_threads=mock.ANY, output_reads='output.reads')
 
 
-class TestBamFilter(TestCaseWithTmp):
-    def test_bam_filter_simple(self):
-        temp_dir = tempfile.gettempdir()
-        input_dir = util.file.get_test_input_path(self)
-        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
+@pytest.fixture
+def taxonomy_dir():
+    return os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple", "db", "taxonomy")
 
+
+def test_kraken_unclassified(taxonomy_dir):
+    input_dir = join(util.file.get_test_input_path(), 'TestBamFilter')
+
+    for p, n_leftover in zip([0.05, 0.5], [37, 579]):
         filtered_bam = util.file.mkstempfname('.bam')
-        args = [
-            os.path.join(input_dir,"input.bam"),
-            os.path.join(input_dir,"input.kraken-reads.tsv.gz"),
+        cmd_args = [
+            os.path.join(input_dir, "input.bam"),
+            os.path.join(input_dir, "input.kraken-reads.tsv.gz"),
             filtered_bam,
-            os.path.join(taxonomy_dir,"nodes.dmp"),
-            os.path.join(taxonomy_dir,"names.dmp"),
-            "--taxNames",
-            "Ebolavirus"
+            '-p', str(p)
         ]
-        args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
+        args = metagenomics.parser_kraken_unclassified(argparse.ArgumentParser()).parse_args(cmd_args)
         args.func_main(args)
 
-        expected_bam = os.path.join(input_dir,"expected.bam")
-        assert_equal_bam_reads(self, filtered_bam, expected_bam)
+        cmd = ['samtools', 'view', filtered_bam]
+        p = subprocess.run(cmd, stdout=subprocess.PIPE)
+        assert len(p.stdout.decode('utf-8').split('\n')) == n_leftover
 
-    def test_bam_filter_by_tax_id(self):
-        temp_dir = tempfile.gettempdir()
-        input_dir = util.file.get_test_input_path(self)
-        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
 
-        filtered_bam = util.file.mkstempfname('.bam')
-        args = [
-            os.path.join(input_dir,"input.bam"),
-            os.path.join(input_dir,"input.kraken-reads.tsv.gz"),
-            filtered_bam,
-            os.path.join(taxonomy_dir,"nodes.dmp"),
-            os.path.join(taxonomy_dir,"names.dmp"),
-            "--taxIDs",
-            "186538"
-        ]
-        args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
-        args.func_main(args)
+def test_bam_filter_simple(taxonomy_dir):
+    input_dir = join(util.file.get_test_input_path(), 'TestBamFilter')
 
-        expected_bam = os.path.join(input_dir,"expected.bam")
-        assert_equal_bam_reads(self, filtered_bam, expected_bam)
+    filtered_bam = util.file.mkstempfname('.bam')
+    args = [
+        os.path.join(input_dir, "input.bam"),
+        os.path.join(input_dir, "input.kraken-reads.tsv.gz"),
+        filtered_bam,
+        os.path.join(taxonomy_dir, "nodes.dmp"),
+        os.path.join(taxonomy_dir, "names.dmp"),
+        "--taxNames",
+        "Ebolavirus"
+    ]
+    args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
+    args.func_main(args)
+
+    expected_bam = os.path.join(input_dir,"expected.bam")
+    assert_equal_bam_reads(None, filtered_bam, expected_bam)
+
+
+def test_bam_filter_by_tax_id(taxonomy_dir):
+    input_dir = join(util.file.get_test_input_path(), 'TestBamFilter')
+    filtered_bam = util.file.mkstempfname('.bam')
+    args = [
+        os.path.join(input_dir, "input.bam"),
+        os.path.join(input_dir, "input.kraken-reads.tsv.gz"),
+        filtered_bam,
+        os.path.join(taxonomy_dir, "nodes.dmp"),
+        os.path.join(taxonomy_dir, "names.dmp"),
+        "--taxIDs",
+        "186538"
+    ]
+    args = metagenomics.parser_filter_bam_to_taxa(argparse.ArgumentParser()).parse_args(args)
+    args.func_main(args)
+
+    expected_bam = os.path.join(input_dir,"expected.bam")
+    assert_equal_bam_reads(None, filtered_bam, expected_bam)

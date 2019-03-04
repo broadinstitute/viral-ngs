@@ -55,7 +55,10 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     samtools.view(args=[], inFile=bam_filename2, outFile=sam_two)
 
     try:
-        testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
+        if testCase:
+            testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
+        else:
+            assert filecmp.cmp(sam_one, sam_two, shallow=False)
     finally:
         for fname in [sam_one, sam_two]:
             if os.path.exists(fname):

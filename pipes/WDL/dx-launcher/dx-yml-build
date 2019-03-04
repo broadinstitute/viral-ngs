@@ -9,7 +9,7 @@ import os, sys
 import yaml, json
 
 with open('dxapp.yml') as infile:
-    data = yaml.load(infile)
+    data = yaml.load(infile, loader=yaml.FullLoader)
     data["00COMMENT"] = "This dxapp.json has been generated from dxapp.yml automatically using dx-yml-build"
     with open('dxapp.json', 'w') as outfile:
         json.dump(data, outfile, sort_keys=True, indent=2)

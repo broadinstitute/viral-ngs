@@ -861,6 +861,77 @@ def kaiju(inBam, db, taxDb, outReport, outReads=None, threads=None):
 __commands__.append(('kaiju', parser_kaiju))
 
 
+def extract_kraken_unclassified(in_kraken_reads, in_bam, out_bam, filter_taxids=None, filter_children=None, tax_dir=None, p_threshold=0.05):
+    if filter_children:
+        assert tax_dir
+        db = ncbitax.TaxonomyDb(tax_dir, load_nodes=True, load_merged=True)
+        filter_taxids = collect_children(db.children, set(filter_taxids))
+
+    qnames = set()
+    with gzip.open(in_kraken_reads, 'rt') as f:
+        for line in f:
+            parts = line.split('\t')
+            classified = parts[0] == 'C'
+            qname = parts[1]
+            taxid = parts[2]
+            length = parts[3]
+            # Check if already filtered and P= added
+            if '=' in parts[4]:
+                p = float(parts[4].split('=')[1])
+                kmer_str = parts[5]
+            else:
+                kmer_str = parts[4]
+                kmers = [kmer for kmer in kmer_str.rstrip().split(' ')]
+                kmer_counts = []
+                for kmer in kmers:
+                    t = kmer.split(':')
+                    # Kraken2 marker for paired read joiner
+                    if t[0] == '|':
+                        continue
+                    kmer_counts.append((t[0], int(t[1])))
+                n_kmers = 0
+                n_classified_kmers = 0
+                for kmer_taxid, count in kmer_counts:
+                    if kmer_taxid != 'A':
+                        n_kmers += count
+                    if kmer_taxid not in ('0', 'A'):
+                        if filter_taxids is None:
+                            n_classified_kmers += count
+                        elif int(kmer_taxid) in filter_taxids:
+                            n_classified_kmers += count
+                if n_kmers > 0:
+                    p = n_classified_kmers / n_kmers
+                else:
+                    p = 0
+
+            if p <= float(p_threshold):
+                if qname.endswith('/1') or qname.endswith('/2'):
+                    qname = qname[:-2]
+                qnames.add(qname)
+
+    in_sam_f = pysam.AlignmentFile(in_bam, 'rb', check_sq=False)
+    out_sam_f = pysam.AlignmentFile(out_bam, 'wb', template=in_sam_f)
+
+    for sam1 in in_sam_f:
+        if sam1.query_name in qnames:
+            out_sam_f.write(sam1)
+
+
+def parser_kraken_unclassified(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_bam', metavar='inBam', help='Input original bam.')
+    parser.add_argument('in_kraken_reads', metavar='inKrakenReads', help='Input kraken reads.')
+    parser.add_argument('out_bam', metavar='outBam', help='Output extracted bam')
+    parser.add_argument('-p', '--pThreshold', dest='p_threshold', default=0.05, help='Kraken p threshold')
+    parser.add_argument('--filterTaxids', dest='filter_taxids', nargs='+', type=int, help='Taxids to filter/deplete out')
+    parser.add_argument('--filterChildren', dest='filter_children', action='store_true', help='Including filter taxid descendants when filtering - requires taxDb')
+    parser.add_argument('--taxDb', dest='tax_dir', help='Directory to NCBI taxonomy db')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, extract_kraken_unclassified, split_args=True)
+    return parser
+
+__commands__.append(('kraken_unclassified', parser_kraken_unclassified))
+
+
 def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=None):
 
     if outReads:
@@ -950,7 +1021,6 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
 __commands__.append(('report_merge', parser_metagenomic_report_merge))
 
 
-
 def fasta_library_accessions(library):
     '''Parse accession from ids of fasta files in library directory. '''
     library_accessions = set()
@@ -962,7 +1032,7 @@ def fasta_library_accessions(library):
             for seqr in SeqIO.parse(filepath, 'fasta'):
                 name = seqr.name
                 # Search for accession
-                mo = re.search('([A-Z]+_?\d+\.\d+)', name)
+                mo = re.search(r'([A-Z]+_?\d+\.\d+)', name)
                 if mo:
                     accession = mo.group(1)
                     library_accessions.add(accession)
@@ -973,9 +1043,9 @@ class KrakenUniqBuildError(Exception):
     '''Error while building KrakenUniq database.'''
 
 def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_bam', help='Input bam file.')
-    parser.add_argument('read_IDs_to_tax_IDs', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')
-    parser.add_argument('out_bam', help='Output bam file, filtered to the taxa specified')
+    parser.add_argument('in_bam', metavar='inBam', help='Input bam file.')
+    parser.add_argument('reads_tsv', metavar='readsTsv', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')
+    parser.add_argument('out_bam', metavar='outBam', help='Output bam file, filtered to the taxa specified')
     parser.add_argument('nodes_dmp', help='nodes.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
     parser.add_argument('names_dmp', help='names.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
     parser.add_argument('--taxNames', nargs="+", dest="tax_names", help='The taxonomic names to include. More than one can be specified. Mapped to Tax IDs by lowercase exact match only. Ex. "Viruses" This is in addition to any taxonomic IDs provided.')
@@ -992,7 +1062,7 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, filter_bam_to_taxa, split_args=True)
     return parser
 
-def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
+def filter_bam_to_taxa(in_bam, reads_tsv, out_bam,
                        nodes_dmp, names_dmp,
                        tax_names=None, tax_ids=None,
                        omit_children=False,
@@ -1049,7 +1119,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
     with util.file.tempfname(".txt.gz") as temp_read_list:
         with open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
             read_ids_written = 0
-            for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
+            for row in util.file.read_tabfile(reads_tsv):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
                 assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
                 read_id = row[read_id_col]

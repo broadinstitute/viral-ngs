@@ -85,7 +85,7 @@ class Kraken(tools.Tool):
             path = db[5:]
             bucket_name, db_dir = path.split('/', 1)
             obj = s3.Object(bucket_name, '/'.join([db_dir, 'config.yaml']))
-            db_config = yaml.load(obj.get()['Body'].read())
+            db_config = yaml.load(obj.get()['Body'].read(), loader=yaml.FullLoader)
 
             db_opts = (' --db-pipe --db-index {index_f} --index-size {index_size} --db-file {db_f} --db-size {db_size} '
                        '--taxonomy {nodes}'.format(
@@ -381,3 +381,146 @@ class KrakenUniq(Kraken):
                 name = parts[8]
                 report[tax_id] = (tax_reads, tax_kmers)
         return report
+
+
+
+class Kraken2(tools.Tool):
+
+    BINS = {
+        'classify': 'kraken2',
+        'build': 'kraken2-build'
+    }
+
+    def __init__(self, install_methods=None):
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "kraken2"
+        if not install_methods:
+            install_methods = []
+            install_methods.append(tools.CondaPackage('kraken2', executable=self.subtool_name, version=KRAKEN_VERSION, channel='broad-viral'))
+        super(Kraken2, self).__init__(install_methods=install_methods)
+
+    def version(self):
+        return KRAKEN2_VERSION
+
+    @property
+    def libexec(self):
+        if not self.executable_path():
+            self.install_and_get_path()
+        return os.path.dirname(self.executable_path())
+
+    def build(self, db, options=None, option_string=None):
+        '''Create a kraken database.
+
+        Args:
+          db: Kraken database directory to build. Must have library/ and
+            taxonomy/ subdirectories to build from.
+          *args: List of input filenames to process.
+        '''
+        options['--threads'] = util.misc.sanitize_thread_count(options.get('--threads'))
+        self.execute(self.BINS['build'], db, db, options=options,
+                     option_string=option_string)
+
+    def pipeline(self, db, inBams, outReports=None, outReads=None,
+                 lockMemory=None, filterThreshold=None, numThreads=None):
+        assert outReads is not None or outReports is not None
+
+
+        try:
+            from itertools import zip_longest
+        except:  # Python 2 compat
+            from itertools import izip_longest as zip_longest
+        assert out_reads is not None or out_reports is not None
+        out_reports = out_reports or []
+        out_reads = out_reads or []
+
+        for in_bam, out_read, out_report in zip_longest(in_bams, out_reads, out_reports):
+            self.classify(in_bam, db, out_reads=out_read, out_report=out_report, num_threads=None)
+
+
+    def classify(self, in_bam, db, out_reads=None, out_report=None, num_threads=None):
+        """Classify input reads (bam)
+
+        Args:
+          inBam: unaligned reads
+          db: Kraken built database directory.
+          outReads: Output file of command.
+        """
+        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+            # kraken cannot deal with empty input
+            with open(outReads, 'rt') as outf:
+                pass
+            return
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq.gz')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq.gz')
+        # do not convert this to samtools bam2fq unless we can figure out how to replicate
+        # the clipping functionality of Picard SamToFastq
+        picard = tools.picard.SamToFastqTool()
+        picard_opts = {
+            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+            'CLIPPING_ACTION': 'X'
+        }
+        picard.execute(in_bam, tmp_fastq1, tmp_fastq2,
+                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                       JVMmemory=picard.jvmMemDefault)
+
+        opts = {
+            '--threads': util.misc.sanitize_thread_count(num_threads),
+            '--fastq-input': None,
+            '--gzip-compressed': None,
+        }
+        if out_report:
+            opts['--report'] = out_report
+        # Detect if input bam was paired by checking fastq 2
+        if os.path.getsize(tmp_fastq2) < 50:
+            res = self.execute('kraken2', db, out_reads, args=[tmp_fastq1], options=opts)
+        else:
+            opts['--paired'] = None
+            res = self.execute('kraken2', db, out_reads, args=[tmp_fastq1, tmp_fastq2], options=opts)
+        os.unlink(tmp_fastq1)
+        os.unlink(tmp_fastq2)
+
+    def filter(self, inReads, db, outReads, filterThreshold):
+        """Filter Kraken hits
+        """
+        self.execute(self.BINS['filter'], db, outReads, args=[inReads],
+                            options={'--threshold': filterThreshold})
+
+    def report(self, in_reads, db, outReport):
+        """Convert Kraken read-based output to summary reports
+        """
+        self.execute(self.BINS['report'], db, outReport, args=[inReads])
+
+    def execute(self, command, db, output, args=None, options=None,
+                option_string=None):
+        '''Run a kraken-* command.
+
+        Args:
+          db: Kraken database directory.
+          output: Output file of command.
+          args: List of positional args.
+          options: List of keyword options.
+          option_string: Raw strip command line options.
+        '''
+        options = options or {}
+
+        if command == self.BINS['classify']:
+            if output:
+                options['--output'] = output
+        option_string = option_string or ''
+        args = args or []
+
+        cmd = [command, '--db', db]
+        # We need some way to allow empty options args like --build, hence
+        # we filter out on 'x is None'.
+        cmd.extend([str(x) for x in itertools.chain(*options.items())
+                    if x is not None])
+        cmd.extend(shlex.split(option_string))
+        cmd.extend(args)
+        log.debug('Calling %s: %s', command, ' '.join(cmd))
+
+        if command == self.BINS['classify']:
+            subprocess.check_call(cmd)
+        elif command == self.BINS['build']:
+            subprocess.check_call(cmd)
+        else:
+            with util.file.open_or_gzopen(output, 'w') as of:
+                util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE, check=True)
