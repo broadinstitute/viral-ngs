@@ -694,19 +694,25 @@ def plot_coverage(
             colors = list(plt.rcParams['axes.prop_cycle'].by_key()['color'])    # get the colors for this style
             segment_color = colors[segment_num % len(colors)]    # pick a color, offset by the segment index
 
+            x_values = range(prior_domain_max, domain_max)
+
             if plot_data_style == "filled":
                 plt.fill_between(
-                    range(prior_domain_max, domain_max),
+                    x_values,
                     position_depths, [0] * len(position_depths),
                     linewidth=0,
                     antialiased=True,
                     color=segment_color
                 )
             elif plot_data_style == "line":
-                plt.plot(range(prior_domain_max, domain_max), position_depths, antialiased=True, color=segment_color)
+                plt.plot(
+                    x_values,
+                    position_depths,
+                    antialiased=True,
+                    color=segment_color)
             elif plot_data_style == "dots":
                 plt.plot(
-                    range(prior_domain_max, domain_max),
+                    x_values,
                     position_depths,
                     'ro',
                     antialiased=True,
