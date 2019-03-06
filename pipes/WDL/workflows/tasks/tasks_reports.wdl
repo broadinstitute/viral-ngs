@@ -15,6 +15,7 @@ task plot_coverage {
 
   Boolean? skip_mark_dupes=false
   Boolean? plot_only_non_duplicates=false
+  Boolean? bin_large_plots=false
 
   command {
     set -ex -o pipefail
@@ -64,6 +65,8 @@ task plot_coverage {
     if [[ "${skip_mark_dupes}" != "true" ]]; then
       PLOT_DUPE_OPTION="${true='--plotOnlyNonDuplicates' false="" plot_only_non_duplicates}"
     fi
+    
+    BINNING_OPTION="${true='--binLargePlots' false="" bin_large_plots}"
 
     # plot coverage
     if [ $(cat reads_aligned) != 0 ]; then
@@ -75,6 +78,7 @@ task plot_coverage {
         --plotHeight 850 \
         --plotDPI 100 \
         $PLOT_DUPE_OPTION \
+        $BINNING_OPTION \
         --plotTitle "${sample_name} coverage plot" \
         --loglevel=DEBUG
     else

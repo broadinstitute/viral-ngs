@@ -577,7 +577,7 @@ def plot_coverage(
     max_coverage_depth,
     read_length_threshold,
     plot_only_non_duplicates=False,
-    bin_large_plots=True,
+    bin_large_plots=False,
     out_summary=None
     ):
     ''' 
@@ -803,13 +803,13 @@ def align_and_plot_coverage(
     out_bam=None,
     sensitive=False,
     excludeDuplicates=False,
+    binLargePlots=False,
     JVMmemory=None,
     picardOptions=None,
     min_score_to_filter=None,
     aligner="bwa",
     aligner_options='',
-    novoalign_license_path=None,
-    bin_large_plots=True
+    novoalign_license_path=None
 ):
     ''' 
         Take reads, align to reference with BWA-MEM, and generate a coverage plot
@@ -882,7 +882,7 @@ def align_and_plot_coverage(
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
         plot_x_limits, plot_y_limits, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold,
-        excludeDuplicates, out_summary
+        excludeDuplicates, binLargePlots, out_summary
     )
 
     # remove the output bam, unless it is needed
@@ -913,6 +913,10 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--excludeDuplicates', action="store_true",
         help="MarkDuplicates with Picard and only plot non-duplicates"
+    )
+    parser.add_argument(
+        '--binLargePlots', action="store_true",
+        help="Plot maximum read depth in one-pixel-width bins for large plots"
     )
     parser.add_argument(
         '--JVMmemory',
