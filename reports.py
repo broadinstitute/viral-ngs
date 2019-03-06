@@ -577,6 +577,7 @@ def plot_coverage(
     max_coverage_depth,
     read_length_threshold,
     plot_only_non_duplicates=False,
+    bin_large_plots=True,
     out_summary=None
     ):
     ''' 
@@ -673,6 +674,22 @@ def plot_coverage(
             segment_depths.setdefault(row[0], []).append(float(row[2]))
             domain_max += 1
 
+    # Binning
+    bin_size = 1
+    if bin_large_plots:
+        # Number points plotted after binning is set to true width of plot (excluding
+        # axis titles and labels and whitespace around plot), calculated by trial and error
+        # There is one bin per pixel
+        preferred_domain = int(0.907634 * plot_width - 103.207)
+
+        # Bin locations and take maximum in each bin
+        bin_size = 1 + int(domain_max/preferred_domain)
+        binned_segment_depths = OrderedDict()
+        for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
+            max_depths_in_bins = [max(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
+            binned_segment_depths[segment_name] = max_depths_in_bins
+        segment_depths = binned_segment_depths
+
     domain_max = 0
     with plt.style.context(plot_style):
         fig = plt.gcf()
@@ -695,6 +712,7 @@ def plot_coverage(
             segment_color = colors[segment_num % len(colors)]    # pick a color, offset by the segment index
 
             x_values = range(prior_domain_max, domain_max)
+            x_values = [x * bin_size for x in x_values]
 
             if plot_data_style == "filled":
                 plt.fill_between(
@@ -709,7 +727,8 @@ def plot_coverage(
                     x_values,
                     position_depths,
                     antialiased=True,
-                    color=segment_color)
+                    color=segment_color
+                )
             elif plot_data_style == "dots":
                 plt.plot(
                     x_values,
@@ -721,7 +740,11 @@ def plot_coverage(
 
         plt.title(plot_title, fontsize=font_size * 1.2)
         plt.xlabel("bp", fontsize=font_size * 1.1)
-        plt.ylabel("read depth", fontsize=font_size * 1.1)
+        
+        ylabel = "read depth"
+        if(bin_size > 1):
+            ylabel = "read depth (max in " + str(bin_size)+ "-bp bin)"
+        plt.ylabel(ylabel, fontsize=font_size * 1.1)
 
         if plot_x_limits is not None:
             x_min, x_max = plot_x_limits
@@ -785,7 +808,8 @@ def align_and_plot_coverage(
     min_score_to_filter=None,
     aligner="bwa",
     aligner_options='',
-    novoalign_license_path=None
+    novoalign_license_path=None,
+    bin_large_plots=True
 ):
     ''' 
         Take reads, align to reference with BWA-MEM, and generate a coverage plot
