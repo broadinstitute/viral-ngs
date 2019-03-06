@@ -551,6 +551,12 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     )
     parser.add_argument('-l', dest="read_length_threshold", default=None, type=int, help="Read length threshold")
     parser.add_argument(
+        '--binLargePlots',
+        dest="bin_large_plots",
+        action="store_true",
+        help="Plot maximum read depth in one-pixel-width bins for large plots."
+    )
+    parser.add_argument(
         '--outSummary',
         dest="out_summary",
         default=None,
@@ -803,7 +809,7 @@ def align_and_plot_coverage(
     out_bam=None,
     sensitive=False,
     excludeDuplicates=False,
-    binLargePlots=False,
+    bin_large_plots=False,
     JVMmemory=None,
     picardOptions=None,
     min_score_to_filter=None,
@@ -882,7 +888,7 @@ def align_and_plot_coverage(
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
         plot_x_limits, plot_y_limits, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold,
-        excludeDuplicates, binLargePlots, out_summary
+        excludeDuplicates, bin_large_plots, out_summary
     )
 
     # remove the output bam, unless it is needed
@@ -913,10 +919,6 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--excludeDuplicates', action="store_true",
         help="MarkDuplicates with Picard and only plot non-duplicates"
-    )
-    parser.add_argument(
-        '--binLargePlots', action="store_true",
-        help="Plot maximum read depth in one-pixel-width bins for large plots"
     )
     parser.add_argument(
         '--JVMmemory',
