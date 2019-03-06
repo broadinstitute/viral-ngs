@@ -146,7 +146,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
 
     libraryFilteredIter = compute_library_bias(filteredIter, bam_to_process, inConsFasta)
-    with util.file.open_or_gzopen(outTab, 'wt') as outf:
+    with util.file.compressed_open(outTab, 'wt') as outf:
         for row in libraryFilteredIter:
             outf.write('\t'.join(row) + '\n')
 
@@ -471,12 +471,12 @@ def merge_to_vcf(
         
         samplenames_from_alignments = set()
         for alignmentFile in alignments:
-            with util.file.open_or_gzopen(alignmentFile, 'r') as inf:
+            with util.file.compressed_open(alignmentFile, 'rt') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     samplenames_from_alignments.add(sampleIDMatch(seq.id))
 
         refnames = set()
-        with util.file.open_or_gzopen(refFasta, 'r') as inf:
+        with util.file.compressed_open(refFasta, 'rt') as inf:
             for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     refnames.add(sampleIDMatch(seq.id))
 
@@ -512,7 +512,7 @@ def merge_to_vcf(
     log.info(samp_to_isnv)
 
     # get IDs and sequence lengths for reference sequence
-    with util.file.open_or_gzopen(refFasta, 'r') as inf:
+    with util.file.compressed_open(refFasta, 'rt') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
 
     # use the output filepath specified if it is a .vcf, otherwise if it is gzipped we need
@@ -566,10 +566,10 @@ def merge_to_vcf(
         # copy the list of alignment files
         alignmentFiles = list(alignments)
 
-        with util.file.open_or_gzopen(refFasta, 'r') as inf:
+        with util.file.compressed_open(refFasta, 'rt') as inf:
             for refSeq in Bio.SeqIO.parse(inf, 'fasta'):
                 for alignmentFile in alignmentFiles:
-                    with util.file.open_or_gzopen(alignmentFile, 'r') as inf2:
+                    with util.file.compressed_open(alignmentFile, 'r') as inf2:
                         for seq in Bio.SeqIO.parse(inf2, 'fasta'):
                             if refSeq.id == seq.id:
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
@@ -583,7 +583,7 @@ def merge_to_vcf(
                 "There must be an isnv file for each sample. %s samples, %s isnv files" % (len(samples), len(isnvs)))
 
         for fileName in alignments:
-            with util.file.open_or_gzopen(fileName, 'r') as inf:
+            with util.file.compressed_open(fileName, 'rt') as inf:
                 # get two independent iterators into the alignment file
                 number_of_aligned_sequences = count_iter_items(Bio.SeqIO.parse(inf, 'fasta'))
                 num_isnv_files = len(isnvs)
@@ -622,7 +622,7 @@ def merge_to_vcf(
                 samplesToUse = [x for x in cm.chrMaps.keys() if sampleIDMatch(x) in samples]
 
                 alignmentFile = ref_seq_id_to_alignment_file[ref_sequence.id]
-                with util.file.open_or_gzopen(alignmentFile, 'r') as alignFileIn:
+                with util.file.compressed_open(alignmentFile, 'rt') as alignFileIn:
                     for seq in Bio.SeqIO.parse(alignFileIn, 'fasta'):
                         for sampleName in samplesToUse:
                             if seq.id == sampleName:
@@ -964,7 +964,7 @@ def compute_Fws(vcfrow):
 def add_Fws_vcf(inVcf, outVcf):
     '''Compute the Fws statistic on iSNV data. See Manske, 2012 (Nature)'''
     with open(outVcf, 'wt') as outf:
-        with util.file.open_or_gzopen(inVcf, 'rt') as inf:
+        with util.file.compressed_open(inVcf, 'rt') as inf:
             for line in inf:
                 if line.startswith('##'):
                     outf.write(line)
@@ -1123,7 +1123,7 @@ def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
     header = ['chr', 'pos', 'sample', 'patient', 'time', 'alleles', 'iSNV_freq', 'Hw', 'Hs', 'eff_type',
               'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein']
-    with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
+    with util.file.compressed_open(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header) + '\n')
         for row in iSNV_table(util.file.read_tabfile_dict(args.inVcf)):
             sample_parts = row['sample'].split('.')

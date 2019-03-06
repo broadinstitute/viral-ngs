@@ -1080,8 +1080,8 @@ def main_filter_short_seqs(args):
     '''Check sequences in inFile, retaining only those that are at least minLength'''
     # orig by rsealfon, edited by dpark
     # TO DO: make this more generalized to accept multiple minLengths (for multiple chromosomes/segments)
-    with util.file.open_or_gzopen(args.inFile) as inf:
-        with util.file.open_or_gzopen(args.outFile, 'w') as outf:
+    with util.file.compressed_open(args.inFile, 'rt') as inf:
+        with util.file.compressed_open(args.outFile, 'wt') as outf:
             Bio.SeqIO.write(
                 [
                     s for s in Bio.SeqIO.parse(inf, args.format)
@@ -1619,8 +1619,8 @@ def deambig_fasta(inFasta, outFasta):
         random unambiguous base from among the possibilities described by the ambiguity
         code.  Write output to fasta file.
     '''
-    with util.file.open_or_gzopen(outFasta, 'wt') as outf:
-        with util.file.open_or_gzopen(inFasta, 'rt') as inf:
+    with util.file.compressed_open(outFasta, 'wt') as outf:
+        with util.file.compressed_open(inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
                 for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
                     outf.write(line)

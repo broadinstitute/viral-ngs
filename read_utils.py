@@ -701,7 +701,7 @@ def split_bam(inBam, outBams):
     samtools.view(['-@', '3'], inBam, bigsam)
 
     # split bigsam into little ones
-    with util.file.open_or_gzopen(bigsam, 'rt') as inf:
+    with util.file.compressed_open(bigsam, 'rt') as inf:
         for outBam in outBams:
             log.info("preparing file " + outBam)
             tmp_sam_reads = mkstempfname('.sam')
@@ -834,7 +834,7 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     # Make a list of reads to keep
     with open(readList, 'at') as outf:
         for fq in (outFastq1, outFastq2):
-            with util.file.open_or_gzopen(fq, 'rt') as inf:
+            with util.file.compressed_open(fq, 'rt') as inf:
                 line_num = 0
                 for line in inf:
                     if (line_num % 4) == 0:
@@ -1398,7 +1398,7 @@ __commands__.append(('extract_tarball', parser_extract_tarball))
 
 def fasta_read_names(in_fasta, out_read_names):
     """Save the read names of reads in a .fasta file to a text file"""
-    with util.file.open_or_gzopen(in_fasta) as in_fasta_f, open(out_read_names, 'wt') as out_read_names_f:
+    with util.file.compressed_open(in_fasta, 'rt') as in_fasta_f, open(out_read_names, 'wt') as out_read_names_f:
         last_read_name = None
         for line in in_fasta_f:
             if line.startswith('>'):

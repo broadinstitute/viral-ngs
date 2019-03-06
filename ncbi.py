@@ -193,9 +193,9 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
 
     # identify which of the sequences in the multialignment is the reference,
     # matching by ID to one of the sequences in the refFasta
-    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
+    with util.file.compressed_open(inputFasta, 'rt') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
-            with util.file.open_or_gzopen(refFasta, 'r') as reff:
+            with util.file.compressed_open(refFasta, 'rt') as reff:
                 for refSeq in Bio.SeqIO.parse(reff, 'fasta'):
                     if seq.id == refSeq.id:
                         ref_fasta_filename = util.file.mkstempfname('.fasta')
@@ -220,7 +220,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
         raise KeyError("No reference table was found for the reference %s" % (matchingRefSeq.id))
 
     # write out the desired sequences to separate fasta files
-    with util.file.open_or_gzopen(inputFasta, 'r') as inf:
+    with util.file.compressed_open(inputFasta, 'rt') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
             # if we are looking at the reference sequence in the multialignment,
             # continue to the next sequence
@@ -559,14 +559,14 @@ def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
     '''
     metadata = {}
 
-    with util.file.open_or_gzopen(biosampleFile, 'rU') as inf:
+    with util.file.compressed_open(biosampleFile, 'rt') as inf:
         header = inf.readline()
         for line in inf:
             row = line.rstrip('\n\r').split('\t')
             metadata.setdefault(row[0], {})
             metadata[row[0]]['biosample_accession'] = row[1]
 
-    with util.file.open_or_gzopen(md5_fname, 'rU') as inf:
+    with util.file.compressed_open(md5_fname, 'rt') as inf:
         for line in inf:
             row = line.rstrip('\n\r').split()
             s = os.path.basename(row[1])

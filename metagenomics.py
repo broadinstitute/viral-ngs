@@ -36,7 +36,7 @@ import tools.kraken
 import tools.krona
 import tools.picard
 import tools.samtools
-from util.file import open_or_gzopen
+from util.file import compressed_open
 
 __commands__ = []
 
@@ -109,7 +109,7 @@ class TaxonomyDb(object):
     def load_gi_single_dmp(self, dmp_path):
         '''Load a gi->taxid dmp file from NCBI taxonomy.'''
         gi_array = {}
-        with open_or_gzopen(dmp_path) as f:
+        with compressed_open(dmp_path) as f:
             for i, line in enumerate(f):
                 gi, taxid = line.strip().split('\t')
                 gi = int(gi)
@@ -125,7 +125,7 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in open_or_gzopen(names_db):
+        for line in compressed_open(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
             name = parts[1].strip()
@@ -142,7 +142,7 @@ class TaxonomyDb(object):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with open_or_gzopen(nodes_db) as f:
+        with compressed_open(nodes_db) as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])
@@ -589,8 +589,8 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
         output_path = os.path.join(outputDb, path)
 
         input_path = maybe_compressed(input_path)
-        with open_or_gzopen(input_path, 'rt') as f, \
-             open_or_gzopen(output_path, 'wt') as out_f:
+        with compressed_open(input_path, 'rt') as f, \
+             compressed_open(output_path, 'wt') as out_f:
             if header:
                 out_f.write(f.readline())  # Cannot use next(f) for python2
             for line in f:
@@ -868,7 +868,7 @@ def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=No
     else:
         lca_tsv = util.file.mkstempfname('.tsv')
 
-    with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
+    with compressed_open(lca_tsv, 'wt') as lca:
         hits = sam_lca(tax_db, bam_aligned, lca, top_percent=10, unique_only=unique_only)
 
     with open(outReport, 'w') as f:
@@ -923,7 +923,7 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
     # if we're creating a Krona input file
     if out_krona_input:
         # open the output file (as gz if necessary)
-        with util.file.open_or_gzopen(out_krona_input, "wt") as outf:
+        with util.file.compressed_open(out_krona_input, "wt") as outf:
             # create a TSV writer for the output file
             output_writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
 
@@ -931,7 +931,7 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
                 # for each Kraken-format metag file specified, pull out the appropriate columns
                 # and write them to the TSV output
                 for metag_file in metagenomic_reports:
-                    with util.file.open_or_gzopen(metag_file.name, "rt") as inf:
+                    with compressed_open(metag_file.name, "rt") as inf:
                         file_reader = csv.reader(inf, delimiter='\t')
                         for row in file_reader:
                             # for only the two relevant columns
@@ -1047,7 +1047,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
-        with open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
+        with compressed_open(temp_read_list, "wt") as read_IDs_file:
             read_ids_written = 0
             for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
@@ -1167,7 +1167,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
         # -----------------------------------------------------------------
 
 
-        with util.file.open_or_gzopen(f, 'rU') as inf:
+        with compressed_open(f, 'rt') as inf:
             report_type=None
             should_process = False
             indent_of_selection = -1

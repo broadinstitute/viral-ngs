@@ -270,7 +270,7 @@ class Kraken(tools.Tool):
         elif command == self.BINS['build']:
             subprocess.check_call(cmd)
         else:
-            with util.file.open_or_gzopen(output, 'w') as of:
+            with util.file.compressed_open(output, 'wt') as of:
                 util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE, check=True)
 
 

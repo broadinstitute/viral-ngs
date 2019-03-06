@@ -364,7 +364,7 @@ __commands__.append(('alignment_summary', parser_alignment_summary))
 
 def consolidate_fastqc(inDirs, outFile):
     '''Consolidate multiple FASTQC reports into one.'''
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+    with util.file.compressed_open(outFile, 'wt') as outf:
         header = ['Sample']
         out_n = 0
         for sdir in inDirs:
@@ -398,7 +398,7 @@ __commands__.append(('consolidate_fastqc', parser_consolidate_fastqc))
 def get_bam_info(bamstats_dir):
     libs = {}
     for fn in glob.glob(os.path.join(bamstats_dir, "*.txt")):
-        with util.file.open_or_gzopen(fn, 'rt') as inf:
+        with util.file.compressed_open(fn, 'rt') as inf:
             bam = {}
             for line in inf:
                 k, v = line.rstrip('\n').split('\t')

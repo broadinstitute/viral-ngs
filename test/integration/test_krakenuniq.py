@@ -72,9 +72,9 @@ def test_krakenuniq(krakenuniq_db, input_bam):
     args = parser.parse_args(cmd)
     args.func_main(args)
 
-    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+    with util.file.compressed_open(out_reads, 'r') as inf:
         assert len(inf.read()) > 0
-    with util.file.open_or_gzopen(out_report) as inf:
+    with util.file.compressed_open(out_report) as inf:
         report_lines = [x.strip().split('\t') for x in inf.readlines()]
         report_lines = [x for x in report_lines if x]
 
@@ -130,7 +130,7 @@ def test_krakenuniq_on_empty(krakenuniq_db, input_bam):
     args = parser.parse_args(cmd)
     args.func_main(args)
 
-    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+    with util.file.compressed_open(out_reads, 'r') as inf:
         assert len(inf.read()) == 0
 
     assert is_gz_file(out_reads)

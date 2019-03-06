@@ -44,7 +44,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                         help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
                         default=None)
     parser.add_argument('--commonBarcodes',
-                        help='''Write a TSV report of all barcode counts, in descending order. 
+                        help='''Write a TSV report of all barcode counts, in descending order.
                                 Only applicable for read structures containing "B"''',
                         default=None)
     parser.add_argument('--sampleSheet',
@@ -89,7 +89,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
 
 
 def main_illumina_demux(args):
-    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or 
+    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or
         for simplex runs, a single bam will be produced bearing the flowcell ID.
         Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
         while handling the various required input formats. Also can
@@ -126,13 +126,13 @@ def main_illumina_demux(args):
     link_locs=False
     # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
     # called with LINK_LOCS=true, symlinks with absolute paths
-    # may be created, pointing from tile-specific *.locs to the 
+    # may be created, pointing from tile-specific *.locs to the
     # single s.locs file in the Intensities directory.
     # These links may break if the run directory is moved.
     # We should begin by removing broken links, if present,
     # and call CheckIlluminaDirectory ourselves if a 's.locs'
     # file is present, but only if the directory check fails
-    # since link_locs=true tries to create symlinks even if they 
+    # since link_locs=true tries to create symlinks even if they
     # (or the files) already exist
     try:
         tools.picard.CheckIlluminaDirectoryTool().execute(
@@ -163,8 +163,8 @@ def main_illumina_demux(args):
                 link_locs=link_locs
             )
 
-    multiplexed_samples = True if 'B' in read_structure else False            
-    
+    multiplexed_samples = True if 'B' in read_structure else False
+
     if multiplexed_samples:
         assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
     else:
@@ -308,19 +308,19 @@ __commands__.append(('lane_metrics', parser_lane_metrics))
 def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
     parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outSummary', help='''Path to the summary file (.tsv format). It includes several columns: 
-                                            (barcode1, likely_index_name1, barcode2, likely_index_name2, count), 
-                                            where likely index names are either the exact match index name for the barcode 
+    parser.add_argument('outSummary', help='''Path to the summary file (.tsv format). It includes several columns:
+                                            (barcode1, likely_index_name1, barcode2, likely_index_name2, count),
+                                            where likely index names are either the exact match index name for the barcode
                                             sequence, or those Hamming distance of 1 away.''')
 
     parser.add_argument('--truncateToLength',
                         help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
                         type=int,
                         default=None)
-    parser.add_argument('--omitHeader', 
+    parser.add_argument('--omitHeader',
                         help='If specified, a header will not be added to the outSummary tsv file.',
                         action='store_true')
-    parser.add_argument('--includeNoise', 
+    parser.add_argument('--includeNoise',
                         help='If specified, barcodes with periods (".") will be included.',
                         action='store_true')
     parser.add_argument('--outMetrics',
@@ -350,8 +350,8 @@ def parser_common_barcodes(parser=argparse.ArgumentParser()):
     return parser
 
 def main_common_barcodes(args):
-    ''' 
-        Extract Illumina barcodes for a run and write a TSV report 
+    '''
+        Extract Illumina barcodes for a run and write a TSV report
         of the barcode counts in descending order
     '''
 
@@ -422,9 +422,9 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
     count_to_write = truncateToLength if truncateToLength else len(barcode_counts)
     barcode_pairs_sorted_by_count = sorted(barcode_counts, key=barcode_counts.get, reverse=True)[:count_to_write]
 
-    mapped_counts = (   (k[:8], ",".join([x for x in illumina_reference.guess_index(k[:8], distance=1)] or ["Unknown"]), 
-                        k[8:], ",".join([x for x in illumina_reference.guess_index(k[8:], distance=1)] or ["Unknown"]), 
-                        barcode_counts[k]) 
+    mapped_counts = (   (k[:8], ",".join([x for x in illumina_reference.guess_index(k[:8], distance=1)] or ["Unknown"]),
+                        k[8:], ",".join([x for x in illumina_reference.guess_index(k[8:], distance=1)] or ["Unknown"]),
+                        barcode_counts[k])
                     for k in barcode_pairs_sorted_by_count)
 
     # write the barcodes and their corresponding counts
@@ -445,13 +445,13 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
 def parser_guess_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('in_barcodes', help='The barcode counts file produced by common_barcodes.')
     parser.add_argument('in_picard_metrics', help='The demultiplexing read metrics produced by Picard.')
-    parser.add_argument('out_summary_tsv', help='''Path to the summary file (.tsv format). It includes several columns: 
-                                            (sample_name, expected_barcode_1, expected_barcode_2, 
-                                            expected_barcode_1_name, expected_barcode_2_name, 
-                                            expected_barcodes_read_count, guessed_barcode_1, 
-                                            guessed_barcode_2, guessed_barcode_1_name, 
-                                            guessed_barcode_2_name, guessed_barcodes_read_count, 
-                                            match_type), 
+    parser.add_argument('out_summary_tsv', help='''Path to the summary file (.tsv format). It includes several columns:
+                                            (sample_name, expected_barcode_1, expected_barcode_2,
+                                            expected_barcode_1_name, expected_barcode_2_name,
+                                            expected_barcodes_read_count, guessed_barcode_1,
+                                            guessed_barcode_2, guessed_barcode_1_name,
+                                            guessed_barcode_2_name, guessed_barcodes_read_count,
+                                            match_type),
                                             where the expected values are those used by Picard during demultiplexing
                                             and the guessed values are based on the barcodes seen among the data.''')
 
@@ -465,11 +465,11 @@ def parser_guess_barcodes(parser=argparse.ArgumentParser()):
                         help='If specified, only guess barcodes for these sample names.',
                         type=str,
                         default=None)
-    parser.add_argument('--outlier_threshold', 
+    parser.add_argument('--outlier_threshold',
                         help='threshold of how far from unbalanced a sample must be to be considered an outlier.',
                         type=float,
                         default=0.675)
-    parser.add_argument('--expected_assigned_fraction', 
+    parser.add_argument('--expected_assigned_fraction',
                         help='The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.',
                         type=float,
                         default=0.7)
@@ -483,27 +483,27 @@ def parser_guess_barcodes(parser=argparse.ArgumentParser()):
                         type=int,
                         help='''The number of rows to use from the in_barcodes.''')
 
-    
+
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_guess_barcodes, split_args=True)
     return parser
 
-def main_guess_barcodes(in_barcodes, 
-                        in_picard_metrics, 
-                        out_summary_tsv, 
-                        sample_names, 
-                        outlier_threshold, 
-                        expected_assigned_fraction, 
-                        number_of_negative_controls, 
-                        readcount_threshold, 
+def main_guess_barcodes(in_barcodes,
+                        in_picard_metrics,
+                        out_summary_tsv,
+                        sample_names,
+                        outlier_threshold,
+                        expected_assigned_fraction,
+                        number_of_negative_controls,
+                        readcount_threshold,
                         rows_limit):
     """
         Guess the barcode value for a sample name,
             based on the following:
              - a list is made of novel barcode pairs seen in the data, but not in the picard metrics
-             - for the sample in question, get the most abundant novel barcode pair where one of the 
+             - for the sample in question, get the most abundant novel barcode pair where one of the
                barcodes seen in the data matches one of the barcodes in the picard metrics (partial match)
-             - if there are no partial matches, get the most abundant novel barcode pair 
+             - if there are no partial matches, get the most abundant novel barcode pair
 
             Limitations:
              - If multiple samples share a barcode with multiple novel barcodes, disentangling them
@@ -518,10 +518,10 @@ def main_guess_barcodes(in_barcodes,
     """
 
     bh = util.illumina_indices.IlluminaBarcodeHelper(in_barcodes, in_picard_metrics, rows_limit)
-    guessed_barcodes = bh.find_uncertain_barcodes(sample_names=sample_names, 
-                                                    outlier_threshold=outlier_threshold, 
-                                                    expected_assigned_fraction=expected_assigned_fraction, 
-                                                    number_of_negative_controls=number_of_negative_controls, 
+    guessed_barcodes = bh.find_uncertain_barcodes(sample_names=sample_names,
+                                                    outlier_threshold=outlier_threshold,
+                                                    expected_assigned_fraction=expected_assigned_fraction,
+                                                    number_of_negative_controls=number_of_negative_controls,
                                                     readcount_threshold=readcount_threshold)
     bh.write_guessed_barcodes(out_summary_tsv, guessed_barcodes)
 
@@ -718,7 +718,7 @@ class SampleSheet(object):
     def _detect_and_load_sheet(self, infile):
         if infile.endswith(('.csv','.csv.gz')):
             # one of a few possible CSV formats (watch out for line endings from other OSes)
-            with util.file.open_or_gzopen(infile, 'rU') as inf:
+            with util.file.compressed_open(infile, 'rU') as inf:
                 header = None
                 miseq_skip = False
                 row_num = 0

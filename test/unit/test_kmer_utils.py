@@ -53,7 +53,7 @@ def _yield_seq_recs(seq_file):
             t_fa = os.path.join(t_dir, 'bam2fa.fasta')
             tools.samtools.SamtoolsTool().bam2fa(seq_file, t_fa, append_mate_num=True)
             seq_file = t_fa
-        with util.file.open_or_gzopen(seq_file, 'rt') as seq_f:
+        with util.file.compressed_open(seq_file, 'rt') as seq_f:
             for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq_file)[1:]):
                 yield rec
 

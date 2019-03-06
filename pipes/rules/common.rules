@@ -28,7 +28,7 @@ def set_env_vars():
             os.environ[k] = v
 
 def read_tab_file(fname):
-    with util.file.open_or_gzopen(fname, 'rU') as inf:
+    with util.file.compressed_open(fname, 'rt') as inf:
         header = [item.strip() for item in inf.readline().strip().rstrip('\n').split('\t')]
         for line in inf:
             if len(line.strip())==0:
@@ -44,7 +44,7 @@ def read_tab_file(fname):
 def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
     if fname==None:
         return []
-    with util.file.open_or_gzopen(fname, 'rU') as inf:
+    with util.file.compressed_open(fname, 'rt') as inf:
         for line in inf:
             if len(line.strip())==0:
                 continue
@@ -58,7 +58,7 @@ def read_samples_file(fname, number_of_chromosomes=1, append_chrom_num=False):
 def read_accessions_file(fname):
     if fname==None:
         return []
-    with util.file.open_or_gzopen(fname, 'rU') as inf:
+    with util.file.compressed_open(fname, 'rt') as inf:
         for line in inf:
             if len(line.strip())==0:
                 continue

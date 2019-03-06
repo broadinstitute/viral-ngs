@@ -238,7 +238,7 @@ class MummerTool(tools.Tool):
 
         # load intervals into a FeatureSorter
         fs = util.misc.FeatureSorter()
-        with util.file.open_or_gzopen(tiling, 'rU') as inf:
+        with util.file.compressed_open(tiling, 'rt') as inf:
             for line in inf:
                 row = line.rstrip('\n\r').split('\t')
                 c = row[11]

@@ -44,7 +44,7 @@ class SnpAnnotater(object):
 
     def loadVcf(self, snpEffVcf):
         #log.info("reading in snpEff VCF file: %s" % snpEffVcf)
-        with util.file.open_or_gzopen(snpEffVcf, 'rt') as inf:
+        with util.file.compressed_open(snpEffVcf, 'rt') as inf:
             ffp = util.file.FlatFileParser(inf)
             try:
                 imap = hasattr(itertools, 'imap') and itertools.imap or map  # py2 & py3 compatibility

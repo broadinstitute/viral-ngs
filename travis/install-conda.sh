@@ -12,6 +12,12 @@ if [ -d "$MINICONDA_DIR" ] && [ -e "$MINICONDA_DIR/bin/conda" ]; then
         export PATH="$MINICONDA_DIR/bin:$PATH"
     fi
     hash -r
+    conda config --set always_yes yes --set changeps1 no --set remote_max_retries 6 #--set channel_priority strict
+    conda config --add channels defaults
+    conda config --add channels bioconda
+    conda config --add channels conda-forge
+    conda config --add channels broad-viral
+    conda config --show-sources # print channels
 else # if it does not exist, we need to install miniconda
     rm -rf "$MINICONDA_DIR" # remove the directory in case we have an empty cached directory
 

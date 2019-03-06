@@ -257,7 +257,7 @@ class VcfMergeRunner:
             genomeKVIterator = self.genomeFastas.items()
 
         for sampleName, fastaFile in genomeKVIterator:
-            with util.file.open_or_gzopen(fastaFile, 'r') as inf:
+            with util.file.compressed_open(fastaFile, 'rt') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     self.sequence_order.setdefault(sampleName, default=[])
                     self.sequence_order[sampleName].append(seq.id)
@@ -305,14 +305,14 @@ class TestVcfMerge(test.TestCaseWithTmp):
         #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
-        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+        with util.file.compressed_open(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
         outVcf = util.file.mkstempfname('.vcf.gz')
         #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
-        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+        with util.file.compressed_open(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
 

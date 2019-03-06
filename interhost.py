@@ -561,7 +561,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
     outputFilenames = []
 
     # open all files
-    inputFilesList = [util.file.open_or_gzopen(x, 'r') for x in inputFilenamesList]
+    inputFilesList = [util.file.compressed_open(x, 'rt') for x in inputFilenamesList]
     # get BioPython iterators for each of the FASTA files specified in the input
     fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
 

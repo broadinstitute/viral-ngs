@@ -154,7 +154,7 @@ class KmcTool(tools.Tool):
     def read_kmer_counts(self, kmer_counts_txt):
         """Read kmer counts from a file written by dump_kmer_counts, as collections.Counter"""
         counts = collections.Counter()
-        with util.file.open_or_gzopen(kmer_counts_txt) as kmers_f:
+        with util.file.compressed_open(kmer_counts_txt, 'rt') as kmers_f:
             for line in kmers_f:
                 kmer, count = line.strip().split()
                 counts[kmer] = int(count)

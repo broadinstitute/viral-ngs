@@ -5,6 +5,7 @@ general file-handling routines.
 
 __author__ = "dpark@broadinstitute.org"
 
+import bz2
 import codecs
 import contextlib
 import os
@@ -21,6 +22,7 @@ import io
 import csv
 import inspect
 import tarfile
+import zstd
 
 import util.cmd
 import util.misc
@@ -329,6 +331,49 @@ def touch_p(path, times=None):
     touch(path, times=times)
 
 
+@contextlib.contextmanager
+def zstd_open(fname, mode='r'):
+    '''Handle both text and byte decompression of the file.'''
+    if 'r' in mode:
+        with open(fname, 'rb') as fh:
+            dctx = zstd.ZstdDecompressor()
+            stream_reader = dctx.stream_reader(fh)
+            if 'b' not in mode:
+                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
+                yield text_stream
+                return
+            yield stream_reader
+    else:
+        with open(fname, 'wb') as fh:
+            cctx = zstd.ZstdCompressor(level=kwargs.get('level', 10),
+                                       threads=kwargs.get('threads', 1))
+            stream_writer = cctx.stream_writer(fh)
+            if 'b' not in mode:
+                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
+                yield text_stream
+                return
+            yield stream_writer
+
+
+def compressed_open(fname, mode='r', **kwargs):
+    '''Create file-like context manager from an optionally compressed filename.
+
+    Supports regular files, gzip, bz2, and zstd.
+    '''
+
+    if fname.endswith('.gz'):
+        # Allow using 'level' kwarg as an alias for gzip files.
+        if 'level' in kwargs:
+            kwargs['compresslevel'] = kwargs.pop('level')
+        return gzip.open(fname, mode=mode, **kwargs)
+    elif fname.endswith('.bz2'):
+        return bz2.open(fname, mode=mode, **kwargs)
+    elif fname.endswith('.zst'):
+        return zstd_open(fname, mode=mode, **kwargs)
+    else:
+        return open(fname, mode=mode, **kwargs)
+
+
 def open_or_gzopen(fname, *opts, **kwargs):
     mode = 'r'
     open_opts = list(opts)
@@ -403,8 +448,8 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rU') as inf:
-        for line_no,line in enumerate(inf):
+    with compressed_open(inFile, 'rt') as inf:
+        for line_no, line in enumerate(inf):
             if line_no==0:
                 # remove BOM, if present
                 line = line.replace('\ufeff','')
@@ -413,7 +458,7 @@ def read_tabfile(inFile):
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
-    with open_or_gzopen(filename, 'rt') as inf:
+    with compressed_open(filename, 'rt') as inf:
         header = inf.readline().rstrip('\n').split(delim)
     if header and header[0].startswith(headerPrefix):
         header[0] = header[0][len(headerPrefix):]
@@ -591,9 +636,9 @@ def replace_in_file(filename, original, new):
 
 def cat(output_file, input_files):
     '''Cat list of input filenames to output filename.'''
-    with open_or_gzopen(output_file, 'wb') as wfd:
+    with compressed_open(output_file, 'wb') as wfd:
         for f in input_files:
-            with open_or_gzopen(f, 'rb') as fd:
+            with compressed_open(f, 'rb') as fd:
                 shutil.copyfileobj(fd, wfd, 1024*1024*10)
 
 
@@ -832,7 +877,7 @@ def count_fastq_reads(inFastq):
 
 def line_count(infname):
     n = 0
-    with open_or_gzopen(infname, 'rt') as inf:
+    with compressed_open(infname, 'rt') as inf:
         for line in inf:
             n += 1
     return n
@@ -859,7 +904,7 @@ def slurp_file(fname, maxSizeMb=50):
     if maxSizeMb  and  fileSize > maxSizeMb*1024*1024:
         raise RuntimeError('Tried to slurp large file {} (size={}); are you sure?  Increase `maxSizeMb` param if yes'.
                            format(fname, fileSize))
-    with open_or_gzopen(fname) as f:
+    with compressed_open(fname) as f:
         return f.read()
 
 def is_broken_link(filename):
@@ -930,6 +975,10 @@ def repack_tarballs(out_compressed_tarball,
             compressor = ['lz4']
             return_obj["decompress_cmd"] = compressor + ["-dc"]
             return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?zst$', filepath):
+            compressor = ['zstd']
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c"]
         elif re.search(r'\.?tar$', filepath):
             compressor = ['cat']
             return_obj["decompress_cmd"] = compressor
@@ -973,7 +1022,7 @@ def repack_tarballs(out_compressed_tarball,
         compressor = choose_compressor(pipe_hint_out)["compress_cmd"]
         outfile = None
     else:
-        compressor =choose_compressor(out_compressed_tarball)["compress_cmd"]
+        compressor = choose_compressor(out_compressed_tarball)["compress_cmd"]
         outfile = open(out_compressed_tarball, "w")
 
     out_compress_ps = subprocess.Popen(compressor, stdout=sys.stdout if out_compressed_tarball == "-" else outfile, stdin=subprocess.PIPE)
@@ -982,12 +1031,12 @@ def repack_tarballs(out_compressed_tarball,
 
     for in_compressed_tarball in input_compressed_tarballs:
         if in_compressed_tarball != "-":
-            pigz_ps = subprocess.Popen(choose_compressor(in_compressed_tarball)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE)
+            unz_ps = subprocess.Popen(choose_compressor(in_compressed_tarball)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE)
         else:
             if not pipe_hint_in:
                 raise IOError("cannot autodetect compression for stdin unless pipeInHint provided")
-            pigz_ps = subprocess.Popen(choose_compressor(pipe_hint_in)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE, stdin=sys.stdin)
-        tar_in = tarfile.open(fileobj=pigz_ps.stdout, mode="r|", ignore_zeros=True)
+            unz_ps = subprocess.Popen(choose_compressor(pipe_hint_in)["decompress_cmd"] + [in_compressed_tarball], stdout=subprocess.PIPE, stdin=sys.stdin)
+        tar_in = tarfile.open(fileobj=unz_ps.stdout, mode="r|", ignore_zeros=True)
 
         fileinfo = tar_in.next()
         while fileinfo is not None:
@@ -1011,10 +1060,10 @@ def repack_tarballs(out_compressed_tarball,
                 tar_out.addfile(fileinfo, fileobj=fileobj)
 
             fileinfo = tar_in.next()
-        pigz_ps.wait()
+        unz_ps.wait()
         tar_in.close()
-        if pigz_ps.returncode != 0:
-            raise subprocess.CalledProcessError(pigz_ps.returncode, "Call error %s" % pigz_ps.returncode)
+        if unz_ps.returncode != 0:
+            raise subprocess.CalledProcessError(unz_ps.returncode, "Call error %s" % unz_ps.returncode)
 
     tar_out.close()
     out_compress_ps.stdin.close()
