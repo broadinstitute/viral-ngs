@@ -20,12 +20,12 @@ task plot_coverage {
   command {
     set -ex -o pipefail
     
-    # retrieve sample name from reads_unmapped_bam filename
-    if sample_name == ""; then
-      sample_name = reads_unmapped_bam
-      sample_name = sub(sample_name, "\\.clean.bam$", "")
-      sample_name = sub(sample_name, "\\.bam$", "")
-    fi
+    # retrieves sample name from reads_unmapped_bam filename
+    if (sample_name == "") {
+    	sample_name = reads_unmapped_bam
+    	sample_name = sub(sample_name, "\\.clean.bam$", "")
+    	sample_name = sub(sample_name, "\\.bam$", "")
+    }
 
     # prep GATK
     mkdir gatk
