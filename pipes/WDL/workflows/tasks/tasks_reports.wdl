@@ -2,7 +2,7 @@
 task plot_coverage {
   # TO DO: add a BWA option
   # TO DO: make GATK indel-realigner optional
-  String? sample_name
+  String sample_name
 
   File assembly_fasta
   File reads_unmapped_bam
@@ -19,13 +19,6 @@ task plot_coverage {
 
   command {
     set -ex -o pipefail
-    
-    # retrieves sample name from reads_unmapped_bam filename
-    if (sample_name == "") {
-    	sample_name = reads_unmapped_bam
-    	sample_name = sub(sample_name, "\\.clean.bam$", "")
-    	sample_name = sub(sample_name, "\\.bam$", "")
-    }
 
     # prep GATK
     mkdir gatk
