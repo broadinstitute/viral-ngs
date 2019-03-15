@@ -16,6 +16,8 @@ task plot_coverage {
   Boolean? skip_mark_dupes=false
   Boolean? plot_only_non_duplicates=false
   Boolean? bin_large_plots=false
+  
+  String  sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
 
   command {
     set -ex -o pipefail
