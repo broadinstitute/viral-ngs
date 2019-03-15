@@ -2,7 +2,6 @@
 task plot_coverage {
   # TO DO: add a BWA option
   # TO DO: make GATK indel-realigner optional
-  String sample_name
 
   File assembly_fasta
   File reads_unmapped_bam
@@ -17,7 +16,7 @@ task plot_coverage {
   Boolean? plot_only_non_duplicates=false
   Boolean? bin_large_plots=false
   
-  String  sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
+  String? sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
 
   command {
     set -ex -o pipefail
