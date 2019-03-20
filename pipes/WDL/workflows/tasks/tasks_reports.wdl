@@ -11,12 +11,12 @@ task plot_coverage {
 
   String? aligner="novoalign" # novoalign or bwa
   String? aligner_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
+  
+  String sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
 
   Boolean? skip_mark_dupes=false
   Boolean? plot_only_non_duplicates=false
   Boolean? bin_large_plots=false
-  
-  String sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
 
   command {
     set -ex -o pipefail
