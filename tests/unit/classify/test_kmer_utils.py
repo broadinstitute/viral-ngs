@@ -24,11 +24,8 @@ import util.misc
 import tools.kmc
 import tools.samtools
 
-from test import make_slow_test_marker
 
 _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
-
-slow_test = make_slow_test_marker()  # pylint: disable=invalid-name
 
 class TestCommandHelp(unittest.TestCase):
 
@@ -345,7 +342,7 @@ COMBO_OPTS = [(seq_file, '-k{} {} {} --threads {}'.format(kmer_size, strand_opt,
               in itertools.product(SEQ_FILES, KMER_SIZES, STRAND_OPTS,
                                    KMER_OCCS_OPTS, NTHREADS)]
 
-@slow_test
+@pytest.mark.slow
 @pytest.mark.parametrize("kmer_db_fixture", COMBO_OPTS, ids=_stringify, indirect=["kmer_db_fixture"])
 def test_build_kmer_db_combo(kmer_db_fixture):
     _test_build_kmer_db(kmer_db_fixture)
@@ -397,7 +394,7 @@ def test_filter_with_empty_db(kmer_db_fixture, reads_file, filter_opts, tmpdir_f
     _test_filter_reads(**locals())
 
 @pytest.mark.parametrize("kmer_db_fixture", [('ebola.fasta.gz', '-k 7')], ids=_stringify, indirect=["kmer_db_fixture"])
-@pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=slow_test),
+@pytest.mark.parametrize("reads_file", [pytest.param('G5012.3.testreads.bam', marks=pytest.mark.slow),
                                         'G5012.3.subset.bam'])
 @pytest.mark.parametrize("filter_opts", ['--dbMinOccs 7  --readMinOccs 93',
                                          '--dbMinOccs 4 --readMinOccsFrac .6',
