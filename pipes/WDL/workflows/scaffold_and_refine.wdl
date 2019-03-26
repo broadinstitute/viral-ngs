@@ -13,4 +13,5 @@ workflow scaffold_and_refine {
             assembly_fasta = scaffold.scaffold_fasta,
             reads_unmapped_bam = reads_unmapped_bam
     }
+
 }

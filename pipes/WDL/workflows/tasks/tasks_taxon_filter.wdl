@@ -35,7 +35,7 @@ task deplete_taxa {
     
     if [[ "${clear_tags}" == "true" ]]; then
       TAGS_TO_CLEAR="--clearTags"
-      if [[ -n "$tags_to_clear_space_separated" ]]; then
+      if [[ -n "${tags_to_clear_space_separated}" ]]; then
         TAGS_TO_CLEAR="$TAGS_TO_CLEAR ${'--tagsToClear=' + tags_to_clear_space_separated}"
       fi
     fi
@@ -61,10 +61,11 @@ task deplete_taxa {
   }
 
   output {
-    File cleaned_bam               = "${bam_basename}.cleaned.bam"
-    File cleaned_fastqc            = "${bam_basename}.cleaned_fastqc.html"
-    Int  depletion_read_count_pre  = read_int("depletion_read_count_pre")
-    Int  depletion_read_count_post = read_int("depletion_read_count_post")
+    File   cleaned_bam               = "${bam_basename}.cleaned.bam"
+    File   cleaned_fastqc            = "${bam_basename}.cleaned_fastqc.html"
+    Int    depletion_read_count_pre  = read_int("depletion_read_count_pre")
+    Int    depletion_read_count_post = read_int("depletion_read_count_post")
+    String viralngs_version          = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -106,9 +107,10 @@ task filter_to_taxon {
   }
 
   output {
-    File taxfilt_bam            = "${bam_basename}.taxfilt.bam"
-    File taxfilt_fastqc         = "${bam_basename}.taxfilt_fastqc.html"
-    Int  filter_read_count_post = read_int("filter_read_count_post")
+    File   taxfilt_bam            = "${bam_basename}.taxfilt.bam"
+    File   taxfilt_fastqc         = "${bam_basename}.taxfilt_fastqc.html"
+    Int    filter_read_count_post = read_int("filter_read_count_post")
+    String viralngs_version       = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
@@ -129,7 +131,8 @@ task build_lastal_db {
   }
 
   output {
-    File lastal_db = "${db_name}.tar.lz4"
+    File   lastal_db        = "${db_name}.tar.lz4"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -169,7 +172,8 @@ task merge_one_per_sample {
   }
 
   output {
-    File mergedBam = "${out_bam_basename}.bam"
+    File   mergedBam        = "${out_bam_basename}.bam"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime{

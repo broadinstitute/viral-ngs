@@ -401,6 +401,23 @@ class TestOrderAndOrient(TestCaseWithTmp):
             return [str(s.seq) for s in Bio.SeqIO.parse(fasta, 'fasta')]
         self.assertEqual(get_seqs(outFasta), get_seqs(expected))
 
+    def test_ambig_align_ebov(self):
+        inDir = util.file.get_test_input_path(self)
+        contigs_gz = os.path.join(inDir, 'contigs.ebov.ambig.fasta.gz')
+        contigs = util.file.mkstempfname('.fasta')
+        with util.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
+            with open(contigs, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        expected = os.path.join(inDir, 'expected.ebov.ambig.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            contigs,
+            os.path.join(inDir, 'ref.ebov.makona_C15.fasta'),
+            outFasta)
+        def get_seqs(fasta):
+            return [str(s.seq) for s in Bio.SeqIO.parse(fasta, 'fasta')]
+        self.assertEqual(get_seqs(outFasta), get_seqs(expected))
+
     def test_obscure_mummer3_bug(self):
         inDir = util.file.get_test_input_path(self)
         outFasta = util.file.mkstempfname('.fasta')

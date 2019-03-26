@@ -10,9 +10,11 @@ workflow isnvs_merge_to_vcf {
             reference_fasta = reference_fasta,
             assemblies_fasta = assemblies_fasta
     }
+
     call tasks_intrahost.isnvs_vcf {
         input:
             perSegmentMultiAlignments = mafft.alignments_by_chr,
             reference_fasta = reference_fasta
     }
+
 }

@@ -582,10 +582,6 @@ def plot_coverage(
     ''' 
         Generate a coverage plot from an aligned bam file
     '''
-
-    # TODO: remove this:
-    #coverage_tsv_file = "/Users/tomkinsc/Downloads/plottest/test_multisegment.tsv"
-
     samtools = tools.samtools.SamtoolsTool()
 
     # check if in_bam is aligned, if not raise an error

@@ -9,7 +9,7 @@ import tools.samtools
 import util.misc
 
 TOOL_NAME = "blast"
-TOOL_VERSION = "2.7.1"
+TOOL_VERSION = "2.6.0"
 
 _log = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class MakeblastdbTool(BlastTools):
             pass
         else:
             raise TypeError("fasta_files was not a single fasta file, nor a list of fasta files") # or something along that line
-        
+
         # if more than one fasta file is specified, join them
         # otherwise if only one is specified, just use it
         if len(fasta_files) > 1:
