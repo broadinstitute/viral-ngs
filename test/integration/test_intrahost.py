@@ -22,7 +22,6 @@ import tools
 
 # third-party
 import pytest
-from mock import patch
 
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
@@ -132,13 +131,12 @@ class TestSnpEff(TestCaseWithTmp):
         eff_vcf = os.path.join(temp_dir,"ann_eff.vcf.gz")
         expected_eff_vcf = os.path.join(input_dir,"ann_eff.vcf.gz")
         args = [merged_vcf, "JQ685920", eff_vcf, "--emailAddress=test@example.com"]
-        with self.capsys.disabled():
-            args = interhost.parser_snpEff(argparse.ArgumentParser()).parse_args(args)
-            args.func_main(args)
-            vcf = util.vcf.VcfReader(eff_vcf)
-            expected_vcf = util.vcf.VcfReader(expected_eff_vcf)
-            rows = list(vcf.get())
-            expected_rows = list(expected_vcf.get())
+        args = interhost.parser_snpEff(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        vcf = util.vcf.VcfReader(eff_vcf)
+        expected_vcf = util.vcf.VcfReader(expected_eff_vcf)
+        rows = list(vcf.get())
+        expected_rows = list(expected_vcf.get())
         #self.assertEqual(rows, expected_rows)
 
         # create tabular iSNV output

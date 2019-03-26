@@ -74,9 +74,10 @@ task assemble {
     }
 
     output {
-        File contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
-        File subsampBam           = "${sample_name}.subsamp.bam"
-        Int  subsample_read_count = read_int("subsample_read_count")
+        File   contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
+        File   subsampBam           = "${sample_name}.subsamp.bam"
+        Int    subsample_read_count = read_int("subsample_read_count")
+        String viralngs_version     = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -160,6 +161,7 @@ task scaffold {
         File   scaffolding_chosen_ref      = "${sample_name}.scaffolding_chosen_ref.fasta"
         File   scaffolding_stats           = "${sample_name}.scaffolding_stats.txt"
         File   scaffolding_alt_contigs     = "${sample_name}.scaffolding_alt_contigs.fasta"
+        String viralngs_version            = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -214,8 +216,9 @@ task refine {
     }
 
     output {
-        File refined_assembly_fasta = "${assembly_basename}.refined.fasta"
-        File sites_vcf_gz           = "${assembly_basename}.sites.vcf.gz"
+        File    refined_assembly_fasta = "${assembly_basename}.refined.fasta"
+        File   sites_vcf_gz            = "${assembly_basename}.sites.vcf.gz"
+        String viralngs_version        = "viral-ngs_version_unknown"
     }
 
     runtime {
@@ -312,7 +315,8 @@ task refine_2x_and_plot {
         grep -v '^>' ${sample_name}.fasta | tr -d '\n' | wc -c | tee assembly_length
         grep -v '^>' ${sample_name}.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
         samtools view -c ${sample_name}.mapped.bam | tee reads_aligned
-        samtools flagstat ${sample_name}.all.bam | tee ${sample_name}.all.bam.flagstat.txt
+        # report only primary alignments 260=exclude unaligned reads and secondary mappings
+        samtools view -h -F 260 ${sample_name}.all.bam | samtools flagstat - | tee ${sample_name}.all.bam.flagstat.txt
         grep properly ${sample_name}.all.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
         samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
         #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
@@ -355,6 +359,7 @@ task refine_2x_and_plot {
         Int  read_pairs_aligned          = read_int("read_pairs_aligned")
         Int  bases_aligned               = read_int("bases_aligned")
         Float mean_coverage              = read_float("mean_coverage")
+        String viralngs_version          = "viral-ngs_version_unknown"
     }
 
     runtime {

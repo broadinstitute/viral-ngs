@@ -24,6 +24,7 @@ task multi_align_mafft_ref {
   output {
     #File         sampleNamesFile   = "align_mafft-${fasta_basename}-sample_names.txt"
     Array[File]+ alignments_by_chr = glob("align_mafft-${fasta_basename}*.fasta")
+    String       viralngs_version  = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -58,6 +59,7 @@ task multi_align_mafft {
   output {
     File        sampleNamesFile   = "${out_prefix}-sample_names.txt"
     Array[File] alignments_by_chr = glob("${out_prefix}*.fasta")
+    String      viralngs_version  = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -78,9 +80,10 @@ task index_ref {
   }
 
   output {
-    File referenceNix = "*.nix"
-    File referenceFai = "*.fasta.fai"
-    File referenceDict = "*.dict"
+    File   referenceNix     = "*.nix"
+    File   referenceFai     = "*.fasta.fai"
+    File   referenceDict    = "*.dict"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     memory: "4 GB"

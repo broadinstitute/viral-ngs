@@ -69,6 +69,7 @@ task kraken {
     Array[File] kraken_summary_report   = glob("*.kraken-summary_report.txt")
     Array[File] krona_report_html       = glob("*.kraken-reads.html")
     Array[File] krona_report_tgz        = glob("*.kraken-reads.krona.tar.gz")
+    String      viralngs_version        = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -109,8 +110,9 @@ task krona {
   }
 
   output {
-    File krona_report_html = "${input_basename}.html"
-    File krona_report_tgz  = "${input_basename}.krona.tar.gz"
+    File   krona_report_html  = "${input_basename}.html"
+    File   krona_report_tgz   = "${input_basename}.krona.tar.gz"
+    String viralngs_version   = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -165,9 +167,10 @@ task filter_bam_to_taxa {
   }
 
   output {
-    File bam_filtered_to_taxa = "${input_basename}_filtered.bam"
-    Int  classified_taxonomic_filter_read_count_pre  = read_int("classified_taxonomic_filter_read_count_pre")
-    Int  classified_taxonomic_filter_read_count_post = read_int("classified_taxonomic_filter_read_count_post")
+    File   bam_filtered_to_taxa                        = "${input_basename}_filtered.bam"
+    Int    classified_taxonomic_filter_read_count_pre  = read_int("classified_taxonomic_filter_read_count_pre")
+    Int    classified_taxonomic_filter_read_count_post = read_int("classified_taxonomic_filter_read_count_post")
+    String viralngs_version                            = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -248,13 +251,14 @@ task diamond_contigs {
   }
 
   output {
-    File diamond_contigs = "${contigs_basename}.diamond.fasta"
-    File reads_mapped_to_contigs = "${contigs_basename}.diamond.bam"
-    File diamond_summary_report = "${contigs_basename}.diamond.summary_report.txt"
-    File diamond_classified_reads = "${contigs_basename}.diamond.reads.txt.gz"
-    File diamond_classified_reads_w_dupes = "${contigs_basename}.diamond.reads_w_dupes.txt.gz"
-    File krona_report_html = "${contigs_basename}.diamond.html"
-    File krona_report_tgz  = "${contigs_basename}.diamond.krona.tar.gz"
+    File   diamond_contigs                  = "${contigs_basename}.diamond.fasta"
+    File   reads_mapped_to_contigs          = "${contigs_basename}.diamond.bam"
+    File   diamond_summary_report           = "${contigs_basename}.diamond.summary_report.txt"
+    File   diamond_classified_reads         = "${contigs_basename}.diamond.reads.txt.gz"
+    File   diamond_classified_reads_w_dupes = "${contigs_basename}.diamond.reads_w_dupes.txt.gz"
+    File   krona_report_html                = "${contigs_basename}.diamond.html"
+    File   krona_report_tgz                 = "${contigs_basename}.diamond.krona.tar.gz"
+    String viralngs_version                 = "viral-ngs_version_unknown"
   }
 
   runtime {

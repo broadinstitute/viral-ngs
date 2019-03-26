@@ -37,12 +37,14 @@ cmdline = "qsub -N {jobname} -cwd -r y ".format(jobname=jobname)
 cmdline += "-o {logdir} -j y ".format(logdir=LOGDIR)
 
 # pass memory resource request to cluster
-mem = int(props.get('resources', {}).get('mem_mb'))/1000
+mem = props.get('resources', {}).get('mem_mb')
 threads = props.get('resources', {}).get('threads')
-threads = threads or 1
+
 if mem:
+    mem = int(mem)
+    threads = int(threads) or 1 # only used here for the calculation of memory per-core
     # on UGER, memory requests are per-core (according to BITS as of Sept. 6, 2016)
-    mem_per_core = round((int(mem)*1024)/int(threads), 2)
+    mem_per_core = round(float(mem)/float(threads), 2)
     # increase memory requested to reflect new JVM-UGER changes requiring greater memory headroom
     mem_per_core = round(mem_per_core*1.1,2)
     if blacklisted_nodes:

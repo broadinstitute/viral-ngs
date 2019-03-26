@@ -13,6 +13,9 @@ task plot_coverage {
   String? aligner="novoalign" # novoalign or bwa
   String? aligner_options="-r Random -l 40 -g 40 -x 20 -t 100 -k"
 
+  Boolean? skip_mark_dupes=false
+  Boolean? plot_only_non_duplicates=false
+
   command {
     set -ex -o pipefail
 
@@ -37,6 +40,7 @@ task plot_coverage {
       --GATK_PATH gatk/ \
       --aligner ${aligner} \
       --aligner_options "${aligner_options}" \
+      ${true='--skipMarkDupes' false="" skip_mark_dupes} \
       --JVMmemory=3g \
       --loglevel=DEBUG
 
@@ -46,7 +50,8 @@ task plot_coverage {
     grep -v '^>' assembly.fasta | tr -d '\n' | wc -c | tee assembly_length
     grep -v '^>' assembly.fasta | tr -d '\nNn' | wc -c | tee assembly_length_unambiguous
     samtools view -c ${sample_name}.mapped.bam | tee reads_aligned
-    samtools flagstat ${sample_name}.all.bam | tee ${sample_name}.all.bam.flagstat.txt
+    # report only primary alignments 260=exclude unaligned reads and secondary mappings
+    samtools view -h -F 260 ${sample_name}.all.bam | samtools flagstat - | tee ${sample_name}.all.bam.flagstat.txt
     grep properly ${sample_name}.all.bam.flagstat.txt | cut -f 1 -d ' ' | tee read_pairs_aligned
     samtools view ${sample_name}.mapped.bam | cut -f10 | tr -d '\n' | wc -c | tee bases_aligned
     #echo $(( $(cat bases_aligned) / $(cat assembly_length) )) | tee mean_coverage
@@ -54,6 +59,11 @@ task plot_coverage {
 
     # fastqc mapped bam
     reports.py fastqc ${sample_name}.mapped.bam ${sample_name}.mapped_fastqc.html
+
+    PLOT_DUPE_OPTION=""
+    if [[ "${skip_mark_dupes}" != "true" ]]; then
+      PLOT_DUPE_OPTION="${true='--plotOnlyNonDuplicates' false="" plot_only_non_duplicates}"
+    fi
 
     # plot coverage
     if [ $(cat reads_aligned) != 0 ]; then
@@ -64,6 +74,7 @@ task plot_coverage {
         --plotWidth 1100 \
         --plotHeight 850 \
         --plotDPI 100 \
+        $PLOT_DUPE_OPTION \
         --plotTitle "${sample_name} coverage plot" \
         --loglevel=DEBUG
     else
@@ -72,19 +83,20 @@ task plot_coverage {
   }
 
   output {
-    File  aligned_bam                 = "${sample_name}.all.bam"
-    File  aligned_bam_idx             = "${sample_name}.all.bai"
-    File  aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
-    File  aligned_only_reads_bam      = "${sample_name}.mapped.bam"
-    File  aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
-    File  aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
-    File  coverage_plot               = "${sample_name}.coverage_plot.pdf"
-    Int   assembly_length             = read_int("assembly_length")
-    Int   assembly_length_unambiguous = read_int("assembly_length_unambiguous")
-    Int   reads_aligned               = read_int("reads_aligned")
-    Int   read_pairs_aligned          = read_int("read_pairs_aligned")
-    Int   bases_aligned               = read_int("bases_aligned")
-    Float mean_coverage               = read_float("mean_coverage")
+    File   aligned_bam                 = "${sample_name}.all.bam"
+    File   aligned_bam_idx             = "${sample_name}.all.bai"
+    File   aligned_bam_flagstat        = "${sample_name}.all.bam.flagstat.txt"
+    File   aligned_only_reads_bam      = "${sample_name}.mapped.bam"
+    File   aligned_only_reads_bam_idx  = "${sample_name}.mapped.bai"
+    File   aligned_only_reads_fastqc   = "${sample_name}.mapped_fastqc.html"
+    File   coverage_plot               = "${sample_name}.coverage_plot.pdf"
+    Int    assembly_length             = read_int("assembly_length")
+    Int    assembly_length_unambiguous = read_int("assembly_length_unambiguous")
+    Int    reads_aligned               = read_int("reads_aligned")
+    Int    read_pairs_aligned          = read_int("read_pairs_aligned")
+    Int    bases_aligned               = read_int("bases_aligned")
+    Float  mean_coverage               = read_float("mean_coverage")
+    String viralngs_version            = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -132,7 +144,8 @@ task fastqc {
   }
 
   output {
-    File fastqc_html = "${reads_basename}_fastqc.html"
+    File   fastqc_html      = "${reads_basename}_fastqc.html"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -164,7 +177,8 @@ task spikein_report {
   }
 
   output {
-    File report = "${reads_basename}.spike_count.txt"
+    File   report           = "${reads_basename}.spike_count.txt"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
 
   runtime {
@@ -174,5 +188,4 @@ task spikein_report {
     dx_instance_type: "mem1_ssd1_x4"
   }
 }
-
 

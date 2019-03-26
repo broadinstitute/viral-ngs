@@ -164,7 +164,7 @@ def tmp_dir(*args, **kwargs):
     _args = inspect.getcallargs(tempfile.mkdtemp, *args, **kwargs)
     length_margin = 6
     for pfx_sfx in ('prefix', 'suffix'):
-        if _args[pfx_sfx]: 
+        if _args[pfx_sfx]:
             _args[pfx_sfx] = string_to_file_name(_args[pfx_sfx], file_system_path=_args['dir'], length_margin=length_margin)
             length_margin += len(_args[pfx_sfx].encode('utf-8'))
 
@@ -321,6 +321,10 @@ def mkdir_p(dirpath):
         else:
             raise
 
+def touch_p(path, times=None):
+    '''Touch file, making parent directories if they don't exist.'''
+    mkdir_p(os.path.dirname(path))
+    touch(path, times=times)
 
 def open_or_gzopen(fname, *opts, **kwargs):
     mode = 'r'
@@ -358,15 +362,20 @@ def open_or_gzopen(fname, *opts, **kwargs):
         return open(fname, *open_opts, **kwargs)
 
 
-def read_tabfile_dict(inFile):
+def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limit=None):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
     with open_or_gzopen(inFile, 'rU') as inf:
         header = None
+        lines_read=0
         for line in inf:
+            lines_read+=1
             row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
-            if line.startswith('#'):
+            # skip empty lines/rows
+            if len("".join(row)) == 0 or (skip_prefix and line.startswith(skip_prefix)):
+                continue
+            if line.startswith(header_prefix):
                 row[0] = row[0][1:]
                 header = [item for item in row if len(item)]
             elif header is None:
@@ -379,6 +388,9 @@ def read_tabfile_dict(inFile):
                     row = row[:len(header)] + [item for item in row[len(header):] if len(item)]
                 assert len(header) == len(row), "%s != %s" % (len(header), len(row))
                 yield dict((k, v) for k, v in zip(header, row) if v)
+
+            if rowcount_limit and lines_read==rowcount_limit:
+                break
 
 
 def read_tabfile(inFile):
@@ -845,14 +857,14 @@ def uncompressed_file_type(fname):
         base, ext = os.path.splitext(base)
     return ext
 
-def repack_tarballs(out_compressed_tarball, 
-                    input_compressed_tarballs, 
-                    extract_to_disk_path=None, 
-                    extract_numeric_owner=False, 
-                    avoid_disk_roundtrip=True, 
-                    ignore_zeros=True, 
-                    pipe_hint_in=None, 
-                    pipe_hint_out=None, 
+def repack_tarballs(out_compressed_tarball,
+                    input_compressed_tarballs,
+                    extract_to_disk_path=None,
+                    extract_numeric_owner=False,
+                    avoid_disk_roundtrip=True,
+                    ignore_zeros=True,
+                    pipe_hint_in=None,
+                    pipe_hint_out=None,
                     threads=None):
     threads = util.misc.sanitize_thread_count(threads)
 
@@ -900,7 +912,7 @@ def repack_tarballs(out_compressed_tarball,
 
         def read(self, size):
             assert size is not None
-            
+
             buf = self.fileobj.read(size)
             self.written_mirror_file.write(buf)
             return buf
@@ -962,7 +974,6 @@ def repack_tarballs(out_compressed_tarball,
     out_compress_ps.wait()
     if out_compress_ps.returncode != 0:
         raise subprocess.CalledProcessError(out_compress_ps.returncode, "Call error %s" % out_compress_ps.returncode)
-    
+
     if outfile is not None:
         outfile.close()
-

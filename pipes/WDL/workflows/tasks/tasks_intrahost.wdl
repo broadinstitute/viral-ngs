@@ -21,7 +21,8 @@ task isnvs_per_sample {
   }
 
   output {
-    File isnvsFile = "vphaser2.${sample_name}.txt.gz"
+    File   isnvsFile        = "vphaser2.${sample_name}.txt.gz"
+    String viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     memory: "7 GB"
@@ -77,7 +78,8 @@ task isnvs_vcf {
   }
 
   output {
-    Array[File] isnvFiles = ["isnvs.vcf.gz", "isnvs.vcf.gz.tbi", "isnvs.annot.vcf.gz", "isnvs.annot.txt.gz", "isnvs.annot.vcf.gz.tbi"]
+    Array[File] isnvFiles        = ["isnvs.vcf.gz", "isnvs.vcf.gz.tbi", "isnvs.annot.vcf.gz", "isnvs.annot.txt.gz", "isnvs.annot.vcf.gz.tbi"]
+    String      viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     memory: "4 GB"
