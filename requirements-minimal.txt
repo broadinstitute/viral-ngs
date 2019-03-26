@@ -11,4 +11,4 @@ future==0.16.0
 matplotlib=1.5.3
 pysam=0.15.0
 pybedtools=0.7.10
-PyYAML=4.2b1
+PyYAML=5.1
