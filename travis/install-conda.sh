@@ -39,17 +39,18 @@ else # if it does not exist, we need to install miniconda
         export PATH="$MINICONDA_DIR/bin:$PATH"
     fi
     hash -r
-    conda config --set always_yes yes --set changeps1 no --set remote_max_retries 6
+    conda update -y -c conda-canary conda # for pre-release conda
+    conda config --set always_yes yes --set changeps1 no --set remote_max_retries 6 --set channel_priority strict
     conda config --add channels defaults
     conda config --add channels bioconda
     conda config --add channels conda-forge
     conda config --add channels broad-viral
+    conda config --show-sources # print channels
     # Use recommendations from https://github.com/bioconda/bioconda-recipes/issues/13774
-    conda update --quiet -y conda
+    #conda update --quiet -y conda
     # conda config --set channel_priority strict
-    travis_wait conda install --quiet -y pycryptosat
+    travis_wait conda install --quiet -y pycryptosat openjdk
     conda config --set sat_solver pycryptosat
-    conda install --quiet -y openjdk==8.0.112
 fi
 
 # update certs
