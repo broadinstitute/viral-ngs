@@ -28,6 +28,8 @@ import json
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import ncbitax
+import ncbitax.subset
 import pysam
 
 import util.cmd
@@ -39,123 +41,11 @@ import tools.kraken
 import tools.krona
 import tools.picard
 import tools.samtools
-from util.file import open_or_gzopen
+from util.file import open_or_gzopen, maybe_compressed
 
 __commands__ = []
 
 log = logging.getLogger(__name__)
-
-
-class TaxIdError(ValueError):
-    '''Taxonomy ID couldn't be determined.'''
-
-
-def maybe_compressed(fn):
-    fn_gz = fn + '.gz'
-    if os.path.exists(fn):
-        return fn
-    elif os.path.exists(fn_gz):
-        return fn_gz
-    else:
-        raise FileNotFoundError(fn)
-
-
-class TaxonomyDb(object):
-    """
-        This class loads NCBI taxonomy information from:
-        ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/
-    """
-
-    def __init__(
-        self,
-        tax_dir=None,
-        gis=None,
-        nodes=None,
-        names=None,
-        gis_paths=None,
-        nodes_path=None,
-        names_path=None,
-        load_gis=False,
-        load_nodes=False,
-        load_names=False
-    ):
-        if tax_dir:
-            gis_paths = [maybe_compressed(join(tax_dir, 'gi_taxid_nucl.dmp')),
-                         maybe_compressed(join(tax_dir, 'gi_taxid_prot.dmp'))]
-            nodes_path = maybe_compressed(join(tax_dir, 'nodes.dmp'))
-            names_path = maybe_compressed(join(tax_dir, 'names.dmp'))
-        self.tax_dir = tax_dir
-        self.gis_paths = gis_paths
-        self.nodes_path = nodes_path
-        self.names_path = names_path
-        if load_gis:
-            if gis:
-                self.gis = gis
-            elif gis_paths:
-                self.gis = {}
-                for gi_path in gis_paths:
-                    log.info('Loading taxonomy gis: %s', gi_path)
-                    self.gis.update(self.load_gi_single_dmp(gi_path))
-        if load_nodes:
-            if nodes:
-                self.ranks, self.parents = nodes
-            elif nodes_path:
-                log.info('Loading taxonomy nodes: %s', nodes_path)
-                self.ranks, self.parents = self.load_nodes(nodes_path)
-        if load_names:
-            if names:
-                self.names = names
-            elif names_path:
-                log.info('Loading taxonomy names: %s', names_path)
-                self.names = self.load_names(names_path)
-
-    def load_gi_single_dmp(self, dmp_path):
-        '''Load a gi->taxid dmp file from NCBI taxonomy.'''
-        gi_array = {}
-        with open_or_gzopen(dmp_path) as f:
-            for i, line in enumerate(f):
-                gi, taxid = line.strip().split('\t')
-                gi = int(gi)
-                taxid = int(taxid)
-                gi_array[gi] = taxid
-                if (i + 1) % 1000000 == 0:
-                    log.info('Loaded %s gis', i)
-        return gi_array
-
-    def load_names(self, names_db, scientific_only=True):
-        '''Load the names.dmp file from NCBI taxonomy.'''
-        if scientific_only:
-            names = {}
-        else:
-            names = collections.defaultdict(list)
-        for line in open_or_gzopen(names_db):
-            parts = line.strip().split('|')
-            taxid = int(parts[0])
-            name = parts[1].strip()
-            #unique_name = parts[2].strip()
-            class_ = parts[3].strip()
-            if scientific_only:
-                if class_ == 'scientific name':
-                    names[taxid] = name
-            else:
-                names[taxid].append(name)
-        return names
-
-    def load_nodes(self, nodes_db):
-        '''Load ranks and parents arrays from NCBI taxonomy.'''
-        ranks = {}
-        parents = {}
-        with open_or_gzopen(nodes_db) as f:
-            for line in f:
-                parts = line.strip().split('|')
-                taxid = int(parts[0])
-                parent_taxid = int(parts[1])
-                rank = parts[2].strip()
-                #embl_code = parts[3].strip()
-                #division_id = parts[4].strip()
-                parents[taxid] = parent_taxid
-                ranks[taxid] = rank
-        return ranks, parents
 
 
 BlastRecord = collections.namedtuple(
@@ -316,7 +206,7 @@ def process_sam_hits(db, sam_hits, top_percent):
     valid_hits.sort(key=lambda sam1: sam1.get_tag('AS'), reverse=True)
 
     tax_ids = [extract_tax_id(hit) for hit in valid_hits]
-    return coverage_lca(tax_ids, db.parents)
+    return db.coverage_lca(tax_ids)
 
 
 def process_blast_hits(db, hits, top_percent):
@@ -344,47 +234,7 @@ def process_blast_hits(db, hits, top_percent):
     valid_hits.sort(key=operator.attrgetter('bit_score'), reverse=True)
     if valid_hits:
         tax_ids = tuple(itertools.chain(*(blast_m8_taxids(hit) for hit in valid_hits)))
-        return coverage_lca(tax_ids, db.parents)
-
-
-def coverage_lca(query_ids, parents, lca_percent=100):
-    '''Calculate the lca that will cover at least this percent of queries.
-
-    Args:
-      query_ids: []int list of nodes.
-      parents: []int array of parents.
-      lca_percent: (float) Cover at least this percent of queries.
-
-    Return:
-      (int) LCA
-    '''
-    lca_needed = lca_percent / 100 * len(query_ids)
-    paths = []
-    for query_id in query_ids:
-        path = []
-        while query_id != 1:
-            path.append(query_id)
-            if parents.get(query_id, 0) == 0:
-                log.warn('Parent for query id: {} missing'.format(query_id))
-                break
-            query_id = parents[query_id]
-        if query_id == 1:
-            path.append(1)
-            path = list(reversed(path))
-            paths.append(path)
-    if not paths:
-        return
-
-    last_common = 1
-    max_path_length = max(len(path) for path in paths)
-    for level in range(max_path_length):
-        valid_paths = (path for path in paths if len(path) > level)
-        max_query_id, hits_covered = collections.Counter(path[level] for path in valid_paths).most_common(1)[0]
-        if hits_covered >= lca_needed:
-            last_common = max_query_id
-        else:
-            break
-    return last_common
+        return db.coverage_lca(tax_ids)
 
 
 def tree_level_lookup(parents, node, level_cache):
@@ -455,278 +305,6 @@ def push_up_tree_hits(parents, hits, min_support_percent=None, min_support=None,
         if hits[parent_hit_id] < min_support:
             pq_level.put((-tree_level_lookup(parents, parent_hit_id, level_cache), parent_hit_id))
     return hits
-
-
-def parents_to_children(parents):
-    '''Convert an array of parents to lists of children for each parent.
-
-    Returns:
-      (dict[list]) Lists of children
-    '''
-    children = collections.defaultdict(list)
-    for node, parent in parents.items():
-        if node == 1:
-            continue
-        if parent != 0:
-            children[parent].append(node)
-    return children
-
-
-
-def file_lines(filename):
-    if filename is not None:
-        with open(filename) as f:
-            for line in f:
-                yield line
-
-
-def collect_children(children, original_taxids):
-    '''Collect nodes with all children recursively.'''
-    taxids = original_taxids
-    while taxids:
-        taxid = taxids.pop()
-        yield taxid
-        for child_taxid in children[taxid]:
-            taxids.add(child_taxid)
-
-
-def collect_parents(parents, taxids):
-    '''Collect nodes with all parents recursively.'''
-    # The root taxid node is 1
-    yield 1
-    taxids_with_parents = set([1])
-    for taxid in taxids:
-        while taxid not in taxids_with_parents:
-            yield taxid
-            taxids_with_parents.add(taxid)
-            taxid = parents[taxid]
-
-
-def parser_subset_taxonomy(parser=argparse.ArgumentParser()):
-    parser.add_argument(
-        "taxDb",
-        help="Taxonomy database directory (containing nodes.dmp, parents.dmp etc.)",
-    )
-    parser.add_argument(
-        "outputDb",
-        help="Output taxonomy database directory",
-    )
-    parser.add_argument(
-        "--whitelistTaxids",
-        help="List of taxids to add to taxonomy (with parents)",
-        nargs='+', type=int
-    )
-    parser.add_argument(
-        "--whitelistTaxidFile",
-        help="File containing taxids - one per line - to add to taxonomy with parents.",
-    )
-    parser.add_argument(
-        "--whitelistTreeTaxids",
-        help="List of taxids to add to taxonomy (with parents and children)",
-        nargs='+', type=int
-    )
-    parser.add_argument(
-        "--whitelistTreeTaxidFile",
-        help="File containing taxids - one per line - to add to taxonomy with parents and children.",
-    )
-    parser.add_argument(
-        "--whitelistGiFile",
-        help="File containing GIs - one per line - to add to taxonomy with nodes.",
-    )
-    parser.add_argument(
-        "--whitelistAccessionFile",
-        help="File containing accessions - one per line - to add to taxonomy with nodes.",
-    )
-    parser.add_argument(
-        "--skipGi", action='store_true',
-        help="Skip GI to taxid mapping files"
-    )
-    parser.add_argument(
-        "--skipAccession", action='store_true',
-        help="Skip accession to taxid mapping files"
-    )
-    parser.add_argument(
-        "--skipDeadAccession", action='store_true',
-        help="Skip dead accession to taxid mapping files"
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, subset_taxonomy, split_args=True)
-    return parser
-def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=None,
-                    whitelistTreeTaxids=None, whitelistTreeTaxidFile=None,
-                    whitelistGiFile=None, whitelistAccessionFile=None,
-                    skipGi=None, skipAccession=None, skipDeadAccession=None,
-                    stripVersion=True):
-    '''
-    Generate a subset of the taxonomy db files filtered by the whitelist. The
-    whitelist taxids indicate specific taxids plus their parents to add to
-    taxonomy while whitelistTreeTaxids indicate specific taxids plus both
-    parents and all children taxa. Whitelist GI and accessions can only be
-    provided in file form and the resulting gi/accession2taxid files will be
-    filtered to only include those in the whitelist files. Finally, taxids +
-    parents for the gis/accessions will also be included.
-    '''
-    util.file.mkdir_p(os.path.join(outputDb, 'accession2taxid'))
-    db = TaxonomyDb(tax_dir=taxDb, load_nodes=True)
-
-    taxids = set()
-    if whitelistTaxids is not None:
-        taxids.update(set(whitelistTaxids))
-    taxids.update((int(x) for x in file_lines(whitelistTaxidFile)))
-
-    tree_taxids = set()
-    if whitelistTreeTaxids is not None:
-        tree_taxids.update(set(whitelistTreeTaxids))
-    taxids.update((int(x) for x in file_lines(whitelistTreeTaxidFile)))
-    keep_taxids = set(collect_parents(db.parents, taxids))
-
-    if tree_taxids:
-        db.children = parents_to_children(db.parents)
-        children_taxids = collect_children(db.children, tree_taxids)
-        keep_taxids.update(children_taxids)
-
-    # Taxids kept based on GI or Accession. Get parents afterwards to not pull in all GIs/accessions.
-    keep_seq_taxids = set()
-    def filter_file(path, sep='\t', taxid_column=0, gi_column=None, a2t=False, header=False):
-        input_path = os.path.join(db.tax_dir, path)
-        output_path = os.path.join(outputDb, path)
-
-        input_path = maybe_compressed(input_path)
-        with open_or_gzopen(input_path, 'rt') as f, \
-             open_or_gzopen(output_path, 'wt') as out_f:
-            if header:
-                out_f.write(next(f))
-            for line in f:
-                parts = line.split(sep)
-                taxid = int(parts[taxid_column])
-                if gi_column is not None:
-                    gi = int(parts[gi_column])
-                    if gi in gis:
-                        keep_seq_taxids.add(taxid)
-                        out_f.write(line)
-                        continue
-                if a2t:
-                    accession = parts[accession_column_i]
-                    if stripVersion:
-                        accession = accession.split('.', 1)[0]
-                    if accession in accessions:
-                        keep_seq_taxids.add(taxid)
-                        out_f.write(line)
-                        continue
-                if taxid in keep_taxids:
-                    out_f.write(line)
-
-    if not skipGi:
-        gis = set(int(x) for x in file_lines(whitelistGiFile))
-
-        filter_file('gi_taxid_nucl.dmp', taxid_column=1, gi_column=0)
-        filter_file('gi_taxid_prot.dmp', taxid_column=1, gi_column=0)
-
-    if not skipAccession:
-        if stripVersion:
-            accessions = set(x.strip().split('.', 1)[0] for x in file_lines(whitelistAccessionFile))
-            accession_column_i = 0
-        else:
-            accessions = set(file_lines(whitelistAccessionFile))
-            accession_column_i = 1
-
-        acc_dir = os.path.join(db.tax_dir, 'accession2taxid')
-        acc_paths = []
-        for fn in os.listdir(acc_dir):
-            if fn.endswith('.accession2taxid') or fn.endswith('.accession2taxid.gz'):
-                if skipDeadAccession and fn.startswith('dead_'):
-                    continue
-                acc_paths.append(os.path.join(acc_dir, fn))
-        for acc_path in acc_paths:
-            filter_file(os.path.relpath(acc_path, db.tax_dir), taxid_column=2, header=True, a2t=True)
-
-
-    # Add in taxids found from processing GI/accession
-    keep_seq_taxids = collect_parents(db.parents, keep_seq_taxids)
-    keep_taxids.update(keep_seq_taxids)
-
-    filter_file('nodes.dmp', sep='|')
-    filter_file('names.dmp', sep='|')
-    filter_file('merged.dmp')
-    filter_file('delnodes.dmp')
-__commands__.append(('subset_taxonomy', parser_subset_taxonomy))
-
-
-def rank_code(rank):
-    '''Get the short 1 letter rank code for named ranks.'''
-    if rank == "species":
-        return "S"
-    elif rank == "genus":
-        return "G"
-    elif rank == "family":
-        return "F"
-    elif rank == "order":
-        return "O"
-    elif rank == "class":
-        return "C"
-    elif rank == "phylum":
-        return "P"
-    elif rank == "kingdom":
-        return "K"
-    elif rank == "superkingdom":
-        return "D"
-    elif rank == "unclassified":
-        return "U"
-    else:
-        return "-"
-
-
-def taxa_hits_from_tsv(f, taxid_column=2):
-    '''Return a counter of hits from tsv.'''
-    c = collections.Counter()
-    for row in csv.reader(f, delimiter='\t'):
-        tax_id = int(row[taxid_column - 1])
-        c[tax_id] += 1
-    return c
-
-
-def kraken_dfs_report(db, taxa_hits):
-    '''Return a kraken compatible DFS report of taxa hits.
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      taxa_hits: (collections.Counter) # of hits per tax id.
-
-    Return:
-      []str lines of the report
-    '''
-
-    db.children = parents_to_children(db.parents)
-    total_hits = sum(taxa_hits.values())
-    if total_hits == 0:
-        return ['\t'.join(['100.00', '0', '0', 'U', '0', 'unclassified'])]
-
-    lines = []
-    kraken_dfs(db, lines, taxa_hits, total_hits, 1, 0)
-    unclassified_hits = taxa_hits.get(0, 0)
-    unclassified_hits += taxa_hits.get(-1, 0)
-
-    if unclassified_hits > 0:
-        percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
-        lines.append(
-            '\t'.join([
-                str(percent_covered), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
-            ])
-        )
-    return reversed(lines)
-
-
-def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
-    '''Recursively do DFS for number of hits per taxa.'''
-    cum_hits = num_hits = taxa_hits.get(taxid, 0)
-    for child_taxid in db.children[taxid]:
-        cum_hits += kraken_dfs(db, lines, taxa_hits, total_hits, child_taxid, level + 1)
-    percent_covered = '%.2f' % (cum_hits / total_hits * 100)
-    rank = rank_code(db.ranks[taxid])
-    name = db.names[taxid]
-    if cum_hits > 0:
-        lines.append('\t'.join([percent_covered, str(cum_hits), str(num_hits), rank, str(taxid), '  ' * level + name]))
-    return cum_hits
 
 
 def parser_kraken(parser=argparse.ArgumentParser()):
@@ -850,12 +428,12 @@ def diamond(inBam, db, taxDb, outReport, outReads=None, threads=None):
 
         diamond_ps = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
 
-        tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
+        tax_db = ncbitax.TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
         with open(diamond_pipe) as lca_p:
-            hits = taxa_hits_from_tsv(lca_p)
+            hits = ncbitax.taxa_hits_from_tsv(lca_p)
             with open(outReport, 'w') as f:
-                for line in kraken_dfs_report(tax_db, hits):
+                for line in tax_db.kraken_dfs_report(hits):
                     print(line, file=f)
 
         s2fq.wait()
@@ -998,7 +576,7 @@ def align_rna_metagenomics(
     aln_bam = util.file.mkstempfname('.bam')
     bwa.mem(inBam, db, aln_bam, options=bwa_opts)
 
-    tax_db = TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
+    tax_db = ncbitax.TaxonomyDb(tax_dir=taxDb, load_names=True, load_nodes=True)
 
     if dupeReport:
         aln_bam_sorted = util.file.mkstempfname('.align_namesorted.bam')
@@ -1035,10 +613,8 @@ def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=No
 
     with open(outReport, 'w') as f:
 
-        for line in kraken_dfs_report(tax_db, hits):
+        for line in tax_db.kraken_dfs_report(hits):
             print(line, file=f)
-
-
 
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
@@ -1152,7 +728,7 @@ class KrakenBuildError(Exception):
 
 def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input bam file.')
-    parser.add_argument('read_IDs_to_tax_IDs', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')    
+    parser.add_argument('read_IDs_to_tax_IDs', help='TSV file mapping read IDs to taxIDs, Kraken-format by default. Assumes bijective mapping of read ID to tax ID.')
     parser.add_argument('out_bam', help='Output bam file, filtered to the taxa specified')
     parser.add_argument('nodes_dmp', help='nodes.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
     parser.add_argument('names_dmp', help='names.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
@@ -1168,29 +744,27 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_bam_to_taxa, split_args=True)
-    return parser    
+    return parser
 
-def filter_bam_to_taxa( in_bam, 
+def filter_bam_to_taxa( in_bam,
                         read_IDs_to_tax_IDs,
                         out_bam,
-                        nodes_dmp, 
-                        names_dmp, 
-                        tax_names=None, 
+                        nodes_dmp,
+                        names_dmp,
+                        tax_names=None,
                         tax_ids=None,
                         omit_children=False,
-                        read_id_col=1, 
+                        read_id_col=1,
                         tax_id_col=2,
                         JVMmemory=None ):
     """
-        Filter an (already classified) input bam file to only include reads that have been mapped to specified 
-        taxonomic IDs or scientific names. This requires a classification file, as produced 
+        Filter an (already classified) input bam file to only include reads that have been mapped to specified
+        taxonomic IDs or scientific names. This requires a classification file, as produced
         by tools such as Kraken, as well as the NCBI taxonomy database.
     """
     tax_ids = set(tax_ids) if tax_ids else set()
     tax_names = tax_names or []
-    # use TaxonomyDb() class above and tree traversal/collection functions above 
-    db = TaxonomyDb(nodes_path=nodes_dmp, names_path=names_dmp, load_nodes=True, load_names=True)
-    db.children = parents_to_children(db.parents)
+    db = ncbitax.TaxonomyDb(nodes_path=nodes_dmp, names_path=names_dmp, load_nodes=True, load_names=True)
 
     paired_read_base_pattern = re.compile(r'^(.*?)(/[1-2])?$')
 
@@ -1223,7 +797,7 @@ def filter_bam_to_taxa( in_bam,
     for tax_id in tax_ids:
         tax_ids_to_include.add(tax_id)
         if not omit_children:
-            child_ids = collect_children(db.children, set([tax_id]))
+            child_ids = ncbitax.collect_children(db.children, set([tax_id]))
             tax_ids_to_include |= set(child_ids)
 
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
@@ -1249,10 +823,10 @@ def filter_bam_to_taxa( in_bam,
         # if we found reads matching the taxNames requested,
         if read_ids_written > 0:
             # filter the input bam to include only these
-            tools.picard.FilterSamReadsTool().execute(in_bam, 
-                                                        False, 
-                                                        temp_read_list, 
-                                                        out_bam, 
+            tools.picard.FilterSamReadsTool().execute(in_bam,
+                                                        False,
+                                                        temp_read_list,
+                                                        out_bam,
                                                         JVMmemory=JVMmemory)
         else:
             # otherwise, "touch" the output bam to contain the
@@ -1267,7 +841,7 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--jsonOut', dest="json_out", type=argparse.FileType('w'), help='The path to a json file containing the relevant parsed summary data in json format.')
     parser.add_argument('--csvOut', dest="csv_out", type=argparse.FileType('w'), help='The path to a csv file containing sample-specific counts.')
     parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s). More than one can be specified.', default="Viruses")
-    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="species", 
+    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="species",
                         choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
     parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N most abundant taxa by read count (default: %(default)s)', default=100)
     parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
@@ -1281,13 +855,13 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
 def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill, include_root):
     """
         Aggregates taxonomic abundance data from multiple Kraken-format summary files.
-        It is intended to report information on a particular taxonomic level (--taxlevelFocus; ex. 'species'), 
-        within a higher-level grouping (--taxHeading; ex. 'Viruses'). By default, when --taxHeading 
-        is at the same level as --taxlevelFocus a summary with lines for each sample is emitted. 
+        It is intended to report information on a particular taxonomic level (--taxlevelFocus; ex. 'species'),
+        within a higher-level grouping (--taxHeading; ex. 'Viruses'). By default, when --taxHeading
+        is at the same level as --taxlevelFocus a summary with lines for each sample is emitted.
         Otherwise, a histogram is returned. If per-sample information is desired, --noHist can be specified.
         In per-sample data, the suffix "-pt" indicates percentage, so a value of 0.02 is 0.0002 of the total number of reads for the sample.
-        If --topN is specified, only the top N most abundant taxa are included in the histogram count or per-sample output. 
-        If a number is specified for --countThreshold, only taxa with that number of reads (or greater) are included. 
+        If --topN is specified, only the top N most abundant taxa are included in the histogram count or per-sample output.
+        If a number is specified for --countThreshold, only taxa with that number of reads (or greater) are included.
         Full data returned via --jsonOut (filtered by --topN and --countThreshold), whereas -csvOut returns a summary.
     """
 
@@ -1295,7 +869,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
     same_level = False
 
     Abundance = collections.namedtuple("Abundance", "percent,count")
-    
+
     def indent_len(in_string):
         return len(in_string)-len(in_string.lstrip())
 
@@ -1315,11 +889,11 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
                 fieldnames = ["pct_of_reads","num_reads","reads_exc_children","rank","NCBI_tax_ID","sci_name"]
                 row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
-                
+
                 indent_of_line = indent_len(row["sci_name"])
                 # remove leading/trailing whitespace from each item
                 row = { k:v.strip() for k, v in row.items()}
-                
+
                 # rows are formatted like so:
                 # 0.00  16  0   D   10239     Viruses
                 #
@@ -1330,7 +904,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 # row["NCBI_tax_ID"] NCBI taxonomy ID
                 # row["sci_name"] indented scientific name
 
-                # if the root-level bins (root, unclassified) should be included, do so, but bypass normal 
+                # if the root-level bins (root, unclassified) should be included, do so, but bypass normal
                 # stateful parsing logic since root does not have a distinct rank level
                 if row["sci_name"].lower() in ["root","unclassified"] and include_root:
                     sample_root_summary[row["sci_name"]] = collections.OrderedDict()
@@ -1344,24 +918,24 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                 if indent_of_selection == -1:
                     if row["sci_name"].lower() in tax_headings_copy:
                         tax_headings_copy.remove(row["sci_name"].lower())
-                        
+
                         should_process = True
                         indent_of_selection = indent_of_line
                         currently_being_processed = row["sci_name"]
                         sample_summary[currently_being_processed] = collections.OrderedDict()
-                        if row["rank"] == rank_code(taxlevel_focus):
+                        if row["rank"] == ncbitax.kraken_rank_code(taxlevel_focus):
                             same_level = True
                         if row["rank"] == "-":
                             log.warning("Non-taxonomic parent level selected")
-                
+
                 if should_process:
                     # skip "-" rank levels since they do not occur at the sample level
                     # otherwise include the taxon row if the rank matches the desired level of focus
-                    if (row["rank"] != "-" and rank_code(taxlevel_focus) == row["rank"]):                        
+                    if (row["rank"] != "-" and ncbitax.kraken_rank_code(taxlevel_focus) == row["rank"]):
                         if int(row["num_reads"])>=count_threshold:
                             sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
 
-        
+
         for k,taxa in sample_summary.items():
             sample_summary[k] = collections.OrderedDict(sorted(taxa.items(), key=lambda item: (item[1][1]) , reverse=True)[:top_n_entries])
 
@@ -1370,8 +944,8 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                             "\"{name}\" with {reads} reads ({percent:.2%} of total); "
                             "included since >{threshold} read{plural}".format(
                                                                           f=f,
-                                                                          heading=k, 
-                                                                          level=taxlevel_focus, 
+                                                                          heading=k,
+                                                                          level=taxlevel_focus,
                                                                           name=list(sample_summary[k].items())[0][0],
                                                                           reads=list(sample_summary[k].items())[0][1].count,
                                                                           percent=list(sample_summary[k].items())[0][1].percent/100.0,
@@ -1417,12 +991,12 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
             for sample, taxa in samples.items():
                 sample_dict = {}
                 sample_dict["sample"] = sample
-                for heading,taxon in taxa.items(): 
+                for heading,taxon in taxa.items():
                     for entry in taxon.keys():
                         sample_dict[entry+"-pt"] = taxon[entry].percent
                         sample_dict[entry+"-ct"] = taxon[entry].count
                 writer.writerow(sample_dict)
-                
+
 
             csv_out.close()
 
@@ -1524,8 +1098,9 @@ def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
 
             # Context-managerize eventually
             taxonomy_tmp = tempfile.mkdtemp()
-            subset_taxonomy(taxonomy, taxonomy_tmp, whitelistTaxidFile=whitelist_taxid_f,
-                            whitelistGiFile=whitelist_gi_f, whitelistAccessionFile=whitelist_accession_f)
+            ncbitax.subset.subset_taxonomy(
+                taxonomy, taxonomy_tmp, whitelistTaxidFile=whitelist_taxid_f,
+                whitelistGiFile=whitelist_gi_f, whitelistAccessionFile=whitelist_accession_f)
             shutil.move(taxonomy_tmp, taxonomy_dir)
         else:
             os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
