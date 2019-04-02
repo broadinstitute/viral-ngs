@@ -81,7 +81,7 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete)
-
+    
     return parser
 
 
@@ -102,11 +102,11 @@ def main_deplete(args):
 
     # if the user has requested a revertBam
 
-    with read_utils.revert_bam_if_aligned(              args.inBam,
-                                        revert_bam    = args.revertBam,
-                                        clear_tags    = args.clear_tags,
-                                        tags_to_clear = args.tags_to_clear,
-                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
+    with read_utils.revert_bam_if_aligned(              args.inBam, 
+                                        revert_bam    = args.revertBam, 
+                                        clear_tags    = args.clear_tags, 
+                                        tags_to_clear = args.tags_to_clear, 
+                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'], 
                                         JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(
@@ -154,7 +154,7 @@ def parser_deplete_human(parser=argparse.ArgumentParser()):
     return parser
 
 def main_deplete_human(args):
-    ''' A wrapper around 'deplete'; deprecated but preserved for legacy compatibility.
+    ''' A wrapper around 'deplete'; deprecated but preserved for legacy compatibility. 
     '''
     main_deplete(args)
 __commands__.append(('deplete_human', parser_deplete_human))
@@ -321,10 +321,10 @@ def main_deplete_bam_bmtagger(args):
     def bmtagger_wrapper(inBam, db, outBam, JVMmemory=None):
         return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
 
-    with read_utils.revert_bam_if_aligned(              args.inBam,
-                                        clear_tags    = args.clear_tags,
-                                        tags_to_clear = args.tags_to_clear,
-                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
+    with read_utils.revert_bam_if_aligned(              args.inBam, 
+                                        clear_tags    = args.clear_tags, 
+                                        tags_to_clear = args.tags_to_clear, 
+                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'], 
                                         JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(
@@ -351,7 +351,7 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
         # concatenating them all and running deplete_method
         # just once
         tmpDb = mkstempfname('.fasta')
-        util.file.cat(tmpDb, refDbs)
+        merge_compressed_files(refDbs, tmpDb, sep='\n')
         refDbs = [tmpDb]
 
     samtools = tools.samtools.SamtoolsTool()
@@ -516,10 +516,10 @@ def main_deplete_blastn_bam(args):
     def wrapper(inBam, db, outBam, threads, JVMmemory=None):
         return deplete_blastn_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
 
-    with read_utils.revert_bam_if_aligned(              args.inBam,
-                                        clear_tags    = args.clear_tags,
-                                        tags_to_clear = args.tags_to_clear,
-                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
+    with read_utils.revert_bam_if_aligned(              args.inBam, 
+                                        clear_tags    = args.clear_tags, 
+                                        tags_to_clear = args.tags_to_clear, 
+                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'], 
                                         JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(bamToDeplete, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
@@ -539,7 +539,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
                 # this is a single file
                 if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
                     # this is an unindexed fasta file, we will need to index it
-                    # function should conform to the signature:
+                    # function should conform to the signature: 
                     # db_build_command(inputFasta, outputDirectory, outputFilePrefix)
                     # the function will need to be able to handle lz4, etc.
                     db_build_command(db, tempDbDir, db_prefix)
@@ -581,14 +581,14 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None, clear_tags=True, tags_to_cl
             with util.file.tempfname('.filtered.sam') as filtered_sam:
                 # filter proper pairs
                 tools.samtools.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
-
+                
                 picardOptions = []
                 if clear_tags:
                     for tag in tags_to_clear:
                         picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
                 tools.picard.RevertSamTool().execute(
-                   filtered_sam,
-                   outBam,
+                   filtered_sam, 
+                   outBam, 
                    picardOptions=['SORT_ORDER=queryname'] + picardOptions,
                     JVMmemory=JVMmemory
                 )
@@ -608,10 +608,10 @@ def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
 
 def main_deplete_bwa_bam(args):
     '''Use BWA to remove reads that match at least one of the specified databases.'''
-    with read_utils.revert_bam_if_aligned(              args.inBam,
-                                        clear_tags    = args.clear_tags,
-                                        tags_to_clear = args.tags_to_clear,
-                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
+    with read_utils.revert_bam_if_aligned(              args.inBam, 
+                                        clear_tags    = args.clear_tags, 
+                                        tags_to_clear = args.tags_to_clear, 
+                                        picardOptions = ['MAX_DISCARD_FRACTION=0.5'], 
                                         JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
 
@@ -652,6 +652,38 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
+
+# ================================
+# ***  merge_compressed_files  ***
+# ================================
+
+def merge_compressed_files(inFiles, outFile, sep=''):
+    ''' Take a collection of input text files, possibly compressed,
+        and concatenate into a single output text file.
+        TO DO: if we made util.file.open_or_gzopen more multilingual,
+        we wouldn't need this.
+    '''
+    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+        first = True
+        for infname in inFiles:
+            if not first:
+                if sep:
+                    outf.write(sep)
+            else:
+                first = False
+            if infname.endswith('.gz') or infname.endswith('.lz4') or infname.endswith('.bz2'):
+                if infname.endswith('.gz'):
+                    decompressor = ['pigz', '-d']
+                elif infname.endswith('.lz4'):
+                    decompressor = ['lz4', '-d']
+                else:
+                    decompressor = ['lbzip2', '-d']
+                with open(infname, 'rb') as inf:
+                    subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+            else:
+                with open(infname, 'rt') as inf:
+                    for line in inf:
+                        outf.write(line)
 
 # ========================
 # ***  bwa_build_db  ***
