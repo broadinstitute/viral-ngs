@@ -22,7 +22,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'gap2seq'
-TOOL_VERSION = '2.1'
+TOOL_VERSION = '3.1.1a1'
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class Gap2SeqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq.sh')]
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
