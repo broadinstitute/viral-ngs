@@ -237,17 +237,13 @@ class CondaPackage(InstallMethod):
             run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent)
 
         if result.returncode == 0:
-            if not silent: # if we called this with silent, we do not care about the output
-                try:
-                    command_output = result.stdout.decode("UTF-8")
-                    data = json.loads(self._string_from_start_of_json(command_output))
-                    return data
-                except:
-                    _log.warning("Failed to decode JSON output from conda command '%s': %s", (run_cmd,result.stdout.decode("UTF-8")))
-                    return  # return rather than raise so we can fall back to the next install method
-            else:
-                return result.stdout.decode("UTF-8")
-
+            try:
+                command_output = result.stdout.decode("UTF-8")
+                data = json.loads(self._string_from_start_of_json(command_output))
+                return data
+            except:
+                _log.warning("Failed to decode JSON output from conda command '%s': %s", (run_cmd,result.stdout.decode("UTF-8")))
+                return  # return rather than raise so we can fall back to the next install method
 
     def __init__(
         self,
@@ -355,10 +351,14 @@ class CondaPackage(InstallMethod):
     def _string_from_start_of_json(string_with_json):
         # JSON can start with "{" or "["
         # via http://www.json.org/
-        matches = re.compile(r"\{|\[").search(string_with_json)
-        if matches:
-            return string_with_json[matches.start():]
-        else:
+        try:
+            matches = re.compile(r"\{|\[").search(string_with_json)
+            if matches:
+                return string_with_json[matches.start():]
+            else:
+                _log.warning("Does not look like json: %s" % string_with_json)
+                return None
+        except:
             _log.warning("Does not look like json: %s" % string_with_json)
             return None
 
