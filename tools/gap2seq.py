@@ -22,7 +22,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'gap2seq'
-TOOL_VERSION = '3.1.1a1'
+TOOL_VERSION = '3.1.1a2'
 
 log = logging.getLogger(__name__)
 
