@@ -236,13 +236,16 @@ class CondaPackage(InstallMethod):
             run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent)
 
         if result.returncode == 0:
-            try:
-                command_output = result.stdout.decode("UTF-8")
-                data = json.loads(self._string_from_start_of_json(command_output))
-                return data
-            except:
-                _log.warning("Failed to decode JSON output from conda command: %s", result.stdout.decode("UTF-8"))
-                return  # return rather than raise so we can fall back to the next install method
+            if not silent: # if we called this with silent, we do not care about the output
+                try:
+                    command_output = result.stdout.decode("UTF-8")
+                    data = json.loads(self._string_from_start_of_json(command_output))
+                    return data
+                except:
+                    _log.warning("Failed to decode JSON output from conda command: %s", result.stdout.decode("UTF-8"))
+                    return  # return rather than raise so we can fall back to the next install method
+            else:
+                return result.stdout.decode("UTF-8")
 
 
     def __init__(
