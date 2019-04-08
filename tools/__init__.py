@@ -232,6 +232,7 @@ class CondaPackage(InstallMethod):
         if cmd[0] in self.QUIET_COMMANDS:
             run_cmd.extend(['-q', '-y'])
         run_cmd.extend(cmd)
+        print("run_cmd",run_cmd)
         result = util.misc.run_and_print(
             run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent)
 
@@ -242,7 +243,7 @@ class CondaPackage(InstallMethod):
                     data = json.loads(self._string_from_start_of_json(command_output))
                     return data
                 except:
-                    _log.warning("Failed to decode JSON output from conda command: %s", result.stdout.decode("UTF-8"))
+                    _log.warning("Failed to decode JSON output from conda command '%s': %s", (run_cmd,result.stdout.decode("UTF-8")))
                     return  # return rather than raise so we can fall back to the next install method
             else:
                 return result.stdout.decode("UTF-8")
@@ -354,7 +355,7 @@ class CondaPackage(InstallMethod):
     def _string_from_start_of_json(string_with_json):
         # JSON can start with "{" or "["
         # via http://www.json.org/
-        matches = re.compile("\{|\[").search(string_with_json)
+        matches = re.compile(r"\{|\[").search(string_with_json)
         if matches:
             return string_with_json[matches.start():]
         else:
