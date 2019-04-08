@@ -401,7 +401,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        data = self.execute(['list', "-f", "-c", "-p", self.env_path, "--json", self.package])
+        data = self.execute(['list', "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True)
         if len(data) > 0:
             _log.debug('Conda package found: {}'.format(data))
             return True
@@ -489,7 +489,7 @@ class CondaPackage(InstallMethod):
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
 
-        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=False)
+        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=False, silent=True)
         if data is None or not len(data):
             return
         if isinstance(data[0], dict):
@@ -525,7 +525,7 @@ class CondaPackage(InstallMethod):
             self.installed = False
 
     def install_package(self):
-        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=logging.INFO)
+        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=logging.INFO, silent=True)
         if not data:
             return
         for d in data:
