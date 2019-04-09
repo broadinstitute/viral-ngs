@@ -227,14 +227,14 @@ class CondaPackage(InstallMethod):
         'remove',
         ]
 
-    def execute(self, cmd, loglevel=logging.DEBUG, buffered=None, check=None, silent=None):
+    def execute(self, cmd, loglevel=logging.DEBUG, buffered=None, check=None, silent=None, stderr=None):
         run_cmd = ['conda']
         if cmd[0] in self.QUIET_COMMANDS:
             run_cmd.extend(['-q', '-y'])
         run_cmd.extend(cmd)
         print("run_cmd",run_cmd)
         result = util.misc.run_and_print(
-            run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent)
+            run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent, stderr=stderr)
 
         if result.returncode == 0:
             try:
@@ -490,7 +490,7 @@ class CondaPackage(InstallMethod):
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
 
-        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=False, silent=True)
+        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=True, silent=True)
         if data is None or not len(data):
             return
         if isinstance(data[0], dict):
@@ -526,7 +526,7 @@ class CondaPackage(InstallMethod):
             self.installed = False
 
     def install_package(self):
-        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=None, silent=True)
+        data = self.execute(["list", "--json", "-p", self.env_path], silent=True, check=True)
         if not data:
             return
         for d in data:
