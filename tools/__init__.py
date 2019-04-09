@@ -525,7 +525,7 @@ class CondaPackage(InstallMethod):
             self.installed = False
 
     def install_package(self):
-        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=logging.INFO, silent=True)
+        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=None, silent=True)
         if not data:
             return
         for d in data:
