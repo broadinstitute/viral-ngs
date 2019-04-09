@@ -232,7 +232,6 @@ class CondaPackage(InstallMethod):
         if cmd[0] in self.QUIET_COMMANDS:
             run_cmd.extend(['-q', '-y'])
         run_cmd.extend(cmd)
-        print("run_cmd",run_cmd)
         result = util.misc.run_and_print(
             run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent, stderr=stderr)
 
@@ -242,7 +241,6 @@ class CondaPackage(InstallMethod):
                 data = json.loads(self._string_from_start_of_json(command_output.strip()))
                 return data
             except Exception as e:
-                _log.warning("exception: %s", str(e))
                 _log.warning("Failed to decode JSON during conda command '%s' emitting output: %s", " ".join(run_cmd),result.stdout.decode("UTF-8"))
                 return  # return rather than raise so we can fall back to the next install method
 
