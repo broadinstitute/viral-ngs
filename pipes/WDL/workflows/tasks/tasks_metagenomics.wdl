@@ -1,17 +1,12 @@
-
-# TO DO:
-# kraken_build (input & output tarballs)
-# diamond, bwa, etc
-
-task kraken {
+task krakenuniq {
   Array[File] reads_unmapped_bam
-  File        kraken_db_tar_lz4
-  File        krona_taxonomy_db_tgz
+  File        krakenuniq_db_tar_lz4  # krakenuniq/{database.kdb,taxonomy}
+  File        krona_taxonomy_db_tgz  # taxonomy/taxonomy.tab
 
   parameter_meta {
-    kraken_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+    krakenuniq_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
     krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-    #reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
   }
 
   command {
@@ -24,7 +19,7 @@ task kraken {
 
     # decompress DB to $DB_DIR
     read_utils.py extract_tarball \
-      ${kraken_db_tar_lz4} $DB_DIR \
+      ${krakenuniq_db_tar_lz4} $DB_DIR \
       --loglevel=DEBUG
     read_utils.py extract_tarball \
       ${krona_taxonomy_db_tgz} . \
@@ -33,17 +28,17 @@ task kraken {
     # prep input and output file names
     OUT_READS=fnames_outreads.txt
     OUT_REPORTS=fnames_outreports.txt
-    OUT_BASENAME=basenames_reads.txt
+    OUT_BASENAME=basenames_reports.txt
     for bam in ${sep=' ' reads_unmapped_bam}; do
-      echo "$(basename $bam .bam).kraken-reads" >> $OUT_BASENAME
-      echo "$(basename $bam .bam).kraken-reads.txt.gz" >> $OUT_READS
-      echo "$(basename $bam .bam).kraken-summary_report.txt" >> $OUT_REPORTS
+      echo "$(basename $bam .bam).krakenuniq-reads.txt.gz" >> $OUT_READS
+      echo "$(basename $bam .bam).krakenuniq" >> $OUT_BASENAME
+      echo "$(basename $bam .bam).krakenuniq-summary_report.txt" >> $OUT_REPORTS
     done
 
     # execute on all inputs and outputs serially, but with a single
     # database load into ram
-    metagenomics.py kraken \
-      $DB_DIR \
+    metagenomics.py krakenuniq \
+      $DB_DIR/krakenuniq \
       ${sep=' ' reads_unmapped_bam} \
       --outReads `cat $OUT_READS` \
       --outReport `cat $OUT_REPORTS` \
@@ -54,21 +49,18 @@ task kraken {
     # run single-threaded krona on up to nproc samples at once
     parallel -I ,, \
       "metagenomics.py krona \
-        ,,.txt.gz \
+        ,,-summary_report.txt \
         taxonomy \
-        ,,.html \
-        --noRank --noHits \
+        ,,.krona.html \
+        --noRank --noHits --inputType krakenuniq \
         --loglevel=DEBUG" \
       ::: `cat $OUT_BASENAME`
-    # run single-threaded gzip on up to nproc samples at once
-    parallel -I ,, "tar czf ,,.krona.tar.gz ,,.html*" ::: `cat $OUT_BASENAME`
   }
 
   output {
-    Array[File] kraken_classified_reads = glob("*.kraken-reads.txt.gz")
-    Array[File] kraken_summary_report   = glob("*.kraken-summary_report.txt")
-    Array[File] krona_report_html       = glob("*.kraken-reads.html")
-    Array[File] krona_report_tgz        = glob("*.kraken-reads.krona.tar.gz")
+    Array[File] krakenuniq_classified_reads = glob("*.krakenuniq-reads.txt.gz")
+    Array[File] krakenuniq_summary_report   = glob("*.krakenuniq-summary_report.txt")
+    Array[File] krona_report_html       = glob("*.krakenuniq.krona.html")
     String      viralngs_version        = "viral-ngs_version_unknown"
   }
 
@@ -105,13 +97,10 @@ task krona {
       ${input_basename}.html \
       --noRank --noHits \
       --loglevel=DEBUG
-
-    tar czf ${input_basename}.krona.tar.gz ${input_basename}.html*
   }
 
   output {
-    File   krona_report_html  = "${input_basename}.html"
-    File   krona_report_tgz   = "${input_basename}.krona.tar.gz"
+    File krona_report_html = "${input_basename}.html"
     String viralngs_version   = "viral-ngs_version_unknown"
   }
 
@@ -182,19 +171,18 @@ task filter_bam_to_taxa {
 
 }
 
-task diamond_contigs {
-  File  contigs_fasta
+task kaiju {
   File  reads_unmapped_bam
-  File  diamond_db_lz4
-  File  diamond_taxonomy_db_tar_lz4
-  File  krona_taxonomy_db_tar_lz4
+  File  kaiju_db_lz4  # <something>.fmi
+  File  ncbi_taxonomy_db_tgz # taxonomy/{nodes.dmp, names.dmp}
+  File  krona_taxonomy_db_tgz  # taxonomy/taxonomy.tab
 
-  String contigs_basename = basename(contigs_fasta, ".fasta")
+  String input_basename = basename(reads_unmapped_bam, ".bam")
 
   parameter_meta {
-    diamond_db_lz4              : "stream" # for DNAnexus, until WDL implements the File| type
-    diamond_taxonomy_db_tar_lz4 : "stream" # for DNAnexus, until WDL implements the File| type
-    krona_taxonomy_db_tar_lz4   : "stream" # for DNAnexus, until WDL implements the File| type
+    kaiju_db_lz4            : "stream" # for DNAnexus, until WDL implements the File| type
+    ncbi_taxonomy_db_tgz    : "stream"
+    krona_taxonomy_db_tgz   : "stream"
   }
 
   command {
@@ -203,61 +191,41 @@ task diamond_contigs {
     if [ -d /mnt/tmp ]; then
       TMPDIR=/mnt/tmp
     fi
-    DIAMOND_TAXDB_DIR=$(mktemp -d)
+    DB_DIR=$(mktemp -d)
 
-    # find 90% memory
-    mem_in_gb=`/opt/viral-ngs/source/docker/calc_mem.py gb 90`
+    lz4 -d ${kaiju_db_lz4} $DB_DIR/kaiju.fmi
 
-    # decompress DBs to /mnt/db
-    cat ${diamond_db_lz4} | lz4 -d > $TMPDIR/diamond_db.dmnd &
     read_utils.py extract_tarball \
-      ${diamond_taxonomy_db_tar_lz4} $DIAMOND_TAXDB_DIR \
-      --loglevel=DEBUG &
-    wait
-    read_utils.py extract_tarball \
-      ${krona_taxonomy_db_tar_lz4} . \
-      --loglevel=DEBUG &  # we don't need this until later
-
-    # classify contigs
-    metagenomics.py diamond_fasta \
-      ${contigs_fasta} \
-      $TMPDIR/diamond_db.dmnd \
-      $DIAMOND_TAXDB_DIR/taxonomy/ \
-      ${contigs_basename}.diamond.fasta \
-      --memLimitGb $mem_in_gb \
+      ${ncbi_taxonomy_db_tgz} $DB_DIR \
       --loglevel=DEBUG
 
-    # map reads to contigs & create kraken-like read report
-    bwa index ${contigs_basename}.diamond.fasta
-    metagenomics.py align_rna \
+    read_utils.py extract_tarball \
+      ${krona_taxonomy_db_tgz} . \
+      --loglevel=DEBUG
+
+    # classify contigs
+    metagenomics.py kaiju \
       ${reads_unmapped_bam} \
-      ${contigs_basename}.diamond.fasta \
-      $DIAMOND_TAXDB_DIR/taxonomy/ \
-      ${contigs_basename}.diamond.summary_report.txt \
-      --outReads ${contigs_basename}.diamond.reads.txt.gz \
-      --dupeReads ${contigs_basename}.diamond.reads_w_dupes.txt.gz \
-      --outBam ${contigs_basename}.diamond.bam \
+      $DB_DIR/kaiju.fmi \
+      $DB_DIR/taxonomy \
+      ${input_basename}.kaiju.report.txt \
+      --outReads ${input_basename}.kaiju.reads.gz \
       --loglevel=DEBUG
 
     # run krona
-    wait # for krona_taxonomy_db_tgz to download and extract
     metagenomics.py krona \
-      ${contigs_basename}.diamond.reads.txt.gz \
+      ${input_basename}.kaiju.report.txt \
       taxonomy \
-      ${contigs_basename}.diamond.html \
+      ${input_basename}.kaiju.html \
+      --inputType kaiju \
       --noRank --noHits \
       --loglevel=DEBUG
-    tar czf ${contigs_basename}.diamond.krona.tar.gz ${contigs_basename}.diamond.html*
   }
 
   output {
-    File   diamond_contigs                  = "${contigs_basename}.diamond.fasta"
-    File   reads_mapped_to_contigs          = "${contigs_basename}.diamond.bam"
-    File   diamond_summary_report           = "${contigs_basename}.diamond.summary_report.txt"
-    File   diamond_classified_reads         = "${contigs_basename}.diamond.reads.txt.gz"
-    File   diamond_classified_reads_w_dupes = "${contigs_basename}.diamond.reads_w_dupes.txt.gz"
-    File   krona_report_html                = "${contigs_basename}.diamond.html"
-    File   krona_report_tgz                 = "${contigs_basename}.diamond.krona.tar.gz"
+    File kaiju_report = "${input_basename}.kaiju.report.txt"
+    File kaiju_reads = "${input_basename}.kaiju.reads.gz"
+    File krona_report_html = "${input_basename}.kaiju.html"
     String viralngs_version                 = "viral-ngs_version_unknown"
   }
 
@@ -268,5 +236,3 @@ task diamond_contigs {
     dx_instance_type: "mem3_ssd1_x16"
   }
 }
-
-

@@ -50,31 +50,23 @@ trim_clip_db: "s3://sabeti-public-dbs/trim_clip/contaminants.fasta"
 # Can be a remote path to a fasta file (s3://, gs://, etc.). 
 spikeins_db: "s3://sabeti-public-dbs/spikeins/ercc_spike-ins.fasta"
 
-# Directory of kraken database for metagenomics identification
+# Directory of krakenuniq database for metagenomics identification
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/kraken_viral_diversity.tar.gz
-# Can be a remote path dirname (s3://, gs://, etc.). 
-kraken_db: "s3://sabeti-public-dbs/kraken"
+# Can be a remote path dirname (s3://, gs://, etc.).
+krakenuniq_db: "s3://sabeti-public-dbs/krakenuniq"
 
-# Path of DIAMOND database file for metagenomics identification
+# Path of Kaiju database file for metagenomics identification
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/nr.dmnd.gz
 # Can be a remote path prefix (s3://, gs://, etc.). 
-diamond_db: "s3://sabeti-public-dbs/diamond/nr-20170529"
+kaiju_db: "s3://sabeti-public-dbs/kaiju/nr/nr.fmi"
 
 # Directory of the krona database for generating html reports.
 # For pre-built hosted databases, you may download:
 #  - https://storage.googleapis.com/sabeti-public/meta_dbs/krona_taxonomy_20160502.tar.gz
 # Can be a remote path dirname (s3://, gs://, etc.). 
 krona_db: "s3://sabeti-public-dbs/krona"
-
-# BWA index prefix for metagenomic alignment.
-# This contains the full human reference genome, multiple diverse sequences covering human
-# pathogenic viruses, as well as LSU and SSU rRNA sequences from SILVA.
-# For pre-built hosted databases, you may download:
-#  - https://storage.googleapis.com/sabeti-public/meta_dbs/human_viral_rrna.tar.lz4
-# Can be a remote path prefix (s3://, gs://, etc.). 
-align_rna_db: "s3://sabeti-public-dbs/rna_bwa/human_viral_rrna"
 
 # Directory of the NCBI taxonomy dmp files
 # For pre-packaged hosted databases, you may download:
@@ -225,11 +217,6 @@ vphaser_max_bins: 10
 # independent libraries of support and 
 # allele freq > 0.005. If false, no filtering is performed.
 vcf_merge_naive_filter: false
-
-# Strategy for kraken classification for multiple inputs. 'single' results in 1 kraken process for
-# each input bam, while 'multiple' coalesces multiple input classifications into a single kraken
-# run.
-kraken_execution: single
 
 # Random seed, for non-deterministic steps.  0 means use current time.
 random_seed: 0

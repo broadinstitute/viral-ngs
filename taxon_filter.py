@@ -351,7 +351,7 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
         # concatenating them all and running deplete_method
         # just once
         tmpDb = mkstempfname('.fasta')
-        util.file.cat(tmpDb, refDbs)
+        merge_compressed_files(refDbs, tmpDb, sep='\n')
         refDbs = [tmpDb]
 
     samtools = tools.samtools.SamtoolsTool()
@@ -652,6 +652,38 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('lastal_build_db', parser_lastal_build_db))
+
+# ================================
+# ***  merge_compressed_files  ***
+# ================================
+
+def merge_compressed_files(inFiles, outFile, sep=''):
+    ''' Take a collection of input text files, possibly compressed,
+        and concatenate into a single output text file.
+        TO DO: if we made util.file.open_or_gzopen more multilingual,
+        we wouldn't need this.
+    '''
+    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+        first = True
+        for infname in inFiles:
+            if not first:
+                if sep:
+                    outf.write(sep)
+            else:
+                first = False
+            if infname.endswith('.gz') or infname.endswith('.lz4') or infname.endswith('.bz2'):
+                if infname.endswith('.gz'):
+                    decompressor = ['pigz', '-d']
+                elif infname.endswith('.lz4'):
+                    decompressor = ['lz4', '-d']
+                else:
+                    decompressor = ['lbzip2', '-d']
+                with open(infname, 'rb') as inf:
+                    subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+            else:
+                with open(infname, 'rt') as inf:
+                    for line in inf:
+                        outf.write(line)
 
 # ========================
 # ***  bwa_build_db  ***
