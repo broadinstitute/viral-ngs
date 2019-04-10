@@ -161,6 +161,7 @@ task spikein_report {
   File  reads_bam
   File  spikein_db
   Int?  minScoreToFilter = 60
+  Int?  topNHits = 3
 
   String reads_basename=basename(reads_bam, ".bam")
 
@@ -171,13 +172,17 @@ task spikein_report {
     read_utils.py bwamem_idxstats \
       ${reads_basename}.bam \
       ${spikein_db} \
-      --outStats ${reads_basename}.spike_count.txt \
+      --outStats ${reads_basename}.spike_count.txt.unsorted \
       --minScoreToFilter=${minScoreToFilter} \
       --loglevel=DEBUG
+
+      sort -b -r -n -k3 ${reads_basename}.spike_count.txt.unsorted > ${reads_basename}.spike_count.txt
+      head -n ${topNHits} ${reads_basename}.spike_count.txt > ${reads_basename}.spike_count.top_${topNHits}_hits.txt
   }
 
   output {
     File   report           = "${reads_basename}.spike_count.txt"
+    File   report_top_hits  = "${reads_basename}.spike_count.top_${topNHits}_hits.txt"
     String viralngs_version = "viral-ngs_version_unknown"
   }
 
