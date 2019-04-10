@@ -39,7 +39,8 @@ class Krona(tools.Tool):
                         root_name=None,
                         no_hits=None,
                         no_rank=None):
-        self.install()
+        if not self.executable_path():
+            self.install_and_get_path()
         bin_path = os.path.dirname(self.executable_path())
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
