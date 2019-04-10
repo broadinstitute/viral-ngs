@@ -97,7 +97,8 @@ if config.get("spikeins_db"):
             input_bam   = config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam',
             spikeins_db = objectify_remote(config["spikeins_db"])
         output: 
-            config["reports_dir"]+'/spike_count/{sample}.spike_count.txt'
+            config["reports_dir"]+'/spike_count/{sample}.spike_count.txt',
+            config["reports_dir"]+'/spike_count/{sample}.spike_count_top_3.txt'
         resources: 
             mem_mb = 3*1000
         params: 
@@ -107,7 +108,10 @@ if config.get("spikeins_db"):
         run:
             makedirs(os.path.join(config["reports_dir"], 'spike_count'))
             makedirs(os.path.join(config["tmp_dir"], config["subdirs"]["depletion"]))
-            shell("{config[bin_dir]}/read_utils.py bwamem_idxstats {input.input_bam} {input.spikeins_db} --outStats {output} --minScoreToFilter 60")
+            shell("{config[bin_dir]}/read_utils.py bwamem_idxstats {input.input_bam} {input.spikeins_db} --outStats {config[tmp_dir]}/{output[0]} --minScoreToFilter 60")
+            shell("sort -b -r -n -k3 {config[tmp_dir]}/{output[0]} > {output[0]}")
+            shell("head -n 3 {output[0]} > {output[1]}")
+
 
     rule consolidate_spike_count:
         input:  
