@@ -321,10 +321,12 @@ def mkdir_p(dirpath):
         else:
             raise
 
+
 def touch_p(path, times=None):
     '''Touch file, making parent directories if they don't exist.'''
     mkdir_p(os.path.dirname(path))
     touch(path, times=times)
+
 
 def open_or_gzopen(fname, *opts, **kwargs):
     mode = 'r'
@@ -821,34 +823,6 @@ def find_broken_symlinks(rootdir, followlinks=False):
 
     return broken_links_to_remove
 
-
-def join_paired_fastq(input_fastqs, output_format='fastq', num_n=None):
-    '''Join paired/interleaved fastq(s) into single reads connected by Ns'''
-    assert output_format in ('fastq', 'fasta')
-    num_n = num_n or 31
-
-    if len(input_fastqs) > 1:
-        f1 = SeqIO.parse(input_fastqs[0], 'fastq')
-        f2 = SeqIO.parse(input_fastqs[1], 'fastq')
-        records = zip(f1, f2)
-    else:
-        if input_fastqs[0] == '-':
-            input_fastqs[0] = sys.stdin
-        records = util.misc.batch_iterator(SeqIO.parse(input_fastqs[0], 'fastq'), 2)
-    for r1, r2 in records:
-        if r1.id.endswith('/1'):
-            rid = r1.id[:-2]
-        else:
-            rid = r1.id
-        jseq = Seq(str(r1.seq) + 'N' * num_n + str(r2.seq))
-        labbrevs = None
-        if output_format == 'fastq':
-            # Illumina quality score of 2 indicates unreliable base
-            labbrevs = {
-                'phred_quality': r1.letter_annotations['phred_quality'] + [2] * num_n + r2.letter_annotations['phred_quality']
-            }
-        rec = SeqRecord(jseq, id=rid, description='', letter_annotations=labbrevs)
-        yield rec
 
 def uncompressed_file_type(fname):
     """Return the original file extension of either a compressed or an uncompressed file."""

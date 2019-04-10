@@ -1,1 +1,1 @@
-futures==3.0.3
+futures

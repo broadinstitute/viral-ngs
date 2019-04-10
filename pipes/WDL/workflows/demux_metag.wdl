@@ -25,18 +25,14 @@ workflow demux_metag {
         assembler = "spades",
         reads_unmapped_bam = deplete.cleaned_bam
     }
-    call metagenomics.diamond_contigs as diamond {
-      input:
-        contigs_fasta = spades.contigs_fasta,
-        reads_unmapped_bam = deplete.cleaned_bam,
-        krona_taxonomy_db_tar_lz4 = krona_taxonomy_db_tgz
-    }
   }
 
-  call metagenomics.kraken as kraken {
+  call metagenomics.krakenuniq as kraken {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
-      krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
   }
-
+  call metagenomics.kaiju as kaiju {
+    input:
+      reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
+  }
 }
