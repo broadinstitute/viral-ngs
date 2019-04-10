@@ -35,7 +35,7 @@ workflow demux_plus {
         }
     }
 
-    call metagenomics.kraken as kraken {
+    call metagenomics.krakenuniq as krakenuniq {
         input:
             reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams
     }
