@@ -53,7 +53,7 @@ class TestPurgeUnmated(TestCaseWithTmp):
         outFastq1 = util.file.mkstempfname('.fastq')
         outFastq2 = util.file.mkstempfname('.fastq')
         parser = read_utils.parser_purge_unmated(argparse.ArgumentParser())
-        args = parser.parse_args(['--regex', '^@(\S+).[1|2] .*', inFastq1, inFastq2, outFastq1, outFastq2])
+        args = parser.parse_args(['--regex', r'^@(\S+).[1|2] .*', inFastq1, inFastq2, outFastq1, outFastq2])
         args.func_main(args)
 
         # The expected outputs are identical to the previous case.
