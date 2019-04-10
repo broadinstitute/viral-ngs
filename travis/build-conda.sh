@@ -25,7 +25,7 @@ if [ -n "$TRAVIS_TAG" ]; then
 
     # render and build the conda package
     python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
-    CONDA_PERL=5.22.0 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
+    CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
 
 else
     # This is a development build
