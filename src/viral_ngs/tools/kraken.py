@@ -2,6 +2,7 @@
 KRAKEN metagenomics classifier
 '''
 from __future__ import print_function
+import collections
 import itertools
 import logging
 import os
@@ -11,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
 import tools
 import tools.picard
 import tools.samtools
@@ -18,24 +20,30 @@ import util.file
 import util.misc
 from builtins import super
 
-TOOL_NAME = 'kraken'
-TOOL_VERSION = '1.0.0_fork3'
+KRAKEN_VERSION = '1.0.0_fork3'
+KRAKENUNIQ_VERSION = '0.5.7_yesimon'
+
 
 log = logging.getLogger(__name__)
 
+
 class Kraken(tools.Tool):
 
-    BINS = ['kraken', 'kraken-build', 'kraken-filter', 'kraken-mpa-report', 'kraken-report', 'kraken-translate']
+    BINS = {
+        'classify': 'kraken',
+        'build': 'kraken-build',
+        'filter': 'kraken-filter',
+        'report': 'kraken-report'}
 
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "kraken"
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION, channel='broad-viral'))
+            install_methods.append(tools.CondaPackage('kraken', executable=self.subtool_name, version=KRAKEN_VERSION, channel='broad-viral'))
         super(Kraken, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        return KRAKEN_VERSION
 
     @property
     def libexec(self):
@@ -52,7 +60,7 @@ class Kraken(tools.Tool):
           *args: List of input filenames to process.
         '''
         options['--threads'] = util.misc.sanitize_thread_count(options.get('--threads'))
-        self.execute('kraken-build', db, db, options=options,
+        self.execute(self.BINS['build'], db, db, options=options,
                      option_string=option_string)
 
     def _db_opts(self, db, threads):
@@ -115,7 +123,7 @@ class Kraken(tools.Tool):
             fastq_pipes = pipes[:n_bams * 2]
             kraken_output_pipes = pipes[n_bams * 2:]
 
-            kraken_bin = os.path.join(self.libexec, 'kraken')
+            kraken_bin = 'kraken'
             opts = ''
             if lockMemory:
                 opts += ' --lock-memory'
@@ -146,13 +154,13 @@ class Kraken(tools.Tool):
                 if outReports:
                     if filterThreshold is not None:
 
-                        kraken_filter_bin = os.path.join(self.libexec, 'kraken-filter')
+                        kraken_filter_bin = 'kraken-filter'
                         cmd += ' | {kraken_filter}{tax_opts} --threshold {filterThreshold}'.format(
                             kraken_filter=kraken_filter_bin,
                             tax_opts=tax_filter_opts,
                             filterThreshold=filterThreshold)
 
-                    kraken_report_bin = os.path.join(self.libexec, 'kraken-report')
+                    kraken_report_bin = 'kraken-report'
                     cmd += ' | {kraken_report}{tax_opts} > {outReport}'.format(
                         kraken_report=kraken_report_bin,
                         tax_opts=tax_report_opts,
@@ -207,6 +215,7 @@ class Kraken(tools.Tool):
             '--fastq-input': None,
             '--gzip-compressed': None,
         }
+        # Detect if input bam was paired by checking fastq 2
         if os.path.getsize(tmp_fastq2) < 50:
             res = self.execute('kraken', db, outReads, args=[tmp_fastq1], options=opts)
         else:
@@ -218,13 +227,13 @@ class Kraken(tools.Tool):
     def filter(self, inReads, db, outReads, filterThreshold):
         """Filter Kraken hits
         """
-        self.execute('kraken-filter', db, outReads, args=[inReads],
+        self.execute(self.BINS['filter'], db, outReads, args=[inReads],
                             options={'--threshold': filterThreshold})
 
     def report(self, inReads, db, outReport):
         """Convert Kraken read-based output to summary reports
         """
-        self.execute('kraken-report', db, outReport, args=[inReads])
+        self.execute(self.BINS['report'], db, outReport, args=[inReads])
 
     def execute(self, command, db, output, args=None, options=None,
                 option_string=None):
@@ -237,15 +246,17 @@ class Kraken(tools.Tool):
           options: List of keyword options.
           option_string: Raw strip command line options.
         '''
-        assert command in Kraken.BINS, 'Kraken command is unknown'
         options = options or {}
 
-        if command == 'kraken':
-            options['--output'] = output
+        if command == self.BINS['classify']:
+            if output:
+                options['--output'] = output
+            elif 'krakenuniq' in command:
+                options['--output'] = 'off'
         option_string = option_string or ''
         args = args or []
 
-        cmd = [os.path.join(self.libexec, command), '--db', db]
+        cmd = [command, '--db', db]
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
         cmd.extend([str(x) for x in itertools.chain(*options.items())
@@ -254,18 +265,119 @@ class Kraken(tools.Tool):
         cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
-        if command == 'kraken':
+        if command == self.BINS['classify']:
             subprocess.check_call(cmd)
-        elif command == 'kraken-build':
-            jellyfish_path = Jellyfish().install_and_get_path()
-            env = os.environ.copy()
-            env['PATH'] = ':'.join([os.path.dirname(jellyfish_path), env['PATH']])
-            subprocess.check_call(cmd, env=env)
+        elif command == self.BINS['build']:
+            subprocess.check_call(cmd)
         else:
             with util.file.open_or_gzopen(output, 'w') as of:
                 util.misc.run(cmd, stdout=of, stderr=subprocess.PIPE, check=True)
 
 
+@tools.skip_install_test()
 class Jellyfish(Kraken):
     """ Tool wrapper for Jellyfish (installed by kraken-all metapackage) """
     subtool_name = 'jellyfish'
+
+
+class KrakenUniq(Kraken):
+
+    BINS = {
+        'classify': 'krakenuniq',
+        'build': 'krakenuniq-build',
+        'filter': 'krakenuniq-filter',
+        'report': 'krakenuniq-report'}
+
+    def __init__(self, install_methods=None):
+        self.subtool_name = self.subtool_name if hasattr(self, 'subtool_name') else 'krakenuniq'
+        if not install_methods:
+            install_methods = []
+            install_methods.append(tools.CondaPackage('krakenuniq', executable=self.subtool_name, version=KRAKENUNIQ_VERSION, channel='broad-viral'))
+        super(KrakenUniq, self).__init__(install_methods=install_methods)
+
+    def version(self):
+        return TOOL_VERSION
+
+    def pipeline(self, db, in_bams, out_reports=None, out_reads=None,
+                 filter_threshold=None, num_threads=None):
+
+        try:
+            from itertools import zip_longest
+        except:  # Python 2 compat
+            from itertools import izip_longest as zip_longest
+        assert out_reads is not None or out_reports is not None
+        out_reports = out_reports or []
+        out_reads = out_reads or []
+
+        for in_bam, out_read, out_report in zip_longest(in_bams, out_reads, out_reports):
+            self.classify(in_bam, db, out_reads=out_read, out_report=out_report, num_threads=None)
+
+    def classify(self, in_bam, db, out_reads=None, out_report=None, num_threads=None):
+        """Classify input reads (bam)
+
+        Args:
+          in_bam: unaligned reads
+          db: Kraken built database directory.
+          outReads: Output file of command.
+        """
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq.gz')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq.gz')
+        # Do not convert this to samtools bam2fq unless we can figure out how to replicate
+        # the clipping functionality of Picard SamToFastq
+        picard = tools.picard.SamToFastqTool()
+        picard_opts = {
+            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+            'CLIPPING_ACTION': 'X'
+        }
+        picard.execute(in_bam, tmp_fastq1, tmp_fastq2,
+                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                       JVMmemory=picard.jvmMemDefault)
+
+        opts = {
+            '--threads': util.misc.sanitize_thread_count(num_threads),
+            '--fastq-input': None,
+            '--gzip-compressed': None,
+            '--preload': None
+        }
+        if out_report:
+            opts['--report-file'] = out_report
+        # Detect if input bam was paired by checking fastq 2
+        if os.path.getsize(tmp_fastq2) < 50:
+            res = self.execute(self.BINS['classify'], db, out_reads, args=[tmp_fastq1], options=opts)
+        else:
+            opts['--paired'] = None
+            res = self.execute(self.BINS['classify'], db, out_reads, args=[tmp_fastq1, tmp_fastq2], options=opts)
+        os.unlink(tmp_fastq1)
+        os.unlink(tmp_fastq2)
+        if out_report:
+            with open(out_report, 'rt+') as f:
+                lines = [line.strip() for line in f.readlines() if not line.startswith('#')]
+                lines = [line for line in lines if line]
+                if not lines:
+                    f.seek(f.tell() - 1, os.SEEK_SET)
+                    print('\t'.join(['%', 'reads', 'taxReads', 'kmers', 'dup', 'cov', 'taxID', 'rank', 'taxName']), file=f)
+                    print('\t'.join(['100.00', '0', '0', '0', '0', 'NA', '0', 'no rank', 'unclassified']), file=f)
+
+    def read_report(self, report_fn):
+        report = collections.Counter()
+        with open(report_fn) as f:
+            for line in f:
+                if line.startswith('#') or line.startswith('%'):
+                    continue
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('\t')
+                percent = float(parts[0])
+                cum_reads = int(parts[1])
+                tax_reads = int(parts[2])
+                tax_kmers = int(parts[3])
+                if parts[5] == 'NA':  # unclassified
+                    cov = 0
+                else:
+                    cov = float(parts[5])
+                tax_id = int(parts[6])
+                rank = parts[7]
+                name = parts[8]
+                report[tax_id] = (tax_reads, tax_kmers)
+        return report
