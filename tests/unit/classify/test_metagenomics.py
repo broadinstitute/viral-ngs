@@ -34,61 +34,6 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-@patch('metagenomics.kraken_dfs_report')
-class TestDiamondCalls(TestCaseWithTmp):
-    def setUp(self):
-        super().setUp()
-        patcher = patch('subprocess.Popen')
-        self.addCleanup(patcher.stop)
-        self.mock_popen = patcher.start()
-        self.mock_popen.return_value.returncode = 0
-
-        patcher = patch('tools.picard.SamToFastqTool')
-        self.addCleanup(patcher.stop)
-        self.mock_s2f = patcher.start()
-        self.mock_s2f.return_value.execute.return_value.returncode = 0
-
-        patcher = patch('tools.diamond.Diamond', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_diamond = patcher.start()
-
-        # Can't open unwritten named pipes
-        if six.PY2:
-            patcher = patch('__builtin__.open', mock.mock_open(read_data="id1\t1\n"))
-        else:
-            patcher = patch('builtins.open', mock.mock_open(read_data="id1\t1\n"))
-        self.addCleanup(patcher.stop)
-        patcher.start()
-
-        # mock_open doesn't have __next__ for csv.reader
-        patcher = patch('metagenomics.taxa_hits_from_tsv', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_taxa_hits = patcher.start()
-        self.mock_taxa_hits.return_value = Counter({1: 100, 2: 40})
-
-        self.inBam = util.file.mkstempfname('.bam')
-        self.db = tempfile.mkdtemp('db')
-        self.tax_db = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple', 'db', 'taxonomy')
-
-    def test_output_reads(self, mock_dfs):
-        out_report = util.file.mkstempfname('report.txt')
-        out_reads = util.file.mkstempfname('lca.gz')
-
-        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, outReads=out_reads)
-
-        cmd = self.mock_popen.call_args[0][0]
-        self.assertIn(out_reads, cmd)
-        assert isinstance(metagenomics.kraken_dfs_report.call_args[0][0], metagenomics.TaxonomyDb)
-
-    def test_num_threads(self, mock_dfs):
-        out_report = util.file.mkstempfname('report.txt')
-        metagenomics.diamond(self.inBam, self.db, self.tax_db, out_report, threads=11)
-        expected_threads = min(11, _CPUS)
-        expected_threads = '--threads {}'.format(expected_threads)
-        cmd = self.mock_popen.call_args[0][0]
-        self.assertIn(expected_threads, cmd)
-
-
 class TestKronaCalls(TestCaseWithTmp):
 
     def setUp(self):
@@ -103,7 +48,7 @@ class TestKronaCalls(TestCaseWithTmp):
     def test_krona_import_taxonomy(self):
         out_html = util.file.mkstempfname('.html')
         metagenomics.krona(self.inTsv, self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
-                           noHits=True, noRank=True)
+                           noHits=True, noRank=True, inputType='tsv')
         self.mock_krona().import_taxonomy.assert_called_once_with(
             self.db, [self.inTsv], out_html, query_column=3, taxid_column=5, score_column=7,
             no_hits=True, no_rank=True, magnitude_column=None, root_name=os.path.basename(self.inTsv))
@@ -310,12 +255,40 @@ def test_coverage_lca(taxa_db):
     assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents, 50) == 7
     assert metagenomics.coverage_lca([9], taxa_db.parents) is None
 
+
+def test_krakenuniq(mocker):
+    p = mocker.patch('tools.kraken.KrakenUniq.pipeline')
+    args = [
+        'db',
+        'input.bam',
+        '--outReports', 'output.report',
+        '--outReads', 'output.reads',
+    ]
+    args = metagenomics.parser_krakenuniq(argparse.ArgumentParser()).parse_args(args)
+    args.func_main(args)
+    p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
+
+
+def test_kaiju(mocker):
+    p = mocker.patch('tools.kaiju.Kaiju.classify')
+    args = [
+        'input.bam',
+        'db.fmi',
+        'tax_db',
+        'output.report',
+        '--outReads', 'output.reads',
+    ]
+    args = metagenomics.parser_kaiju(argparse.ArgumentParser()).parse_args(args)
+    args.func_main(args)
+    p.assert_called_with('db.fmi', 'tax_db', 'input.bam', output_report='output.report', num_threads=mock.ANY, output_reads='output.reads')
+
+
 class TestBamFilter(TestCaseWithTmp):
     def test_bam_filter_simple(self):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)
         taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
-        
+
         filtered_bam = util.file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
@@ -336,7 +309,7 @@ class TestBamFilter(TestCaseWithTmp):
         temp_dir = tempfile.gettempdir()
         input_dir = util.file.get_test_input_path(self)
         taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
-        
+
         filtered_bam = util.file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
@@ -352,4 +325,3 @@ class TestBamFilter(TestCaseWithTmp):
 
         expected_bam = os.path.join(input_dir,"expected.bam")
         assert_equal_bam_reads(self, filtered_bam, expected_bam)
-
