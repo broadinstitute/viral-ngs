@@ -1803,12 +1803,13 @@ class IlluminaBarcodeHelper(object):
                 out_dict["match_type"] = "high_count_novel_pair"
                 break
         
-        out_dict["guessed_barcode_1"]           = putative_match[0]
-        out_dict["guessed_barcode_1_name"]      = self.barcode_name_map[putative_match[0]]
-        if is_dual_index:
-            out_dict["guessed_barcode_2"]           = putative_match[1]
-            out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
-            out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
+        if putative_match[0]!=None:
+            out_dict["guessed_barcode_1"]           = putative_match[0]
+            out_dict["guessed_barcode_1_name"]      = self.barcode_name_map[putative_match[0]]
+            if is_dual_index and putative_match[1] != None:
+                out_dict["guessed_barcode_2"]           = putative_match[1]
+                out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
+                out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
 
         return out_dict
 
