@@ -22,7 +22,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'gap2seq'
-TOOL_VERSION = '2.1'
+TOOL_VERSION = '3.1.1a2'
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class Gap2SeqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq.sh')]
+            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq')]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -48,10 +48,11 @@ class Gap2SeqTool(tools.Tool):
         # for all files.
 
         abspath = os.path.abspath
-        file_args = ('-scaffolds', abspath(scaffolds), '-filled', abspath(filled), 
-                     '-reads', ','.join(map(abspath,reads)))
+        file_args = ('-s', abspath(scaffolds), '--filled', abspath(filled), 
+                     '--reads', ','.join(map(abspath,reads)))
         more_args = functools.reduce(operator.concat, 
-                                     [('-'+arg.replace('_','-'), str(val)) for arg, val in kwargs.items()], ())
+                                     [(('--' if len(arg) > 1 else '-') + arg.replace('_','-'), str(val))
+                                      for arg, val in kwargs.items()], ())
         with util.file.tmp_dir('_gap2seq_run_dir') as gap2seq_run_dir:
             with util.file.pushd_popd(gap2seq_run_dir):
                 self.execute(file_args+args+more_args)
@@ -87,6 +88,7 @@ class Gap2SeqTool(tools.Tool):
         kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
         stop_time = time.time() + 60*time_soft_limit_minutes
         threads = util.misc.sanitize_thread_count(threads, tool_max_cores_value=0)
+        util.misc.chk(out_scaffold != in_scaffold)
         with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads, util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
 
             # We call Gap2Seq for a range of parameter combinations.  Output of each call is input to the next call, so
@@ -104,9 +106,11 @@ class Gap2SeqTool(tools.Tool):
 
                 filled_scaffold = os.path.join(gap2seq_dir, 'gap2seq-filled.s{}.k{}.fasta'.format(solid_kmer_threshold, kmer_size))
                 self._run_gap2seq(reads, prev_scaffold, filled_scaffold,
-                                  *(['-all-upper', '-verbose']+shlex.split(gap2seq_opts)),
-                                  solid=solid_kmer_threshold, k=kmer_size, nb_cores=threads, max_mem=mem_limit_gb, randseed=random_seed)
+                                  *(['--all-upper']+shlex.split(gap2seq_opts)),
+                                  solid=solid_kmer_threshold, k=kmer_size, threads=threads,
+                                  max_mem=mem_limit_gb, randseed=random_seed)
 
                 prev_scaffold = filled_scaffold
 
-            shutil.copyfile(src=prev_scaffold, dst=out_scaffold)
+            Bio.SeqIO.convert(prev_scaffold, 'fasta', out_scaffold, 'fasta')
+
