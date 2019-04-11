@@ -238,8 +238,9 @@ class CondaPackage(InstallMethod):
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
-                data = json.loads(self._string_from_start_of_json(command_output.strip()))
-                return data
+                if cmd[0] == '-V':
+                    return command_output
+                return json.loads(self._string_from_start_of_json(command_output.strip()))
             except Exception as e:
                 _log.warning("Failed to decode JSON during conda command '%s' emitting output: %s", " ".join(run_cmd),result.stdout.decode("UTF-8"))
                 return  # return rather than raise so we can fall back to the next install method
