@@ -46,6 +46,13 @@ task krakenuniq {
 
     wait # for krona_taxonomy_db_tgz to download and extract
 
+    metagenomics.py taxlevel_summary \
+      `cat $OUT_REPORTS` \
+      --csvOut aggregate_viral_summary.csv \
+      --noHist --taxHeading Viruses \
+      --zeroFill --includeRoot --topN 5 \
+      --loglevel=DEBUG
+
     # run single-threaded krona on up to nproc samples at once
     parallel -I ,, \
       "metagenomics.py krona \
@@ -60,8 +67,9 @@ task krakenuniq {
   output {
     Array[File] krakenuniq_classified_reads = glob("*.krakenuniq-reads.txt.gz")
     Array[File] krakenuniq_summary_report   = glob("*.krakenuniq-summary_report.txt")
-    Array[File] krona_report_html       = glob("*.krakenuniq.krona.html")
-    String      viralngs_version        = "viral-ngs_version_unknown"
+    File krakenuniq_aggregate_viral_summary = "aggregate_viral_summary.csv"
+    Array[File] krona_report_html           = glob("*.krakenuniq.krona.html")
+    String      viralngs_version            = "viral-ngs_version_unknown"
   }
 
   runtime {
