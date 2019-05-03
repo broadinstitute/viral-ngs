@@ -1173,9 +1173,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
             indent_of_selection = -1
             currently_being_processed = ""
             for line in inf:
-                print("line:",line)
                 if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
-                    print("skipping...")
                     continue
 
                 # KrakenUniq is mentioned on the first line of
@@ -1184,10 +1182,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                     report_type="krakenuniq"
                     continue
                 elif not report_type:
-                    report_type="kraken"
-
-                print("report_type",report_type)
-                
+                    report_type="kraken"                
 
                 csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
                 if report_type == "kraken":
