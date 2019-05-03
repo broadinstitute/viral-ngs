@@ -511,7 +511,7 @@ def find_ref(a, ref):
 
 
 def vcf_header(a):
-    header = "##fileformat=VCFv4.1\n"
+    header  = "##fileformat=VCFv4.1\n"
     header += "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
     header += "##contig=<ID=\"KM034562\",length=18957>\n"
     header += '#' + '\t'.join(['CHROM', 'POS', 'ID', 'REF', 'ALT',
