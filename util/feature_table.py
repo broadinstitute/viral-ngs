@@ -47,7 +47,10 @@ class SeqQualifier(object):
         self.qualifier_value = qualifier_value
 
     def __str__(self):
-        return "\t\t\t{k}\t{v}".format(k=self.qualifier_key,v=self.qualifier_value)
+        if self.qualifier_value:
+            return "\t\t\t{k}\t{v}".format(k=self.qualifier_key,v=self.qualifier_value)
+        else:
+            return "\t\t\t{k}".format(k=self.qualifier_key)
 
 class SeqLocation(object):
     def __init__(self, start_pos, end_pos, feature_type=None):
@@ -143,7 +146,7 @@ class FeatureTable(object):
             "feature_first_location_line"      : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t(?P<feature_type>" + "|".join(self.valid_feature_types) + ")$"),
             "feature_subsequent_location_line" : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t*$"),
             "offset_line"                      : re.compile(r"^(?:\[offset=(?P<offset>-?\d+)\])$"),
-            "feature_qualifier_line"           : re.compile(r"^\t{3}(?P<qualifier_key>.*)\t(?P<qualifier_value>[^\t]*)$")
+            "feature_qualifier_line"           : re.compile(r"^\t{3}(?P<qualifier_key>.*)(?:\t(?P<qualifier_value>[^\t]*))?$")
         }
 
         if filepath:
