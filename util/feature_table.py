@@ -146,7 +146,7 @@ class FeatureTable(object):
             "feature_first_location_line"      : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t(?P<feature_type>" + "|".join(self.valid_feature_types) + ")$"),
             "feature_subsequent_location_line" : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t*$"),
             "offset_line"                      : re.compile(r"^(?:\[offset=(?P<offset>-?\d+)\])$"),
-            "feature_qualifier_line"           : re.compile(r"^\t{3}(?P<qualifier_key>.*)(?:\t(?P<qualifier_value>[^\t]*))?$")
+            "feature_qualifier_line"           : re.compile(r"^\t{3}(?P<qualifier_key>[^\t]*)(?:\t(?P<qualifier_value>[^\t]*))?$")
         }
 
         if filepath:
