@@ -1084,8 +1084,8 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--jsonOut', dest="json_out", type=argparse.FileType('w'), help='The path to a json file containing the relevant parsed summary data in json format.')
     parser.add_argument('--csvOut', dest="csv_out", type=argparse.FileType('w'), help='The path to a csv file containing sample-specific counts.')
     parser.add_argument('--taxHeading', nargs="+", dest="tax_headings", help='The taxonomic heading to analyze (default: %(default)s). More than one can be specified.', default="Viruses")
-    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="species",
-                        choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
+    parser.add_argument('--taxlevelFocus', dest="taxlevel_focus", help='The taxonomic heading to summarize (totals by Genus, etc.) (default: %(default)s).', default="species")#,
+                        #choices=["species", "genus", "family", "order", "class", "phylum", "kingdom", "superkingdom"])
     parser.add_argument('--topN', type=int, dest="top_n_entries", help='Only include the top N most abundant taxa by read count (default: %(default)s)', default=100)
     parser.add_argument('--countThreshold', type=int, dest="count_threshold", help='Minimum number of reads to be included (default: %(default)s)', default=1)
     parser.add_argument('--zeroFill', action='store_true', dest="zero_fill", help='When absent from a sample, write zeroes (rather than leaving blank).')
@@ -1111,7 +1111,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
     samples = {}
     same_level = False
 
-    Abundance = collections.namedtuple("Abundance", "percent,count")
+    Abundance = collections.namedtuple("Abundance", "percent,count,kmers,dup,cov")
 
     def indent_len(in_string):
         return len(in_string)-len(in_string.lstrip())
@@ -1122,36 +1122,109 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
         sample_root_summary = {}
         tax_headings_copy = [s.lower() for s in tax_headings]
 
+        # -----------------------------------------------------------------
+        # KrakenUniq has two lines prefixed by '#', a blank line,
+        # and then a TSV header beginning with "%". The column fields are:
+        # (NB:field names accurate, but space-separated in this comment 
+        # for readability here)
+        #   %        reads  taxReads  kmers  dup   cov  taxID  rank          taxName
+        #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
+        #
+        # Where the fields are:
+        #   %:
+        #   reads:
+        #   taxReads:
+        #   kmers: number of unique k-mers
+        #   dup: average number of times each unique k-mer has been seen
+        #   cov: coverage of the k-mers of the clade in the database
+        #   taxID: 
+        #   rank: row["rank"]; A rank code (see list below)
+        #   taxName: row["sci_name"]; indented scientific name
+        #
+        # Taxonomic ranks used by KrakenUniq include:
+        #   unknown, no rank, sequence, assembly, subspecies, 
+        #   species, species subgroup, species group, subgenus, 
+        #   genus, tribe, subfamily, family, superfamily, parvorder, 
+        #   infraorder, suborder, order, superorder, parvclass, 
+        #   infraclass, subclass, class, superclass, subphylum, 
+        #   phylum, kingdom, superkingdom, root
+        #
+        #   via: https://github.com/fbreitwieser/krakenuniq/blob/a8b4a2dbf50553e02d3cab3c32f93f91958aa575/src/taxdb.hpp#L96-L131
+        # -----------------------------------------------------------------
+        # Kraken (standard) reports lack header lines. 
+        # (NB:field names below are only for reference. Space-separated for 
+        # readability here)
+        #   %     reads  taxReads  rank  taxID      taxName
+        #   0.00  16     0         D     10239      Viruses
+        #
+        # Where the fields are:
+        #   %:        row["pct_of_reads"]; Percentage of reads covered by the clade rooted at this taxon
+        #   reads:    row["num_reads"]; Number of reads covered by the clade rooted at this taxon
+        #   taxReads: row["reads_exc_children"]; Number of reads assigned directly to this taxon
+        #   rank:     row["rank"]; A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
+        #   taxID:    row["NCBI_tax_ID"]; NCBI taxonomy ID
+        #   taxName:  row["sci_name"]; indented scientific name
+        # -----------------------------------------------------------------
+
+
         with util.file.open_or_gzopen(f, 'rU') as inf:
+            report_type=None
             should_process = False
             indent_of_selection = -1
             currently_being_processed = ""
             for line in inf:
-                if len(line.rstrip('\r\n').strip()) == 0:
+                if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
                     continue
+
+                # KrakenUniq is mentioned on the first line of
+                # summary reports created by KrakenUniq
+                if not report_type and "KrakenUniq" in line:
+                    report_type="krakenuniq"
+                    continue
+                elif not report_type:
+                    report_type="kraken"                
+
                 csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
-                fieldnames = ["pct_of_reads","num_reads","reads_exc_children","rank","NCBI_tax_ID","sci_name"]
+                if report_type == "kraken":
+                    fieldnames = [ "pct_of_reads",
+                                    "num_reads",
+                                    "reads_exc_children",
+                                    "rank",
+                                    "NCBI_tax_ID",
+                                    "sci_name"
+                                ]
+                elif report_type == "krakenuniq":
+                    fieldnames = [ 
+                                    "pct_of_reads",
+                                    "num_reads",
+                                    "reads_exc_children",
+                                    "uniq_kmers",
+                                    "kmer_dups",
+                                    "cov_of_clade_kmers",
+                                    "NCBI_tax_ID",
+                                    "rank",
+                                    "sci_name"
+                                ]
+                else:
+                    continue #never reached since we fall back to kraken above
+
                 row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
 
                 indent_of_line = indent_len(row["sci_name"])
                 # remove leading/trailing whitespace from each item
                 row = { k:v.strip() for k, v in row.items()}
 
-                # rows are formatted like so:
-                # 0.00  16  0   D   10239     Viruses
-                #
-                # row["pct_of_reads"] Percentage of reads covered by the clade rooted at this taxon
-                # row["num_reads"] Number of reads covered by the clade rooted at this taxon
-                # row["reads_exc_children"] Number of reads assigned directly to this taxon
-                # row["rank"] A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
-                # row["NCBI_tax_ID"] NCBI taxonomy ID
-                # row["sci_name"] indented scientific name
+                # rows are formatted as described above. 
+                # Kraken:
+                #   0.00  16  0   D   10239     Viruses
+                # KrakenUniq:
+                #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
 
                 # if the root-level bins (root, unclassified) should be included, do so, but bypass normal
                 # stateful parsing logic since root does not have a distinct rank level
                 if row["sci_name"].lower() in ["root","unclassified"] and include_root:
                     sample_root_summary[row["sci_name"]] = collections.OrderedDict()
-                    sample_root_summary[row["sci_name"]][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
+                    sample_root_summary[row["sci_name"]][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
                     continue
 
                 if indent_of_line <= indent_of_selection:
@@ -1166,17 +1239,17 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
                         indent_of_selection = indent_of_line
                         currently_being_processed = row["sci_name"]
                         sample_summary[currently_being_processed] = collections.OrderedDict()
-                        if row["rank"] == rank_code(taxlevel_focus):
+                        if row["rank"] == rank_code(taxlevel_focus) or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ",""):
                             same_level = True
-                        if row["rank"] == "-":
+                        if row["rank"] in ("-","no rank"):
                             log.warning("Non-taxonomic parent level selected")
 
                 if should_process:
                     # skip "-" rank levels since they do not occur at the sample level
                     # otherwise include the taxon row if the rank matches the desired level of focus
-                    if (row["rank"] != "-" and rank_code(taxlevel_focus) == row["rank"]):
+                    if (row["rank"] not in ("-","no rank") and (rank_code(taxlevel_focus) == row["rank"] or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ","")) ):
                         if int(row["num_reads"])>=count_threshold:
-                            sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]))
+                            sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
 
 
         for k,taxa in sample_summary.items():
