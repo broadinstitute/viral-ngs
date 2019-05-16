@@ -805,8 +805,8 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
         report = krakenuniq.read_report(inReport)
         with util.file.tempfname() as fn:
             with open(fn, 'w') as to_import:
-                for taxid, (tax_reads, cov) in report.items():
-                    print('{}\t{}\t{}'.format(taxid, tax_reads, cov), file=to_import)
+                for taxid, (tax_reads, tax_kmers) in report.items():
+                    print('{}\t{}\t{}'.format(taxid, tax_reads, tax_kmers), file=to_import)
             krona_tool.import_taxonomy(
                 db, [fn], outHtml,
                 taxid_column=1, magnitude_column=2,
@@ -819,7 +819,7 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
             with open(fn, 'w') as new_report:
                 for line in html_lines:
                     if '<attribute display="Avg. score">score</attribute>' in line:
-                        line = line.replace('Avg. score', 'Est. genome coverage')
+                        line = line.replace('Avg. score', 'Est. unique kmers')
                     print(line, file=new_report)
             os.rename(fn, outHtml)
         return
