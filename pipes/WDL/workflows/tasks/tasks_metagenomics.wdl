@@ -2,8 +2,8 @@ task krakenuniq {
   Array[File] reads_unmapped_bam
   File        krakenuniq_db_tar_lz4  # krakenuniq/{database.kdb,taxonomy}
   File        krona_taxonomy_db_tgz  # taxonomy/taxonomy.tab
-  String?     aggregate_taxon_heading_space_separated  = "Viruses" # The taxonomic heading to analyze. More than one can be specified.
-  String?     aggregate_taxlevel_focus                 = "species" # species,genus,family,order,class,phylum,kingdom,superkingdom
+  String     aggregate_taxon_heading_space_separated  = "Viruses" # The taxonomic heading to analyze. More than one can be specified.
+  String     aggregate_taxlevel_focus                 = "species" # species,genus,family,order,class,phylum,kingdom,superkingdom
   Int?        aggregate_top_N_hits                     = 5 # only include the top N hits from a given sample in the aggregte report
 
   String aggregate_taxon_heading = sub(aggregate_taxon_heading_space_separated, " ", "_") # replace spaces with underscores for use in filename
