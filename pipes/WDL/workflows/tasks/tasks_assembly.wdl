@@ -9,7 +9,6 @@ task assemble {
     String? assembler="trinity"  # trinity, spades, or trinity-spades
     Boolean? always_succeed=false
 
-    String  cleaned_assembler = select_first([assembler, ""]) # workaround for https://gatkforums.broadinstitute.org/wdl/discussion/10462/string-type-in-output-section
     # do this in two steps in case the input doesn't actually have "taxfilt" in the name
     String  sample_name = basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt")
 
@@ -25,7 +24,7 @@ task assemble {
           assembly.py assemble_trinity \
             ${reads_unmapped_bam} \
             ${trim_clip_db} \
-            ${sample_name}.assembly1-trinity.fasta \
+            ${sample_name}.assembly1-${assembler}.fasta \
             ${'--n_reads=' + trinity_n_reads} \
      	    ${true='--alwaysSucceed' false="" always_succeed} \
             --JVMmemory "$mem_in_mb"m \
@@ -36,7 +35,7 @@ task assemble {
           assembly.py assemble_spades \
             ${reads_unmapped_bam} \
             ${trim_clip_db} \
-            ${sample_name}.assembly1-spades.fasta \
+            ${sample_name}.assembly1-${assembler}.fasta \
             ${'--nReads=' + spades_n_reads} \
 	    ${true="--alwaysSucceed" false="" always_succeed} \
             ${'--minContigLen=' + spades_min_contig_len} \
@@ -57,7 +56,7 @@ task assemble {
           assembly.py assemble_spades \
             ${reads_unmapped_bam} \
             ${trim_clip_db} \
-            ${sample_name}.assembly1-spades.fasta \
+            ${sample_name}.assembly1-${assembler}.fasta \
             --contigsUntrusted=${sample_name}.assembly1-trinity.fasta \
             ${'--nReads=' + spades_n_reads} \
      	    ${true='--alwaysSucceed' false='' always_succeed} \
@@ -74,7 +73,7 @@ task assemble {
     }
 
     output {
-        File   contigs_fasta        = "${sample_name}.assembly1-${cleaned_assembler}.fasta"
+        File   contigs_fasta        = "${sample_name}.assembly1-${assembler}.fasta"
         File   subsampBam           = "${sample_name}.subsamp.bam"
         Int    subsample_read_count = read_int("subsample_read_count")
         String viralngs_version     = "viral-ngs_version_unknown"
