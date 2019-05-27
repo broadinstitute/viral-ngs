@@ -371,7 +371,10 @@ def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limi
     with open_or_gzopen(inFile, 'rU') as inf:
         header = None
         lines_read=0
-        for line in inf:
+        for line_no,line in enumerate(inf):
+            if line_no==0:
+                # remove BOM, if present
+                line = line.replace('\ufeff','')
             lines_read+=1
             row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
             # skip empty lines/rows
@@ -400,7 +403,10 @@ def read_tabfile(inFile):
         iterator of arrays.
     '''
     with open_or_gzopen(inFile, 'rU') as inf:
-        for line in inf:
+        for line_no,line in enumerate(inf):
+            if line_no==0:
+                # remove BOM, if present
+                line = line.replace('\ufeff','')
             if not line.startswith('#'):
                 yield list(item.strip() for item in line.rstrip('\r\n').split('\t'))
 
