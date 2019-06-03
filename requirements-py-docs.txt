@@ -1,6 +1,6 @@
 Sphinx==1.4.4
 sphinx-argparse==0.1.15
 sphinx_rtd_theme==0.1.9
-matplotlib==1.5.3
-PyYAML==3.11
+matplotlib==2.2.0
+PyYAML==5.1
 mock>=2.0.0

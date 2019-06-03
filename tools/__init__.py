@@ -227,23 +227,23 @@ class CondaPackage(InstallMethod):
         'remove',
         ]
 
-    def execute(self, cmd, loglevel=logging.DEBUG, buffered=None, check=None, silent=None):
+    def execute(self, cmd, loglevel=logging.DEBUG, buffered=None, check=None, silent=None, stderr=None):
         run_cmd = ['conda']
         if cmd[0] in self.QUIET_COMMANDS:
             run_cmd.extend(['-q', '-y'])
         run_cmd.extend(cmd)
         result = util.misc.run_and_print(
-            run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent)
+            run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent, stderr=stderr)
 
         if result.returncode == 0:
             try:
                 command_output = result.stdout.decode("UTF-8")
-                data = json.loads(self._string_from_start_of_json(command_output))
-                return data
-            except:
-                _log.warning("Failed to decode JSON output from conda command: %s", result.stdout.decode("UTF-8"))
+                if cmd[0] == '-V':
+                    return command_output
+                return json.loads(self._string_from_start_of_json(command_output.strip()))
+            except Exception as e:
+                _log.warning("Failed to decode JSON during conda command '%s' emitting output: %s", " ".join(run_cmd),result.stdout.decode("UTF-8"))
                 return  # return rather than raise so we can fall back to the next install method
-
 
     def __init__(
         self,
@@ -351,10 +351,14 @@ class CondaPackage(InstallMethod):
     def _string_from_start_of_json(string_with_json):
         # JSON can start with "{" or "["
         # via http://www.json.org/
-        matches = re.compile("\{|\[").search(string_with_json)
-        if matches:
-            return string_with_json[matches.start():]
-        else:
+        try:
+            matches = re.compile("\{|\[").search(string_with_json)
+            if matches:
+                return string_with_json[matches.start():]
+            else:
+                _log.warning("Does not look like json: %s" % string_with_json)
+                return None
+        except:
             _log.warning("Does not look like json: %s" % string_with_json)
             return None
 
@@ -397,7 +401,7 @@ class CondaPackage(InstallMethod):
 
     @property
     def _package_installed(self):
-        data = self.execute(['list', "-f", "-c", "-p", self.env_path, "--json", self.package])
+        data = self.execute(['list', "-f", "-c", "-p", self.env_path, "--json", self.package], silent=True)
         if len(data) > 0:
             _log.debug('Conda package found: {}'.format(data))
             return True
@@ -485,7 +489,7 @@ class CondaPackage(InstallMethod):
     def get_installed_version(self):
         # If we ever use conda to install pip packages as tools, "-c" needs to be removed
 
-        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=False)
+        data = self.execute(["list", "-c", "--json", "-f", "-p", self.env_path, self.package], check=True, silent=True)
         if data is None or not len(data):
             return
         if isinstance(data[0], dict):
@@ -521,7 +525,7 @@ class CondaPackage(InstallMethod):
             self.installed = False
 
     def install_package(self):
-        data = self.execute(["list", "--json", "-p", self.env_path], loglevel=logging.INFO)
+        data = self.execute(["list", "--json", "-p", self.env_path], silent=True, check=True)
         if not data:
             return
         for d in data:

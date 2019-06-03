@@ -722,7 +722,11 @@ class SampleSheet(object):
                 header = None
                 miseq_skip = False
                 row_num = 0
-                for line in inf:
+                for line_no, line in enumerate(inf):
+                    if line_no==0:
+                        # remove BOM, if present
+                        line = line.replace('\ufeff','')
+
                     # if this is a blank line, skip parsing and continue to the next line...
                     if len(line.rstrip('\r\n').strip()) == 0:
                         continue

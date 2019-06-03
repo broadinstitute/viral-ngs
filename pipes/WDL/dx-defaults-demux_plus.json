@@ -15,8 +15,8 @@
   "demux_plus.trim_clip_db":
     "dx://file-BXF0vYQ0QyBF509G9J12g927",
 
-  "demux_plus.kraken.kraken_db_tar_lz4":
-    "dx://file-F8QF3bj0xf5gZv76BG4QgpF4",
-  "demux_plus.kraken.krona_taxonomy_db_tgz":
+  "demux_plus.krakenuniq.krakenuniq_db_tar_lz4":
+    "dx://file-FVYQqP006zFF064QBGf022X1",
+  "demux_plus.krakenuniq.krona_taxonomy_db_tgz":
     "dx://file-F4z0fgj07FZ8jg8yP7yz0Qzb"
 }
