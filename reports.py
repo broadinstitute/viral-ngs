@@ -748,7 +748,7 @@ def plot_coverage(
         
         ylabel = "read depth"
         if(bin_size > 1):
-        	ylabel = "read depth (max in {size}-bp bin)".format(size = bin_size)
+            ylabel = "read depth (max in {size}-bp bin)".format(size = bin_size)
         plt.ylabel(ylabel, fontsize=font_size * 1.1)
 
         if plot_x_limits is not None:
