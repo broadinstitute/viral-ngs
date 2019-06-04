@@ -680,23 +680,6 @@ def plot_coverage(
             segment_depths.setdefault(row[0], []).append(float(row[2]))
             domain_max += 1
 
-    # Binning
-    bin_size = 1
-    if bin_large_plots:
-        # Number points plotted after binning is set to true width of plot (excluding
-        # axis titles and labels and whitespace around plot), calculated by trial and error
-        # There is one bin per pixel
-        preferred_domain = int(0.907634 * plot_width - 103.207)
-
-        # Bin locations and take maximum in each bin
-        bin_size = 1 + int(domain_max/preferred_domain)
-        binned_segment_depths = OrderedDict()
-        for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
-            max_depths_in_bins = [max(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
-            binned_segment_depths[segment_name] = max_depths_in_bins
-        segment_depths = binned_segment_depths
-
-    domain_max = 0
     with plt.style.context(plot_style):
         fig = plt.gcf()
         DPI = plot_dpi or fig.get_dpi()
@@ -709,7 +692,23 @@ def plot_coverage(
         # Set the tick labels font
         for label in (ax.get_xticklabels() + ax.get_yticklabels()):
             label.set_fontsize(font_size)
-
+            
+        # Binning
+        inner_plot_width_inches = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).width
+        inner_plot_width_px = inner_plot_width_inches * fig.dpi # width of actual plot (sans whitespace and y axis text)
+        bins_per_pixel = 1 # increase to make smaller (but less visible) bins
+        bin_size = 1
+        if bin_large_plots:
+            # Bin locations and take summary value (maximum) in each bin
+            bin_size = 1 + int(domain_max/(inner_plot_width_px * bins_per_pixel))
+            binned_segment_depths = OrderedDict()
+            for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
+                summary_depths_in_bins = [max(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
+                binned_segment_depths[segment_name] = summary_depths_in_bins
+            segment_depths = binned_segment_depths
+        
+        # Plotting
+        domain_max = 0
         for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
             prior_domain_max = domain_max
             domain_max += len(position_depths)
@@ -749,7 +748,7 @@ def plot_coverage(
         
         ylabel = "read depth"
         if(bin_size > 1):
-            ylabel = "read depth (max in " + str(bin_size)+ "-bp bin)"
+        	ylabel = "read depth (max in {size}-bp bin)".format(size = bin_size)
         plt.ylabel(ylabel, fontsize=font_size * 1.1)
 
         if plot_x_limits is not None:
