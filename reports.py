@@ -564,8 +564,9 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     parser.add_argument(
         '--binningSummaryStatistic',
         dest="binning_summary_statistic",
-        default="max",
+        choices=["max", "min"],
         type=str,
+        default="max",
         help="Statistic used to summarize each bin (max or min)."
     )
     parser.add_argument(
@@ -714,11 +715,9 @@ def plot_coverage(
             bins_per_pixel = 1 # increase to make smaller (but less visible) bins
             
             # Parse summary statistic
-            if(binning_summary_statistic.lower() == "min" or binning_summary_statistic.lower() == "minimum"):
-                binning_summary_statistic = "min" # for y axis label
+            if(binning_summary_statistic == "min"):
                 binning_action = min
             else:
-                binning_summary_statistic = "max"
                 binning_action = max
         
             # Bin locations and take summary value (maximum or minimum) in each bin
