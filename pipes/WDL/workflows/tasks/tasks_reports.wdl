@@ -15,6 +15,7 @@ task plot_coverage {
   Boolean? skip_mark_dupes=false
   Boolean? plot_only_non_duplicates=false
   Boolean? bin_large_plots=false
+  String? binning_summary_statistic="max" # max or min
   
   String sample_name = basename(basename(basename(reads_unmapped_bam, ".bam"), ".taxfilt"), ".clean")
 
@@ -80,6 +81,7 @@ task plot_coverage {
         --plotDPI 100 \
         $PLOT_DUPE_OPTION \
         $BINNING_OPTION \
+        --binningSummaryStatistic ${binning_summary_statistic} \
         --plotTitle "${sample_name} coverage plot" \
         --loglevel=DEBUG
     else

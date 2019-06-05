@@ -549,12 +549,24 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         type=int,
         help="The max coverage depth (default: %(default)s)"
     )
-    parser.add_argument('-l', dest="read_length_threshold", default=None, type=int, help="Read length threshold")
+    parser.add_argument('-l',
+        dest="read_length_threshold",
+        default=None,
+        type=int,
+        help="Read length threshold"
+    )
     parser.add_argument(
         '--binLargePlots',
         dest="bin_large_plots",
         action="store_true",
-        help="Plot maximum read depth in one-pixel-width bins for large plots."
+        help="Plot summary read depth in one-pixel-width bins for large plots."
+    )
+    parser.add_argument(
+        '--binningSummaryStatistic',
+        dest="binning_summary_statistic",
+        default="max",
+        type=str,
+        help="Statistic used to summarize each bin (max or min)."
     )
     parser.add_argument(
         '--outSummary',
@@ -584,6 +596,7 @@ def plot_coverage(
     read_length_threshold,
     plot_only_non_duplicates=False,
     bin_large_plots=False,
+    binning_summary_statistic="max",
     out_summary=None
     ):
     ''' 
@@ -694,16 +707,25 @@ def plot_coverage(
             label.set_fontsize(font_size)
             
         # Binning
-        inner_plot_width_inches = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).width
-        inner_plot_width_px = inner_plot_width_inches * fig.dpi # width of actual plot (sans whitespace and y axis text)
-        bins_per_pixel = 1 # increase to make smaller (but less visible) bins
         bin_size = 1
         if bin_large_plots:
-            # Bin locations and take summary value (maximum) in each bin
+            inner_plot_width_inches = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).width
+            inner_plot_width_px = inner_plot_width_inches * fig.dpi # width of actual plot (sans whitespace and y axis text)
+            bins_per_pixel = 1 # increase to make smaller (but less visible) bins
+            
+            # Parse summary statistic
+            if(binning_summary_statistic.lower() == "min" or binning_summary_statistic.lower() == "minimum"):
+                binning_summary_statistic = "min" # for y axis label
+                binning_action = min
+            else:
+                binning_summary_statistic = "max"
+                binning_action = max
+        
+            # Bin locations and take summary value (maximum or minimum) in each bin
             bin_size = 1 + int(domain_max/(inner_plot_width_px * bins_per_pixel))
             binned_segment_depths = OrderedDict()
             for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
-                summary_depths_in_bins = [max(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
+                summary_depths_in_bins = [binning_action(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
                 binned_segment_depths[segment_name] = summary_depths_in_bins
             segment_depths = binned_segment_depths
         
@@ -748,7 +770,7 @@ def plot_coverage(
         
         ylabel = "read depth"
         if(bin_size > 1):
-            ylabel = "read depth (max in {size}-bp bin)".format(size = bin_size)
+        	ylabel = "read depth ({summary} in {size}-bp bin)".format(size=bin_size, summary=binning_summary_statistic)
         plt.ylabel(ylabel, fontsize=font_size * 1.1)
 
         if plot_x_limits is not None:
@@ -809,6 +831,7 @@ def align_and_plot_coverage(
     sensitive=False,
     excludeDuplicates=False,
     bin_large_plots=False,
+    binning_summary_statistic="max",
     JVMmemory=None,
     picardOptions=None,
     min_score_to_filter=None,
@@ -887,7 +910,7 @@ def align_and_plot_coverage(
     plot_coverage(
         bam_aligned, out_plot_file, plot_format, plot_data_style, plot_style, plot_width, plot_height, plot_dpi, plot_title,
         plot_x_limits, plot_y_limits, base_q_threshold, mapping_q_threshold, max_coverage_depth, read_length_threshold,
-        excludeDuplicates, bin_large_plots, out_summary
+        excludeDuplicates, bin_large_plots, binning_summary_statistic, out_summary
     )
 
     # remove the output bam, unless it is needed
