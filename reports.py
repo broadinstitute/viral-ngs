@@ -710,18 +710,14 @@ def plot_coverage(
         # Binning
         bin_size = 1
         if bin_large_plots:
+            # Bin locations and take summary value (maximum or minimum) in each bin
+            binning_action = eval(binning_summary_statistic)
+            
             inner_plot_width_inches = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).width
             inner_plot_width_px = inner_plot_width_inches * fig.dpi # width of actual plot (sans whitespace and y axis text)
             bins_per_pixel = 1 # increase to make smaller (but less visible) bins
-            
-            # Parse summary statistic
-            if(binning_summary_statistic == "min"):
-                binning_action = min
-            else:
-                binning_action = max
-        
-            # Bin locations and take summary value (maximum or minimum) in each bin
             bin_size = 1 + int(domain_max/(inner_plot_width_px * bins_per_pixel))
+            
             binned_segment_depths = OrderedDict()
             for segment_num, (segment_name, position_depths) in enumerate(segment_depths.items()):
                 summary_depths_in_bins = [binning_action(position_depths[i:i + bin_size]) for i in range(0, len(position_depths), bin_size)]
