@@ -10,7 +10,7 @@ import logging
 import glob
 import os
 import time
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import csv
 import math
 import shutil
@@ -427,11 +427,11 @@ def get_earliest_date(inDir):
     return time.strftime("%Y-%m-%d", time.localtime(earliest))
 
 
-def consolidate_spike_count(inDir, outFile):
+def consolidate_spike_count(in_dir, out_file):
     '''Consolidate multiple spike count reports into one.'''
-    with open(outFile, 'wt') as outf:
-        for fn in os.listdir(inDir):
-            fn = os.path.join(inDir, fn)
+    with open(out_file, 'wt') as outf:
+        for fn in os.listdir(in_dir):
+            fn = os.path.join(in_dir, fn)
             s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
@@ -444,13 +444,57 @@ def consolidate_spike_count(inDir, outFile):
 
 
 def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Input spike count directory.')
-    parser.add_argument('outFile', help='Output report file.')
+    parser.add_argument('in_dir', metavar="inDir", help='Input spike count directory.')
+    parser.add_argument('out_file', metavar="outFile", help='Output report file.')
     util.cmd.attach_main(parser, consolidate_spike_count, split_args=True)
     return parser
 
 
 __commands__.append(('consolidate_spike_count', parser_consolidate_spike_count))
+
+
+def aggregate_spike_count(in_dir, out_file):
+    '''aggregate multiple spike count reports into one.'''
+    spike_in_sample_counts = defaultdict(dict) # For a given spikein ID, map to sample name and corresponding count
+    samples_seen = []
+    with open(out_file, 'wt') as outf:
+        for fn in glob.glob(os.path.realpath(in_dir)+"/*.spike_count.txt"):# os.listdir():
+            #fn = os.path.join(in_dir, fn)
+            s = os.path.basename(fn)
+            if not s.endswith('.spike_count.txt'):
+                raise Exception()
+            if s.find("ERCC"):
+                s=s[:s.find("ERCC")-1]
+            else:
+                s = s[:-len('.spike_count.txt')]
+            if s not in samples_seen:
+                samples_seen.append(s)
+            with open(fn, 'rt') as inf:
+                for line in inf:
+                    if not line.startswith('Input bam') and not line.startswith('*'):
+                        spike, count = [line.strip().split('\t')[i] for i in [0,2]]
+                        spike_in_sample_counts[spike][s] = count
+                        #outf.write('\t'.join([s, spike, count]) + '\n')
+        outf.write("\t".join(["spike-in"]+samples_seen)+"\n")
+        for spike in sorted(spike_in_sample_counts.keys()):
+            row = []
+            row.append(spike)
+            for s in samples_seen:
+                if s in spike_in_sample_counts[spike]:
+                    row.append(spike_in_sample_counts[spike][s])
+                else:
+                    row.append("0")
+            outf.write("\t".join(row)+"\n")
+
+
+def parser_aggregate_spike_count(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_dir', metavar="inDir", help='Input spike count directory.')
+    parser.add_argument('out_file', metavar="outFile", help='Output report file.')
+    util.cmd.attach_main(parser, aggregate_spike_count, split_args=True)
+    return parser
+
+
+__commands__.append(('aggregate_spike_count', parser_aggregate_spike_count))
 
 
 # =========================
