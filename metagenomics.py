@@ -1212,7 +1212,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
                 try:
                     indent_of_line = indent_len(row["sci_name"])
-                except Exception as e:
+                except AttributeError as e:
                     log.warning("Report type: '{}'".format(report_type))
                     log.warning("Issue with line {}: '{}'".format(lineno,line.strip().rstrip('\n')))
                     log.warning("From file: {}".format(f))
