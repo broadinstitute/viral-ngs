@@ -37,7 +37,7 @@ task illumina_demux {
 
   String? flowcell
   Int?    minimumBaseQuality = 10
-  Int?    maxMismatches = 1
+  Int?    maxMismatches = 0
   Int?    minMismatchDelta
   Int?    maxNoCalls
   String? readStructure
