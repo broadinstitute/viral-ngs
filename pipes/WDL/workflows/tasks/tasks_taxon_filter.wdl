@@ -83,8 +83,11 @@ task deplete_taxa {
 #   level or greater for the virus of interest)
 # ======================================================================
 task filter_to_taxon {
-  File reads_unmapped_bam
-  File lastal_db_fasta
+  File     reads_unmapped_bam
+  File     lastal_db_fasta
+  Boolean? error_on_reads_in_neg_control = false
+  Int? negative_control_reads_threshold = 0
+  String? neg_control_prefixes_space_separated = "neg water NTC"
 
   # do this in two steps in case the input doesn't actually have "cleaned" in the name
   String bam_basename = basename(basename(reads_unmapped_bam, ".bam"), ".cleaned")
@@ -95,10 +98,21 @@ task filter_to_taxon {
     # find 90% memory
     mem_in_mb=`/opt/viral-ngs/source/docker/calc_mem.py mb 90`
 
+    if [[ "${error_on_reads_in_neg_control}" == "true" ]]; then
+      ERROR_ON_NEG_CONTROL_ARGS="--errorOnReadsInNegControl"
+      if [[ -n "${negative_control_reads_threshold}" ]]; then
+        ERROR_ON_NEG_CONTROL_ARGS="$ERROR_ON_NEG_CONTROL_ARGS ${'--negativeControlReadsThreshold=' + negative_control_reads_threshold}"
+      fi
+      if [[ -n "${neg_control_prefixes_space_separated}" ]]; then
+        ERROR_ON_NEG_CONTROL_ARGS="$ERROR_ON_NEG_CONTROL_ARGS ${'--negControlPrefixes=' + neg_control_prefixes_space_separated}"
+      fi      
+    fi
+
     taxon_filter.py filter_lastal_bam \
       ${reads_unmapped_bam} \
       ${lastal_db_fasta} \
       ${bam_basename}.taxfilt.bam \
+      $ERROR_ON_NEG_CONTROL_ARGS \
       --JVMmemory="$mem_in_mb"m \
       --loglevel=DEBUG
 
