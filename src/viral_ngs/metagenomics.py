@@ -1172,7 +1172,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
             should_process = False
             indent_of_selection = -1
             currently_being_processed = ""
-            for line in inf:
+            for lineno, line in enumerate(inf):
                 if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
                     continue
 
@@ -1210,7 +1210,12 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
                 row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
 
-                indent_of_line = indent_len(row["sci_name"])
+                try:
+                    indent_of_line = indent_len(row["sci_name"])
+                except AttributeError as e:
+                    log.warning("Report type: '{}'".format(report_type))
+                    log.warning("Issue with line {}: '{}'".format(lineno,line.strip().rstrip('\n')))
+                    log.warning("From file: {}".format(f))
                 # remove leading/trailing whitespace from each item
                 row = { k:v.strip() for k, v in row.items()}
 
