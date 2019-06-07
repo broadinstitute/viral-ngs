@@ -34,13 +34,14 @@ import tools.picard
 import tools.samtools
 from util.file import mkstempfname
 import read_utils
+from errors import QCError
 
 log = logging.getLogger(__name__)
+
 
 # =======================
 # ***  deplete_human  ***
 # =======================
-
 
 def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
@@ -172,11 +173,15 @@ def filter_lastal_bam(
     min_length_for_initial_matches=5,
     max_length_for_initial_matches=50,
     max_initial_matches_per_position=100,
+    error_on_reads_in_neg_control=False,
+    neg_control_prefixes=None, #set below: "neg","water","NTC"
+    negative_control_reads_threshold=0,
     JVMmemory=None, threads=None
 ):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
     '''
+    neg_control_prefixes = neg_control_prefixes or ["neg","water","NTC"]
 
     with util.file.tmp_dir('-lastdb') as tmp_db_dir:
         # index db if necessary
@@ -185,6 +190,8 @@ def filter_lastal_bam(
             db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
         with util.file.tempfname('.read_ids.txt') as hitList:
+            number_of_hits=0
+
             # look for lastal hits in BAM and write to temp file
             with open(hitList, 'wt') as outf:
                 for read_id in tools.last.Lastal().get_hits(
@@ -195,7 +202,15 @@ def filter_lastal_bam(
                         max_initial_matches_per_position,
                         threads=threads
                     ):
+                    number_of_hits+=1
                     outf.write(read_id + '\n')
+
+            if error_on_reads_in_neg_control:
+                sample_name=os.path.basename(inBam)
+                if any(sample_name.lower().startswith(prefix.lower()) for prefix in neg_control_prefixes):
+                    if number_of_hits > max(0,negative_control_reads_threshold):
+                        log.warning("Error raised due to reads in negative control; re-run this without '--errorOnReadsInNegControl' if this execution should succeed.")
+                        raise QCError("The sample '{}' appears to be a negative control, but it contains {} reads after filtering to desired taxa.".format(sample_name,number_of_hits))
 
             # filter original BAM file against keep list
             tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
@@ -232,6 +247,26 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
         help='maximum initial matches per query position (default: %(default)s)',
         type=int,
         default=100
+    )
+    parser.add_argument(
+        '--errorOnReadsInNegControl',
+        dest="error_on_reads_in_neg_control",
+        help='If specified, the function will return an error if there are reads after filtering for samples with names containing: (water,neg,ntc) (default: %(default)s)',
+        action="store_true",
+    )
+    parser.add_argument(
+        '--negativeControlReadsThreshold',
+        dest="negative_control_reads_threshold",
+        help='maximum number of reads (single-end) or read pairs (paired-end) to tolerate in samples identified as negative controls (default: %(default)s)',
+        type=int,
+        default=0
+    )
+    parser.add_argument(
+        '--negControlPrefixes',
+        dest="neg_control_prefixes",
+        default=["neg","water","NTC"],
+        nargs='*',
+        help='Bam file name prefixes to interpret as negative controls, space-separated (default: %(default)s)'
     )
     parser.add_argument(
         '--JVMmemory',
