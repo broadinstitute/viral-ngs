@@ -253,7 +253,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         try:
             with open(os.devnull, 'w') as fnull:
                 subprocess.check_call(cmd, stderr=fnull)
-        except CalledProcessError as e:
+        except subprocess.CalledProcessError as e:
             fixed_archive = os.path.join(out_dir,os.path.basename(tarfile)+".fixed.zip")
             repair_cmd = ['zip', '-FFv', tarfile, '--out', fixed_archive]
             cmd        = ['unzip', '-q', fixed_archive, '-d', out_dir]
