@@ -247,9 +247,19 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
 
     if compression == 'zip':
         assert tarfile != '-'
+        # if zip file needs to be repaired
+        # zip -FFv file.zip --out file.fixed.zip
         cmd = ['unzip', '-q', tarfile, '-d', out_dir]
-        with open(os.devnull, 'w') as fnull:
-            subprocess.check_call(cmd, stderr=fnull)
+        try:
+            with open(os.devnull, 'w') as fnull:
+                subprocess.check_call(cmd, stderr=fnull)
+        except CalledProcessError as e:
+            fixed_archive = os.path.join(out_dir,os.path.basename(tarfile)+".fixed.zip")
+            repair_cmd = ['zip', '-FFv', tarfile, '--out', fixed_archive]
+            cmd        = ['unzip', '-q', fixed_archive, '-d', out_dir]
+            with open(os.devnull, 'w') as fnull:
+                subprocess.check_call(repair_cmd, stderr=fnull)
+                subprocess.check_call(cmd, stderr=fnull)
     else:
         if compression == 'gz':
             decompressor = ['pigz', '-dc', '-p', str(util.misc.sanitize_thread_count(threads))]
