@@ -31,6 +31,10 @@ workflow demux_metag {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
   }
+  call reports.aggregate_metagenomics_reports as metag_summary_report {
+      input:
+          kraken_summary_reports = kraken.krakenuniq_summary_reports
+  }
   call metagenomics.kaiju as kaiju {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
