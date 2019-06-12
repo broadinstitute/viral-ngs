@@ -195,7 +195,7 @@ task spikein_report {
 }
 
 task aggregate_metagenomics_reports {
-  Array[File] kraken_summary_reports 
+  Array[File]+ kraken_summary_reports 
   String     aggregate_taxon_heading_space_separated  = "Viruses" # The taxonomic heading to analyze. More than one can be specified.
   String     aggregate_taxlevel_focus                 = "species" # species,genus,family,order,class,phylum,kingdom,superkingdom
   Int?       aggregate_top_N_hits                     = 5 # only include the top N hits from a given sample in the aggregte report
