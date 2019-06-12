@@ -27,6 +27,11 @@ workflow demux_metag {
     }
   }
 
+  call reports.spikein_summary as spike_summary {
+      input:
+          spikein_count_txt = spikein.report
+  }
+
   call metagenomics.krakenuniq as kraken {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
