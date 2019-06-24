@@ -201,3 +201,37 @@ task spikein_report {
   }
 }
 
+task aggregate_metagenomics_reports {
+  Array[File]+ kraken_summary_reports 
+  String     aggregate_taxon_heading_space_separated  = "Viruses" # The taxonomic heading to analyze. More than one can be specified.
+  String     aggregate_taxlevel_focus                 = "species" # species,genus,family,order,class,phylum,kingdom,superkingdom
+  Int?       aggregate_top_N_hits                     = 5 # only include the top N hits from a given sample in the aggregte report
+
+  String aggregate_taxon_heading = sub(aggregate_taxon_heading_space_separated, " ", "_") # replace spaces with underscores for use in filename
+  
+  command {
+    set -ex -o pipefail
+
+    metagenomics.py taxlevel_summary \
+      ${sep=' ' kraken_summary_reports} \
+      --csvOut aggregate_taxa_summary_${aggregate_taxon_heading}_by_${aggregate_taxlevel_focus}_top_${aggregate_top_N_hits}_by_sample.csv \
+      --noHist \
+      --taxHeading ${aggregate_taxon_heading_space_separated} \
+      --taxlevelFocus ${aggregate_taxlevel_focus} \
+      --zeroFill --includeRoot --topN ${aggregate_top_N_hits} \
+      --loglevel=DEBUG
+  }
+
+  output {
+    File krakenuniq_aggregate_taxlevel_summary = "aggregate_taxa_summary_${aggregate_taxon_heading}_by_${aggregate_taxlevel_focus}_top_${aggregate_top_N_hits}_by_sample.csv"
+  }
+
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "4 GB"
+    cpu: 1
+    dx_instance_type: "mem1_ssd2_x2"
+    preemptible: 0
+  }
+}
+
