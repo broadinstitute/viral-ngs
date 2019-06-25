@@ -7,8 +7,6 @@ import "tasks_assembly.wdl" as assembly
 import "tasks_reports.wdl" as reports
 
 workflow demux_metag {
-  File krona_taxonomy_db_tgz
-
   call demux.illumina_demux as illumina_demux
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
