@@ -19,9 +19,10 @@ build:
 
 requirements:
   build:
-    - {{ compiler('c') }}
-    #- gcc   # [not osx]
-    #- llvm  # [osx]
+    - gcc
+    - {{ "{{ compiler('c') }}" }}
+    # - gcc   # [not osx]
+    # - llvm  # [osx]
 
   host:
     - python
