@@ -24,7 +24,7 @@ if [ -n "$TRAVIS_TAG" ]; then
     conda config --set anaconda_upload yes
 
     # render and build the conda package
-    python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
+    python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
     CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
 
 else
@@ -45,6 +45,6 @@ else
     echo "Building conda package version $CONDA_PKG_VERSION"
 
     # render and build the conda package
-    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --build-reqs requirements-conda.txt --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt
+    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt --build-reqs requirements-conda.txt
     CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
 fi
