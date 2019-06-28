@@ -19,7 +19,6 @@ build:
 
 requirements:
   build:
-    - gcc
     - {{ "{{ compiler('c') }}" }}
     # - gcc   # [not osx]
     # - llvm  # [osx]
