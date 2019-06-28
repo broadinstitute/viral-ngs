@@ -25,11 +25,6 @@ workflow demux_metag {
     }
   }
 
-  call reports.spikein_summary as spike_summary {
-      input:
-          spikein_count_txt = spikein.report
-  }
-
   call metagenomics.krakenuniq as kraken {
     input:
       reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
@@ -37,6 +32,10 @@ workflow demux_metag {
   call reports.aggregate_metagenomics_reports as metag_summary_report {
       input:
           kraken_summary_reports = kraken.krakenuniq_summary_reports
+  }
+  call reports.spikein_summary as spike_summary {
+      input:
+          spikein_count_txt = spikein.report
   }
   call metagenomics.kaiju as kaiju {
     input:
