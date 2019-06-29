@@ -105,7 +105,7 @@ class VersionString(object):
                     "+{0}".format("".join(str(x) for x in self.version_re.match(self.v).group("local")))
                 )
         except:
-            raise argparse.ArgumentTypeError("String '%s' does not match required PEP440 format"%(self.v,))
+            raise argparse.ArgumentTypeError("String '%s' does not match required PEP440 format" % (self.v,))
 
         return "".join(parts)
 

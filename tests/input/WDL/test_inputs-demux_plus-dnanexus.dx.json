@@ -1,15 +1,15 @@
 {
+  "stage-0.bmtaggerDbs": [
+  { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
+  ],
+  "stage-0.blastDbs": [
+  { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BzBpkK80x0z8GBQPfZ4kgPKp" } }
+  ],
+
   "stage-1.flowcell_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F86qY0j09y3Q5FbKKK3k4gzq" } },
   "stage-1.samplesheet":  { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F8F32gQ09y3VJ4kjBzvgZkKv" } },
   "stage-1.maxMismatches": 0,
   "stage-1.minimumQuality": 25,
-
-  "stage-0.bmtaggerDbs": [
-	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BYF6g8Q0zjF77x79bGYgJ1Zb" } }
-  ],
-  "stage-0.blastDbs": [
-	{ "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-BzBpkK80x0z8GBQPfZ4kgPKp" } }
-  ],
 
   "stage-3.krakenuniq_db_tar_lz4": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-FVYQqP006zFF064QBGf022X1" } },
   "stage-3.krona_taxonomy_db_tgz": { "$dnanexus_link": { "project": "project-F8PQ6380xf5bK0Qk0YPjB17P", "id": "file-F4z0fgj07FZ8jg8yP7yz0Qzb" } }
