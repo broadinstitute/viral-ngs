@@ -458,7 +458,8 @@ class CollectIlluminaLaneMetricsTool(PicardTools):
 class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
-    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 10, 'num_processors': 0}
+    # minimum_base_quality=20 used to accommodate NovaSeq, which with RTA3 writes only four Q-score values: 2, 12, 23, and 37
+    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 20, 'num_processors': 0}
     option_list = (
         'read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
         'minimum_quality', 'compress_outputs', 'num_processors'
@@ -499,8 +500,8 @@ class IlluminaBasecallsToSamTool(PicardTools):
     defaults = {
         'read_structure': '101T8B8B101T',
         'adapters_to_check': ('PAIRED_END', 'NEXTERA_V1', 'NEXTERA_V2'),
-        'max_reads_in_ram_per_tile': 200000,
-        'max_records_in_ram': 1000000,
+        'max_reads_in_ram_per_tile': 1000000,
+        'max_records_in_ram': 2000000,
         'num_processors': 0,
         'include_non_pf_reads': False,
         'compression_level': 7,
