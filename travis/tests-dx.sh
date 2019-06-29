@@ -41,6 +41,7 @@ function dx_run_timeout_args {
 TEST_LAUNCH_ALL="dxWDL-execute_all-launched.txt"
 touch $TEST_LAUNCH_ALL
 for workflow in pipes/WDL/workflows/*.wdl; do
+  echo "testing $workflow..."
   if [ -n "$(grep DX_SKIP_WORKFLOW $workflow)" ]; then
     echo "Skipping $workflow due to the presence of the DX_SKIP_WORKFLOW tag"
   else
