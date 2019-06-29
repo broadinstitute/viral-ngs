@@ -7,8 +7,6 @@ import "tasks_assembly.wdl" as assembly
 import "tasks_reports.wdl" as reports
 
 workflow demux_metag {
-  File krona_taxonomy_db_tgz
-
   call demux.illumina_demux as illumina_demux
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
@@ -34,6 +32,10 @@ workflow demux_metag {
   call reports.aggregate_metagenomics_reports as metag_summary_report {
       input:
           kraken_summary_reports = kraken.krakenuniq_summary_reports
+  }
+  call reports.spikein_summary as spike_summary {
+      input:
+          spikein_count_txt = spikein.report
   }
   call metagenomics.kaiju as kaiju {
     input:
