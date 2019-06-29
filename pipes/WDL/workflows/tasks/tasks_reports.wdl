@@ -194,6 +194,32 @@ task spikein_report {
   }
 }
 
+task spikein_summary {
+  Array[File]+  spikein_count_txt
+
+  command {
+    set -ex -o pipefail
+
+    mkdir spike_summaries
+    cp ${sep=' ' spikein_count_txt} spike_summaries/
+
+    reports.py aggregate_spike_count spike_summaries/ spikein_summary.tsv \
+      --loglevel=DEBUG
+  }
+
+  output {
+    File   spikein_summary  = "spikein_summary.tsv"
+    String viralngs_version = "viral-ngs_version_unknown"
+  }
+
+  runtime {
+    memory: "3 GB"
+    cpu: 2
+    docker: "quay.io/broadinstitute/viral-ngs"
+    dx_instance_type: "mem1_ssd1_x4"
+  }
+}
+
 task aggregate_metagenomics_reports {
   Array[File]+ kraken_summary_reports 
   String     aggregate_taxon_heading_space_separated  = "Viruses" # The taxonomic heading to analyze. More than one can be specified.
@@ -227,4 +253,3 @@ task aggregate_metagenomics_reports {
     preemptible: 0
   }
 }
-
