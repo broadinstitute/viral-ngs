@@ -13,15 +13,23 @@ workflow demux_plus {
     Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
     Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
     Array[File]? bwaDbs
+
     scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
+        call reads.dedup_bam as dedup {
+            input:
+                in_bam = raw_reads        
+        }
+    }
+    
+    scatter(reads_bam in dedup.dedup_bam) {
         call reports.spikein_report as spikein {
             input:
-                reads_bam = raw_reads,
+                reads_bam = reads_bam,
                 spikein_db = spikein_db
         }
         call taxon_filter.deplete_taxa as deplete {
             input:
-                raw_reads_unmapped_bam = raw_reads,
+                raw_reads_unmapped_bam = reads_bam,
                 bmtaggerDbs = bmtaggerDbs,
                 blastDbs = blastDbs,
                 bwaDbs = bwaDbs
@@ -37,7 +45,7 @@ workflow demux_plus {
 
     call metagenomics.krakenuniq as krakenuniq {
         input:
-            reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams
+            reads_unmapped_bam = dedup.dedup_bam
     }
 
     call reports.spikein_summary as spike_summary {
