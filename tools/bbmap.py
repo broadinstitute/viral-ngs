@@ -97,7 +97,7 @@ class BBMapTool(tools.Tool):
 
             # We may want to merge overlapping paired reads via BBMerge first; per clumpify docs:
             #   Clumpify supports paired reads, in which case it will clump based on read 1 only.
-            #   However, it’s much more effective to treat reads as unpaired. For example, merge 
+            #   However, it's much more effective to treat reads as unpaired. For example, merge 
             #   the reads with BBMerge, then concatenate the merged reads with the unmerged pairs,
             #   and clump them all together as unpaired.
 
