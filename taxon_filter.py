@@ -109,9 +109,12 @@ def main_deplete(args):
                                         tags_to_clear = args.tags_to_clear,
                                         picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
                                         JVMmemory     = args.JVMmemory,
-                                        sanitize      = not args.do_not_sanitize) as bamToDeplete:
+                                        sanitize      = not args.do_not_sanitize) as bam_to_dedup:
+
+        read_utils.rmdup_mvicuna_bam(bam_to_dedup, args.rmdupBam, JVMmemory=args.JVMmemory)
+
         multi_db_deplete_bam(
-            bamToDeplete,
+            args.rmdupBam,
             args.bwaDbs,
             deplete_bwa_bam,
             args.bwaBam,
@@ -129,13 +132,8 @@ def main_deplete(args):
         JVMmemory=args.JVMmemory
     )
 
-    # if the user has not specified saving a revertBam, we used a temp file and can remove it
-    if not args.revertBam:
-        os.unlink(revertBamOut)
-
-    read_utils.rmdup_mvicuna_bam(args.bmtaggerBam, args.rmdupBam, JVMmemory=args.JVMmemory)
     multi_db_deplete_bam(
-        args.rmdupBam,
+        args.bmtaggerBam,
         args.blastDbs,
         deplete_blastn_bam,
         args.blastnBam,
