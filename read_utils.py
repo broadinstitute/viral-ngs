@@ -26,6 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+import tools.bbmap
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -902,9 +903,49 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_cdhit_bam, split_args=True)
     return parser
-
-
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
+
+
+def rmdup_clumpify_bam(inBam, outBam, max_mismatches=None, JVMmemory=None):
+    ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
+    '''
+    max_mismatches = max_mismatches or 4
+    tmp_dir = tempfile.mkdtemp()
+
+    tools.picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
+
+    bbmap = tools.bbmap.BBMapTool()
+    out_bams = []
+    for f in os.listdir(tmp_dir):
+        out_bam = mkstempfname('.bam')
+        out_bams.append(out_bam)
+        library_sam = os.path.join(tmp_dir, f)
+
+        log.info("executing BBMap clumpify on library " + library_sam)
+        # cd-hit-dup cannot operate on piped fastq input because it reads twice
+        bbmap.dedup_clumpify(library_sam, out_bam, subs=max_mismatches, JVMmemory=JVMmemory)
+
+    with util.file.fifo(name='merged.sam') as merged_bam:
+        merge_opts = ['SORT_ORDER=queryname']
+        tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=JVMmemory, background=True)
+        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, inBam, outBam, JVMmemory=JVMmemory)
+
+
+def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('--maxMismatches', dest="max_mismatches", type=int, help='The max number of base mismatches to allow when identifying duplicate reads.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)',
+        dest='JVMmemory'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_clumpify_bam, split_args=True)
+    return parser
+__commands__.append(('rmdup_clumpify_bam', parser_rmdup_cdhit_bam))
+
 
 def _merge_fastqs_and_mvicuna(lb, files):
     readList = mkstempfname('.keep_reads.txt')

@@ -28,12 +28,14 @@ class BBMapTool(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, tool, **kwargs):  # pylint: disable=arguments-differ
+    def execute(self, tool, JVMmemory=None, **kwargs):  # pylint: disable=arguments-differ
         tool_dir = os.path.dirname(self.install_and_get_path())
         tool_cmd = [os.path.join(tool_dir, tool)] + \
                    ['{}={}'.format('in' if arg=='in_' else arg,
                                    (val is True and 't') or (val is False and 'f') or val)
                     for arg, val in kwargs.items()]
+        if JVMmemory:
+            tool_cmd.append('-Xmx'+JVMmemory)
         _log.debug('Running BBMap tool: %s', ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
@@ -41,15 +43,13 @@ class BBMapTool(tools.Tool):
         with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as (in1, in2), \
              util.file.tmp_dir('_bbmap_align') as t_dir:
             tmp_bam = os.path.join(t_dir, 'bbmap_out.bam')
-            self.execute(tool='bbmap.sh', in1=in1, in2=in2, ref=ref_fasta, out=tmp_bam, nodisk=nodisk, **kwargs)
+            self.execute(tool='bbmap.sh', in1=in1, in2=in2, ref=ref_fasta, out=tmp_bam, nodisk=nodisk, JVMmemory=JVMmemory, **kwargs)
             
             # Samtools filter (optional)
             if min_qual:
+                samtools = tools.samtools.SamtoolsTool()
                 tmp_bam2 = os.path.join(tdir, 'bbmap.filtered.bam')
-                cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_bam]
-                _log.debug('%s > %s', ' '.join(cmd), tmp_bam2)
-                with open(tmp_bam2, 'wb') as outf:
-                    util.misc.run_and_save(cmd, outf=outf)
+                samtools.view(['-b', '-S', '-1', '-q', str(min_qual)], tmp_bam, tmp_bam2)
                 os.unlink(tmp_bam)
                 tmp_bam = tmp_bam2
 
@@ -63,7 +63,7 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=5, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, **kwargs):
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=5, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, JVMmemory=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -117,4 +117,5 @@ class BBMapTool(tools.Tool):
                             # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
                             unpair=treat_as_unpaired,
                             repair=treat_as_unpaired,
+                            JVMmemory=JVMmemory,
                             **kwargs)

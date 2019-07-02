@@ -37,4 +37,29 @@ task downsample_bams {
   }
 }
 
+task dedup_bam {
+  File  in_bam
+  Int?  max_mismatches=5
 
+  String sample_name = basename(in_bam, ".bam")
+
+  command {
+    read_utils.py rmdup_clumpify_bam \
+        in_bam \
+        ${sample_name}.dedup.bam \
+        ${'--maxMismatches=' + max_mismatches} \
+        --JVMmemory "8g"
+  }
+
+  output {
+    File deduplicated_bam        = "${sample_name}.dedup.bam"
+    String      viralngs_version = "viral-ngs_version_unknown"
+  }
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "14 GB"
+    cpu: 8
+    dx_instance_type: "mem1_ssd1_x16"
+    preemptible: 0
+  }
+}

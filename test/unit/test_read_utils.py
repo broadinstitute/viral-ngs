@@ -172,37 +172,6 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 
         self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
 
-    def test_bbmap_canned_input(self):
-        samtools = tools.samtools.SamtoolsTool()
-        bbtools =  tools.bbmap.BBMapTool()
-
-        input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
-        expected_bam = os.path.join(util.file.get_test_input_path(self), 'expected_clumpify.bam')
-        output_bam = util.file.mkstempfname("output.bam")
-        bbtools.dedup_clumpify(
-            input_bam,
-            output_bam
-        )
-
-        starting_count = samtools.count(input_bam)
-        target_count = samtools.count(expected_bam)
-        output_count = samtools.count(output_bam)
-
-        # check that the target count is within 1% of the expected count
-        self.assertAlmostEqual(output_count, target_count, delta=target_count*0.01, msg="{} not deduplicated to the target size of {} (observed: {}->{})".format(os.path.basename(output_bam),target_count,starting_count,output_count))
-
-    def test_bbmap_empty_input(self):
-        samtools = tools.samtools.SamtoolsTool()
-        bbtools =  tools.bbmap.BBMapTool()
-
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        output_bam = util.file.mkstempfname("output.bam")
-        bbtools.dedup_clumpify(
-            empty_bam,
-            output_bam
-        )
-        self.assertEqual(samtools.count(output_bam), 0)
-
     def test_mvicuna_empty_input(self):
         samtools = tools.samtools.SamtoolsTool()
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
@@ -231,6 +200,35 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
         output_bam = util.file.mkstempfname("output.bam")
         read_utils.rmdup_cdhit_bam(
+            empty_bam,
+            output_bam
+        )
+        self.assertEqual(samtools.count(output_bam), 0)
+
+    def test_bbmap_canned_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+
+        input_bam = os.path.join(util.file.get_test_input_path(self), 'input.bam')
+        expected_bam = os.path.join(util.file.get_test_input_path(self), 'expected_clumpify.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_clumpify_bam(
+            input_bam,
+            output_bam
+        )
+
+        starting_count = samtools.count(input_bam)
+        target_count = samtools.count(expected_bam)
+        output_count = samtools.count(output_bam)
+
+        # check that the target count is within 1% of the expected count
+        self.assertAlmostEqual(output_count, target_count, delta=target_count*0.01, msg="{} not deduplicated to the target size of {} (observed: {}->{})".format(os.path.basename(output_bam),target_count,starting_count,output_count))
+
+    def test_bbmap_empty_input(self):
+        samtools = tools.samtools.SamtoolsTool()
+
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+        read_utils.rmdup_clumpify_bam(
             empty_bam,
             output_bam
         )
