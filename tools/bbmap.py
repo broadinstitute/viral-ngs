@@ -37,11 +37,11 @@ class BBMapTool(tools.Tool):
         _log.debug('Running BBMap tool: %s', ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
-    def align(self, inBam, refFasta, outBam, min_qual=0, nodisk=True, JVMmemory=None, **kwargs):
-        with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (in1, in2), \
+    def align(self, in_bam, ref_fasta, out_bam, min_qual=0, nodisk=True, JVMmemory=None, **kwargs):
+        with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as (in1, in2), \
              util.file.tmp_dir('_bbmap_align') as t_dir:
             tmp_bam = os.path.join(t_dir, 'bbmap_out.bam')
-            self.execute(tool='bbmap.sh', in1=in1, in2=in2, ref=refFasta, out=tmp_bam, nodisk=nodisk, **kwargs)
+            self.execute(tool='bbmap.sh', in1=in1, in2=in2, ref=ref_fasta, out=tmp_bam, nodisk=nodisk, **kwargs)
             
             # Samtools filter (optional)
             if min_qual:
@@ -57,9 +57,64 @@ class BBMapTool(tools.Tool):
             sorter = tools.picard.SortSamTool()
             sorter.execute(
                 tmp_bam,
-                outBam,
+                out_bam,
                 sort_order='coordinate',
                 picardOptions=['CREATE_INDEX=true', 'VALIDATION_STRINGENCY=SILENT'],
                 JVMmemory=JVMmemory
             )
 
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=5, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, **kwargs):
+        '''
+            clumpify-based deduplication
+            see:
+                https://www.biostars.org/p/225338/
+                https://www.biostars.org/p/225338/#230178
+            and also:
+                https://www.biostars.org/p/229842/#229940
+                https://jgi.doe.gov/data-and-tools/bbtools/bb-tools-user-guide/clumpify-guide/
+
+            From clumpify.sh usage:
+                optical=False   If true, *only* mark or remove *optical* duplicates.
+                dedupe=True     Remove duplicate reads.  For pairs, both must match.
+                dupedist=40     (dist) Max distance to consider for optical duplicates.
+                                Higher removes more duplicates but is more likely to
+                                remove PCR rather than optical duplicates.
+                                This is platform-specific; recommendations:
+                                   NextSeq      40  (and spany=t)
+                                   HiSeq 1T     40
+                                   HiSeq 2500   40
+                                   HiSeq 3k/4k  2500
+                                   Novaseq      12000
+                k=31            Use kmers of this length (1-31).  Shorter kmers may
+                                increase compression, but 31 is recommended for error
+                                correction.                
+    '''
+        unpair = treat_as_unpaired
+        repair = treat_as_unpaired
+
+        with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as (in1, in2), \
+            util.file.tmp_dir('_bbmap_clumpify') as t_dir:
+
+            # We may want to merge overlapping paired reads via BBMerge first; per clumpify docs:
+            #   Clumpify supports paired reads, in which case it will clump based on read 1 only.
+            #   However, it’s much more effective to treat reads as unpaired. For example, merge 
+            #   the reads with BBMerge, then concatenate the merged reads with the unmerged pairs,
+            #   and clump them all together as unpaired.
+
+            self.execute(tool='clumpify.sh', 
+                            in1=in1, in2=in2,
+                            out=out_bam,
+                            dedupe=True,
+                            subs=subs,
+                            passes=passes,
+                            dupedist=dupedist,
+                            k=kmer_size,
+                            optical=optical,
+                            spany=spany,
+                            adjacent=adjacent,
+                            usetmpdir=True,
+                            tmpdir=t_dir,
+                            # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
+                            unpair=treat_as_unpaired,
+                            repair=treat_as_unpaired,
+                            **kwargs)
