@@ -63,7 +63,7 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=5, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, JVMmemory=None, **kwargs):
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, JVMmemory=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -75,6 +75,9 @@ class BBMapTool(tools.Tool):
 
             From clumpify.sh usage:
                 optical=False   If true, *only* mark or remove *optical* duplicates.
+                                Optical duplicate removal is limited by xy-position, 
+                                and is intended for single-end sequencing; 
+                                especially useful for NextSeq data.
                 dedupe=True     Remove duplicate reads.  For pairs, both must match.
                 dupedist=40     (dist) Max distance to consider for optical duplicates.
                                 Higher removes more duplicates but is more likely to
@@ -88,7 +91,7 @@ class BBMapTool(tools.Tool):
                 k=31            Use kmers of this length (1-31).  Shorter kmers may
                                 increase compression, but 31 is recommended for error
                                 correction.                
-    '''
+        '''
         unpair = treat_as_unpaired
         repair = treat_as_unpaired
 

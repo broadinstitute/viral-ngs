@@ -39,7 +39,7 @@ task downsample_bams {
 
 task dedup_bam {
   File  in_bam
-  Int?  max_mismatches=5
+  Int?  max_mismatches=3
 
   String sample_name = basename(in_bam, ".bam")
 
@@ -54,8 +54,8 @@ task dedup_bam {
   }
 
   output {
-    File deduplicated_bam               = "${sample_name}.dedup.bam"
-    File deduplicated_only_reads_fastqc = "${sample_name}.deduped_fastqc.html"
+    File dedup_bam               = "${sample_name}.dedup.bam"
+    File dedup_only_reads_fastqc = "${sample_name}.deduped_fastqc.html"
     String      viralngs_version        = "viral-ngs_version_unknown"
   }
   runtime {

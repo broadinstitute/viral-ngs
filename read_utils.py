@@ -906,10 +906,9 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
 
-def rmdup_clumpify_bam(inBam, outBam, max_mismatches=None, JVMmemory=None):
+def rmdup_clumpify_bam(inBam, outBam, max_mismatches=3, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
     '''
-    max_mismatches = max_mismatches or 4
     tmp_dir = tempfile.mkdtemp()
 
     tools.picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
@@ -922,7 +921,6 @@ def rmdup_clumpify_bam(inBam, outBam, max_mismatches=None, JVMmemory=None):
         library_sam = os.path.join(tmp_dir, f)
 
         log.info("executing BBMap clumpify on library " + library_sam)
-        # cd-hit-dup cannot operate on piped fastq input because it reads twice
         bbmap.dedup_clumpify(library_sam, out_bam, subs=max_mismatches, JVMmemory=JVMmemory)
 
     with util.file.fifo(name='merged.sam') as merged_bam:
@@ -934,7 +932,12 @@ def rmdup_clumpify_bam(inBam, outBam, max_mismatches=None, JVMmemory=None):
 def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
-    parser.add_argument('--maxMismatches', dest="max_mismatches", type=int, help='The max number of base mismatches to allow when identifying duplicate reads.')
+    parser.add_argument(
+        '--maxMismatches',
+        dest="max_mismatches",
+        type=int,
+        default=3,
+        help='The max number of base mismatches to allow when identifying duplicate reads. (default: %(default)s')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
