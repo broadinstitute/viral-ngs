@@ -1,5 +1,10 @@
 #!/bin/bash
-set -e -o pipefail
+set -eu -o pipefail
+
+DX_TOOLKIT_VERSION=0.285.0
+DXWDL_VERSION=1.11
+CROMWELL_VERSION=43
+
 
 cached_fetch_jar_from_github () {
 	_github_org=$1
@@ -17,14 +22,14 @@ cached_fetch_jar_from_github () {
 	ln -s $CACHE_DIR/$_jar_fname $_tool_name.jar
 }
 
-cached_fetch_jar_from_github broadinstitute cromwell womtool 33.1
-cached_fetch_jar_from_github broadinstitute cromwell cromwell 33.1
-cached_fetch_jar_from_github dnanexus dxWDL dxWDL 0.72
+cached_fetch_jar_from_github broadinstitute cromwell womtool ${CROMWELL_VERSION}
+cached_fetch_jar_from_github broadinstitute cromwell cromwell ${CROWELL_VERSION}
+cached_fetch_jar_from_github dnanexus dxWDL dxWDL ${DXWDL_VERSION}
 
-TGZ=dx-toolkit-v0.255.0-ubuntu-14.04-amd64.tar.gz
+TGZ=dx-toolkit-v${DX_TOOLKIT_VERSION}-ubuntu-14.04-amd64.tar.gz
 if [ ! -f $CACHE_DIR/$TGZ ]; then
 	echo "Fetching $TGZ"
-	wget --quiet https://wiki.dnanexus.com/images/files/$TGZ
+	wget --quiet https://dnanexus-sdk.s3.amazonaws.com/$TGZ
 	mv $TGZ $CACHE_DIR
 else
 	echo "Using cached $TGZ"

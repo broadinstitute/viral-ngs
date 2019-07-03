@@ -145,7 +145,7 @@ runSpec:
           echo "Tile count: $total_tile_count tiles, (unknown instrument type), executing on a $demux_instance_type machine."
       fi
       echo "For detailed information on instance types, see:"
-      echo "   https://wiki.dnanexus.com/api-specification-v1.0.0/instance-types#Full-list-of-AWS-instance-types"
+      echo "   https://documentation.dnanexus.com/developer/api/running-analyses/instance-types#full-list-of-aws-instance-types"
 
       run_tarball=""
       dx get_details "$upload_sentinel_record" | jq -r .tar_file_ids[] > tar_file_ids
