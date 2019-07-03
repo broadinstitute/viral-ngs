@@ -3,6 +3,7 @@ import "tasks_metagenomics.wdl" as metagenomics
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
 import "tasks_reports.wdl" as reports
+import "tasks_read_utils.wdl" as reads
 
 workflow demux_plus {
 
