@@ -947,7 +947,7 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_clumpify_bam, split_args=True)
     return parser
-__commands__.append(('rmdup_clumpify_bam', parser_rmdup_cdhit_bam))
+__commands__.append(('rmdup_clumpify_bam', parser_rmdup_clumpify_bam))
 
 
 def _merge_fastqs_and_mvicuna(lb, files):
