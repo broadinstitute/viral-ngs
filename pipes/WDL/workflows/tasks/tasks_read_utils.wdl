@@ -60,9 +60,9 @@ task dedup_bam {
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
-    memory: "14 GB"
+    memory: "52 GB"
     cpu: 8
-    dx_instance_type: "mem1_ssd1_x16"
+    dx_instance_type: "mem1_ssd1_x32"
     preemptible: 0
   }
 }
