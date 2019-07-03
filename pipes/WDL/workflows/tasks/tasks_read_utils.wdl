@@ -45,7 +45,7 @@ task dedup_bam {
 
   command {
     read_utils.py rmdup_clumpify_bam \
-        in_bam \
+        ${in_bam} \
         ${sample_name}.dedup.bam \
         ${'--maxMismatches=' + max_mismatches} \
         --JVMmemory "8g"

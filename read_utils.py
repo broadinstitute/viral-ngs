@@ -906,12 +906,12 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
 
-def rmdup_clumpify_bam(inBam, outBam, max_mismatches=3, JVMmemory=None):
+def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
     '''
     tmp_dir = tempfile.mkdtemp()
 
-    tools.picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
+    tools.picard.SplitSamByLibraryTool().execute(in_bam, tmp_dir)
 
     bbmap = tools.bbmap.BBMapTool()
     out_bams = []
@@ -926,12 +926,12 @@ def rmdup_clumpify_bam(inBam, outBam, max_mismatches=3, JVMmemory=None):
     with util.file.fifo(name='merged.sam') as merged_bam:
         merge_opts = ['SORT_ORDER=queryname']
         tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=JVMmemory, background=True)
-        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, inBam, outBam, JVMmemory=JVMmemory)
+        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, in_bam, out_bam, JVMmemory=JVMmemory)
 
 
 def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument('in_bam', help='Input reads, BAM format.')
+    parser.add_argument('out_bam', help='Output reads, BAM format.')
     parser.add_argument(
         '--maxMismatches',
         dest="max_mismatches",
