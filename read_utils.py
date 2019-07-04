@@ -916,12 +916,12 @@ def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
     bbmap = tools.bbmap.BBMapTool()
     out_bams = []
     for f in os.listdir(tmp_dir):
-        out_bam = mkstempfname('.bam')
-        out_bams.append(out_bam)
+        out_lb_bam = mkstempfname('.bam')
+        out_bams.append(out_lb_bam)
         library_sam = os.path.join(tmp_dir, f)
 
         log.info("executing BBMap clumpify on library " + library_sam)
-        bbmap.dedup_clumpify(library_sam, out_bam, subs=max_mismatches, JVMmemory=JVMmemory)
+        bbmap.dedup_clumpify(library_sam, out_lb_bam, subs=max_mismatches, JVMmemory=JVMmemory)
 
     with util.file.fifo(name='merged.sam') as merged_bam:
         merge_opts = ['SORT_ORDER=queryname']
