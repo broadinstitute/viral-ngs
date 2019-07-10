@@ -189,6 +189,7 @@ def parser_assembly_stats(parser=argparse.ArgumentParser()):
     parser.add_argument('--raw_reads_dir',
                         default='data/00_raw',
                         help='Directory with unaligned raw read BAMs. (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assembly_stats, split_args=True)
     return parser
 
@@ -211,7 +212,7 @@ def parser_coverage_only(parser=argparse.ArgumentParser()):
                         type=int,
                         default=(1, 5, 20, 100),
                         help='Genome coverage thresholds to report on. (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, coverage_only, split_args=True)
     return parser
 def coverage_only(mapped_bams, out_report, cov_thresholds=(1, 5, 20, 100)):
@@ -355,6 +356,7 @@ def parser_alignment_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastaFileTwo', help='First fasta file for an alignment')
     parser.add_argument('--outfileName', help='Output file for counts in TSV format')
     parser.add_argument('--printCounts', help='', action='store_true')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, alignment_summary, split_args=True)
     return parser
 __commands__.append(('alignment_summary', parser_alignment_summary))
@@ -385,6 +387,7 @@ def consolidate_fastqc(inDirs, outFile):
 def parser_consolidate_fastqc(parser=argparse.ArgumentParser()):
     parser.add_argument('inDirs', help='Input FASTQC directories.', nargs='+')
     parser.add_argument('outFile', help='Output report file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, consolidate_fastqc, split_args=True)
     return parser
 
@@ -446,6 +449,7 @@ def consolidate_spike_count(in_dir, out_file):
 def parser_consolidate_spike_count(parser=argparse.ArgumentParser()):
     parser.add_argument('in_dir', metavar="inDir", help='Input spike count directory.')
     parser.add_argument('out_file', metavar="outFile", help='Output report file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, consolidate_spike_count, split_args=True)
     return parser
 
@@ -490,6 +494,7 @@ def aggregate_spike_count(in_dir, out_file):
 def parser_aggregate_spike_count(parser=argparse.ArgumentParser()):
     parser.add_argument('in_dir', metavar="inDir", help='Input spike count directory.')
     parser.add_argument('out_file', metavar="outFile", help='Output report file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, aggregate_spike_count, split_args=True)
     return parser
 
