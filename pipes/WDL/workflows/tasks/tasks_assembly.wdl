@@ -101,7 +101,7 @@ task scaffold {
     Int?    nucmer_max_gap
     Int?    nucmer_min_match
     Int?    nucmer_min_cluster
-    Int?    scaffold_min_pct_contig_aligned
+    Float?    scaffold_min_pct_contig_aligned
 
     # do this in multiple steps in case the input doesn't actually have "assembly1-x" in the name
     String  sample_name = basename(basename(basename(contigs_fasta, ".fasta"), ".assembly1-trinity"), ".assembly1-spades")
