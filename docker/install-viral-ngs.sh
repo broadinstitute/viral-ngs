@@ -15,15 +15,13 @@
 
 set -e -o pipefail
 
+echo "PATH:              ${PATH}"
+echo "INSTALL_PATH:      ${INSTALL_PATH}"
+echo "CONDA_PREFIX:      ${CONDA_PREFIX}"
+echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
+echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
+echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
 CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
-
-mkdir -p $INSTALL_PATH/viral-ngs-etc
-if [ ! -f $INSTALL_PATH/viral-ngs-etc/viral-ngs ]; then
-	ln -s $VIRAL_NGS_PATH $INSTALL_PATH/viral-ngs-etc/viral-ngs
-fi
-if [ ! -f $INSTALL_PATH/viral-ngs-etc/conda-env ]; then
-	ln -s $CONDA_DEFAULT_ENV $INSTALL_PATH/viral-ngs-etc/conda-env
-fi
 
 # setup/install viral-ngs directory tree and conda dependencies
 sync
@@ -33,13 +31,15 @@ if [[ "$1" == "minimal" ]]; then
 	# a more minimal set of tools (smaller docker image?)
 	conda install -y \
 		-q $CONDA_CHANNEL_STRING \
-		--file "$VIRAL_NGS_PATH/requirements-minimal.txt"
+		--file "$VIRAL_NGS_PATH/requirements-minimal.txt" \
+		-p "${CONDA_PREFIX}"
 else
 	conda install -y \
 		-q $CONDA_CHANNEL_STRING \
 		--file "$VIRAL_NGS_PATH/requirements-py3.txt" \
 		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
-		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt"
+		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" \
+		-p "${CONDA_PREFIX}"
 fi
 
 # clean up
