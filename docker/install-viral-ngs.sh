@@ -15,6 +15,12 @@
 
 set -e -o pipefail
 
+echo "PATH:              ${PATH}"
+echo "INSTALL_PATH:      ${INSTALL_PATH}"
+echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
+echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
+echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
+
 CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
 
 mkdir -p $INSTALL_PATH/viral-ngs-etc
