@@ -24,7 +24,6 @@ parallel=20160622
 picard=2.18.11
 pigz=2.4
 prinseq=0.20.4
-sambamba=0.7.0
 samtools=1.9
 snpeff=4.3.1t
 spades=3.12.0
