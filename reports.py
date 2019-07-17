@@ -467,9 +467,7 @@ def aggregate_spike_count(in_dir, out_file):
             s = os.path.basename(fn)
             if not s.endswith('.spike_count.txt'):
                 raise Exception()
-            if s.find("ERCC"):
-                s=s[:s.find("ERCC")-1]
-            else:
+            if s.find('.spike_count.txt'):
                 s = s[:-len('.spike_count.txt')]
             if s not in samples_seen:
                 samples_seen.append(s)
