@@ -20,17 +20,20 @@ LABEL maintainer "viral-ngs@broadinstitute.org"
 ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
-	MINICONDA_PATH="/opt/miniconda"
+	MINICONDA_PATH="/opt/miniconda" \
+	CONDA_DEFAULT_ENV=viral-ngs-env
 ENV \
-	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-	CONDA_DEFAULT_ENV=$MINICONDA_PATH \
-	CONDA_PREFIX=$MINICONDA_PATH \
+	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+	CONDA_PREFIX=$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV \
 	JAVA_HOME=$MINICONDA_PATH
 
 # Prepare viral-ngs user and installation directory
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
+RUN conda create -n $CONDA_DEFAULT_ENV python=3.6
+RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
+RUN hash -r
 COPY docker/install-viral-ngs.sh $VIRAL_NGS_PATH/docker/
 COPY requirements-minimal.txt $VIRAL_NGS_PATH/
 RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh minimal
