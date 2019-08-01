@@ -63,7 +63,7 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, JVMmemory=None, **kwargs):
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -88,9 +88,10 @@ class BBMapTool(tools.Tool):
                                    HiSeq 2500   40
                                    HiSeq 3k/4k  2500
                                    Novaseq      12000
-                k=31            Use kmers of this length (1-31).  Shorter kmers may
-                                increase compression, but 31 is recommended for error
-                                correction.                
+                k=31              Use kmers of this length (1-31).  Shorter kmers may
+                                  increase compression, but 31 is recommended for error
+                                  correction.
+                containment=True  Allow containments (where one sequence is shorter).
         '''
         unpair = treat_as_unpaired
         repair = treat_as_unpaired
@@ -120,5 +121,6 @@ class BBMapTool(tools.Tool):
                             # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
                             unpair=treat_as_unpaired,
                             repair=treat_as_unpaired,
+                            containment=containment,
                             JVMmemory=JVMmemory,
                             **kwargs)
