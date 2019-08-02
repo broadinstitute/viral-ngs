@@ -35,7 +35,7 @@ vphaser2=2.0
 r-base=3.5.1
 # Python packages below
 arrow=0.12.1
-bedtools=2.27.1
+bedtools=2.28.0
 biopython=1.72
 future==0.16.0
 matplotlib=2.2.4
