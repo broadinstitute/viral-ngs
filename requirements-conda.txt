@@ -1,4 +1,4 @@
-blast=2.6.0
+blast=2.7.1
 bbmap=38.56
 bmtagger=3.101
 bwa=0.7.17
