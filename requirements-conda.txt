@@ -32,7 +32,7 @@ trimmomatic=0.38
 trinity=date.2011_11_26
 unzip=6.0
 vphaser2=2.0
-r-base=3.6.1
+r-base=3.5.1
 # Python packages below
 arrow=0.12.1
 bedtools=2.27.1
