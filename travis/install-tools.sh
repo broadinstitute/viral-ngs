@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail #exit on error or within pipes
 
-CONDA_CHANNEL_STRING="" #"--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
+CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
 CONDA_ENV="$(pwd)/tools/conda-tools/default"
 
 # Set to conda's java
