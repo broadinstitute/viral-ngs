@@ -19,7 +19,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '2.20.3'
+TOOL_VERSION = '2.20.5'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
@@ -408,8 +408,9 @@ class CreateSequenceDictionaryTool(PicardTools):
                 os.unlink(outDict)
             else:
                 return
-        opts = ['REFERENCE=' + inFasta, 'OUTPUT=' + outDict]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        with util.file.fastas_with_sanitized_ids(inFasta, use_tmp=False) as sanitized_fastas:
+            opts = ['REFERENCE=' + sanitized_fastas[0], 'OUTPUT=' + outDict]
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
 class BuildBamIndexTool(PicardTools):
