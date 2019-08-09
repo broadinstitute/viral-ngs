@@ -652,6 +652,11 @@ def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
         for record in SeqIO.parse(fasta_in, "fasta"):
             record.id=sanitize_id_for_sam_rname(record.id)
             fasta_out.write_record(record)
+    print("out_filepath",out_filepath)
+    print("os.path.dirname(out_filepath)",os.path.dirname(out_filepath))
+    print("ls -lah")
+    for line in subprocess.check_output(["ls","-lah",os.path.dirname(out_filepath)]).decode("utf-8").split("\n"):
+        print(line)
     return out_filepath
 
 @contextlib.contextmanager
@@ -668,7 +673,7 @@ def fastas_with_sanitized_ids(input_fasta_paths, use_tmp=False):
     """
     sanitized_fasta_paths=[]
     if use_tmp:
-        with tempfnames(["{inf_name}.sanitized_id.fasta".format(inf_name=os.path.basename(inf_path)) for inf_path in [input_fasta_paths]]) as temp_fasta_paths:
+        with tempfnames(["_{inf_name}".format(inf_name=os.path.basename(inf_path)) for inf_path in [input_fasta_paths]]) as temp_fasta_paths:
             for fasta_in, out_filepath in zip([input_fasta_paths], temp_fasta_paths):
                 sanitized_fasta_paths.append(write_fasta_with_sanitized_ids(fasta_in, out_filepath))
             yield sanitized_fasta_paths
