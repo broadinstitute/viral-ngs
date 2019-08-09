@@ -642,7 +642,7 @@ def sanitize_id_for_sam_rname(string_in):
 
     # ensure all the character removals did not make the name empty
     string_value = string_value or '_'
-    print("sanitizing: %s  ====> %s  " % (string_in, string_value))
+    print("sanitizing: %s ====> %s  " % (string_in, string_value))
     return string_value
 
 def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
