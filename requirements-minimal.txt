@@ -1,5 +1,5 @@
 lbzip2=2.5
-lz4-bin=131
+lz4-c=1.9.1
 fastqc=0.11.7
 picard=2.20.3
 pigz=2.4
