@@ -2,24 +2,17 @@ bbmap=38.56
 bwa=0.7.17
 cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
-kmc=3.1.1rc1
-lbzip2=2.5
-lz4-bin=131
 fastqc=0.11.7
+mvicuna=1.0
 novoalign=3.07.00
-parallel=20160622
 picard=2.18.11
-pigz=2.4
 prinseq=0.20.4
 samtools=1.9
 trimmomatic=0.38
 unzip=6.0
-vphaser2=2.0
 # Python packages below
 arrow=0.12.1
 bedtools=2.27.1
 biopython=1.72
-future==0.16.0
 pysam=0.15.0
 pybedtools=0.7.10
-PyYAML=5.1

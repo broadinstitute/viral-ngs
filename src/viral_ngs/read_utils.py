@@ -3,7 +3,6 @@
 Utilities for working with sequence reads, such as converting formats and
 fixing mate pairs.
 """
-from __future__ import division
 
 __author__ = "irwin@broadinstitute.org, dpark@broadinstitute.org"
 __commands__ = []

@@ -10,12 +10,6 @@ LABEL maintainer "viral-ngs@broadinstitute.org"
 #
 # to run interactively:
 #   docker run --rm -it <image_ID>
-#
-# to run with GATK and/or Novoalign:
-#   Download licensed copies of GATK and Novoalign to the host machine (for Linux-64)
-#   export GATK_PATH=/path/to/gatk/
-#   export NOVOALIGN_PATH=/path/to/novoalign/
-#   docker run --rm -v $GATK_PATH:/gatk -v $NOVOALIGN_PATH:/novoalign -v /path/to/dir/on/host:/user-data <image_ID> "<command>.py subcommand"
 
 ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
@@ -45,20 +39,9 @@ RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh
 # layers will likely need to be rebuilt each time)
 COPY . $VIRAL_NGS_PATH/
 
-# Volume setup: make external tools and data available within the container
-VOLUME ["/gatk", "/novoalign", "/user-data"]
-ENV \
-	VIRAL_NGS_DOCKER_DATA_PATH="/user-data" \
-	NOVOALIGN_PATH="/novoalign" \
-	GATK_PATH="/gatk"
-
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
 # verifies that conda-installed python libraries are working.
-RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; assembly.py --version"
-
-## A wrapper script to load the viral-ngs environment, switch to
-## a non-root user, and then run any commands desired
-#ENTRYPOINT ["/opt/viral-ngs/source/docker/gosu-entrypoint.sh"]
+RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; read_utils.py --version"
 
 CMD ["/bin/bash"]

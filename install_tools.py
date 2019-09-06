@@ -2,7 +2,6 @@
 ''' This script installs every Tool needed by viral-ngs
 '''
 
-from __future__ import print_function
 import os.path
 import sys
 import timeit
