@@ -1,5 +1,0 @@
-This folder contains scripts related to running the viral-ngs pipeline 
-on the Broad's Univa GridEngine system. It is no longer supported as
-a production analysis environment for viral-ngs, but the original scripts
-are retained here for reference for anyone wishing to adapt the Snakemake
-pipelines to a GridEngine-like environment.
