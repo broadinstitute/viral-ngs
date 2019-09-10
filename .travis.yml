@@ -12,8 +12,8 @@ env:
   - PYTHONIOENCODING=UTF8
   
   - DOCKER_REGISTRY="quay.io"
-  - DOCKER_REPO_PROD="quay.io/broadinstitute/micro-readqc"
-  - DOCKER_REPO_DEV="quay.io/broadinstitute/micro-readqc"
+  - DOCKER_REPO_PROD="quay.io/broadinstitute/viral-core"
+  - DOCKER_REPO_DEV="quay.io/broadinstitute/viral-core"
   
   - BOTO_CONFIG=/dev/null # bogus value to override config on travis
   - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
