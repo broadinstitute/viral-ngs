@@ -3,6 +3,7 @@ bwa=0.7.17
 cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
 fastqc=0.11.7
+gatk=3.8
 mvicuna=1.0
 novoalign=3.07.00
 picard=2.18.11

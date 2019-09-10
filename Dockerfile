@@ -29,7 +29,7 @@ RUN conda create -n $CONDA_DEFAULT_ENV python=3.6
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker/install-viral-ngs.sh $VIRAL_NGS_PATH/docker/
-COPY requirements-conda.txt requirements-conda-tests.txt requirements-py3.txt $VIRAL_NGS_PATH/
+COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
 RUN $VIRAL_NGS_PATH/docker/install-viral-ngs.sh
 
 # Copy all of the source code into the repo
