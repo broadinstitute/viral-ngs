@@ -8,10 +8,8 @@
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
 #
 # Otherwise, this only requires the existence of the following files:
-#	requirements-minimal.txt
 #	requirements-conda.txt
 #	requirements-conda-tests.txt
-#	requirements-py3.txt
 
 set -e -o pipefail
 
@@ -31,12 +29,11 @@ if [[ "$1" == "minimal" ]]; then
 	# a more minimal set of tools (smaller docker image?)
 	conda install -y \
 		-q $CONDA_CHANNEL_STRING \
-		--file "$VIRAL_NGS_PATH/requirements-minimal.txt" \
+		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
 		-p "${CONDA_PREFIX}"
 else
 	conda install -y \
 		-q $CONDA_CHANNEL_STRING \
-		--file "$VIRAL_NGS_PATH/requirements-py3.txt" \
 		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
 		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" \
 		-p "${CONDA_PREFIX}"
