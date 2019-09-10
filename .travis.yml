@@ -52,35 +52,35 @@ jobs:
       before_cache:
         - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
     
-    - language: java
-      jdk: openjdk8
-      stage: build
-      env:
-        - TRAVIS_JOB=build_dxWDL
-        # DX_API_TOKEN (for DNAnexus builds)
-        - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
-        - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
-      install:
-        - travis/install-wdl.sh
-      script:
-        - travis/version-wdl-runtimes.sh
-        - travis/validate-wdl.sh
-        - travis/build-dx.sh
+    #- language: java
+    #  jdk: openjdk8
+    #  stage: build
+    #  env:
+    #    - TRAVIS_JOB=build_dxWDL
+    #    # DX_API_TOKEN (for DNAnexus builds)
+    #    - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
+    #    - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
+    #  install:
+    #    - travis/install-wdl.sh
+    #  script:
+    #    - travis/version-wdl-runtimes.sh
+    #    - travis/validate-wdl.sh
+    #    - travis/build-dx.sh
 
-    - language: java
-      jdk: openjdk8
-      stage: test
-      env:
-        - TRAVIS_JOB=test_cromwell
-      install:
-        - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
-        - docker pull $DOCKER_TAG
-        - travis/install-gatk.sh
-        - travis/install-wdl.sh
-      script:
-        - travis/version-wdl-runtimes.sh
-        - travis/validate-wdl.sh
-        - travis/tests-cromwell.sh
+    #- language: java
+    #  jdk: openjdk8
+    #  stage: test
+    #  env:
+    #    - TRAVIS_JOB=test_cromwell
+    #  install:
+    #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+    #    - docker pull $DOCKER_TAG
+    #    - travis/install-gatk.sh
+    #    - travis/install-wdl.sh
+    #  script:
+    #    - travis/version-wdl-runtimes.sh
+    #    - travis/validate-wdl.sh
+    #    - travis/tests-cromwell.sh
 
     - language: python
       stage: test
@@ -93,7 +93,7 @@ jobs:
         - pip install coveralls==1.1
         - mkdir coverage
       script:
-        - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk3-register /gatk/GenomeAnalysisTK.jar; pytest test/integration test/unit; cp .coverage /coverage'
+        - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk3-register /gatk/GenomeAnalysisTK.jar; pytest test/unit; cp .coverage /coverage'
       after_success:
         - mv coverage/.coverage .
         - coveralls
