@@ -20,5 +20,6 @@ if [[ -n "$DOCKER_PASS" && -n "$DOCKER_USER" && -n "$DOCKER_REGISTRY" ]]; then
 
 else
 	echo "Skipping Docker image deploy unless DOCKER_REGISTRY, DOCKER_USER and DOCKER_PASS variables are set."
+	exit 1
 
 fi
