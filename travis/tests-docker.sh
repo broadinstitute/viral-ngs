@@ -10,7 +10,7 @@ set -eu -o pipefail
 # Tests of util.misc.available_cpu_count()
 for TEST_CPUS in $(seq 1 2)
 do		 
-    REPORTED_CPUS=$(docker run --cpus $TEST_CPUS local/viral-ngs:build /bin/bash -c \
+    REPORTED_CPUS=$(docker run --cpus $TEST_CPUS local/build-container:build /bin/bash -c \
 			    'cd source && python -c "import util.misc; print(util.misc.available_cpu_count())"')
     if [[ $REPORTED_CPUS -ne $TEST_CPUS ]]
     then
