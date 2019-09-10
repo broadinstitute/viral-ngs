@@ -41,7 +41,7 @@ for workflow in pipes/WDL/workflows/*.wdl; do
     fi
 
     extras_json="pipes/WDL/dx-extras.json"
-    CMD_DEFAULTS+="-extras $extras_json"
+    CMD_DEFAULTS+=" -extras $extras_json"
 
 	  dx_id=$(java -jar dxWDL.jar compile \
       $workflow $CMD_INPUT $CMD_DEFAULTS -f -verbose \
