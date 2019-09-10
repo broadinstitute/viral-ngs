@@ -1,4 +1,4 @@
-dist: trusty
+dist: bionic
 os: linux
 
 git:
@@ -108,5 +108,4 @@ jobs:
     #    - travis/install-gatk.sh
     #  script:
     #    - docker run -v $GATK_PATH:/gatk -e _JAVA_OPTIONS -e TRAVIS_BRANCH -e TRAVIS_PULL_REQUEST -e TRAVIS_TAG -e TRAVIS_COMMIT -e ANACONDA_TOKEN --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk3-register /gatk/GenomeAnalysisTK.jar; travis/install-conda-build.sh; travis/build-conda.sh'
-
 
