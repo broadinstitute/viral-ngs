@@ -1,0 +1,96 @@
+dist: trusty
+os: linux
+
+git:
+  depth: 150
+
+env:
+  global:
+  - CACHE_DIR="$HOME/misc_cache"
+  - MINICONDA_DIR="$HOME/miniconda"
+  - PIP_DIR="$HOME/virtualenv"
+  - GATK_PATH="$CACHE_DIR"
+  - PYTHONIOENCODING=UTF8
+  - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov assembly --cov interhost --cov intrahost --cov metagenomics --cov ncbi --cov read_utils --cov kmer_utils --cov reports --cov taxon_filter --cov tools --cov util --cov file_utils"
+  
+  - DOCKER_REGISTRY="quay.io"
+  - DOCKER_REPO_PROD="quay.io/broadinstitute/micro-readqc"
+  - DOCKER_REPO_DEV="quay.io/broadinstitute/micro-readqc"
+  
+  - BOTO_CONFIG=/dev/null # bogus value to override config on travis
+  - _JAVA_OPTIONS="-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
+
+cache:
+  directories:
+    - $HOME/misc_cache
+    - $HOME/miniconda
+  timeout: 1000
+
+jobs:
+  fast_finish: true
+  include:
+
+    - language: java
+      jdk: openjdk8
+      sudo: required
+      addons:
+        apt:
+          packages:
+          - docker-ce
+      env:
+        - TRAVIS_JOB=docker_wdl
+        # DOCKER_USER (for Quay.io)
+        - secure: "A+Ej5Xa/BKWkcGl1DSWTZCvchaanKE0/7NuPnNtT+PA4xVoM4w8Rj4e4fBBclCcCH+y0hg4pkS8UptB7NjLVdXXn/ytFNcLj7asuaPxheOLIRddQ0fGEVpYeM3ZCU25Mb8LI1nQECpJMl1TE4HaxOVunfN7MSxo1SQ0GlQ98YGo="
+        # DOCKER_PASS (for Quay.io)
+        - secure: "V+2MVaKXpMdno91MIF8fTqsRORT4GyheeVXzjVSC28IlyMntGe5N0wBI0nC/NdfQD3DH7MYRltDH/CgE2kcu1tWNGQK9hupClBzxz2X++md995DeyV+fTdkVnsQIYIrLfq/Lw0PuO3gYX7UATur1jevewpf+LbL7/Ar2mYE2pgY="
+        # DX_API_TOKEN (for DNAnexus builds)
+        - secure: "BnUw6ceEClSBFJjZgCy6GebD1ENxaHp3En05maWExdx0xyCb+T09XM1BrsCpPOv25npVUt8Q/YB6YpAiSGMT+RUwdiGj4OtaJb+I3HY/2fT1P7eCIEVITQhtGy5e/vFnavSk0eKzCV09z94c1kqjG3JnTocpPUa1W3JBxVr96vs="
+        - DX_PROJECT=project-F8PQ6380xf5bK0Qk0YPjB17P
+      install:
+        #- travis/upgrade-docker.sh
+        - travis/install-wdl.sh
+        - travis/install-gatk.sh
+      script:
+        - set -e
+        # pull old docker image
+        - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
+        - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
+        # build new docker image
+        - docker build -t local/viral-ngs:build $_CACHE_FROM .;
+        # run tests using the docker image
+        - travis/tests-docker.sh
+        # deploy docker image
+        - travis/deploy-docker.sh
+        # version and validate WDL code
+        - travis/version-wdl-runtimes.sh
+        - travis/validate-wdl.sh
+        # build DNAnexus pipelines and launch a few test executions
+        - travis/build-dx.sh
+        - travis/tests-dx.sh
+        #- if [ "$TRAVIS_BRANCH" = "master" ]; then travis/tests-dx.sh; fi
+        # test Cromwell local execution engine
+        - travis/tests-cromwell.sh
+      before_cache:
+        - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
+
+
+    - language: python
+      python: 3.6
+      #stage: test
+      sudo: required
+      env:
+        - TRAVIS_JOB=test_py36
+      before_install: travis/before_install.sh
+      install:
+        - source travis/install-conda.sh
+        - travis/install-gatk.sh
+        - travis/install-tools.sh
+        - source travis/activate-conda.sh
+      script:
+        - travis/tests-long.sh
+        - travis/tests-unit.sh
+      after_success:
+        - coveralls
+      before_cache:
+        - conda clean --all --yes
+
