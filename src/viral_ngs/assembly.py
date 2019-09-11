@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 ''' This script contains a number of utilities for viral sequence assembly
     from NGS reads.  Primarily used for Lassa and Ebola virus analysis in
     the Sabeti Lab / Broad Institute Viral Genomics.
