@@ -21,6 +21,7 @@ echo "CONDA_PREFIX:      ${CONDA_PREFIX}"
 echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
 echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
 echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
+
 CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
 
 # setup/install viral-ngs directory tree and conda dependencies
