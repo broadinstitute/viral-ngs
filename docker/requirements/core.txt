@@ -15,5 +15,6 @@ unzip=6.0
 arrow=0.12.1
 bedtools=2.27.1
 biopython=1.72
+matplotlib=2.2.0
 pysam=0.15.0
 pybedtools=0.7.10
