@@ -16,7 +16,7 @@ import tools.bwa
 import tools.samtools
 import util
 import util.file
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, assert_equal_bam_reads
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -130,31 +130,15 @@ class TestFastqBam(TestCaseWithTmp):
                                   'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
         args.func_main(args)
 
-        # Note for developers: if you're fixing the tests to handle non-bugs
-        # (ie our testing here is too brittle), let's just replace a lot of this
-        # in the future with code that just reads the header, sorts it, and
-        # tests for equality of sorted values in the RG line (and stricter
-        # equality in the non-header lines). This is kind of hacky.
+        alternate_expected_vals = {
+            "VN":["1.4","1.5","1.6","1.7"]
+        }
+        self.assertEqualSamHeaders(outBamCmd, expected1_7Sam, other_allowed_values=alternate_expected_vals)
+        assert_equal_bam_reads(self, outBamCmd, expected1_7Sam)
 
-        # samtools view for out.sam and compare to expected
-        samtools = tools.samtools.SamtoolsTool()
-        samtools.view(['-h'], outBamCmd, outSam)
-        # picard.sam.FastqToSam outputs header fields in different order for
-        #    java version 1.8 vs 1.7/1.6, so compare both
-        self.assertTrue(filecmp.cmp(outSam,
-                                    expected1_7Sam,
-                                    shallow=False) or filecmp.cmp(outSam,
-                                                                  expected1_8Sam,
-                                                                  shallow=False) or
-                                                      filecmp.cmp(outSam,
-                                                                  expected1_8Sam_v15,
-                                                                  shallow=False))
-
-        # in1.fastq, in2.fastq, inHeader.txt -> out.bam; header from txt
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
-
 
 
 class TestRmdupUnaligned(TestCaseWithTmp):
