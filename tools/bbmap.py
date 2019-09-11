@@ -63,7 +63,7 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, containment=False, JVMmemory=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -91,10 +91,13 @@ class BBMapTool(tools.Tool):
                 k=31              Use kmers of this length (1-31).  Shorter kmers may
                                   increase compression, but 31 is recommended for error
                                   correction.
-                containment=True  Allow containments (where one sequence is shorter).
+                containment=False  Allow containments (where one sequence is shorter).
+                containment should be set to False until there's movement to address the apparent bug in bbmap clumpify identified by @yesimon: https://sourceforge.net/p/bbmap/tickets/18/
         '''
         unpair = treat_as_unpaired
         repair = treat_as_unpaired
+
+        assert containment==False, "Containment should be set to False until this apparent bug has been addressed: https://sourceforge.net/p/bbmap/tickets/18/"
 
         with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as (in1, in2), \
             util.file.tmp_dir('_bbmap_clumpify') as t_dir:

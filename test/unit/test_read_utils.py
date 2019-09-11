@@ -204,8 +204,8 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         target_count = samtools.count(expected_bam)
         output_count = samtools.count(output_bam)
 
-        # check that the target count is within 1% of the expected count
-        self.assertAlmostEqual(output_count, target_count, delta=target_count*0.01, msg="{} not deduplicated to the target size of {} (observed: {}->{})".format(os.path.basename(output_bam),target_count,starting_count,output_count))
+        # check that the target count is within 3% of the expected count
+        self.assertAlmostEqual(output_count, target_count, delta=target_count*0.03, msg="{} not deduplicated to the target size of {} (observed: {}->{})".format(os.path.basename(output_bam),target_count,starting_count,output_count))
 
     def test_bbmap_empty_input(self):
         samtools = tools.samtools.SamtoolsTool()
