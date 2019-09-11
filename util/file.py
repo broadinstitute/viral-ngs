@@ -28,6 +28,7 @@ import util.misc
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.SeqIO import FastaIO
 
 # imports needed for download_file() and webfile_readlines()
 import re
@@ -624,6 +625,72 @@ def max_file_name_length(file_system_path):
 def max_path_length(file_system_path):
     """Return the maximum valid length of a path on the given filesystem."""
     return _get_pathconf(file_system_path, '_PATH_MAX', 255)-1
+
+def sanitize_id_for_sam_rname(string_in):
+    #[0-9A-Za-z!#$%&+./:;?@^_|~-]
+    # See character set restrictions in SAM/BAM RNAME spec:
+    #   https://samtools.github.io/hts-specs/SAMv1.pdf
+    #   [0-9A-Za-z!#$%&+./:;?@^_|~-][0-9A-Za-z!#$%&*+./:;=?@^_|~-]*
+    # Here we are being conservative and replacing anything disallowed:
+    #   [^0-9A-Za-z!#$%&+./:;?@^_|~-]
+    disallowed_char_re = re.compile(r'[^0-9A-Za-z!#$%&+./:;?@^_|~-]')
+    string_value = disallowed_char_re.sub("_", string_in)
+
+    # condense runs of underscores
+    double_underscore_re = re.compile(r'_{2,}')
+    string_value = double_underscore_re.sub("_", string_value)
+
+    # ensure all the character removals did not make the name empty
+    string_value = string_value or '_'
+    print("sanitizing: %s ====> %s  " % (string_in, string_value))
+    return string_value
+
+def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
+    with open(out_filepath, "w") as handle:
+        fasta_out = FastaIO.FastaWriter(handle, wrap=None)
+        fasta_out.write_header()
+        for record in SeqIO.parse(fasta_in, "fasta"):
+            record.id=sanitize_id_for_sam_rname(record.id)
+            fasta_out.write_record(record)
+    print("out_filepath",out_filepath)
+    print("os.path.dirname(out_filepath)",os.path.dirname(out_filepath))
+    print("ls -lah")
+    for line in subprocess.check_output(["ls","-lah",os.path.dirname(out_filepath)]).decode("utf-8").split("\n"):
+        print(line)
+    return out_filepath
+
+@contextlib.contextmanager
+def fastas_with_sanitized_ids(input_fasta_paths, use_tmp=False):
+    """ Returns a list of file paths for fasta files with
+        sanitized IDs 
+         ( Suitable for Picard; see: https://github.com/samtools/hts-specs/pull/333 )
+
+        input_fasta_paths is a list of file paths to fasta files
+
+        if use_tmp==False, companion fasta files will be created with ".sanitized_ids.fasta" appended
+                           in the same location as the input
+        if use_tmp==True, temp files will be written instead
+    """
+    sanitized_fasta_paths=[]
+    if use_tmp:
+        with tempfnames(["_{inf_name}".format(inf_name=os.path.basename(inf_path)) for inf_path in [input_fasta_paths]]) as temp_fasta_paths:
+            for fasta_in, out_filepath in zip([input_fasta_paths], temp_fasta_paths):
+                sanitized_fasta_paths.append(write_fasta_with_sanitized_ids(fasta_in, out_filepath))
+            yield sanitized_fasta_paths
+    else:
+        for fasta_in in [input_fasta_paths]:
+            in_fasta_basename = os.path.splitext(os.path.basename(fasta_in))[0]
+            out_basedir = os.path.realpath(os.path.dirname(fasta_in))
+            new_basename = in_fasta_basename
+            if new_basename.lower().endswith('.fa'):
+                new_basename = new_basename[:-3] + '.sanitized_ids.fa'
+            elif new_basename.lower().endswith('.fasta'):
+                new_basename = new_basename[:-6] + '.sanitized_ids.fasta'
+            else:
+                new_basename = new_basename + '.sanitized_ids.fasta'
+            out_filepath = os.path.join(out_basedir,new_basename)
+            sanitized_fasta_paths.append(write_fasta_with_sanitized_ids(fasta_in, out_filepath))
+        yield sanitized_fasta_paths
 
 def string_to_file_name(string_value, file_system_path=None, length_margin=0):
     """Constructs a valid file name from a given string, replacing or deleting invalid characters.

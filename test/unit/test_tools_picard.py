@@ -3,6 +3,7 @@
 __author__ = "dpark@broadinstitute.org"
 
 import unittest
+import re
 import os
 import tempfile
 import shutil
@@ -31,8 +32,8 @@ class TestToolPicard(TestCaseWithTmp):
 
             # the dict files will not be exactly the same, just the first 3 cols
             with open(outDict, 'rt') as inf:
-                # .replace("VN:1.5","VN:1.4") ==> because the header version may be 1.[4|5]
-                actual_first3 = [x.strip().replace("VN:1.5", "VN:1.4").split('\t')[:3] for x in inf.readlines()]
+                # .replace("VN:1.5","VN:1.4") ==> because the header version may be 1.[4|5|6]
+                actual_first3 = [re.sub(r'VN:1\.[4-6]','VN:1.4',x.strip()).split('\t')[:3] for x in inf.readlines()]
             self.assertEqual(actual_first3, expected_first3)
 
     def test_sam_downsample(self):
