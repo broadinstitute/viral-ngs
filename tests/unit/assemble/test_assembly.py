@@ -16,7 +16,7 @@ import tempfile
 import argparse
 import itertools
 import pytest
-import tools.mummer
+import assemble.mummer
 import tools.novoalign
 import tools.picard
 from test import TestCaseWithTmp, _CPUS
@@ -770,39 +770,39 @@ class TestContigChooser(unittest.TestCase):
 
     def test_no_seqs(self):
         for test_len in (7,2,228,52):
-            actual = tools.mummer.contig_chooser([], test_len)
+            actual = assemble.mummer.contig_chooser([], test_len)
             self.assertEqual(actual, ['N' * test_len])
 
     def test_one_seq(self):
         for test_seq in ('A', '', 'GACTGATG', 'non-biological :characters!'):
-            actual = tools.mummer.contig_chooser([test_seq], 90)
+            actual = assemble.mummer.contig_chooser([test_seq], 90)
             self.assertEqual(actual, [test_seq])
 
     def test_most_popular_seq(self):
         alt_seqs = ['AA', 'aa', 'GGA', 'T', 'GGA']
         expected_choice = 'GGA'
         expected_alts = set(('AA', 'aa', 'T'))
-        actual = tools.mummer.contig_chooser(alt_seqs, 2)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 2)
         self.assertEqual(actual[0], expected_choice)
         self.assertEqual(set(actual[1:]), expected_alts)
 
     def test_most_popular_seq_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
-        actual = tools.mummer.contig_chooser(alt_seqs, 2)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 2)
         self.assertEqual(actual[0], 'aa')
         self.assertEqual(set(actual[1:]), set(('AA', 'GGA', 'T', 'GGC')))
-        actual = tools.mummer.contig_chooser(alt_seqs, 3)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 3)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC']
-        actual = tools.mummer.contig_chooser(alt_seqs, 20)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 20)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
-        actual = tools.mummer.contig_chooser(alt_seqs, 1)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
 
     def test_same_as_ref_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
-        actual = tools.mummer.contig_chooser(alt_seqs, 1)
+        actual = assemble.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'T')
