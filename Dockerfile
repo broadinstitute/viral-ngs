@@ -19,6 +19,7 @@ ENV \
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	CONDA_PREFIX=$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV \
+	PYTHONPATH=$VIRAL_NGS_PATH \
 	JAVA_HOME=$MINICONDA_PATH
 
 # Prepare viral-ngs user and installation directory
