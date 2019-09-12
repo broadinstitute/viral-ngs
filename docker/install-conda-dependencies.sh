@@ -6,10 +6,6 @@
 #
 # A miniconda install must exist at $CONDA_DEFAULT_ENV
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
-#
-# Otherwise, this only requires the existence of the following files:
-#	requirements-conda.txt
-#	requirements-conda-tests.txt
 
 set -e -o pipefail
 
@@ -24,20 +20,9 @@ CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioco
 # setup/install viral-ngs directory tree and conda dependencies
 sync
 
-# manually install it ourselves instead of using easy-deploy
-if [[ "$1" == "minimal" ]]; then
-	# a more minimal set of tools (smaller docker image?)
-	conda install -y \
-		-q $CONDA_CHANNEL_STRING \
-		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
-		-p "${CONDA_PREFIX}"
-else
-	conda install -y \
-		-q $CONDA_CHANNEL_STRING \
-		--file "$VIRAL_NGS_PATH/requirements-conda.txt" \
-		--file "$VIRAL_NGS_PATH/requirements-conda-tests.txt" \
-		-p "${CONDA_PREFIX}"
-fi
+for condafile in $*; do
+	conda install -y -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" --file $condafile
+done
 
 # clean up
 conda clean -y --all
