@@ -44,7 +44,7 @@ jobs:
         - set -e
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
         - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
-        - travis_wait docker build -t local/build-container:build $_CACHE_FROM .;
+        - docker build -t local/build-container:build $_CACHE_FROM .;
         - travis/deploy-docker.sh
       before_cache:
         - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
