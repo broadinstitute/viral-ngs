@@ -29,7 +29,7 @@ WORKDIR $INSTALL_PATH
 RUN conda create -n $CONDA_DEFAULT_ENV python=3.6
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
-COPY requirements-conda.txt requirements-conda-tests.txt docker $VIRAL_NGS_PATH/
+COPY requirements-conda.txt requirements-conda-tests.txt docker/ $VIRAL_NGS_PATH/
 RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
 
