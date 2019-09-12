@@ -87,11 +87,10 @@ jobs:
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
         - docker pull $DOCKER_TAG
-        - travis/install-gatk.sh
         - pip install coveralls==1.1
         - mkdir coverage
       script:
-        - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v $GATK_PATH:/gatk -v coverage:/coverage --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; gatk3-register /gatk/GenomeAnalysisTK.jar; pytest test/unit; cp .coverage /coverage'
+        - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v coverage:/coverage -v test:/opt/viral-ngs/source/test --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; pytest test/unit; cp .coverage /coverage'
       after_success:
         - mv coverage/.coverage .
         - coveralls
