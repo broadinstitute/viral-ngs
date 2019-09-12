@@ -138,21 +138,21 @@ jobs:
       install: travis/install-pip-docs.sh
       script: travis/build-docs.sh
 
-    - language: python
-      python: 3.6
-      sudo: required
-      #stage: test
-      env:
-        - TRAVIS_JOB=build_conda
-        # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
-        - secure: "cDKRuVUr2NMZk933RHMMYKDCfU2gZfe3VJLNG82zsj47rrfoRzUsDny71v27OuydgjICiBWGuFAl4alNBVkzQWGt7G1DaFVLn48SwqtnG4u0KAUVX32b/0sw7OrXRDDqD5pr5Q8J59xwxSKQmmXFXlMbZpSEeREf8c3Yn6pvm2c="
-      install:
-        - source travis/install-conda.sh
-        - travis/install-conda-build.sh
-      script:
-        - travis/build-conda.sh
-      before_cache:
-        - conda clean --all --yes
+    # - language: python
+    #   python: 3.6
+    #   sudo: required
+    #   #stage: test
+    #   env:
+    #     - TRAVIS_JOB=build_conda
+    #     # $ANACONDA_TOKEN for uploading builds to anaconda.org ("broad-viral" channel)
+    #     - secure: "cDKRuVUr2NMZk933RHMMYKDCfU2gZfe3VJLNG82zsj47rrfoRzUsDny71v27OuydgjICiBWGuFAl4alNBVkzQWGt7G1DaFVLn48SwqtnG4u0KAUVX32b/0sw7OrXRDDqD5pr5Q8J59xwxSKQmmXFXlMbZpSEeREf8c3Yn6pvm2c="
+    #   install:
+    #     - source travis/install-conda.sh
+    #     - travis/install-conda-build.sh
+    #   script:
+    #     - travis/build-conda.sh
+    #   before_cache:
+    #     - conda clean --all --yes
 
     - language: python
       python: 2.7
