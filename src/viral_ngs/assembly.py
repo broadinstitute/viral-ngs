@@ -26,24 +26,25 @@ try:
 except ImportError:
     from itertools import izip_longest as zip_longest    # pylint: disable=E0611
 
-# intra-module
 import util.cmd
 import util.file
 import util.misc
-import util.vcf
 import read_utils
 import tools
 import tools.picard
 import tools.samtools
 import tools.gatk
 import tools.novoalign
-import tools.spades
 import tools.trimmomatic
-import tools.trinity
-import tools.mafft
-import tools.mummer
-import tools.muscle
-import tools.gap2seq
+
+# intra-module
+import assembly.vcf
+import assembly.spades
+import assembly.trinity
+import assembly.mafft
+import assembly.mummer
+import assembly.muscle
+import assembly.gap2seq
 
 # third-party
 import Bio.AlignIO
@@ -299,7 +300,7 @@ def assemble_trinity(
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
     try:
-        tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+        assembly.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     except subprocess.CalledProcessError as e:
         if always_succeed:
             log.warning("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
@@ -335,7 +336,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--JVMmemory',
-        default=tools.trinity.TrinityTool.jvm_mem_default,
+        default=assembly.trinity.TrinityTool.jvm_mem_default,
         help='JVM virtual memory size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -375,7 +376,7 @@ def assemble_spades(
     with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True
                                                    ) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
-            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+            assembly.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
                                                min_contig_len=min_contig_len,
@@ -422,7 +423,7 @@ def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_g
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
     try:
-        tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+        assembly.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
                                             mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
                                             random_seed=random_seed)
     except Exception as e:
@@ -462,7 +463,7 @@ def _order_and_orient_orig(inFasta, inReference, outFasta,
         sequence of aligned contigs (with runs of N's in between the de novo
         contigs).
     '''
-    mummer = tools.mummer.MummerTool()
+    mummer = assembly.mummer.MummerTool()
     #if trimmed_contigs:
     #    trimmed = trimmed_contigs
     #else:
@@ -771,19 +772,19 @@ def impute_from_reference(
 
                 # align scaffolded genome to reference (choose one of three aligners)
                 if aligner == 'mafft':
-                    tools.mafft.MafftTool().execute(
+                    ass.MafftTool().execute(
                         [ref_file, actual_file], aligned_file, False, True, True, False, False, None
                     )
                 elif aligner == 'muscle':
                     if len(refSeqObj) > 40000:
-                        tools.muscle.MuscleTool().execute(
+                        assembly.muscle.MuscleTool().execute(
                             concat_file, aligned_file, quiet=False,
                             maxiters=2, diags=True
                         )
                     else:
-                        tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
+                        assembly.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
                 elif aligner == 'mummer':
-                    tools.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
+                    assembly.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
 
                 # run modify_contig
                 args = [
@@ -1547,7 +1548,7 @@ def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
 
-    with util.vcf.VcfReader(args.inVcf) as vcf:
+    with assembly.vcf.VcfReader(args.inVcf) as vcf:
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
 
@@ -1640,7 +1641,7 @@ __commands__.append(('deambig_fasta', parser_deambig_fasta))
 
 def vcf_dpdiff(vcfs):
     for vcf in vcfs:
-        with util.vcf.VcfReader(vcf) as v:
+        with assembly.vcf.VcfReader(vcf) as v:
             samples = v.samples()
         assert len(samples) == 1
         for row in util.file.read_tabfile(vcf):
