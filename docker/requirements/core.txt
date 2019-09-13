@@ -10,7 +10,6 @@ picard=2.18.11
 prinseq=0.20.4
 samtools=1.9
 trimmomatic=0.38
-unzip=6.0
 # Python packages below
 arrow=0.12.1
 bedtools=2.27.1
