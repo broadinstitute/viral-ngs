@@ -11,7 +11,6 @@ __commands__ = []
 import argparse
 import logging
 import random
-import numpy
 import os
 import os.path
 import shutil
@@ -20,32 +19,31 @@ import functools
 import operator
 import concurrent.futures
 import csv
+import itertools
 
-try:
-    from itertools import zip_longest    # pylint: disable=E0611
-except ImportError:
-    from itertools import izip_longest as zip_longest    # pylint: disable=E0611
-
-# intra-module
+# from viral-core
 import util.cmd
 import util.file
 import util.misc
-import util.vcf
 import read_utils
 import tools
 import tools.picard
 import tools.samtools
 import tools.gatk
 import tools.novoalign
-import tools.spades
 import tools.trimmomatic
-import tools.trinity
-import tools.mafft
-import tools.mummer
-import tools.muscle
-import tools.gap2seq
+
+# intra-module
+import assemble.vcf
+import assemble.spades
+import assemble.trinity
+import assemble.mafft
+import assemble.mummer
+import assemble.muscle
+import assemble.gap2seq
 
 # third-party
+import numpy
 import Bio.AlignIO
 import Bio.SeqIO
 import Bio.Data.IUPACData
@@ -299,7 +297,7 @@ def assemble_trinity(
     subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
     tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
     try:
-        tools.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
+        assemble.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
     except subprocess.CalledProcessError as e:
         if always_succeed:
             log.warning("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
@@ -317,7 +315,7 @@ def assemble_trinity(
 def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('clipDb', help='Trimmomatic clip DB.')
-    parser.add_argument('outFasta', help='Output assembly.')
+    parser.add_argument('outFasta', help='Output assemble.')
     parser.add_argument(
         '--n_reads',
         default=100000,
@@ -335,7 +333,7 @@ def parser_assemble_trinity(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--JVMmemory',
-        default=tools.trinity.TrinityTool.jvm_mem_default,
+        default=assemble.trinity.TrinityTool.jvm_mem_default,
         help='JVM virtual memory size (default: %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -375,7 +373,7 @@ def assemble_spades(
     with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True
                                                    ) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
-            tools.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+            assemble.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
                                                min_contig_len=min_contig_len,
@@ -422,7 +420,7 @@ def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_g
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
     try:
-        tools.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+        assemble.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
                                             mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
                                             random_seed=random_seed)
     except Exception as e:
@@ -435,7 +433,7 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
     parser.add_argument('in_scaffold', help='FASTA file containing the scaffold.  Each FASTA record corresponds to one '
                         'segment (for multi-segment genomes).  Contigs within each segment are separated by Ns.')
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('out_scaffold', help='Output assembly.')
+    parser.add_argument('out_scaffold', help='Output assemble.')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4.0, help='Max memory to use, in gigabytes %(default)s')
     parser.add_argument('--timeSoftLimitMinutes', dest='time_soft_limit_minutes', default=60.0,
                         help='Stop trying to close more gaps after this many minutes (default: %(default)s); this is a soft/advisory limit')
@@ -462,7 +460,7 @@ def _order_and_orient_orig(inFasta, inReference, outFasta,
         sequence of aligned contigs (with runs of N's in between the de novo
         contigs).
     '''
-    mummer = tools.mummer.MummerTool()
+    mummer = assemble.mummer.MummerTool()
     #if trimmed_contigs:
     #    trimmed = trimmed_contigs
     #else:
@@ -713,7 +711,7 @@ def impute_from_reference(
         filter_short_seqs: We then toss out all assemblies that come out to
             < 15kb or < 95% unambiguous and fail otherwise.
         modify_contig: Finally, we trim off anything at the end that exceeds
-            the length of the known reference assembly.  We also replace all
+            the length of the known reference assemble.  We also replace all
             Ns and everything within 55bp of the chromosome ends with the
             reference sequence.  This is clearly incorrect consensus sequence,
             but it allows downstream steps to map reads in parts of the genome
@@ -731,7 +729,7 @@ def impute_from_reference(
         with open(inReference, 'r') as refFastaFile:
             asmFasta = Bio.SeqIO.parse(asmFastaFile, 'fasta')
             refFasta = Bio.SeqIO.parse(refFastaFile, 'fasta')
-            for idx, (refSeqObj, asmSeqObj) in enumerate(zip_longest(refFasta, asmFasta)):
+            for idx, (refSeqObj, asmSeqObj) in enumerate(itertools.zip_longest(refFasta, asmFasta)):
                 # our zip fails if one file has more seqs than the other
                 if not refSeqObj or not asmSeqObj:
                     raise KeyError("inFasta and inReference do not have the same number of sequences. This could be because the de novo assembly process was unable to create contigs for all segments.")
@@ -771,19 +769,19 @@ def impute_from_reference(
 
                 # align scaffolded genome to reference (choose one of three aligners)
                 if aligner == 'mafft':
-                    tools.mafft.MafftTool().execute(
+                    assemble.mafft.MafftTool().execute(
                         [ref_file, actual_file], aligned_file, False, True, True, False, False, None
                     )
                 elif aligner == 'muscle':
                     if len(refSeqObj) > 40000:
-                        tools.muscle.MuscleTool().execute(
+                        assemble.muscle.MuscleTool().execute(
                             concat_file, aligned_file, quiet=False,
                             maxiters=2, diags=True
                         )
                     else:
-                        tools.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
+                        assemble.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
                 elif aligner == 'mummer':
-                    tools.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
+                    assemble.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
 
                 # run modify_contig
                 args = [
@@ -988,7 +986,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         default=None,
         help="""BAM with reads that are already aligned to inFasta.
             This bypasses the alignment process by novoalign and instead uses the given
-            BAM to make an assembly. When set, outBam is ignored."""
+            BAM to make an assemble. When set, outBam is ignored."""
     )
     parser.add_argument(
         '--outBam',
@@ -1547,7 +1545,7 @@ def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
 
-    with util.vcf.VcfReader(args.inVcf) as vcf:
+    with assemble.vcf.VcfReader(args.inVcf) as vcf:
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
 
@@ -1640,7 +1638,7 @@ __commands__.append(('deambig_fasta', parser_deambig_fasta))
 
 def vcf_dpdiff(vcfs):
     for vcf in vcfs:
-        with util.vcf.VcfReader(vcf) as v:
+        with assemble.vcf.VcfReader(vcf) as v:
             samples = v.samples()
         assert len(samples) == 1
         for row in util.file.read_tabfile(vcf):
