@@ -16,9 +16,12 @@ import read_utils
 import taxon_filter
 import util.file
 import util.misc
+import tools.samtools
+
 import classify.last
 import classify.bmtagger
 import classify.blast
+
 from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 
