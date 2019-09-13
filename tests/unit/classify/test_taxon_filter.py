@@ -16,9 +16,9 @@ import read_utils
 import taxon_filter
 import util.file
 import util.misc
-import tools.last
-import tools.bmtagger
-import tools.blast
+import classify.last
+import classify.bmtagger
+import classify.blast
 from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 
@@ -40,7 +40,7 @@ class TestFilterLastal(TestCaseWithTmp):
             'TestMetagenomicsViralMix', 'db', 'library', 'Viruses', 'Enterovirus_C', 'GCF_000861165.1_ViralProj15288_genomic.fna'
         )
         dbDir = tempfile.mkdtemp()
-        self.lastdb_path = tools.last.Lastdb().build_database(self.polio_fasta, os.path.join(dbDir, 'NC_002058'))
+        self.lastdb_path = classify.last.Lastdb().build_database(self.polio_fasta, os.path.join(dbDir, 'NC_002058'))
 
     def test_filter_lastal_bam_polio(self):
         inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.blastn.bam')
@@ -347,12 +347,12 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         self.database_prefix_path = os.path.join(self.tempDir, "5kb_human_from_chr6")
 
         # create blast db
-        self.blastdb_path = tools.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
+        self.blastdb_path = classify.blast.MakeblastdbTool().build_database(ref_fasta, self.database_prefix_path)
 
         # create multiple dbs
         self.blastdbs_multi = []
         for db in ['humanChr1Subset.fa', 'humanChr9Subset.fa']:
-            dbPath = tools.blast.MakeblastdbTool().build_database(
+            dbPath = classify.blast.MakeblastdbTool().build_database(
                 os.path.join(util.file.get_test_input_path(self), db),
                 os.path.join(self.tempDir, db[:-3]))
             self.blastdbs_multi.append(dbPath)

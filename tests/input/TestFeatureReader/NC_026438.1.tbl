@@ -1,9 +1,0 @@
->Feature ref|NC_026438.1|
-1	2280	gene
-			gene	PB2
-			locus_tag	UJ99_s1gp1
-			db_xref	GeneID:23308131
-1	2280	CDS
-			product	polymerase PB2
-			protein_id	ref|YP_009118631.1|
-

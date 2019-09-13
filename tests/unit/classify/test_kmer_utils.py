@@ -21,7 +21,7 @@ import read_utils
 import util.cmd
 import util.file
 import util.misc
-import tools.kmc
+import classify.kmc
 import tools.samtools
 
 
@@ -265,12 +265,12 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     _log.debug('constructing kmer db: %s', key)
 
     k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
-    assert not tools.kmc.KmcTool().is_kmer_db(k_db)
+    assert not classify.kmc.KmcTool().is_kmer_db(k_db)
     seq_files = list(map(_inp, seq_files.split()))
     kmer_db_args = util.cmd.run_cmd(module=kmer_utils, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
-    assert tools.kmc.KmcTool().is_kmer_db(k_db)
-    kmc_kmer_counts=tools.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
+    assert classify.kmc.KmcTool().is_kmer_db(k_db)
+    kmc_kmer_counts=classify.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
     _log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
     return val_cache.setdefault(key, argparse.Namespace(kmer_db=k_db,
                                                         kmc_kmer_counts=kmc_kmer_counts,
@@ -309,9 +309,9 @@ def test_build_kmer_db(kmer_db_fixture):
     _test_build_kmer_db(kmer_db_fixture)
 
 def _test_build_kmer_db(kmer_db_fixture):
-    assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
+    assert classify.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
-    kmer_db_info = tools.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
+    kmer_db_info = classify.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
     assert kmer_db_info.kmer_size == kmer_db_fixture.kmer_db_args.kmer_size
     assert kmer_db_info.min_occs == kmer_db_fixture.kmer_db_args.min_occs
     assert kmer_db_info.max_occs == kmer_db_fixture.kmer_db_args.max_occs
@@ -360,7 +360,7 @@ def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function
       reads_bam: reads to filter with kmers extracted from kmers_fasta
 
     """
-    assert tools.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
+    assert classify.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
     reads_file = _inp(reads_file)
     reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util.file.uncompressed_file_type(reads_file))
@@ -409,7 +409,7 @@ def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
     db_with_set_counts = os.path.join(tmpdir_function, 'set_counts_db')
     util.cmd.run_cmd(module=kmer_utils, cmd='kmers_set_counts',
                      args=[kmer_db_fixture.kmer_db, set_to_val, db_with_set_counts])
-    new_counts = tools.kmc.KmcTool().get_kmer_counts(db_with_set_counts)
+    new_counts = classify.kmc.KmcTool().get_kmer_counts(db_with_set_counts)
     assert set(new_counts.keys()) == set(kmer_db_fixture.kmc_kmer_counts.keys())
     assert not new_counts  or  set(new_counts.values()) == set([set_to_val])
 
@@ -425,7 +425,7 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     args = util.cmd.run_cmd(module=kmer_utils, cmd='kmers_binary_op',
                             args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
 
-    kmc_counts = tools.kmc.KmcTool().get_kmer_counts(db_result)
+    kmc_counts = classify.kmc.KmcTool().get_kmer_counts(db_result)
     kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
                                    result_counter_cap=args.result_counter_cap)
 

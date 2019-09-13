@@ -26,15 +26,16 @@ import util.cmd
 import util.file
 import util.misc
 import tools
-import tools.blast
-import tools.last
 import tools.prinseq
-import tools.bmtagger
 import tools.picard
 import tools.samtools
 from util.file import mkstempfname
-import read_utils
 from errors import QCError
+
+import classify.blast
+import classify.last
+import classify.bmtagger
+import read_utils
 
 log = logging.getLogger(__name__)
 
@@ -185,7 +186,7 @@ def filter_lastal_bam(
 
     with util.file.tmp_dir('-lastdb') as tmp_db_dir:
         # index db if necessary
-        lastdb = tools.last.Lastdb()
+        lastdb = classify.last.Lastdb()
         if not lastdb.is_indexed(db):
             db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
@@ -194,7 +195,7 @@ def filter_lastal_bam(
 
             # look for lastal hits in BAM and write to temp file
             with open(hitList, 'wt') as outf:
-                for read_id in tools.last.Lastal().get_hits(
+                for read_id in classify.last.Lastal().get_hits(
                         inBam, db,
                         max_gapless_alignments_per_position,
                         min_length_for_initial_matches,
@@ -297,11 +298,11 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
     outBam: the output BAM files to hold the unmatched reads.
     srprism_memory: srprism memory in megabytes.
     """
-    bmtaggerPath = tools.bmtagger.BmtaggerShTool().install_and_get_path()
+    bmtaggerPath = classify.bmtagger.BmtaggerShTool().install_and_get_path()
 
     # bmtagger calls several executables in the same directory, and blastn;
     # make sure they are accessible through $PATH
-    blastnPath = tools.blast.BlastnTool().install_and_get_path()
+    blastnPath = classify.blast.BlastnTool().install_and_get_path()
     path = os.environ['PATH'].split(os.pathsep)
     for t in (bmtaggerPath, blastnPath):
         d = os.path.dirname(t)
@@ -414,7 +415,7 @@ def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads):
         by blastn_chunked_fasta
     """
     with util.file.open_or_gzopen(out_hits, 'wt') as outf:
-        for read_id in tools.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads):
+        for read_id in classify.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads):
             outf.write(read_id + '\n')
 
 def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None):
@@ -430,7 +431,7 @@ def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None):
     MIN_CHUNK_SIZE = 20000
 
     # just in case blast is not installed, install it once, not many times in parallel!
-    tools.blast.BlastnTool().install()
+    classify.blast.BlastnTool().install()
 
     # clamp threadcount to number of CPU cores
     threads = util.misc.sanitize_thread_count(threads)
@@ -520,7 +521,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
         else:
             ## pipe tools together and run blastn multithreaded
             with open(blast_hits, 'wt') as outf:
-                for read_id in tools.blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
+                for read_id in classify.blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
                     outf.write(read_id + '\n')
 
     # Deplete BAM of hits
@@ -671,7 +672,7 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    tools.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+    classify.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
@@ -798,7 +799,7 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    blastdb_path = tools.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+    blastdb_path = classify.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
     if new_fasta is not None:
         os.unlink(new_fasta)
@@ -847,10 +848,10 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
         outPrefix = fileNameSansExtension
 
     log.debug("building bmtagger and srprism databases on {}".format(os.path.join(outputDirectory, outPrefix)))
-    bmtooldb_path = tools.bmtagger.BmtoolTool().build_database(
+    bmtooldb_path = classify.bmtagger.BmtoolTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask"), word_size=word_size
     )
-    srprismdb_path = tools.bmtagger.SrprismTool().build_database(
+    srprismdb_path = classify.bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
     )
 

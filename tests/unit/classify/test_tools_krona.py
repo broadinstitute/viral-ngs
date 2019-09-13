@@ -6,7 +6,7 @@ import unittest
 from mock import patch
 import util.file
 import util.misc
-import tools.krona
+import classify.krona
 from test import TestCaseWithTmp
 
 
@@ -14,7 +14,7 @@ class TestToolKrona(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.krona = tools.krona.Krona()
+        self.krona = classify.krona.Krona()
         self.krona.install()
 
         patcher = patch('subprocess.check_call', autospec=True)

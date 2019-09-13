@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Commands for working with sets of kmers"""
 
@@ -18,31 +18,31 @@ import util.misc
 import tools
 import tools.picard
 import tools.samtools
-import tools.kmc
+import classify.kmc
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # =================================
 
-def build_kmer_db(seq_files, kmer_db, kmer_size=tools.kmc.DEFAULT_KMER_SIZE, min_occs=1, max_occs=util.misc.MAX_INT32,
-                  counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
+def build_kmer_db(seq_files, kmer_db, kmer_size=classify.kmc.DEFAULT_KMER_SIZE, min_occs=1, max_occs=util.misc.MAX_INT32,
+                  counter_cap=classify.kmc.DEFAULT_COUNTER_CAP, single_strand=False, mem_limit_gb=8, mem_limit_laxness=0,
                   threads=None):
     """Build a database of kmers occurring in given sequences."""
-    tools.kmc.KmcTool().build_kmer_db(**locals())
+    classify.kmc.KmcTool().build_kmer_db(**locals())
 
 def parser_build_kmer_db(parser=argparse.ArgumentParser()):
     """Create parser for build_kmer_db"""
     parser.add_argument('seq_files', nargs='+',
                         help='Files from which to extract kmers (fasta/fastq/bam, fasta/fastq may be .gz or .bz2)')
     parser.add_argument('kmer_db', help='kmer database (with or without .kmc_pre/.kmc_suf suffix)')
-    parser.add_argument('--kmerSize', '-k', dest='kmer_size', type=int, default=tools.kmc.DEFAULT_KMER_SIZE,
+    parser.add_argument('--kmerSize', '-k', dest='kmer_size', type=int, default=classify.kmc.DEFAULT_KMER_SIZE,
                         help='kmer size')
     parser.add_argument('--minOccs', '-ci', dest='min_occs', type=int, default=1,
                         help='drop kmers with fewer than this many occurrences')
     parser.add_argument('--maxOccs', '-cx', dest='max_occs', type=int, default=util.misc.MAX_INT32,
                         help='drop kmers with more than this many occurrences')
     parser.add_argument('--counterCap', '-cs', dest='counter_cap', type=int,
-                        default=tools.kmc.DEFAULT_COUNTER_CAP, help='cap kmer counts at this value')
+                        default=classify.kmc.DEFAULT_COUNTER_CAP, help='cap kmer counts at this value')
     parser.add_argument('--singleStrand', '-b', dest='single_strand', default=False, action='store_true',
                         help='do not add kmers from reverse complements of input sequences')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=8, type=int, help='Max memory to use, in GB')
@@ -58,7 +58,7 @@ __commands__.append(('build_kmer_db', parser_build_kmer_db))
 
 def dump_kmer_counts(kmer_db, out_kmers, min_occs=1, max_occs=util.misc.MAX_INT32, threads=None):
     """Dump kmers and their counts from kmer database to a text file"""
-    tools.kmc.KmcTool().dump_kmer_counts(**locals())
+    classify.kmc.KmcTool().dump_kmer_counts(**locals())
 
 def parser_dump_kmer_counts(parser=argparse.ArgumentParser()):
     """Create parser for dump_kmer_counts"""
@@ -113,7 +113,7 @@ def filter_reads(kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.m
         hard_mask: if True, in the output reads, kmers not passing the filter are replaced by Ns
         threads: use this many threads
     """
-    tools.kmc.KmcTool().filter_reads(**locals())
+    classify.kmc.KmcTool().filter_reads(**locals())
 
 def parser_filter_reads(parser=argparse.ArgumentParser()):
     """Create parser for filter_reads"""
@@ -147,10 +147,10 @@ __commands__.append(('filter_reads', parser_filter_reads))
 
 def kmers_binary_op(op, kmer_db1, kmer_db2, kmer_db_out,
                     result_min_occs=1, result_max_occs=util.misc.MAX_INT32,
-                    result_counter_cap=tools.kmc.DEFAULT_COUNTER_CAP, threads=None):  # pylint: disable=invalid-name
+                    result_counter_cap=classify.kmc.DEFAULT_COUNTER_CAP, threads=None):  # pylint: disable=invalid-name
     """Perform a simple binary operation on kmer sets."""
 
-    tools.kmc.KmcTool().kmers_binary_op(**locals())
+    classify.kmc.KmcTool().kmers_binary_op(**locals())
 
 def parser_kmers_binary_op(parser=argparse.ArgumentParser()):
     """Create parser forkmers_binary_op"""
@@ -163,7 +163,7 @@ def parser_kmers_binary_op(parser=argparse.ArgumentParser()):
                         help='from the result drop kmers with counts below this')
     parser.add_argument('--resultMaxOccs', dest='result_max_occs', type=int, default=util.misc.MAX_INT32,
                         help='from the result drop kmers with counts above this')
-    parser.add_argument('--resultCounterCap', dest='result_counter_cap', type=int, default=tools.kmc.DEFAULT_COUNTER_CAP,
+    parser.add_argument('--resultCounterCap', dest='result_counter_cap', type=int, default=classify.kmc.DEFAULT_COUNTER_CAP,
                         help='cap output counters at this value')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kmers_binary_op, split_args=True)
@@ -176,7 +176,7 @@ __commands__.append(('kmers_binary_op', parser_kmers_binary_op))
 def kmers_set_counts(kmer_db_in, value, kmer_db_out, threads=None):
     """Copy the kmer database, setting all kmer counts in the output to the given value."""
 
-    tools.kmc.KmcTool().set_kmer_counts(**locals())
+    classify.kmc.KmcTool().set_kmer_counts(**locals())
 
 def parser_kmers_set_counts(parser=argparse.ArgumentParser()):
     """Create parser for kmers_set_counts"""

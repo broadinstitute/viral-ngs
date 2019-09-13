@@ -14,7 +14,6 @@ import io
 import itertools
 import logging
 import os.path
-from os.path import join
 import operator
 import queue
 import re
@@ -31,12 +30,12 @@ import pysam
 import util.cmd
 import util.file
 import util.misc
-import tools.kaiju
-import tools.kraken
-import tools.krona
 import tools.picard
 import tools.samtools
-from util.file import open_or_gzopen
+
+import classify.kaiju
+import classify.kraken
+import classify.krona
 
 __commands__ = []
 
@@ -77,10 +76,10 @@ class TaxonomyDb(object):
         load_names=False
     ):
         if tax_dir:
-            gis_paths = [maybe_compressed(join(tax_dir, 'gi_taxid_nucl.dmp')),
-                         maybe_compressed(join(tax_dir, 'gi_taxid_prot.dmp'))]
-            nodes_path = maybe_compressed(join(tax_dir, 'nodes.dmp'))
-            names_path = maybe_compressed(join(tax_dir, 'names.dmp'))
+            gis_paths = [maybe_compressed(os.path.join(tax_dir, 'gi_taxid_nucl.dmp')),
+                         maybe_compressed(os.path.join(tax_dir, 'gi_taxid_prot.dmp'))]
+            nodes_path = maybe_compressed(os.path.join(tax_dir, 'nodes.dmp'))
+            names_path = maybe_compressed(os.path.join(tax_dir, 'names.dmp'))
         self.tax_dir = tax_dir
         self.gis_paths = gis_paths
         self.nodes_path = nodes_path
@@ -109,7 +108,7 @@ class TaxonomyDb(object):
     def load_gi_single_dmp(self, dmp_path):
         '''Load a gi->taxid dmp file from NCBI taxonomy.'''
         gi_array = {}
-        with open_or_gzopen(dmp_path) as f:
+        with util.file.open_or_gzopen(dmp_path) as f:
             for i, line in enumerate(f):
                 gi, taxid = line.strip().split('\t')
                 gi = int(gi)
@@ -125,7 +124,7 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in open_or_gzopen(names_db):
+        for line in util.file.open_or_gzopen(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
             name = parts[1].strip()
@@ -142,7 +141,7 @@ class TaxonomyDb(object):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with open_or_gzopen(nodes_db) as f:
+        with util.file.open_or_gzopen(nodes_db) as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])
@@ -589,8 +588,8 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
         output_path = os.path.join(outputDb, path)
 
         input_path = maybe_compressed(input_path)
-        with open_or_gzopen(input_path, 'rt') as f, \
-             open_or_gzopen(output_path, 'wt') as out_f:
+        with util.file.open_or_gzopen(input_path, 'rt') as f, \
+             util.file.open_or_gzopen(output_path, 'wt') as out_f:
             if header:
                 out_f.write(f.readline())  # Cannot use next(f) for python2
             for line in f:
@@ -743,7 +742,7 @@ def krakenuniq(db, inBams, outReports=None, outReads=None, lockMemory=False, fil
     '''
 
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kuniq_tool = tools.kraken.KrakenUniq()
+    kuniq_tool = classify.kraken.KrakenUniq()
     kuniq_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
                         filter_threshold=filterThreshold, num_threads=threads)
 __commands__.append(('krakenuniq', parser_krakenuniq))
@@ -769,7 +768,7 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
         Create an interactive HTML report from a tabular metagenomic report
     '''
 
-    krona_tool = tools.krona.Krona()
+    krona_tool = classify.krona.Krona()
 
     if inputType == 'tsv':
         root_name = os.path.basename(inReport)
@@ -801,7 +800,7 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
                 os.unlink(tmp_tsv)
 
     elif inputType == 'krakenuniq':
-        krakenuniq = tools.kraken.KrakenUniq()
+        krakenuniq = classify.kraken.KrakenUniq()
         report = krakenuniq.read_report(inReport)
         with util.file.tempfname() as fn:
             with open(fn, 'w') as to_import:
@@ -824,7 +823,7 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
             os.rename(fn, outHtml)
         return
     elif inputType == 'kaiju':
-        kaiju = tools.kaiju.Kaiju()
+        kaiju = classify.kaiju.Kaiju()
         report = kaiju.read_report(inReport)
         with util.file.tempfname() as fn:
             print(fn)
@@ -856,7 +855,7 @@ def kaiju(inBam, db, taxDb, outReport, outReads=None, threads=None):
         Classify reads by the taxon of the Lowest Common Ancestor (LCA)
     '''
 
-    kaiju_tool = tools.kaiju.Kaiju()
+    kaiju_tool = classify.kaiju.Kaiju()
     kaiju_tool.classify(db, taxDb, inBam, output_report=outReport, output_reads=outReads, num_threads=threads)
 __commands__.append(('kaiju', parser_kaiju))
 
@@ -945,7 +944,7 @@ def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db,
 
         util.file.cat(tmp_metag_combined_txt, [metag_file.name for metag_file in metagenomic_reports])
 
-        kraken_tool = tools.kraken.Kraken()
+        kraken_tool = classify.kraken.Kraken()
         kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
 __commands__.append(('report_merge', parser_metagenomic_report_merge))
 
@@ -1047,7 +1046,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
-        with open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
+        with util.file.open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
             read_ids_written = 0
             for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
@@ -1418,7 +1417,7 @@ def krakenuniq_build(db, library, taxonomy=None, subsetTaxonomy=None,
         if subsetTaxonomy:
             raise KrakenUniqBuildError('Cannot subset taxonomy if already in db folder')
 
-    krakenuniq_tool = tools.kraken.KrakenUniq()
+    krakenuniq_tool = classify.kraken.KrakenUniq()
     options = {'--build': None}
     if threads:
         options['--threads'] = threads
