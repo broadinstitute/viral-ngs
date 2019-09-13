@@ -769,7 +769,7 @@ def impute_from_reference(
 
                 # align scaffolded genome to reference (choose one of three aligners)
                 if aligner == 'mafft':
-                    assemble.MafftTool().execute(
+                    assemble.mafft.MafftTool().execute(
                         [ref_file, actual_file], aligned_file, False, True, True, False, False, None
                     )
                 elif aligner == 'muscle':
