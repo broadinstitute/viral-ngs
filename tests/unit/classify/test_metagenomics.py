@@ -38,7 +38,7 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        patcher = patch('tools.krona.Krona', autospec=True)
+        patcher = patch('classify.krona.Krona', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_krona = patcher.start()
 
@@ -257,7 +257,7 @@ def test_coverage_lca(taxa_db):
 
 
 def test_krakenuniq(mocker):
-    p = mocker.patch('tools.kraken.KrakenUniq.pipeline')
+    p = mocker.patch('classify.kraken.KrakenUniq.pipeline')
     args = [
         'db',
         'input.bam',
@@ -270,7 +270,7 @@ def test_krakenuniq(mocker):
 
 
 def test_kaiju(mocker):
-    p = mocker.patch('tools.kaiju.Kaiju.classify')
+    p = mocker.patch('classify.kaiju.Kaiju.classify')
     args = [
         'input.bam',
         'db.fmi',
