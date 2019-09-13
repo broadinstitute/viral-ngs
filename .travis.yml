@@ -44,11 +44,11 @@ jobs:
         - set -e
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
         - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
-        - git describe --tags --always > VERSION
+        - git describe --tags --always | tee VERSION
         - docker build -t local/build-container:build $_CACHE_FROM .
         - travis/deploy-docker.sh
       before_cache:
-        - travis/list-docker-tags.sh | tail -1 > $CACHE_DIR/old-docker-tag.txt
+        - travis/list-docker-tags.sh | tail -1 | tee $CACHE_DIR/old-docker-tag.txt
     
     #- language: java
     #  jdk: openjdk8
@@ -87,13 +87,14 @@ jobs:
         - PYTEST_ADDOPTS="-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov read_utils --cov reports --cov tools --cov util --cov file_utils"
       install:
         - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+        - echo "pulling $DOCKER_TAG"
         - docker pull $DOCKER_TAG
-        - pip install coveralls==1.1
         - mkdir coverage
       script:
         - docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v `pwd`/coverage:/coverage -v `pwd`/test:/opt/viral-ngs/source/test --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; pytest test/unit; cp .coverage /coverage'
       after_success:
         - mv coverage/.coverage .
+        - pip install coveralls==1.1
         - coveralls
 
     #- language: generic
