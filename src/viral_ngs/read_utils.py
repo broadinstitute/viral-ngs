@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Utilities for working with sequence reads, such as converting formats and
 fixing mate pairs.

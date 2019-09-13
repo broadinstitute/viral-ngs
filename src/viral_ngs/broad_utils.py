@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Utilities for getting sequences out of the Broad walk-up sequencing pipeline.
 These utilities are probably not of much use outside the Broad.

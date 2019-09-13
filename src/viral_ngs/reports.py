@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 ''' Functions to create reports from genomics pipeline data.
 '''
 

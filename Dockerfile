@@ -3,6 +3,7 @@ FROM quay.io/broadinstitute/viral-baseimage:0.1.16
 LABEL maintainer "viral-ngs@broadinstitute.org"
 
 # to build:
+#   git describe --tags --always --dirty > VERSION
 #   docker build .
 #
 # to run:
@@ -35,11 +36,11 @@ RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/require
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
 
 # Copy all of the source code into the repo
-# (this probably changes all the time, so all downstream build
-# layers will likely need to be rebuilt each time)
+# This probably changes all the time, so all downstream build
+# layers will likely need to be rebuilt each time.
 COPY util $VIRAL_NGS_PATH/util/
 COPY tools $VIRAL_NGS_PATH/tools/
-COPY *.py $VIRAL_NGS_PATH/
+COPY *.py VERSION* $VIRAL_NGS_PATH/
 
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
