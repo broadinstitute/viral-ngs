@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 ''' This script contains a number of utilities for metagenomic analyses.
 '''
 from __future__ import print_function

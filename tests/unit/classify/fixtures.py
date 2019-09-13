@@ -5,12 +5,12 @@ import shutil
 import tools
 import classify.kaiju
 import tools.picard
-import tools.krona
+import classify.krona
 import util.file
 
 # @pytest.fixture(scope='module')
 def krona():
-    krona = tools.krona.Krona()
+    krona = classify.krona.Krona()
     krona.install()
     return krona
 

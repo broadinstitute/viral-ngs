@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''This script contains a number of utilities for filtering NGS reads based
 on membership or non-membership in a species / genus / taxonomic grouping.
 '''
