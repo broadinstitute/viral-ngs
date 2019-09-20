@@ -24,6 +24,9 @@ the pipeline using graphical and command-line interfaces. Instructions
 for the cloud analysis pipeline are available at
 https://github.com/dnanexus/viral-ngs/wiki
 
+The latest versions of viral-ngs are available on DNAnexus within the project here:
+https://platform.dnanexus.com/projects/F8PQ6380xf5bK0Qk0YPjB17P/data/build/quay.io/broadinstitute/viral-ngs
+
 
 Google Cloud Platform: deploy to GCE VM
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
