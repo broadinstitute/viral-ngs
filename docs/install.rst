@@ -24,6 +24,9 @@ the pipeline using graphical and command-line interfaces. Instructions
 for the cloud analysis pipeline are available at
 https://github.com/dnanexus/viral-ngs/wiki
 
+The latest versions of viral-ngs are available on DNAnexus within the project here:
+https://platform.dnanexus.com/projects/F8PQ6380xf5bK0Qk0YPjB17P/data/build/quay.io/broadinstitute/viral-ngs
+
 
 Google Cloud Platform: deploy to GCE VM
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -45,12 +48,12 @@ All of the command line functions in viral-ngs are accessible from the docker im
 
 Here is an example invocation of ``illumina.py illumina_demux`` (replace the project with your GCP project, and the input, output-recursive, and logging parameters with URIs within your GCS buckets)::
 
-  dsub --project gcid-viral-seq --zones "us-central1-*" \
+  dsub --project my-google-project-id --zones "us-central1-*" \
     --image quay.io/broadinstitute/viral-ngs \
-    --name illumina_demux-test \
-    --logging gs://viral-temp-30d/dpark/test-demux/logs \
-    --input FC_TGZ=gs://viral-sequencing/flowcells/broad-walkup/160907_M04004_0066_000000000-AJH8U.tar.gz \
-    --output-recursive OUTDIR=gs://viral-temp-30d/dpark/test-demux \
+    --name illumina_demux \
+    --logging gs://mybucket/logs \
+    --input FC_TGZ=gs://mybucket/flowcells/160907_M04004_0066_000000000-AJH8U.tar.gz \
+    --output-recursive OUTDIR=gs://mybucket/demux \
     --command 'illumina.py illumina_demux ${FC_TGZ} 1 ${OUTDIR}' \
     --min-ram 30 \
     --min-cores 8 \
