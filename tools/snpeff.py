@@ -206,7 +206,7 @@ class SnpEff(tools.Tool):
 
         args = [
             '-treatAllAsProteinCoding', 'false', '-t', '-noLog', '-ud', '0', '-noStats', '-noShiftHgvs', genomeToUse,
-            os.path.realpath(inVcf)
+            '"'+os.path.realpath(inVcf)+'"'
         ]
 
         command_ps = self.execute('ann', args, JVMmemory=JVMmemory)
