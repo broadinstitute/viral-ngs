@@ -10,6 +10,7 @@ import tempfile
 import logging
 import subprocess
 import shutil
+import shlex
 
 # third-party
 import pysam
@@ -206,7 +207,7 @@ class SnpEff(tools.Tool):
 
         args = [
             '-treatAllAsProteinCoding', 'false', '-t', '-noLog', '-ud', '0', '-noStats', '-noShiftHgvs', genomeToUse,
-            '"'+os.path.realpath(inVcf)+'"'
+            shlex.quote(os.path.realpath(inVcf))
         ]
 
         command_ps = self.execute('ann', args, JVMmemory=JVMmemory)
