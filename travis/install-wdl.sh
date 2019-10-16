@@ -21,7 +21,7 @@ cached_fetch_jar_from_github broadinstitute cromwell womtool 47
 cached_fetch_jar_from_github broadinstitute cromwell cromwell 47
 cached_fetch_jar_from_github dnanexus dxWDL dxWDL v1.33
 
-TGZ=dx-toolkit-v0.285.0-ubuntu-16.04-amd64.tar.gz
+TGZ=dx-toolkit-v0.288.0-ubuntu-16.04-amd64.tar.gz
 if [ ! -f $CACHE_DIR/$TGZ ]; then
 	echo "Fetching $TGZ"
 	wget --quiet https://dnanexus-sdk.s3.amazonaws.com/$TGZ
