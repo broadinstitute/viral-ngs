@@ -71,7 +71,7 @@ task deplete_taxa {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 8
-    dx_instance_type: "mem1_ssd1_x16"
+    dx_instance_type: "mem1_ssd1_v2_x16"
     preemptible: 0
   }
 }
@@ -130,7 +130,7 @@ task filter_to_taxon {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "14 GB"
     cpu: 16
-    dx_instance_type: "mem1_ssd1_x8"
+    dx_instance_type: "mem1_ssd1_v2_x8"
   }
 }
 
@@ -153,7 +153,7 @@ task build_lastal_db {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "7 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_v2_x4"
   }
 }
 
@@ -194,7 +194,7 @@ task merge_one_per_sample {
     memory: "7 GB"
     cpu: 4
     docker: "quay.io/broadinstitute/viral-ngs"
-    dx_instance_type: "mem1_ssd2_x4"
+    dx_instance_type: "mem1_ssd1_v2_x16"
   }
 }
 
