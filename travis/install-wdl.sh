@@ -17,9 +17,9 @@ cached_fetch_jar_from_github () {
 	ln -s $CACHE_DIR/$_jar_fname $_tool_name.jar
 }
 
-cached_fetch_jar_from_github broadinstitute cromwell womtool 33.1
-cached_fetch_jar_from_github broadinstitute cromwell cromwell 33.1
-cached_fetch_jar_from_github dnanexus dxWDL dxWDL 0.72
+cached_fetch_jar_from_github broadinstitute cromwell womtool 47
+cached_fetch_jar_from_github broadinstitute cromwell cromwell 47
+cached_fetch_jar_from_github dnanexus dxWDL dxWDL 1.33
 
 TGZ=dx-toolkit-v0.285.0-ubuntu-16.04-amd64.tar.gz
 if [ ! -f $CACHE_DIR/$TGZ ]; then
