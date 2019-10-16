@@ -84,7 +84,7 @@ task annot_transfer {
   }
 
   output {
-    Array[File]+ transferred_feature_tables = glob("*.tbl")
+    Array[File]  transferred_feature_tables = glob("*.tbl")
     String       viralngs_version           = "viral-ngs_version_unknown"
   }
   runtime {
@@ -97,7 +97,7 @@ task annot_transfer {
 
 task prepare_genbank {
   Array[File]+ assemblies_fasta
-  Array[File]+ annotations_tbl
+  Array[File]  annotations_tbl
   File         authors_sbt
   File         biosampleMap
   File         genbankSourceTable

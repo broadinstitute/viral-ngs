@@ -1,8 +1,6 @@
 import "tasks_interhost.wdl" as interhost
 import "tasks_ncbi.wdl" as ncbi
 
-#DX_SKIP_WORKFLOW -- some sort of bug here at the moment, doesn't compile in dxWDL
-
 workflow genbank {
 
     File          reference_fasta
