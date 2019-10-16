@@ -68,7 +68,7 @@ task krakenuniq {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "200 GB"
     cpu: 32
-    dx_instance_type: "mem3_ssd1_x32"
+    dx_instance_type: "mem3_ssd1_v2_x32"
     preemptible: 0
   }
 }
@@ -108,7 +108,7 @@ task krona {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "4 GB"
     cpu: 1
-    dx_instance_type: "mem1_ssd2_x2"
+    dx_instance_type: "mem1_ssd2_v2_x2"
   }
 }
 
@@ -166,7 +166,7 @@ task filter_bam_to_taxa {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "4 GB"
     cpu: 1
-    dx_instance_type: "mem1_ssd2_x2"
+    dx_instance_type: "mem1_ssd2_v2_x2"
   }
 
 }
@@ -233,6 +233,6 @@ task kaiju {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "100 GB"
     cpu: 16
-    dx_instance_type: "mem3_ssd1_x16"
+    dx_instance_type: "mem3_ssd1_v2_x16"
   }
 }
