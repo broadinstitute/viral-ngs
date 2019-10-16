@@ -10,7 +10,7 @@ sed -i -- "s|$OLD_TAG|$NEW_TAG|g" pipes/WDL/workflows/tasks/*.wdl
 CURRENT_VERSION=`echo "$NEW_TAG" | cut -d\: -f2`
 VERSION_PLACEHOLDER="viral-ngs_version_unknown"
 
-echo Replacing $VERSION_PLACEHOLDER with $CURENT_VERSION in all task WDL files
+echo Replacing $VERSION_PLACEHOLDER with $CURRENT_VERSION in all task WDL files
 sed -i -- "s|$VERSION_PLACEHOLDER|$CURRENT_VERSION|g" pipes/WDL/workflows/tasks/*.wdl
 
 #echo "DEBUG: here are the modified runtime lines:"
