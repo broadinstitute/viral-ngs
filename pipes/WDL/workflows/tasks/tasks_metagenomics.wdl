@@ -68,7 +68,7 @@ task krakenuniq {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "200 GB"
     cpu: 32
-    dx_instance_type: "mem3_ssd1_v2_x32"
+    dx_instance_type: "mem3_ssd1_x32"
     preemptible: 0
   }
 }
