@@ -3,11 +3,11 @@ task krakenuniq {
   File        krakenuniq_db_tar_lz4  # krakenuniq/{database.kdb,taxonomy}
   File        krona_taxonomy_db_tgz  # taxonomy/taxonomy.tab
 
-  parameter_meta {
-    krakenuniq_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
-  }
+#  parameter_meta {
+#    krakenuniq_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+#    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+#    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+#  }
 
   command {
     set -ex -o pipefail
@@ -68,7 +68,7 @@ task krakenuniq {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "200 GB"
     cpu: 32
-    dx_instance_type: "mem3_ssd1_x32"
+    dx_instance_type: "mem3_ssd1_v2_x32"
     preemptible: 0
   }
 }
