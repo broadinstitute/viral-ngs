@@ -49,9 +49,9 @@ task illumina_demux {
   Boolean? forceGC=true
 
 
-  parameter_meta {
-    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+#  parameter_meta {
+#    flowcell_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+#  }
 
   command {
     set -ex -o pipefail

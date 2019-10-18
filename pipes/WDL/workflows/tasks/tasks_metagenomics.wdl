@@ -3,11 +3,11 @@ task krakenuniq {
   File        krakenuniq_db_tar_lz4  # krakenuniq/{database.kdb,taxonomy}
   File        krona_taxonomy_db_tgz  # taxonomy/taxonomy.tab
 
-  parameter_meta {
-    krakenuniq_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
-    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
-  }
+#  parameter_meta {
+#    krakenuniq_db_tar_lz4:  "stream" # for DNAnexus, until WDL implements the File| type
+#    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+#    reads_unmapped_bam: "stream" # for DNAnexus, until WDL implements the File| type
+#  }
 
   command {
     set -ex -o pipefail
@@ -79,9 +79,9 @@ task krona {
 
   String input_basename = basename(classified_reads_txt_gz, ".txt.gz")
 
-  parameter_meta {
-    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+#  parameter_meta {
+#    krona_taxonomy_db_tgz : "stream" # for DNAnexus, until WDL implements the File| type
+#  }
 
   command {
     set -ex -o pipefail
@@ -122,9 +122,9 @@ task filter_bam_to_taxa {
 
   String input_basename = basename(classified_bam, ".bam")
 
-  parameter_meta {
-    ncbi_taxonomy_db_tgz              : "stream" # for DNAnexus, until WDL implements the File| type
-  }
+#  parameter_meta {
+#    ncbi_taxonomy_db_tgz              : "stream" # for DNAnexus, until WDL implements the File| type
+#  }
 
   command {
     set -ex -o pipefail
@@ -179,11 +179,11 @@ task kaiju {
 
   String input_basename = basename(reads_unmapped_bam, ".bam")
 
-  parameter_meta {
-    kaiju_db_lz4            : "stream" # for DNAnexus, until WDL implements the File| type
-    ncbi_taxonomy_db_tgz    : "stream"
-    krona_taxonomy_db_tgz   : "stream"
-  }
+#  parameter_meta {
+#    kaiju_db_lz4            : "stream" # for DNAnexus, until WDL implements the File| type
+#    ncbi_taxonomy_db_tgz    : "stream"
+#    krona_taxonomy_db_tgz   : "stream"
+#  }
 
   command {
     set -ex -o pipefail
