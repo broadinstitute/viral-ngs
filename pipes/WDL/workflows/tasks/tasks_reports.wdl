@@ -27,7 +27,7 @@ task plot_coverage {
     if [[ ${gatk_jar} == *.tar.bz2 ]]; then
       tar -xjvof ${gatk_jar} -C gatk
       # find the jar and move it one level up if it is buried in a subdir
-      find gatk -mindepth 1 -type f -iname '*.jar' -exec mv -f '{}' gatk/ \;
+      find gatk -mindepth 1 -type f -iname '*.jar' | xargs -I__ mv -f "__" gatk/
     else
       ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     fi
