@@ -18,10 +18,10 @@ import Bio.SeqIO
 import util.cmd
 import util.file
 import util.version
-import util.genbank
-import tools.tbl2asn
+import phylo.genbank
+import phylo.tbl2asn
 import interhost
-import util.feature_table
+import phylo.feature_table
 
 log = logging.getLogger(__name__)
 
@@ -39,8 +39,8 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
         and tbl_transfer_prealigned(). cmap is an instance of CoordMapper.
     """
 
-    ft = util.feature_table.FeatureTable(ref_tbl)
-    remapped_ft = util.feature_table.FeatureTable()
+    ft = phylo.feature_table.FeatureTable(ref_tbl)
+    remapped_ft = phylo.feature_table.FeatureTable()
 
     # sequence identifier
     refSeqID = [x for x in cmap.keys() if ft.refID in x][0]
@@ -50,7 +50,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
     # feature with numeric coordinates (map them)
     def remap_function(start, end, feature):
         """
-            start/end are SeqPositions from util.feature_table
+            start/end are SeqPositions from phylo.feature_table
         """
         strand = None
         if end.position >= start.position:
@@ -212,7 +212,7 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
     for tblFilename in refAnnotTblFiles:
         # identify the correct feature table as the one that has an ID that is
         # part of the ref seq ID
-        fileAccession = util.genbank.get_feature_table_id(tblFilename)
+        fileAccession = phylo.genbank.get_feature_table_id(tblFilename)
         if fileAccession == matchingRefSeq.id.split('|')[0]:
             ref_tbl = tblFilename
             break
@@ -290,7 +290,7 @@ def fetch_fastas(accession_IDs, destinationDir, emailAddress, forceOverwrite, co
         This function downloads and saves the FASTA files
         from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_fastas_from_genbank(accession_IDs,
+    phylo.genbank.fetch_fastas_from_genbank(accession_IDs,
                                            destinationDir,
                                            emailAddress,
                                            forceOverwrite,
@@ -308,7 +308,7 @@ def fetch_feature_tables(accession_IDs, destinationDir, emailAddress, forceOverw
         This function downloads and saves
         feature tables from the Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_feature_tables_from_genbank(accession_IDs,
+    phylo.genbank.fetch_feature_tables_from_genbank(accession_IDs,
                                                    destinationDir,
                                                    emailAddress,
                                                    forceOverwrite,
@@ -326,7 +326,7 @@ def fetch_genbank_records(accession_IDs, destinationDir, emailAddress, forceOver
         This function downloads and saves
         full flat text records from Genbank CoreNucleotide database given a given list of accession IDs.
     '''
-    util.genbank.fetch_full_records_from_genbank(accession_IDs,
+    phylo.genbank.fetch_full_records_from_genbank(accession_IDs,
                                                  destinationDir,
                                                  emailAddress,
                                                  forceOverwrite,
@@ -515,7 +515,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                                              seq_tech=sequencing_tech)
 
     # run tbl2asn (relies on filesnames matching by prefix)
-    tbl2asn = tools.tbl2asn.Tbl2AsnTool()
+    tbl2asn = phylo.tbl2asn.Tbl2AsnTool()
     source_quals = []
     if organism:
         source_quals.append(('organism', organism))

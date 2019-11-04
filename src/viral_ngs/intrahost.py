@@ -22,14 +22,14 @@ import Bio.Data.IUPACData
 import pysam
 
 # module-specific
-import util.genbank
+import phylo.genbank
 import util.cmd
 import util.file
-import util.vcf
+import phylo.vcf
 import util.misc
 from util.stats import median, fisher_exact, chi2_contingency
 from interhost import CoordMapper
-from tools.vphaser2 import Vphaser2Tool
+from phylo.vphaser2 import Vphaser2Tool
 from tools.samtools import SamtoolsTool
 
 log = logging.getLogger(__name__)
@@ -539,7 +539,7 @@ def merge_to_vcf(
         # write out the contig lengths present in the reference genome
         for c, clen in ref_chrlens:
             if parse_accession:
-                c = util.genbank.parse_accession_str(c)
+                c = phylo.genbank.parse_accession_str(c)
             if strip_chr_version:
                 c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
@@ -872,7 +872,7 @@ def merge_to_vcf(
                     # prepare output row and write to file
                     c = ref_sequence.id
                     if parse_accession:
-                        c = util.genbank.parse_accession_str(c)
+                        c = phylo.genbank.parse_accession_str(c)
                     if strip_chr_version:
                         c = strip_accession_version(c)
                     out = [c, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF:DP:NL:LB']

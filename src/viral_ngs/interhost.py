@@ -13,34 +13,26 @@ import os
 import array
 import bisect
 import json
-from itertools import permutations
-from collections import OrderedDict, Sequence
-try:
-    from itertools import zip_longest # pylint: disable=E0611
-except ImportError:
-    from itertools import izip_longest as zip_longest # pylint: disable=E0611
-try:
-    from UserDict import DictMixin # pylint: disable=E0611
-except ImportError:  # for Py3
-    from collections import MutableMapping as DictMixin
+from itertools import permutations, zip_longest
+from collections import OrderedDict, Sequence, MutableMapping
 
 # third-party libraries
 import Bio.AlignIO
 from Bio import SeqIO
 
 # module-specific
-import tools.muscle
-import tools.snpeff
-import tools.mafft
+import phylo.muscle
+import phylo.snpeff
+import phylo.mafft
 import util.cmd
 import util.file
-import util.vcf
+import phylo.vcf
 
 log = logging.getLogger(__name__)
 
 # =========== CoordMapper =================
 
-# CoordMapper extends DictMixin so that after the basic dict dict() interface methods are defined,
+# CoordMapper extends MutableMapping so that after the basic dict dict() interface methods are defined,
 # we get higher level dictionary intervace methods for free
 
 
@@ -49,7 +41,7 @@ class CoordMapperError(Exception):
         super(CoordMapperError, self).__init__(self, *args, **kwargs)
 
 
-class CoordMapper(DictMixin):
+class CoordMapper(MutableMapping):
     """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
         Indels are handled as follows after corresponding sequences are aligned:
@@ -64,7 +56,7 @@ class CoordMapper(DictMixin):
             a pair of real bases in between.
     """
 
-    def __init__(self, alignerTool=tools.muscle.MuscleTool):
+    def __init__(self, alignerTool=phylo.muscle.MuscleTool):
         """ The two genomes are described by fasta files with the same number of
             chromosomes, and corresponding chromosomes must be in same order.
         """
@@ -334,7 +326,7 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access.""")
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, tools.snpeff.SnpEff().annotate_vcf, split_args=True)
+    util.cmd.attach_main(parser, phylo.snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
 
 
@@ -398,7 +390,7 @@ def parser_align_mafft(parser):
 def main_align_mafft(args):
     ''' Run the mafft alignment on the input FASTA file.'''
 
-    tools.mafft.MafftTool().execute(
+    phylo.mafft.MafftTool().execute(
         inFastas=args.inFastas,
         outFile=args.outFile,
         localpair=args.localpair,
@@ -470,7 +462,7 @@ def multichr_mafft(args):
         # execute MAFFT alignment. The input file is passed within a list, since argparse ordinarily
         # passes input files in this way, and the MAFFT tool expects lists,
         # but in this case we are creating the input file ourselves
-        tools.mafft.MafftTool().execute(
+        phylo.mafft.MafftTool().execute(
             inFastas=[os.path.abspath(filePath)],
             outFile=os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx + 1)),
             localpair=args.localpair,
