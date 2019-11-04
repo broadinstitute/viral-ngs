@@ -9,10 +9,12 @@ import re
 import unittest
 import hashlib
 import logging
+import copy
 
 # third-party
 import Bio.SeqIO
 import pytest
+import pysam
 
 # intra-project
 import util.file
@@ -108,6 +110,49 @@ class TestCaseWithTmp(unittest.TestCase):
     def inputs(self, *fnames):
         '''Return the full filenames for files in the test input directory for this test class'''
         return [self.input(fname) for fname in fnames]
+
+    def assertEqualSamHeaders(self, tested_samfile, expected_samfile, other_allowed_values=None):
+        '''
+            other_allowed_values is a dict that maps a key to a list of other accepted values
+        '''
+        other_allowed_values = other_allowed_values or {}
+
+        test_sam = pysam.AlignmentFile(tested_samfile, "rb", check_sq=False)
+        expected_sam = pysam.AlignmentFile(expected_samfile, "rb", check_sq=False)
+
+        # check that the two sams contain the same types of header lines
+        # note that pysam returns lists of dicts for
+        # header lines types that appear more than once (ex. multiple 'RG' lines, etc.)
+        self.assertEqual(sorted(test_sam.header.keys()),sorted(expected_sam.header.keys()))
+
+        lines_tag_to_check = test_sam.header.keys()
+
+        for line_tag in lines_tag_to_check:
+            line_type = type(test_sam.header[line_tag])
+            # for header lines that occur more than once
+            if line_type == list: # if list of dicts
+                # compose alterates for each line present, and check to see if exists in list of expected
+                for test_dict in test_sam.header[line_tag]:
+                    alternate_allowed_test_dicts = []
+                    for key,val in test_dict.items():
+                        alterate_test_dict = copy.deepcopy(test_dict)
+                        if key in other_allowed_values.keys():
+                            for alternate_val in other_allowed_values[key]:
+                                alterate_test_dict[key] = alternate_val
+                                alternate_allowed_test_dicts.append(copy.deepcopy(alterate_test_dict))
+                    for expected_d in expected_sam.header[line_tag]:
+                        self.assertTrue(any(d==expected_d for d in alternate_allowed_test_dicts+[test_dict]), msg="{} expected but not seen in {}".format(expected_d, alternate_allowed_test_dicts+[test_dict]))
+            # for header lines that occur only once
+            elif line_type in (dict,): # may need to change object type for pysam >=0.18
+                test_dict = dict(test_sam.header[line_tag])
+                alternate_allowed_test_dicts = []
+                for key,val in test_dict.items():
+                    alterate_test_dict = copy.deepcopy(test_dict)
+                    if key in other_allowed_values.keys():
+                        for alternate_val in other_allowed_values[key]:
+                            alterate_test_dict[key] = alternate_val
+                            alternate_allowed_test_dicts.append(copy.deepcopy(alterate_test_dict))
+                self.assertTrue(any(d==expected_sam.header[line_tag] for d in alternate_allowed_test_dicts+[test_dict]), msg="{} expected but not seen in {}".format(expected_sam.header[line_tag],alternate_allowed_test_dicts+[test_dict]))
 
 """
 When "nose" executes python scripts for automated testing, it excludes ones with

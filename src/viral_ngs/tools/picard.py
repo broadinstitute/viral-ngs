@@ -56,7 +56,7 @@ class PicardTools(tools.Tool):
 
         # the conda version wraps the jar file with a shell script
         path = self.install_and_get_path()
-        tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions
+        tool_cmd = [path, '-Xmx' + JVMmemory, '-Djava.io.tmpdir=' + tempfile.gettempdir(), command] + picardOptions + ['USE_JDK_DEFLATER=true','USE_JDK_INFLATER=true']
         _log.debug(' '.join(tool_cmd))
 
         env = os.environ.copy()
@@ -408,8 +408,9 @@ class CreateSequenceDictionaryTool(PicardTools):
                 os.unlink(outDict)
             else:
                 return
-        opts = ['REFERENCE=' + inFasta, 'OUTPUT=' + outDict]
-        PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
+        with util.file.fastas_with_sanitized_ids(inFasta, use_tmp=False) as sanitized_fastas:
+            opts = ['REFERENCE=' + sanitized_fastas[0], 'OUTPUT=' + outDict]
+            PicardTools.execute(self, self.subtoolName, opts + picardOptions, JVMmemory)
 
 
 class BuildBamIndexTool(PicardTools):
