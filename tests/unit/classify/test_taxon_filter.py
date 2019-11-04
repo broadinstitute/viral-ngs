@@ -387,30 +387,9 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         samtools = tools.samtools.SamtoolsTool()
         samtools.view(['-h'], outBam, outSam)
 
-        #with open(outSam, "r") as outSamFile:
-        #    for line in outSamFile.readlines():
-        #        print(line)
-
-        # the header field ordering may be different with Java 1.8
-        self.assertTrue(
-            filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_1_8.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
-                shallow=False
-            )
-        )
+        assert_equal_bam_reads(self,
+            outSam,
+            os.path.join(myInputDir, 'expected.sam'))
 
     def test_deplete_blastn_bam_chunked(self):
         tempDir = tempfile.mkdtemp()
@@ -429,30 +408,9 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
         samtools = tools.samtools.SamtoolsTool()
         samtools.view(['-h'], outBam, outSam)
 
-        #with open(outSam, "r") as outSamFile:
-        #    for line in outSamFile.readlines():
-        #        print(line)
-
-        # the header field ordering may be different with Java 1.8
-        self.assertTrue(
-            filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_1_8.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_alt_v1.5.sam'),
-                shallow=False
-            ) or filecmp.cmp(
-                outSam,
-                os.path.join(myInputDir, 'expected_1_8_v1.5.sam'),
-                shallow=False
-            )
-        )
+        assert_equal_bam_reads(self,
+            outSam,
+            os.path.join(myInputDir, 'expected.sam'))
 
     def test_blastn_empty_input(self):
         empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
