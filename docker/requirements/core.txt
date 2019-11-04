@@ -6,9 +6,9 @@ fastqc=0.11.7
 gatk=3.8
 mvicuna=1.0
 novoalign=3.07.00
-picard=2.18.11
+picard-slim=2.21.1
 prinseq=0.20.4
-r-base=3.5.1
+#r-base=3.5.1
 samtools=1.9
 trimmomatic=0.38
 # Python packages below
