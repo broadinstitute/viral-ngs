@@ -23,7 +23,7 @@ import inspect
 import tarfile
 import itertools
 import re
-import urllib2
+import urllib.request
 
 import util.cmd
 import util.misc
@@ -540,7 +540,7 @@ def concat(inputFilePaths, outputFilePath, append=False):
 def download_file(uriToGet, dest, destFileName=None):
     destDir = os.path.realpath(os.path.expanduser(dest))
 
-    req = urllib2.urlopen(uriToGet)
+    req = urllib.request.urlopen(uriToGet)
 
     if not destFileName:
         m = re.search('filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
@@ -564,7 +564,7 @@ def download_file(uriToGet, dest, destFileName=None):
 
 def webfile_readlines(uriToGet):
 
-    for line in urllib2.urlopen(uriToGet):  # .readlines():
+    for line in urllib.request.urlopen(uriToGet):  # .readlines():
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
