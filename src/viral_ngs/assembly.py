@@ -736,7 +736,7 @@ def impute_from_reference(
 
                 # error if PoorAssembly
                 minLength = len(refSeqObj) * minLengthFraction
-                non_n_count = unambig_count(asmSeqObj.seq)
+                non_n_count = util.misc.unambig_count(asmSeqObj.seq)
                 seq_len = len(asmSeqObj)
                 log.info(
                     "Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
@@ -1053,11 +1053,6 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
 __commands__.append(('refine_assembly', parser_refine_assembly))
 
 
-def unambig_count(seq):
-    unambig = set(('A', 'T', 'C', 'G'))
-    return sum(1 for s in seq if s.upper() in unambig)
-
-
 def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="input sequence file")
     parser.add_argument("minLength", help="minimum length for contig", type=int)
@@ -1083,7 +1078,7 @@ def main_filter_short_seqs(args):
             Bio.SeqIO.write(
                 [
                     s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength and unambig_count(s.seq) >= len(s) * args.minUnambig
+                    if len(s) >= args.minLength and util.misc.unambig_count(s.seq) >= len(s) * args.minUnambig
                 ], outf, args.output_format
             )
     return 0
