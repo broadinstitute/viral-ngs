@@ -22,15 +22,15 @@ import Bio.Data.IUPACData
 import pysam
 
 # module-specific
-import phylo.genbank
+import tools.samtools
 import util.cmd
 import util.file
-import phylo.vcf
 import util.misc
+import phylo.genbank
+import phylo.vcf
+import phylo.vphaser2
 from util.stats import median, fisher_exact, chi2_contingency
-from interhost import CoordMapper
-from phylo.vphaser2 import Vphaser2Tool
-from tools.samtools import SamtoolsTool
+import interhost
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
             sequence/chrom name, and library counts and p-values appended to
             the counts for each allele.
     '''
-    samtoolsTool = SamtoolsTool()
+    samtoolsTool = tools.samtools.SamtoolsTool()
 
     if minReadsEach is not None and minReadsEach < 0:
         raise Exception('minReadsEach must be at least 0.')
@@ -142,7 +142,7 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
         util.file.touch(outTab)
         return None
 
-    variantIter = Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
+    variantIter = phylo.vphaser2.Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
 
     libraryFilteredIter = compute_library_bias(filteredIter, bam_to_process, inConsFasta)
@@ -186,7 +186,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
           so total might not be sum of library counts.
     '''
     alleleCol = 7  # First column of output with allele counts
-    samtoolsTool = SamtoolsTool()
+    samtoolsTool = tools.samtools.SamtoolsTool()
     rgs_by_lib = sorted((rg['LB'], rg['ID']) for rg in samtoolsTool.getReadGroups(inBam).values())
     rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
     libBams = []
@@ -302,7 +302,7 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta, samtools=None):
             base itself for non-indels
             'i' or 'd', in which case report count for consensus.
     """
-    samtools = samtools or SamtoolsTool()
+    samtools = samtools or tools.samtools.SamtoolsTool()
     pileupFileName = util.file.mkstempfname('.txt')
     samtools.mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
                                                    '-L', '50000', '-Q', '0', '-f', inConsFasta])
@@ -370,7 +370,7 @@ def vphaser_main(inBam, outTab, numThreads=None):
             adding CHROM as the first field on each line.
     """
     with open(outTab, 'wt') as outf:
-        for row in Vphaser2Tool().iterate(inBam, numThreads):
+        for row in phylo.vphaser2.Vphaser2Tool().iterate(inBam, numThreads):
             outf.write('\t'.join(row) + '\n')
 
 
@@ -606,7 +606,7 @@ def merge_to_vcf(
 
                 #ref_sequence = ref_seq_in_alignment_file[refSequence.id]
                 # make a coordmapper to map all alignments to this reference sequence
-                cm = CoordMapper()
+                cm = interhost.CoordMapper()
                 cm.load_alignments([ref_seq_id_to_alignment_file[ref_sequence.id]])
 
                 # ========================

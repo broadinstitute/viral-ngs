@@ -13,19 +13,18 @@ import os
 import array
 import bisect
 import json
-from itertools import permutations, zip_longest
+import itertools
 from collections import OrderedDict, Sequence, MutableMapping
 
 # third-party libraries
-import Bio.AlignIO
-from Bio import SeqIO
+import Bio.AlignIO, Bio.SeqIO
 
 # module-specific
+import util.cmd
+import util.file
 import phylo.muscle
 import phylo.snpeff
 import phylo.mafft
-import util.cmd
-import util.file
 import phylo.vcf
 
 log = logging.getLogger(__name__)
@@ -160,7 +159,7 @@ class CoordMapper(MutableMapping):
         """
         for alignOutFileName in aligned_files:
             with open(alignOutFileName, 'rt') as alignOutFile:
-                seqs = list(SeqIO.parse(alignOutFile, 'fasta'))
+                seqs = list(Bio.SeqIO.parse(alignOutFile, 'fasta'))
 
                 # if len(list(seqs)) <2:
                 #    raise Exception("Each aligned input file must contain >1 sequence.")
@@ -181,9 +180,9 @@ class CoordMapper(MutableMapping):
                     mapDict = OrderedDict()
                     mapDict[seqs[a_idx].id] = mapper
                     self.chrMaps[seqs[b_idx].id] = mapDict
-                # otherwise, map all possible pairwise permutations
+                # otherwise, map all possible pairwise itertools.permutations
                 else:
-                    for (seq1, seq2) in permutations(seqs, 2):
+                    for (seq1, seq2) in itertools.permutations(seqs, 2):
                         if (seq1.id == seq2.id):
                             raise KeyError("duplicate sequence names '%s', '%s'" % (seq1.id, seq2.id))
 
@@ -264,7 +263,7 @@ class CoordMapper2Seqs(object):
         baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
         beforeStart = True  # Haven't yet reached first pair of aligned real bases
         gapSinceLast = False  # Have encounted a gap since last pair in mapArrays
-        for b0, b1 in zip_longest(seq0, seq1):
+        for b0, b1 in itertools.zip_longest(seq0, seq1):
             if b0 is None or b1 is None:
                 raise Exception('CoordMapper2Seqs: sequences must be same length.')
             realBase0 = b0 != '-'

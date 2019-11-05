@@ -23,7 +23,6 @@ import util.file
 import phylo.vcf
 import test
 from intrahost import AlleleFieldParser
-import interhost
 import phylo.mafft
 
 
@@ -265,7 +264,7 @@ class VcfMergeRunner:
         inputFastas = []
         inputFastas.append(self.ref)
         inputFastas.extend(self.genomeFastas.values())
-        transposedFiles = interhost.transposeChromosomeFiles(inputFastas)
+        transposedFiles = util.file.transposeChromosomeFiles(inputFastas)
 
         # since the FASTA files are
         for idx, filePath in enumerate(transposedFiles):
