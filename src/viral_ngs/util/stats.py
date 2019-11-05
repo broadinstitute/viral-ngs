@@ -5,27 +5,7 @@ import itertools
 
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
-try:
-    # Python 3.4
-    from statistics import mean, median
-except ImportError:
-    # Python <3.4, avoid numpy if these two methods are all we really need
-    def mean(l):
-        if len(l) > 0:
-            return float(sum(l)) / len(l)
-        else:
-            raise Exception("empty list for mean")
-
-    def median(l):
-        if len(l) > 0:
-            half = len(l) // 2
-            l.sort()
-            if len(l) % 2 == 0:
-                return (l[half - 1] + l[half]) / 2.0
-            else:
-                return l[half]
-        else:
-            raise Exception("empty list for median")
+from statistics import mean, median
 
 
 def product(iterable):

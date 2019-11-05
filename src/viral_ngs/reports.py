@@ -30,8 +30,6 @@ import util.misc
 import tools.samtools
 import tools.bwa
 import tools.fastqc
-import assembly
-import interhost
 from util.stats import mean, median
 
 log = logging.getLogger(__name__)
@@ -103,7 +101,7 @@ def get_assembly_stats(sample,
             out['n_contigs'] = 0
     if os.path.isfile(assembly_fname):
         with open(assembly_fname, 'rt') as inf:
-            counts = [(len(s), assembly.unambig_count(s.seq)) for s in Bio.SeqIO.parse(inf, 'fasta') if len(s) > 0]
+            counts = [(len(s), util.misc.unambig_count(s.seq)) for s in Bio.SeqIO.parse(inf, 'fasta') if len(s) > 0]
         out['n_contigs'] = len(counts)
         out['contig_len'] = ','.join(str(x) for x, y in counts)
         out['unambig_bases'] = ','.join(str(y) for x, y in counts)
@@ -253,7 +251,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     ambiguous = 'N'
     aligner = tools.muscle.MuscleTool()
 
-    per_chr_fastas = interhost.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
+    per_chr_fastas = util.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
 
     results = OrderedDict()
     results["same_unambig"]  = 0

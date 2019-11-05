@@ -15,12 +15,17 @@ import yaml, json
 import time
 
 import util.file
+from subprocess import run
 
 log = logging.getLogger(__name__)
 
 __author__ = "dpark@broadinstitute.org"
 
 MAX_INT32 = (2 ** 31)-1
+
+def unambig_count(seq):
+    unambig = set(('A', 'T', 'C', 'G'))
+    return sum(1 for s in seq if s.upper() in unambig)
 
 @contextlib.contextmanager
 def timer(prefix):
@@ -142,84 +147,6 @@ def list_contains(sublist, list_):
         if sublist == list_[i:i+len(sublist)]:
             return True
     return False
-
-
-try:
-    from subprocess import run
-except ImportError:
-    CompletedProcess = collections.namedtuple(
-        'CompletedProcess', ['args', 'returncode', 'stdout', 'stderr'])
-
-    def run(args, stdin=None, stdout=None, stderr=None, shell=False,
-            env=None, cwd=None, timeout=None, check=False, executable=None):
-        '''A poor man's substitute of python 3.5's subprocess.run().
-
-        Should only be used for capturing stdout. If stdout is unneeded, a
-        simple subprocess.call should suffice.
-        '''
-        assert stdout is not None, (
-            'Why are you using this util function if not capturing stdout?')
-
-        stdout_pipe = stdout == subprocess.PIPE
-        stderr_pipe = stderr == subprocess.PIPE
-        # A little optimization when we don't need temporary files.
-        if stdout_pipe and (
-                stderr == subprocess.STDOUT or stderr is None):
-            try:
-                output = subprocess.check_output(
-                    args, stdin=stdin, stderr=stderr, shell=shell,
-                    env=env, cwd=cwd, executable=executable)
-                return CompletedProcess(args, 0, output, b'')
-            # Py3.4 doesn't have stderr attribute
-            except subprocess.CalledProcessError as e:
-                if check:
-                    raise
-                returncode = e.returncode
-                stderr_text = getattr(e, 'stderr', b'')
-                return CompletedProcess(args, e.returncode, e.output, stderr_text)
-
-        # Otherwise use temporary files as buffers, since subprocess.call
-        # cannot use PIPE.
-        if stdout_pipe:
-            stdout_fn = util.file.mkstempfname('.stdout')
-            stdout = open(stdout_fn, 'wb')
-        if stderr_pipe:
-            stderr_fn = util.file.mkstempfname('.stderr')
-            stderr = open(stderr_fn, 'wb')
-        try:
-            returncode = subprocess.call(
-                args, stdin=stdin, stdout=stdout,
-                stderr=stderr, shell=shell, env=env, cwd=cwd,
-                executable=executable)
-            if stdout_pipe:
-                stdout.close()
-                with open(stdout_fn, 'rb') as f:
-                    output = f.read()
-            else:
-                output = ''
-            if stderr_pipe:
-                stderr.close()
-                with open(stderr_fn, 'rb') as f:
-                    error = f.read()
-            else:
-                error = ''
-            if check and returncode != 0:
-                print(output.decode("utf-8"))
-                print(error.decode("utf-8"))
-                try:
-                    raise subprocess.CalledProcessError(
-                        returncode, args, output, error) #pylint: disable-msg=E1121
-                except TypeError: # py2 CalledProcessError does not accept error
-                    raise subprocess.CalledProcessError(
-                        returncode, args, output)
-            return CompletedProcess(args, returncode, output, error)
-        finally:
-            if stdout_pipe:
-                stdout.close()
-                os.remove(stdout_fn)
-            if stderr_pipe:
-                stderr.close()
-                os.remove(stderr_fn)
 
 
 def run_and_print(args, stdout=None, stderr=subprocess.STDOUT,
