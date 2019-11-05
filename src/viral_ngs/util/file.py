@@ -220,7 +220,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
     else:
         util.file.mkdir_p(out_dir)
-    assert compression in ('gz', 'bz2', 'lz4', 'zip', 'none', 'auto')
+    assert compression in ('gz', 'bz2', 'lz4', 'zip', 'zst', 'none', 'auto')
     if compression is 'auto':
         assert tarfile != '-' or pipe_hint, "cannot autodetect on stdin input unless pipe_hint provided"
         # auto-detect compression type based on file name
@@ -238,6 +238,8 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             compression = 'lz4'
         elif lower_fname.endswith('.tar.bz2'):
             compression = 'bz2'
+        elif lower_fname.endswith('.tar.zst'):
+            compression = 'zst'
         else:
             raise Exception("unsupported file type: %s" % tarfile)
 
@@ -253,6 +255,8 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
             decompressor = ['lbzip2', '-dc', '-n', str(util.misc.sanitize_thread_count(threads))]
         elif compression == 'lz4':
             decompressor = ['lz4', '-d']
+        elif compression == 'zst':
+            decompressor = ['zstd', '-d']
         elif compression == 'none':
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
@@ -980,6 +984,10 @@ def repack_tarballs(out_compressed_tarball,
             compressor = ['lz4']
             return_obj["decompress_cmd"] = compressor + ["-dc"]
             return_obj["compress_cmd"] = compressor + ["-c"]
+        elif re.search(r'\.?zst$', filepath):
+            compressor = ['zstd']
+            return_obj["decompress_cmd"] = compressor + ["-d"]
+            return_obj["compress_cmd"] = compressor + ["-19"]
         elif re.search(r'\.?tar$', filepath):
             compressor = ['cat']
             return_obj["decompress_cmd"] = compressor
