@@ -724,6 +724,29 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
         lines.append('\t'.join([percent_covered, str(cum_hits), str(num_hits), rank, str(taxid), '  ' * level + name]))
     return cum_hits
 
+def parser_kraken(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Kraken database directory.')
+    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--outReports', nargs='+', help='Kraken summary report output file. Multiple filenames space separated.')
+    parser.add_argument('--outReads', nargs='+', help='Kraken per read classification output file. Multiple filenames space separated.')
+    parser.add_argument('--lockMemory', action='store_true', default=False, help='Lock kraken database in RAM. Requires high ulimit -l.')
+    parser.add_argument(
+        '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken, split_args=True)
+    return parser
+def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
+    '''
+        Classify reads by taxon using Kraken
+    '''
+
+    assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
+    kraken_tool = classify.kraken.Kraken()
+    kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
+                         filterThreshold=filterThreshold, numThreads=threads)
+__commands__.append(('kraken', parser_kraken))
+
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
@@ -968,7 +991,10 @@ def fasta_library_accessions(library):
     return library_accessions
 
 
-class KrakenUniqBuildError(Exception):
+class KrakenBuildError(Exception):
+    '''Error while building kraken database.'''
+
+class KrakenUniqBuildError(KrakenBuildError):
     '''Error while building KrakenUniq database.'''
 
 def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
@@ -1347,6 +1373,111 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
 
 __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
+
+
+def parser_kraken_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Kraken database output directory.')
+    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
+    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
+    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
+    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken default: 15)')
+    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken default: 31)')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
+    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
+    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken_build, split_args=True)
+    return parser
+def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
+                threads=None, workOnDisk=False,
+                minimizerLen=None, kmerLen=None, maxDbSize=None, clean=False):
+    '''
+    Builds a kraken database from library directory of fastas and taxonomy db
+    directory. The --subsetTaxonomy option allows shrinking the taxonomy to only
+    include taxids associated with the library folders. For this to work, the
+    library fastas must have the standard id names such as `>NC1234.1`
+    accessions, `>gi|123456789|ref|XXXX||`, or custom kraken name
+    `>kraken:taxid|1234|`.
+
+    Setting the --minimizerLen (default: 16) small, such as 10, will drastically
+    shrink the db size for small inputs, which is useful for testing.
+
+    The built db may include symlinks to the original --library / --taxonomy
+    directories. If you want to build a static archiveable version of the
+    library, simply use the --clean option, which will also remove any
+    unnecessary files.
+    '''
+    util.file.mkdir_p(db)
+    library_dir = os.path.join(db, 'library')
+    library_exists = os.path.exists(library_dir)
+    if library:
+        try:
+            os.symlink(os.path.abspath(library), os.path.join(db, 'library'))
+        except FileExistsError:
+            pass
+    else:
+        if not library_exists:
+            raise FileNotFoundError('Library directory {} not found'.format(library_dir))
+
+    taxonomy_dir = os.path.join(db, 'taxonomy')
+    taxonomy_exists = os.path.exists(taxonomy_dir)
+    if taxonomy:
+        if taxonomy_exists:
+            raise KrakenBuildError('Output db directory already contains taxonomy directory {}'.format(taxonomy_dir))
+        if subsetTaxonomy:
+            kraken_taxids, kraken_gis, kraken_accessions = kraken_library_ids(library)
+
+            whitelist_taxid_f = util.file.mkstempfname()
+            with open(whitelist_taxid_f, 'wt') as f:
+                for taxid in kraken_taxids:
+                    print(taxid, file=f)
+
+            whitelist_gi_f = util.file.mkstempfname()
+            with open(whitelist_gi_f, 'wt') as f:
+                for gi in kraken_gis:
+                    print(gi, file=f)
+
+            whitelist_accession_f = util.file.mkstempfname()
+            with open(whitelist_accession_f, 'wt') as f:
+                for accession in kraken_accessions:
+                    print(accession, file=f)
+
+            # Context-managerize eventually
+            taxonomy_tmp = tempfile.mkdtemp()
+            subset_taxonomy(taxonomy, taxonomy_tmp, whitelistTaxidFile=whitelist_taxid_f,
+                            whitelistGiFile=whitelist_gi_f, whitelistAccessionFile=whitelist_accession_f)
+            shutil.move(taxonomy_tmp, taxonomy_dir)
+        else:
+            os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
+        for fn in os.listdir(os.path.join(taxonomy_dir, 'accession2taxid')):
+            if not fn.endswith('accession2taxid'):
+                continue
+
+            os.symlink(os.path.join(taxonomy_dir, 'accession2taxid', fn),
+                       os.path.join(taxonomy_dir, fn))
+    else:
+        if not taxonomy_exists:
+            raise FileNotFoundError('Taxonomy directory {} not found'.format(taxonomy_dir))
+        if subsetTaxonomy:
+            raise KrakenBuildError('Cannot subset taxonomy if already in db folder')
+
+    kraken_tool = classify.kraken.Kraken()
+    options = {'--build': None}
+    if threads:
+        options['--threads'] = threads
+    if minimizerLen:
+        options['--minimizer-len'] = minimizerLen
+    if kmerLen:
+        options['--kmer-len'] = kmerLen
+    if maxDbSize:
+        options['--max-db-size'] = maxDbSize
+    if workOnDisk:
+        options['--work-on-disk'] = None
+    kraken_tool.build(db, options=options)
+
+    if clean:
+        kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
+__commands__.append(('kraken_build', parser_kraken_build))
 
 
 def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
