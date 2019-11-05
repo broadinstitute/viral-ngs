@@ -18,7 +18,7 @@ import pysam
 import tools
 import util.file
 import util.misc
-import util.genbank
+import phylo.genbank
 
 _log = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class SnpEff(tools.Tool):
         self.installed_dbs.add(dbname)
 
     def create_db(self, accessions, emailAddress=None, JVMmemory=None):
-        sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
+        sortedAccessionString = ", ".join([phylo.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         # if the database is not installed, we need to make it
@@ -93,7 +93,7 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
-            util.genbank.fetch_full_records_from_genbank(
+            phylo.genbank.fetch_full_records_from_genbank(
                 sorted(accessions), 
                 outputDir,
                 emailAddress,
@@ -172,7 +172,7 @@ class SnpEff(tools.Tool):
         else:
             raise Exception("invalid input")
 
-        sortedAccessionString = ", ".join([util.genbank.parse_accession_str(acc) for acc in sorted(genomes)])
+        sortedAccessionString = ", ".join([phylo.genbank.parse_accession_str(acc) for acc in sorted(genomes)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         genomeToUse = ""
