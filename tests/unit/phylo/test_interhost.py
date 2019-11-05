@@ -83,7 +83,7 @@ class TestCoordMapper(test.TestCaseWithTmp):
     def test_unequal_genomes_error(self):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
-        with self.assertRaises(interhost.TranspositionError):
+        with self.assertRaises(util.file.TranspositionError):
             cm = interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
