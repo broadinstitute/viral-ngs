@@ -214,7 +214,7 @@ class CoordMapper(MutableMapping):
         aligner = self.alignerTool if aligner is None else aligner
 
         # transpose
-        per_chr_fastas = transposeChromosomeFiles(unaligned_fasta_files)
+        per_chr_fastas = util.file.transposeChromosomeFiles(unaligned_fasta_files)
         if not per_chr_fastas:
             raise Exception('no input sequences')
         # align
@@ -454,7 +454,7 @@ def multichr_mafft(args):
     prefix = "" if args.outFilePrefix is None else args.outFilePrefix
 
     # reorder the data into new FASTA files, where each FASTA file has only variants of its respective chromosome
-    transposedFiles = transposeChromosomeFiles(args.inFastas, args.sampleRelationFile, args.sampleNameListFile)
+    transposedFiles = util.file.transposeChromosomeFiles(args.inFastas, args.sampleRelationFile, args.sampleNameListFile)
 
     # since the FASTA files are
     for idx, filePath in enumerate(transposedFiles):
@@ -533,60 +533,6 @@ def make_vcf(a, ref_idx, chrom):
                             genos.append(m + 1)
             yield row + genos
 
-class TranspositionError(Exception):
-    def __init___(self, *args, **kwargs):
-        super(TranspositionError, self).__init__(self, *args, **kwargs)
-
-def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sampleNameListFile=None):
-    ''' Input:  a list of FASTA files representing a genome for each sample.
-                Each file contains the same number of sequences (chromosomes, segments,
-                etc) in the same order.
-                If the parameter sampleRelationFile is specified (as a file path),
-                a JSON file will be written mapping sample name to sequence position
-                in the output.
-        Output: a list of FASTA files representing all samples for each
-                chromosome/segment for input to a multiple sequence aligner.
-                The number of FASTA files corresponds to the number of chromosomes
-                in the genome.  Each file contains the same number of samples
-                in the same order.  Each output file is a tempfile.
-    '''
-    outputFilenames = []
-
-    # open all files
-    inputFilesList = [util.file.open_or_gzopen(x, 'r') for x in inputFilenamesList]
-    # get BioPython iterators for each of the FASTA files specified in the input
-    fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
-
-    # write out json file containing relation of
-    # sample name to position in output
-    if sampleRelationFile:
-        with open(os.path.realpath(sampleRelationFile), "w") as outFile:
-            # dict mapping sample->index, zero indexed
-            sampleIdxMap = dict((os.path.basename(v).replace(".fasta", ""), k)
-                                for k, v in enumerate(inputFilenamesList))
-            json.dump(sampleIdxMap, outFile, sort_keys=True, indent=4, separators=(',', ': '))
-
-    if sampleNameListFile:
-        with open(os.path.realpath(sampleNameListFile), "w") as outFile:
-            sampleNameList = [os.path.basename(v).replace(".fasta", "\n") for v in inputFilenamesList]
-            outFile.writelines(sampleNameList)
-
-    # for each interleaved record
-    for chrRecordList in zip_longest(*fastaFiles):
-        if any(rec is None for rec in chrRecordList):
-            raise TranspositionError("input fasta files must all have the same number of sequences")
-
-        outputFilename = util.file.mkstempfname('.fasta')
-        outputFilenames.append(outputFilename)
-        with open(outputFilename, "w") as outf:
-            # write the corresonding records to a new FASTA file
-            SeqIO.write(chrRecordList, outf, 'fasta')
-
-    # close all input files
-    for x in inputFilesList:
-        x.close()
-
-    return outputFilenames
 
 
 def full_parser():
