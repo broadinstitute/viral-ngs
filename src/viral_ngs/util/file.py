@@ -21,6 +21,9 @@ import io
 import csv
 import inspect
 import tarfile
+import itertools
+import re
+import urllib2
 
 import util.cmd
 import util.misc
@@ -29,14 +32,6 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO import FastaIO
-
-# imports needed for download_file() and webfile_readlines()
-import re
-# since py3 split up urllib
-try:
-    from urllib.request import urlopen # pylint: disable=E0611
-except ImportError:
-    from urllib2 import urlopen
 
 import pysam
 
@@ -545,7 +540,7 @@ def concat(inputFilePaths, outputFilePath, append=False):
 def download_file(uriToGet, dest, destFileName=None):
     destDir = os.path.realpath(os.path.expanduser(dest))
 
-    req = urlopen(uriToGet)
+    req = urllib2.urlopen(uriToGet)
 
     if not destFileName:
         m = re.search('filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
@@ -569,7 +564,7 @@ def download_file(uriToGet, dest, destFileName=None):
 
 def webfile_readlines(uriToGet):
 
-    for line in urlopen(uriToGet):  # .readlines():
+    for line in urllib2.urlopen(uriToGet):  # .readlines():
         cleanedLine = line.decode("utf-8").strip()
         if len(cleanedLine) > 0:
             yield cleanedLine
@@ -731,7 +726,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
             outFile.writelines(sampleNameList)
 
     # for each interleaved record
-    for chrRecordList in zip_longest(*fastaFiles):
+    for chrRecordList in itertools.zip_longest(*fastaFiles):
         if any(rec is None for rec in chrRecordList):
             raise TranspositionError("input fasta files must all have the same number of sequences")
 

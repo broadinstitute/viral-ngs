@@ -1,11 +1,9 @@
 '''A few pure-python statistical tools to avoid the need to install scipy. '''
-from __future__ import division  # Division of integers with / should never round!
-from math import exp, log, sqrt, gamma, lgamma, erf
-import itertools
-
 __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org"
 
+from math import exp, log, sqrt, gamma, lgamma, erf
 from statistics import mean, median
+import itertools
 
 
 def product(iterable):

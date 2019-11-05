@@ -1,5 +1,4 @@
 '''A few miscellaneous tools. '''
-from __future__ import print_function, division  # Division of integers with / should never round!
 import collections
 import contextlib
 import itertools, functools, operator
@@ -15,7 +14,6 @@ import yaml, json
 import time
 
 import util.file
-from subprocess import run
 
 log = logging.getLogger(__name__)
 
@@ -113,12 +111,7 @@ def pairwise(iterable):
         s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     a, b = itertools.tee(iterable)
     next(b, None)
-    if hasattr(itertools, 'izip'):
-        # Python 2
-        return itertools.izip(a, b)
-    else:
-        # Python 3
-        return zip(a, b)
+    return zip(a, b)
 
 
 def batch_iterator(iterator, batch_size):
@@ -161,7 +154,7 @@ def run_and_print(args, stdout=None, stderr=subprocess.STDOUT,
     if not buffered:
         if check and not silent:
             try:
-                result = run(
+                result = subprocess.run(
                     args,
                     stdin=stdin,
                     stdout=subprocess.PIPE,
@@ -194,7 +187,7 @@ def run_and_print(args, stdout=None, stderr=subprocess.STDOUT,
                     sys.stdout.flush()
                 raise(e)
         else:
-            result = run(args, stdin=stdin, stdout=subprocess.PIPE,
+            result = subprocess.run(args, stdin=stdin, stdout=subprocess.PIPE,
                          stderr=stderr, env=env, cwd=cwd,
                          timeout=timeout, check=check)
             if not silent and not loglevel:
