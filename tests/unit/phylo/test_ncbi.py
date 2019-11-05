@@ -11,7 +11,7 @@ import argparse
 # module-specific
 import ncbi
 import util.file
-import util.genbank
+import phylo.genbank
 from test import assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents, assert_md5_equal_to_line_in_file
 
 
@@ -31,16 +31,16 @@ class TestFeatureReader(TestCaseWithTmp):
         accessions = ('GU481072.1', 'GU481073.1',
             'KM821772.1', 'KM821773.1')
         for acc in accessions:
-            self.assertEqual(acc, util.genbank.get_feature_table_id(os.path.join(self.input_dir, acc+'.tbl')))
+            self.assertEqual(acc, phylo.genbank.get_feature_table_id(os.path.join(self.input_dir, acc+'.tbl')))
 
     def test_read_seq_id_different_fnames(self):
-        self.assertEqual('KM821998.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('KM821998.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'test1-S.tbl')))
-        self.assertEqual('KM821997.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('KM821997.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'test2-L.tbl')))
 
     def test_read_seq_id_refseq(self):
-        self.assertEqual('NC_026438.1', util.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('NC_026438.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'NC_026438.1.tbl')))
 
 class TestFeatureTransfer(TestCaseWithTmp):

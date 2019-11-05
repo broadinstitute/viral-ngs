@@ -20,11 +20,11 @@ import Bio.Seq
 # module-specific
 import intrahost
 import util.file
-import util.vcf
+import phylo.vcf
 import test
 from intrahost import AlleleFieldParser
 import interhost
-import tools.mafft
+import phylo.mafft
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -242,7 +242,7 @@ class VcfMergeRunner:
                               self.alignedFastas)
 
 
-        with util.vcf.VcfReader(outVcf) as vcf:
+        with phylo.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
 
@@ -273,7 +273,7 @@ class VcfMergeRunner:
             outFile = util.file.mkstempfname('.fasta')
             outFilePath = os.path.dirname(outFile)
 
-            alignedOutFile = tools.mafft.MafftTool().execute(
+            alignedOutFile = phylo.mafft.MafftTool().execute(
                 inFastas=[os.path.abspath(filePath)],
                 outFile=os.path.join(outFilePath, "{}{}.fasta".format("aligned", idx)),
                 localpair=False,
@@ -330,7 +330,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
             ], [
                 s1, s2
             ])
-        with util.vcf.VcfReader(outVcf) as vcf:
+        with phylo.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
             self.assertEqual(vcf.chrlens(), {'ref1': 8, 'ref2': 5})
 
