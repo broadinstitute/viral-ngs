@@ -134,7 +134,7 @@ class AttrDict(dict):
 
 class FeatureTable(object):
     # get feature table keys from extensive map
-    _default_feature_types = sorted(util.feature_table_types.ft_types.keys())
+    _default_feature_types = sorted(phylo.feature_table_types.ft_types.keys())
 
     def __init__(self, filepath=None, valid_feature_types=None):
         self.refID = None
