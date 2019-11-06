@@ -744,7 +744,7 @@ def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterT
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
     kraken_tool = classify.kraken.Kraken()
     kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
-                         filterThreshold=filterThreshold, numThreads=threads)
+                         filterThreshold=filterThreshold, num_threads=threads)
 __commands__.append(('kraken', parser_kraken))
 
 
