@@ -28,7 +28,7 @@ def merge_tarballs(out_tarball, in_tarballs, threads=None, extract_to_disk_path=
 def parser_merge_tarballs(parser=argparse.ArgumentParser()):
     parser.add_argument(
         'out_tarball', 
-        help='''output tarball (*.tar.gz|*.tar.lz4|*.tar.bz2|-);
+        help='''output tarball (*.tar.gz|*.tar.lz4|*.tar.bz2|*.tar.zst|-);
                 compression is inferred by the file extension.
         Note: if "-" is used, output will be written to stdout and
          --pipeOutHint must be provided to indicate compression type
@@ -36,7 +36,7 @@ def parser_merge_tarballs(parser=argparse.ArgumentParser()):
         ''')
     parser.add_argument(
         'in_tarballs', nargs='+',
-        help=('input tarballs (*.tar.gz|*.tar.lz4|*.tar.bz2)')
+        help=('input tarballs (*.tar.gz|*.tar.lz4|*.tar.bz2|*.tar.zst)')
     )
     parser.add_argument('--extractToDiskPath',
                         dest="extract_to_disk_path",

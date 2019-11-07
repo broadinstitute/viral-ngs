@@ -9,6 +9,8 @@ import codecs
 import contextlib
 import os
 import gzip
+import bz2
+import zstd
 import io
 import tempfile
 import subprocess
@@ -256,7 +258,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         elif compression == 'lz4':
             decompressor = ['lz4', '-d']
         elif compression == 'zst':
-            decompressor = ['zstd', '-d']
+            decompressor = ['zstd', '-dc']
         elif compression == 'none':
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
@@ -328,53 +330,60 @@ def touch_p(path, times=None):
     touch(path, times=times)
 
 
-def open_or_gzopen(fname, *opts, **kwargs):
-    mode = 'r'
-    open_opts = list(opts)
+@contextlib.contextmanager
+def zstd_open(fname, mode='r', **kwargs):
+    '''Handle both text and byte decompression of the file.'''
+    if 'r' in mode:
+        with open(fname, 'rb') as fh:
+            dctx = zstd.ZstdDecompressor()
+            stream_reader = dctx.stream_reader(fh)
+            if 'b' not in mode:
+                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8-sig')
+                yield text_stream
+                return
+            yield stream_reader
+    else:
+        with open(fname, 'wb') as fh:
+            cctx = zstd.ZstdCompressor(level=kwargs.get('level', 10),
+                                       threads=util.misc.sanitize_thread_count(kwargs.get('threads', None)))
+            stream_writer = cctx.stream_writer(fh)
+            if 'b' not in mode:
+                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
+                yield text_stream
+                return
+            yield stream_writer
+
+def open_or_gzopen(fname, mode='r', **kwargs):
     assert type(mode) == str, "open mode must be of type str"
 
     # 'U' mode is deprecated in py3 and may be unsupported in future versions,
     # so use newline=None when 'U' is specified
-    if len(open_opts) > 0:
-        mode = open_opts[0]
-        if sys.version_info[0] == 3:
-            if 'U' in mode:
-                if 'newline' not in kwargs:
-                    kwargs['newline'] = None
-                open_opts[0] = mode.replace("U","")
+    if 'U' in mode:
+        if 'newline' not in kwargs:
+            kwargs['newline'] = None
+        mode = mode.replace("U","t")
 
-    # if this is a gzip file
     if fname.endswith('.gz'):
-        # if text read mode is desired (by spec or default)
-        if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
-            # if python 2
-            if sys.version_info[0] == 2:
-                # gzip.open() under py2 does not support universal newlines
-                # so we need to wrap it with something that does
-                # By ignoring errors in BufferedReader, errors should be handled by TextIoWrapper
-                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname)))
-
-        # if 't' for text mode is not explicitly included,
-        # replace "U" with "t" since under gzip "rb" is the
-        # default and "U" depends on "rt"
-        gz_mode = str(mode).replace("U","" if "t" in mode else "t")
-        gz_opts = [gz_mode]+list(opts)[1:]
-        return gzip.open(fname, *gz_opts, **kwargs)
+        # Allow using 'level' kwarg as an alias for gzip files.
+        if 'level' in kwargs:
+            kwargs['compresslevel'] = kwargs.pop('level')
+        return gzip.open(fname, mode=mode, **kwargs)
+    elif fname.endswith('.bz2'):
+        return bz2.open(fname, mode=mode, **kwargs)
+    elif fname.endswith('.zst'):
+        return zstd_open(fname, mode=mode, **kwargs)
     else:
-        return open(fname, *open_opts, **kwargs)
+        return open(fname, mode=mode, **kwargs)
 
 
 def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limit=None):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
-    with open_or_gzopen(inFile, 'rU') as inf:
+    with open_or_gzopen(inFile, 'rt', encoding='utf-8-sig', newline=None) as inf:
         header = None
         lines_read=0
         for line_no,line in enumerate(inf):
-            if line_no==0:
-                # remove BOM, if present
-                line = line.replace('\ufeff','')
             lines_read+=1
             row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
             # skip empty lines/rows
@@ -402,17 +411,14 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rU') as inf:
+    with open_or_gzopen(inFile, 'rt', encoding='utf-8-sig', newline=None) as inf:
         for line_no,line in enumerate(inf):
-            if line_no==0:
-                # remove BOM, if present
-                line = line.replace('\ufeff','')
             if not line.startswith('#'):
                 yield list(item.strip() for item in line.rstrip('\r\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
-    with open_or_gzopen(filename, 'rt') as inf:
+    with open_or_gzopen(filename, 'rt', encoding='utf-8-sig', newline=None) as inf:
         header = inf.readline().rstrip('\n').split(delim)
     if header and header[0].startswith(headerPrefix):
         header[0] = header[0][len(headerPrefix):]
@@ -986,8 +992,8 @@ def repack_tarballs(out_compressed_tarball,
             return_obj["compress_cmd"] = compressor + ["-c"]
         elif re.search(r'\.?zst$', filepath):
             compressor = ['zstd']
-            return_obj["decompress_cmd"] = compressor + ["-d"]
-            return_obj["compress_cmd"] = compressor + ["-19"]
+            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["compress_cmd"] = compressor + ["-c19", "-T"+str(threads)]
         elif re.search(r'\.?tar$', filepath):
             compressor = ['cat']
             return_obj["decompress_cmd"] = compressor
@@ -1031,7 +1037,7 @@ def repack_tarballs(out_compressed_tarball,
         compressor = choose_compressor(pipe_hint_out)["compress_cmd"]
         outfile = None
     else:
-        compressor =choose_compressor(out_compressed_tarball)["compress_cmd"]
+        compressor = choose_compressor(out_compressed_tarball)["compress_cmd"]
         outfile = open(out_compressed_tarball, "w")
 
     out_compress_ps = subprocess.Popen(compressor, stdout=sys.stdout if out_compressed_tarball == "-" else outfile, stdin=subprocess.PIPE)
