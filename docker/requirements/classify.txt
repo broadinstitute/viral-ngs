@@ -6,4 +6,3 @@ kaiju=1.6.3_yesimon
 krakenuniq=0.5.7_yesimon
 krona=2.7.1
 last=876
-parallel=20190922

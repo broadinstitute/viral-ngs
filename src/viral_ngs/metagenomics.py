@@ -1192,7 +1192,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
         # -----------------------------------------------------------------
 
 
-        with util.file.open_or_gzopen(f, 'rU') as inf:
+        with util.file.open_or_gzopen(f, 'rt') as inf:
             report_type=None
             should_process = False
             indent_of_selection = -1
