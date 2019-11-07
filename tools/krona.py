@@ -5,7 +5,7 @@ from os.path import join
 from builtins import super
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = '2.7'
+CONDA_TOOL_VERSION = '2.7.1'
 
 
 class Krona(tools.Tool):

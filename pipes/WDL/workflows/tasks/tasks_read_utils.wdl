@@ -33,7 +33,7 @@ task downsample_bams {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_v2_x4"
   }
 }
 

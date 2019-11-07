@@ -20,7 +20,7 @@ task download_fasta {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
+    dx_instance_type: "mem1_ssd1_v2_x2"
   }
 }
 
@@ -55,7 +55,7 @@ task download_annotations {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
+    dx_instance_type: "mem1_ssd1_v2_x2"
   }
 }
 
@@ -84,20 +84,20 @@ task annot_transfer {
   }
 
   output {
-    Array[File]+ transferred_feature_tables = glob("*.tbl")
+    Array[File]  transferred_feature_tables = glob("*.tbl")
     String       viralngs_version           = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
+    dx_instance_type: "mem1_ssd1_v2_x2"
   }
 }
 
 task prepare_genbank {
   Array[File]+ assemblies_fasta
-  Array[File]+ annotations_tbl
+  Array[File]  annotations_tbl
   File         authors_sbt
   File         biosampleMap
   File         genbankSourceTable
@@ -140,7 +140,7 @@ task prepare_genbank {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3 GB"
     cpu: 2
-    dx_instance_type: "mem1_ssd1_x2"
+    dx_instance_type: "mem1_ssd1_v2_x2"
   }
 }
 

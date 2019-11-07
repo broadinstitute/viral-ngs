@@ -83,7 +83,7 @@ task assemble {
         docker: "quay.io/broadinstitute/viral-ngs"
         memory: "15 GB"
         cpu: 4
-        dx_instance_type: "mem1_ssd1_x8"
+        dx_instance_type: "mem1_ssd1_v2_x8"
     }
 
 }
@@ -167,7 +167,7 @@ task scaffold {
         docker: "quay.io/broadinstitute/viral-ngs"
         memory: "15 GB"
         cpu: 4
-        dx_instance_type: "mem1_ssd1_x8"
+        dx_instance_type: "mem1_ssd1_v2_x8"
     }
 }
 
@@ -194,6 +194,8 @@ task refine {
         mkdir gatk
         if [[ ${gatk_jar} == *.tar.bz2 ]]; then
           tar -xjvof ${gatk_jar} -C gatk
+          # find the jar and move it one level up if it is buried in a subdir
+          find gatk -mindepth 1 -type f -iname '*.jar' | xargs -I__ mv -f "__" gatk/
         else
           ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
         fi
@@ -224,7 +226,7 @@ task refine {
         docker: "quay.io/broadinstitute/viral-ngs"
         memory: "7 GB"
         cpu: 8
-        dx_instance_type: "mem1_ssd1_x8"
+        dx_instance_type: "mem1_ssd1_v2_x8"
     }
 }
 
@@ -266,6 +268,8 @@ task refine_2x_and_plot {
         mkdir gatk
         if [[ ${gatk_jar} == *.tar.bz2 ]]; then
           tar -xjvof ${gatk_jar} -C gatk
+          # find the jar and move it one level up if it is buried in a subdir
+          find gatk -mindepth 1 -type f -iname '*.jar' | xargs -I__ mv -f "__" gatk/
         else
           ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
         fi
@@ -365,7 +369,7 @@ task refine_2x_and_plot {
         docker: "quay.io/broadinstitute/viral-ngs"
         memory: "7 GB"
         cpu: 8
-        dx_instance_type: "mem1_ssd1_x8"
+        dx_instance_type: "mem1_ssd1_v2_x8"
     }
 }
 

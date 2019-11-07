@@ -26,6 +26,8 @@ task plot_coverage {
     mkdir gatk
     if [[ ${gatk_jar} == *.tar.bz2 ]]; then
       tar -xjvof ${gatk_jar} -C gatk
+      # find the jar and move it one level up if it is buried in a subdir
+      find gatk -mindepth 1 -type f -iname '*.jar' | xargs -I__ mv -f "__" gatk/
     else
       ln -s ${gatk_jar} gatk/GenomeAnalysisTK.jar
     fi
@@ -110,7 +112,7 @@ task plot_coverage {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "3500 MB"
     cpu: 4
-    dx_instance_type: "mem1_ssd1_x8"
+    dx_instance_type: "mem1_ssd1_v2_x8"
   }
 }
 
@@ -135,7 +137,7 @@ task coverage_report {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "2000 MB"
     cpu: 2
-    dx_instance_type: "mem1_ssd2_x4"
+    dx_instance_type: "mem1_ssd2_v2_x4"
   }
 }
 
@@ -159,7 +161,7 @@ task fastqc {
     memory: "2 GB"
     cpu: 1
     docker: "quay.io/broadinstitute/viral-ngs"
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_v2_x4"
   }
 }
 
@@ -197,7 +199,7 @@ task spikein_report {
     memory: "3 GB"
     cpu: 2
     docker: "quay.io/broadinstitute/viral-ngs"
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_v2_x4"
   }
 }
 
@@ -223,7 +225,7 @@ task spikein_summary {
     memory: "3 GB"
     cpu: 2
     docker: "quay.io/broadinstitute/viral-ngs"
-    dx_instance_type: "mem1_ssd1_x4"
+    dx_instance_type: "mem1_ssd1_v2_x4"
   }
 }
 
@@ -256,7 +258,7 @@ task aggregate_metagenomics_reports {
     docker: "quay.io/broadinstitute/viral-ngs"
     memory: "4 GB"
     cpu: 1
-    dx_instance_type: "mem1_ssd2_x2"
+    dx_instance_type: "mem1_ssd2_v2_x2"
     preemptible: 0
   }
 }
