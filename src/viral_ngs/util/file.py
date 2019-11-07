@@ -361,7 +361,7 @@ def open_or_gzopen(fname, mode='r', **kwargs):
     if 'U' in mode:
         if 'newline' not in kwargs:
             kwargs['newline'] = None
-        mode = mode.replace("U","")
+        mode = mode.replace("U","t")
 
     if fname.endswith('.gz'):
         # Allow using 'level' kwarg as an alias for gzip files.
@@ -380,7 +380,7 @@ def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limi
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
-    with open_or_gzopen(inFile, 'rU', encoding='utf-8-sig') as inf:
+    with open_or_gzopen(inFile, 'rt', encoding='utf-8-sig', newline=None) as inf:
         header = None
         lines_read=0
         for line_no,line in enumerate(inf):
@@ -411,14 +411,14 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rU', encoding='utf-8-sig') as inf:
+    with open_or_gzopen(inFile, 'rt', encoding='utf-8-sig', newline=None) as inf:
         for line_no,line in enumerate(inf):
             if not line.startswith('#'):
                 yield list(item.strip() for item in line.rstrip('\r\n').split('\t'))
 
 
 def readFlatFileHeader(filename, headerPrefix='#', delim='\t'):
-    with open_or_gzopen(filename, 'rt') as inf:
+    with open_or_gzopen(filename, 'rt', encoding='utf-8-sig', newline=None) as inf:
         header = inf.readline().rstrip('\n').split(delim)
     if header and header[0].startswith(headerPrefix):
         header[0] = header[0][len(headerPrefix):]
