@@ -177,7 +177,7 @@ runSpec:
         fi
         for i in $(seq "$lane_count"); do
           folder2=$(printf "%s/%s/reads/L%d" "$folder" "$run_id" $i)
-          runcmd="dx run $demux_workflow_id -i stage-1.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.maxReadsInRamPerTile=$max_reads_in_ram_per_tile -i illumina_demux.maxRecordsInRam=$max_records_in_ram -i illumina_demux.minimumBaseQuality=$min_base_quality -i illumina_demux.threads=$demux_threads $sequencing_center_input --folder $folder2 --instance-type illumina_demux=$demux_instance_type --name demux:$run_id:L$i -y --brief"
+          runcmd="dx run $demux_workflow_id -i stage-0.flowcell_tgz=$run_tarball -i illumina_demux.lane=$i -i illumina_demux.maxReadsInRamPerTile=$max_reads_in_ram_per_tile -i illumina_demux.maxRecordsInRam=$max_records_in_ram -i illumina_demux.minimumBaseQuality=$min_base_quality -i illumina_demux.threads=$demux_threads $sequencing_center_input --folder $folder2 --instance-type illumina_demux=$demux_instance_type --name demux:$run_id:L$i -y --brief"
           echo "$runcmd"
           set +x
           if [ -n "$api_token" ]; then
