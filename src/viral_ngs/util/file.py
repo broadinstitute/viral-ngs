@@ -380,13 +380,10 @@ def read_tabfile_dict(inFile, header_prefix="#", skip_prefix=None, rowcount_limi
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of dicts.
     '''
-    with open_or_gzopen(inFile, 'rU') as inf:
+    with open_or_gzopen(inFile, 'rU', encoding='utf-8-sig') as inf:
         header = None
         lines_read=0
         for line_no,line in enumerate(inf):
-            if line_no==0:
-                # remove BOM, if present
-                line = line.replace('\ufeff','')
             lines_read+=1
             row = [item.strip() for item in line.rstrip('\r\n').split('\t')]
             # skip empty lines/rows
@@ -414,11 +411,8 @@ def read_tabfile(inFile):
     ''' Read a tab text file (possibly gzipped) and return contents as an
         iterator of arrays.
     '''
-    with open_or_gzopen(inFile, 'rU') as inf:
+    with open_or_gzopen(inFile, 'rU', encoding='utf-8-sig') as inf:
         for line_no,line in enumerate(inf):
-            if line_no==0:
-                # remove BOM, if present
-                line = line.replace('\ufeff','')
             if not line.startswith('#'):
                 yield list(item.strip() for item in line.rstrip('\r\n').split('\t'))
 
