@@ -258,7 +258,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
         elif compression == 'lz4':
             decompressor = ['lz4', '-d']
         elif compression == 'zst':
-            decompressor = ['zstd', '-d']
+            decompressor = ['zstd', '-dc']
         elif compression == 'none':
             decompressor = ['cat']
         untar_cmd = ['tar', '-C', out_dir, '-x']
@@ -331,21 +331,21 @@ def touch_p(path, times=None):
 
 
 @contextlib.contextmanager
-def zstd_open(fname, mode='r'):
+def zstd_open(fname, mode='r', **kwargs):
     '''Handle both text and byte decompression of the file.'''
     if 'r' in mode:
         with open(fname, 'rb') as fh:
             dctx = zstd.ZstdDecompressor()
             stream_reader = dctx.stream_reader(fh)
             if 'b' not in mode:
-                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
+                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8-sig')
                 yield text_stream
                 return
             yield stream_reader
     else:
         with open(fname, 'wb') as fh:
             cctx = zstd.ZstdCompressor(level=kwargs.get('level', 10),
-                                       threads=kwargs.get('threads', 1))
+                                       threads=util.misc.sanitize_thread_count(kwargs.get('threads', None)))
             stream_writer = cctx.stream_writer(fh)
             if 'b' not in mode:
                 text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
@@ -993,7 +993,7 @@ def repack_tarballs(out_compressed_tarball,
         elif re.search(r'\.?zst$', filepath):
             compressor = ['zstd']
             return_obj["decompress_cmd"] = compressor + ["-dc"]
-            return_obj["compress_cmd"] = compressor + ["-c19"]
+            return_obj["compress_cmd"] = compressor + ["-c19", "-T"+str(threads)]
         elif re.search(r'\.?tar$', filepath):
             compressor = ['cat']
             return_obj["decompress_cmd"] = compressor
