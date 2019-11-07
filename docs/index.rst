@@ -15,8 +15,4 @@ Contents
    :numbered:
    
    description
-   install
    cmdline
-   pipes-wdl
-   pipes-snakemake
-..   development
