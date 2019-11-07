@@ -1,5 +1,5 @@
 blast=2.7.1
-bbmap=38.56
+bbmap=38.71
 bmtagger=3.101
 bwa=0.7.17
 cd-hit=4.6.8
