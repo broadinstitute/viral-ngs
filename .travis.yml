@@ -50,36 +50,6 @@ jobs:
       before_cache:
         - travis/list-docker-tags.sh | tail -1 | tee $CACHE_DIR/old-docker-tag.txt
     
-    #- language: java
-    #  jdk: openjdk8
-    #  stage: build
-    #  env:
-    #    - TRAVIS_JOB=build_dxWDL
-    #    # DX_API_TOKEN (for DNAnexus builds)
-    #    - secure: "IPvLIQudIRyUl8iLNLujDig1afV+2v8AtRHpw0LsbL45xr0TvkmqjoHRmkYDnbdEeVdGC91ydLwfLNXcU/Cn7KRuIPE3InYX6VeomVO87aIXUzmmBCdFNGKd6o0u6Q/T+oJxemXwztW9XpKx3yT4RdLj7/zEpXnJm07/mKiquZE="
-    #    - DX_PROJECT=project-F856jv809y3VkzyFGkKqX367
-    #  install:
-    #    - travis/install-wdl.sh
-    #  script:
-    #    - travis/version-wdl-runtimes.sh
-    #    - travis/validate-wdl.sh
-    #    - travis/build-dx.sh
-
-    #- language: java
-    #  jdk: openjdk8
-    #  stage: test
-    #  env:
-    #    - TRAVIS_JOB=test_cromwell
-    #  install:
-    #    - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
-    #    - docker pull $DOCKER_TAG
-    #    - travis/install-gatk.sh
-    #    - travis/install-wdl.sh
-    #  script:
-    #    - travis/version-wdl-runtimes.sh
-    #    - travis/validate-wdl.sh
-    #    - travis/tests-cromwell.sh
-
     - language: python
       stage: test
       env:
@@ -96,6 +66,15 @@ jobs:
         - mv coverage/.coverage .
         - pip install coveralls==1.1
         - coveralls
+
+    - language: python
+      stage:    build
+      env:      TRAVIS_JOB=build_docs
+      install:  travis/install-pip-docs.sh
+      script:   travis/build-docs.sh
+      ## note: this build_docs job does not actually produce the output on readthedocs
+      ## readthedocs does its own build trigger. this travis job exists simply to alert us
+      ## of build failures of the docs because otherwise we would never know.
 
     #- language: generic
     #  stage: test
