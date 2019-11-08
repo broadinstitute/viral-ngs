@@ -20,8 +20,9 @@ from pybedtools import BedTool
 import Bio.SeqIO
 import Bio.AlignIO
 from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
-import matplotlib, matplotlib.pyplot
+import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot
 
 import util.cmd
 import util.file
