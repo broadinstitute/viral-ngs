@@ -19,6 +19,7 @@ _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class BBMapTool(tools.Tool):
     '''Tool wrapper for the BBMap aligner and related tools.'''
+    jvmMemDefault = '2g'
 
     def __init__(self, install_methods=None):
         if install_methods is None:
@@ -29,13 +30,16 @@ class BBMapTool(tools.Tool):
         return TOOL_VERSION
 
     def execute(self, tool, JVMmemory=None, **kwargs):  # pylint: disable=arguments-differ
+        if JVMmemory is None:
+            JVMmemory = self.jvmMemDefault
+
         tool_dir = os.path.dirname(self.install_and_get_path())
         tool_cmd = [os.path.join(tool_dir, tool)] + \
                    ['{}={}'.format('in' if arg=='in_' else arg,
                                    (val is True and 't') or (val is False and 'f') or val)
                     for arg, val in kwargs.items()]
-        if JVMmemory:
-            tool_cmd.append('-Xmx'+JVMmemory)
+
+        tool_cmd.append('-Xmx'+JVMmemory)
         _log.debug('Running BBMap tool: %s', ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 

@@ -197,7 +197,8 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         output_bam = util.file.mkstempfname("output.bam")
         read_utils.rmdup_clumpify_bam(
             input_bam,
-            output_bam
+            output_bam,
+            JVMmemory='1g'
         )
 
         starting_count = samtools.count(input_bam)
@@ -214,7 +215,8 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         output_bam = util.file.mkstempfname("output.bam")
         read_utils.rmdup_clumpify_bam(
             empty_bam,
-            output_bam
+            output_bam,
+            JVMmemory='1g'
         )
         self.assertEqual(samtools.count(output_bam), 0)
 
