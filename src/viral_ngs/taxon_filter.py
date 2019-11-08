@@ -573,7 +573,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
         if os.path.exists(db):
             if os.path.isfile(db):
                 # this is a single file
-                if db.endswith('.fasta') or db.endswith('.fasta.gz') or db.endswith('.fasta.lz4') or db.endswith('.fa') or db.endswith('.fa.gz') or db.endswith('.fa.lz4'):
+                if db.endswith('.fasta') or db.endswith('.fa') or ('.fasta.' in db) or ('.fa.' in db):
                     # this is an unindexed fasta file, we will need to index it
                     # function should conform to the signature:
                     # db_build_command(inputFasta, outputDirectory, outputFilePrefix)
@@ -696,8 +696,6 @@ __commands__.append(('lastal_build_db', parser_lastal_build_db))
 def merge_compressed_files(inFiles, outFile, sep=''):
     ''' Take a collection of input text files, possibly compressed,
         and concatenate into a single output text file.
-        TO DO: if we made util.file.open_or_gzopen more multilingual,
-        we wouldn't need this.
     '''
     with util.file.open_or_gzopen(outFile, 'wt') as outf:
         first = True
@@ -707,19 +705,8 @@ def merge_compressed_files(inFiles, outFile, sep=''):
                     outf.write(sep)
             else:
                 first = False
-            if infname.endswith('.gz') or infname.endswith('.lz4') or infname.endswith('.bz2'):
-                if infname.endswith('.gz'):
-                    decompressor = ['pigz', '-d']
-                elif infname.endswith('.lz4'):
-                    decompressor = ['lz4', '-d']
-                else:
-                    decompressor = ['lbzip2', '-d']
-                with open(infname, 'rb') as inf:
-                    subprocess.check_call(decompressor, stdin=inf, stdout=outf)
-            else:
-                with open(infname, 'rt') as inf:
-                    for line in inf:
-                        outf.write(line)
+            with util.file.open_or_gzopen(infname, 'rt', newline=None) as inf:
+                shutil.copyfileobj(inf, outf)
 
 # ========================
 # ***  bwa_build_db  ***
@@ -731,14 +718,10 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """
 
     new_fasta = None
-    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
-        if inputFasta.endswith('.gz'):
-            decompressor = ['pigz', '-dc']
-        else:
-            decompressor = ['lz4', '-d']
+    if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
         new_fasta = util.file.mkstempfname('.fasta')
-        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
-            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+            shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
     # make the output path if it does not exist
@@ -782,14 +765,10 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
     """
 
     new_fasta = None
-    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
-        if inputFasta.endswith('.gz'):
-            decompressor = ['pigz', '-dc']
-        else:
-            decompressor = ['lz4', '-d']
+    if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
         new_fasta = util.file.mkstempfname('.fasta')
-        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
-            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+            shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
     if outputFilePrefix:
@@ -829,15 +808,10 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
     """
 
     new_fasta = None
-    if inputFasta.endswith('.gz') or inputFasta.endswith('.lz4'):
-        if inputFasta.endswith('.gz'):
-            decompressor = ['pigz', '-dc']
-        else:
-            decompressor = ['lz4', '-d']
+    if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
         new_fasta = util.file.mkstempfname('.fasta')
-        log.debug("cat {} | {} > {}".format(inputFasta, ' '.join(decompressor), new_fasta))
-        with open(inputFasta, 'rb') as inf, open(new_fasta, 'wb') as outf:
-            subprocess.check_call(decompressor, stdin=inf, stdout=outf)
+        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+            shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
     if outputFilePrefix:
