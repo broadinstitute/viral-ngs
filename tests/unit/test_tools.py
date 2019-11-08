@@ -15,7 +15,6 @@ def stub_conda():
 def tool_class(request):
     return request.param
 
-@pytest.mark.slow
 def test_tool_install(tool_class):
     t = tool_class()
     t.install()
