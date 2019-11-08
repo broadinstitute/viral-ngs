@@ -45,6 +45,7 @@ jobs:
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
         - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
         - git describe --tags --always | tee VERSION
+        - if [ -n "$TRAVIS_TAG" ]; then echo "Release $TRAVIS_TAG"; elif [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "LABEL quay.expires-after=10w" >> Dockerfile; elif [[ "$TRAVIS_BRANCH" != "master" ]]; then echo "LABEL quay.expires-after=10w" >> Dockerfile; fi
         - docker build -t local/build-container:build $_CACHE_FROM .
         - travis/deploy-docker.sh
       before_cache:
