@@ -10,6 +10,7 @@ import contextlib
 import os
 import gzip
 import bz2
+import lz4.frame
 import zstd
 import io
 import tempfile
@@ -372,6 +373,8 @@ def open_or_gzopen(fname, mode='r', **kwargs):
         return bz2.open(fname, mode=mode, **kwargs)
     elif fname.endswith('.zst'):
         return zstd_open(fname, mode=mode, **kwargs)
+    elif fname.endswith('.lz4'):
+        return lz4.frame.open(fname, mode=mode, **kwargs)
     else:
         return open(fname, mode=mode, **kwargs)
 
@@ -960,7 +963,7 @@ def find_broken_symlinks(rootdir, followlinks=False):
 def uncompressed_file_type(fname):
     """Return the original file extension of either a compressed or an uncompressed file."""
     base, ext = os.path.splitext(fname)
-    if ext in ('.gz', '.bz2'):
+    if ext in ('.gz', '.bz2', '.lz4', '.zst'):
         base, ext = os.path.splitext(base)
     return ext
 
@@ -992,7 +995,7 @@ def repack_tarballs(out_compressed_tarball,
             return_obj["compress_cmd"] = compressor + ["-c"]
         elif re.search(r'\.?zst$', filepath):
             compressor = ['zstd']
-            return_obj["decompress_cmd"] = compressor + ["-dc"]
+            return_obj["decompress_cmd"] = compressor + ["-qdc"]
             return_obj["compress_cmd"] = compressor + ["-c19", "-T"+str(threads)]
         elif re.search(r'\.?tar$', filepath):
             compressor = ['cat']
@@ -1034,10 +1037,10 @@ def repack_tarballs(out_compressed_tarball,
     if out_compressed_tarball == "-":
         if not pipe_hint_out:
             raise IOError("cannot autodetect compression for stdoud unless pipeOutHint provided")
-        compressor = choose_compressor(pipe_hint_out)["compress_cmd"]
+        compressor = choose_compressor(pipe_hint_out, threads=threads)["compress_cmd"]
         outfile = None
     else:
-        compressor = choose_compressor(out_compressed_tarball)["compress_cmd"]
+        compressor = choose_compressor(out_compressed_tarball, threads=threads)["compress_cmd"]
         outfile = open(out_compressed_tarball, "w")
 
     out_compress_ps = subprocess.Popen(compressor, stdout=sys.stdout if out_compressed_tarball == "-" else outfile, stdin=subprocess.PIPE)

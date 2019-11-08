@@ -1,7 +1,20 @@
 ## Developer Documentation
 This page lists information for developers working on viral-ngs.
 
-### Installation, dependencies, and manual deployment requirements
+### Modifying code and testing
+
+The current dev, build, and deploy paradigm is intentionally docker-centric. This
+means that developers will need docker working within their dev environment--and
+not much else (other than git, and a text/code editor). The code base is also
+modularized and layered. In order to work on code changes, you will:
+
+1. check out the git code repository for this module on your local host machine (`git clone https://github.com/broadinstitute/viral-core.git`) and edit with your favorite code/text editor
+1. docker `pull` and `run` the image `FROM` which this is built, while mounting your local git checkout into the container (`docker run -it --rm -v `pwd`/viral-core:/opt/viral-ngs/source quay.io/broadinstitute/viral-core`)
+1. if your dev branch has altered the conda dependencies in `requirements-conda.txt`, make sure to `conda install` them (more detailed instrucitons pending). You may (optionally) want to snapshot the new docker image locally if you want to continue using it and skip this step in the future (`docker commit <image hash> local/viral-core-dev`)
+1. test code and execution interactively within the container (`cd /opt/viral-ngs/source; pytest -rsxX -n auto test/unit`)
+1. push changes back to github (from your host machine) for automated CI testing & builds, using standard, collaborative github code review processes
+
+### Machinery under the hood
 
 #### Dependency install destinations
 When Python and binary dependencies for viral-ngs are installed by conda, they can end up in several locations. The default and preferred method of installation assumes a conda environment is active in the current shell, complete with [environment variables we can access to specify the path of the active environment](https://github.com/broadinstitute/viral-ngs/blob/master/tools/__init__.py#L240). In this case, conda packages are installed in the active conda environment. If conda is installed and available on the path but no environment is currently active, viral-ngs dependencies are installed in isolation within `viral-ngs/tools/build/conda-tools/{default}` (unless this location is overridden in the CondaPackage() constructor). For tools without a conda recipe (as may be the case on certain platforms, like Mac OSX), or where conda install fails, custom install methods are used to download and build some tools.

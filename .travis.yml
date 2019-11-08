@@ -45,6 +45,7 @@ jobs:
         - if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt); else OLD_DOCKER_TAG=$DOCKER_REPO_PROD; fi; echo "old docker tag = $OLD_DOCKER_TAG"
         - if docker pull $OLD_DOCKER_TAG; then _CACHE_FROM="--cache-from $OLD_DOCKER_TAG"; else _CACHE_FROM=""; fi
         - git describe --tags --always | tee VERSION
+        - if [ -n "$TRAVIS_TAG" ]; then echo "Release $TRAVIS_TAG"; elif [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "LABEL quay.expires-after=10w" >> Dockerfile; elif [[ "$TRAVIS_BRANCH" != "master" ]]; then echo "LABEL quay.expires-after=10w" >> Dockerfile; fi
         - docker build -t local/build-container:build $_CACHE_FROM .
         - travis/deploy-docker.sh
       before_cache:
@@ -67,14 +68,19 @@ jobs:
         - pip install coveralls==1.1
         - coveralls
 
-    - language: python
-      stage:    build
-      env:      TRAVIS_JOB=build_docs
-      install:  travis/install-pip-docs.sh
-      script:   travis/build-docs.sh
-      ## note: this build_docs job does not actually produce the output on readthedocs
-      ## readthedocs does its own build trigger. this travis job exists simply to alert us
-      ## of build failures of the docs because otherwise we would never know.
+    - language: generic
+      stage:    test
+      env:
+        - TRAVIS_JOB=test_docs
+        ## note: this test_docs job does not actually produce the output on readthedocs
+        ## readthedocs does its own build trigger. this travis job exists simply to alert us
+        ## of build failures of the docs because otherwise we would never know.
+      install:
+        - DOCKER_TAG=`travis/list-docker-tags.sh | tail -1`
+        - echo "pulling $DOCKER_TAG"
+        - docker pull $DOCKER_TAG
+      script:
+        - docker run --entrypoint /bin/bash -v `pwd`:/opt/viral-ngs/source $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; travis/install-pip-docs.sh; cd docs; make html'
 
     #- language: generic
     #  stage: test
