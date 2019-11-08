@@ -20,9 +20,8 @@ from pybedtools import BedTool
 import Bio.SeqIO
 import Bio.AlignIO
 from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
-import matplotlib
+import matplotlib, matplotlib.pyplot
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 import util.cmd
 import util.file
@@ -509,10 +508,10 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         dest="plot_format",
         default=None,
         type=str,
-        choices=list(plt.gcf().canvas.get_supported_filetypes().keys()),
+        choices=list(matplotlib.pyplot.gcf().canvas.get_supported_filetypes().keys()),
         metavar='',
         help="File format of the coverage plot. By default it is inferred from the file extension of out_plot_file, but it can be set explicitly via --plotFormat. Valid formats include: "
-        + ", ".join(list(plt.gcf().canvas.get_supported_filetypes().keys()))
+        + ", ".join(list(matplotlib.pyplot.gcf().canvas.get_supported_filetypes().keys()))
     )
     parser.add_argument(
         '--plotDataStyle',
@@ -529,9 +528,9 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
         dest="plot_style",
         default="ggplot",
         type=str,
-        choices=plt.style.available,
+        choices=matplotlib.pyplot.style.available,
         metavar='',
-        help="The plot visual style. Valid options: " + ", ".join(plt.style.available) + " (default: %(default)s)"
+        help="The plot visual style. Valid options: " + ", ".join(matplotlib.pyplot.style.available) + " (default: %(default)s)"
     )
     parser.add_argument(
         '--plotWidth',
@@ -550,7 +549,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     parser.add_argument(
         '--plotDPI',
         dest="plot_dpi",
-        default=plt.gcf().get_dpi(),
+        default=matplotlib.pyplot.gcf().get_dpi(),
         type=int,
         help="dots per inch for rendered output, more useful for vector modes (default: %(default)s)"
     )
@@ -739,14 +738,14 @@ def plot_coverage(
             segment_depths.setdefault(row[0], []).append(float(row[2]))
             domain_max += 1
 
-    with plt.style.context(plot_style):
-        fig = plt.gcf()
+    with matplotlib.pyplot.style.context(plot_style):
+        fig = matplotlib.pyplot.gcf()
         DPI = plot_dpi or fig.get_dpi()
         fig.set_size_inches(float(plot_width) / float(DPI), float(plot_height) / float(DPI))
 
         font_size = (2.5 * plot_height) / float(DPI)
 
-        ax = plt.subplot()    # Defines ax variable by creating an empty plot
+        ax = matplotlib.pyplot.subplot()    # Defines ax variable by creating an empty plot
 
         # Set the tick labels font
         for label in (ax.get_xticklabels() + ax.get_yticklabels()):
@@ -775,14 +774,14 @@ def plot_coverage(
             prior_domain_max = domain_max
             domain_max += len(position_depths)
 
-            colors = list(plt.rcParams['axes.prop_cycle'].by_key()['color'])    # get the colors for this style
+            colors = list(matplotlib.pyplot.rcParams['axes.prop_cycle'].by_key()['color'])    # get the colors for this style
             segment_color = colors[segment_num % len(colors)]    # pick a color, offset by the segment index
 
             x_values = range(prior_domain_max, domain_max)
             x_values = [x * bin_size for x in x_values]
 
             if plot_data_style == "filled":
-                plt.fill_between(
+                matplotlib.pyplot.fill_between(
                     x_values,
                     position_depths, [0] * len(position_depths),
                     linewidth=0,
@@ -790,14 +789,14 @@ def plot_coverage(
                     color=segment_color
                 )
             elif plot_data_style == "line":
-                plt.plot(
+                matplotlib.pyplot.plot(
                     x_values,
                     position_depths,
                     antialiased=True,
                     color=segment_color
                 )
             elif plot_data_style == "dots":
-                plt.plot(
+                matplotlib.pyplot.plot(
                     x_values,
                     position_depths,
                     'ro',
@@ -805,28 +804,28 @@ def plot_coverage(
                     color=segment_color
                 )
 
-        plt.title(plot_title, fontsize=font_size * 1.2)
-        plt.xlabel("bp", fontsize=font_size * 1.1)
+        matplotlib.pyplot.title(plot_title, fontsize=font_size * 1.2)
+        matplotlib.pyplot.xlabel("bp", fontsize=font_size * 1.1)
         
         ylabel = "read depth"
         if(bin_size > 1):
         	ylabel = "read depth ({summary} in {size}-bp bin)".format(size=bin_size, summary=binning_summary_statistic)
-        plt.ylabel(ylabel, fontsize=font_size * 1.1)
+        matplotlib.pyplot.ylabel(ylabel, fontsize=font_size * 1.1)
 
         if plot_x_limits is not None:
             x_min, x_max = plot_x_limits
-            plt.xlim(x_min, x_max)
+            matplotlib.pyplot.xlim(x_min, x_max)
         if plot_y_limits is not None:
             y_min, y_max = plot_y_limits
-            plt.ylim(y_min, y_max)
+            matplotlib.pyplot.ylim(y_min, y_max)
 
         # to squash a backend renderer error on OSX related to tight layout
-        if plt.get_backend().lower() in ['agg', 'macosx']:
+        if matplotlib.pyplot.get_backend().lower() in ['agg', 'macosx']:
             fig.set_tight_layout(True)
         else:
             fig.tight_layout()
 
-        plt.savefig(out_plot_file, format=plot_format, dpi=DPI)    #, bbox_inches='tight')
+        matplotlib.pyplot.savefig(out_plot_file, format=plot_format, dpi=DPI)    #, bbox_inches='tight')
         log.info("Coverage plot saved to: " + out_plot_file)
 
     if not out_summary:
