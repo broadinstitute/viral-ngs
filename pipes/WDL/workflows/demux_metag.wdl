@@ -9,42 +9,55 @@ workflow demux_metag {
   call demux.illumina_demux as illumina_demux
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
-      call reads.dedup_bam as dedup {
-          input:
-              in_bam = raw_reads        
-      }
-  }
+    # de-duplicate raw reads
+    call reads.dedup_bam as dedup {
+        input:
+            in_bam = raw_reads        
+    }
 
-  scatter(reads_bam in dedup.dedup_bam) {
+    # count spike-ins in the sample
+    #   NB: the spike-in report is created from raw reads 
+    #       that have NOT been de-duplicated
     call reports.spikein_report as spikein {
       input:
-        reads_bam = reads_bam
+        reads_bam = raw_reads 
     }
+
+    # deplete human/host genomic reads
     call taxon_filter.deplete_taxa as deplete {
       input:
-        raw_reads_unmapped_bam = reads_bam
+        raw_reads_unmapped_bam = dedup.dedup_bam
     }
+
+    # create de novo contigs from depleted reads via spaces
     call assembly.assemble as spades {
       input:
         assembler = "spades",
         reads_unmapped_bam = deplete.cleaned_bam
     }
+
+    # classify de-duplicated reads to taxa via krakenuniq
+    call metagenomics.krakenuniq as kraken {
+      input:
+        reads_unmapped_bam = dedup.dedup_bam
+    }
+
+    # classify de-duplicated reads to taxa via kaiju
+    call metagenomics.kaiju as kaiju {
+      input:
+        reads_unmapped_bam = dedup.dedup_bam
+    }
   }
 
-  call metagenomics.krakenuniq as kraken {
-    input:
-      reads_unmapped_bam = dedup.dedup_bam
-  }
-  call reports.aggregate_metagenomics_reports as metag_summary_report {
-      input:
-          kraken_summary_reports = kraken.krakenuniq_summary_reports
-  }
+  # summarize spike-in reports from all samples
   call reports.spikein_summary as spike_summary {
       input:
           spikein_count_txt = spikein.report
   }
-  call metagenomics.kaiju as kaiju {
-    input:
-      reads_unmapped_bam = dedup.dedup_bam
+  # summarize kraken reports from all samples
+  call reports.aggregate_metagenomics_reports as metag_summary_report {
+      input:
+          kraken_summary_reports = kraken.krakenuniq_summary_reports
   }
+  # TODO: summarize kaiju reports from all samples
 }
