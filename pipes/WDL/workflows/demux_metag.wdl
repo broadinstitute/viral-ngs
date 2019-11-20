@@ -13,10 +13,7 @@ workflow demux_metag {
   Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? bwaDbs
-  File krakenuniq_db_tar_lz4
   File krona_taxonomy_db_tgz
-  File kaiju_db_lz4
-  File ncbi_taxonomy_db_tgz
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
     # de-duplicate raw reads
@@ -52,22 +49,19 @@ workflow demux_metag {
         always_succeed = true
     }
 
-    # classify de-duplicated reads to taxa via krakenuniq
-    call metagenomics.krakenuniq as kraken {
-      input:
-        reads_unmapped_bam = dedup.dedup_bam,
-        krakenuniq_db_tar_lz4 = krakenuniq_db_tar_lz4,
-        krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
-    }
-
     # classify de-duplicated reads to taxa via kaiju
     call metagenomics.kaiju as kaiju {
       input:
         reads_unmapped_bam = dedup.dedup_bam,
-        kaiju_db_lz4 = kaiju_db_lz4,
         krona_taxonomy_db_tgz = krona_taxonomy_db_tgz,
-        ncbi_taxonomy_db_tgz = ncbi_taxonomy_db_tgz
     }
+  }
+
+  # classify de-duplicated reads to taxa via krakenuniq
+  call metagenomics.krakenuniq as kraken {
+    input:
+      reads_unmapped_bam = dedup.dedup_bam,
+      krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
   }
 
   # summarize spike-in reports from all samples
