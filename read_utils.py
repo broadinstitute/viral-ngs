@@ -911,6 +911,12 @@ def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
     '''
     tmp_dir = tempfile.mkdtemp()
 
+    # get sort order of input bam
+    sortorder_orig = 'queryname'
+    samfile = pysam.AlignmentFile(in_bam, "rb", check_sq=False)
+    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
+        sortorder_orig = samfile.header["HD"]["SO"]
+
     tools.picard.SplitSamByLibraryTool().execute(in_bam, tmp_dir)
 
     bbmap = tools.bbmap.BBMapTool()
@@ -924,7 +930,7 @@ def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
         bbmap.dedup_clumpify(library_sam, out_lb_bam, subs=max_mismatches, JVMmemory=JVMmemory)
 
     with util.file.fifo(name='merged.sam') as merged_bam:
-        merge_opts = ['SORT_ORDER=queryname']
+        merge_opts = ['SORT_ORDER={sort_order}'.format(sort_order=sortorder_orig)]
         tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=JVMmemory, background=True)
         tools.picard.ReplaceSamHeaderTool().execute(merged_bam, in_bam, out_bam, JVMmemory=JVMmemory)
 
