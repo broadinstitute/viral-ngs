@@ -50,13 +50,18 @@ task dedup_bam {
         ${'--maxMismatches=' + max_mismatches} \
         --JVMmemory "8g"
 
+    samtools view -c ${in_bam} | tee dedup_read_count_pre
+    samtools view -c ${sample_name}.dedup.bam | tee dedup_read_count_post
+
     reports.py fastqc ${sample_name}.dedup.bam ${sample_name}.deduped_fastqc.html
   }
 
   output {
     File dedup_bam               = "${sample_name}.dedup.bam"
     File dedup_only_reads_fastqc = "${sample_name}.deduped_fastqc.html"
-    String      viralngs_version        = "viral-ngs_version_unknown"
+    Int dedup_read_count_pre     = read_int("dedup_read_count_pre")
+    Int dedup_read_count_post    = read_int("dedup_read_count_post")
+    String      viralngs_version = "viral-ngs_version_unknown"
   }
   runtime {
     docker: "quay.io/broadinstitute/viral-ngs"
