@@ -8,6 +8,12 @@ import "tasks_read_utils.wdl" as reads
 workflow demux_metag {
   call demux.illumina_demux as illumina_demux
 
+  File spikein_db
+  File trim_clip_db
+  Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? bwaDbs
+
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
     # de-duplicate raw reads
     call reads.dedup_bam as dedup {
@@ -20,20 +26,26 @@ workflow demux_metag {
     #       that have NOT been de-duplicated
     call reports.spikein_report as spikein {
       input:
-        reads_bam = raw_reads 
+        reads_bam = raw_reads,
+        spikein_db = spikein_db
     }
 
     # deplete human/host genomic reads
     call taxon_filter.deplete_taxa as deplete {
       input:
-        raw_reads_unmapped_bam = dedup.dedup_bam
+        raw_reads_unmapped_bam = dedup.dedup_bam,
+        bmtaggerDbs = bmtaggerDbs,
+        blastDbs = blastDbs,
+        bwaDbs = bwaDbs
     }
 
     # create de novo contigs from depleted reads via spaces
     call assembly.assemble as spades {
       input:
         assembler = "spades",
-        reads_unmapped_bam = deplete.cleaned_bam
+        reads_unmapped_bam = deplete.cleaned_bam,
+        trim_clip_db = trim_clip_db,
+        always_succeed = true
     }
 
     # classify de-duplicated reads to taxa via krakenuniq
