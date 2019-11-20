@@ -14,6 +14,8 @@ workflow demux_metag {
   Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
   Array[File]? bwaDbs
   File krona_taxonomy_db_tgz
+  File kaiju_db_lz4
+  File ncbi_taxonomy_db_tgz
 
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
     # de-duplicate raw reads
@@ -54,6 +56,8 @@ workflow demux_metag {
       input:
         reads_unmapped_bam = dedup.dedup_bam,
         krona_taxonomy_db_tgz = krona_taxonomy_db_tgz,
+        kaiju_db_lz4 = kaiju_db_lz4,
+        ncbi_taxonomy_db_tgz = ncbi_taxonomy_db_tgz
     }
   }
 

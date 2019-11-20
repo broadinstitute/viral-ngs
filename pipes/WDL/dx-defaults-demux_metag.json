@@ -20,8 +20,8 @@
   "demux_metag.krona_taxonomy_db_tgz":
     "dx://file-F4z0fgj07FZ8jg8yP7yz0Qzb",
 
-  "demux_metag.kaiju.kaiju_db_lz4":
+  "demux_metag.kaiju_db_lz4":
     "dx://file-FVYQyvQ06zF55bFGBGYJ2XxX",
-  "demux_metag.kaiju.ncbi_taxonomy_db_tgz":
+  "demux_metag.ncbi_taxonomy_db_tgz":
     "dx://file-F8KgJK009y3Qgy3FF1791Vgq"
 }
