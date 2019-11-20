@@ -229,9 +229,9 @@ class CondaPackage(InstallMethod):
 
     def execute(self, cmd, loglevel=logging.DEBUG, buffered=None, check=None, silent=None, stderr=None):
         run_cmd = ['conda']
+        run_cmd.extend(cmd)
         if cmd[0] in self.QUIET_COMMANDS:
             run_cmd.extend(['-q', '-y'])
-        run_cmd.extend(cmd)
         result = util.misc.run_and_print(
             run_cmd, loglevel=loglevel, env=self.conda_env, buffered=buffered, check=check, silent=silent, stderr=stderr)
 
@@ -516,7 +516,7 @@ class CondaPackage(InstallMethod):
         return False
 
     def uninstall_package(self):
-        data = self.execute(["remove", "-q", "-y", "--json", "-p", self.env_path, self.package],
+        data = self.execute(["remove", "--json", "-p", self.env_path, self.package],
                             loglevel=logging.INFO)
         if not data:
             return
@@ -537,7 +537,7 @@ class CondaPackage(InstallMethod):
         # the package may not be installed...
         _log.debug("Conda environment already exists. Installing package...")
 
-        data = self.execute(["install", "--json", "-c", self.channel, "-y", "-q", "--no-update-deps", "-p", self.env_path, self._package_str])
+        data = self.execute(["install", "--json", "-c", self.channel, "--no-update-deps", "-p", self.env_path, self._package_str])
         if not data:
             return
 
