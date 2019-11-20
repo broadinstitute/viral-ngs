@@ -909,31 +909,9 @@ __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
     '''
-    tmp_dir = tempfile.mkdtemp()
-
-    # get sort order of input bam
-    sortorder_orig = 'queryname'
-    samfile = pysam.AlignmentFile(in_bam, "rb", check_sq=False)
-    if "HD" in samfile.header and "SO" in samfile.header["HD"]:
-        sortorder_orig = samfile.header["HD"]["SO"]
-
-    tools.picard.SplitSamByLibraryTool().execute(in_bam, tmp_dir)
-
     bbmap = tools.bbmap.BBMapTool()
-    out_bams = []
-    for f in os.listdir(tmp_dir):
-        out_lb_bam = mkstempfname('.bam')
-        out_bams.append(out_lb_bam)
-        library_sam = os.path.join(tmp_dir, f)
-
-        log.info("executing BBMap clumpify on library " + library_sam)
-        bbmap.dedup_clumpify(library_sam, out_lb_bam, subs=max_mismatches, JVMmemory=JVMmemory)
-
-    with util.file.fifo(name='merged.sam') as merged_bam:
-        merge_opts = ['SORT_ORDER={sort_order}'.format(sort_order=sortorder_orig)]
-        tools.picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=JVMmemory, background=True)
-        tools.picard.ReplaceSamHeaderTool().execute(merged_bam, in_bam, out_bam, JVMmemory=JVMmemory)
-
+    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, JVMmemory=JVMmemory)
+    return 0
 
 def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input reads, BAM format.')
