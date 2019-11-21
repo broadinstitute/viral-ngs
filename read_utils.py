@@ -443,7 +443,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
         jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(rmdup_clumpify_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
