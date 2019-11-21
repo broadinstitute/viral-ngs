@@ -52,7 +52,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'test-reads.revert.bam'),
                 os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
-                os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
@@ -69,7 +68,6 @@ class TestDepleteHuman(TestCaseWithTmp):
             'test-reads.revert.bam', 
             'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 
             'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'expected', fname))
@@ -85,7 +83,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'test-reads.revert.bam'),
                 os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
-                os.path.join(self.tempDir, 'test-reads.rmdup.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
@@ -101,7 +98,6 @@ class TestDepleteHuman(TestCaseWithTmp):
             'test-reads.revert.bam', 
             'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
-            'test-reads.rmdup.bam', 
             'test-reads.blastn.bam'
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), os.path.join(myInputDir, 'aligned-expected', fname))
@@ -117,7 +113,6 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(self.tempDir, 'deplete-empty.revert.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.bwa.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
-                os.path.join(self.tempDir, 'deplete-empty.rmdup.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
                 # DBs
                 "--blastDbs", self.blastdb_path,
@@ -130,7 +125,6 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
-            'deplete-empty.bmtagger.bam',
-            'deplete-empty.rmdup.bam', 'deplete-empty.blastn.bam',
+            'deplete-empty.bmtagger.bam','deplete-empty.blastn.bam',
         ]:
             assert_equal_bam_reads(self, os.path.join(self.tempDir, fname), empty_bam)

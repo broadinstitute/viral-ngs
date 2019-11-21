@@ -46,7 +46,6 @@ task deplete_taxa {
       tmpfile.raw.bam \
       tmpfile.bwa.bam \
       tmpfile.bmtagger_depleted.bam \
-      tmpfile.rmdup.bam \
       ${bam_basename}.cleaned.bam \
       $DBS_BMTAGGER $DBS_BLAST $DBS_BWA \
       ${'--chunkSize=' + query_chunk_size} \

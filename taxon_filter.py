@@ -48,7 +48,6 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('revertBam', nargs='?', help='Output BAM: read markup reverted with Picard.')
     parser.add_argument('bwaBam', help='Output BAM: depleted of reads with BWA.')
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of reads with BMTagger.')
-    parser.add_argument('rmdupBam', help='Output BAM: bmtaggerBam run through M-Vicuna duplicate removal.')
     parser.add_argument(
         'blastnBam', help='Output BAM: rmdupBam run through another depletion of reads with BLASTN.'
     )
@@ -109,12 +108,10 @@ def main_deplete(args):
                                         tags_to_clear = args.tags_to_clear,
                                         picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
                                         JVMmemory     = args.JVMmemory,
-                                        sanitize      = not args.do_not_sanitize) as bam_to_dedup:
-
-        read_utils.rmdup_clumpify_bam(bam_to_dedup, args.rmdupBam, JVMmemory=args.JVMmemory)
+                                        sanitize      = not args.do_not_sanitize) as bam_to_deplete:
 
         multi_db_deplete_bam(
-            args.rmdupBam,
+            bam_to_deplete,
             args.bwaDbs,
             deplete_bwa_bam,
             args.bwaBam,
