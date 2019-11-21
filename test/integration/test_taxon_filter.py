@@ -59,6 +59,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--chunkSize", "0",
                 "--srprismMemory", '1500',
+                "--JVMmemory","1g"
             ]
         )
         args.func_main(args)
@@ -90,6 +91,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--srprismMemory", '1500',
+                "--JVMmemory","1g"
             ]
         )
         args.func_main(args)
@@ -121,6 +123,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 "--blastDbs", self.blastdb_path,
                 "--bmtaggerDbs", self.database_prefix_path,
                 "--srprismMemory", '1500',
+                "--JVMmemory","1g"
             ]
         )
         args.func_main(args)
