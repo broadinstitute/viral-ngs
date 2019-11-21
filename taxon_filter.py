@@ -111,7 +111,7 @@ def main_deplete(args):
                                         JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bam_to_dedup:
 
-        read_utils.rmdup_mvicuna_bam(bam_to_dedup, args.rmdupBam, JVMmemory=args.JVMmemory)
+        read_utils.rmdup_clumpify_bam(bam_to_dedup, args.rmdupBam, JVMmemory=args.JVMmemory)
 
         multi_db_deplete_bam(
             args.rmdupBam,
