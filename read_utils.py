@@ -906,11 +906,11 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
 
-def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, JVMmemory=None):
+def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, optical_only=False, dupedist=40, spanx=False, spany=False, adjacent=False, no_containment=False, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
     '''
     bbmap = tools.bbmap.BBMapTool()
-    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, JVMmemory=JVMmemory)
+    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, optical=optical_only, dupedist=dupedist, spanx=spanx, spany=spany, adjacent=adjacent, containment=no_containment==False, JVMmemory=JVMmemory)
     return 0
 
 def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
@@ -921,7 +921,44 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
         dest="max_mismatches",
         type=int,
         default=3,
-        help='The max number of base mismatches to allow when identifying duplicate reads. (default: %(default)s')
+        help='The max number of base mismatches to allow when identifying duplicate reads. (default: %(default)s)'
+    )
+    parser.add_argument('--no_containment', dest='no_containment', default=False, action='store_true',
+        help='Disables containments (where one sequence is shorter)'
+    )
+    group = parser.add_argument_group('optical','arguments related to removal of optical duplicates')
+    group.add_argument('--optical_only', dest='optical_only', default=False, action='store_true',
+        help='If true, only remove *optical* duplicates. Optical duplicate '
+        'removal is limited by xy-position, and is intended for single-end sequencing.'
+    )
+    group.add_argument('--spany', dest='spany', default=False, action='store_true',
+        help='Allow reads to be considered optical duplicates if they '
+            'are on different tiles, but are within dupedist in the '
+            'y-axis.  Should only be enabled when looking for '
+            'tile-edge duplicates (as in NextSeq).'
+    )
+    group.add_argument('--spanx', dest='spanx', default=False, action='store_true',
+        help='Like spany, but for the x-axis.  Not necessary for NextSeq.'
+    )
+    group.add_argument('--adjacent', dest='spany', default=False, action='store_true',
+        help='Limit tile-spanning to adjacent tiles (those with consecutive numbers).'
+    )
+    group.add_argument(
+        '--dupedist',
+        dest="dupedist",
+        type=int,
+        default=40,
+        help='Max distance to consider for optical duplicates (default: %(default)s). '
+            'Larger distance removes more duplicates but is '
+            'more likely to remove PCR rather than optical '
+            'duplicates. This is platform-specific; '
+            'recommendations:'
+            'NextSeq --dupedist=40  (and --spany), '
+            'HiSeq 1T --dupedist=40, '
+            'HiSeq 2500 --dupedist=40, '
+            'HiSeq 3k/4k --dupedist=2500, '
+            'Novaseq --dupedist=12000.'
+    )
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,

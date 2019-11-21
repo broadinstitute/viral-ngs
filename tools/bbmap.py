@@ -69,7 +69,7 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, spanx=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -97,6 +97,12 @@ class BBMapTool(tools.Tool):
                 k=31              Use kmers of this length (1-31).  Shorter kmers may
                                   increase compression, but 31 is recommended for error
                                   correction.
+                spany=f           Allow reads to be considered optical duplicates if they
+                                  are on different tiles, but are within dupedist in the
+                                  y-axis.  Should only be enabled when looking for
+                                  tile-edge duplicates (as in NextSeq).
+                spanx=f           Like spany, but for the x-axis.  Not necessary
+                                  for NextSeq.
                 containment=True  Allow containments (where one sequence is shorter).
         '''
         unpair = treat_as_unpaired
@@ -161,6 +167,7 @@ class BBMapTool(tools.Tool):
                                     k=kmer_size,
                                     optical=optical,
                                     spany=spany,
+                                    spanx=spanx,
                                     adjacent=adjacent,
                                     usetmpdir=True,
                                     tmpdir=t_dir,
@@ -181,6 +188,7 @@ class BBMapTool(tools.Tool):
                                     k=kmer_size,
                                     optical=optical,
                                     spany=spany,
+                                    spanx=spanx,
                                     adjacent=adjacent,
                                     usetmpdir=True,
                                     tmpdir=t_dir,
