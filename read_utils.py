@@ -906,11 +906,11 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
 
-def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, optical_only=False, dupedist=40, spanx=False, spany=False, adjacent=False, no_containment=False, JVMmemory=None):
+def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, optical_only=False, dupedist=40, spanx=False, spany=False, adjacent=False, no_containment=False, threads=None, JVMmemory=None):
     ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
     '''
     bbmap = tools.bbmap.BBMapTool()
-    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, optical=optical_only, dupedist=dupedist, spanx=spanx, spany=spany, adjacent=adjacent, containment=no_containment==False, JVMmemory=JVMmemory)
+    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, optical=optical_only, dupedist=dupedist, spanx=spanx, spany=spany, adjacent=adjacent, containment=no_containment==False, threads=None, JVMmemory=JVMmemory)
     return 0
 
 def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
@@ -926,24 +926,24 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('--no_containment', dest='no_containment', default=False, action='store_true',
         help='Disables containments (where one sequence is shorter)'
     )
-    group = parser.add_argument_group('optical','arguments related to removal of optical duplicates')
-    group.add_argument('--optical_only', dest='optical_only', default=False, action='store_true',
+    optical_group = parser.add_argument_group('optical','arguments related to removal of optical duplicates')
+    optical_group.add_argument('--optical_only', dest='optical_only', default=False, action='store_true',
         help='If true, only remove *optical* duplicates. Optical duplicate '
         'removal is limited by xy-position, and is intended for single-end sequencing.'
     )
-    group.add_argument('--spany', dest='spany', default=False, action='store_true',
+    optical_group.add_argument('--spany', dest='spany', default=False, action='store_true',
         help='Allow reads to be considered optical duplicates if they '
             'are on different tiles, but are within dupedist in the '
             'y-axis.  Should only be enabled when looking for '
             'tile-edge duplicates (as in NextSeq).'
     )
-    group.add_argument('--spanx', dest='spanx', default=False, action='store_true',
+    optical_group.add_argument('--spanx', dest='spanx', default=False, action='store_true',
         help='Like spany, but for the x-axis.  Not necessary for NextSeq.'
     )
-    group.add_argument('--adjacent', dest='spany', default=False, action='store_true',
+    optical_group.add_argument('--adjacent', dest='spany', default=False, action='store_true',
         help='Limit tile-spanning to adjacent tiles (those with consecutive numbers).'
     )
-    group.add_argument(
+    optical_group.add_argument(
         '--dupedist',
         dest="dupedist",
         type=int,
@@ -965,7 +965,7 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
         help='JVM virtual memory size (default: %(default)s)',
         dest='JVMmemory'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_clumpify_bam, split_args=True)
     return parser
 __commands__.append(('rmdup_clumpify_bam', parser_rmdup_clumpify_bam))

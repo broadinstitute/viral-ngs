@@ -7,9 +7,11 @@ import os
 import os.path
 import subprocess
 import tempfile
+import functools
 import concurrent.futures
 
 import util.file
+import util.misc
 import tools
 import tools.samtools
 import tools.picard
@@ -69,7 +71,92 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
-    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, spanx=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
+    def _merge_fastqs_and_clumpify(self, lb, lb_files, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, spanx=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, **kwargs):
+        # create merged FASTQs per-library
+        infastqs = (util.file.mkstempfname('.1.fastq'), util.file.mkstempfname('.2.fastq'))
+        for d in range(2):
+            with open(infastqs[d], 'wt') as outf:
+                for fprefix in lb_files:
+                    fn = '%s_%d.fastq' % (fprefix, d + 1)
+
+                    if os.path.isfile(fn):
+                        with open(fn, 'rt') as inf:
+                            for line in inf:
+                                outf.write(line)
+                        os.unlink(fn)
+                    else:
+                        _log.warning(
+                            """no reads found in %s,
+                                    assuming that's because there's no reads in that read group""", fn
+                        )
+        per_lb_read_list = util.file.mkstempfname('.keep_read_ids.txt')
+
+        inFastq1,inFastq2 = infastqs
+        outFastq1 = util.file.mkstempfname('.1.fastq')
+        outFastq2 = util.file.mkstempfname('.2.fastq')
+        #actual de-dedup call
+        _log.info("executing BBMap clumpify on library " + lb)
+        with util.file.tmp_dir('_bbmap_clumpify') as t_dir:
+            # We may want to merge overlapping paired reads via BBMerge first; per clumpify docs:
+            #   Clumpify supports paired reads, in which case it will clump based on read 1 only.
+            #   However, it's much more effective to treat reads as unpaired. For example, merge 
+            #   the reads with BBMerge, then concatenate the merged reads with the unmerged pairs,
+            #   and clump them all together as unpaired.
+            if inFastq2 is None or os.path.getsize(inFastq2) < 10:
+                self.execute(tool='clumpify.sh', 
+                                in1=inFastq1,
+                                out=outFastq1,
+                                dedupe=True,
+                                subs=subs,
+                                passes=passes,
+                                dupedist=dupedist,
+                                k=kmer_size,
+                                optical=optical,
+                                spany=spany,
+                                spanx=spanx,
+                                adjacent=adjacent,
+                                usetmpdir=True,
+                                tmpdir=t_dir,
+                                # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
+                                unpair=treat_as_unpaired,
+                                repair=treat_as_unpaired,
+                                containment=containment,
+                                JVMmemory=JVMmemory,
+                                **kwargs)
+            else:
+                self.execute(tool='clumpify.sh', 
+                                in1=inFastq1, in2=inFastq2,
+                                out=outFastq1, out2=outFastq2,
+                                dedupe=True,
+                                subs=subs,
+                                passes=passes,
+                                dupedist=dupedist,
+                                k=kmer_size,
+                                optical=optical,
+                                spany=spany,
+                                spanx=spanx,
+                                adjacent=adjacent,
+                                usetmpdir=True,
+                                tmpdir=t_dir,
+                                # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
+                                unpair=treat_as_unpaired,
+                                repair=treat_as_unpaired,
+                                containment=containment,
+                                JVMmemory=JVMmemory,
+                                **kwargs)
+            # Make a list of reads to keep
+            with open(per_lb_read_list, 'at') as outf:
+                for fq in (outFastq1, outFastq2):
+                    with util.file.open_or_gzopen(fq, 'rt') as inf:
+                        for line_num, line in enumerate(inf):
+                            if (line_num % 4) == 0:
+                                idVal = line.rstrip('\n')[1:]
+                                if idVal.endswith('/1'):
+                                    outf.write(idVal[:-2] + '\n')
+                            line_num += 1
+            return per_lb_read_list
+
+    def dedup_clumpify(self, in_bam, out_bam, optical=False, subs=3, passes=4, dupedist=40, kmer_size=31, spany=False, spanx=False, adjacent=False, treat_as_unpaired=False, containment=True, JVMmemory=None, threads=None, **kwargs):
         '''
             clumpify-based deduplication
             see:
@@ -105,8 +192,7 @@ class BBMapTool(tools.Tool):
                                   for NextSeq.
                 containment=True  Allow containments (where one sequence is shorter).
         '''
-        unpair = treat_as_unpaired
-        repair = treat_as_unpaired
+        threads = threads or util.misc.available_cpu_count()
 
         # Convert BAM -> FASTQ pairs per read group and load all read groups
         tempDir = tempfile.mkdtemp()
@@ -122,95 +208,35 @@ class BBMapTool(tools.Tool):
             lb_to_files[rg.get('LB', 'none')].add(os.path.join(tempDir, fname))
         _log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
 
-        per_lb_read_lists = []
         readListAll = util.file.mkstempfname('.keep_reads_all.txt')
-        for lb, lb_files in lb_to_files.items():
+        per_lb_read_lists = []
 
-            # create merged FASTQs per library
-            infastqs = (util.file.mkstempfname('.1.fastq'), util.file.mkstempfname('.2.fastq'))
-            for d in range(2):
-                with open(infastqs[d], 'wt') as outf:
-                    for fprefix in lb_files:
-                        fn = '%s_%d.fastq' % (fprefix, d + 1)
+        # set threads to the lesser of library count or threads requested
+        threads = min(len(lb_to_files.keys()), threads)
 
-                        if os.path.isfile(fn):
-                            with open(fn, 'rt') as inf:
-                                for line in inf:
-                                    outf.write(line)
-                            os.unlink(fn)
-                        else:
-                            _log.warning(
-                                """no reads found in %s,
-                                        assuming that's because there's no reads in that read group""", fn
-                            )
-            per_lb_read_list = util.file.mkstempfname('.keep_read_ids.txt')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+            configured_func_obj = functools.partial(self._merge_fastqs_and_clumpify, 
+                                                    subs              = subs,
+                                                    passes            = passes,
+                                                    dupedist          = dupedist,
+                                                    kmer_size         = kmer_size,
+                                                    optical           = optical,
+                                                    spany             = spany,
+                                                    spanx             = spanx,
+                                                    adjacent          = adjacent,
+                                                    treat_as_unpaired = treat_as_unpaired,
+                                                    containment       = containment,
+                                                    JVMmemory         = JVMmemory,
+                                                    **kwargs)
+            futures = [executor.submit(configured_func_obj, lb, lb_files) for lb, lb_files in lb_to_files.items()]
+            for future in concurrent.futures.as_completed(futures):
+                _log.info("bbmap clumpify finished processing library")
+                try:
+                    readList = future.result()
+                    per_lb_read_lists.append(readList)
+                except Exception as exc:
+                    _log.error('bbmap clumpify process call generated an exception: %s' % (exc))
 
-            inFastq1,inFastq2 = infastqs
-            outFastq1 = util.file.mkstempfname('.1.fastq')
-            outFastq2 = util.file.mkstempfname('.2.fastq')
-            #actual de-dedup call
-            _log.info("executing BBMap clumpify on library " + lb)
-            with util.file.tmp_dir('_bbmap_clumpify') as t_dir:
-                # We may want to merge overlapping paired reads via BBMerge first; per clumpify docs:
-                #   Clumpify supports paired reads, in which case it will clump based on read 1 only.
-                #   However, it's much more effective to treat reads as unpaired. For example, merge 
-                #   the reads with BBMerge, then concatenate the merged reads with the unmerged pairs,
-                #   and clump them all together as unpaired.
-                if inFastq2 is None or os.path.getsize(inFastq2) < 10:
-                    self.execute(tool='clumpify.sh', 
-                                    in1=inFastq1,
-                                    out=outFastq1,
-                                    dedupe=True,
-                                    subs=subs,
-                                    passes=passes,
-                                    dupedist=dupedist,
-                                    k=kmer_size,
-                                    optical=optical,
-                                    spany=spany,
-                                    spanx=spanx,
-                                    adjacent=adjacent,
-                                    usetmpdir=True,
-                                    tmpdir=t_dir,
-                                    # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
-                                    unpair=treat_as_unpaired,
-                                    repair=treat_as_unpaired,
-                                    containment=containment,
-                                    JVMmemory=JVMmemory,
-                                    **kwargs)
-                else:
-                    self.execute(tool='clumpify.sh', 
-                                    in1=inFastq1, in2=inFastq2,
-                                    out=outFastq1, out2=outFastq2,
-                                    dedupe=True,
-                                    subs=subs,
-                                    passes=passes,
-                                    dupedist=dupedist,
-                                    k=kmer_size,
-                                    optical=optical,
-                                    spany=spany,
-                                    spanx=spanx,
-                                    adjacent=adjacent,
-                                    usetmpdir=True,
-                                    tmpdir=t_dir,
-                                    # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
-                                    unpair=treat_as_unpaired,
-                                    repair=treat_as_unpaired,
-                                    containment=containment,
-                                    JVMmemory=JVMmemory,
-                                    **kwargs)
-                # Make a list of reads to keep
-                with open(per_lb_read_list, 'at') as outf:
-                    for fq in (outFastq1, outFastq2):
-                        with util.file.open_or_gzopen(fq, 'rt') as inf:
-                            line_num = 0
-                            for line in inf:
-                                if (line_num % 4) == 0:
-                                    idVal = line.rstrip('\n')[1:]
-                                    if idVal.endswith('/1'):
-                                        outf.write(idVal[:-2] + '\n')
-                                line_num += 1
-
-                per_lb_read_lists.append(per_lb_read_list)
         # merge per-library read lists together
         util.file.concat(per_lb_read_lists, readListAll)
         # remove per-library read lists
@@ -220,34 +246,3 @@ class BBMapTool(tools.Tool):
         # Filter original input BAM against keep-list
         tools.picard.FilterSamReadsTool().execute(in_bam, False, readListAll, out_bam, JVMmemory=JVMmemory)
         return 0
-
-        # old...
-
-        # with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as (in1, in2), \
-        #     util.file.tmp_dir('_bbmap_clumpify') as t_dir:
-
-        #     # We may want to merge overlapping paired reads via BBMerge first; per clumpify docs:
-        #     #   Clumpify supports paired reads, in which case it will clump based on read 1 only.
-        #     #   However, it's much more effective to treat reads as unpaired. For example, merge 
-        #     #   the reads with BBMerge, then concatenate the merged reads with the unmerged pairs,
-        #     #   and clump them all together as unpaired.
-
-        #     self.execute(tool='clumpify.sh', 
-        #                     in1=in1, in2=in2,
-        #                     out=out_bam,
-        #                     dedupe=True,
-        #                     subs=subs,
-        #                     passes=passes,
-        #                     dupedist=dupedist,
-        #                     k=kmer_size,
-        #                     optical=optical,
-        #                     spany=spany,
-        #                     adjacent=adjacent,
-        #                     usetmpdir=True,
-        #                     tmpdir=t_dir,
-        #                     # if reads should be treated as unpaired, both 'unpair','repair' should be set to True
-        #                     unpair=treat_as_unpaired,
-        #                     repair=treat_as_unpaired,
-        #                     containment=containment,
-        #                     JVMmemory=JVMmemory,
-        #                     **kwargs)
