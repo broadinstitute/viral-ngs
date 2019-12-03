@@ -1119,7 +1119,7 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
     """
         Filter a krakenuniq report by field to include rows above some threshold, 
         where contributions to the value from subordinate levels
-        are first removed from the value.
+        are removed from the value and the value of superior levels.
     """
 
     # class to represent taxonomic tree
@@ -1319,8 +1319,6 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
             to correct numeric values prior to an operation
             to output only those nodes above some value.
         """
-        total_number_of_reads = float(node.data["num_reads"])/float(node.data["pct_of_reads"])
-
         if node.has_children:
             for child in node.children:
                 subtract_low_values_with_upward_propagation(child, field_to_filter, keep_threshold, fields_to_adjust)
