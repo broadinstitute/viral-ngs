@@ -25,8 +25,8 @@ if [ -n "$TRAVIS_TAG" ]; then
 
     # render and build the conda package
     echo "Rendering recipe..."
-    echo "python packaging/conda-recipe/render-recipe.py $TRAVIS_TAG --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt" # --build-reqs requirements-conda.txt
-    python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
+    echo "python packaging/conda-recipe/render-recipe.py $TRAVIS_TAG --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --test-reqs requirements-conda-tests.txt" # --build-reqs requirements-conda.txt
+    python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
     echo "Building recipe..."
     CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
 
@@ -50,8 +50,9 @@ else
 
     # render and build the conda package
     echo "Rendering recipe..."
-    echo "python packaging/conda-recipe/render-recipe.py $CONDA_PKG_VERSION --package-name viral-ngs-dev --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt" #--build-reqs requirements-conda.txt
-    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
+    echo "python packaging/conda-recipe/render-recipe.py $CONDA_PKG_VERSION --package-name viral-ngs-dev --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --test-reqs requirements-conda-tests.txt" #--build-reqs requirements-conda.txt
+    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --test-reqs requirements-conda-tests.txt #--build-reqs requirements-conda.txt
+
     echo "Building recipe..."
     CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
 fi

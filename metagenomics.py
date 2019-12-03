@@ -592,7 +592,7 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
         with open_or_gzopen(input_path, 'rt') as f, \
              open_or_gzopen(output_path, 'wt') as out_f:
             if header:
-                out_f.write(f.readline())  # Cannot use next(f) for python2
+                out_f.write(next(f))
             for line in f:
                 parts = line.split(sep)
                 taxid = int(parts[taxid_column])

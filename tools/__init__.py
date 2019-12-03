@@ -15,14 +15,8 @@ import subprocess
 import util.file
 import util.misc
 
-try:
-    # Python 3.x
-    from urllib.request import urlretrieve    # pylint: disable=E0611
-    from urllib.parse import urlparse    # pylint: disable=E0611
-except ImportError:
-    # Python 2.x
-    from urllib import urlretrieve # pylint: disable=E0611
-    from urlparse import urlparse # pylint: disable=import-error
+from urllib.request import urlretrieve    # pylint: disable=E0611
+from urllib.parse import urlparse    # pylint: disable=E0611
 
 # Put all tool files in __all__
 # allows "from tools import *" to import all tools for testtools

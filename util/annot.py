@@ -47,13 +47,11 @@ class SnpAnnotater(object):
         with util.file.open_or_gzopen(snpEffVcf, 'rt') as inf:
             ffp = util.file.FlatFileParser(inf)
             try:
-                imap = hasattr(itertools, 'imap') and itertools.imap or map  # py2 & py3 compatibility
-                ifilter = hasattr(itertools, 'ifilter') and itertools.ifilter or filter  # py2 & py3 compatibility
                 self.cur.executemany("""insert into annot (chr,pos,allele_ref,allele_alt,
                     effect,impact,gene_id,gene_name,protein_pos,residue_ref,residue_alt)
-                    values (?,?,?,?,?,?,?,?,?,?,?)""", imap(
+                    values (?,?,?,?,?,?,?,?,?,?,?)""", map(
                     lambda row: [row['CHROM'], int(row['POS']), row['REF'], row['ALT']] + parse_eff(row['CHROM'], row['POS'], row['INFO']),
-                    ifilter(lambda r: r['ALT'] != '.', ffp)))
+                    filter(lambda r: r['ALT'] != '.', ffp)))
             except Exception:
                 log.exception("exception processing file %s line %s", snpEffVcf, ffp.line_num)
                 raise

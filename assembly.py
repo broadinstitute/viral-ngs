@@ -21,10 +21,7 @@ import operator
 import concurrent.futures
 import csv
 
-try:
-    from itertools import zip_longest    # pylint: disable=E0611
-except ImportError:
-    from itertools import izip_longest as zip_longest    # pylint: disable=E0611
+from itertools import zip_longest    # pylint: disable=E0611
 
 # intra-module
 import util.cmd
