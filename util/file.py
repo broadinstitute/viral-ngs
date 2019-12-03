@@ -32,11 +32,8 @@ from Bio.SeqIO import FastaIO
 
 # imports needed for download_file() and webfile_readlines()
 import re
-# since py3 split up urllib
-try:
-    from urllib.request import urlopen # pylint: disable=E0611
-except ImportError:
-    from urllib2 import urlopen
+
+from urllib.request import urlopen # pylint: disable=E0611
 
 import pysam
 
@@ -338,23 +335,13 @@ def open_or_gzopen(fname, *opts, **kwargs):
     # so use newline=None when 'U' is specified
     if len(open_opts) > 0:
         mode = open_opts[0]
-        if sys.version_info[0] == 3:
-            if 'U' in mode:
-                if 'newline' not in kwargs:
-                    kwargs['newline'] = None
-                open_opts[0] = mode.replace("U","")
+        if 'U' in mode:
+            if 'newline' not in kwargs:
+                kwargs['newline'] = None
+            open_opts[0] = mode.replace("U","")
 
     # if this is a gzip file
     if fname.endswith('.gz'):
-        # if text read mode is desired (by spec or default)
-        if ('b' not in mode) and (len(open_opts)==0 or 'r' in mode):
-            # if python 2
-            if sys.version_info[0] == 2:
-                # gzip.open() under py2 does not support universal newlines
-                # so we need to wrap it with something that does
-                # By ignoring errors in BufferedReader, errors should be handled by TextIoWrapper
-                return io.TextIOWrapper(io.BufferedReader(gzip.open(fname)))
-
         # if 't' for text mode is not explicitly included,
         # replace "U" with "t" since under gzip "rb" is the
         # default and "U" depends on "rt"
