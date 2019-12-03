@@ -633,8 +633,11 @@ class RunInfo(object):
     def get_fname(self):
         return self.fname
 
+    def get_flowcell_raw(self):
+        return self.root[0].find('Flowcell').text
+
     def get_flowcell(self):
-        fc = self.root[0].find('Flowcell').text
+        fc = self.get_flowcell_raw()
         # slice in the case where the ID has a prefix of zeros
         if re.match(r"^0+-", fc):
             if '-' in fc:
@@ -689,6 +692,220 @@ class RunInfo(object):
 
     def num_reads(self):
         return sum(1 for x in self.root[0].find('Reads').findall('Read') if x.attrib['IsIndexedRead'] == 'N')
+
+    def get_lane_count(self):
+        layout = self.root[0].find('FlowcellLayout')
+        return int(layout.attrib['LaneCount'])
+
+    def get_surface_count(self):
+        layout = self.root[0].find('FlowcellLayout')
+        return int(layout.attrib['SurfaceCount'])
+
+    def get_swath_count(self):
+        layout = self.root[0].find('FlowcellLayout')
+        return int(layout.attrib['SwathCount'])
+
+    def get_tile_count(self):
+        layout = self.root[0].find('FlowcellLayout')
+        return int(layout.attrib['TileCount'])
+
+    def tile_count(self):
+        lane_count    = self.get_lane_count()
+        surface_count = self.get_surface_count()
+        swath_count   = self.get_swath_count()
+        tile_count    = self.get_tile_count()
+
+        total_tile_count = lane_count*surface_count*swath_count*tile_count
+        return total_tile_count
+
+    def machine_model_from_tile_count(self):
+        tc = self.tile_count()
+
+        machine=None
+        if tc == 2:
+            log.info("Detected %s tiles, interpreting as MiSeq nano run.",tc)
+            machine = {"machine":"MiSeq","lane_count":1}
+        elif tc == 8:
+            log.info("Detected %s tiles, interpreting as MiSeq micro run.",tc)
+            machine = {"machine":"MiSeq","lane_count":1}
+        elif tc == 16:
+            log.info("Detected %s tiles, interpreting as iSeq run.",tc)
+            machine = {"machine":"iSeq","lane_count":1}
+        elif tc == 28:
+            log.info("Detected %s tiles, interpreting as MiSeq run.",tc)
+            machine = {"machine":"MiSeq","lane_count":1}
+        elif tc == 38:
+            log.info("Detected %s tiles, interpreting as MiSeq run.",tc)
+            machine = {"machine":"MiSeq","lane_count":1}
+        elif tc == 128:
+            log.info("Detected %s tiles, interpreting as HiSeq2k run.",tc)
+            machine = {"machine":"HiSeq 2500","lane_count":2}
+        elif tc == 288:
+            log.info("Detected %s tiles, interpreting as NextSeq (mid-output) run.",tc)
+            machine = {"machine":"NextSeq 500","lane_count":4}
+        elif tc == 768:
+            log.info("Detected %s tiles, interpreting as HiSeq2k run.",tc)
+            machine = {"machine":"HiSeq 2500","lane_count":8}
+        elif tc == 624:
+            log.info("Detected %s tiles, interpreting as NovaSeq run.",tc)
+            machine = {"machine":"NovaSeq","lane_count":2}
+        elif tc == 864:
+            log.info("Detected %s tiles, interpreting as NextSeq (high-output) run.",tc)
+            machine = {"machine":"NextSeq","lane_count":4}
+        elif tc == 896:
+            log.info("Detected %s tiles, interpreting as HiSeq4k run.",tc)
+            machine = {"machine":"HiSeq 4000","lane_count":8}
+        elif tc == 1408:
+            log.info("Detected %s tiles, interpreting as NovaSeq run.",tc)
+            machine = {"machine":"NovaSeq","lane_count":2}
+        elif tc == 3744:
+            log.info("Detected %s tiles, interpreting as NovaSeq run.",tc)
+            machine = {"machine":"NovaSeq","lane_count":4}
+        elif tc > 3744:
+            log.info("Tile count: %s tiles (unknown instrument type).",tc)
+        return machine
+
+    def get_flowcell_chemistry(self):
+        guessed_sequencer = self.infer_sequencer_model()
+        return guessed_sequencer["chemistry"]
+
+    def get_flowcell_lane_count(self):
+       guessed_sequencer = self.infer_sequencer_model()
+       return guessed_sequencer["lane_count"]
+
+    def get_machine_model(self):
+        guessed_sequencer = self.infer_sequencer_model()
+        return guessed_sequencer["machine"]
+
+    def infer_sequencer_model(self):
+        fcid = self.get_flowcell_raw()
+
+        sequencer_by_fcid = []
+        for key in self.flowcell_to_machine_model_and_chemistry:
+            if re.search(key,fcid):
+                sequencer_by_fcid.append(self.flowcell_to_machine_model_and_chemistry[key])
+        if len(sequencer_by_fcid)==0:
+            raise LookupError("Unknown sequencer: %s",fcid)
+        if len(sequencer_by_fcid)>1:
+            raise LookupError("Multiple sequencers possible: %s",fcid)
+
+        sequencer_by_tile_count = self.machine_model_from_tile_count()
+
+        if sequencer_by_fcid[0]["machine"]==sequencer_by_tile_count["machine"]:
+            return sequencer_by_fcid[0]
+        else:
+            raise LookupError("sequencer model unclear; flowcell ID suggests %s while tile count suggests %s", sequencer_by_fcid[0], sequencer_by_tile_count)
+
+    flowcell_to_machine_model_and_chemistry = {
+        r'[A-Z,0-9]{5}AAXX':{
+            "machine":    "GAIIx",
+            "chemistry":  "All",
+            "lane_count":  8,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}ABXX':{
+            "machine":    "HiSeq 2000",
+            "chemistry":  "V2 Chemistry",
+            "lane_count":  8,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}ACXX':{
+            "machine":   "HiSeq 2000",
+            "chemistry": "V3 Chemistry",
+            "lane_count": 8,
+            "note":       "Also used on transient 2000E"
+        },
+        r'[A-Z,0-9]{5}(?:ANXX|AN\w\w)':{
+            "machine":    "HiSeq 2500",
+            "chemistry":  "V4 Chemistry",
+            "lane_count":  8,
+            "note":       "High output"
+        },
+        r'[A-Z,0-9]{5}(?:ADXX|AD\w\w)':{
+            "machine":    "HiSeq 2500",
+            "chemistry":  "V1 Chemistry",
+            "lane_count":  2,
+            "note":       "Rapid run"
+        },
+        r'[A-Z,0-9]{5}AMXX':{
+            "machine":    "HiSeq 2500",
+            "chemistry":  "V2 Chemistry (beta)",
+            "lane_count":  2,
+            "note":       "Rapid run"
+        },
+        r'[A-Z,0-9]{5}(?:BCXX|BC\w\w)':{
+            "machine":    "HiSeq 2500",
+            "chemistry":  "V2 Chemistry",
+            "lane_count":  2,
+            "note":       "Rapid run"
+        },
+        r'[A-Z,0-9]{5}AFXX':{
+            "machine":    "NextSeq 500",
+            "chemistry":  "Mid-Output NextSeq",
+            "lane_count":  4,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}AGXX':{
+            "machine":    "NextSeq 500",
+            "chemistry":  "V1 Chemistry",
+            "lane_count":  4,
+            "note":       "High-output"
+        },
+        r'[A-Z,0-9]{5}(?:BGXX|BG\w\w)':{
+            "machine":    "NextSeq 500",
+            "chemistry":  "V2/V2.5 Chemistry",
+            "lane_count":  4,
+            "note":       "High-output"
+        },
+        r'[A-Z,0-9]{5}(?:BBXX|BB\w\w)':{
+            "machine":    "HiSeq 4000",
+            "chemistry":  "HiSeq 4000",
+            "lane_count":  8,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}(?:ALXX:AL\w\w)':{
+            "machine":    "HiSeq X",
+            "chemistry":  "V1/V2.5 Chemistry",
+            "lane_count":  8,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}(?:CCXX:CC\w\w)':{
+            "machine":    "HiSeq X",
+            "chemistry":  "V2/V2.5 Chemistry",
+            "lane_count":  8,
+            "note":       ""
+        },
+        r'[A-Z,0-9]{5}DR\w\w':{
+            "machine":    "NovaSeq",
+            "chemistry":  "V1 Chemistry",
+            "lane_count":  2,
+            "note":       "S1/SP"
+        },
+        r'[A-Z,0-9]{5}DM\w\w':{
+            "machine":    "NovaSeq",
+            "chemistry":  "V1 Chemistry",
+            "lane_count":  2,
+            "note":       "S2"
+        },
+        r'[A-Z,0-9]{5}DS\w\w':{
+            "machine":    "NovaSeq",
+            "chemistry":  "V1 Chemistry",
+            "lane_count":  4,
+            "note":       "S4"
+        },
+        r'BNS417.*':{
+            "machine":    "iSeq",
+            "chemistry":  "V1",
+            "lane_count":  1,
+            "note":       "AKA Firefly"
+        },
+        r'[0-9]{9}-\w{5}':{
+            "machine":    "MiSeq",
+            "chemistry":  "V1/V2/V3 Chemistry",
+            "lane_count":  1,
+            "note":       ""
+        }
+    }
 
 # ======================
 # ***  SampleSheet   ***
