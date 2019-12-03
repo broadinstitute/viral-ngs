@@ -20,11 +20,7 @@ import util.file
 import util.misc
 from test import TestCaseWithTmp, assert_equal_bam_reads, _CPUS
 
-if six.PY2:
-    from StringIO import StringIO
-else:
-    from io import StringIO
-
+from io import StringIO
 
 class TestCommandHelp(unittest.TestCase):
 

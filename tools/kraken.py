@@ -301,10 +301,8 @@ class KrakenUniq(Kraken):
     def pipeline(self, db, in_bams, out_reports=None, out_reads=None,
                  filter_threshold=None, num_threads=None):
 
-        try:
-            from itertools import zip_longest
-        except:  # Python 2 compat
-            from itertools import izip_longest as zip_longest
+        from itertools import zip_longest
+        
         assert out_reads is not None or out_reports is not None
         out_reports = out_reports or []
         out_reads = out_reads or []
