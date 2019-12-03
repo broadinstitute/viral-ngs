@@ -8,11 +8,8 @@ import pprint
 import argparse
 import hashlib
 import time
-# since py3 split up urllib
-try:
-    from urllib.request import urlopen
-except ImportError:
-    from urllib2 import urlopen
+
+from urllib.request import urlopen
 
 # third party
 import jinja2
@@ -186,9 +183,6 @@ if __name__ == "__main__":
     parser.add_argument('--run-reqs', nargs='*', dest='run_requirements',
                         type=argparse.FileType('r'),
                         help='run-time requirements file')
-    parser.add_argument('--py2-run-reqs', nargs='*', dest='py2_run_requirements',
-                        type=argparse.FileType('r'),
-                        help='python2-only run-time requirements file')
     parser.add_argument('--py3-run-reqs', nargs='*', dest='py3_run_requirements',
                         type=argparse.FileType('r'),
                         help='python3-only run-time requirements file')
