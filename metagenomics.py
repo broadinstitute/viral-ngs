@@ -1078,8 +1078,8 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
 __commands__.append(('filter_bam_to_taxa', parser_filter_bam_to_taxa))
 
 def parser_krakenuniq_report_filter(parser=argparse.ArgumentParser()):
-    parser.add_argument('summary_file_in', help='Input KrakenUNiq-format summary text file with tab-delimited fields and indented taxonomic levels.')
-    parser.add_argument('summary_file_out', help='Output KrakenUNiq-format summary text file with tab-delimited fields and indented taxonomic levels.')
+    parser.add_argument('summary_file_in', help='Input KrakenUniq-format summary text file with tab-delimited fields and indented taxonomic levels.')
+    parser.add_argument('summary_file_out', help='Output KrakenUniq-format summary text file with tab-delimited fields and indented taxonomic levels.')
     parser.add_argument('--fieldToFilterOn', 
                             choices=[
                                 "num_reads",
