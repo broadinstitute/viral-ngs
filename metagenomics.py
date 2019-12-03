@@ -1091,6 +1091,18 @@ def parser_krakenuniq_report_filter(parser=argparse.ArgumentParser()):
                             help='The field to filter on (default: %(default)s).', 
                             default="uniq_kmers"
     )
+    parser.add_argument('--fieldToAdjust', 
+                            choices=[
+                                "num_reads",
+                                "uniq_kmers",
+                                #"kmer_dups",
+                                #"reads_exc_children",
+                            ], 
+                            nargs="+",
+                            dest="fields_to_adjust", 
+                            help='The field to adjust along with the --fieldToFilterOn (default: %(default)s).', 
+                            default=["num_reads"]
+    )
     parser.add_argument('--keepAboveN', 
                         type=int, 
                         dest="keep_threshold", 
@@ -1103,7 +1115,7 @@ def parser_krakenuniq_report_filter(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, krakenuniq_report_filter, split_args=True)
     return parser
 
-def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter, keep_threshold):
+def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter, keep_threshold, fields_to_adjust):
     """
         Filter a krakenuniq report by field to include rows above some threshold, 
         where contributions to the value from subordinate levels
@@ -1296,7 +1308,7 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
             if int(n.data[field_to_filter])<keep_threshold:
                 n.parent.remove_child(n)
 
-    def subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold):
+    def subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold, fields_to_adjust):
         """
             For the given filter field and numeric threshold
             subtract the value from the same field in
@@ -1307,19 +1319,35 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
             to correct numeric values prior to an operation
             to output only those nodes above some value.
         """
+        total_number_of_reads = float(node.data["num_reads"])/float(node.data["pct_of_reads"])
+
         if node.has_children:
             for child in node.children:
-                subtract_low_values_with_upward_propagation(child, field_to_filter, keep_threshold)
+                subtract_low_values_with_upward_propagation(child, field_to_filter, keep_threshold, fields_to_adjust)
         # if the value of the field in this node is below our threshold, 
         # reduce the field in this node and in all nodes above it by the
         # amount of this node
         if int(node.data[field_to_filter])<keep_threshold:
+            other_field_adjustment_values = {}
+            for field in fields_to_adjust:
+                other_field_adjustment_values[field] = int(node.data[field])
+
             amount_to_remove = int(node.data[field_to_filter])
             node_to_reduce = node
             node.data[field_to_filter] = int(node.data[field_to_filter])-amount_to_remove
+            for field in fields_to_adjust:
+                node.data[field] = int(node.data[field])-other_field_adjustment_values[field]
+            
             while(node_to_reduce.has_parent):
                 node_to_reduce = node_to_reduce.parent
                 node_to_reduce.data[field_to_filter] = int(node_to_reduce.data[field_to_filter])-amount_to_remove
+                # adjust secondary fields
+                for field in fields_to_adjust:
+                    node_to_reduce.data[field] = int(node_to_reduce.data[field])-other_field_adjustment_values[field]
+
+    def adjust_read_percentages(node, total_read_count):
+        for n in dfs_traversal(node):
+            n.data["pct_of_reads"] = (float(n.data["num_reads"]) / float(total_read_count))*100.0
 
     def tree_size(node):
         """
@@ -1338,9 +1366,17 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
             out_f.write(line)
         # for each of the top-level nodes
         # ('unclassified' and 'root')
+        total_number_of_reads = -1 
         for top_node in top_nodes:
             log.info("tree size below (and including) '%s' before filtering: %s", top_node.data["sci_name"],tree_size(top_node))
-            subtract_low_values_with_upward_propagation(top_node, field_to_filter, keep_threshold)
+            # use field_to_filter to conditionally determine
+            # which rows nodes to keep, 
+            # while also adjusting fields_to_adjust of the
+            # nodes impacted by the conditional matching
+            subtract_low_values_with_upward_propagation(top_node, field_to_filter, keep_threshold, fields_to_adjust)
+            total_number_of_reads = sum([int(n.data["num_reads"]) for n in top_nodes])
+        for top_node in top_nodes:
+            adjust_read_percentages(top_node, total_number_of_reads)
             num=0
             for n in dfs_traversal_filtered(top_node,field_to_filter, keep_threshold):
                 num+=1
