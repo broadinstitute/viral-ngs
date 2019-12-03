@@ -14,6 +14,7 @@ import io
 import itertools
 import logging
 import os.path
+from os import linesep
 from os.path import join
 import operator
 import queue
@@ -36,7 +37,6 @@ import tools.kraken
 import tools.krona
 import tools.picard
 import tools.samtools
-from util.file import open_or_gzopen
 
 __commands__ = []
 
@@ -109,7 +109,7 @@ class TaxonomyDb(object):
     def load_gi_single_dmp(self, dmp_path):
         '''Load a gi->taxid dmp file from NCBI taxonomy.'''
         gi_array = {}
-        with open_or_gzopen(dmp_path) as f:
+        with util.file.open_or_gzopen(dmp_path) as f:
             for i, line in enumerate(f):
                 gi, taxid = line.strip().split('\t')
                 gi = int(gi)
@@ -142,7 +142,7 @@ class TaxonomyDb(object):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with open_or_gzopen(nodes_db) as f:
+        with util.file.open_or_gzopen(nodes_db) as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])
@@ -589,7 +589,7 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
         output_path = os.path.join(outputDb, path)
 
         input_path = maybe_compressed(input_path)
-        with open_or_gzopen(input_path, 'rt') as f, \
+        with util.file.open_or_gzopen(input_path, 'rt') as f, \
              open_or_gzopen(output_path, 'wt') as out_f:
             if header:
                 out_f.write(f.readline())  # Cannot use next(f) for python2
@@ -1047,7 +1047,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
-        with open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
+        with util.file.open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
             read_ids_written = 0
             for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
@@ -1077,7 +1077,276 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
             tools.samtools.SamtoolsTool().dumpHeader(in_bam,out_bam)
 __commands__.append(('filter_bam_to_taxa', parser_filter_bam_to_taxa))
 
+def parser_krakenuniq_report_filter(parser=argparse.ArgumentParser()):
+    parser.add_argument('summary_file_in', help='Input KrakenUNiq-format summary text file with tab-delimited fields and indented taxonomic levels.')
+    parser.add_argument('summary_file_out', help='Output KrakenUNiq-format summary text file with tab-delimited fields and indented taxonomic levels.')
+    parser.add_argument('--fieldToFilterOn', 
+                            choices=[
+                                "num_reads",
+                                "uniq_kmers",
+                                #"kmer_dups",
+                                #"reads_exc_children",
+                            ], 
+                            dest="field_to_filter", 
+                            help='The field to filter on (default: %(default)s).', 
+                            default="uniq_kmers"
+    )
+    parser.add_argument('--keepAboveN', 
+                        type=int, 
+                        dest="keep_threshold", 
+                        help='Only taxa with values above this will be kept. '
+                            'Higher taxonomic ranks will have their values '
+                            'reduced by the values of removed sub-ranks (default: %(default)s)',
+                        default=100
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, krakenuniq_report_filter, split_args=True)
+    return parser
 
+def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter, keep_threshold):
+    """
+        Filter a krakenuniq report by field to include rows above some threshold, 
+        where contributions to the value from subordinate levels
+        are first removed from the value.
+    """
+
+    # class to represent taxonomic tree
+    # entry in KrakenUniq report
+    class TaxNode(object):
+        def __init__(self, row, level):
+            self.data     = row
+            self.level    = level
+            self.parent   = None
+            self.children = []
+
+        def __str__(self):
+            # pad the name with the original prefix spacing
+            # when rendering as a string
+            sci_name = "  "*self.level+self.data["sci_name"]
+            return "\t".join([str(value) for key,value in self.data.items() if key!="sci_name"]+[sci_name])
+
+        def __repr__(self):
+            return self.__str__()
+
+        def add_child(self, node):
+            self.children.append(node)
+
+        def remove_child(self, node):
+            try:
+                self.children.remove(node)
+            except Exception as e:
+                raise Exception("failed trying to remove '{}' from '{}'; valid children: {}".format(node.name,self.name,",".join([c.name for c in self.children])))
+
+        def add_parent(self, node):
+            self.parent = node
+
+        @property
+        def has_parent(self):
+            return self.parent != None
+
+        @property
+        def lacks_parent(self):
+            return self.parent == None
+
+        @property
+        def has_children(self):
+            return len(self.children)>0
+
+        @property
+        def lacks_children(self):
+            return len(self.children)==0
+
+        @property
+        def name(self):
+            return self.data["sci_name"]
+
+    # load the KrakenUniq summary file
+    # into a tree structure
+    # using the taxName indentation (space prefix) to indicate hierarchy
+    # (rather than the 'rank' column since many rows have 'no rank')
+    # This assumes the hierarchy is described linearly
+    # within the file such that indentation changes
+    # indicate changes of hierarchy
+    tax_tree_top_nodes = []
+    previous_node      = None
+    top_nodes          = []
+    for row,level in _kraken_report_reader(summary_file_in):
+        # create a new code object for this row
+        current_node = TaxNode(row,level)
+
+        # if this is a top-level node ('root' or 'unclassified')
+        if current_node.level==0:
+            # set previous_node to None since
+            # we usually have at least two top-level nodes
+            previous_node=None
+
+        # if we do not have a previous node/line to consider
+        if previous_node==None:
+            # assume this line is a top-level node
+            top_nodes.append(current_node)
+        # otherwise, if the node is subordinate in 
+        # level/indentation to the previous node
+        elif current_node.level>previous_node.level:
+            # make it a child of the previous node
+            previous_node.add_child(current_node)
+            # (and set the previous node as its parent)
+            current_node.add_parent(previous_node)
+        else:
+            # if this node is not subordinate in
+            # level/indentation to the previous node
+            # track back through prior nodes
+            # until we find one that is at a higher level
+            parent_node = previous_node
+            while(current_node.level<=parent_node.level):
+                if parent_node.lacks_parent:
+                    # if we reach a node without a parent
+                    # break out (should not be reached)
+                    break
+                parent_node = parent_node.parent
+            # when we have found a superior prior node
+            # add this node as its child
+            parent_node.add_child(current_node)
+            # (and set it as this node's parent)
+            current_node.add_parent(parent_node)
+        # set this node as the previous node
+        previous_node = current_node
+
+    def remove_children(node):
+        """
+            remove child nodes from instance
+            attribute (list) of the specified node
+        """
+        if node != None:
+            if node.has_children:
+                for child in node.children:
+                    remove_children(child)
+            node.children = []
+
+    def delete_children(node):
+        """
+            delete a node outright along with its children
+        """
+        if node != None:
+            if node.has_children:
+                for child in node.children:
+                    delete_children(child)
+                    del child
+            else:
+                del node
+
+    def dfs_traversal(node):
+        """
+            yield nodes in preorder form
+        """
+        yield node
+        if node.has_children:
+            for child in node.children:
+                for n in dfs_traversal(child):
+                    yield n
+
+    def dfs_traversal_print(node):
+        """
+            print the tree in preorder form
+        """
+        for n in dfs_traversal(node):
+            print(n)
+
+    def dfs_traversal_filtered(node, field_to_filter, keep_threshold):
+        """
+            yield nodes from the tree where the field is above the threshold value.
+            NB: This does not take into account rows where the sum includes
+                the values and sums from subordinate nodes.
+                
+                subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold)
+                should be used to account for sums that include 
+                contributions from subordinate nodes
+        """
+        for n in dfs_traversal(node):
+            if (int(n.data[field_to_filter])>=keep_threshold):
+                yield n
+
+    def dfs_traversal_print_filtered(node, field_to_filter, keep_threshold):
+        """
+            Print nodes from the tree where the field is above the threshold value.
+            NB: This does not take into account rows where the sum includes
+                the values and sums from subordinate nodes.
+                
+                subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold)
+                should be used to account for sums that include 
+                contributions from subordinate nodes
+        """
+        for n in dfs_traversal(node):
+            if (int(n.data[field_to_filter])>=keep_threshold):
+                print(n)
+
+    def dfs_traversal_prune(node, field_to_filter, keep_threshold):
+        """
+            Remove nodes from the tree where the field is above the threshold value.
+            NB: This does not take into account rows where the sum includes
+                the values and sums from subordinate rows.
+
+                subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold)
+                should be used to account for sums that include 
+                contributions from subordinate nodes
+        """
+        for child in node.children:
+            dfs_traversal_prune(child, field_to_filter, keep_threshold)
+
+        for n in dfs_traversal(node):
+            if int(n.data[field_to_filter])<keep_threshold:
+                n.parent.remove_child(n)
+
+    def subtract_low_values_with_upward_propagation(node, field_to_filter, keep_threshold):
+        """
+            For the given filter field and numeric threshold
+            subtract the value from the same field in
+            superior nodes, using DFS so we gradually
+            account for the entire tree.
+
+            This is intended as a first pass operation
+            to correct numeric values prior to an operation
+            to output only those nodes above some value.
+        """
+        if node.has_children:
+            for child in node.children:
+                subtract_low_values_with_upward_propagation(child, field_to_filter, keep_threshold)
+        # if the value of the field in this node is below our threshold, 
+        # reduce the field in this node and in all nodes above it by the
+        # amount of this node
+        if int(node.data[field_to_filter])<keep_threshold:
+            amount_to_remove = int(node.data[field_to_filter])
+            node_to_reduce = node
+            node.data[field_to_filter] = int(node.data[field_to_filter])-amount_to_remove
+            while(node_to_reduce.has_parent):
+                node_to_reduce = node_to_reduce.parent
+                node_to_reduce.data[field_to_filter] = int(node_to_reduce.data[field_to_filter])-amount_to_remove
+
+    def tree_size(node):
+        """
+            get the number of nodes in the tree
+            including the count of the given node
+            and its children
+        """
+        if node.has_children:
+            return 1+sum([tree_size(child) for child in node.children])
+        else:
+            return 1
+
+    with util.file.open_or_gzopen(summary_file_out, 'wt') as out_f:
+        # write the header
+        for line in _kraken_report_get_header(summary_file_in):
+            out_f.write(line)
+        # for each of the top-level nodes
+        # ('unclassified' and 'root')
+        for top_node in top_nodes:
+            log.info("tree size below (and including) '%s' before filtering: %s", top_node.data["sci_name"],tree_size(top_node))
+            subtract_low_values_with_upward_propagation(top_node, field_to_filter, keep_threshold)
+            num=0
+            for n in dfs_traversal_filtered(top_node,field_to_filter, keep_threshold):
+                num+=1
+                out_f.write(str(n)+os.linesep)
+            log.info("tree size below (and including) '%s' after filtering: %s", top_node.data["sci_name"],num)
+__commands__.append(('krakenuniq_report_filter', parser_krakenuniq_report_filter))
 
 def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('summary_files_in', nargs="+", help='Kraken-format summary text file with tab-delimited taxonomic levels.')
@@ -1094,6 +1363,130 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
     return parser
+
+def _kraken_report_get_header(kraken_file_path):
+    header_lines=[]
+    with util.file.open_or_gzopen(kraken_file_path, 'rU') as inf:
+        report_type=None
+        for lineno, line in enumerate(inf):
+            if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
+                header_lines.append(line)
+                continue
+            # KrakenUniq is mentioned on the first line of
+            # summary reports created by KrakenUniq
+            if not report_type and "KrakenUniq" in line:
+                report_type="krakenuniq"
+                header_lines.append(line)
+                continue
+            elif not report_type:
+                report_type="kraken" 
+            
+            if report_type:
+                return header_lines
+    return header_lines
+
+def _kraken_report_reader(kraken_file_path):
+    '''
+        Read Kraken(Uniq) reports and return dict rows with their fields
+    '''
+
+    # -----------------------------------------------------------------
+    # KrakenUniq has two lines prefixed by '#', a blank line,
+    # and then a TSV header beginning with "%". The column fields are:
+    # (NB:field names accurate, but space-separated in this comment 
+    # for readability here)
+    #   %        reads  taxReads  kmers  dup   cov  taxID  rank          taxName
+    #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
+    #
+    # Where the fields are:
+    #   %:
+    #   reads:
+    #   taxReads:
+    #   kmers: number of unique k-mers
+    #   dup: average number of times each unique k-mer has been seen
+    #   cov: coverage of the k-mers of the clade in the database
+    #   taxID: 
+    #   rank: row["rank"]; A rank code (see list below)
+    #   taxName: row["sci_name"]; indented scientific name
+    #
+    # Taxonomic ranks used by KrakenUniq include:
+    #   unknown, no rank, sequence, assembly, subspecies, 
+    #   species, species subgroup, species group, subgenus, 
+    #   genus, tribe, subfamily, family, superfamily, parvorder, 
+    #   infraorder, suborder, order, superorder, parvclass, 
+    #   infraclass, subclass, class, superclass, subphylum, 
+    #   phylum, kingdom, superkingdom, root
+    #
+    #   via: https://github.com/fbreitwieser/krakenuniq/blob/a8b4a2dbf50553e02d3cab3c32f93f91958aa575/src/taxdb.hpp#L96-L131
+    # -----------------------------------------------------------------
+    # Kraken (standard) reports lack header lines. 
+    # (NB:field names below are only for reference. Space-separated for 
+    # readability here)
+    #   %     reads  taxReads  rank  taxID      taxName
+    #   0.00  16     0         D     10239      Viruses
+    #
+    # Where the fields are:
+    #   %:        row["pct_of_reads"]; Percentage of reads covered by the clade rooted at this taxon
+    #   reads:    row["num_reads"]; Number of reads covered by the clade rooted at this taxon
+    #   taxReads: row["reads_exc_children"]; Number of reads assigned directly to this taxon
+    #   rank:     row["rank"]; A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
+    #   taxID:    row["NCBI_tax_ID"]; NCBI taxonomy ID
+    #   taxName:  row["sci_name"]; indented scientific name
+    # -----------------------------------------------------------------
+
+    def indent_len(in_string):
+        return len(in_string)-len(in_string.lstrip())
+
+    with util.file.open_or_gzopen(kraken_file_path, 'rU') as inf:
+        report_type=None
+        for lineno, line in enumerate(inf):
+            if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
+                continue
+
+            # KrakenUniq is mentioned on the first line of
+            # summary reports created by KrakenUniq
+            if not report_type and "KrakenUniq" in line:
+                report_type="krakenuniq"
+                continue
+            elif not report_type:
+                report_type="kraken"                
+
+            csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
+            if report_type == "kraken":
+                fieldnames = [ "pct_of_reads",
+                                "num_reads",
+                                "reads_exc_children",
+                                "rank",
+                                "NCBI_tax_ID",
+                                "sci_name"
+                            ]
+            elif report_type == "krakenuniq":
+                fieldnames = [ 
+                                "pct_of_reads",
+                                "num_reads",
+                                "reads_exc_children",
+                                "uniq_kmers",
+                                "kmer_dups",
+                                "cov_of_clade_kmers",
+                                "NCBI_tax_ID",
+                                "rank",
+                                "sci_name"
+                            ]
+            else:
+                continue #never reached since we fall back to kraken above
+
+            row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
+
+            try:
+                indent_of_line = indent_len(row["sci_name"])
+            except AttributeError as e:
+                log.warning("Report type: '{}'".format(report_type))
+                log.warning("Issue with line {}: '{}'".format(lineno,line.strip().rstrip('\n')))
+                log.warning("From file: {}".format(f))
+            # remove leading/trailing whitespace from each item
+            row = { k:v.strip() for k, v in row.items()}
+
+            yield (row, indent_of_line)
 
 def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill, include_root):
     """
@@ -1113,148 +1506,53 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 
     Abundance = collections.namedtuple("Abundance", "percent,count,kmers,dup,cov")
 
-    def indent_len(in_string):
-        return len(in_string)-len(in_string.lstrip())
-
     for f in list(summary_files_in):
         sample_name, extension = os.path.splitext(f)
         sample_summary = {}
         sample_root_summary = {}
         tax_headings_copy = [s.lower() for s in tax_headings]
 
-        # -----------------------------------------------------------------
-        # KrakenUniq has two lines prefixed by '#', a blank line,
-        # and then a TSV header beginning with "%". The column fields are:
-        # (NB:field names accurate, but space-separated in this comment 
-        # for readability here)
-        #   %        reads  taxReads  kmers  dup   cov  taxID  rank          taxName
-        #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
-        #
-        # Where the fields are:
-        #   %:
-        #   reads:
-        #   taxReads:
-        #   kmers: number of unique k-mers
-        #   dup: average number of times each unique k-mer has been seen
-        #   cov: coverage of the k-mers of the clade in the database
-        #   taxID: 
-        #   rank: row["rank"]; A rank code (see list below)
-        #   taxName: row["sci_name"]; indented scientific name
-        #
-        # Taxonomic ranks used by KrakenUniq include:
-        #   unknown, no rank, sequence, assembly, subspecies, 
-        #   species, species subgroup, species group, subgenus, 
-        #   genus, tribe, subfamily, family, superfamily, parvorder, 
-        #   infraorder, suborder, order, superorder, parvclass, 
-        #   infraclass, subclass, class, superclass, subphylum, 
-        #   phylum, kingdom, superkingdom, root
-        #
-        #   via: https://github.com/fbreitwieser/krakenuniq/blob/a8b4a2dbf50553e02d3cab3c32f93f91958aa575/src/taxdb.hpp#L96-L131
-        # -----------------------------------------------------------------
-        # Kraken (standard) reports lack header lines. 
-        # (NB:field names below are only for reference. Space-separated for 
-        # readability here)
-        #   %     reads  taxReads  rank  taxID      taxName
-        #   0.00  16     0         D     10239      Viruses
-        #
-        # Where the fields are:
-        #   %:        row["pct_of_reads"]; Percentage of reads covered by the clade rooted at this taxon
-        #   reads:    row["num_reads"]; Number of reads covered by the clade rooted at this taxon
-        #   taxReads: row["reads_exc_children"]; Number of reads assigned directly to this taxon
-        #   rank:     row["rank"]; A rank code, indicating (U)nclassified, (D)omain, (K)ingdom, (P)hylum, (C)lass, (O)rder, (F)amily, (G)enus, or (S)pecies. All other ranks are simply '-'.
-        #   taxID:    row["NCBI_tax_ID"]; NCBI taxonomy ID
-        #   taxName:  row["sci_name"]; indented scientific name
-        # -----------------------------------------------------------------
+        should_process = False
+        indent_of_selection = -1
+        currently_being_processed = ""
 
+        for row,indent_of_line in _kraken_report_reader(f): 
+            # rows are formatted as described above. 
+            # Kraken:
+            #   0.00  16  0   D   10239     Viruses
+            # KrakenUniq:
+            #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
 
-        with util.file.open_or_gzopen(f, 'rU') as inf:
-            report_type=None
-            should_process = False
-            indent_of_selection = -1
-            currently_being_processed = ""
-            for lineno, line in enumerate(inf):
-                if len(line.rstrip('\r\n').strip()) == 0 or ( report_type != None and line.startswith("#") or line.startswith("%")):
-                    continue
+            # if the root-level bins (root, unclassified) should be included, do so, but bypass normal
+            # stateful parsing logic since root does not have a distinct rank level
+            if row["sci_name"].lower() in ["root","unclassified"] and include_root:
+                sample_root_summary[row["sci_name"]] = collections.OrderedDict()
+                sample_root_summary[row["sci_name"]][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
+                continue
 
-                # KrakenUniq is mentioned on the first line of
-                # summary reports created by KrakenUniq
-                if not report_type and "KrakenUniq" in line:
-                    report_type="krakenuniq"
-                    continue
-                elif not report_type:
-                    report_type="kraken"                
+            if indent_of_line <= indent_of_selection:
+                should_process = False
+                indent_of_selection =- 1
 
-                csv.register_dialect('kraken_report', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
-                if report_type == "kraken":
-                    fieldnames = [ "pct_of_reads",
-                                    "num_reads",
-                                    "reads_exc_children",
-                                    "rank",
-                                    "NCBI_tax_ID",
-                                    "sci_name"
-                                ]
-                elif report_type == "krakenuniq":
-                    fieldnames = [ 
-                                    "pct_of_reads",
-                                    "num_reads",
-                                    "reads_exc_children",
-                                    "uniq_kmers",
-                                    "kmer_dups",
-                                    "cov_of_clade_kmers",
-                                    "NCBI_tax_ID",
-                                    "rank",
-                                    "sci_name"
-                                ]
-                else:
-                    continue #never reached since we fall back to kraken above
+            if indent_of_selection == -1:
+                if row["sci_name"].lower() in tax_headings_copy:
+                    tax_headings_copy.remove(row["sci_name"].lower())
 
-                row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
+                    should_process = True
+                    indent_of_selection = indent_of_line
+                    currently_being_processed = row["sci_name"]
+                    sample_summary[currently_being_processed] = collections.OrderedDict()
+                    if row["rank"] == rank_code(taxlevel_focus) or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ",""):
+                        same_level = True
+                    if row["rank"] in ("-","no rank"):
+                        log.warning("Non-taxonomic parent level selected")
 
-                try:
-                    indent_of_line = indent_len(row["sci_name"])
-                except AttributeError as e:
-                    log.warning("Report type: '{}'".format(report_type))
-                    log.warning("Issue with line {}: '{}'".format(lineno,line.strip().rstrip('\n')))
-                    log.warning("From file: {}".format(f))
-                # remove leading/trailing whitespace from each item
-                row = { k:v.strip() for k, v in row.items()}
-
-                # rows are formatted as described above. 
-                # Kraken:
-                #   0.00  16  0   D   10239     Viruses
-                # KrakenUniq:
-                #   0.05591  2      0         13     1.85  NA   10239  superkingdom  Viruses
-
-                # if the root-level bins (root, unclassified) should be included, do so, but bypass normal
-                # stateful parsing logic since root does not have a distinct rank level
-                if row["sci_name"].lower() in ["root","unclassified"] and include_root:
-                    sample_root_summary[row["sci_name"]] = collections.OrderedDict()
-                    sample_root_summary[row["sci_name"]][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
-                    continue
-
-                if indent_of_line <= indent_of_selection:
-                    should_process = False
-                    indent_of_selection=-1
-
-                if indent_of_selection == -1:
-                    if row["sci_name"].lower() in tax_headings_copy:
-                        tax_headings_copy.remove(row["sci_name"].lower())
-
-                        should_process = True
-                        indent_of_selection = indent_of_line
-                        currently_being_processed = row["sci_name"]
-                        sample_summary[currently_being_processed] = collections.OrderedDict()
-                        if row["rank"] == rank_code(taxlevel_focus) or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ",""):
-                            same_level = True
-                        if row["rank"] in ("-","no rank"):
-                            log.warning("Non-taxonomic parent level selected")
-
-                if should_process:
-                    # skip "-" rank levels since they do not occur at the sample level
-                    # otherwise include the taxon row if the rank matches the desired level of focus
-                    if (row["rank"] not in ("-","no rank") and (rank_code(taxlevel_focus) == row["rank"] or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ","")) ):
-                        if int(row["num_reads"])>=count_threshold:
-                            sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
+            if should_process:
+                # skip "-" rank levels since they do not occur at the sample level
+                # otherwise include the taxon row if the rank matches the desired level of focus
+                if (row["rank"] not in ("-","no rank") and (rank_code(taxlevel_focus) == row["rank"] or row["rank"].lower().replace(" ","") == taxlevel_focus.lower().replace(" ","")) ):
+                    if int(row["num_reads"])>=count_threshold:
+                        sample_summary[currently_being_processed][row["sci_name"]] = Abundance(float(row["pct_of_reads"]), int(row["num_reads"]),row.get("kmers",None),row.get("dup",None),row.get("cov",None))
 
 
         for k,taxa in sample_summary.items():
