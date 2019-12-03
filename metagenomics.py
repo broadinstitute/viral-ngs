@@ -125,7 +125,7 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in open_or_gzopen(names_db):
+        for line in util.file.open_or_gzopen(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
             name = parts[1].strip()
@@ -590,7 +590,7 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
 
         input_path = maybe_compressed(input_path)
         with util.file.open_or_gzopen(input_path, 'rt') as f, \
-             open_or_gzopen(output_path, 'wt') as out_f:
+             util.file.open_or_gzopen(output_path, 'wt') as out_f:
             if header:
                 out_f.write(f.readline())  # Cannot use next(f) for python2
             for line in f:
