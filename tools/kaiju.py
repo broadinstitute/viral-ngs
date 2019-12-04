@@ -28,7 +28,7 @@ def read_a2t(fn, base_accession=True):
         accession_col = 1
     d = {}
     with open(fn) as f:
-        f.readline()  # Cannot use next(f) in python2
+        next(f)
         for line in f.readlines():
             parts = line.split('\t')
             taxid = int(parts[2])
@@ -167,7 +167,7 @@ class Kaiju(tools.Tool):
     def read_report(self, report_fn):
         report = collections.Counter()
         with open(report_fn) as f:
-            f.readline()  # Cannot use next(f) in python2
+            next(f)
             for line in f:
                 if line.startswith('---'):
                     continue

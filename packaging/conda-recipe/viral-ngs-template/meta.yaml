@@ -39,9 +39,6 @@ requirements:
     {% for item in run_requirements %}
     {{ item }}
     {%- endfor %}
-    {% for item in py2_run_requirements %}
-    {{ item }} # [py2k]
-    {%- endfor %}
     {% for item in py3_run_requirements %}
     {{ item }} # [py3k]
     {%- endfor %}

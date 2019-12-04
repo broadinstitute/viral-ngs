@@ -108,12 +108,7 @@ def pairwise(iterable):
         s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     a, b = itertools.tee(iterable)
     next(b, None)
-    if hasattr(itertools, 'izip'):
-        # Python 2
-        return itertools.izip(a, b)
-    else:
-        # Python 3
-        return zip(a, b)
+    return zip(a, b)
 
 
 def batch_iterator(iterator, batch_size):
@@ -206,12 +201,9 @@ except ImportError:
             if check and returncode != 0:
                 print(output.decode("utf-8"))
                 print(error.decode("utf-8"))
-                try:
-                    raise subprocess.CalledProcessError(
-                        returncode, args, output, error) #pylint: disable-msg=E1121
-                except TypeError: # py2 CalledProcessError does not accept error
-                    raise subprocess.CalledProcessError(
-                        returncode, args, output)
+                raise subprocess.CalledProcessError(
+                    returncode, args, output, error) #pylint: disable-msg=E1121
+
             return CompletedProcess(args, returncode, output, error)
         finally:
             if stdout_pipe:
