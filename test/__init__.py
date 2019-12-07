@@ -10,6 +10,9 @@ import unittest
 import hashlib
 import logging
 import copy
+import math
+import csv
+import itertools
 
 # third-party
 import Bio.SeqIO
@@ -110,6 +113,47 @@ class TestCaseWithTmp(unittest.TestCase):
     def inputs(self, *fnames):
         '''Return the full filenames for files in the test input directory for this test class'''
         return [self.input(fname) for fname in fnames]
+
+    def assertApproxEqualValuesInDelimitedFiles(self, file_one, file_two, dialect="tsv", numeric_rel_tol=1e-5, header_lines_to_skip=0):
+        def _is_number(s):
+            try:
+                complex(s) # for int, long, float and complex
+            except ValueError:
+                return False
+            return True
+
+        csv.register_dialect('tsv', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
+        csv.register_dialect('csv', quoting=csv.QUOTE_MINIMAL, delimiter=",")
+        
+        with util.file.open_or_gzopen(file_one, 'rU') as inf1, util.file.open_or_gzopen(file_two, 'rU') as inf2:
+            report_type=None
+            for line_num, (line1,line2) in enumerate(itertools.zip_longest(inf1,inf2)):
+                self.assertIsNotNone(line1, msg="%s appears to be shorter than %s" % (inf1, inf2))
+                self.assertIsNotNone(line2, msg="%s appears to be shorter than %s" % (inf2, inf1))
+
+                # continue to this next pair of lines until we have 
+                # skipped past the header
+                if line_num < header_lines_to_skip:
+                    continue
+                else:
+                    inf1_row = next(csv.reader([line1.strip().rstrip('\n')], dialect=dialect))
+                    inf2_row = next(csv.reader([line2.strip().rstrip('\n')], dialect=dialect))
+
+                    # assume the rows have the same number of elements
+                    self.assertTrue(len(inf1_row) == len(inf2_row), msg="Files have lines of different length on line %s %s %s" % (line_num, inf1_row, inf2_row))
+
+                    for inf1_row_item, inf2_row_item in zip(inf1_row,inf2_row):
+                        # we assume at the item from the same position is a number 
+                        # or not a number in both files
+                        self.assertTrue(_is_number(inf1_row_item)==_is_number(inf2_row_item))
+                        
+                        # if we're dealing with numbers, check that they're approximately equal
+                        if _is_number(inf1_row_item):
+                            assert float(inf2_row_item) == pytest.approx(float(inf1_row_item), rel=numeric_rel_tol)
+                        else:
+                            # otherwise we're probably dealing with a string
+                            self.assertEqual(inf2_row_item, inf1_row_item)
+
 
     def assertEqualSamHeaders(self, tested_samfile, expected_samfile, other_allowed_values=None):
         '''
