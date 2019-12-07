@@ -30,10 +30,10 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 class TestKrakenUniqSummaryFilter(TestCaseWithTmp):
-    
-    def test_unchanged_report(self):
+
+    def _test_report(self, report_basename):
         test_files_dir = util.file.get_test_input_path(self)
-        in_report = os.path.join(test_files_dir, 'input', 'should_be_unchanged.txt')
+        in_report = os.path.join(test_files_dir, 'input', report_basename)
         out_report = util.file.mkstempfname('.txt')
         
         parser = metagenomics.parser_krakenuniq_report_filter(argparse.ArgumentParser())
@@ -41,12 +41,26 @@ class TestKrakenUniqSummaryFilter(TestCaseWithTmp):
         args.func_main(args)
 
         # Check that results match (roughly) with what is expected
-        expected_out = os.path.join(test_files_dir, 'expected', 'should_be_unchanged.txt')
+        expected_out = os.path.join(test_files_dir, 'expected', report_basename)
         self.assertApproxEqualValuesInDelimitedFiles(out_report, 
                                                      expected_out, 
                                                      dialect="tsv", 
                                                      numeric_rel_tol=1e-3, 
                                                      header_lines_to_skip=3)
+
+    def test_unchanged_report(self):
+        self._test_report("should_be_unchanged.txt")
+    
+    def test_leaves_trimmed(self):
+        self._test_report("should_have_leaves_trimmed.txt")
+
+    #def test_higher_node_trimmed_after_resumming(self):
+    #    self._test_report("should_have_higher_node_trimmed_after_resumming.txt")
+
+    #def test_higher_node_trimmed_at_first_pass(self):
+    #    self._test_report("should_have_higher_node_trimmed_at_first_pass.txt")
+    
+
 
 class TestKronaCalls(TestCaseWithTmp):
 

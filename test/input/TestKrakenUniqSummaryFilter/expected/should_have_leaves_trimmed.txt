@@ -1,0 +1,13 @@
+# KrakenUniq v0.5.7 DATE:2019-11-21T16:03:15Z DB:/tmp/tmp.ohQ3jTMIQh/krakenuniq DB_SIZE:198130386856 WD:/home/dnanexus
+# CL:perl /opt/miniconda/envs/viral-ngs-env/bin/krakenuniq --db /tmp/tmp.ohQ3jTMIQh/krakenuniq --threads 32 --fastq-input --gzip-compressed --preload --report-file E023.l16.dedup.krakenuniq-summary_report.txt --paired --output E023.l16.dedup.krakenuniq-reads.txt.gz /tmp/tmp-metagenomics-krakenuniq-jfekrm6y/tmp0eg_wsp4.1.fastq.gz /tmp/tmp-metagenomics-krakenuniq-jfekrm6y/tmpx686dhd3.2.fastq.gz
+
+%	reads	taxReads	kmers	dup	cov	taxID	rank	taxName
+27.810893206534104	6112	6112	1193206	1.69	NA	0	no rank	unclassified
+72.1891067934659	15865	11368	349850	3	NA	1	no rank	root
+20.46230149701961	4497	0	7949	31.5	NA	10239	superkingdom	  Viruses
+20.46230149701961	4497	0	7930	32	NA	439488	no rank	    ssRNA viruses
+20.46230149701961	4497	0	7930	32	NA	35301	no rank	      ssRNA negative-strand viruses
+20.46230149701961	4497	0	7930	32	NA	11157	order	        Mononegavirales
+20.46230149701961	4497	0	7930	32	NA	11266	family	          Filoviridae
+20.46230149701961	4497	0	7930	32	NA	186536	genus	            Ebolavirus
+20.46230149701961	4497	4497	7916	32	NA	186538	species	              Zaire ebolavirus
