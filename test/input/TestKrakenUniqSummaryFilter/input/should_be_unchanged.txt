@@ -1,0 +1,37 @@
+# KrakenUniq v0.5.7 DATE:2019-11-21T16:03:15Z DB:/tmp/tmp.ohQ3jTMIQh/krakenuniq DB_SIZE:198130386856 WD:/home/dnanexus
+# CL:perl /opt/miniconda/envs/viral-ngs-env/bin/krakenuniq --db /tmp/tmp.ohQ3jTMIQh/krakenuniq --threads 32 --fastq-input --gzip-compressed --preload --report-file E023.l16.dedup.krakenuniq-summary_report.txt --paired --output E023.l16.dedup.krakenuniq-reads.txt.gz /tmp/tmp-metagenomics-krakenuniq-jfekrm6y/tmp0eg_wsp4.1.fastq.gz /tmp/tmp-metagenomics-krakenuniq-jfekrm6y/tmpx686dhd3.2.fastq.gz
+
+%	reads	taxReads	kmers	dup	cov	taxID	rank	taxName
+8.134	1788	1788	1193206	1.69	NA	0	no rank	unclassified
+91.87	20195	4	356763	3	NA	1	no rank	root
+71.38	15692	709	346092	2.29	NA	131567	no rank	  cellular organisms
+31.42	6906	0	153473	1.68	NA	2759	superkingdom	    Eukaryota
+31.42	6906	0	153473	1.68	NA	33154	no rank	      Opisthokonta
+31.42	6906	0	153473	1.68	NA	33208	kingdom	        Metazoa
+31.42	6906	0	153473	1.68	NA	6072	no rank	          Eumetazoa
+31.42	6906	0	153473	1.68	NA	33213	no rank	            Bilateria
+31.42	6906	0	153473	1.68	NA	33511	no rank	              Deuterostomia
+31.42	6906	0	153473	1.68	NA	7711	phylum	                Chordata
+31.42	6906	0	153473	1.68	NA	89593	subphylum	                  Craniata
+31.42	6906	0	153473	1.68	NA	7742	no rank	                    Vertebrata
+31.42	6906	0	153473	1.68	NA	7776	no rank	                      Gnathostomata
+31.42	6906	0	153473	1.68	NA	117570	no rank	                        Teleostomi
+31.42	6906	0	153473	1.68	NA	117571	no rank	                          Euteleostomi
+31.42	6906	0	153473	1.68	NA	8287	superclass	                            Sarcopterygii
+31.42	6906	0	153473	1.68	NA	1338369	no rank	                              Dipnotetrapodomorpha
+31.42	6906	0	153473	1.68	NA	32523	no rank	                                Tetrapoda
+31.42	6906	0	153473	1.68	NA	32524	no rank	                                  Amniota
+31.42	6906	0	153473	1.68	NA	40674	class	                                    Mammalia
+31.42	6906	0	153473	1.68	NA	32525	no rank	                                      Theria
+31.42	6906	0	153473	1.68	NA	9347	no rank	                                        Eutheria
+31.42	6906	0	153473	1.68	NA	1437010	no rank	                                          Boreoeutheria
+31.42	6906	0	153473	1.68	NA	314146	superorder	                                            Euarchontoglires
+31.42	6906	0	153473	1.68	NA	9443	order	                                              Primates
+31.42	6906	0	153473	1.68	NA	376913	suborder	                                                Haplorrhini
+31.42	6906	0	153473	1.68	NA	314293	infraorder	                                                  Simiiformes
+31.42	6906	0	153473	1.68	NA	9526	parvorder	                                                    Catarrhini
+31.42	6906	0	153473	1.68	NA	314295	superfamily	                                                      Hominoidea
+31.42	6906	0	153473	1.68	NA	9604	family	                                                        Hominidae
+31.42	6906	0	153473	1.68	NA	207598	subfamily	                                                          Homininae
+31.42	6906	0	153473	1.68	NA	9605	genus	                                                            Homo
+31.42	6906	6906	153473	1.68	NA	9606	species	                                                              Homo sapiens
