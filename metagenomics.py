@@ -1134,7 +1134,7 @@ def krakenuniq_report_filter(summary_file_in, summary_file_out, field_to_filter,
         def __str__(self):
             # pad the name with the original prefix spacing
             # when rendering as a string
-            sci_name = "  "*self.level+self.data["sci_name"]
+            sci_name = " "*self.level+self.data["sci_name"]
             return "\t".join([str(value) for key,value in self.data.items() if key!="sci_name"]+[sci_name])
 
         def __repr__(self):
