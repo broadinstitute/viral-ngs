@@ -50,6 +50,16 @@ def unique(items):
             seen.add(i)
             yield i
 
+def is_number(s):
+    """
+        If the string can be parsed as an
+        int, long, float or complex number, return True
+    """
+    try:
+        complex(s)
+    except ValueError:
+        return False
+    return True
 
 def histogram(items):
     ''' I count the number of times I see stuff and return a dict of counts. '''
@@ -613,6 +623,13 @@ def as_type(val, types):
             errs.append(e)
             pass
     raise TypeError('Could not convert {} to any of {}: {}'.format(val, types, errs))
+
+def zip_dicts(*dicts):
+    keys_sets = map(set, dicts)
+    common_keys = functools.reduce(set.intersection, keys_sets)
+    for key in common_keys:
+        #yield (key,) + tuple(map(operator.itemgetter(key), dicts))
+        yield key, tuple(map(operator.itemgetter(key), dicts))
 
 def subdict(d, keys):
     """Return a newly allocated shallow copy of a mapping `d` restricted to keys in `keys`."""

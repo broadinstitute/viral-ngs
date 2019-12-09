@@ -21,7 +21,7 @@ import pysam
 
 # intra-project
 import util.file
-from util.misc import available_cpu_count
+from util.misc import available_cpu_count, zip_dicts, is_number
 from tools.samtools import SamtoolsTool
 
 logging.getLogger('botocore').setLevel(logging.WARNING)
@@ -114,13 +114,19 @@ class TestCaseWithTmp(unittest.TestCase):
         '''Return the full filenames for files in the test input directory for this test class'''
         return [self.input(fname) for fname in fnames]
 
-    def assertApproxEqualValuesInDelimitedFiles(self, file_one, file_two, dialect="tsv", numeric_rel_tol=1e-5, header_lines_to_skip=0):
-        def _is_number(s):
-            try:
-                complex(s) # for int, long, float and complex
-            except ValueError:
-                return False
-            return True
+    def assertApproxEqualValuesInDelimitedFiles(self, file_one, file_two, dialect="tsv", numeric_rel_tol=1e-5, header_lines_to_skip=0, use_first_processed_line_for_fieldnames=False):
+        '''
+            This test checks whether two delimited (tsv, csv, or custom dialect) files
+            are approximately the same, by comparing the values present at each line
+            with a configurable tolerance for comparison of numeric values, and exact
+            comparison of string values. A specified number of header lines can be skipped 
+            before the comparison begins to account for lines written by some tools with
+            for metadata, invokation params, etc.
+            If use_first_processed_line_for_fieldnames is specified, the columns can be
+            in any order since the rows are parsed as dicts, otherwise the columns are
+            assumed to be in the same order in both of the files.
+        '''
+        header_fieldnames=None
 
         csv.register_dialect('tsv', quoting=csv.QUOTE_MINIMAL, delimiter="\t")
         csv.register_dialect('csv', quoting=csv.QUOTE_MINIMAL, delimiter=",")
@@ -136,19 +142,39 @@ class TestCaseWithTmp(unittest.TestCase):
                 if line_num < header_lines_to_skip:
                     continue
                 else:
-                    inf1_row = next(csv.reader([line1.strip().rstrip('\n')], dialect=dialect))
-                    inf2_row = next(csv.reader([line2.strip().rstrip('\n')], dialect=dialect))
+                    if header_fieldnames is None and use_first_processed_line_for_fieldnames:
+                        inf1_row = next(csv.reader([line1.strip().rstrip('\n')], dialect=dialect))
+                        inf2_row = next(csv.reader([line1.strip().rstrip('\n')], dialect=dialect))
+                        self.assertEqual(inf1_row,inf2_row, msg="header lines are not the same")
+                        header_fieldnames=inf1_row
+                        continue
+
+                    # if the header names are defined
+                    if header_fieldnames is not None:
+                        inf1_row = next(csv.DictReader([line1.strip().rstrip('\n')], dialect=dialect, fieldnames=header_fieldnames))
+                        inf2_row = next(csv.DictReader([line2.strip().rstrip('\n')], dialect=dialect, fieldnames=header_fieldnames))
+                    else:
+                        inf1_row = next(csv.reader([line1.strip().rstrip('\n')], dialect=dialect))
+                        inf2_row = next(csv.reader([line2.strip().rstrip('\n')], dialect=dialect))
 
                     # assume the rows have the same number of elements
                     self.assertTrue(len(inf1_row) == len(inf2_row), msg="Files have lines of different length on line %s %s %s" % (line_num, inf1_row, inf2_row))
 
-                    for inf1_row_item, inf2_row_item in zip(inf1_row,inf2_row):
+                    if header_fieldnames is not None:
+                        def _dict_values_only(dict1_in, dict2_in):
+                            for key, values in zip_dicts(dict1_in,dict2_in):
+                                yield values
+                        items_to_compare=_dict_values_only(inf1_row,inf2_row)
+                    else:
+                        items_to_compare=zip(inf1_row,inf2_row)
+
+                    for inf1_row_item, inf2_row_item in items_to_compare:
                         # we assume at the item from the same position is a number 
                         # or not a number in both files
-                        self.assertTrue(_is_number(inf1_row_item)==_is_number(inf2_row_item))
+                        self.assertTrue(is_number(inf1_row_item)==is_number(inf2_row_item))
                         
                         # if we're dealing with numbers, check that they're approximately equal
-                        if _is_number(inf1_row_item):
+                        if is_number(inf1_row_item):
                             assert float(inf2_row_item) == pytest.approx(float(inf1_row_item), rel=numeric_rel_tol)
                         else:
                             # otherwise we're probably dealing with a string

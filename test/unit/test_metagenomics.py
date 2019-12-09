@@ -46,7 +46,8 @@ class TestKrakenUniqSummaryFilter(TestCaseWithTmp):
                                                      expected_out, 
                                                      dialect="tsv", 
                                                      numeric_rel_tol=1e-3, 
-                                                     header_lines_to_skip=3)
+                                                     header_lines_to_skip=3,
+                                                     use_first_processed_line_for_fieldnames=True)
 
     def test_unchanged_report(self):
         self._test_report("should_be_unchanged.txt")
