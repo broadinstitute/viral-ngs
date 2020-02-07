@@ -15,6 +15,7 @@ import util.misc
 import logging
 import os
 import os.path
+import re
 import subprocess
 import tempfile
 
@@ -76,6 +77,9 @@ class GATKTool(tools.Tool):
             self._get_tool_version()
         return self.tool_version
 
+    def version_tuple(self):
+        return tuple(map(int, re.match('(\d+)\.(\d+)', self.version()).groups()))
+
     def _get_tool_version(self):
         if self.install_and_get_path().endswith(".jar"):
             cmd = [
@@ -105,7 +109,7 @@ class GATKTool(tools.Tool):
             '--num_threads', threads,
             '-A', 'AlleleBalance',
         ]
-        if TOOL_VERSION_TUPLE < (3, 7):
+        if self.version_tuple() < (3, 7):
             opts += ['-stand_call_conf', 0, '-stand_emit_conf', 0]  # deprecated in 3.7+
 
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)
