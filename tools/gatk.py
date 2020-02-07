@@ -78,7 +78,9 @@ class GATKTool(tools.Tool):
         return self.tool_version
 
     def version_tuple(self):
-        return tuple(map(int, re.match('(\d+)\.(\d+)', self.version()).groups()))
+        version_match = re.match('(\d+)\.(\d+)', self.version())
+        util.misc.chk(version_match, 'Cannot parse GATK version: {}'.format(self.version()))
+        return tuple(map(int, version_match.groups()))
 
     def _get_tool_version(self):
         if self.install_and_get_path().endswith(".jar"):
