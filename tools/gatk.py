@@ -78,7 +78,7 @@ class GATKTool(tools.Tool):
         return self.tool_version
 
     def version_tuple(self):
-        version_match = re.match('(\d+)\.(\d+)', self.version())
+        version_match = re.match(r'(\d+)\.(\d+)', self.version())
         util.misc.chk(version_match, 'Cannot parse GATK version: {}'.format(self.version()))
         return tuple(map(int, version_match.groups()))
 
