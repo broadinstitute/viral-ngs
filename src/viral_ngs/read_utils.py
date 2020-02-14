@@ -187,7 +187,20 @@ def parser_revert_sam_common(parser=argparse.ArgumentParser()):
     parser.add_argument("--tagsToClear", type=str, nargs='+', dest="tags_to_clear", default=["XT", "X0", "X1", "XA", 
                         "AM", "SM", "BQ", "CT", "XN", "OC", "OP"], 
                         help='A space-separated list of tags to remove from all reads in the input bam file (default: %(default)s)')
-    parser.add_argument('--doNotSanitize', dest="do_not_sanitize", action='store_true')
+    parser.add_argument(
+        '--doNotSanitize',
+        dest="do_not_sanitize",
+        action='store_true',
+        help="""When being reverted, picard's SANITIZE=true
+                is set unless --doNotSanitize is given. 
+                Sanitization is a destructive operation that removes reads so the bam file is consistent.
+                From the picard documentation:
+                    'Reads discarded include (but are not limited to) paired reads with missing mates, duplicated records, 
+                    records with mismatches in length of bases and qualities.'
+                For more information see:
+                    https://broadinstitute.github.io/picard/command-line-overview.html#RevertSam
+                """
+    )
     try:
         parser.add_argument(
             '--JVMmemory',
@@ -219,7 +232,7 @@ def parser_revert_bam_picard(parser=argparse.ArgumentParser()):
     return parser
 
 
-def main_revert_bam_picard(inBam, outBam, clear_tags=False, tags_to_clear=None, picardOptions=None, JVMmemory=None):
+def main_revert_bam_picard(inBam, outBam, clear_tags=False, tags_to_clear=None, picardOptions=None, do_not_sanitize=False, JVMmemory=None):
     '''Revert BAM to raw reads'''
     picardOptions = picardOptions or []
     tags_to_clear = tags_to_clear or []
@@ -227,6 +240,9 @@ def main_revert_bam_picard(inBam, outBam, clear_tags=False, tags_to_clear=None, 
     if clear_tags:
         for tag in tags_to_clear:
             picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
+            
+            if not do_not_sanitize and not any(opt.startswith("SANITIZE") for opt in picardOptions):
+                picardOptions.append('SANITIZE=true')
 
     tools.picard.RevertSamTool().execute(inBam, outBam, picardOptions=picardOptions, JVMmemory=JVMmemory)
     return 0
