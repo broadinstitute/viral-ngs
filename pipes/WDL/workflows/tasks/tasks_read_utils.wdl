@@ -40,7 +40,7 @@ task downsample_bams {
 task fastq_to_bam {
   File  in_fastq1
   File  in_fastq2
-  #File? header
+  File? header
 
   # also used for outfile name
   String? sample_name = basename(basename(basename(basename(basename(basename(in_fastq1, ".1.fastq"),".1.fq"),".fastq"),".fq"),".fq1"),".fastq1")
@@ -51,7 +51,7 @@ task fastq_to_bam {
         ${in_fastq2} \
         ${sample_name}.bam \
         ${'--sampleName=' + sample_name} \
-        #${'--header ' + header} \
+        ${'--header ' + header} \
         --JVMmemory "1g"
   }
 
