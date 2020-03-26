@@ -138,7 +138,7 @@ def main_illumina_demux(args):
         tools.picard.CheckIlluminaDirectoryTool().execute(
             illumina.get_BCLdir(),
             args.lane,
-            runinfo.get_read_structure(),
+            read_structure,
             link_locs=link_locs
         )
     except subprocess.CalledProcessError as e:
@@ -159,9 +159,11 @@ def main_illumina_demux(args):
             tools.picard.CheckIlluminaDirectoryTool().execute(
                 illumina.get_BCLdir(),
                 args.lane,
-                runinfo.get_read_structure(),
+                read_structure,
                 link_locs=link_locs
             )
+        else:
+            log.error("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
 
     multiplexed_samples = True if 'B' in read_structure else False            
     
