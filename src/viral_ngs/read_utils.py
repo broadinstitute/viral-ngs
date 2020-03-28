@@ -856,6 +856,10 @@ def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
                         idVal = line.rstrip('\n')[1:]
                         if idVal.endswith('/1'):
                             outf.write(idVal[:-2] + '\n')
+                        # single-end reads do not have /1 /2 mate suffix
+                        # so pass through their IDs
+                        if not (idVal.endswith('/1') or idVal.endswith('/2')):
+                            outf.write(idVal + '\n')
                     line_num += 1
     os.unlink(outFastq1)
     os.unlink(outFastq2)
