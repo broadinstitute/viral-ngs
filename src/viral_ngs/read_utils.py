@@ -1212,6 +1212,7 @@ def align_and_fix(
     outBamFiltered=None,
     aligner_options='',
     aligner="novoalign",
+    bwa_min_score=None,
     JVMmemory=None,
     threads=None,
     skip_mark_dupes=False,
@@ -1256,7 +1257,7 @@ def align_and_fix(
 
         opts = aligner_options.split()
 
-        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, options=opts)
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
 
     if skip_mark_dupes:
         bam_marked = bam_aligned
@@ -1302,6 +1303,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
+    parser.add_argument('--bwa_min_score', type=int, default=None, help='BWA mem on paired reads ignores the -T parameter. Set a value here (e.g. 30) to invoke a custom post-alignment filter (default: no filtration)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     parser.add_argument('--skipMarkDupes',
