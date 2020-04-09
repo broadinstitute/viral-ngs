@@ -1029,7 +1029,8 @@ __commands__.append(('align_and_plot_coverage', parser_align_and_plot_coverage))
 
 def parser_fastqc(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outHtml', help='Output report, HTML format.')
+    parser.add_argument('out_html',  help='Output report, HTML format.')
+    parser.add_argument('--out_zip', help='Output data, zip archive.')
     util.cmd.attach_main(parser, tools.fastqc.FastQC().execute, split_args=True)
     return parser
 __commands__.append(('fastqc', parser_fastqc))
