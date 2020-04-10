@@ -1087,47 +1087,6 @@ def main_filter_short_seqs(args):
 __commands__.append(('filter_short_seqs', parser_filter_short_seqs))
 
 
-def parser_rename_fasta_sequences(parser=argparse.ArgumentParser()):
-    parser.add_argument("in_fasta", help="input fasta sequences")
-    parser.add_argument("out_fasta", help="output (renamed) fasta sequences")
-    parser.add_argument("new_name", help="new sequence base name")
-    parser.add_argument(
-        "--suffix_always",
-        help="append numeric index '-1' to <new_name> if only one sequence exists in <input> (default: %(default)s)",
-        default=False,
-        action="store_true",
-        dest="suffix_always"
-    )
-
-    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_rename_fasta_sequences)
-    return parser
-def main_rename_fasta_sequences(args):
-    ''' Renames the sequences in a fasta file. Behavior modes:
-        1. If input file has exactly one sequence and suffix_always is False,
-            then the output file's sequence is named new_name.
-        2. In all other cases,
-            the output file's sequences are named <new_name>-<i> where <i> is an increasing number from 1..<# of sequences>
-    '''
-    n_seqs = util.file.fasta_length(args.in_fasta)
-    with open(args.in_fasta, 'rt') as inf:
-      with open(args.out_fasta, 'wt') as outf:
-        if (n_seqs == 1) and not args.suffix_always:
-          inf.readline()
-          outf.write('>' + args.new_name + '\n')
-          for line in inf:
-            outf.write(line)
-        else:
-          i = 1
-          for line in inf:
-            if line.startswith('>'):
-              line = args.new_name + '-' + str(i) + '\n'
-            outf.write(line)
-
-    return 0
-__commands__.append(('rename_fasta_sequences', parser_rename_fasta_sequences))
-
-
 def parser_modify_contig(parser=argparse.ArgumentParser()):
     parser.add_argument("input", help="input alignment of reference and contig (should contain exactly 2 sequences)")
     parser.add_argument("output", help="Destination file for modified contigs")
