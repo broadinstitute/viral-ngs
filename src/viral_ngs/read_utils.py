@@ -1213,6 +1213,8 @@ def align_and_fix(
     aligner_options='',
     aligner="novoalign",
     bwa_min_score=None,
+    novoalign_amplicons_bed=None,
+    amplicon_window=4,
     JVMmemory=None,
     threads=None,
     skip_mark_dupes=False,
@@ -1243,6 +1245,8 @@ def align_and_fix(
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
+        if novoalign_amplicons_bed is not None:
+            aligner_options += ' --amplicons {} {}'.format(novoalign_amplicons_bed, amplicon_window)
 
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(refFastaCopy)
 
@@ -1304,6 +1308,8 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
     parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--bwa_min_score', type=int, default=None, help='BWA mem on paired reads ignores the -T parameter. Set a value here (e.g. 30) to invoke a custom post-alignment filter (default: no filtration)')
+    parser.add_argument('--novoalign_amplicons_bed', default=None, help='Novoalign only: amplicon primer file (BED format) to soft clip')
+    parser.add_argument('--amplicon_window', type=int, default=4, help='Novoalign only: amplicon primer window size (default: %(default)s)')
     parser.add_argument('--JVMmemory', default='4g', help='JVM virtual memory size (default: %(default)s)')
     parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
     parser.add_argument('--skipMarkDupes',
