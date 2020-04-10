@@ -19,7 +19,7 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '2.21.1'
+TOOL_VERSION = '2.22.2'
 TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
     + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
 # Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
