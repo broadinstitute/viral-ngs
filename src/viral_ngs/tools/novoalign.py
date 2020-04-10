@@ -150,7 +150,6 @@ class NovoalignTool(tools.Tool):
         if rgid not in rgs:
             raise InvalidBamHeaderError("{} has read groups, but not {}".format(inBam, rgid))
         #rg = rgs[rgid]
-        _log.info("novoalign on {} ({}B), read group {}".format(inBam, os.path.getsize(inBam), rgid))
 
         # Strip inBam to just one RG (if necessary)
         if len(rgs) == 1:
@@ -178,6 +177,7 @@ class NovoalignTool(tools.Tool):
             os.unlink(headerFile)
 
         # Novoalign
+        _log.info("novoalign on {} ({}B), read group {}".format(one_rg_inBam, os.path.getsize(one_rg_inBam), rgid))
         tmp_sam = util.file.mkstempfname('.novoalign.sam')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
         cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
