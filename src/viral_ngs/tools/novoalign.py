@@ -23,7 +23,7 @@ import sys
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
-TOOL_VERSION = "3.07.00"
+TOOL_VERSION = "4.02.02"
 
 
 class NovoalignTool(tools.Tool):
@@ -177,10 +177,9 @@ class NovoalignTool(tools.Tool):
             os.unlink(headerFile)
 
         # Novoalign
-        tmp_sam = util.file.mkstempfname('.novoalign.sam')
-        tmp_sam_err = util.file.mkstempfname('.novoalign.sam.err')
+        tmp_sam = util.file.mkstempfname('.novoalign.bam')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
-        cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
+        cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'BAM', '1']
         _log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
             util.misc.run_and_save(cmd, outf=outf)
