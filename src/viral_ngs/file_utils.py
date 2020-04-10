@@ -89,7 +89,8 @@ def main_rename_fasta_sequences(args):
           i = 1
           for line in inf:
             if line.startswith('>'):
-              line = args.new_name + '-' + str(i) + '\n'
+              line = ">{}-{}\n".format(args.new_name, i)
+              i += 1
             outf.write(line)
 
     return 0
