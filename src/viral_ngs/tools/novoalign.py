@@ -23,7 +23,7 @@ import sys
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
-TOOL_VERSION = "4.02.02"
+TOOL_VERSION = "3.09.04"
 
 
 class NovoalignTool(tools.Tool):
@@ -150,6 +150,7 @@ class NovoalignTool(tools.Tool):
         if rgid not in rgs:
             raise InvalidBamHeaderError("{} has read groups, but not {}".format(inBam, rgid))
         #rg = rgs[rgid]
+        _log.info("novoalign on {} ({}B), read group {}".format(inBam, os.path.getsize(inBam), rgid))
 
         # Strip inBam to just one RG (if necessary)
         if len(rgs) == 1:
@@ -177,9 +178,9 @@ class NovoalignTool(tools.Tool):
             os.unlink(headerFile)
 
         # Novoalign
-        tmp_sam = util.file.mkstempfname('.novoalign.bam')
+        tmp_sam = util.file.mkstempfname('.novoalign.sam')
         cmd = [self.install_and_get_path(), '-f', one_rg_inBam] + list(map(str, options))
-        cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'BAM', '1']
+        cmd = cmd + ['-F', 'BAM', '-d', self._fasta_to_idx_name(refFasta), '-o', 'SAM']
         _log.debug(' '.join(cmd))
         with open(tmp_sam, 'wt') as outf:
             util.misc.run_and_save(cmd, outf=outf)
@@ -187,10 +188,7 @@ class NovoalignTool(tools.Tool):
         # Samtools filter (optional)
         if min_qual:
             tmp_bam2 = util.file.mkstempfname('.filtered.bam')
-            cmd = [samtools.install_and_get_path(), 'view', '-b', '-S', '-1', '-q', str(min_qual), tmp_sam]
-            _log.debug('%s > %s', ' '.join(cmd), tmp_bam2)
-            with open(tmp_bam2, 'wb') as outf:
-                util.misc.run_and_save(cmd, outf=outf)
+            samtools.view(['-b', '-S', '-1', '-q', str(min_qual)], tmp_sam, tmp_bam2)
             os.unlink(tmp_sam)
             tmp_sam = tmp_bam2
 
