@@ -413,7 +413,7 @@ def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads):
     """ run blastn on the input fasta file. this is intended to be run in parallel
         by blastn_chunked_fasta
     """
-    with util.file.open_or_gzopen(out_hits, 'wt') as outf:
+    with util.file.compressed_open(out_hits, 'wt') as outf:
         for read_id in tools.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads):
             outf.write(read_id + '\n')
 

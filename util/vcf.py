@@ -127,7 +127,7 @@ def get_chrlens(inFile):
                         c_len = int(row[2][3:])
                         chrlens.append((c, c_len))
         elif inFile.endswith('.vcf') or inFile.endswith('.vcf.gz'):
-            with util.file.open_or_gzopen(inFile, 'rt') as inf:
+            with util.file.compressed_open(inFile, 'rt') as inf:
                 for line in inf:
                     line = line.rstrip('\n')
                     if line.startswith('##contig=<ID=') and line.endswith('>'):
