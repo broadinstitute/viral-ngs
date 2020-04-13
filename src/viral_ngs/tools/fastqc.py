@@ -29,7 +29,9 @@ class FastQC(tools.Tool):
     def version(self):
         return TOOL_VERSION
 
-    def execute(self, inBam, out_html, out_zip=None):    # pylint: disable=W0221
+    def execute(self, inBam, out_html, out_zip=None, threads=None):    # pylint: disable=W0221
+        threads = threads or util.misc.sanitize_thread_count()
+
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # fastqc can't deal with empty input
             with open(out_html, 'wt') as outf:
@@ -40,8 +42,10 @@ class FastQC(tools.Tool):
         else:
             # run fastqc
             with util.file.tmp_dir() as out_dir:
+
+                # fastqc sets java "-Xmx" (max java heap size) to 250mb/thread
                 tool_cmd = [self.install_and_get_path(),
-                    '-t', str(util.misc.sanitize_thread_count()),
+                    '-t', str(threads),
                     '-o', out_dir,
                     inBam]
                 log.debug(' '.join(tool_cmd))
