@@ -30,7 +30,7 @@ class FastQC(tools.Tool):
         return TOOL_VERSION
 
     def execute(self, inBam, out_html, out_zip=None, threads=None):    # pylint: disable=W0221
-        threads =  util.misc.sanitize_thread_count(threads)
+        threads =  util.misc.sanitize_thread_count(threads=threads)
 
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
             # fastqc can't deal with empty input
