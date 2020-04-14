@@ -1031,7 +1031,7 @@ def parser_fastqc(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('out_html',  help='Output report, HTML format.')
     parser.add_argument('--out_zip', help='Output data, zip archive.')
-    parser.add_argument('--threads', help='Output data, zip archive.')
+    parser.add_argument('--threads', type=int, help='Number of threads.')
     util.cmd.attach_main(parser, tools.fastqc.FastQC().execute, split_args=True)
     return parser
 __commands__.append(('fastqc', parser_fastqc))
