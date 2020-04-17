@@ -793,8 +793,8 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
 
     krona_tool = classify.krona.Krona()
 
+    root_name = os.path.basename(inReport)
     if inputType == 'tsv':
-        root_name = os.path.basename(inReport)
         if inReport.endswith('.gz'):
             tmp_tsv = util.file.mkstempfname('.tsv')
             with gzip.open(inReport, 'rb') as f_in:
@@ -806,7 +806,7 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
 
         krona_tool.import_taxonomy(
             db,
-            to_import,
+            list(','.join(fn, root_name) for fn in to_import),
             outHtml,
             query_column=queryColumn,
             taxid_column=taxidColumn,
@@ -825,15 +825,25 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
     elif inputType == 'krakenuniq':
         krakenuniq = classify.kraken.KrakenUniq()
         report = krakenuniq.read_report(inReport)
+        taxidColumn=1
+        magnitudeColumn=2
+        scoreColumn=3
         with util.file.tempfname() as fn:
             with open(fn, 'w') as to_import:
                 for taxid, (tax_reads, tax_kmers) in report.items():
                     print('{}\t{}\t{}'.format(taxid, tax_reads, tax_kmers), file=to_import)
+            to_import = [fn]
             krona_tool.import_taxonomy(
-                db, [fn], outHtml,
-                taxid_column=1, magnitude_column=2,
-                score_column=3,
-                no_hits=True, no_rank=True
+                db,
+                list(','.join(fn, root_name) for fn in to_import),
+                outHtml,
+                query_column=queryColumn,
+                taxid_column=taxidColumn,
+                score_column=scoreColumn,
+                magnitude_column=magnitudeColumn,
+                root_name=root_name,
+                no_hits=noHits,
+                no_rank=noRank
             )
         # Rename "Avg. score" to "Est. genome coverage"
         html_lines = util.file.slurp_file(outHtml).split('\n')
@@ -848,15 +858,24 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
     elif inputType == 'kaiju':
         kaiju = classify.kaiju.Kaiju()
         report = kaiju.read_report(inReport)
+        taxidColumn=1
+        magnitudeColumn=2
         with util.file.tempfname() as fn:
-            print(fn)
             with open(fn, 'w') as to_import:
                 for taxid, reads in report.items():
                     print('{}\t{}'.format(taxid, reads), file=to_import)
+            to_import = [fn]
             krona_tool.import_taxonomy(
-                db, [fn], outHtml,
-                taxid_column=1, magnitude_column=2,
-                no_hits=True, no_rank=True
+                db,
+                list(','.join(fn, root_name) for fn in to_import),
+                outHtml,
+                query_column=queryColumn,
+                taxid_column=taxidColumn,
+                score_column=scoreColumn,
+                magnitude_column=magnitudeColumn,
+                root_name=root_name,
+                no_hits=noHits,
+                no_rank=noRank
             )
             return
     else:
