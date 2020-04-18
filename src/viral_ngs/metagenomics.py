@@ -792,75 +792,70 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
     '''
 
     krona_tool = classify.krona.Krona()
+    root_name = os.path.basename(inReport)
 
-    if inputType == 'tsv':
-        root_name = os.path.basename(inReport)
-        if inReport.endswith('.gz'):
-            tmp_tsv = util.file.mkstempfname('.tsv')
-            with gzip.open(inReport, 'rb') as f_in:
-                with open(tmp_tsv, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-                    to_import = [tmp_tsv]
-        else:
-            to_import = [inReport]
+    with util.file.tempfname() as tmp_tsv:
+        with open(tmp_tsv, 'w') as f_out:
 
-        krona_tool.import_taxonomy(
-            db,
-            to_import,
-            outHtml,
-            query_column=queryColumn,
-            taxid_column=taxidColumn,
-            score_column=scoreColumn,
-            magnitude_column=magnitudeColumn,
-            root_name=root_name,
-            no_hits=noHits,
-            no_rank=noRank
-        )
+            if inputType == 'tsv':
+                if inReport.endswith('.gz'):
+                    tmp_tsv = util.file.mkstempfname('.tsv')
+                    with gzip.open(inReport, 'rb') as f_in:
+                        shutil.copyfileobj(f_in, f_out)
+                        to_import = [tmp_tsv]
+                else:
+                    to_import = [inReport]
 
-        if inReport.endswith('.gz'):
-            # Cleanup tmp .tsv files
-            for tmp_tsv in to_import:
-                os.unlink(tmp_tsv)
-
-    elif inputType == 'krakenuniq':
-        krakenuniq = classify.kraken.KrakenUniq()
-        report = krakenuniq.read_report(inReport)
-        with util.file.tempfname() as fn:
-            with open(fn, 'w') as to_import:
+            elif inputType == 'krakenuniq':
+                queryColumn=None
+                taxidColumn=1
+                scoreColumn=3
+                magnitudeColumn=2
+                report = classify.kraken.KrakenUniq().read_report(inReport)
                 for taxid, (tax_reads, tax_kmers) in report.items():
-                    print('{}\t{}\t{}'.format(taxid, tax_reads, tax_kmers), file=to_import)
+                    f_out.write('{}\t{}\t{}\n'.format(taxid, tax_reads, tax_kmers))
+                to_import = [tmp_tsv]
+
+            elif inputType == 'kaiju':
+                queryColumn=None
+                taxidColumn=1
+                scoreColumn=None
+                magnitudeColumn=2
+                report = classify.kaiju.Kaiju().read_report(inReport)
+                for taxid, reads in report.items():
+                    f_out.write('{}\t{}\n'.format(taxid, reads))
+                to_import = [tmp_tsv]
+
+            else:
+                raise NotImplementedError
+
+            # run krona
             krona_tool.import_taxonomy(
-                db, [fn], outHtml,
-                taxid_column=1, magnitude_column=2,
-                score_column=3,
-                no_hits=True, no_rank=True
+                db,
+                list(','.join((fn, root_name)) for fn in to_import),
+                outHtml,
+                query_column=queryColumn,
+                taxid_column=taxidColumn,
+                score_column=scoreColumn,
+                magnitude_column=magnitudeColumn,
+                root_name=root_name,
+                no_hits=noHits,
+                no_rank=noRank
             )
-        # Rename "Avg. score" to "Est. genome coverage"
-        html_lines = util.file.slurp_file(outHtml).split('\n')
-        with util.file.tempfname() as fn:
-            with open(fn, 'w') as new_report:
+
+        os.unlink(tmp_tsv)
+
+        if inputType == 'krakenuniq':
+            # Rename "Avg. score" to "Est. genome coverage"
+            html_lines = util.file.slurp_file(outHtml).split('\n')
+            with open(tmp_tsv, 'w') as new_report:
                 for line in html_lines:
                     if '<attribute display="Avg. score">score</attribute>' in line:
                         line = line.replace('Avg. score', 'Est. unique kmers')
                     print(line, file=new_report)
-            shutil.copyfile(fn, outHtml)
-        return
-    elif inputType == 'kaiju':
-        kaiju = classify.kaiju.Kaiju()
-        report = kaiju.read_report(inReport)
-        with util.file.tempfname() as fn:
-            print(fn)
-            with open(fn, 'w') as to_import:
-                for taxid, reads in report.items():
-                    print('{}\t{}'.format(taxid, reads), file=to_import)
-            krona_tool.import_taxonomy(
-                db, [fn], outHtml,
-                taxid_column=1, magnitude_column=2,
-                no_hits=True, no_rank=True
-            )
-            return
-    else:
-        raise NotImplementedError
+            shutil.copyfile(tmp_tsv, outHtml)
+            os.unlink(tmp_tsv)
+
 __commands__.append(('krona', parser_krona))
 
 
@@ -984,7 +979,7 @@ def fasta_library_accessions(library):
             for seqr in SeqIO.parse(filepath, 'fasta'):
                 name = seqr.name
                 # Search for accession
-                mo = re.search('([A-Z]+_?\d+\.\d+)', name)
+                mo = re.search(r'([A-Z]+_?\d+\.\d+)', name)
                 if mo:
                     accession = mo.group(1)
                     library_accessions.add(accession)
