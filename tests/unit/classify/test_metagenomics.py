@@ -51,7 +51,7 @@ class TestKronaCalls(TestCaseWithTmp):
                            noHits=True, noRank=True, inputType='tsv')
         self.mock_krona().import_taxonomy.assert_called_once_with(
             self.db, [self.inTsv + ',' + os.path.basename(self.inTsv)], out_html, query_column=3, taxid_column=5, score_column=7,
-            no_hits=True, no_rank=True, magnitude_column=None, root_name=None)
+            no_hits=True, no_rank=True, magnitude_column=None)
 
 
 @pytest.fixture
