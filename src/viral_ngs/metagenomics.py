@@ -775,6 +775,7 @@ def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inReport', help='Input report file (default: tsv)')
     parser.add_argument('db', help='Krona taxonomy database directory.')
     parser.add_argument('outHtml', help='Output html report.')
+    parser.add_argument('--sample_name', help='Title of dataset (default basename(inReport))', default=None)
     parser.add_argument('--queryColumn', help='Column of query id. (default %(default)s)', type=int, default=2)
     parser.add_argument('--taxidColumn', help='Column of taxonomy id. (default %(default)s)', type=int, default=3)
     parser.add_argument('--scoreColumn', help='Column of score. (default %(default)s)', type=int, default=None)
@@ -786,13 +787,13 @@ def parser_krona(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
 def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
-          inputType=None):
+          inputType=None, sample_name=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
     '''
 
     krona_tool = classify.krona.Krona()
-    root_name = os.path.basename(inReport)
+    dataset_name = sample_name if (sample_name is not None) else os.path.basename(inReport)
 
     with util.file.tempfname() as tmp_tsv:
         with open(tmp_tsv, 'w') as f_out:
@@ -832,13 +833,12 @@ def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn
             # run krona
             krona_tool.import_taxonomy(
                 db,
-                list(','.join((fn, root_name)) for fn in to_import),
+                list(','.join((fn, dataset_name)) for fn in to_import),
                 outHtml,
                 query_column=queryColumn,
                 taxid_column=taxidColumn,
                 score_column=scoreColumn,
                 magnitude_column=magnitudeColumn,
-                root_name=root_name,
                 no_hits=noHits,
                 no_rank=noRank
             )
