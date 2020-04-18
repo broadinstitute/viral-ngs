@@ -979,7 +979,7 @@ def fasta_library_accessions(library):
             for seqr in SeqIO.parse(filepath, 'fasta'):
                 name = seqr.name
                 # Search for accession
-                mo = re.search('([A-Z]+_?\d+\.\d+)', name)
+                mo = re.search(r'([A-Z]+_?\d+\.\d+)', name)
                 if mo:
                     accession = mo.group(1)
                     library_accessions.add(accession)
