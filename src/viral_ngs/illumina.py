@@ -199,7 +199,7 @@ def main_illumina_demux(args):
             # so kick it to the background while we demux
             #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
             executor = concurrent.futures.ProcessPoolExecutor()
-            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes)
+            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, threads=util.misc.sanitize_thread_count(args.threads))
 
         # Picard IlluminaBasecallsToSam
         basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
@@ -400,7 +400,7 @@ def main_common_barcodes(args):
 
 __commands__.append(('common_barcodes', parser_common_barcodes))
 
-def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, includeNoise=False, omitHeader=False):
+def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, includeNoise=False, omitHeader=False, threads=None):
     # collect the barcode file paths for all tiles
     tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
 
@@ -413,7 +413,8 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
             accumulator[key] = accumulator.get(key, 0) + value
         return accumulator
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(tile_barcode_files)) as executor:
+    workers = util.misc.sanitize_thread_count(threads)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         futures = [executor.submit(util.file.count_occurrences_in_tsv, filePath, include_noise=includeNoise) for filePath in tile_barcode_files]
         for future in concurrent.futures.as_completed(futures):
             barcode_counts = sum_reducer(barcode_counts, future.result())
