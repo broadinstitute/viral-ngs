@@ -408,46 +408,41 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
     # count all of the barcodes present in the tile files
     log.info("reading barcodes in all tile files")
 
-    reduce_db_file    = util.file.mkstempfname('sqlite_.db')
-    reduce_db     = util.file.CountDB(reduce_db_file)
-    reduce_db.start()
-    
-    barcodefile_tempfile_tuples = [(tile_barcode_file,util.file.mkstempfname('sqlite_.db')) for tile_barcode_file in tile_barcode_files]
+    with util.file.CountDB() as reduce_db:
+        barcodefile_tempfile_tuples = [(tile_barcode_file,util.file.mkstempfname('sqlite_.db')) for tile_barcode_file in tile_barcode_files]
 
-    # scatter tile-specific barcode files among workers to store barcode counts in SQLite
-    workers = util.misc.sanitize_thread_count(threads)
-    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        futures = [executor.submit(util.file.count_occurrences_in_tsv_sqlite_backed, tf, bf, include_noise=includeNoise) for bf,tf in barcodefile_tempfile_tuples]
-        for future in concurrent.futures.as_completed(futures):
-            tmp_db, barcode_file = future.result()
-            log.debug("done reading barcodes from %s; adding to total...",barcode_file)
-            # gather and reduce counts from separate SQLite databases into one 
-            reduce_db.add_counts_from_other_db(tmp_db)
-            os.unlink(tmp_db)
+        # scatter tile-specific barcode files among workers to store barcode counts in SQLite
+        workers = util.misc.sanitize_thread_count(threads)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(util.file.count_occurrences_in_tsv_sqlite_backed, tf, bf, include_noise=includeNoise) for bf,tf in barcodefile_tempfile_tuples]
+            for future in concurrent.futures.as_completed(futures):
+                tmp_db, barcode_file = future.result()
+                log.debug("done reading barcodes from %s; adding to total...",barcode_file)
+                # gather and reduce counts from separate SQLite databases into one 
+                reduce_db.add_counts_from_other_db(tmp_db)
+                os.unlink(tmp_db)
 
-    illumina_reference = IlluminaIndexReference()
+        illumina_reference = IlluminaIndexReference()
 
-    log.info("Number of barcodes seen %s",reduce_db.get_num_IDS())
+        log.info("Number of barcodes seen %s",reduce_db.get_num_IDS())
 
-    # write the barcodes and their corresponding counts
-    with open(outSummary, 'w') as tsvfile:
-        log.info("sorting counts...")
-        log.info("writing output...")
-        writer = csv.writer(tsvfile, delimiter='\t')
-        # write the header unless the user has specified not to do so
-        if not omitHeader:
-            writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
-        chunk_size=100
-        for num_returned,rows in enumerate(util.misc.batch_iterator(itertools.islice(reduce_db.get_counts_descending(),0,truncateToLength),chunk_size)):
-            writer.writerows([(barcode[:8], ",".join([x for x in illumina_reference.guess_index(barcode[:8], distance=1)] or ["Unknown"]), 
-                        barcode[8:], ",".join([x for x in illumina_reference.guess_index(barcode[8:], distance=1)] or ["Unknown"]), 
-                        count) for barcode,count in rows])
+        # write the barcodes and their corresponding counts
+        with open(outSummary, 'w') as tsvfile:
+            log.info("sorting counts...")
+            log.info("writing output...")
+            writer = csv.writer(tsvfile, delimiter='\t')
+            # write the header unless the user has specified not to do so
+            if not omitHeader:
+                writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
+            chunk_size=100
+            for num_returned,rows in enumerate(util.misc.batch_iterator(itertools.islice(reduce_db.get_counts_descending(),0,truncateToLength),chunk_size)):
+                writer.writerows([(barcode[:8], ",".join([x for x in illumina_reference.guess_index(barcode[:8], distance=1)] or ["Unknown"]), 
+                            barcode[8:], ",".join([x for x in illumina_reference.guess_index(barcode[8:], distance=1)] or ["Unknown"]), 
+                            count) for barcode,count in rows])
 
-            if (num_returned*chunk_size)%50000==0:
-                log.debug("written %s barcode summaries to output file",num_returned*chunk_size)
+                if (num_returned*chunk_size)%50000==0:
+                    log.debug("written %s barcode summaries to output file",num_returned*chunk_size)
 
-    reduce_db.close()
-    os.unlink(reduce_db_file)
     log.info("done")
 
 # ======================================
