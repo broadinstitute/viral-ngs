@@ -1107,9 +1107,13 @@ def repack_tarballs(out_compressed_tarball,
 
 class DBConnection:
     def __init__(self, db_file=None):
+        self.should_unlink_on_exit=False
         if db_file==None:
-            db_file = mkstempfname(suffix='.db')
-        self.conn = sqlite3.connect(db_file, isolation_level='DEFERRED')
+            self.db_file = mkstempfname(suffix='.db')
+            self.should_unlink_on_exit=True
+        else:
+             self.db_file=db_file
+        self.conn = sqlite3.connect(self.db_file, isolation_level='DEFERRED')
         assert self.conn.isolation_level
         self.conn.text_factory = sqlite3.OptimizedUnicode
         self.cur = self.conn.cursor()
@@ -1134,6 +1138,8 @@ class DBConnection:
         self.conn.close()
         self.conn = None
         self.cur = None
+        if self.should_unlink_on_exit==True:
+            os.unlink(self.db_file)
 
 class CountDB(DBConnection):
     """
