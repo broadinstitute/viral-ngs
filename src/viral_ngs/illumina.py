@@ -434,14 +434,12 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
             # write the header unless the user has specified not to do so
             if not omitHeader:
                 writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
-            chunk_size=100
-            for num_returned,rows in enumerate(util.misc.batch_iterator(itertools.islice(reduce_db.get_counts_descending(),0,truncateToLength),chunk_size)):
-                writer.writerows([(barcode[:8], ",".join([x for x in illumina_reference.guess_index(barcode[:8], distance=1)] or ["Unknown"]), 
-                            barcode[8:], ",".join([x for x in illumina_reference.guess_index(barcode[8:], distance=1)] or ["Unknown"]), 
-                            count) for barcode,count in rows])
+            chunk_size=10000
 
-                if (num_returned*chunk_size)%50000==0:
-                    log.debug("written %s barcode summaries to output file",num_returned*chunk_size)
+            for row in itertools.islice(reduce_db.get_counts_descending(),0,truncateToLength):
+                writer.writerow((barcode[:8], ",".join([x for x in illumina_reference.guess_index(barcode[:8], distance=1)] or ["Unknown"]), 
+                            barcode[8:], ",".join([x for x in illumina_reference.guess_index(barcode[8:], distance=1)] or ["Unknown"]), 
+                            count) for barcode,count in row)
 
     log.info("done")
 
