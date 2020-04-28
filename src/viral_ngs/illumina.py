@@ -423,6 +423,7 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
             log.debug("done reading barcodes from %s; adding to total...",barcode_file)
             # gather and reduce counts from separate SQLite databases into one 
             reduce_db.add_counts_from_other_db(tmp_db)
+            os.unlink(tmp_db)
 
     illumina_reference = IlluminaIndexReference()
 
