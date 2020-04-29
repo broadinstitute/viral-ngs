@@ -23,10 +23,12 @@ import sys
 import io
 import csv
 import inspect
+import sqlite3
 import tarfile
 import itertools
 import re
 import urllib.request
+import concurrent.futures
 
 import util.cmd
 import util.misc
@@ -859,6 +861,17 @@ def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', inc
                 file_occurrence_counts[row[col]] = file_occurrence_counts.get(row[col], 0) + 1
     return file_occurrence_counts
 
+# used by count_and_sort_barcodes
+def count_occurrences_in_tsv_sqlite_backed(db_file_path, file_path, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+    db = CountDB(db_file_path)
+    db.start()
+    with open(file_path) as infile:
+        for chunk in util.misc.batch_iterator(csv.reader(infile, delimiter=delimiter), 40000):
+            db.increment_count_for_multiple_IDs([row[0] for row in chunk if noise_chr not in row[col] or include_noise ])
+        log.info("unique barcodes seen and counted in SQLite: %s for file %s", db.get_num_IDS(), file_path)
+    db.close()
+    return (db_file_path,file_path) #file_occurrence_counts
+
 def count_str_in_file(in_file, query_str, starts_with=False):
     if not os.path.isfile(in_file) or os.path.getsize(in_file)==0:
         return 0
@@ -1091,3 +1104,122 @@ def repack_tarballs(out_compressed_tarball,
 
     if outfile is not None:
         outfile.close()
+
+class DBConnection:
+    def __init__(self, db_file=None):
+        self.should_unlink_on_exit=False
+        if db_file==None:
+            self.db_file = mkstempfname(suffix='.db')
+            self.should_unlink_on_exit=True
+        else:
+             self.db_file=db_file
+        self.conn = sqlite3.connect(self.db_file, isolation_level='DEFERRED')
+        assert self.conn.isolation_level
+        self.conn.text_factory = sqlite3.OptimizedUnicode
+        self.cur = self.conn.cursor()
+        self.cur.execute("PRAGMA foreign_keys=ON")
+        self.cur.execute("PRAGMA foreign_keys")
+        fk = self.cur.fetchone()
+        log.debug("SQLite version: %s" % sqlite3.sqlite_version)
+        log.debug("SQLite foreign key support: %s" % ((fk and fk[0]) and 'true' or 'false'))
+        self.start()
+    def start(self):
+        pass
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return 0
+    def close(self):
+        if not self.conn:
+            return
+        self.conn.commit()
+        self.cur.close()
+        self.conn.close()
+        self.conn = None
+        self.cur = None
+        if self.should_unlink_on_exit==True:
+            os.unlink(self.db_file)
+
+class CountDB(DBConnection):
+    """
+        This is a simple SQLite class for counting large
+        numbers of strings where storing counts in memory
+        would be prohibitive.
+    """
+    def __init__(self, db_file=None):
+        DBConnection.__init__(self,db_file=db_file)
+
+    def start(self):
+        DBConnection.start(self)
+        self.cur.execute("""CREATE TABLE IF NOT EXISTS counts (
+            id TEXT PRIMARY KEY,
+            count INTEGER DEFAULT 1)""")
+
+    def get_count_for_ID(self, idval):
+        self.cur.execute("SELECT id,count FROM counts WHERE id=?", [idval])
+        row = self.cur.fetchone()
+        yield row or None
+
+    def get_count_for_multiple_IDs(self, idvals):
+        self.cur.execute("SELECT id,count from counts WHERE id IN (%s)" % ','.join('?'*len(idvals)), *idvals)
+        for row in self.cur.fetchone():
+            yield row or None
+
+    def set_count_for_ID(self, idval, count):
+        with self.conn:
+            # make use of UPSERT to insert or update: https://www.sqlite.org/lang_UPSERT.html
+            self.cur.execute("INSERT INTO counts(id) VALUES (?) ON CONFLICT(id) UPDATE SET count=?", (idval, count))
+
+    def set_count_for_multiple_IDs(self, idvals, count):
+        with self.conn:
+            # make use of UPSERT to insert or update: https://www.sqlite.org/lang_UPSERT.html
+            values_str=",".join(["('{}')".format(idval) for idval in idvals])
+            self.cur.execute("INSERT INTO counts(id) VALUES %s ON CONFLICT(id) DO UPDATE SET count=?" % values_str, (count,))
+
+    def increment_count_for_multiple_IDs(self, idvals, increment_val=1):
+        with self.conn:
+            for idvals_chunk in util.misc.batch_iterator(idvals, 600):
+                values_str=",".join(["('{}')".format(idval) for idval in idvals_chunk])
+                # make use of "UPSERT" to insert or update: https://www.sqlite.org/lang_UPSERT.html
+                # This string interpolation form is limited to ~1000 ids
+                self.cur.execute("INSERT INTO counts(id) VALUES %s ON CONFLICT(id) DO UPDATE SET count=count+?" % values_str, (increment_val,))
+                # This is more proper, but slower and uses more memory:
+                #self.cur.executemany("INSERT INTO counts(id) VALUES (?) ON CONFLICT(id) DO UPDATE SET count=count+?", zip(idvals_chunk, [increment_val]*len(idvals_chunk)))
+
+    def add_counts_from_other_db(self, other_db):
+        log.debug("attaching DB for merge: %s",other_db)
+        otherdb_basename=os.path.basename(other_db)
+        otherdb_basename = otherdb_basename[:-3] if otherdb_basename.endswith(".db") else otherdb_basename
+        self.conn.execute("ATTACH DATABASE ? AS ?", [other_db,otherdb_basename])
+        with self.conn:
+            # in "DO UPDATE SET count=excluded.count", "count" is the column the value would have been inserted into; excluded applies to the conflicting row; see: https://www.sqlite.org/lang_UPSERT.html
+            query = """ 
+                INSERT INTO counts SELECT * FROM 
+                (SELECT id, SUM(count) sumval FROM ( 
+                    SELECT id,count FROM counts UNION ALL 
+                    SELECT id,count FROM %s.counts 
+                ) group by id) as p 
+                WHERE true ON CONFLICT(id) DO UPDATE SET count=excluded.count; 
+            """ % otherdb_basename
+            self.conn.executescript(query)
+        self.conn.execute("DETACH DATABASE ?;",[otherdb_basename])
+
+    def increment_count_for_ID(self, idval, increment_val=1):
+        self.increment_count_for_multiple_IDs([idval], increment_val)
+
+    def decrement_count_for_multiple_IDs(self, idvals, decrement_val=-1):
+        self.increment_count_for_multiple_IDs(idvals, deccrement_val)
+
+    def decrement_count_for_ID(self, idval, decrement_val=-1):
+        self.increment_count_for_multiple_IDs([idval], decrement_val)
+
+    def get_counts_descending(self):
+        self.cur.execute("SELECT id,count FROM counts ORDER BY count DESC")
+        for row in self.cur:
+            yield row or None
+
+    def get_num_IDS(self):
+        return self.cur.execute("SELECT COUNT() FROM counts").fetchone()[0]
+    
+
