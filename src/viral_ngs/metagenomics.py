@@ -744,7 +744,7 @@ def kraken2(db, inBams, outReports=None, outReads=None, lockMemory=False, filter
     kraken_tool = classify.kraken.Kraken2()
     kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads,
                          min_base_qual=min_base_qual, num_threads=threads)
-__commands__.append(('kraken', parser_kraken))
+__commands__.append(('kraken', parser_kraken2))
 
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
