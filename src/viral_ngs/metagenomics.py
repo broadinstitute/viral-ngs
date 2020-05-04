@@ -1391,7 +1391,9 @@ __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database output directory.')
-    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
+    parser.add_argument('--taxdump_out', help='Save ncbi taxdump.tar.gz file', default=None)
+    parser.add_argument('--standard_libraries', nargs='+', help='A list of "standard" kraken libraries to download on the fly and add.')
+    parser.add_argument('--custom_libraries', nargs='+', help='Custom fasta files with properly formatted headers.')
     parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken2 default: 35nt/15aa)')
     parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken2 default: 31nt/12aa)')
     parser.add_argument('--minimizerSpaces', type=int, help='Number of characters in minimizer that are ignored in comparisons (kraken2 default: 7nt/0aa)')
@@ -1400,7 +1402,9 @@ def parser_kraken2_build(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken_build, split_args=True)
     return parser
-def kraken2_build(db, library,
+def kraken2_build(db,
+                taxdump_out=None,
+                standard_libraries=(), custom_libraries=(),
                 protein=False,
                 minimizerLen=None, kmerLen=None, minimizerSpaces=None,
                 maxDbSize=None, threads=None):
