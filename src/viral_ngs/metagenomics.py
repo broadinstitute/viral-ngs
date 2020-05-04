@@ -797,11 +797,8 @@ def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColum
     else:
         dataset_names = list(os.path.basename(fn) for fn in inReports)
 
-    to_import = []
-
-    with util.file.tempfname() as tmp_tsv:
-
     with util.file.tmp_dir() as tmp_dir:
+        to_import = []
 
         if inputType == 'tsv':
             for inReport in inReports:
@@ -862,7 +859,6 @@ def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColum
             no_hits=noHits,
             no_rank=noRank
         )
-
 
         if inputType == 'krakenuniq':
             # Rename "Avg. score" to "Est. genome coverage"
