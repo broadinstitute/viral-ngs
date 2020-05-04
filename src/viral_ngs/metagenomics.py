@@ -733,7 +733,7 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
         '--min_base_qual', default=0, type=int, help='Minimum base quality (default %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken, split_args=True)
+    util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
 def kraken2(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
     '''
