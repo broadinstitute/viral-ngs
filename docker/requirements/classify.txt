@@ -4,5 +4,6 @@ diamond=0.9.10
 kmc=3.1.1rc1
 kaiju=1.6.3_yesimon
 krakenuniq=0.5.7_yesimon
-krona=2.7.1
+kraken2>=2.0.8_beta
+krona>=2.7.1
 last=876
