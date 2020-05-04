@@ -1396,7 +1396,7 @@ def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('--protein', action='store_true', help='Build protein database (default false/nucleotide).')
     parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken_build, split_args=True)
+    util.cmd.attach_main(parser, kraken2_build, split_args=True)
     return parser
 def kraken2_build(db,
                 taxdump_out=None,
@@ -1421,7 +1421,7 @@ def kraken2_build(db,
         k=kmerLen, l=minimizerLen, s=minimizerSpaces,
         protein=protein,
         max_db_size=maxDbSize,
-        num_threads=threads):
+        num_threads=threads)
 
 __commands__.append(('kraken2_build', parser_kraken2_build))
 
