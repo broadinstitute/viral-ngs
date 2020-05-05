@@ -735,7 +735,7 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kraken2(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
+def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, threads=None):
     '''
         Classify reads by taxon using Kraken2
     '''
@@ -744,7 +744,7 @@ def kraken2(db, inBams, outReports=None, outReads=None, lockMemory=False, filter
     kraken_tool = classify.kraken.Kraken2()
     kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads,
                          min_base_qual=min_base_qual, num_threads=threads)
-__commands__.append(('kraken', parser_kraken2))
+__commands__.append(('kraken2', parser_kraken2))
 
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
