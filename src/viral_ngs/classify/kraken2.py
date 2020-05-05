@@ -38,36 +38,42 @@ class Kraken2(tools.Tool):
         return os.path.dirname(self.executable_path())
 
     def build(self, db, standard_libraries=(), custom_libraries=(), taxdump_out=None,
-        k=None, l=None, s=None, protein=False, max_db_size=None, num_threads=None):
-        '''Create a kraken database.
+        k=None, l=None, s=None, protein=False, max_db_size=None, tax_db=None,
+        num_threads=None):
+        '''Create a kraken2 database.
 
         Args:
-          db: Kraken database directory to build. Must have library/ and
-            taxonomy/ subdirectories to build from.
+          db: output directory
           standard_libraries: a list of strings from the set of:
              "archaea", "bacteria", "plasmid",
              "viral", "human", "fungi", "plant", "protozoa",
              "nr", "nt", "env_nr", "env_nt", "UniVec",
              "UniVec_Core"
-          *args: List of input filenames to process.
         '''
 
-        self.execute('kraken2-build', db, None, options={
-            '--threads':util.misc.sanitize_thread_count(num_threads),
-            '--download-taxonomy': None
-            })
+        # use or fetch taxonomy database
+        if tax_db:
+            util.file.mkdir_p(db)
+            shutil.copytree(tax_db, os.path.join(db, 'taxonomy'))
+        else:
+            self.execute('kraken2-build', db, None, options={
+                '--threads':util.misc.sanitize_thread_count(num_threads),
+                '--download-taxonomy': None
+                })
 
         # add standard libraries:
-        for lib in standard_libraries:
-            self.execute('kraken2-build', db, None, options={
-                '--threads':util.misc.sanitize_thread_count(num_threads),
-                '--download-library': lib
-                })
-        for lib in custom_libraries:
-            self.execute('kraken2-build', db, None, options={
-                '--threads':util.misc.sanitize_thread_count(num_threads),
-                '--add-to-library': lib
-                })
+        if standard_libraries:
+            for lib in standard_libraries:
+                self.execute('kraken2-build', db, None, options={
+                    '--threads':util.misc.sanitize_thread_count(num_threads),
+                    '--download-library': lib
+                    })
+        if custom_libraries:
+            for lib in custom_libraries:
+                self.execute('kraken2-build', db, None, options={
+                    '--threads':util.misc.sanitize_thread_count(num_threads),
+                    '--add-to-library': lib
+                    })
 
         # build db
         build_opts = {
