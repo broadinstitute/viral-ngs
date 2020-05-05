@@ -1389,6 +1389,22 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 
+def parser_krona_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Krona taxonomy database output directory.')
+    parser.add_argument('--taxdump_tar_gz', help='NCBI taxdump.tar.gz file', default=None)
+    parser.add_argument('--get_accessions', action='store_true', help='Fetch NCBI accession to taxid mappings. This is not required for processing kraken1/2/uniq hits, only for BLAST hits, and adds a significant amount of time and database space (default false).')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, krona_build, split_args=True)
+    return parser
+def krona_build(db, taxdump_tar_gz=None, get_accessions=False):
+    '''
+    Builds a Krona taxonomy database
+    '''
+    classify.krona.Krona().build_db(
+        db, taxdump_tar_gz=taxdump_tar_gz, get_accessions=get_accessions)
+__commands__.append(('krona_build', parser_krona_build))
+
+
 def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database output directory.')
     parser.add_argument('--tax_db', help='Use pre-existing kraken2 taxonomy db structure', default=None)

@@ -66,6 +66,8 @@ class Krona(tools.Tool):
 
     def create_db(self, db_dir):
         """Caution - this deletes the original .dmp files."""
+        if not self.executable_path():
+            self.install_and_get_path()
         bin_path = os.path.dirname(self.executable_path())
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
@@ -76,6 +78,8 @@ class Krona(tools.Tool):
 
     def build_db(self, db_dir, taxdump_tar_gz=None, get_accessions=False):
         """More all-in-one version of above"""
+        if not self.executable_path():
+            self.install_and_get_path()
         bin_path = os.path.dirname(self.executable_path())
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
