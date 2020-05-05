@@ -88,7 +88,7 @@ class Krona(tools.Tool):
 
         # get taxdump.tar.gz
         if taxdump_tar_gz:
-            shutil.copyfile(taxdump_tar_gz, db_dir)
+            shutil.copy(taxdump_tar_gz, db_dir)
         else:
             cmd = [os.path.join(self.opt, 'updateTaxonomy.sh'),
                 '--only-fetch', os.path.abspath(db_dir)]
