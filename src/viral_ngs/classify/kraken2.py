@@ -91,7 +91,7 @@ class Kraken2(tools.Tool):
             shutil.copyfile(os.path.join(db, 'taxonomy', 'taxdump.tar.gz'), taxdump_out)
 
         # clean db
-        self.execute('kraken2-build', db, None, options=options={
+        self.execute('kraken2-build', db, None, options={
                 '--threads':util.misc.sanitize_thread_count(num_threads),
                 '--clean': None
                 })
