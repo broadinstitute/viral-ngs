@@ -1392,13 +1392,19 @@ __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database output directory.')
     parser.add_argument('--taxdump_out', help='Save ncbi taxdump.tar.gz file', default=None)
-    parser.add_argument('--standard_libraries', nargs='+', help='A list of "standard" kraken libraries to download on the fly and add.')
+    parser.add_argument('--standard_libraries',
+        nargs='+',
+        choices=["archaea", "bacteria", "plasmid",
+             "viral", "human", "fungi", "plant", "protozoa",
+             "nr", "nt", "env_nr", "env_nt", "UniVec",
+             "UniVec_Core"],
+        help='A list of "standard" kraken libraries to download on the fly and add.')
     parser.add_argument('--custom_libraries', nargs='+', help='Custom fasta files with properly formatted headers.')
-    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken2 default: 35nt/15aa)')
-    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken2 default: 31nt/12aa)')
-    parser.add_argument('--minimizerSpaces', type=int, help='Number of characters in minimizer that are ignored in comparisons (kraken2 default: 7nt/0aa)')
+    parser.add_argument('--kmerLen', type=int, help='(k) k-mer length (kraken2 default: 35nt/15aa)')
+    parser.add_argument('--minimizerLen', type=int, help='(l) Minimizer length (kraken2 default: 31nt/12aa)')
+    parser.add_argument('--minimizerSpaces', type=int, help='(s) Number of characters in minimizer that are ignored in comparisons (kraken2 default: 7nt/0aa)')
     parser.add_argument('--protein', action='store_true', help='Build protein database (default false/nucleotide).')
-    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (default: none)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2_build, split_args=True)
     return parser
