@@ -146,10 +146,10 @@ class Kraken2(tools.Tool):
         Args:
           in_bam: unaligned reads
           db: Kraken built database directory.
-          outReads: Output file of command.
+          out_reads: Output file of command.
         """
 
-        if tools.samtools.SamtoolsTool().isEmpty(inBam):
+        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
             # kraken cannot deal with empty input
             if out_reads:
                 with open(out_reads, 'wt') as outf:
