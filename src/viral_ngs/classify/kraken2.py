@@ -129,7 +129,7 @@ class Kraken2(tools.Tool):
         subprocess.check_call(cmd)
 
     def pipeline(self, db, in_bams, out_reports=None, out_reads=None,
-                 min_base_qual=None, num_threads=None):
+                 min_base_qual=None, confidence=None, num_threads=None):
 
         assert out_reads is not None or out_reports is not None
         out_reports = out_reports or []
@@ -139,7 +139,8 @@ class Kraken2(tools.Tool):
             self.classify(in_bam, db, out_reads=out_read, out_report=out_report,
                 min_base_qual=min_base_qual, confidence=confidence, num_threads=None)
 
-    def classify(self, in_bam, db, out_reads=None, out_report=None, confidence=None, min_base_qual=None, num_threads=None):
+    def classify(self, in_bam, db, out_reads=None, out_report=None,
+                 confidence=None, min_base_qual=None, num_threads=None):
         """Classify input reads (bam)
 
         Args:
