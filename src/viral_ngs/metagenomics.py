@@ -35,6 +35,7 @@ import tools.samtools
 
 import classify.kaiju
 import classify.kraken
+import classify.kraken2
 import classify.krona
 
 __commands__ = []
@@ -741,7 +742,7 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, thre
     '''
 
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kraken_tool = classify.kraken.Kraken2()
+    kraken_tool = classify.kraken2.Kraken2()
     kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads,
                          min_base_qual=min_base_qual, num_threads=threads)
 __commands__.append(('kraken2', parser_kraken2))
@@ -1413,7 +1414,7 @@ def kraken2_build(db,
     `>kraken:taxid|1234|`.
     '''
 
-    kraken_tool = classify.kraken.Kraken2()
+    kraken_tool = classify.kraken2.Kraken2()
     kraken_tool.build(db,
         standard_libraries=standard_libraries,
         custom_libraries=custom_libraries,
