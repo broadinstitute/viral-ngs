@@ -1391,6 +1391,7 @@ __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database output directory.')
+    parser.add_argument('--tax_db', help='Use pre-existing kraken2 taxonomy db structure', default=None)
     parser.add_argument('--taxdump_out', help='Save ncbi taxdump.tar.gz file', default=None)
     parser.add_argument('--standard_libraries',
         nargs='+',
@@ -1409,7 +1410,7 @@ def parser_kraken2_build(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, kraken2_build, split_args=True)
     return parser
 def kraken2_build(db,
-                taxdump_out=None,
+                tax_db=None, taxdump_out=None,
                 standard_libraries=(), custom_libraries=(),
                 protein=False,
                 minimizerLen=None, kmerLen=None, minimizerSpaces=None,
@@ -1425,6 +1426,7 @@ def kraken2_build(db,
 
     kraken_tool = classify.kraken2.Kraken2()
     kraken_tool.build(db,
+        tax_db=tax_db,
         standard_libraries=standard_libraries,
         custom_libraries=custom_libraries,
         taxdump_out=taxdump_out,
