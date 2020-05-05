@@ -186,7 +186,7 @@ class Kraken2(tools.Tool):
                        JVMmemory=picard.jvmMemDefault)
 
         if out_report:
-            opts['--report-file'] = out_report
+            opts['--report'] = out_report
         # Detect if input bam was paired by checking fastq 2
         if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
             log.warn("running in single-end read mode!")
