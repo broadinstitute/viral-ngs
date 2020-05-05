@@ -739,7 +739,7 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=confidence, threads=None):
+def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, threads=None):
     '''
         Classify reads by taxon using Kraken2
     '''
