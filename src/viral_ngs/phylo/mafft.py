@@ -15,7 +15,7 @@ import os.path
 import subprocess
 
 TOOL_NAME = "mafft"
-TOOL_VERSION = '7.402'
+TOOL_VERSION = '7.464'
 
 _log = logging.getLogger(__name__)
 

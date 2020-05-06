@@ -1,4 +1,4 @@
-mafft=7.402
+mafft=7.464
 mummer4=4.0.0beta2
 muscle=3.8.1551 
 snpeff=4.3.1t
