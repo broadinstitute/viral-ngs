@@ -53,7 +53,8 @@ class Kraken2(tools.Tool):
         '''
 
         # all the library download and dustmasking can be *easily* parallelized
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_threads) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=util.misc.sanitize_thread_count(num_threads)) as executor:
 
             # use or fetch taxonomy database
             if tax_db:
