@@ -2,6 +2,7 @@
 KRAKEN metagenomics classifier
 '''
 import collections
+import concurrent.futures
 import itertools
 import logging
 import os
@@ -51,29 +52,26 @@ class Kraken2(tools.Tool):
              "UniVec_Core"
         '''
 
-        # use or fetch taxonomy database
-        if tax_db:
-            util.file.mkdir_p(db)
-            shutil.copytree(tax_db, os.path.join(db, 'taxonomy'))
-        else:
-            self.execute('kraken2-build', db, None, options={
-                '--threads':util.misc.sanitize_thread_count(num_threads),
-                '--download-taxonomy': None
-                })
+        # all the library download and dustmasking can be *easily* parallelized
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_threads) as executor:
 
-        # add standard libraries:
-        if standard_libraries:
-            for lib in standard_libraries:
-                self.execute('kraken2-build', db, None, options={
-                    '--threads':util.misc.sanitize_thread_count(num_threads),
-                    '--download-library': lib
-                    })
-        if custom_libraries:
-            for lib in custom_libraries:
-                self.execute('kraken2-build', db, None, options={
-                    '--threads':util.misc.sanitize_thread_count(num_threads),
-                    '--add-to-library': lib
-                    })
+            # use or fetch taxonomy database
+            if tax_db:
+                util.file.mkdir_p(db)
+                executor.submit(shutil.copytree, tax_db, os.path.join(db, 'taxonomy'))
+            else:
+                executor.submit(self.execute, 'kraken2-build', db, None,
+                    options={'--download-taxonomy': None})
+            # add standard libraries:
+            if standard_libraries:
+                for lib in standard_libraries:
+                    executor.submit(self.execute, 'kraken2-build', db, None,
+                        options={'--download-library': lib})
+            # add custom libraries:
+            if custom_libraries:
+                for lib in custom_libraries:
+                    executor.submit(self.execute, 'kraken2-build', db, None,
+                        options={'--add-to-library': lib})
 
         # build db
         build_opts = {
