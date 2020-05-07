@@ -35,6 +35,7 @@ import tools.samtools
 
 import classify.kaiju
 import classify.kraken
+import classify.kraken2
 import classify.krona
 
 __commands__ = []
@@ -724,28 +725,30 @@ def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
         lines.append('\t'.join([percent_covered, str(cum_hits), str(num_hits), rank, str(taxid), '  ' * level + name]))
     return cum_hits
 
-def parser_kraken(parser=argparse.ArgumentParser()):
+def parser_kraken2(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--outReports', nargs='+', help='Kraken summary report output file. Multiple filenames space separated.')
-    parser.add_argument('--outReads', nargs='+', help='Kraken per read classification output file. Multiple filenames space separated.')
-    parser.add_argument('--lockMemory', action='store_true', default=False, help='Lock kraken database in RAM. Requires high ulimit -l.')
+    parser.add_argument('--outReports', nargs='+', help='Kraken2 summary report output file. Multiple filenames space separated.')
+    parser.add_argument('--outReads', nargs='+', help='Kraken2 per read classification output file. Multiple filenames space separated.')
     parser.add_argument(
-        '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
+        '--min_base_qual', default=0, type=int, help='Minimum base quality (default %(default)s)'
+    )
+    parser.add_argument(
+        '--confidence', default=0.0, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken, split_args=True)
+    util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kraken(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
+def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, threads=None):
     '''
-        Classify reads by taxon using Kraken
+        Classify reads by taxon using Kraken2
     '''
 
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kraken_tool = classify.kraken.Kraken()
-    kraken_tool.pipeline(db, inBams, outReports=outReports, outReads=outReads, lockMemory=lockMemory,
-                         filterThreshold=filterThreshold, num_threads=threads)
-__commands__.append(('kraken', parser_kraken))
+    kraken_tool = classify.kraken2.Kraken2()
+    kraken_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
+                         min_base_qual=min_base_qual, confidence=confidence, num_threads=threads)
+__commands__.append(('kraken2', parser_kraken2))
 
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
@@ -772,7 +775,7 @@ __commands__.append(('krakenuniq', parser_krakenuniq))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):
-    parser.add_argument('inReport', help='Input report file (default: tsv)')
+    parser.add_argument('inReports', nargs='+', help='Input report file (default: tsv)')
     parser.add_argument('db', help='Krona taxonomy database directory.')
     parser.add_argument('outHtml', help='Output html report.')
     parser.add_argument('--sample_name', help='Title of dataset (default basename(inReport))', default=None)
@@ -782,79 +785,95 @@ def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('--magnitudeColumn', help='Column of magnitude. (default %(default)s)', type=int, default=None)
     parser.add_argument('--noHits', help='Include wedge for no hits.', action='store_true')
     parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
-    parser.add_argument('--inputType', help='Handling for specialized report types.', default='tsv', choices=['tsv', 'krakenuniq', 'kaiju'])
+    parser.add_argument('--inputType', help='Handling for specialized report types.', default='tsv', choices=['tsv', 'kraken2', 'krakenuniq', 'kaiju'])
     util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, krona, split_args=True)
     return parser
-def krona(inReport, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
+def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
           inputType=None, sample_name=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
     '''
 
     krona_tool = classify.krona.Krona()
-    dataset_name = sample_name if (sample_name is not None) else os.path.basename(inReport)
+    if sample_name is not None:
+        dataset_names = list(sample_name for fn in inReports)
+    else:
+        dataset_names = list(os.path.basename(fn) for fn in inReports)
 
-    with util.file.tempfname() as tmp_tsv:
-        with open(tmp_tsv, 'w') as f_out:
+    with util.file.tmp_dir() as tmp_dir:
+        to_import = []
 
-            if inputType == 'tsv':
+        if inputType == 'tsv':
+            for inReport in inReports:
                 if inReport.endswith('.gz'):
-                    tmp_tsv = util.file.mkstempfname('.tsv')
+                    tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
                     with gzip.open(inReport, 'rb') as f_in:
-                        shutil.copyfileobj(f_in, f_out)
-                        to_import = [tmp_tsv]
+                        with open(tmp_tsv, 'w') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                            to_import.append(tmp_tsv)
                 else:
-                    to_import = [inReport]
+                    to_import.append(inReport)
 
-            elif inputType == 'krakenuniq':
-                queryColumn=None
-                taxidColumn=1
-                scoreColumn=3
-                magnitudeColumn=2
-                report = classify.kraken.KrakenUniq().read_report(inReport)
-                for taxid, (tax_reads, tax_kmers) in report.items():
-                    f_out.write('{}\t{}\t{}\n'.format(taxid, tax_reads, tax_kmers))
-                to_import = [tmp_tsv]
+        elif inputType == 'kraken2':
+            queryColumn=None
+            taxidColumn=5
+            scoreColumn=None
+            magnitudeColumn=3
+            to_import = inReports
 
-            elif inputType == 'kaiju':
-                queryColumn=None
-                taxidColumn=1
-                scoreColumn=None
-                magnitudeColumn=2
-                report = classify.kaiju.Kaiju().read_report(inReport)
-                for taxid, reads in report.items():
-                    f_out.write('{}\t{}\n'.format(taxid, reads))
-                to_import = [tmp_tsv]
+        elif inputType == 'krakenuniq':
+            queryColumn=None
+            taxidColumn=1
+            scoreColumn=3
+            magnitudeColumn=2
+            for inReport in inReports:
+                tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
+                with open(tmp_tsv, 'w') as f_out:
+                    report = classify.kraken.KrakenUniq().read_report(inReport)
+                    for taxid, (tax_reads, tax_kmers) in report.items():
+                        f_out.write('{}\t{}\t{}\n'.format(taxid, tax_reads, tax_kmers))
+                to_import.append(tmp_tsv)
 
-            else:
-                raise NotImplementedError
+        elif inputType == 'kaiju':
+            queryColumn=None
+            taxidColumn=1
+            scoreColumn=None
+            magnitudeColumn=2
+            for inReport in inReports:
+                tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
+                with open(tmp_tsv, 'w') as f_out:
+                    report = classify.kaiju.Kaiju().read_report(inReport)
+                    for taxid, reads in report.items():
+                        f_out.write('{}\t{}\n'.format(taxid, reads))
+                to_import.append(tmp_tsv)
 
-            # run krona
-            krona_tool.import_taxonomy(
-                db,
-                list(','.join((fn, dataset_name)) for fn in to_import),
-                outHtml,
-                query_column=queryColumn,
-                taxid_column=taxidColumn,
-                score_column=scoreColumn,
-                magnitude_column=magnitudeColumn,
-                no_hits=noHits,
-                no_rank=noRank
-            )
+        else:
+            raise NotImplementedError
 
-        os.unlink(tmp_tsv)
+        # run krona
+        krona_tool.import_taxonomy(
+            db,
+            list(','.join(pair) for pair in zip(to_import, dataset_names)),
+            outHtml,
+            query_column=queryColumn,
+            taxid_column=taxidColumn,
+            score_column=scoreColumn,
+            magnitude_column=magnitudeColumn,
+            no_hits=noHits,
+            no_rank=noRank
+        )
 
         if inputType == 'krakenuniq':
             # Rename "Avg. score" to "Est. genome coverage"
             html_lines = util.file.slurp_file(outHtml).split('\n')
+            tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
             with open(tmp_tsv, 'w') as new_report:
                 for line in html_lines:
                     if '<attribute display="Avg. score">score</attribute>' in line:
                         line = line.replace('Avg. score', 'Est. unique kmers')
                     print(line, file=new_report)
             shutil.copyfile(tmp_tsv, outHtml)
-            os.unlink(tmp_tsv)
 
 __commands__.append(('krona', parser_krona))
 
@@ -1370,109 +1389,69 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 
-def parser_kraken_build(parser=argparse.ArgumentParser()):
-    parser.add_argument('db', help='Kraken database output directory.')
-    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
-    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
-    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
-    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (kraken default: 15)')
-    parser.add_argument('--kmerLen', type=int, help='k-mer length (kraken default: 31)')
-    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
-    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
-    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken_build, split_args=True)
+def parser_krona_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Krona taxonomy database output directory.')
+    parser.add_argument('--taxdump_tar_gz', help='NCBI taxdump.tar.gz file', default=None)
+    parser.add_argument('--get_accessions', action='store_true', help='Fetch NCBI accession to taxid mappings. This is not required for processing kraken1/2/uniq hits, only for BLAST hits, and adds a significant amount of time and database space (default false).')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, krona_build, split_args=True)
     return parser
-def kraken_build(db, library, taxonomy=None, subsetTaxonomy=None,
-                threads=None, workOnDisk=False,
-                minimizerLen=None, kmerLen=None, maxDbSize=None, clean=False):
+def krona_build(db, taxdump_tar_gz=None, get_accessions=False):
     '''
-    Builds a kraken database from library directory of fastas and taxonomy db
+    Builds a Krona taxonomy database
+    '''
+    classify.krona.Krona().build_db(
+        db, taxdump_tar_gz=taxdump_tar_gz, get_accessions=get_accessions)
+__commands__.append(('krona_build', parser_krona_build))
+
+
+def parser_kraken2_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Kraken database output directory.')
+    parser.add_argument('--tax_db', help='Use pre-existing kraken2 taxonomy db structure', default=None)
+    parser.add_argument('--taxdump_out', help='Save ncbi taxdump.tar.gz file', default=None)
+    parser.add_argument('--standard_libraries',
+        nargs='+',
+        choices=["archaea", "bacteria", "plasmid",
+             "viral", "human", "fungi", "plant", "protozoa",
+             "nr", "nt", "env_nr", "env_nt", "UniVec",
+             "UniVec_Core"],
+        help='A list of "standard" kraken libraries to download on the fly and add.')
+    parser.add_argument('--custom_libraries', nargs='+', help='Custom fasta files with properly formatted headers.')
+    parser.add_argument('--kmerLen', type=int, help='(k) k-mer length (kraken2 default: 35nt/15aa)')
+    parser.add_argument('--minimizerLen', type=int, help='(l) Minimizer length (kraken2 default: 31nt/12aa)')
+    parser.add_argument('--minimizerSpaces', type=int, help='(s) Number of characters in minimizer that are ignored in comparisons (kraken2 default: 7nt/0aa)')
+    parser.add_argument('--protein', action='store_true', help='Build protein database (default false/nucleotide).')
+    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (default: none)')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken2_build, split_args=True)
+    return parser
+def kraken2_build(db,
+                tax_db=None, taxdump_out=None,
+                standard_libraries=(), custom_libraries=(),
+                protein=False,
+                minimizerLen=None, kmerLen=None, minimizerSpaces=None,
+                maxDbSize=None, threads=None):
+    '''
+    Builds a kraken2 database from library directory of fastas and taxonomy db
     directory. The --subsetTaxonomy option allows shrinking the taxonomy to only
     include taxids associated with the library folders. For this to work, the
     library fastas must have the standard id names such as `>NC1234.1`
     accessions, `>gi|123456789|ref|XXXX||`, or custom kraken name
     `>kraken:taxid|1234|`.
-
-    Setting the --minimizerLen (default: 16) small, such as 10, will drastically
-    shrink the db size for small inputs, which is useful for testing.
-
-    The built db may include symlinks to the original --library / --taxonomy
-    directories. If you want to build a static archiveable version of the
-    library, simply use the --clean option, which will also remove any
-    unnecessary files.
     '''
-    util.file.mkdir_p(db)
-    library_dir = os.path.join(db, 'library')
-    library_exists = os.path.exists(library_dir)
-    if library:
-        try:
-            os.symlink(os.path.abspath(library), os.path.join(db, 'library'))
-        except FileExistsError:
-            pass
-    else:
-        if not library_exists:
-            raise FileNotFoundError('Library directory {} not found'.format(library_dir))
 
-    taxonomy_dir = os.path.join(db, 'taxonomy')
-    taxonomy_exists = os.path.exists(taxonomy_dir)
-    if taxonomy:
-        if taxonomy_exists:
-            raise KrakenBuildError('Output db directory already contains taxonomy directory {}'.format(taxonomy_dir))
-        if subsetTaxonomy:
-            kraken_taxids, kraken_gis, kraken_accessions = kraken_library_ids(library)
+    kraken_tool = classify.kraken2.Kraken2()
+    kraken_tool.build(db,
+        tax_db=tax_db,
+        standard_libraries=standard_libraries,
+        custom_libraries=custom_libraries,
+        taxdump_out=taxdump_out,
+        k=kmerLen, l=minimizerLen, s=minimizerSpaces,
+        protein=protein,
+        max_db_size=maxDbSize,
+        num_threads=threads)
 
-            whitelist_taxid_f = util.file.mkstempfname()
-            with open(whitelist_taxid_f, 'wt') as f:
-                for taxid in kraken_taxids:
-                    print(taxid, file=f)
-
-            whitelist_gi_f = util.file.mkstempfname()
-            with open(whitelist_gi_f, 'wt') as f:
-                for gi in kraken_gis:
-                    print(gi, file=f)
-
-            whitelist_accession_f = util.file.mkstempfname()
-            with open(whitelist_accession_f, 'wt') as f:
-                for accession in kraken_accessions:
-                    print(accession, file=f)
-
-            # Context-managerize eventually
-            taxonomy_tmp = tempfile.mkdtemp()
-            subset_taxonomy(taxonomy, taxonomy_tmp, whitelistTaxidFile=whitelist_taxid_f,
-                            whitelistGiFile=whitelist_gi_f, whitelistAccessionFile=whitelist_accession_f)
-            shutil.move(taxonomy_tmp, taxonomy_dir)
-        else:
-            os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
-        for fn in os.listdir(os.path.join(taxonomy_dir, 'accession2taxid')):
-            if not fn.endswith('accession2taxid'):
-                continue
-
-            os.symlink(os.path.join(taxonomy_dir, 'accession2taxid', fn),
-                       os.path.join(taxonomy_dir, fn))
-    else:
-        if not taxonomy_exists:
-            raise FileNotFoundError('Taxonomy directory {} not found'.format(taxonomy_dir))
-        if subsetTaxonomy:
-            raise KrakenBuildError('Cannot subset taxonomy if already in db folder')
-
-    kraken_tool = classify.kraken.Kraken()
-    options = {'--build': None}
-    if threads:
-        options['--threads'] = threads
-    if minimizerLen:
-        options['--minimizer-len'] = minimizerLen
-    if kmerLen:
-        options['--kmer-len'] = kmerLen
-    if maxDbSize:
-        options['--max-db-size'] = maxDbSize
-    if workOnDisk:
-        options['--work-on-disk'] = None
-    kraken_tool.build(db, options=options)
-
-    if clean:
-        kraken_tool.execute('kraken-build', db, '', options={'--clean': None})
-__commands__.append(('kraken_build', parser_kraken_build))
+__commands__.append(('kraken2_build', parser_kraken2_build))
 
 
 def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
