@@ -176,9 +176,9 @@ class Kraken2(tools.Tool):
         if confidence:
             opts['--confidence'] = confidence
 
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq.gz')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq.gz')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq.gz')
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
+        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
         # Do not convert this to samtools bam2fq unless we can figure out how to replicate
         # the clipping functionality of Picard SamToFastq
         picard = tools.picard.SamToFastqTool()
