@@ -1087,7 +1087,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
             tax_ids_to_include |= set(child_ids)
 
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
-    log_info("matching against {} taxa".format(len(tax_ids_to_include)))
+    log.info("matching against {} taxa".format(len(tax_ids_to_include)))
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
