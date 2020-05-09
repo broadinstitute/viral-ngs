@@ -1087,6 +1087,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
             tax_ids_to_include |= set(child_ids)
 
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
+    log_info("matching against {} taxa".format(len(tax_ids_to_include)))
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
@@ -1102,9 +1103,9 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                 read_id_match = re.match(paired_read_base_pattern,read_id)
                 if (read_id_match and
                     read_tax_id in tax_ids_to_include):
-                    log.debug("Found matching read ID: %s", read_id_match.group(1))
                     read_IDs_file.write(read_id_match.group(1)+"\n")
                     read_ids_written+=1
+        log.info("matched {} reads".format(read_ids_written))
 
         # report count if desired
         if out_count:
