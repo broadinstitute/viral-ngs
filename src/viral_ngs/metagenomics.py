@@ -731,15 +731,18 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
     parser.add_argument('--outReports', nargs='+', help='Kraken2 summary report output file. Multiple filenames space separated.')
     parser.add_argument('--outReads', nargs='+', help='Kraken2 per read classification output file. Multiple filenames space separated.')
     parser.add_argument(
-        '--min_base_qual', default=0, type=int, help='Minimum base quality (default %(default)s)'
+        '--minimum_hit_groups', default=None, type=int, help='Minimum hit groups (Kraken2 default: 2)'
     )
     parser.add_argument(
-        '--confidence', default=0.0, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
+        '--min_base_qual', default=None, type=int, help='Minimum base quality (default %(default)s)'
+    )
+    parser.add_argument(
+        '--confidence', default=None, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, threads=None):
+def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, minimum_hit_groups=None, threads=None):
     '''
         Classify reads by taxon using Kraken2
     '''
@@ -747,7 +750,8 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
     kraken_tool = classify.kraken2.Kraken2()
     kraken_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
-                         min_base_qual=min_base_qual, confidence=confidence, num_threads=threads)
+                         min_base_qual=min_base_qual, confidence=confidence,
+                         minimum_hit_groups=minimum_hit_groups, num_threads=threads)
 __commands__.append(('kraken2', parser_kraken2))
 
 
@@ -1017,11 +1021,13 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('out_bam', help='Output bam file, filtered to the taxa specified')
     parser.add_argument('nodes_dmp', help='nodes.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
     parser.add_argument('names_dmp', help='names.dmp file from ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/')
+    parser.add_argument('--exclude', action='store_true',  dest="exclude", help='Switch filtration to remove all reads falling under matching taxa (and keep all non-matching). Default is the inverse: keep all reads falling under matching taxa (and remove all non-matching).')
     parser.add_argument('--taxNames', nargs="+", dest="tax_names", help='The taxonomic names to include. More than one can be specified. Mapped to Tax IDs by lowercase exact match only. Ex. "Viruses" This is in addition to any taxonomic IDs provided.')
     parser.add_argument('--taxIDs', nargs="+", type=int, dest="tax_ids", help='The NCBI taxonomy IDs to include. More than one can be specified. This is in addition to any taxonomic names provided.')
     parser.add_argument('--without-children', action='store_true', dest="omit_children", help='Omit reads classified more specifically than each taxon specified (without this a taxon and its children are included).')
     parser.add_argument('--read_id_col', type=int, dest="read_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing read IDs. (default: %(default)s)', default=1)
     parser.add_argument('--tax_id_col', type=int, dest="tax_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing Taxonomy IDs. (default: %(default)s)', default=2)
+    parser.add_argument('--out_count', help='Write a file with the number of reads matching the specified taxa.')
     parser.add_argument(
         '--JVMmemory',
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
@@ -1033,9 +1039,11 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
 
 def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                        nodes_dmp, names_dmp,
+                       exclude=False,
                        tax_names=None, tax_ids=None,
                        omit_children=False,
                        read_id_col=1, tax_id_col=2,
+                       out_count=None,
                        JVMmemory=None):
     """
         Filter an (already classified) input bam file to only include reads that have been mapped to specified
@@ -1083,6 +1091,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
             tax_ids_to_include |= set(child_ids)
 
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
+    log.info("matching against {} taxa".format(len(tax_ids_to_include)))
 
     # perform the actual filtering to return a list of read IDs, writeen to a temp file
     with util.file.tempfname(".txt.gz") as temp_read_list:
@@ -1098,15 +1107,20 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                 read_id_match = re.match(paired_read_base_pattern,read_id)
                 if (read_id_match and
                     read_tax_id in tax_ids_to_include):
-                    log.debug("Found matching read ID: %s", read_id_match.group(1))
                     read_IDs_file.write(read_id_match.group(1)+"\n")
                     read_ids_written+=1
+        log.info("matched {} reads".format(read_ids_written))
+
+        # report count if desired
+        if out_count:
+            with open(out_count, 'wt') as outf:
+                outf.write("{}\n".format(read_ids_written))
 
         # if we found reads matching the taxNames requested,
-        if read_ids_written > 0:
+        if (read_ids_written > 0) or exclude:
             # filter the input bam to include only these
             tools.picard.FilterSamReadsTool().execute(in_bam,
-                                                        False,
+                                                        exclude,
                                                         temp_read_list,
                                                         out_bam,
                                                         JVMmemory=JVMmemory)
