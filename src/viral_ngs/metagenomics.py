@@ -731,15 +731,18 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
     parser.add_argument('--outReports', nargs='+', help='Kraken2 summary report output file. Multiple filenames space separated.')
     parser.add_argument('--outReads', nargs='+', help='Kraken2 per read classification output file. Multiple filenames space separated.')
     parser.add_argument(
-        '--min_base_qual', default=0, type=int, help='Minimum base quality (default %(default)s)'
+        '--minimum_hit_groups', default=None, type=int, help='Minimum hit groups (Kraken2 default: 2)'
     )
     parser.add_argument(
-        '--confidence', default=0.0, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
+        '--min_base_qual', default=None, type=int, help='Minimum base quality (default %(default)s)'
+    )
+    parser.add_argument(
+        '--confidence', default=None, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, threads=None):
+def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, minimum_hit_groups=None, threads=None):
     '''
         Classify reads by taxon using Kraken2
     '''
@@ -747,7 +750,8 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
     kraken_tool = classify.kraken2.Kraken2()
     kraken_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
-                         min_base_qual=min_base_qual, confidence=confidence, num_threads=threads)
+                         min_base_qual=min_base_qual, confidence=confidence,
+                         minimum_hit_groups=minimum_hit_groups, num_threads=threads)
 __commands__.append(('kraken2', parser_kraken2))
 
 
