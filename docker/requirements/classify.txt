@@ -1,6 +1,6 @@
 blast=2.7.1
 bmtagger=3.101
 kmc=3.1.1rc1
-kraken2>=2.0.8_beta
+kraken2>=2.0.9_beta
 krona>=2.7.1
 last=876
