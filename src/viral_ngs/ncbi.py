@@ -433,11 +433,17 @@ def fasta2fsa(infname, outdir, biosample=None):
     return outfname
 
 
-def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None):
+def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None, assembly_method=None, assembly_method_version=None):
+    if assembly_method is None and assembly_method_version is None:
+        assembly_method = "github.com/broadinstitute/viral-ngs"
+        assembly_method_version = util.version.get_version()
+    elif assembly_method is None or assembly_method_version is None:
+        raise Exception("if either the assembly_method or assembly_method_version are specified, both most be specified")
     with open(cmt_fname, 'wt') as outf:
         outf.write("StructuredCommentPrefix\t##Genome-Assembly-Data-START##\n")
         # note: the <tool name> v. <version name> format is required by NCBI, don't remove the " v. "
-        outf.write("Assembly Method\tgithub.com/broadinstitute/viral-ngs v. {}\n".format(util.version.get_version()))
+
+        outf.write("Assembly Method\t{} v. {}\n".format(assembly_method, assembly_method_version))
         if name:
             outf.write("Assembly Name\t{}\n".format(name))
         if coverage:
@@ -452,7 +458,8 @@ def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=N
 
 def prep_genbank_files(templateFile, fasta_files, annotDir,
                        master_source_table=None, comment=None, sequencing_tech=None,
-                       coverage_table=None, biosample_map=None, organism=None, mol_type=None):
+                       coverage_table=None, biosample_map=None, organism=None, mol_type=None,
+                       assembly_method=None, assembly_method_version=None):
     ''' Prepare genbank submission files.  Requires .fasta and .tbl files as input,
         as well as numerous other metadata files for the submission.  Creates a
         directory full of files (.sqn in particular) that can be sent to GenBank.
@@ -512,7 +519,9 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                 make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
                                              name=sample,
                                              coverage=coverage.get(sample),
-                                             seq_tech=sequencing_tech)
+                                             seq_tech=sequencing_tech,
+                                             assembly_method=assembly_method,
+                                             assembly_method_version=assembly_method_version)
 
     # run tbl2asn (relies on filesnames matching by prefix)
     tbl2asn = phylo.tbl2asn.Tbl2AsnTool()
@@ -544,6 +553,8 @@ def parser_prep_genbank_files(parser=argparse.ArgumentParser()):
         have at least two columns named sample and aln2self_cov_median.  All other
         columns are ignored. Rows referring to samples not in this submission are
         ignored.''')
+    parser.add_argument('--assembly_method', default=None, help='short description of informatic assembly method')
+    parser.add_argument('--assembly_method_version', default=None, help='version of assembly method used')
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, prep_genbank_files, split_args=True)
     return parser
