@@ -13,6 +13,7 @@ import shutil
 import os
 import os.path
 
+import arrow
 import Bio.SeqIO
 
 import util.cmd
@@ -470,6 +471,74 @@ def parser_fetch_genbank_records(parser):
 
 
 __commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
+
+
+def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map):
+    ''' Prepare a Genbank Source Modifier Table based on a BioSample registration table (since all of the values are there)
+    '''
+    header_key_map = {
+        'Sequence_ID':'sample_name',
+        'country':'geo_loc_name',
+    }
+    datestring_formats = [
+        "YYYY-MM-DDTHH:mm:ss", "YYYY-MM-DD", "YYYY-MM", "DD-MMM-YYYY", "MMM-YYYY", "YYYY"
+    ]
+    out_headers_total = ('Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref')
+    with open(out_genbank_smt, 'wt') as outf_smt:
+        in_headers = util.file.readFlatFileHeader(attributes)
+        out_headers = list(h for h in out_headers_total if header_key_map.get(h,h) in in_headers)
+        out_headers.append
+        outf_smt.write('\t'.join(out_headers)+'\n')
+
+        with open(out_biosample_map, 'wt') as outf_biosample:
+            outf_biosample.write('BioSample\tsample\n')
+
+            for row in util.file.read_tabfile_dict(attributes):
+                if row['message'].startswith('Success'):
+                    # write BioSample
+                    outf_biosample.write("{}\t{}\n".format(row['accession'], row['sample_name']))
+
+                    # populate output row as a dict
+                    outrow = dict((h, row.get(header_key_map.get(h,h), '')) for h in out_headers)
+
+                    # custom reformat collection_date
+                    collection_date = outrow.get('collection_date', '')
+                    if collection_date:
+                        date_parsed = None
+                        for datestring_format in datestring_formats:
+                            try:
+                                date_parsed = arrow.get(collection_date, datestring_format)
+                                break
+                            except arrow.parser.ParserError:
+                                pass
+                        if date_parsed:
+                            collection_date = str(date_parsed.format("DD-MMM-YYYY"))
+                            outrow['collection_date'] = collection_date
+                        else:
+                            log.warn("unable to parse date {} from sample {}".format(collection_date, outrow['Sequence_ID']))
+
+                    # custom db_xref/taxon
+                    outrow['db_xref'] = "taxon:{}".format(taxid)
+
+                    # write entry for this sample
+                    outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+
+                    # also write numbered versions for every segment/chromosome
+                    sample_name = outrow['Sequence_ID']
+                    for i in range(num_segments):
+                        outrow['Sequence_ID'] = "{}-{}".format(sample_name, i+1)
+                        outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+
+def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
+    parser.add_argument('attributes', help='Input BioSample metadata table -- the attributes.tsv returned by BioSample after successful registration')
+    parser.add_argument("num_segments", type=int, help="number of chromosomes/segments per genome for this species")
+    parser.add_argument("taxid", type=int, help="NCBI Taxonomy numeric taxid to assign to all entries")
+    parser.add_argument("out_genbank_smt", help="Output tab table in Genbank Source Modifier Table format, suitable for prep_genbank_files")
+    parser.add_argument("out_biosample_map", help="Output two-column biosample accession to sample name map, suitable for prep_genbank_files")
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, biosample_to_genbank, split_args=True)
+    return parser
+__commands__.append(('biosample_to_genbank', parser_biosample_to_genbank))
 
 
 def fasta2fsa(infname, outdir, biosample=None):
