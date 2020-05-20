@@ -169,6 +169,66 @@ def parser_tbl_transfer(parser=argparse.ArgumentParser()):
 __commands__.append(('tbl_transfer', parser_tbl_transfer))
 
 
+
+def tbl_transfer_multichr(ref_fastas, ref_tbls, alt_fasta, out_dir, oob_clip=False, ignore_ambig_feature_edge=False):
+    ''' This function takes an NCBI TBL file describing features on a genome
+        (genes, etc) and transfers them to a new genome.
+    '''
+
+    # parse the alt_fasta into one-seg-per-file fastas
+    alt_fastas = []
+    alt_seqids = []
+    with util.file.open_or_gzopen(alt_fasta, 'r') as inf:
+        for seq in Bio.SeqIO.parse(inf, 'fasta'):
+            fname = os.path.join(out_dir, seq.id + ".fasta")
+            alt_seqids.append(seq.id)
+            alt_fastas.append(fname)
+            Bio.SeqIO.write(seq, fname, "fasta")
+    n_segs = len(alt_fastas)
+
+    # input consistency check
+    if not (n_segs == len(ref_fastas)) and (n_segs == len(ref_tbls)):
+        raise Exception("The number of reference fastas ({}), reference feature tables ({}), and alt sequences ({}) must be exactly equal".format(
+            len(ref_fastas), len(ref_tbls), n_segs))
+
+    # iterate over each segment and call tbl_transfer on each
+    for i in range(n_segs):
+        out_tbl = os.path.join(out_dir, alt_seqids[i] + '.tbl')
+        tbl_transfer(ref_fastas[i], ref_tbls[i], alt_fastas[i], out_tbl,
+            oob_clip=oob_clip, ignore_ambig_feature_edge=ignore_ambig_feature_edge)
+
+def parser_tbl_transfer_multichr(parser=argparse.ArgumentParser()):
+    parser.add_argument("alt_fasta", help="Input sequence of new genome, all chr/segs in one fasta file, in the same order as ref_fastas")
+    parser.add_argument("out_dir", help="Output files include one fasta and tbl per sequence in alt_fasta, named according to the fasta header ID of each entry in alt_fasta.")
+    parser.add_argument("--ref_fastas",
+                        nargs='+',
+                        help="Input sequences of reference genome, one chr/seg per fasta file")
+    parser.add_argument("--ref_tbls",
+                        nargs='+',
+                        help="Input reference annotations (NCBI TBL format), one chr/seg per tbl file, in the same order as ref_fastas")
+    parser.add_argument('--oob_clip',
+                        default=False,
+                        action='store_true',
+                        help='''Out of bounds feature behavior.
+        False: drop all features that are completely or partly out of bounds
+        True:  drop all features completely out of bounds
+               but truncate any features that are partly out of bounds''')
+    parser.add_argument('--ignoreAmbigFeatureEdge',
+                        dest="ignore_ambig_feature_edge",
+                        default=False,
+                        action='store_true',
+                        help='''Ambiguous feature behavior.
+        False: features specified as ambiguous ("<####" or ">####") are mapped,
+               where possible
+        True:  features specified as ambiguous ("<####" or ">####") are interpreted
+               as exact values''')
+    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
+    util.cmd.attach_main(parser, tbl_transfer_multichr, split_args=True)
+    return parser
+
+__commands__.append(('tbl_transfer_multichr', parser_tbl_transfer_multichr))
+
+
 def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, oob_clip=False, ignore_ambig_feature_edge=False):
     """
         This breaks out the ref and alt sequences into separate fasta files, and then
