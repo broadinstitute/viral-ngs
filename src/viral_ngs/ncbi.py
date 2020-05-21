@@ -618,9 +618,13 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
         # for each segment/chromosome in the fasta file,
         # create a separate new *.fsa file
         with open(fn, "r") as inf:
+            n_segs = len(list(1 for s in Bio.SeqIO.parse(inf, 'fasta')))
             asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
             for idx, seq_obj in enumerate(asm_fasta):
-                sample = sample_base + "-" + str(idx+1)
+                if n_segs>1:
+                    sample = sample_base + "-" + str(idx+1)
+                else:
+                    sample = sample_base
 
                 # write the segment to a temp .fasta file
                 # in the same dir so fasta2fsa functions as expected
@@ -648,7 +652,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                 # make .cmt files
                 make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
                                              name=sample,
-                                             coverage=coverage.get(sample),
+                                             coverage=coverage.get(sample, coverage.get(sample_base)),
                                              seq_tech=sequencing_tech,
                                              assembly_method=assembly_method,
                                              assembly_method_version=assembly_method_version)
