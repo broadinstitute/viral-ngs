@@ -617,21 +617,23 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
 
         # for each segment/chromosome in the fasta file,
         # create a separate new *.fsa file
+        n_segs = util.file.fasta_length(fn)
         with open(fn, "r") as inf:
             asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
             for idx, seq_obj in enumerate(asm_fasta):
-                sample = sample_base + "-" + str(idx+1)
+                if n_segs>1:
+                    sample = sample_base + "-" + str(idx+1)
+                else:
+                    sample = sample_base
 
                 # write the segment to a temp .fasta file
                 # in the same dir so fasta2fsa functions as expected
-                out_file_name = os.path.join(os.path.dirname(fn),sample+".fasta")
-                with open(out_file_name, "w") as out_chr_fasta:
-                    Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
-
-                # make .fsa files
-                fasta2fsa(out_file_name, annotDir, biosample=biosample.get(sample_base))
-                # remove the .fasta file
-                os.unlink(out_file_name)
+                with util.file.tmp_dir() as tdir:
+                    temp_fasta_fname = os.path.join(tdir,sample+".fasta")
+                    with open(temp_fasta_fname, "w") as out_chr_fasta:
+                        Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
+                    # make .fsa files
+                    fasta2fsa(temp_fasta_fname, annotDir, biosample=biosample.get(sample_base))
 
                 # make .src files
                 if master_source_table:
@@ -648,7 +650,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                 # make .cmt files
                 make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
                                              name=sample,
-                                             coverage=coverage.get(sample),
+                                             coverage=coverage.get(sample, coverage.get(sample_base)),
                                              seq_tech=sequencing_tech,
                                              assembly_method=assembly_method,
                                              assembly_method_version=assembly_method_version)
