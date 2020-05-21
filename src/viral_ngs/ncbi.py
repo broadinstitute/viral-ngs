@@ -628,14 +628,12 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
 
                 # write the segment to a temp .fasta file
                 # in the same dir so fasta2fsa functions as expected
-                out_file_name = os.path.join(os.path.dirname(fn),sample+".fasta")
-                with open(out_file_name, "w") as out_chr_fasta:
-                    Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
-
-                # make .fsa files
-                fasta2fsa(out_file_name, annotDir, biosample=biosample.get(sample_base))
-                # remove the .fasta file
-                os.unlink(out_file_name)
+                with util.file.tmp_dir() as tdir:
+                    temp_fasta_fname = os.path.join(tdir,sample+".fasta")
+                    with open(temp_fasta_fname, "w") as out_chr_fasta:
+                        Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
+                    # make .fsa files
+                    fasta2fsa(temp_fasta_fname, annotDir, biosample=biosample.get(sample_base))
 
                 # make .src files
                 if master_source_table:
