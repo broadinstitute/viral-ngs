@@ -617,8 +617,8 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
 
         # for each segment/chromosome in the fasta file,
         # create a separate new *.fsa file
+        n_segs = util.file.fasta_length(fn)
         with open(fn, "r") as inf:
-            n_segs = len(list(1 for s in Bio.SeqIO.parse(inf, 'fasta')))
             asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
             for idx, seq_obj in enumerate(asm_fasta):
                 if n_segs>1:
