@@ -493,9 +493,44 @@ def parser_aggregate_spike_count(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, aggregate_spike_count, split_args=True)
     return parser
-
-
 __commands__.append(('aggregate_spike_count', parser_aggregate_spike_count))
+
+
+def aggregate_alignment_counts(in_reports, out_file):
+    '''aggregate multiple reports from read_utils.py bwamem_idxstats into one report.'''
+    seq_in_sample_counts = defaultdict(dict) # For a given ref sequence ID, map to input file and corresponding count
+    input_files_seen = []
+    with open(out_file, 'wt') as outf:
+        for in_report in in_reports:
+            short_name = os.path.basename(in_report)
+            for suffix in ['.txt','.tsv']:
+                if short_name.endswith(suffix):
+                    short_name = short_name[:-len(suffix)]   
+            if short_name not in input_files_seen:
+                input_files_seen.append(short_name)
+            with open(in_report, 'rt') as inf:
+                for line in inf:
+                    if not line.startswith('Input bam') and not line.startswith('*'):
+                        seq_mapped_to, count = [line.strip().split('\t')[i] for i in [0,2]]
+                        seq_in_sample_counts[seq_mapped_to][short_name] = count
+        outf.write("\t".join(["seq_mapped_to"]+sorted(input_files_seen))+"\n")
+        for seq_mapped_to in sorted(seq_in_sample_counts.keys()):
+            row = []
+            row.append(seq_mapped_to)
+            for s in sorted(input_files_seen):
+                if s in seq_in_sample_counts[seq_mapped_to]:
+                    row.append(seq_in_sample_counts[seq_mapped_to][s])
+                else:
+                    row.append("0")
+            outf.write("\t".join(row)+"\n")
+
+def parser_aggregate_alignment_counts(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_reports', nargs="+", metavar="in_reports", help='tsv reports with alignment counts from read_utils.py bwamem_idxstats')
+    parser.add_argument('out_file', metavar="outFile", help='Output report file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, aggregate_alignment_counts, split_args=True)
+    return parser
+__commands__.append(('aggregate_alignment_counts', parser_aggregate_alignment_counts))
 
 
 # =========================
