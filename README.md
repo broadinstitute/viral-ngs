@@ -5,7 +5,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/broadinstitute/viral-core/badge.svg?branch=master)](https://coveralls.io/github/broadinstitute/viral-core?branch=master)
 [![broad-viral-badge](https://img.shields.io/badge/install%20from-broad--viral-green.svg?style=flat-square)](https://anaconda.org/broad-viral/viral-ngs)
 [![Code Health](https://landscape.io/github/broadinstitute/viral-ngs/master/landscape.svg?style=flat)](https://landscape.io/github/broadinstitute/viral-ngs)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.252549.svg)](https://doi.org/10.5281/zenodo.252549)
 -->
 
 viral-core
