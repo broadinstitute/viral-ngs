@@ -29,6 +29,7 @@ import tools.bwa
 import tools.cdhit
 import tools.picard
 import tools.samtools
+import tools.minimap2
 import tools.mvicuna
 import tools.prinseq
 import tools.novoalign
@@ -1221,15 +1222,15 @@ def align_and_fix(
     gatk_path=None,
     novoalign_license_path=None
 ):
-    ''' Take reads, align to reference with Novoalign, optionally mark duplicates
-        with Picard, realign indels with GATK, and optionally filters
-        final file to mapped/non-dupe reads.
+    ''' Take reads, align to reference with Novoalign, minimap2, or BWA-MEM.
+        Optionally mark duplicates with Picard, realign indels with GATK,
+        and optionally filters final file to mapped/non-dupe reads.
     '''
     if not (outBamAll or outBamFiltered):
         log.warning("are you sure you meant to do nothing?")
         return
 
-    assert aligner in ["novoalign", "bwa"]
+    assert aligner in ["novoalign", "bwa", "minimap2"]
 
     refFastaCopy = mkstempfname('.ref_copy.fasta')
     shutil.copyfile(refFasta, refFastaCopy)
@@ -1240,7 +1241,7 @@ def align_and_fix(
     if aligner_options is None:
         if aligner=="novoalign":
             aligner_options = '-r Random'
-        elif aligner=='bwa':
+        else:
             aligner_options = '' # use defaults
 
     bam_aligned = mkstempfname('.aligned.bam')
@@ -1255,6 +1256,7 @@ def align_and_fix(
             options=aligner_options.split(),
             JVMmemory=JVMmemory
         )
+
     elif aligner=='bwa':
         bwa = tools.bwa.Bwa()
         bwa.index(refFastaCopy)
@@ -1262,6 +1264,10 @@ def align_and_fix(
         opts = aligner_options.split()
 
         bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
+
+    elif aligner=='minimap2':
+        mm2 = tools.minimap2.Minimap2()
+        mm2.align_bam(inBam, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
 
     if skip_mark_dupes:
         bam_marked = bam_aligned
@@ -1306,7 +1312,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
                 duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
-    parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
+    parser.add_argument('--aligner', choices=['novoalign', 'minimap2', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--bwa_min_score', type=int, default=None, help='BWA mem on paired reads ignores the -T parameter. Set a value here (e.g. 30) to invoke a custom post-alignment filter (default: no filtration)')
     parser.add_argument('--novoalign_amplicons_bed', default=None, help='Novoalign only: amplicon primer file (BED format) to soft clip')
     parser.add_argument('--amplicon_window', type=int, default=4, help='Novoalign only: amplicon primer window size (default: %(default)s)')
