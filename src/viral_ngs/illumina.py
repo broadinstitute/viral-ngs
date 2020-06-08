@@ -62,6 +62,9 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--read_structure',
                         help='Override read structure (default: read from RunInfo.xml).',
                         default=None)
+    parser.add_argument('--append_run_id',
+                        help='If specified, output filenames will include the flowcell ID and lane number.',
+                        action='store_true')
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
         if opt not in ('read_structure', 'num_processors'):
@@ -96,7 +99,6 @@ def main_illumina_demux(args):
         while handling the various required input formats. Also can
         read Illumina BCL directories, tar.gz BCL directories.
     '''
-    # TO DO: read BCL or tar.gz BCL directories from S3 / object store.
 
     # prepare
     illumina = IlluminaDirectory(args.inDir)
@@ -118,10 +120,14 @@ def main_illumina_demux(args):
         read_structure = args.read_structure
     else:
         read_structure = runinfo.get_read_structure()
-    if args.sampleSheet:
-        samples = SampleSheet(args.sampleSheet, only_lane=args.lane)
+    if args.append_run_id:
+        run_id = "{}.{}".format(flowcell, args.lane)
     else:
-        samples = illumina.get_SampleSheet(only_lane=args.lane)
+        run_id = None
+    if args.sampleSheet:
+        samples = SampleSheet(args.sampleSheet, only_lane=args.lane, append_run_id=run_id)
+    else:
+        samples = illumina.get_SampleSheet(only_lane=args.lane, append_run_id=run_id)
 
 
     link_locs=False
@@ -718,13 +724,14 @@ class SampleSheet(object):
         tab-delimited versions as well.
     '''
 
-    def __init__(self, infile, use_sample_name=True, only_lane=None, allow_non_unique=False):
+    def __init__(self, infile, use_sample_name=True, only_lane=None, allow_non_unique=False, append_run_id=None):
         self.fname = infile
         self.use_sample_name = use_sample_name
         if only_lane is not None:
             only_lane = str(only_lane)
         self.only_lane = only_lane
         self.allow_non_unique = allow_non_unique
+        self.append_run_id = append_run_id
         self.rows = []
         self._detect_and_load_sheet(infile)
 
@@ -857,6 +864,8 @@ class SampleSheet(object):
                     row['run'] += '.r' + str(unique_count[row['library']])
             else:
                 raise SampleSheetError('non-unique library IDs in this lane', infile)
+        if self.append_run_id:
+            row['run'] += '.' + self.append_run_id
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
