@@ -26,7 +26,7 @@ class TestToolMinimap2(TestCaseWithTmp):
         in_bam = os.path.join(util.file.get_test_input_path(), "TestDepleteHuman", 'test-reads-human.bam')
 
         outfile = util.file.mkstempfname('.bam')
-        self.mm2.align_bam(in_bam, self.ref_fasta, outfile, options=['-x', 'sr'])
+        self.mm2.align_bam(in_bam, self.ref_fasta, outfile)
 
         self.assertEqual(self.samtools.count(outfile), 20)
 
@@ -38,6 +38,6 @@ class TestToolMinimap2(TestCaseWithTmp):
         outfile = util.file.mkstempfname('.bam')
 
         # pipe.poll() should raise an exception
-        self.assertRaises(subprocess.CalledProcessError, self.mm2.align_bam, in_bam, self.ref_fasta, outfile, options=['-x', 'sr'])
+        self.assertRaises(subprocess.CalledProcessError, self.mm2.align_bam, in_bam, self.ref_fasta, outfile)
 
         os.unlink(outfile)

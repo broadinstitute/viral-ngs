@@ -3,10 +3,10 @@
 
 '''
 
-from collections import defaultdict
 import logging
 import os
 import os.path
+import shutil
 import subprocess
 
 import tools
@@ -24,7 +24,7 @@ class Minimap2(tools.Tool):
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand('/opt/miniconda/envs/viral-ngs-env/bin/minimap2', require_executability=True))
+            install_methods.append(tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
         super(Minimap2, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -95,17 +95,17 @@ class Minimap2(tools.Tool):
                 for bam in align_bams:
                     os.unlink(bam)
 
-    def align_one_rg(self, inBam, refDb, outBam, rgid=None, options=None,
+    def align_one_rg(self, inBam, refDb, outBam, rgid=None, preset=None, options=None,
                          threads=None, JVMmemory=None):
         """
-            Performs an alignment of one read group in a bam file to a reference fasta file
-
-            TODO: With the addition of a third aligner to viral-ngs, the functionality
-            common to this method and to the comparable method in the Novoalign wrapper should
-            be broken out as an "aligner" superclass, capable of aligning bam or fastq files with an arbitrary
-            aligner, while preserving read groups. 
+            Performs an alignment of one read group in a bam file to a reference fasta file using minimap2.
+            Emits alignments in sorted, index bam files.
+            inBam may contain more read groups, but we will subset input to the specified rgid.
+            preset may be specified as a valid value for "minimap2 -x" which depends on the type of
+                data (short accurate reads vs long noisy reads). If preset is set to None, we will autodetect
+                based on the PL (platform) tag in the read group header (e.g. illumina, ont, pacbio)
         """
-        options = options or []
+        options = list(options).copy() or []
 
         samtools = tools.samtools.SamtoolsTool()
 
@@ -130,7 +130,7 @@ class Minimap2(tools.Tool):
         else:
             # strip inBam to one read group
             with util.file.tempfname('.onebam.bam') as tmp_bam:
-                samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+                samtools.view(['-1', '-r', rgid], inBam, tmp_bam)
                 # special exit if this file is empty
                 if samtools.isEmpty(tmp_bam):
                     log.warning("No reads present for RG %s in file: %s", rgid, inBam)
@@ -148,25 +148,39 @@ class Minimap2(tools.Tool):
                         outf.write('\t'.join(row) + '\n')
                 samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
 
-        # perform actual alignment
-
-        # get the read group line to give to BWA
+        # get the read group line to give to mm2
         readgroup_line = ""
         with open(headerFile) as inf:
             for line in inf:
                 if line.startswith("@RG"):
-                    readgroup_line = line
-
-        assert len(readgroup_line) > 0
-
-        #with util.file.tempfname('.aligned.bam') as tmp_bam_aligned:
+                    readgroup_line = line.rstrip("\r\n")
+        if not readgroup_line:
+            raise Exception()
         # rather than reheader the alignment bam file later so it has the readgroup information
-        # from the original bam file, we'll pass the RG line to bwa to write out
-        self.align_cmd(one_rg_inBam, refDb, outBam, options=options+['-R',
-                 readgroup_line.rstrip("\r\n").replace('\t','\\t')],
-                 threads=threads)
+        # from the original bam file, we'll pass the RG line to minimap2 to write out
+        options.extend(('-R', readgroup_line.replace('\t','\\t')))
 
-        return (rgid, outBam)
+        # dynamically determine the mode of operation
+        if '-x' not in options:
+            if preset is None:
+                platform = list(x for x in readgroup_line.split('\t') if x.startswith('PL:'))
+                if len(platform) != 1:
+                    raise Exception("cannot autodetect minimap2 aligner mode when PL: tag is not set in the read group header for {}: {}".format(inBam, readgroup_line))
+                else:
+                    platform = platform[0][3:].lower()
+                    if platform == 'illumina':
+                        preset = 'sr'
+                    elif platform == 'ont':
+                        preset = 'map-ont'
+                    elif platform == 'pacbio':
+                        preset = 'map-pb'
+                    else:
+                        raise Exception("PL: tag {} for read group {} in bam {} refers to a data type we do not know how to map with minimap2".format(platform, rgid, inBam))
+            options.extend(('-x', preset))
+
+        # perform actual alignment
+        self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
+
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
         # if there was only one RG in the input, we used it directly and should not delete it
@@ -190,6 +204,31 @@ class Minimap2(tools.Tool):
             self.execute(options, stdin=fastq_pipe.stdout)
             if fastq_pipe.wait():
                 raise subprocess.CalledProcessError(fastq_pipe.returncode, "samtools.bam2fq_pipe() for {}".format(inReads))
+            samtools.sort(aln_sam, outAlign, threads=threads)
+
+        # cannot index sam files; only do so if a bam/cram is desired
+        if (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
+            samtools.index(outAlign)
+
+    def scaffold(self, contigs_fasta, ref_fasta, outAlign, divergence=20, options=None, threads=None):
+        options = [] if not options else options
+
+        threads = util.misc.sanitize_thread_count(threads)
+        if '-t' not in options:
+            options.extend(('-t', str(threads)))
+        if '-2' not in options:
+            options.append('-2')
+
+        if divergence >= 20:
+            options.extend(('-x', 'asm20'))
+        elif divergence >= 10:
+            options.extend(('-x', 'asm10'))
+        else:
+            options.extend(('-x', 'asm5'))
+
+        with util.file.tempfname('.aligned.sam') as aln_sam:
+            options.extend(('-a', ref_fasta, contigs_fasta, '-o', aln_sam))
+            self.execute(options)
             samtools.sort(aln_sam, outAlign, threads=threads)
 
         # cannot index sam files; only do so if a bam/cram is desired
