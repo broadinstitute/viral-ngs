@@ -8,8 +8,6 @@ import logging
 import os
 import os.path
 import subprocess
-import shutil
-import concurrent.futures
 
 import tools
 import tools.samtools
@@ -21,19 +19,19 @@ TOOL_NAME = 'minimap2'
 
 log = logging.getLogger(__name__)
 
-class Bwa(tools.Tool):
+class Minimap2(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand(TOOL_NAME, verifycmd=False, require_executability=True))
-        super(Bwa, self).__init__(install_methods=install_methods)
+            install_methods.append(tools.PrexistingUnixCommand('/opt/miniconda/envs/viral-ngs-env/bin/minimap2', require_executability=True))
+        super(Minimap2, self).__init__(install_methods=install_methods)
 
     def version(self):
         return subprocess.check_output([TOOL_NAME ,'--version']).decode('UTF-8').strip()
 
     def execute(self, args, stdout=None, stdin=None, background=False):    # pylint: disable=W0221
-        tool_cmd = [self.install_and_get_path(), command] + args
+        tool_cmd = [self.install_and_get_path()] + args
         log.debug(' '.join(tool_cmd))
         if stdout:
             stdout = open(stdout, 'w')
@@ -45,7 +43,7 @@ class Bwa(tools.Tool):
                 stdout.close()
 
     def align_bam(self, inBam, refDb, outBam, options=None,
-                      min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False, should_index=True):
+                      threads=None, JVMmemory=None):
         options = options or []
 
         samtools = tools.samtools.SamtoolsTool()
@@ -60,64 +58,45 @@ class Bwa(tools.Tool):
 
         elif len(rgs) == 1:
             # Only one RG, keep it simple
-            self.align_one_rg(inBam, refDb, outBam, options=options,
-                                  min_score_to_filter=min_score_to_filter,
-                                  threads=threads, invert_filter=invert_filter)
+            self.align_one_rg(inBam, refDb, outBam, options=options, threads=threads)
 
         else:
             # Multiple RGs, align one at a time and merge
             align_bams = []
 
-            threads_for_chunk = int(round(min(max(threads / len(rgs),1),threads),0))+1
-            # worker count limited to 1 for now to reduce in-memory index size resulting from
-            # running multiple copies of bwa in parallel
-            workers = 1 #len(rgs) if len(rgs)<threads else threads
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = []# executor.submit(util.file.count_occurrences_in_tsv, filePath, include_noise=includeNoise) for rg in rgs]
+            for rg in rgs:
+                tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
+                self.align_one_rg(
+                    inBam,
+                    refDb,
+                    tmp_bam,
+                    rgid=rg,
+                    options=options,
+                    threads=threads
+                )
+                if not samtools.isEmpty(tmp_bam):
+                    align_bams.append(tmp_bam)
+                else:
+                    log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
 
-                for rg in rgs:
-                    tmp_bam = util.file.mkstempfname('.{}.bam'.format(rg))
-                    futures.append(executor.submit(
-                        self.align_one_rg,
-                        inBam,
-                        refDb,
-                        tmp_bam,
-                        rgid=rg,
-                        options=options,
-                        min_score_to_filter=min_score_to_filter,
-                        threads=threads_for_chunk, 
-                        invert_filter=invert_filter
-                    ))
-
-                for future in concurrent.futures.as_completed(futures):
-                    if future.result():
-                        rg, aln_bam = future.result()
-                        if os.path.getsize(aln_bam) > 0:
-                            align_bams.append(aln_bam)
-                        else:
-                            log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
-
-            if len(align_bams) == 0:
-                util.file.touch(outBam)
+            if len(align_bams)==0:
+                with util.file.tempfname('.empty.sam') as empty_sam:
+                    samtools.dumpHeader(inBam, empty_sam)
+                    samtools.view(['-b'], empty_sam, outBam)
             else:
                 # Merge BAMs, sort, and index
-                picardOptions = ['SORT_ORDER=coordinate', 'USE_THREADING=true']
-                if should_index:
-                    picardOptions.append('CREATE_INDEX=true')
+                picardOptions = ['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true']
                 tools.picard.MergeSamFilesTool().execute(
                     align_bams,
                     outBam,
                     picardOptions=picardOptions,
                     JVMmemory=JVMmemory
                 )
-                # no longer required since MergeSamFiles creates the index
-                #if outBam.endswith(".bam") or outBam.endswith(".cram"):
-                #    samtools.index(outBam)
                 for bam in align_bams:
                     os.unlink(bam)
 
     def align_one_rg(self, inBam, refDb, outBam, rgid=None, options=None,
-                         min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False, should_index=True):
+                         threads=None, JVMmemory=None):
         """
             Performs an alignment of one read group in a bam file to a reference fasta file
 
@@ -153,7 +132,7 @@ class Bwa(tools.Tool):
             with util.file.tempfname('.onebam.bam') as tmp_bam:
                 samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
                 # special exit if this file is empty
-                if samtools.count(tmp_bam) == 0:
+                if samtools.isEmpty(tmp_bam):
                     log.warning("No reads present for RG %s in file: %s", rgid, inBam)
                     return
                 # simplify BAM header otherwise Novoalign gets confused
@@ -207,9 +186,9 @@ class Bwa(tools.Tool):
 
         with util.file.tempfname('.aligned.sam') as aln_sam:
             fastq_pipe = samtools.bam2fq_pipe(inReads)
-            options.extend((refDb, '-', '-o', aln_sam))
-            self.execute(options, stdin=fastq_pipe)
-            if fastq_pipe.poll():
+            options.extend(('-a', refDb, '-', '-o', aln_sam))
+            self.execute(options, stdin=fastq_pipe.stdout)
+            if fastq_pipe.wait():
                 raise subprocess.CalledProcessError(fastq_pipe.returncode, "samtools.bam2fq_pipe() for {}".format(inReads))
             samtools.sort(aln_sam, outAlign, threads=threads)
 
