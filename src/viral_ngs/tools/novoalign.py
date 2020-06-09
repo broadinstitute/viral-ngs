@@ -32,14 +32,15 @@ class NovoalignTool(tools.Tool):
     def __init__(self, path=None, license_path=None):
         self.tool_version = None
         install_methods = []
-        for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
+        for novopath in [path, os.environ.get('NOVOALIGN_PATH')]:
             if novopath is not None:
                 install_methods.append(
                     tools.PrexistingUnixCommand(
-                        os.path.join(novopath, 'novoalign'),
+                        os.path.join(novopath, TOOL_NAME),
                         require_executability=True
                     )
                 )
+        install_methods.append(tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
 
         post_verify_command = None
         for novo_license_path in [license_path, os.environ.get("NOVOALIGN_LICENSE_PATH"), '']:
