@@ -442,9 +442,10 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         downsamplesam = tools.picard.DownsampleSamTool()
         workers = util.misc.sanitize_thread_count(threads)
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
-        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        
+        jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=jvm_worker_memory_mb): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
@@ -455,9 +456,9 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     def dedup_bams(data_pairs, threads=None, JVMmemory=None):
         workers = util.misc.sanitize_thread_count(threads)
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
-        jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
+        jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory_mb): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
