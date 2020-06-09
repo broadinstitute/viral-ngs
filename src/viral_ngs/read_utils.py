@@ -37,44 +37,6 @@ import tools.gatk
 
 log = logging.getLogger(__name__)
 
-# =======================
-# ***  purge_unmated  ***
-# =======================
-
-
-def purge_unmated(inFastq1, inFastq2, outFastq1, outFastq2, regex=r'^@(\S+)/[1|2]$'):
-    '''Use mergeShuffledFastqSeqs to purge unmated reads, and
-       put corresponding reads in the same order.
-       Corresponding sequences must have sequence identifiers
-       of the form SEQID/1 and SEQID/2.
-    '''
-    tempOutput = mkstempfname()
-    mergeShuffledFastqSeqsPath = os.path.join(util.file.get_scripts_path(), 'mergeShuffledFastqSeqs.pl')
-    cmdline = [mergeShuffledFastqSeqsPath, '-t', '-r', regex, '-f1', inFastq1, '-f2', inFastq2, '-o', tempOutput]
-    log.debug(' '.join(cmdline))
-    util.misc.run_and_print(cmdline, check=True)
-    shutil.move(tempOutput + '.1.fastq', outFastq1)
-    shutil.move(tempOutput + '.2.fastq', outFastq2)
-    return 0
-
-
-def parser_purge_unmated(parser=argparse.ArgumentParser()):
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
-    parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
-    parser.add_argument('outFastq1', help='Output fastq file; 1st end of paired-end reads.')
-    parser.add_argument('outFastq2', help='Output fastq file; 2nd end of paired-end reads.')
-    parser.add_argument(
-        "--regex",
-        help="Perl regular expression to parse paired read IDs (default: %(default)s)",
-        default=r'^@(\S+)/[1|2]$'
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, purge_unmated, split_args=True)
-    return parser
-
-
-__commands__.append(('purge_unmated', parser_purge_unmated))
-
 
 # ===============================
 # ***  index_fasta_samtools   ***

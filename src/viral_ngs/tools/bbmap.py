@@ -5,6 +5,7 @@
 import logging
 import os
 import os.path
+import shutil
 import subprocess
 
 import util.file
@@ -12,8 +13,7 @@ import tools
 import tools.samtools
 import tools.picard
 
-TOOL_NAME = 'bbmap'
-TOOL_VERSION = '38.56'
+TOOL_NAME = 'bbmap.sh'
 
 _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -22,11 +22,11 @@ class BBMapTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='bbmap.sh')]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(BBMapTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        return subprocess.check_output([os.path.join(os.path.dirname(self.install_and_get_path()), 'bbversion.sh')]).decode('UTF-8').strip()
 
     def execute(self, tool, **kwargs):  # pylint: disable=arguments-differ
         tool_dir = os.path.dirname(self.install_and_get_path())

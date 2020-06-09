@@ -7,8 +7,7 @@ import subprocess
 import tools
 import util.file
 
-TOOL_NAME = "prinseq"
-TOOL_VERSION = '0.20.4'
+TOOL_NAME = "prinseq-lite.pl"
 
 log = logging.getLogger(__name__)
 
@@ -16,9 +15,11 @@ class PrinseqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="prinseq-lite.pl", version=TOOL_VERSION))
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(PrinseqTool, self).__init__(install_methods=install_methods)
+
+    def version(self):
+        return subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip().split()[1]
 
     def rmdup_fastq_single(self, inFastq, outFastq):
         ''' remove duplicate reads and reads with multiple Ns '''

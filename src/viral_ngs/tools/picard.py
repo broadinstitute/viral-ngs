@@ -19,10 +19,6 @@ import util.file
 import util.misc
 
 TOOL_NAME = "picard"
-TOOL_VERSION = '2.22.2'
-TOOL_URL = 'https://github.com/broadinstitute/picard/releases/download/' \
-    + '{ver}/picard-tools-{ver}.zip'.format(ver=TOOL_VERSION)
-# Note: /seq/software/picard/{versionnumber}/ does not correspond with github release numbers!
 
 _log = logging.getLogger(__name__)
 
@@ -31,22 +27,18 @@ class PicardTools(tools.Tool):
     """Base class for tools in the picard suite."""
     jvmMemDefault = '2g'
 
-    def install(self):
-        pass
-
     def is_installed(self):
         return True
-
-    def install_and_get_path(self):
-        # the conda version wraps the jar file with a shell script
-        return 'picard'
 
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         self.installed_method = True
+        self.exec_path = shutil.which(TOOL_NAME)
 
     def version(self):
-        return TOOL_VERSION
+        if self.TOOL_VERSION is None:
+            self.TOOL_VERSION = subprocess.check_output([self.exec_path, 'BamIndexStats', '--version']).decode('UTF-8').rstrip()
+        return self.TOOL_VERSION
 
     def execute(self, command, picardOptions=None, JVMmemory=None, background=False, **kwargs):    # pylint: disable=W0221
         picardOptions = picardOptions or []
