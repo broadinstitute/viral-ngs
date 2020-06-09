@@ -865,7 +865,8 @@ class SampleSheet(object):
             else:
                 raise SampleSheetError('non-unique library IDs in this lane', infile)
         if self.append_run_id:
-            row['run'] += '.' + self.append_run_id
+            for row in self.rows:
+                row['run'] += '.' + self.append_run_id
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
