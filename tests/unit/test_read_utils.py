@@ -27,42 +27,6 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-class TestPurgeUnmated(TestCaseWithTmp):
-
-    def test_purge_unmated(self):
-        myInputDir = util.file.get_test_input_path(self)
-        inFastq1 = os.path.join(myInputDir, 'in1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in2.fastq')
-        outFastq1 = util.file.mkstempfname('.fastq')
-        outFastq2 = util.file.mkstempfname('.fastq')
-        parser = read_utils.parser_purge_unmated(argparse.ArgumentParser())
-        args = parser.parse_args([inFastq1, inFastq2, outFastq1, outFastq2])
-        args.func_main(args)
-
-        # Check that results match expected
-        expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
-        expected2Fastq = os.path.join(myInputDir, 'expected2.fastq')
-        self.assertEqualContents(outFastq1, expected1Fastq)
-        self.assertEqualContents(outFastq2, expected2Fastq)
-
-    # test on FASTQs with read IDs in the style of SRA fastq-dump
-    def test_purge_unmated_sra(self):
-        myInputDir = util.file.get_test_input_path(self)
-        inFastq1 = os.path.join(myInputDir, 'in_sra1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in_sra2.fastq')
-        outFastq1 = util.file.mkstempfname('.fastq')
-        outFastq2 = util.file.mkstempfname('.fastq')
-        parser = read_utils.parser_purge_unmated(argparse.ArgumentParser())
-        args = parser.parse_args(['--regex', r'^@(\S+).[1|2] .*', inFastq1, inFastq2, outFastq1, outFastq2])
-        args.func_main(args)
-
-        # The expected outputs are identical to the previous case.
-        expected1Fastq = os.path.join(myInputDir, 'expected1.fastq')
-        expected2Fastq = os.path.join(myInputDir, 'expected2.fastq')
-        self.assertEqualContents(outFastq1, expected1Fastq)
-        self.assertEqualContents(outFastq2, expected2Fastq)
-
-
 class TestBwamemIdxstats(TestCaseWithTmp):
 
     def setUp(self):
