@@ -562,3 +562,28 @@ def wraps(f):
 def unwrap(f):
     """Find the original function under layers of wrappers"""
     return f if not hasattr(f, '__wrapped__') else unwrap(f.__wrapped__)
+
+def convert_size_str(input_size_str, output_unit="m", round_number=True):
+    """ intended to convert a jvm-style size spec to an int value of the desired unit """
+    unit2factor = {'k': 1024, 'm': 1024**2, 'g': 1024**3, 't': 1024**4}
+    output_unit = output_unit.lower()
+
+    size_spec_pattern = re.compile(r"(.*)([kmgt])")
+
+    m = re.search(size_spec_pattern, input_size_str)
+    if m:
+        if m.group(1) and m.group(2):
+            input_size=float(m.group(1))
+            input_unit=m.group(2).lower()
+            
+            if input_unit not in unit2factor.keys():
+                raise TypeError("Error parsing size from string: %s" % input_size_str)
+
+            # convert to bytes
+            size_in_bytes = input_size * unit2factor[input_unit]
+
+            # convert to desired size
+            if round_number:
+                return str(round(max(1,float(size_in_bytes)/unit2factor[output_unit])))+output_unit
+            else:
+                return str(float(size_in_bytes)/unit2factor[output_unit])+output_unit
