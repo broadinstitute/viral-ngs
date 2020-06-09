@@ -61,18 +61,8 @@ def get_project_path():
 
 
 def get_build_path():
-    '''Return absolute path of "build" directory'''
+    raise Exception('deprecated')
     return os.path.join(get_project_path(), 'tools', 'build')
-
-
-def get_scripts_path():
-    '''Return absolute path of "scripts" directory'''
-    return os.path.join(get_project_path(), 'tools', 'scripts')
-
-
-def get_binaries_path():
-    '''Return absolute path of "binaries" directory'''
-    return os.path.join(get_project_path(), 'tools', 'binaries')
 
 
 def get_test_path():
@@ -88,14 +78,6 @@ def get_test_input_path(testClassInstance=None):
         return os.path.join(get_test_path(), 'input', type(testClassInstance).__name__)
     else:
         return os.path.join(get_test_path(), 'input')
-
-
-def get_resources():
-    ''' Return the project resources dictionary '''
-    jsonfile = os.path.join(get_project_path(), 'resources.json')
-    with open(jsonfile, 'rt') as inf:
-        resources = json.load(inf)
-    return resources
 
 def check_paths(read=(), write=(), read_and_write=()):
     '''Check that we can read and write the specified files, throw an exception if not.  Useful for checking
