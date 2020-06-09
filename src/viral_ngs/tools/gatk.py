@@ -15,15 +15,13 @@ import util.misc
 import logging
 import os
 import os.path
+import shutil
 import subprocess
 import tempfile
 
 _log = logging.getLogger(__name__)
 
-
-TOOL_NAME = 'gatk'
-TOOL_VERSION_TUPLE = (3, 8)
-TOOL_VERSION = '.'.join(map(str, TOOL_VERSION_TUPLE))
+TOOL_NAME = 'gatk3'
 
 class GATKTool(tools.Tool):
     jvmMemDefault = '2g'
@@ -43,8 +41,7 @@ class GATKTool(tools.Tool):
                         require_executability=False
                     )
                 )
-        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable="gatk3"))
-        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable="gatk"))
+        install_methods.append(tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, command, gatkOptions=None, JVMmemory=None):    # pylint: disable=W0221
@@ -77,17 +74,7 @@ class GATKTool(tools.Tool):
         return self.tool_version
 
     def _get_tool_version(self):
-        if self.install_and_get_path().endswith(".jar"):
-            cmd = [
-                'java', '-Djava.io.tmpdir=' + tempfile.gettempdir(), '-jar', self.install_and_get_path(),
-                '--version'
-            ]
-        else:
-            cmd = [
-                self.install_and_get_path(), '--version'
-            ]
-
-        self.tool_version = util.misc.run_and_print(cmd, buffered=False, silent=True).stdout.decode("utf-8").strip()
+        return subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip()
 
     def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=None):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
@@ -105,7 +92,7 @@ class GATKTool(tools.Tool):
             '--num_threads', threads,
             '-A', 'AlleleBalance',
         ]
-        if TOOL_VERSION_TUPLE < (3, 7):
+        if tuple(map(int, self.version().split('-')[0].split('.'))) < (3, 7):
             opts += ['-stand_call_conf', 0, '-stand_emit_conf', 0]  # deprecated in 3.7+
 
         self.execute('UnifiedGenotyper', opts + options, JVMmemory=JVMmemory)

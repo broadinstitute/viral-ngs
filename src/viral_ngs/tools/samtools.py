@@ -33,28 +33,23 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'samtools'
-TOOL_VERSION = '1.9'
 
 log = logging.getLogger(__name__)
-
 
 class SamtoolsTool(tools.Tool):
 
     def __init__(self, install_methods=None):
-        self.installed_method = True
-
-    def install(self):
-        pass
-
-    def is_installed(self):
-        return True
-
-    def install_and_get_path(self):
-        # the conda version wraps the jar file with a shell script
-        return 'samtools'
+        if install_methods is None:
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(SamtoolsTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        if self.tool_version is None:
+            self._get_tool_version()
+        return self.tool_version
+
+    def _get_tool_version(self):
+        return subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').split('\n')[0].split()[1]
 
     def execute(self, command, args, stdout=None, stderr=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
