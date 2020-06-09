@@ -18,7 +18,6 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'bwa'
-TOOL_VERSION = '0.7.17'
 
 log = logging.getLogger(__name__)
 
@@ -27,11 +26,8 @@ class Bwa(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
-        tools.Tool.__init__(self, install_methods=install_methods)
-
-    def version(self):
-        return TOOL_VERSION
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(Bwa, self).__init__(install_methods=install_methods)
 
     def execute(self, command, args, stdout=None, stdin=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args

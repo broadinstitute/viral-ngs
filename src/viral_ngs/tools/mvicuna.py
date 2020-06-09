@@ -8,11 +8,7 @@ import shutil
 import tools
 import util.file
 
-# BroadUnixPath = '/gsap/garage-viral/viral/analysis/xyang/programs'\
-#                 '/M-Vicuna/bin/mvicuna'
-
 TOOL_NAME = "mvicuna"
-TOOL_VERSION = "1.0"
 
 _log = logging.getLogger(__name__)
 
@@ -21,10 +17,7 @@ class MvicunaTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            path = _get_mvicuna_path()
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
-            install_methods.append(tools.PrexistingUnixCommand(path))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME))]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def rmdup(self, inPair, outPair, outUnpaired=None):
@@ -90,16 +83,3 @@ class MvicunaTool(tools.Tool):
         _log.debug(' '.join(cmdline))
         subprocess.check_call(cmdline)
         '''
-
-
-def _get_mvicuna_path():
-    uname = os.uname()
-    if uname[0] == 'Darwin':
-        osName = 'MacOSX'
-    elif uname[0] == 'Linux' and uname[4].endswith('64'):
-        osName = 'linux64'
-    else:
-        _log.debug('mvicuna not implemented for OS %s %s', uname[0], uname[4])
-        return ''
-    binaries_path = util.file.get_binaries_path()
-    return os.path.join(binaries_path, 'mvicuna', osName, 'mvicuna')

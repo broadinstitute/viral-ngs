@@ -15,7 +15,6 @@ import util.file
 import util.misc
 
 TOOL_NAME = 'fastqc'
-TOOL_VERSION = '0.11.7'
 
 log = logging.getLogger(__name__)
 
@@ -23,11 +22,11 @@ class FastQC(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION)]
-        tools.Tool.__init__(self, install_methods=install_methods)
+           install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(FastQC, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        return subprocess.check_output([self.install_and_get_path(), '-v']).decode('UTF-8').strip().split()[1]
 
     def execute(self, inBam, out_html, out_zip=None, threads=None):    # pylint: disable=W0221
         threads =  util.misc.sanitize_thread_count(threads)

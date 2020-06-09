@@ -2,13 +2,13 @@
 
 import logging
 import os
+import shutil
 import subprocess
 import tools
 import util.file
 import util.misc
 
 TOOL_NAME = "trimmomatic"
-TOOL_VERSION = "0.38"
 
 _log = logging.getLogger(__name__)
 
@@ -16,9 +16,11 @@ class TrimmomaticTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(TrimmomaticTool, self).__init__(install_methods=install_methods)
+
+    def version(self):
+        return subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip()
 
     def execute(self,
         inFastq1,

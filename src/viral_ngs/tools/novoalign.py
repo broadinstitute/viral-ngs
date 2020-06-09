@@ -16,6 +16,7 @@ import util.misc
 import logging
 import os
 import os.path
+import shutil
 import subprocess
 import stat
 import sys
@@ -23,7 +24,7 @@ import sys
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
-TOOL_VERSION = "3.09.04"
+#TOOL_VERSION = "3.09.04"
 
 
 class NovoalignTool(tools.Tool):
@@ -31,14 +32,15 @@ class NovoalignTool(tools.Tool):
     def __init__(self, path=None, license_path=None):
         self.tool_version = None
         install_methods = []
-        for novopath in [path, os.environ.get('NOVOALIGN_PATH'), '']:
+        for novopath in [path, os.environ.get('NOVOALIGN_PATH')]:
             if novopath is not None:
                 install_methods.append(
                     tools.PrexistingUnixCommand(
-                        os.path.join(novopath, 'novoalign'),
+                        os.path.join(novopath, TOOL_NAME),
                         require_executability=True
                     )
                 )
+        install_methods.append(tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
 
         post_verify_command = None
         for novo_license_path in [license_path, os.environ.get("NOVOALIGN_LICENSE_PATH"), '']:
@@ -54,8 +56,8 @@ class NovoalignTool(tools.Tool):
 
                 post_verify_command = "cp {copy_operation} {lic_path} ./".format(copy_operation=copy_operation, lic_path=novo_license_path)
                 break # if we've found a license file, stop looking
-            
-        install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
+
+        #install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def version(self):
@@ -64,12 +66,7 @@ class NovoalignTool(tools.Tool):
         return self.tool_version
 
     def _get_tool_version(self):
-        tmpf = util.file.mkstempfname('.novohelp.txt')
-        with open(tmpf, 'wt') as outf:
-            util.misc.run_and_save([self.install_and_get_path(), "-V"], outf=outf, check=False)
-        with open(tmpf, 'rt') as inf:
-            self.tool_version = inf.readline().strip().split()[1]
-        os.unlink(tmpf)
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '-V']).decode('UTF-8').strip().split()[1]
 
     def _fasta_to_idx_name(self, fasta):
         if not fasta.endswith('.fasta'):

@@ -24,18 +24,10 @@ class CdHit(tools.Tool):
         'cd-hit-dup',
         ]
 
-    def install(self):
-        pass
-
-    def is_installed(self):
-        return True
-
-    def install_and_get_path(self):
-        # the conda version wraps the jar file with a shell script
-        return 'cd-hit'
-
     def __init__(self, install_methods=None):
-        self.installed_method = True
+        if install_methods is None:
+            install_methods = [tools.PrexistingUnixCommand(shutil.which('cd-hit'), require_executability=True)]
+        super(CdHit, self).__init__(install_methods=install_methods)
 
     def execute(self, command, input_fn, output_fn, options=None, option_string=None, background=None):
         '''Perform a clustering on DNA/RNA sequences
