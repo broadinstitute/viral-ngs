@@ -40,10 +40,7 @@ Each commit on any branch, and any pull request, will trigger a build on Travis 
 1. The docker container is pulled and `py.test` is run inside the container. Integration and unit tests are run with every branch commit. Coverage reports are copied from container to host and sent to coveralls.io from the Travis host VM.
 
 Some TO DO improvements for the future:
- - DNAnexus workflow testing should check output for correctness.
- - Cromwell workflow testing should check output for correctness.
  - Reincarnate conda builds.
- - Publish workflows to Dockstore.
 
 ### Building documentation
 Documentation is built automatically for master branches of viral-core by [Read the Docs](http://viral-core.readthedocs.io/en/latest/). The documentation template files reside within `viral-core/docs`, and are formatted in standard docutils [reStructuredText format](http://docutils.sourceforge.net/rst.html). [Pandoc](http://pandoc.org/) may be used for converting from other formats (such as Markdown) to reStructuredText. The `sphinx-argparse` module is used to automatically generate documentation for the argparse parsers used in viral-ngs.
