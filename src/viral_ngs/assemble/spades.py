@@ -19,8 +19,7 @@ import tools.picard
 import util.file
 import util.misc
 
-TOOL_NAME = 'spades'
-TOOL_VERSION = '3.12.0'
+TOOL_NAME = 'spades.py'
 
 log = logging.getLogger(__name__)
 
@@ -29,12 +28,16 @@ class SpadesTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='spades.py',
-                                                  verifycmd='spades.py --version')]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(SpadesTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        if self.tool_version is None:
+            self._get_tool_version()
+        return self.tool_version
+
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip().split()[1]
 
     def execute(self, args):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path()] + list(map(str, args))

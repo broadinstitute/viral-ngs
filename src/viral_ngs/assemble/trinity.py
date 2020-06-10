@@ -19,9 +19,7 @@ import sys
 import tools
 import util.misc
 
-TOOL_NAME = "trinity"
-TOOL_VERSION = "2011-11-26"
-CONDA_TOOL_VERSION = "date.2011_11_26" # conda versions cannot have hyphens...
+TOOL_NAME = "Trinity"
 
 log = logging.getLogger(__name__)
 
@@ -51,12 +49,11 @@ class TrinityTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="Trinity", version=CONDA_TOOL_VERSION))
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(TrinityTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        return None
 
     def execute(self,
                 inFastq1,

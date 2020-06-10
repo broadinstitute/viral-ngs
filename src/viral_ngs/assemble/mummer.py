@@ -13,8 +13,7 @@ import random
 import subprocess
 import Bio.SeqIO
 
-TOOL_NAME = "mummer4"
-tool_version = '4.0.0beta2'
+TOOL_NAME = "mummer"
 
 log = logging.getLogger(__name__)
 
@@ -23,13 +22,16 @@ class MummerTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [
-                tools.CondaPackage(TOOL_NAME, executable="mummer", version=tool_version)
-                ]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(MummerTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return tool_version
+        if self.tool_version is None:
+            self._get_tool_version()
+        return self.tool_version
+
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip()
 
     def executable_path(self):
         exec_path = tools.Tool.executable_path(self)

@@ -14,8 +14,6 @@ import subprocess
 import logging
 
 TOOL_NAME = "muscle"
-TOOL_VERSION = '3.8.1551'
-CONDA_TOOL_VERSION = '3.8.1551'
 
 _log = logging.getLogger(__name__)
 
@@ -24,12 +22,16 @@ class MuscleTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=CONDA_TOOL_VERSION))
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(MuscleTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        if self.tool_version is None:
+            self._get_tool_version()
+        return self.tool_version
+
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip().split()[1]
 
     # pylint: disable=W0221
     def execute(
