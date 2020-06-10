@@ -30,8 +30,6 @@ class Gap2SeqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-
-        if install_methods is None:
             install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(Gap2SeqTool, self).__init__(install_methods=install_methods)
 
