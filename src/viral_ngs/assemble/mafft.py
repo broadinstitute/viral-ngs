@@ -12,6 +12,7 @@ import util.file
 import util.misc
 import os
 import os.path
+import shutil
 import subprocess
 
 TOOL_NAME = "mafft"

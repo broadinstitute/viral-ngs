@@ -10,6 +10,7 @@ import util.misc
 import os
 import os.path
 import random
+import shutil
 import subprocess
 import Bio.SeqIO
 
