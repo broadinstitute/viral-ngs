@@ -26,7 +26,7 @@ class Kraken2(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand('kraken2', verifycmd=False, require_executability=False))
+            install_methods.append(tools.PrexistingUnixCommand(shutil.which('kraken2'), require_executability=False))
         super(Kraken2, self).__init__(install_methods=install_methods)
 
     def version(self):

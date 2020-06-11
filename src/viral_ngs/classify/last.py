@@ -14,7 +14,6 @@ import tools.samtools
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
-TOOL_VERSION = "876"
 
 
 class LastTools(tools.Tool):
@@ -25,10 +24,8 @@ class LastTools(tools.Tool):
 
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
-        self.subtool_name_on_broad = self.subtool_name_on_broad if hasattr(self, "subtool_name_on_broad") else None
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            install_methods = [tools.PrexistingUnixCommand(shutils.which(TOOL_NAME), require_executability=False)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
 
