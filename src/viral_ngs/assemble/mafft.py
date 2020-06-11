@@ -12,10 +12,10 @@ import util.file
 import util.misc
 import os
 import os.path
+import shutil
 import subprocess
 
 TOOL_NAME = "mafft"
-TOOL_VERSION = '7.464'
 
 _log = logging.getLogger(__name__)
 
@@ -24,12 +24,16 @@ class MafftTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION))
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(MafftTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        if self.tool_version is None:
+            self._get_tool_version()
+        return self.tool_version
+
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip().split()[0]
 
     def __seqIdsAreAllUnique(self, filePath, inputFormat="fasta"):
         seqIds = []

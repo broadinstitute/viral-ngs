@@ -21,8 +21,7 @@ import tools.samtools
 import util.file
 import util.misc
 
-TOOL_NAME = 'gap2seq'
-TOOL_VERSION = '3.1.1a2'
+TOOL_NAME = 'Gap2Seq'
 
 log = logging.getLogger(__name__)
 
@@ -31,11 +30,11 @@ class Gap2SeqTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, executable='Gap2Seq')]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+        super(Gap2SeqTool, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return TOOL_VERSION
+        return None
 
     def execute(self, args):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path()] + list(args)
