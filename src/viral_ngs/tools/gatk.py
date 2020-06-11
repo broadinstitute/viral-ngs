@@ -68,11 +68,6 @@ class GATKTool(tools.Tool):
     def dict_to_gatk_opts(options):
         return ["%s=%s" % (k, v) for k, v in options.items()]
 
-    def version(self):
-        if self.tool_version is None:
-            self._get_tool_version()
-        return self.tool_version
-
     def _get_tool_version(self):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip()
 

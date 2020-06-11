@@ -27,8 +27,8 @@ class Minimap2(tools.Tool):
             install_methods.append(tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
         super(Minimap2, self).__init__(install_methods=install_methods)
 
-    def version(self):
-        return subprocess.check_output([TOOL_NAME ,'--version']).decode('UTF-8').strip()
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([TOOL_NAME ,'--version']).decode('UTF-8').strip()
 
     def execute(self, args, stdout=None, stdin=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path()] + args

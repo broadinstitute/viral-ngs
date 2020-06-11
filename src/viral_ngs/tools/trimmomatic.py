@@ -19,8 +19,8 @@ class TrimmomaticTool(tools.Tool):
             install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(TrimmomaticTool, self).__init__(install_methods=install_methods)
 
-    def version(self):
-        return subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip()
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip()
 
     def execute(self,
         inFastq1,
