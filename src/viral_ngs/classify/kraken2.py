@@ -85,7 +85,7 @@ class Kraken2(tools.Tool):
 
             # properly raise exceptions from any of the above jobs
             for fut in concurrent.futures.as_completed(futs):
-                fut.resuilt()
+                fut.result()
 
         # build db
         build_opts = {
