@@ -137,4 +137,4 @@ def test_kraken2_on_empty(kraken2_db, input_bam):
         lines = [line.strip() for line in inf.readlines() if not line.startswith('#') and not line.startswith('%')]
         out_report_contents = [line for line in lines if line]
     assert len(out_report_contents) == 0
-    assert out_report_contents[0].split('\t') == ['100.00', '0', '0', '0', '0', 'NA', '0', 'no rank', 'unclassified']
+    #assert out_report_contents[0].split('\t') == ['100.00', '0', '0', '0', '0', 'NA', '0', 'no rank', 'unclassified']
