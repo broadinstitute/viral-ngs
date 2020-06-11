@@ -4,6 +4,7 @@ import tools
 import util.file
 import os
 import logging
+import shutil
 import subprocess
 from tools import urlretrieve
 _log = logging.getLogger(__name__)

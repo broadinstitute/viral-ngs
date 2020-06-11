@@ -10,7 +10,7 @@ TOOL_NAME = 'krona'
 class Krona(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(ktImportTaxonomy))]
+            install_methods = [tools.PrexistingUnixCommand(shutil.which('ktImportTaxonomy'))]
         super(Krona, self).__init__(install_methods=install_methods)
 
     @property
