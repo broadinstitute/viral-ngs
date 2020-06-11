@@ -25,7 +25,7 @@ class BlastTools(tools.Tool):
         ]
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "blastn"
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=False)]
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
         super(BlastTools, self).__init__(install_methods=install_methods)
 
     def execute(self, *args):
