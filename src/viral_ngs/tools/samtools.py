@@ -49,7 +49,7 @@ class SamtoolsTool(tools.Tool):
         return self.tool_version
 
     def _get_tool_version(self):
-        return subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').split('\n')[0].split()[1]
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').split('\n')[0].split()[1]
 
     def execute(self, command, args, stdout=None, stderr=None, background=False):    # pylint: disable=W0221
         tool_cmd = [self.install_and_get_path(), command] + args
