@@ -56,23 +56,36 @@ class Kraken2(tools.Tool):
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=util.misc.sanitize_thread_count(num_threads)) as executor:
 
+            futs = []
             # use or fetch taxonomy database
             if tax_db:
                 util.file.mkdir_p(db)
-                executor.submit(shutil.copytree, tax_db, os.path.join(db, 'taxonomy'))
+                futs.append(executor.submit(shutil.copytree, tax_db, os.path.join(db, 'taxonomy')))
             else:
-                executor.submit(self.execute, 'kraken2-build', db, None,
-                    options={'--download-taxonomy': None})
+                futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                    options={'--download-taxonomy': None}))
             # add standard libraries:
             if standard_libraries:
                 for lib in standard_libraries:
-                    executor.submit(self.execute, 'kraken2-build', db, None,
-                        options={'--download-library': lib})
+                    if protein:
+                        futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                            options={'--download-library': lib, '--protein':None}))
+                    else:
+                        futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                            options={'--download-library': lib}))
             # add custom libraries:
             if custom_libraries:
                 for lib in custom_libraries:
-                    executor.submit(self.execute, 'kraken2-build', db, None,
-                        options={'--add-to-library': lib})
+                    if protein:
+                        futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                            options={'--add-to-library': lib, '--protein': None}))
+                    else:
+                        futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                            options={'--add-to-library': lib}))
+
+            # properly raise exceptions from any of the above jobs
+            for fut in concurrent.futures.as_completed(futs):
+                fut.resuilt()
 
         # build db
         build_opts = {
