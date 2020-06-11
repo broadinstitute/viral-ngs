@@ -6,18 +6,11 @@ from builtins import super
 import util.file
 
 TOOL_NAME = 'krona'
-CONDA_TOOL_VERSION = '2.7.1'
-
 
 class Krona(tools.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = []
-            install_methods.append(
-                tools.CondaPackage(
-                    TOOL_NAME,
-                    version=CONDA_TOOL_VERSION,
-                    executable='ktImportTaxonomy'))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(ktImportTaxonomy))]
         super(Krona, self).__init__(install_methods=install_methods)
 
     @property
