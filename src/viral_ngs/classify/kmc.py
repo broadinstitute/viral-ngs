@@ -39,7 +39,7 @@ class KmcTool(tools.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutils.which(TOOL_NAME), require_executability=False)]
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=False)]
 
         tools.Tool.__init__(self, install_methods=install_methods)
 

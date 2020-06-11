@@ -3,6 +3,7 @@
 # built-ins
 import os
 import logging
+import shutil
 import subprocess
 
 # within this module
@@ -25,7 +26,7 @@ class LastTools(tools.Tool):
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutils.which(TOOL_NAME), require_executability=False)]
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=False)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
 
