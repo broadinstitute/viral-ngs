@@ -3,6 +3,7 @@
 # built-ins
 import os
 import logging
+import shutil
 import subprocess
 
 # within this module
@@ -14,7 +15,6 @@ import tools.samtools
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
-TOOL_VERSION = "876"
 
 
 class LastTools(tools.Tool):
@@ -24,18 +24,15 @@ class LastTools(tools.Tool):
     """
 
     def __init__(self, install_methods=None):
-        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else None
-        self.subtool_name_on_broad = self.subtool_name_on_broad if hasattr(self, "subtool_name_on_broad") else None
+        self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else TOOL_NAME
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
 
 class Lastal(LastTools):
     """ wrapper for lastal subtool """
     subtool_name = 'lastal'
-    subtool_name_on_broad = 'lastal'
 
     def get_hits(self, inBam, db,
             max_gapless_alignments_per_position=1,
@@ -88,7 +85,6 @@ class Lastal(LastTools):
 class Lastdb(LastTools):
     """ wrapper for lastdb subtool """
     subtool_name = 'lastdb'
-    subtool_name_on_broad = 'lastdb'
 
     def is_indexed(self, db_prefix):
         return all(os.path.exists(db_prefix + x)

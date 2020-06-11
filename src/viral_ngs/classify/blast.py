@@ -2,14 +2,14 @@
 
 import logging
 import os
+import shutil
 import subprocess
 
 import tools
 import tools.samtools
 import util.misc
 
-TOOL_NAME = "blast"
-TOOL_VERSION = "2.7.1"
+TOOL_NAME = "blastn"
 
 _log = logging.getLogger(__name__)
 
@@ -25,8 +25,7 @@ class BlastTools(tools.Tool):
         ]
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "blastn"
         if install_methods is None:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
         super(BlastTools, self).__init__(install_methods=install_methods)
 
     def execute(self, *args):

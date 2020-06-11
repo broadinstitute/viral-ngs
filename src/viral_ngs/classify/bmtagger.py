@@ -4,6 +4,7 @@ import tools
 import util.file
 import os
 import logging
+import shutil
 import subprocess
 from tools import urlretrieve
 _log = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class BmtaggerTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "bmtagger.sh"
         if install_methods is None:
             install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable=self.subtool_name, version=TOOL_VERSION))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
         tools.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, *args):
