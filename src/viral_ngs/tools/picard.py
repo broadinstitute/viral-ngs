@@ -35,10 +35,8 @@ class PicardTools(tools.Tool):
         self.installed_method = True
         self.exec_path = shutil.which(TOOL_NAME)
 
-    def version(self):
-        if self.TOOL_VERSION is None:
-            self.TOOL_VERSION = subprocess.check_output([self.exec_path, 'BamIndexStats', '--version']).decode('UTF-8').rstrip()
-        return self.TOOL_VERSION
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.exec_path, 'BamIndexStats', '--version']).decode('UTF-8').rstrip()
 
     def execute(self, command, picardOptions=None, JVMmemory=None, background=False, **kwargs):    # pylint: disable=W0221
         picardOptions = picardOptions or []

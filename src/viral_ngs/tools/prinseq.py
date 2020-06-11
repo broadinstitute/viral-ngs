@@ -18,8 +18,8 @@ class PrinseqTool(tools.Tool):
             install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(PrinseqTool, self).__init__(install_methods=install_methods)
 
-    def version(self):
-        return subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip().split()[1]
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip().split()[1]
 
     def rmdup_fastq_single(self, inFastq, outFastq):
         ''' remove duplicate reads and reads with multiple Ns '''

@@ -25,8 +25,8 @@ class BBMapTool(tools.Tool):
             install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(BBMapTool, self).__init__(install_methods=install_methods)
 
-    def version(self):
-        return subprocess.check_output([os.path.join(os.path.dirname(self.install_and_get_path()), 'bbversion.sh')]).decode('UTF-8').strip()
+    def _get_tool_version(self):
+        self.tool_version = subprocess.check_output([os.path.join(os.path.dirname(self.install_and_get_path()), 'bbversion.sh')]).decode('UTF-8').strip()
 
     def execute(self, tool, **kwargs):  # pylint: disable=arguments-differ
         tool_dir = os.path.dirname(self.install_and_get_path())

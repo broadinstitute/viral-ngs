@@ -60,11 +60,6 @@ class NovoalignTool(tools.Tool):
         #install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
         tools.Tool.__init__(self, install_methods=install_methods)
 
-    def version(self):
-        if self.tool_version is None:
-            self._get_tool_version()
-        return self.tool_version
-
     def _get_tool_version(self):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '-V']).decode('UTF-8').strip().split()[1]
 

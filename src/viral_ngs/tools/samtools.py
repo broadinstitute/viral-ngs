@@ -43,11 +43,6 @@ class SamtoolsTool(tools.Tool):
             install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(SamtoolsTool, self).__init__(install_methods=install_methods)
 
-    def version(self):
-        if self.tool_version is None:
-            self._get_tool_version()
-        return self.tool_version
-
     def _get_tool_version(self):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').split('\n')[0].split()[1]
 
