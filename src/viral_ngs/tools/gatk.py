@@ -74,7 +74,7 @@ class GATKTool(tools.Tool):
         return self.tool_version
 
     def _get_tool_version(self):
-        return subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip()
+        self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip()
 
     def ug(self, inBam, refFasta, outVcf, options=None, JVMmemory=None, threads=None):
         options = options or ["--min_base_quality_score", 15, "-ploidy", 4]
