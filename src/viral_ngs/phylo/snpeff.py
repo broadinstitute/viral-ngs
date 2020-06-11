@@ -22,21 +22,16 @@ import phylo.genbank
 
 _log = logging.getLogger(__name__)
 
-TOOL_NAME = 'snpeff'
+TOOL_NAME = 'snpEff'
 TOOL_VERSION = '4.3.1t'
-
-URL = 'http://downloads.sourceforge.net/project/snpeff/snpEff_v4_3t_core.zip'
 
 
 class SnpEff(tools.Tool):
 
     def __init__(self, install_methods=None, extra_genomes=None):
         self.jvmMemDefault = '4g'
-        extra_genomes = extra_genomes or ['KJ660346.2']
         if not install_methods:
-            install_methods = []
-            install_methods.append(tools.CondaPackage(TOOL_NAME, executable="snpEff", version=TOOL_VERSION))
-            install_methods.append(DownloadAndTweakSnpEff(URL, extra_genomes))
+            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         self.known_dbs = set()
         self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods=install_methods)
@@ -253,15 +248,3 @@ def add_genomes_to_snpeff_config_file(config_file, new_genomes):
                 if g != c:
                     outf.write("\t{}.chromosomes : {}\n".format(g, c))
 
-
-class DownloadAndTweakSnpEff(tools.DownloadPackage):
-
-    def __init__(self, url, extra_genomes=None):
-        extra_genomes = extra_genomes or []
-
-        self.extra_genomes = extra_genomes
-        super(DownloadAndTweakSnpEff, self).__init__(url, 'snpEff/snpEff.jar', require_executability=False)
-
-    def post_download(self):
-        config_file = os.path.join(self.destination_dir, 'snpEff', 'snpEff.config')
-        add_genomes_to_snpeff_config_file(config_file, zip(self.extra_genomes, self.extra_genomes, self.extra_genomes))
