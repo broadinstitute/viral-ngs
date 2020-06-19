@@ -20,6 +20,7 @@ import operator
 import concurrent.futures
 import csv
 import itertools
+from collections import OrderedDict, defaultdict
 
 # from viral-core
 import util.cmd
