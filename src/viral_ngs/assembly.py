@@ -48,6 +48,7 @@ import numpy
 import Bio.AlignIO
 import Bio.SeqIO
 import Bio.Data.IUPACData
+from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
 
 log = logging.getLogger(__name__)
 
