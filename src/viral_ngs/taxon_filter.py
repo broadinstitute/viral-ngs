@@ -133,6 +133,7 @@ def main_deplete(args):
     else:
         if os.path.getsize(args.revertBam) == 0:
             with util.file.tempfname('.empty.sam') as empty_sam:
+                samtools = tools.samtools.SamtoolsTool()
                 samtools.dumpHeader(args.inBam, empty_sam)
                 samtools.view(['-b'], empty_sam, args.revertBam)
 
