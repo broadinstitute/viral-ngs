@@ -25,6 +25,6 @@ arrow>=0.12.1
 biopython>=1.72
 lz4=2.2.1
 matplotlib>=2.2.4
-pysam>=0.16.0
+pysam>=0.15.3
 pybedtools>=0.7.10
 zstandard>=0.11.0
