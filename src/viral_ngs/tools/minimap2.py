@@ -134,6 +134,7 @@ class Minimap2(tools.Tool):
                 # special exit if this file is empty
                 if samtools.isEmpty(tmp_bam):
                     log.warning("No reads present for RG %s in file: %s", rgid, inBam)
+                    shutil.copyfile(tmp_bam, outBam)
                     return
                 # simplify BAM header otherwise Novoalign gets confused
                 one_rg_inBam = util.file.mkstempfname('.{}.in.bam'.format(rgid))
