@@ -1307,6 +1307,44 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 # =========================
 
 
+def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None):
+    ''' Take reads, align to reference with minimap2 and perform samtools idxstats.
+    '''
+
+    assert outBam or outStats, "Either outBam or outStats must be specified"
+
+    if outBam is None:
+        bam_aligned = mkstempfname('.aligned.bam')
+    else:
+        bam_aligned = outBam
+
+    samtools = tools.samtools.SamtoolsTool()
+    mm2 = tools.minimap2.Minimap2()
+
+    ref_indexed = util.file.mkstempfname('.reference.fasta')
+    shutil.copyfile(refFasta, ref_indexed)
+    mm2.index(ref_indexed)
+
+    mm2.align_bam(inBam, ref_indexed, bam_aligned)
+
+    if outStats is not None:
+        samtools.idxstats(bam_aligned, outStats)
+
+    if outBam is None:
+        os.unlink(bam_aligned)
+
+def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
+    parser.add_argument('--outStats', help='Output idxstats file', default=None)
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, minimap2_idxstats, split_args=True)
+    return parser
+
+__commands__.append(('minimap2_idxstats', parser_minimap2_idxstats))
+
+
 def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
         min_score_to_filter=None, aligner_options=None):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.

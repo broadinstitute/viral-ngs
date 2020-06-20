@@ -20,9 +20,12 @@ CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioco
 # setup/install viral-ngs directory tree and conda dependencies
 sync
 
+REQUIREMENTS=""
 for condafile in $*; do
-	conda install -y -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" --file $condafile
+	REQUIREMENTS="$REQUIREMENTS --file $condafile"
 done
+
+conda install -y -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
 
 # clean up
 conda clean -y --all
