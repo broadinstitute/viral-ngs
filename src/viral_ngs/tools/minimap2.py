@@ -179,7 +179,12 @@ class Minimap2(tools.Tool):
             options.extend(('-x', preset))
 
         # perform actual alignment
-        self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
+        if samtools.isEmpty(one_rg_inBam):
+            # minimap doesn't like empty inputs, so copy empty bam through
+            outBam = one_rg_inBam
+            removeInput = False
+        else:
+            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
