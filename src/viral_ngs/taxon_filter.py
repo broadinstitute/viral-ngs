@@ -130,6 +130,12 @@ def main_deplete(args):
     # if the user has not specified saving a revertBam, we used a temp file and can remove it
     if not args.revertBam:
         os.unlink(revertBamOut)
+    else:
+        if os.path.getsize(args.revertBam) == 0:
+            with util.file.tempfname('.empty.sam') as empty_sam:
+                samtools = tools.samtools.SamtoolsTool()
+                samtools.dumpHeader(args.inBam, empty_sam)
+                samtools.view(['-b'], empty_sam, args.revertBam)
 
     multi_db_deplete_bam(
         args.bmtaggerBam,
