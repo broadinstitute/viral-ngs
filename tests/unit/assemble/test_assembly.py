@@ -159,7 +159,7 @@ class TestAssembleSpades(TestCaseWithTmp):
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
             #print('test_assembly_contigs_lens:', contig_lens, file=sys.stderr)
-            self.assertEqual(contig_lens, [180, 184, 187, 190, 191, 194, 197, 211, 243, 244, 247, 288, 328, 348, 430])
+            self.assertEqual(contig_lens, [190, 195, 197, 222, 243, 247, 359])
 
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
@@ -173,7 +173,7 @@ class TestAssembleSpades(TestCaseWithTmp):
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
             #print('test_assembly_with_previously_assembled_contigs_contigs_lens:', contig_lens, file=sys.stderr)
-            self.assertEqual(contig_lens, [168, 170, 177, 180, 184, 187, 190, 191, 194, 197, 211, 243, 244, 247, 288, 328, 348, 430])
+            self.assertEqual(contig_lens, [172, 174, 190, 195, 197, 222, 243, 247, 359])
 
     def test_empty_input_succeed(self):
         inDir = util.file.get_test_input_path()
