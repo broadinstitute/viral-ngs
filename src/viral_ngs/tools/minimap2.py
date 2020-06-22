@@ -82,7 +82,7 @@ class Minimap2(tools.Tool):
             if len(align_bams)==0:
                 with util.file.tempfname('.empty.sam') as empty_sam:
                     samtools.dumpHeader(inBam, empty_sam)
-                    samtools.view(['-b'], empty_sam, outBam)
+                    samtools.sort(empty_sam, outBam)
             else:
                 # Merge BAMs, sort, and index
                 picardOptions = ['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true']

@@ -621,11 +621,11 @@ class IlluminaDirectory(object):
             self.runinfo = RunInfo(runinfo_file)
         return self.runinfo
 
-    def get_SampleSheet(self, only_lane=None):
+    def get_SampleSheet(self, only_lane=None, append_run_id=None):
         if self.samplesheet is None:
             samplesheet_file = os.path.join(self.path, 'SampleSheet.csv')
             util.file.check_paths(samplesheet_file)
-            self.samplesheet = SampleSheet(samplesheet_file, only_lane=only_lane)
+            self.samplesheet = SampleSheet(samplesheet_file, only_lane=only_lane, append_run_id=append_run_id)
         return self.samplesheet
 
     def get_intensities_dir(self):
