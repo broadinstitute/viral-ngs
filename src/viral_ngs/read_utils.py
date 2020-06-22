@@ -1323,7 +1323,6 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None):
 
     ref_indexed = util.file.mkstempfname('.reference.fasta')
     shutil.copyfile(refFasta, ref_indexed)
-    mm2.index(ref_indexed)
 
     mm2.align_bam(inBam, ref_indexed, bam_aligned)
 
