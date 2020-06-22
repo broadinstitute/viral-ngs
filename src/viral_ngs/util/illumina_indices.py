@@ -1752,7 +1752,8 @@ class IlluminaBarcodeHelper(object):
 
         out_dict = OrderedDict()
         out_dict["sample_name"] = sample_name
-
+        out_dict["match_type"] = "not_found"
+        
         barcodes_seen_novel = copy.deepcopy(self.barcodes_seen)
 
         # From barcodes seen in data, collect barcode pairs not expected based on sample sheet
@@ -1803,7 +1804,14 @@ class IlluminaBarcodeHelper(object):
                 out_dict["match_type"] = "high_count_novel_pair"
                 break
         
-        if putative_match[0]!=None:
+        out_dict["guessed_barcode_1"]           = "unknown"
+        out_dict["guessed_barcode_1_name"]      = "unknown"
+        if is_dual_index and (putative_match is not None and putative_match[1] != None):
+            out_dict["guessed_barcode_2"]           = "unknown"
+            out_dict["guessed_barcode_2_name"]      = "unknown"
+            out_dict["guessed_barcodes_read_count"] = "0"
+
+        if putative_match is not None and putative_match[0]!=None:
             out_dict["guessed_barcode_1"]           = putative_match[0]
             out_dict["guessed_barcode_1_name"]      = self.barcode_name_map[putative_match[0]]
             if is_dual_index and putative_match[1] != None:
