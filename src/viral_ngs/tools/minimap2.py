@@ -182,8 +182,7 @@ class Minimap2(tools.Tool):
         # perform actual alignment
         if samtools.isEmpty(one_rg_inBam):
             # minimap doesn't like empty inputs, so copy empty bam through
-            outBam = one_rg_inBam
-            removeInput = False
+            samtools.sort(one_rg_inBam, outBam)
         else:
             self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
 
