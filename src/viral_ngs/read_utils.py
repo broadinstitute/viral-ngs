@@ -1194,12 +1194,13 @@ def align_and_fix(
         return
 
     assert aligner in ["novoalign", "bwa", "minimap2"]
+    samtools = tools.samtools.SamtoolsTool()
 
     refFastaCopy = mkstempfname('.ref_copy.fasta')
     shutil.copyfile(refFasta, refFastaCopy)
 
     tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
-    tools.samtools.SamtoolsTool().faidx(refFastaCopy, overwrite=True)
+    samtools.faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
         if aligner=="novoalign":
@@ -1242,17 +1243,20 @@ def align_and_fix(
         )
         os.unlink(bam_aligned)
 
-    tools.samtools.SamtoolsTool().index(bam_marked)
+    samtools.index(bam_marked)
 
-    bam_realigned = mkstempfname('.realigned.bam')
-    tools.gatk.GATKTool(path=gatk_path).local_realign(bam_marked, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
-    os.unlink(bam_marked)
+    if samtools.isEmpty(bam_marked):
+        bam_realigned = bam_marked
+    else:
+        bam_realigned = mkstempfname('.realigned.bam')
+        tools.gatk.GATKTool(path=gatk_path).local_realign(bam_marked, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
+        os.unlink(bam_marked)
 
     if outBamAll:
         shutil.copyfile(bam_realigned, outBamAll)
         tools.picard.BuildBamIndexTool().execute(outBamAll)
     if outBamFiltered:
-        tools.samtools.SamtoolsTool().view(['-b', '-q', '1', '-F', '1028'], bam_realigned, outBamFiltered)
+        samtools.view(['-b', '-q', '1', '-F', '1028'], bam_realigned, outBamFiltered)
         tools.picard.BuildBamIndexTool().execute(outBamFiltered)
     os.unlink(bam_realigned)
 

@@ -199,14 +199,26 @@ class TestAlignAndFix(TestCaseWithTmp):
     def test_bwa(self):
         self.simple_execution('bwa')
 
+    def test_minimap2(self):
+        self.simple_execution('minimap2')
+
     def simple_execution(self, aligner):
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = util.file.mkstempfname('.outBamAll.bam')
         outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
 
         args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
         args.func_main(args)
+
+    def test_empty_reads(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta,  '--aligner', 'minimap2',
+            '--outBamAll', util.file.mkstempfname('.outBamAll.bam'),
+            '--outBamFiltered', util.file.mkstempfname('.outBamFiltered.bam')])
+        args.func_main(args)
+
 
 class TestDownsampleBams(TestCaseWithTmp):
     def setUp(self):
