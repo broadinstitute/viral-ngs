@@ -37,3 +37,12 @@ class TestTarballMerger(TestCaseWithTmp):
         file_utils.merge_tarballs( out_tarball_file,
                                     self.input_mixed_files
                                     )
+
+class TestTsvJoin(TestCaseWithTmp):
+   
+    def test_join(self):
+        infiles = list(os.path.join(util.file.get_test_input_path(self), x) for x in ('tab-1.txt', 'tab-2.txt'))
+        expected = os.path.join(util.file.get_test_input_path(self), 'expected-out.txt')
+        actual = util.file.mkstempfname('.joined.txt')
+        file_utils.tsv_join(infiles, actual, join_id='h1')
+        self.assertEqualContents(expected, actual)
