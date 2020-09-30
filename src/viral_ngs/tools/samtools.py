@@ -182,7 +182,7 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
-    def filter_to_mapped_reads(self, inBam, outBam, allow_unmapped=True, remove_singletons=True):
+    def filter_to_mapped_reads(self, inBam, outBam, allow_unmapped=True, min_mapping_qual=None, remove_singletons=True):
         '''
             This function writes a bam file filtered to include properly aligned reads.
             If allow_unmapped=True, fully-unmapped pairs or unmapped single-end reads are also 
@@ -202,6 +202,11 @@ class SamtoolsTool(tools.Tool):
                 for read in inb:
                     # check if a read is paired
                     is_single_end=not read.is_paired
+
+                    # only include reads with mapping quality >= INT
+                    # equivalent to samtools view -q
+                    if min_mapping_qual is not None and read.mapping_quality < min_mapping_qual:
+                        continue
 
                     # if a PCR/optical duplicate, do not write
                     if read.is_duplicate:
