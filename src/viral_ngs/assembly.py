@@ -919,6 +919,7 @@ def refine_assembly(
         # Novoalign reads to self
         novoBam = util.file.mkstempfname('.novoalign.bam')
         min_qual = 0 if keep_all_reads else 1
+        novoalign.index_fasta(deambigFasta)
         novoalign.execute(inBam, deambigFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
         rmdupBam = util.file.mkstempfname('.rmdup.bam')
         opts = ['CREATE_INDEX=true']
