@@ -182,6 +182,54 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
+    def filter_to_mapped_reads(self, inBam, outBam, allow_unmapped=True, remove_singletons=True):
+        '''
+            This function writes a bam file filtered to include properly aligned reads.
+            If allow_unmapped=True, fully-unmapped pairs or unmapped single-end reads are also 
+            written to the output (omitting pairs where only one mate maps).
+
+        '''
+
+        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                # process the lines individually and write them or not, depending on the flags
+                # For explanation of flags, see:
+                # https://broadinstitute.github.io/picard/explain-flags.html
+                # https://pysam.readthedocs.io/en/latest/api.html
+                # https://samtools.github.io/hts-specs/SAMv1.pdf
+                # https://github.com/pysam-developers/pysam/blob/31183d7fac52b529b304bdf61ff933818ae4a71f/samtools/stats.c#L72-L81
+
+                for read in inb:
+                    # check if a read is paired
+                    is_single_end=not read.is_paired
+
+                    # if a PCR/optical duplicate, do not write
+                    if read.is_duplicate:
+                        continue
+
+                    if read.is_paired:
+                        if allow_unmapped:
+                            # if mates are not both either mapped or unmapped, do not write
+                            if remove_singletons and read.is_unmapped != read.mate_is_unmapped:
+                                continue
+                        else:
+                            # if not a proper pair (reads are oriented correctly and facing each other)
+                            # do not write
+                            if not read.is_proper_pair:
+                                continue
+
+                            # do not write singleton reads. 
+                            #if read.is_unmapped or read.mate_is_unmapped:
+                            #    continue
+
+                    if is_single_end:
+                        if not allow_unmapped:
+                            if read.is_unmapped:
+                                continue
+                    
+                    # otherwise write out the line
+                    outf.write(read)
+
     def filterByCigarString(self, inBam, outBam, 
                             regexToMatchForRemoval='^((?:[0-9]+[ID]){1}(?:[0-9]+[MNIDSHPX=])+)|((?:[0-9]+[MNIDSHPX=])+(?:[0-9]+[ID]){1})$', 
                             invertResult=False):
