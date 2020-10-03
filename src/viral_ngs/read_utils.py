@@ -1208,11 +1208,9 @@ def align_and_fix(
         else:
             aligner_options = '' # use defaults
 
-    inBamFiltered = mkstempfname('.input-filtered.bam')
-    samtools.filter_to_mapped_reads(inBam, inBamFiltered, allow_unmapped=True)
-    filtered_count = samtools.count(inBamFiltered)
-    if filtered_count==0:
-        log.warning("zero reads after input filtering")
+    input_readcount = samtools.count(inBam)
+    if input_readcount==0:
+        log.warning("zero reads present in input")
 
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
@@ -1222,7 +1220,7 @@ def align_and_fix(
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(refFastaCopy)
 
         tools.novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
-            inBamFiltered, refFastaCopy, bam_aligned,
+            inBam, refFastaCopy, bam_aligned,
             options=aligner_options.split(),
             JVMmemory=JVMmemory
         )
@@ -1233,13 +1231,11 @@ def align_and_fix(
 
         opts = aligner_options.split()
 
-        bwa.align_mem_bam(inBamFiltered, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
+        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
 
     elif aligner=='minimap2':
         mm2 = tools.minimap2.Minimap2()
-        mm2.align_bam(inBamFiltered, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
-
-    os.unlink(inBamFiltered)
+        mm2.align_bam(inBam, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
 
     if skip_mark_dupes:
         bam_marked = bam_aligned
@@ -1264,7 +1260,12 @@ def align_and_fix(
         shutil.copyfile(bam_realigned, outBamAll)
         tools.picard.BuildBamIndexTool().execute(outBamAll)
     if outBamFiltered:
-        samtools.filter_to_mapped_reads(bam_realigned, outBamFiltered, allow_unmapped=False, min_mapping_qual=1)
+        filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
+        # filter based on read flags
+        samtools.filter_to_proper_primary_mapped_reads(bam_realigned, filtered_any_mapq)
+        # remove reads with MAPQ <1
+        samtools.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
+        os.unlink(filtered_any_mapq)
         tools.picard.BuildBamIndexTool().execute(outBamFiltered)
     os.unlink(bam_realigned)
 

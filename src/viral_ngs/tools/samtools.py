@@ -182,11 +182,17 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
-    def filter_to_mapped_reads(self, inBam, outBam, allow_unmapped=True, min_mapping_qual=None, remove_singletons=True):
+    def filter_to_proper_primary_mapped_reads(self, inBam, outBam, require_pairs_to_be_proper=True, reject_singletons=True):
         '''
-            This function writes a bam file filtered to include properly aligned reads.
-            If allow_unmapped=True, fully-unmapped pairs or unmapped single-end reads are also 
-            written to the output (omitting pairs where only one mate maps).
+            This function writes a bam file filtered to include only reads that are:
+              - not flagged as duplicates
+              - not secondary or supplementary (split/chimeric reads)
+              - For paired-end reads:
+              -   marked as proper pair (if require_pairs_to_be_proper=True) OR
+                  both not unmapped (if require_pairs_to_be_proper=False) OR
+                  not a member of a pair with a singleton (if reject_singletons=True)
+              - For single-end reads:
+                  mapped
 
         '''
 
@@ -203,36 +209,29 @@ class SamtoolsTool(tools.Tool):
                     # check if a read is paired
                     is_single_end=not read.is_paired
 
-                    # only include reads with mapping quality >= INT
-                    # equivalent to samtools view -q
-                    if min_mapping_qual is not None and read.mapping_quality < min_mapping_qual:
-                        continue
-
                     # if a PCR/optical duplicate, do not write
                     if read.is_duplicate:
                         continue
 
-                    if read.is_paired:
-                        if allow_unmapped:
-                            # if mates are not both either mapped or unmapped, do not write
-                            if remove_singletons and read.is_unmapped != read.mate_is_unmapped:
-                                continue
-                        else:
-                            # if not a proper pair (reads are oriented correctly and facing each other)
-                            # do not write
-                            if not read.is_proper_pair:
-                                continue
+                    # if a read is a secondary or supplementary mapping (split/chimeric), do not write
+                    if read.is_secondary or read.is_supplementary:
+                        continue
 
-                            # do not write singleton reads. 
-                            #if read.is_unmapped or read.mate_is_unmapped:
-                            #    continue
+                    # do not write if
+                    # paired-end
+                    if (read.is_paired and 
+                            # reject anything not marked as proper pair (this bit is not guaranteed)
+                            (require_pairs_to_be_proper and not read.is_proper_pair) or
+                            # reject pairs where both mates are unmapped
+                            (read.mate_is_unmapped and read.is_unmapped) or
+                            # reject reads where only one mate is mapped (singletons)
+                            (reject_singletons and read.mate_is_unmapped!=read.is_unmapped )):
+                        continue 
 
-                    if is_single_end:
-                        if not allow_unmapped:
-                            if read.is_unmapped:
-                                continue
-                    
-                    # otherwise write out the line
+                    if is_single_end and read.is_unmapped: # or if this is single-end and unmapped, reject
+                        continue
+
+                    # otherwise write the read to the output
                     outf.write(read)
 
     def filterByCigarString(self, inBam, outBam, 
