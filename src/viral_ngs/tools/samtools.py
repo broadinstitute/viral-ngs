@@ -182,6 +182,58 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
+    def filter_to_proper_primary_mapped_reads(self, inBam, outBam, require_pairs_to_be_proper=True, reject_singletons=True):
+        '''
+            This function writes a bam file filtered to include only reads that are:
+              - not flagged as duplicates
+              - not secondary or supplementary (split/chimeric reads)
+              - For paired-end reads:
+              -   marked as proper pair (if require_pairs_to_be_proper=True) OR
+                  both not unmapped (if require_pairs_to_be_proper=False) OR
+                  not a member of a pair with a singleton (if reject_singletons=True)
+              - For single-end reads:
+                  mapped
+
+        '''
+
+        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                # process the lines individually and write them or not, depending on the flags
+                # For explanation of flags, see:
+                # https://broadinstitute.github.io/picard/explain-flags.html
+                # https://pysam.readthedocs.io/en/latest/api.html
+                # https://samtools.github.io/hts-specs/SAMv1.pdf
+                # https://github.com/pysam-developers/pysam/blob/31183d7fac52b529b304bdf61ff933818ae4a71f/samtools/stats.c#L72-L81
+
+                for read in inb:
+                    # check if a read is paired
+                    is_single_end=not read.is_paired
+
+                    # if a PCR/optical duplicate, do not write
+                    if read.is_duplicate:
+                        continue
+
+                    # if a read is a secondary or supplementary mapping (split/chimeric), do not write
+                    if read.is_secondary or read.is_supplementary:
+                        continue
+
+                    # do not write if
+                    # paired-end
+                    if (read.is_paired and 
+                            # reject anything not marked as proper pair (this bit is not guaranteed)
+                            (require_pairs_to_be_proper and not read.is_proper_pair) or
+                            # reject pairs where both mates are unmapped
+                            (read.mate_is_unmapped and read.is_unmapped) or
+                            # reject reads where only one mate is mapped (singletons)
+                            (reject_singletons and (read.mate_is_unmapped or read.is_unmapped))):
+                        continue 
+
+                    if is_single_end and read.is_unmapped: # or if this is single-end and unmapped, reject
+                        continue
+
+                    # otherwise write the read to the output
+                    outf.write(read)
+
     def filterByCigarString(self, inBam, outBam, 
                             regexToMatchForRemoval='^((?:[0-9]+[ID]){1}(?:[0-9]+[MNIDSHPX=])+)|((?:[0-9]+[MNIDSHPX=])+(?:[0-9]+[ID]){1})$', 
                             invertResult=False):

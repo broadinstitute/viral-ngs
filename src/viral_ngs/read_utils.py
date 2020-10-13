@@ -1208,6 +1208,9 @@ def align_and_fix(
         else:
             aligner_options = '' # use defaults
 
+    if samtools.isEmpty(inBam):
+        log.warning("zero reads present in input")
+
     bam_aligned = mkstempfname('.aligned.bam')
     if aligner=="novoalign":
         if novoalign_amplicons_bed is not None:
@@ -1256,7 +1259,12 @@ def align_and_fix(
         shutil.copyfile(bam_realigned, outBamAll)
         tools.picard.BuildBamIndexTool().execute(outBamAll)
     if outBamFiltered:
-        samtools.view(['-b', '-q', '1', '-F', '1028'], bam_realigned, outBamFiltered)
+        filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
+        # filter based on read flags
+        samtools.filter_to_proper_primary_mapped_reads(bam_realigned, filtered_any_mapq)
+        # remove reads with MAPQ <1
+        samtools.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
+        os.unlink(filtered_any_mapq)
         tools.picard.BuildBamIndexTool().execute(outBamFiltered)
     os.unlink(bam_realigned)
 
