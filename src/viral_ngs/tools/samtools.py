@@ -225,7 +225,7 @@ class SamtoolsTool(tools.Tool):
                             # reject pairs where both mates are unmapped
                             (read.mate_is_unmapped and read.is_unmapped) or
                             # reject reads where only one mate is mapped (singletons)
-                            (reject_singletons and read.mate_is_unmapped!=read.is_unmapped )):
+                            (reject_singletons and (read.mate_is_unmapped or read.is_unmapped))):
                         continue 
 
                     if is_single_end and read.is_unmapped: # or if this is single-end and unmapped, reject

@@ -1208,8 +1208,7 @@ def align_and_fix(
         else:
             aligner_options = '' # use defaults
 
-    input_readcount = samtools.count(inBam)
-    if input_readcount==0:
+    if samtools.isEmpty(inBam):
         log.warning("zero reads present in input")
 
     bam_aligned = mkstempfname('.aligned.bam')
