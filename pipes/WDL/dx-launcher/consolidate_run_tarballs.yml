@@ -22,7 +22,7 @@ access:
 runSpec:
   systemRequirements:
     main:
-      instanceType: mem1_ssd1_x2
+      instanceType: mem1_ssd1_v2_x2
   distribution: Ubuntu
   release: "16.04"
   execDepends:
