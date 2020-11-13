@@ -48,7 +48,6 @@ import numpy
 import Bio.AlignIO
 import Bio.SeqIO
 import Bio.Data.IUPACData
-from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
 
 log = logging.getLogger(__name__)
 
@@ -1682,6 +1681,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     """
     gap = '-'
     ambiguous = 'N'
+    unambiguous = "GATC"
     aligner = assemble.muscle.MuscleTool()
 
     per_chr_fastas = util.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
@@ -1725,8 +1725,8 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                 elif c2 in ambiguous:
                     ambig_two += 1
 
-                if (c1 in IUPACUnambiguousDNA().letters
-                   and c2 in IUPACUnambiguousDNA().letters):
+                if (c1 in unambiguous
+                   and c2 in unambiguous):
                     unambig_both += 1
                     if c1 == c2:
                         same_unambig += 1
@@ -1734,9 +1734,9 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                         snp_unambig += 1
 
                 if ((c1 == gap and
-                    c2 in IUPACUnambiguousDNA().letters) or
+                    c2 in unambiguous) or
                    (c2 == gap and
-                    c1 in IUPACUnambiguousDNA().letters)):
+                    c1 in unambiguous)):
                     indel_unambig += 1
 
                 if ((c1 == gap and
