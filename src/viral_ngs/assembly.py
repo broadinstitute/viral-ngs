@@ -1681,7 +1681,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     """
     gap = '-'
     ambiguous = 'N'
-    unambiguous = "GATC"
+    unambiguous = set(list("GATCgatc"))
     aligner = assemble.muscle.MuscleTool()
 
     per_chr_fastas = util.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
