@@ -113,39 +113,6 @@ class TestRefineAssemble(TestCaseWithTmp):
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
 
-class TestAssembleTrinity(TestCaseWithTmp):
-    ''' Test the assemble_trinity command (no validation of output) '''
-
-    def test_assembly(self):
-        inDir = util.file.get_test_input_path(self)
-        inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
-        clipDb = os.path.join(inDir, 'clipDb.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, clipDb, outFasta)
-        self.assertGreater(os.path.getsize(outFasta), 0)
-        contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
-        self.assertEqual(contig_lens, [328, 348, 376, 381])
-        os.unlink(outFasta)
-
-    def test_empty_input_succeed(self):
-        inDir = util.file.get_test_input_path()
-        inBam = os.path.join(inDir, 'empty.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.assemble_trinity(inBam, clipDb, outFasta, always_succeed=True)
-        self.assertEqual(os.path.getsize(outFasta), 0)
-        os.unlink(outFasta)
-
-    def test_empty_input_fail(self):
-        inDir = util.file.get_test_input_path()
-        inBam = os.path.join(inDir, 'empty.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        self.assertRaises(assembly.DenovoAssemblyError,
-            assembly.assemble_trinity,
-            inBam, clipDb, outFasta, always_succeed=False)
-
-
 class TestAssembleSpades(TestCaseWithTmp):
     ''' Test the assemble_spades command (no validation of output) '''
 
@@ -198,7 +165,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
     def test_subsamp_empty(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        clipDb = os.path.join(inDir, 'TestAssembleSpades', 'clipDb.fasta')
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10)
         os.unlink(outBam)
@@ -207,7 +174,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
     def test_subsamp_small_50(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        clipDb = os.path.join(inDir, 'TestAssembleSpades', 'clipDb.fasta')
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50)
         os.unlink(outBam)
@@ -216,7 +183,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
     def test_subsamp_small_90(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        clipDb = os.path.join(inDir, 'TestAssembleSpades', 'clipDb.fasta')
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90)
         os.unlink(outBam)
@@ -226,7 +193,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
     def test_subsamp_small_200(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        clipDb = os.path.join(inDir, 'TestAssembleSpades', 'clipDb.fasta')
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200)
         os.unlink(outBam)
@@ -235,7 +202,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
     def test_subsamp_big_500(self):
         inDir = util.file.get_test_input_path()
         inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
-        clipDb = os.path.join(inDir, 'TestAssembleTrinity', 'clipDb.fasta')
+        clipDb = os.path.join(inDir, 'TestAssembleSpades', 'clipDb.fasta')
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
