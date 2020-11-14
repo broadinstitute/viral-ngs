@@ -206,7 +206,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))
+        self.assertEqual(read_stats, (18710, 16324, 16324, 500, 500, 0))
 
 
 class TestAmbiguityBases(unittest.TestCase):
