@@ -37,7 +37,6 @@ import tools.trimmomatic
 # intra-module
 import assemble.vcf
 import assemble.spades
-import assemble.trinity
 import assemble.mafft
 import assemble.mummer
 import assemble.muscle
@@ -48,7 +47,6 @@ import numpy
 import Bio.AlignIO
 import Bio.SeqIO
 import Bio.Data.IUPACData
-from Bio.Alphabet.IUPAC import IUPACUnambiguousDNA
 
 log = logging.getLogger(__name__)
 
@@ -272,78 +270,6 @@ def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
 
 __commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
-
-def assemble_trinity(
-    inBam, clipDb,
-    outFasta, n_reads=100000,
-    outReads=None,
-    always_succeed=False,
-    JVMmemory=None,
-    threads=None
-):
-    ''' This step runs the Trinity assembler.
-        First trim reads with trimmomatic, rmdup with prinseq,
-        and random subsample to no more than 100k reads.
-    '''
-    if outReads:
-        subsamp_bam = outReads
-    else:
-        subsamp_bam = util.file.mkstempfname('.subsamp.bam')
-
-    picard_opts = {
-                 'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-                 'CLIPPING_ACTION': 'X'
-    }
-
-    read_stats = trim_rmdup_subsamp_reads(inBam, clipDb, subsamp_bam, n_reads=n_reads)
-    subsampfq = list(map(util.file.mkstempfname, ['.subsamp.1.fastq', '.subsamp.2.fastq']))
-    tools.picard.SamToFastqTool().execute(subsamp_bam, subsampfq[0], subsampfq[1], picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts))
-    try:
-        assemble.trinity.TrinityTool().execute(subsampfq[0], subsampfq[1], outFasta, JVMmemory=JVMmemory, threads=threads)
-    except subprocess.CalledProcessError as e:
-        if always_succeed:
-            log.warning("denovo assembly (Trinity) failed to assemble input, emitting empty output instead.")
-            util.file.make_empty(outFasta)
-        else:
-            raise DenovoAssemblyError('denovo assembly (Trinity) failed. {} reads at start. {} read pairs after Trimmomatic. '
-                                      '{} read pairs after Prinseq rmdup. {} reads for trinity ({} pairs + {} unpaired).'.format(*read_stats))
-    os.unlink(subsampfq[0])
-    os.unlink(subsampfq[1])
-
-    if not outReads:
-        os.unlink(subsamp_bam)
-
-
-def parser_assemble_trinity(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('clipDb', help='Trimmomatic clip DB.')
-    parser.add_argument('outFasta', help='Output assemble.')
-    parser.add_argument(
-        '--n_reads',
-        default=100000,
-        type=int,
-        help='Subsample reads to no more than this many pairs. (default %(default)s)'
-    )
-    parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
-    parser.add_argument(
-        "--always_succeed",
-        help="""If Trinity fails (usually because insufficient reads to assemble),
-                        emit an empty fasta file as output. Default is to throw a DenovoAssemblyError.""",
-        default=False,
-        action="store_true",
-        dest="always_succeed"
-    )
-    parser.add_argument(
-        '--JVMmemory',
-        default=assemble.trinity.TrinityTool.jvm_mem_default,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, assemble_trinity, split_args=True)
-    return parser
-
-
-__commands__.append(('assemble_trinity', parser_assemble_trinity))
 
 def assemble_spades(
     in_bam,
@@ -1224,7 +1150,7 @@ __commands__.append(('modify_contig', parser_modify_contig))
 
 
 class ContigModifier(object):
-    ''' Initial modifications to Trinity+MUMmer assembly output based on
+    ''' Initial modifications to spades+MUMmer assembly output based on
         MUSCLE alignment to known reference genome
         author: rsealfon
     '''
@@ -1683,6 +1609,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     """
     gap = '-'
     ambiguous = 'N'
+    unambiguous = set(list("GATCgatc"))
     aligner = assemble.muscle.MuscleTool()
 
     per_chr_fastas = util.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
@@ -1726,8 +1653,8 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                 elif c2 in ambiguous:
                     ambig_two += 1
 
-                if (c1 in IUPACUnambiguousDNA().letters
-                   and c2 in IUPACUnambiguousDNA().letters):
+                if (c1 in unambiguous
+                   and c2 in unambiguous):
                     unambig_both += 1
                     if c1 == c2:
                         same_unambig += 1
@@ -1735,9 +1662,9 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
                         snp_unambig += 1
 
                 if ((c1 == gap and
-                    c2 in IUPACUnambiguousDNA().letters) or
+                    c2 in unambiguous) or
                    (c2 == gap and
-                    c1 in IUPACUnambiguousDNA().letters)):
+                    c1 in unambiguous)):
                     indel_unambig += 1
 
                 if ((c1 == gap and
