@@ -1199,7 +1199,7 @@ def align_and_fix(
     refFastaCopy = mkstempfname('.ref_copy.fasta')
     shutil.copyfile(refFasta, refFastaCopy)
 
-    tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True)
+    tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True, JVMmemory=JVMmemory)
     samtools.faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
@@ -1257,7 +1257,7 @@ def align_and_fix(
 
     if outBamAll:
         shutil.copyfile(bam_realigned, outBamAll)
-        tools.picard.BuildBamIndexTool().execute(outBamAll)
+        tools.picard.BuildBamIndexTool().execute(outBamAll, JVMmemory=JVMmemory)
     if outBamFiltered:
         filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
         # filter based on read flags
@@ -1265,7 +1265,7 @@ def align_and_fix(
         # remove reads with MAPQ <1
         samtools.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
         os.unlink(filtered_any_mapq)
-        tools.picard.BuildBamIndexTool().execute(outBamFiltered)
+        tools.picard.BuildBamIndexTool().execute(outBamFiltered, JVMmemory=JVMmemory)
     os.unlink(bam_realigned)
 
 
