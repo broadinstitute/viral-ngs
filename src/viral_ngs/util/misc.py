@@ -409,7 +409,7 @@ def which(application_binary_name):
 
 def is_nonstr_iterable(x, str_types=str):
     '''Tests whether `x` is an Iterable other than a string.  `str_types` gives the type(s) to treat as strings.'''
-    return isinstance(x, collections.Iterable) and not isinstance(x, str_types)
+    return isinstance(x, collections.abc.Iterable) and not isinstance(x, str_types)
 
 def make_seq(x, str_types=str):
     '''Return a tuple containing the items in `x`, or containing just `x` if `x` is a non-string iterable.  Convenient
@@ -493,7 +493,7 @@ def load_config(cfg, include_directive='include', std_includes=(), param_renamin
         def _update(d, u):
             def fix_None(v): return {} if v is None else v
             for (key, value) in u.items():
-                if (isinstance(value, collections.Mapping)):
+                if (isinstance(value, collections.abc.Mapping)):
                     d[key] = _update(fix_None(d.get(key, {})), value)
                 else:
                     d[key] = fix_None(value)
