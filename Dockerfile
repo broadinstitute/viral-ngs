@@ -1,4 +1,4 @@
-FROM quay.io/broadinstitute/viral-baseimage:0.1.18
+FROM quay.io/broadinstitute/viral-baseimage:0.1.19
 
 LABEL maintainer "viral-ngs@broadinstitute.org"
 
