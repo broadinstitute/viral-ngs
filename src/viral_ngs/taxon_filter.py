@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 
 def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
-    parser.add_argument('revertBam', nargs='?', help='Output BAM: read markup reverted with Picard.')
+    parser.add_argument('revertBam', help='Output BAM: read markup reverted with Picard.')
     parser.add_argument('bwaBam', help='Output BAM: depleted of reads with BWA.')
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of reads with BMTagger.')
     parser.add_argument(
@@ -127,15 +127,12 @@ def main_deplete(args):
         JVMmemory=args.JVMmemory
     )
 
-    # if the user has not specified saving a revertBam, we used a temp file and can remove it
-    if not args.revertBam:
-        os.unlink(revertBamOut)
-    else:
-        if os.path.getsize(args.revertBam) == 0:
-            with util.file.tempfname('.empty.sam') as empty_sam:
-                samtools = tools.samtools.SamtoolsTool()
-                samtools.dumpHeader(args.inBam, empty_sam)
-                samtools.view(['-b'], empty_sam, args.revertBam)
+
+    if os.path.getsize(args.revertBam) == 0:
+        with util.file.tempfname('.empty.sam') as empty_sam:
+            samtools = tools.samtools.SamtoolsTool()
+            samtools.dumpHeader(args.inBam, empty_sam)
+            samtools.view(['-b'], empty_sam, args.revertBam)
 
     multi_db_deplete_bam(
         args.bmtaggerBam,
