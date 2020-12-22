@@ -841,6 +841,10 @@ def refine_assembly(
 
     if already_realigned_bam:
         realignBam = already_realigned_bam
+        if samtools.isEmpty(realignBam):
+            # GATK errors out on empty bam input, so just do this ourselves
+            util.file.touch(outFasta)
+            return 0
     else:
         # Novoalign reads to self
         novoBam = util.file.mkstempfname('.novoalign.bam')
