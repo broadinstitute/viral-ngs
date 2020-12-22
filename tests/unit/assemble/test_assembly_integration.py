@@ -68,7 +68,7 @@ class TestRefineAssembly(TestCaseWithTmp):
             novo_params='-r None -l 30 -x 20 -t 502',
             min_coverage=2)
         actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.fasta'), 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.new.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
 
     def test_ebov_refine2(self):
