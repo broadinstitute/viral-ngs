@@ -17,6 +17,7 @@ import argparse
 import itertools
 import pytest
 import assemble.mummer
+import tools.minimap2
 import tools.novoalign
 import tools.picard
 from test import TestCaseWithTmp, _CPUS
@@ -63,6 +64,25 @@ class TestRefineAssemble(TestCaseWithTmp):
         self.assertTrue(os.path.isfile(outFasta))
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
+    def test_aligned_empty_input_bam_assembly(self):
+        mm2 = tools.minimap2.Minimap2()
+        samtools = tools.samtools.SamtoolsTool()
+        with util.file.tempfname('.ref.fasta') as inFasta:
+            with util.file.tempfname('.bam') as inBam:
+                with util.file.tempfname('.refined.fasta') as outFasta:
+                    shutil.copyfile(os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'), inFasta)
+                    mm2.align_bam(os.path.join(util.file.get_test_input_path(), 'empty.bam'), inFasta, inBam,
+                        options=['-x', 'sr'])
+                    samtools.index(inBam)
+
+                    # run refine_assembly
+                    args = [inFasta, inBam, outFasta, "--already_realigned_bam", inBam]
+                    args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+                    args.func_main(args)
+
+                    # the expected output is an empty fasta file
+                    self.assertTrue(os.path.isfile(outFasta))
+                    self.assertTrue(os.path.getsize(outFasta) == 0)
 
     def test_empty_input_fasta_assembly(self):
         novoalign = tools.novoalign.NovoalignTool()
