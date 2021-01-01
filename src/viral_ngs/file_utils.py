@@ -226,8 +226,8 @@ def tsv_join(in_tsvs, out_tsv, join_id=None):
     out_ids = list(util.misc.unique(out_ids))
 
     # write output
-    with open(out_tsv, 'wt') as outf:
-        writer = csv.DictWriter(outf, header, delimiter='\t')
+    with open(out_tsv, 'w', newline='') as outf:
+        writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
         writer.writerows(out_row_by_id[row_id] for row_id in out_ids)
 __commands__.append(('tsv_join', parser_tsv_join))
