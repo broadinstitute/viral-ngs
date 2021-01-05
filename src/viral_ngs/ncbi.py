@@ -473,7 +473,7 @@ def parser_fetch_genbank_records(parser):
 __commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 
-def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, filter_to_samples=None, id_suffixes=()):
+def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, filter_to_samples=None):
     ''' Prepare a Genbank Source Modifier Table based on a BioSample registration table (since all of the values are there)
     '''
     header_key_map = {
@@ -539,9 +539,10 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
 
                     # also write numbered versions for every segment/chromosome
                     sample_name = outrow['Sequence_ID']
-                    for suffix in id_suffixes:
-                        outrow['Sequence_ID'] = sample_name + str(suffix)
-                        outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+                    if num_segments>1:
+                        for i in range(num_segments):
+                            outrow['Sequence_ID'] = "{}-{}".format(sample_name, i+1)
+                            outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
 
 def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
     parser.add_argument('attributes', help='Input BioSample metadata table -- the attributes.tsv returned by BioSample after successful registration')
@@ -555,7 +556,6 @@ def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
                         action='store_true',
                         help='Add BioSample and BioProject columns to source modifier table output')
     parser.add_argument('--filter_to_samples', help="Filter output to specified sample IDs in this input file (one ID per line).")
-    parser.add_argument("--id_suffixes", nargs='*', help="List of sample ID suffixes to append to outputs. Example: ['-1', '-2', '-3'] for a three segment virus. Default is not to append.", default=())
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, biosample_to_genbank, split_args=True)
     return parser
@@ -581,6 +581,19 @@ def fasta2fsa(infname, outdir, biosample=None):
                     line = '{} [biosample={}]\n'.format(line, biosample)
                 outf.write(line)
     return outfname
+
+
+def multi_smt_table(in_table, out_cmt):
+    header_key_map = {
+    }
+    out_headers_total = ('SeqID', 'StructuredCommentPrefix', 'Assembly Method', 'Coverage', 'Sequencing Technology', 'StructuredCommentSuffix')
+    with open(out_cmt, 'wt') as outf:
+        for row in util.file.read_tabfile_dict(in_table):
+            outrow = dict((h, row.get(header_key_map.get(h,h), '')) for h in out_headers)
+            outrow['StructuredCommentPrefix'] = 'Assembly-Data'
+            outrow['StructuredCommentSuffix'] = 'Assembly-Data'
+            outf.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+
 
 
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None, assembly_method=None, assembly_method_version=None):
