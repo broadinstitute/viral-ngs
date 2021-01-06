@@ -487,7 +487,7 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
     ]
     out_headers_total = ('Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref')
     if biosample_in_smt:
-        out_header_total.extend(['BioProject', 'BioSample'])
+        out_headers_total.extend(['BioProject', 'BioSample'])
     if filter_to_samples:
         samples_to_filter_to = set()
         with open(filter_to_samples, 'rt') as inf:
