@@ -473,17 +473,25 @@ def parser_fetch_genbank_records(parser):
 __commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 
-def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map):
+def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, filter_to_samples=None):
     ''' Prepare a Genbank Source Modifier Table based on a BioSample registration table (since all of the values are there)
     '''
     header_key_map = {
         'Sequence_ID':'sample_name',
         'country':'geo_loc_name',
+        'BioProject':'bioproject_accession',
+        'BioSample':'accession',
     }
     datestring_formats = [
         "YYYY-MM-DDTHH:mm:ss", "YYYY-MM-DD", "YYYY-MM", "DD-MMM-YYYY", "MMM-YYYY", "YYYY"
     ]
     out_headers_total = ('Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref')
+    if biosample_in_smt:
+        out_header_total.extend(['BioProject', 'BioSample'])
+    if filter_to_samples:
+        samples_to_filter_to = set()
+        with open(filter_to_samples, 'rt') as inf:
+            samples_to_filter_to = set(line.strip() for line in inf)
     with open(out_genbank_smt, 'wt') as outf_smt:
         in_headers = util.file.readFlatFileHeader(attributes)
         out_headers = list(h for h in out_headers_total if header_key_map.get(h,h) in in_headers)
@@ -496,6 +504,11 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
 
             for row in util.file.read_tabfile_dict(attributes):
                 if row['message'].startswith('Success'):
+                    # skip if this is not a sample we're interested in
+                    if samples_to_filter_to:
+                        if row['sample_name'] not in samples_to_filter_to:
+                            continue
+
                     # write BioSample
                     outf_biosample.write("{}\t{}\n".format(row['accession'], row['sample_name']))
 
@@ -526,9 +539,10 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
 
                     # also write numbered versions for every segment/chromosome
                     sample_name = outrow['Sequence_ID']
-                    for i in range(num_segments):
-                        outrow['Sequence_ID'] = "{}-{}".format(sample_name, i+1)
-                        outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+                    if num_segments>1:
+                        for i in range(num_segments):
+                            outrow['Sequence_ID'] = "{}-{}".format(sample_name, i+1)
+                            outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
 
 def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
     parser.add_argument('attributes', help='Input BioSample metadata table -- the attributes.tsv returned by BioSample after successful registration')
@@ -536,6 +550,12 @@ def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
     parser.add_argument("taxid", type=int, help="NCBI Taxonomy numeric taxid to assign to all entries")
     parser.add_argument("out_genbank_smt", help="Output tab table in Genbank Source Modifier Table format, suitable for prep_genbank_files")
     parser.add_argument("out_biosample_map", help="Output two-column biosample accession to sample name map, suitable for prep_genbank_files")
+    parser.add_argument('--biosample_in_smt',
+                        dest="biosample_in_smt",
+                        default=False,
+                        action='store_true',
+                        help='Add BioSample and BioProject columns to source modifier table output')
+    parser.add_argument('--filter_to_samples', help="Filter output to specified sample IDs in this input file (one ID per line).")
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, biosample_to_genbank, split_args=True)
     return parser
@@ -561,6 +581,19 @@ def fasta2fsa(infname, outdir, biosample=None):
                     line = '{} [biosample={}]\n'.format(line, biosample)
                 outf.write(line)
     return outfname
+
+
+def multi_smt_table(in_table, out_cmt):
+    header_key_map = {
+    }
+    out_headers_total = ('SeqID', 'StructuredCommentPrefix', 'Assembly Method', 'Coverage', 'Sequencing Technology', 'StructuredCommentSuffix')
+    with open(out_cmt, 'wt') as outf:
+        for row in util.file.read_tabfile_dict(in_table):
+            outrow = dict((h, row.get(header_key_map.get(h,h), '')) for h in out_headers)
+            outrow['StructuredCommentPrefix'] = 'Assembly-Data'
+            outrow['StructuredCommentSuffix'] = 'Assembly-Data'
+            outf.write('\t'.join(outrow[h] for h in out_headers)+'\n')
+
 
 
 def make_structured_comment_file(cmt_fname, name=None, seq_tech=None, coverage=None, assembly_method=None, assembly_method_version=None):
