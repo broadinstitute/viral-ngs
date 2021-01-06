@@ -485,11 +485,10 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
     datestring_formats = [
         "YYYY-MM-DDTHH:mm:ss", "YYYY-MM-DD", "YYYY-MM", "DD-MMM-YYYY", "MMM-YYYY", "YYYY"
     ]
-    out_headers_total = ('Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref')
+    out_headers_total = ['Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref']
     if biosample_in_smt:
         out_headers_total.extend(['BioProject', 'BioSample'])
     if filter_to_samples:
-        samples_to_filter_to = set()
         with open(filter_to_samples, 'rt') as inf:
             samples_to_filter_to = set(line.strip() for line in inf)
     with open(out_genbank_smt, 'wt') as outf_smt:
@@ -505,7 +504,7 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
             for row in util.file.read_tabfile_dict(attributes):
                 if row['message'].startswith('Success'):
                     # skip if this is not a sample we're interested in
-                    if samples_to_filter_to:
+                    if filter_to_samples:
                         if row['sample_name'] not in samples_to_filter_to:
                             continue
 
