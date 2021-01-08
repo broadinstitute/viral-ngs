@@ -473,7 +473,7 @@ def parser_fetch_genbank_records(parser):
 __commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 
-def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, filter_to_samples=None):
+def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, iso_dates=False, filter_to_samples=None):
     ''' Prepare a Genbank Source Modifier Table based on a BioSample registration table (since all of the values are there)
     '''
     header_key_map = {
@@ -525,7 +525,10 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
                             except arrow.parser.ParserError:
                                 pass
                         if date_parsed:
-                            collection_date = str(date_parsed.format("DD-MMM-YYYY"))
+                            if iso_dates:
+                                collection_date = str(date_parsed.format("YYYY-MM-DD"))
+                            else:
+                                collection_date = str(date_parsed.format("DD-MMM-YYYY"))
                             outrow['collection_date'] = collection_date
                         else:
                             log.warn("unable to parse date {} from sample {}".format(collection_date, outrow['Sequence_ID']))
@@ -554,6 +557,11 @@ def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
                         default=False,
                         action='store_true',
                         help='Add BioSample and BioProject columns to source modifier table output')
+    parser.add_argument('--iso_dates',
+                        dest="iso_dates",
+                        default=False,
+                        action='store_true',
+                        help='write collection_date in ISO format (YYYY-MM-DD). default (false) is to write in tbl2asn format (DD-Mmm-YYYY)')
     parser.add_argument('--filter_to_samples', help="Filter output to specified sample IDs in this input file (one ID per line).")
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, biosample_to_genbank, split_args=True)
