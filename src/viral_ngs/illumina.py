@@ -48,6 +48,9 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
                         help='''Write a TSV report of all barcode counts, in descending order. 
                                 Only applicable for read structures containing "B"''',
                         default=None)
+    parser.add_argument('--max_barcodes',
+                        help='''Cap the commonBarcodes report length to this size (default: %(default)s)''',
+                        default=10000, type=int)
     parser.add_argument('--sampleSheet',
                         default=None,
                         help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
@@ -206,7 +209,7 @@ def main_illumina_demux(args):
             # so kick it to the background while we demux
             #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
             executor = concurrent.futures.ProcessPoolExecutor()
-            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, threads=util.misc.sanitize_thread_count(args.threads))
+            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, truncateToLength=args.max_barcodes, threads=util.misc.sanitize_thread_count(args.threads))
 
         # Picard IlluminaBasecallsToSam
         basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
