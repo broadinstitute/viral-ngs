@@ -836,7 +836,7 @@ class SampleSheet(object):
             for row in self.rows:
                 if 'sample_name' in row:
                     del row['sample_name']
-        elif infile.endswith(('.txt','.txt.gz')):
+        elif infile.endswith(('.txt','.txt.gz','.tsv')):
             # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
             self.rows = []
             row_num = 0
