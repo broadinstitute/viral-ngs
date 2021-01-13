@@ -82,6 +82,12 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
+    def test_tabfile_extras(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-2.txt'))
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(len(samples.get_rows()), 96)
+
     def test_blank_line_in_tabular_section(self):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-with-blanklines.csv'))
