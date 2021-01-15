@@ -825,7 +825,7 @@ def refine_assembly(
     if (os.path.getsize(inFasta) == 0):
         util.file.touch(outFasta)
         if outVcf:
-            with util.file.open_or_gzopen(outVcf, 'w') as outf:
+            with util.file.open_or_gzopen(outVcf, 'wt') as outf:
                 outf.write('##fileformat=VCFv4.3')
                 outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
         return 0
@@ -849,7 +849,7 @@ def refine_assembly(
             # GATK errors out on empty bam input, so just do this ourselves
             util.file.touch(outFasta)
             if outVcf:
-                with util.file.open_or_gzopen(outVcf, 'w') as outf:
+                with util.file.open_or_gzopen(outVcf, 'wt') as outf:
                     outf.write('##fileformat=VCFv4.3')
                     outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
             return 0
