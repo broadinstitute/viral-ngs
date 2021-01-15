@@ -824,6 +824,10 @@ def refine_assembly(
     # if the input fasta is empty, create an empty output fasta and return
     if (os.path.getsize(inFasta) == 0):
         util.file.touch(outFasta)
+        if outVcf:
+            with util.file.open_or_gzopen(outVcf, 'wt') as outf:
+                outf.write('##fileformat=VCFv4.3')
+                outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
         return 0
 
     # Get tools
@@ -844,6 +848,10 @@ def refine_assembly(
         if samtools.isEmpty(realignBam):
             # GATK errors out on empty bam input, so just do this ourselves
             util.file.touch(outFasta)
+            if outVcf:
+                with util.file.open_or_gzopen(outVcf, 'wt') as outf:
+                    outf.write('##fileformat=VCFv4.3')
+                    outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
             return 0
     else:
         # Novoalign reads to self
