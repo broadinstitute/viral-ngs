@@ -13,6 +13,7 @@ import os.path
 import re
 import gc
 import csv
+import json
 import sqlite3, itertools
 import shutil
 import subprocess
@@ -68,6 +69,15 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument('--append_run_id',
                         help='If specified, output filenames will include the flowcell ID and lane number.',
                         action='store_true')
+    parser.add_argument('--out_meta_by_sample',
+                        help='Output json metadata by sample',
+                        default=None)
+    parser.add_argument('--out_meta_by_filename',
+                        help='Output json metadata by bam file basename',
+                        default=None)
+    parser.add_argument('--out_runinfo',
+                        help='Output json metadata about the run',
+                        default=None)
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
         if opt not in ('read_structure', 'num_processors'):
@@ -175,7 +185,7 @@ def main_illumina_demux(args):
         else:
             log.error("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
 
-    multiplexed_samples = True if 'B' in read_structure else False            
+    multiplexed_samples = True if 'B' in read_structure else False
     
     if multiplexed_samples:
         assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
@@ -227,6 +237,15 @@ def main_illumina_demux(args):
     if picardOpts.get('sequencing_center'):
         picardOpts["sequencing_center"] = util.file.string_to_file_name(picardOpts["sequencing_center"])
 
+    if args.out_runinfo:
+        with open(args.out_runinfo, 'wt') as outf:
+            json.dump({
+                'sequencing_center':picardOpts['sequencing_center'],
+                'run_start_date':picardOpts['run_start_date'],
+                'read_structure':picardOpts['read_structure'],
+                'indexes':sample.indexes,
+                }, outf, indent=2)
+
     # manually garbage collect to make sure we have as much RAM free as possible
     gc.collect()
     if multiplexed_samples:
@@ -238,6 +257,15 @@ def main_illumina_demux(args):
             basecalls_input,
             picardOptions=picardOpts,
             JVMmemory=args.JVMmemory)
+
+        # organize samplesheet metadata as json
+        if args.out_meta_by_sample:
+            with open(args.out_meta_by_filename, 'wt') as outf:
+                json.dump(dict((r['sample_original'],r) for r in s.get_rows()), outf, indent=2)
+        if args.out_meta_by_filename:
+            with open(args.out_meta_by_filename, 'wt') as outf:
+                json.dump(dict((r['run'],r) for r in s.get_rows()), outf, indent=2)
+
     else:
         tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
             illumina.get_BCLdir(),
@@ -873,6 +901,7 @@ class SampleSheet(object):
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
+            row['sample_original'] = row['sample']
             row['sample'] = util.file.string_to_file_name(row['sample'])
             row['library'] = util.file.string_to_file_name(row['library'])
             row['run'] = util.file.string_to_file_name(row['run'])
