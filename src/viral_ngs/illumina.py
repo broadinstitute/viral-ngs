@@ -243,7 +243,7 @@ def main_illumina_demux(args):
                 'sequencing_center':picardOpts['sequencing_center'],
                 'run_start_date':picardOpts['run_start_date'],
                 'read_structure':picardOpts['read_structure'],
-                'indexes':sample.indexes,
+                'indexes':str(sample.indexes),
                 }, outf, indent=2)
 
     # manually garbage collect to make sure we have as much RAM free as possible
