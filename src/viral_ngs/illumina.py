@@ -243,7 +243,7 @@ def main_illumina_demux(args):
                 'sequencing_center':picardOpts['sequencing_center'],
                 'run_start_date':picardOpts['run_start_date'],
                 'read_structure':picardOpts['read_structure'],
-                'indexes':str(sample.indexes),
+                'indexes':str(samples.indexes),
                 }, outf, indent=2)
 
     # manually garbage collect to make sure we have as much RAM free as possible
@@ -261,10 +261,10 @@ def main_illumina_demux(args):
         # organize samplesheet metadata as json
         if args.out_meta_by_sample:
             with open(args.out_meta_by_filename, 'wt') as outf:
-                json.dump(dict((r['sample_original'],r) for r in s.get_rows()), outf, indent=2)
+                json.dump(dict((r['sample_original'],r) for r in samples.get_rows()), outf, indent=2)
         if args.out_meta_by_filename:
             with open(args.out_meta_by_filename, 'wt') as outf:
-                json.dump(dict((r['run'],r) for r in s.get_rows()), outf, indent=2)
+                json.dump(dict((r['run'],r) for r in samples.get_rows()), outf, indent=2)
 
     else:
         tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(

@@ -1102,8 +1102,8 @@ class DBConnection:
         self.cur.execute("PRAGMA foreign_keys=ON")
         self.cur.execute("PRAGMA foreign_keys")
         fk = self.cur.fetchone()
-        log.debug("SQLite version: %s" % sqlite3.sqlite_version)
-        log.debug("SQLite foreign key support: %s" % ((fk and fk[0]) and 'true' or 'false'))
+        #log.debug("SQLite version: %s" % sqlite3.sqlite_version)
+        #log.debug("SQLite foreign key support: %s" % ((fk and fk[0]) and 'true' or 'false'))
         self.start()
     def start(self):
         pass
