@@ -241,7 +241,7 @@ def main_illumina_demux(args):
         with open(args.out_runinfo, 'wt') as outf:
             json.dump({
                 'sequencing_center':picardOpts['sequencing_center'],
-                'run_start_date':picardOpts['run_start_date'],
+                'run_start_date':runinfo.get_rundate_iso(),
                 'read_structure':picardOpts['read_structure'],
                 'indexes':str(samples.indexes),
                 }, outf, indent=2)
@@ -260,7 +260,7 @@ def main_illumina_demux(args):
 
         # organize samplesheet metadata as json
         if args.out_meta_by_sample:
-            with open(args.out_meta_by_filename, 'wt') as outf:
+            with open(args.out_meta_by_sample, 'wt') as outf:
                 json.dump(dict((r['sample_original'],r) for r in samples.get_rows()), outf, indent=2)
         if args.out_meta_by_filename:
             with open(args.out_meta_by_filename, 'wt') as outf:
