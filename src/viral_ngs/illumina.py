@@ -215,11 +215,21 @@ def main_illumina_demux(args):
             JVMmemory=args.JVMmemory)
 
         if args.commonBarcodes:
+            barcode_lengths = re.findall(r'(\d+)B',read_structure)
+            try:
+                barcode1_len=int(barcode_lengths[0])
+            except IndexError:
+                barcode1_len = 0
+            try:
+                barcode2_len=int(barcode_lengths[1])
+            except IndexError:
+                barcode2_len = 0
+
             # this step can take > 2 hours on a large high-output flowcell
             # so kick it to the background while we demux
             #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
             executor = concurrent.futures.ProcessPoolExecutor()
-            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, truncateToLength=args.max_barcodes, threads=util.misc.sanitize_thread_count(args.threads))
+            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, barcode1_len, barcode2_len, truncateToLength=args.max_barcodes, threads=util.misc.sanitize_thread_count(args.threads))
 
         # Picard IlluminaBasecallsToSam
         basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
@@ -428,7 +438,17 @@ def main_common_barcodes(args):
         picardOptions=picardOpts,
         JVMmemory=args.JVMmemory)
 
-    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, args.truncateToLength, args.includeNoise, args.omitHeader)
+    barcode_lengths = re.findall(r'(\d+)B',read_structure)
+    try:
+        barcode1_len=int(barcode_lengths[0])
+    except IndexError:
+        barcode1_len = 0
+    try:
+        barcode2_len=int(barcode_lengths[1])
+    except IndexError:
+        barcode2_len = 0
+
+    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, barcode1_len, barcode2_len, args.truncateToLength, args.includeNoise, args.omitHeader)
 
     # clean up
     os.unlink(barcode_file)
@@ -438,7 +458,7 @@ def main_common_barcodes(args):
 
 __commands__.append(('common_barcodes', parser_common_barcodes))
 
-def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, includeNoise=False, omitHeader=False, threads=None):
+def count_and_sort_barcodes(barcodes_dir, outSummary, barcode1_len=8, barcode2_len=8, truncateToLength=None, includeNoise=False, omitHeader=False, threads=None):
     # collect the barcode file paths for all tiles
     tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
 
@@ -479,8 +499,8 @@ def count_and_sort_barcodes(barcodes_dir, outSummary, truncateToLength=None, inc
 
                 barcode,count = row
 
-                writer.writerow((barcode[:8], ",".join([x for x in illumina_reference.guess_index(barcode[:8], distance=1)] or ["Unknown"]), 
-                            barcode[8:], ",".join([x for x in illumina_reference.guess_index(barcode[8:], distance=1)] or ["Unknown"]), 
+                writer.writerow((barcode[:barcode1_len], ",".join([x for x in illumina_reference.guess_index(barcode[:barcode1_len], distance=1)] or ["Unknown"]), 
+                            barcode[barcode1_len:len(barcode)], ",".join([x for x in illumina_reference.guess_index(barcode[barcode1_len:len(barcode)], distance=1)] or ["Unknown"]),
                             count))
 
                 if num_processed%50000==0:
@@ -518,7 +538,7 @@ def parser_guess_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('--outlier_threshold', 
                         help='threshold of how far from unbalanced a sample must be to be considered an outlier.',
                         type=float,
-                        default=0.675)
+                        default=0.775)
     parser.add_argument('--expected_assigned_fraction', 
                         help='The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.',
                         type=float,

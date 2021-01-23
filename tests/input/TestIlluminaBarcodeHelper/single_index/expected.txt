@@ -1,5 +1,5 @@
-sample_name	expected_barcode_1	expected_barcode_1_name	guessed_barcode_1	guessed_barcode_1_name	match_type
-EBOV-VP24UTR_G10218A-C10220U.DMSO	CAAAAGAT	RPI28			alternative_indices_uncertain
-EBOV-VP24UTR_G10218A-C10242U.DMSO	CACCGGAT	RPI30			alternative_indices_uncertain
-EBOV-VP24UTR_G10218A-C10242U.NMIA	CTAGCTAT	RPI38			alternative_indices_uncertain
-EBOV-VP24UTR_G10218A-C10242U.DENAT	TCCCGAAT	RPI46			alternative_indices_uncertain
+sample_name	expected_barcode_1	expected_barcode_1_name	expected_barcodes_read_count	guessed_barcode_1	guessed_barcode_1_name	match_type
+EBOV-VP24UTR_G10218A-C10220U.DMSO	CAAAAGAT	RPI28	264750			alternative_indices_uncertain
+EBOV-VP24UTR_G10218A-C10242U.DMSO	CACCGGAT	RPI30	187070			alternative_indices_uncertain
+EBOV-VP24UTR_G10218A-C10242U.NMIA	CTAGCTAT	RPI38	268529			alternative_indices_uncertain
+EBOV-VP24UTR_G10218A-C10242U.DENAT	TCCCGAAT	RPI46	287559			alternative_indices_uncertain
