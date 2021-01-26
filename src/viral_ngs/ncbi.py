@@ -473,7 +473,7 @@ def parser_fetch_genbank_records(parser):
 __commands__.append(('fetch_genbank_records', parser_fetch_genbank_records))
 
 
-def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, iso_dates=False, filter_to_samples=None):
+def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_biosample_map, biosample_in_smt=False, iso_dates=False, filter_to_samples=None, sgtf_override=False):
     ''' Prepare a Genbank Source Modifier Table based on a BioSample registration table (since all of the values are there)
     '''
     header_key_map = {
@@ -485,7 +485,7 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
     datestring_formats = [
         "YYYY-MM-DDTHH:mm:ss", "YYYY-MM-DD", "YYYY-MM", "DD-MMM-YYYY", "MMM-YYYY", "YYYY"
     ]
-    out_headers_total = ['Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'db_xref']
+    out_headers_total = ['Sequence_ID', 'isolate', 'collection_date', 'country', 'collected_by', 'isolation_source', 'organism', 'host', 'note', 'db_xref']
     if biosample_in_smt:
         out_headers_total.extend(['BioProject', 'BioSample'])
     if filter_to_samples:
@@ -536,6 +536,13 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
                     # custom db_xref/taxon
                     outrow['db_xref'] = "taxon:{}".format(taxid)
 
+                    # load the purpose of sequencing (or if not, the purpose of sampling) in the note field
+                    outrow['note'] = row.get('purpose_of_sequencing', row.get('purpose_of_sampling', ''))
+
+                    # SARS-CoV-2 specific bits
+                    if sgtf_override and (outrow['note'] in set(["Screening for Variants of Concern (VoC)", "SGTF Surveillance"])):
+                        outrow['note'] = 'screened by S dropout'
+
                     # write entry for this sample
                     outf_smt.write('\t'.join(outrow[h] for h in out_headers)+'\n')
 
@@ -562,6 +569,11 @@ def parser_biosample_to_genbank(parser=argparse.ArgumentParser()):
                         default=False,
                         action='store_true',
                         help='write collection_date in ISO format (YYYY-MM-DD). default (false) is to write in tbl2asn format (DD-Mmm-YYYY)')
+    parser.add_argument('--sgtf_override',
+                        dest="sgtf_override",
+                        default=False,
+                        action='store_true',
+                        help='replace "Screening for Variants of Concern (VoC)" with "screened by S dropout" in the note field')
     parser.add_argument('--filter_to_samples', help="Filter output to specified sample IDs in this input file (one ID per line).")
     util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
     util.cmd.attach_main(parser, biosample_to_genbank, split_args=True)
