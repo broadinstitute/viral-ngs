@@ -496,6 +496,8 @@ def biosample_to_genbank(attributes, num_segments, taxid, out_genbank_smt, out_b
         out_headers = list(h for h in out_headers_total if header_key_map.get(h,h) in in_headers)
         if 'db_xref' not in out_headers:
             out_headers.append('db_xref')
+        if 'note' not in out_headers:
+            out_headers.append('note')
         outf_smt.write('\t'.join(out_headers)+'\n')
 
         with open(out_biosample_map, 'wt') as outf_biosample:
