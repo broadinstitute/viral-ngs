@@ -1692,6 +1692,12 @@ class IlluminaBarcodeHelper(object):
         resid_mean = self.mean(residuals) # mean error
         resid_median = self.median(residuals) # median error
 
+        # set stdev to 1 if it is zero to cause no standardization below
+        # (zero will cause div-by-zero error)
+        # stdev is an edge case where read counts are all the same
+        # across the board
+        resid_stdev = resid_stdev if resid_stdev!=0 else 1.0
+
         ##log.debug(f"residuals {residuals}")
         ##log.debug(f"resid_stdev {resid_stdev}")
         ##log.debug(f"resid_mean {resid_mean}")
