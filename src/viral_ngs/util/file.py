@@ -11,7 +11,7 @@ import os
 import gzip
 import bz2
 import lz4.frame
-import zstd
+import zstandard as zstd
 import io
 import tempfile
 import subprocess
