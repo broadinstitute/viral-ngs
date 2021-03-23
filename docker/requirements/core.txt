@@ -27,4 +27,4 @@ lz4=2.2.1
 matplotlib>=2.2.4
 pysam>=0.16.0.1
 pybedtools>=0.7.10
-zstandard>=0.11.0
+zstandard>=0.15.2
