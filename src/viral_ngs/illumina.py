@@ -776,10 +776,12 @@ class RunInfo(object):
         #   "170712" (YYMMDD)
         #   "20170712" (YYYYMMDD)
         #   "6/27/2018 4:59:20 PM" (M/D/YYYY h:mm:ss A)
+        #   "2021-04-21T20:48:39Z" (YYYY-MM-DDTHH:mm:ssZ) [seen on NextSeq 2000]
         datestring_formats = [
             "YYMMDD",
             "YYYYMMDD",
-            "M/D/YYYY h:mm:ss A"
+            "M/D/YYYY h:mm:ss A",
+            "YYYY-MM-DDTHH:mm:ssZ"
         ]
         for datestring_format in datestring_formats:
             try:
