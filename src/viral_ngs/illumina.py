@@ -842,13 +842,20 @@ class RunInfo(object):
         layout = self.root[0].find('FlowcellLayout')
         return int(layout.attrib['TileCount'])
 
+    def get_section_count(self):
+        layout = self.root[0].find('FlowcellLayout')
+        # not ever flowcell type has sections but some do (ex. NextSeq 550 does)
+        # return 1 in the event it's not listed in the RunInfo.xml file
+        return int(layout.attrib.get('SectionPerLane',1))
+
     def tile_count(self):
         lane_count    = self.get_lane_count()
         surface_count = self.get_surface_count()
         swath_count   = self.get_swath_count()
         tile_count    = self.get_tile_count()
+        section_count = self.get_section_count()
 
-        total_tile_count = lane_count*surface_count*swath_count*tile_count
+        total_tile_count = lane_count*surface_count*swath_count*tile_count*section_count
         return total_tile_count
 
     def machine_model_from_tile_count(self):
@@ -944,21 +951,26 @@ class RunInfo(object):
     def infer_sequencer_model(self):
         fcid = self.get_flowcell_raw()
         sequencer_by_tile_count = self.machine_model_from_tile_count()
-        sequencers_by_fcid = self.get_machines_for_flowcell_id(fcid)
+        sequencers_by_fcid      = self.get_machines_for_flowcell_id(fcid)
         
         if len(sequencers_by_fcid)>1:
             raise LookupError("Multiple sequencers possible: %s",fcid)
 
-        if sequencers_by_fcid[0]["machine"]==sequencer_by_tile_count["machine"]:
+        print("self.tile_count()",self.tile_count())
+
+        # always return sequencer model based on flowcell ID, if we can
+        if len(sequencers_by_fcid)>0:
+            if sequencer_by_tile_count is not None and sequencers_by_fcid[0]["machine"]!=sequencer_by_tile_count["machine"]:
+                log.warning("Sequencer type inferred from flowcell ID: %s does not match sequencer inferred from tile count: %s; is this a new machine type?" % (sequencers_by_fcid[0]["machine"], sequencer_by_tile_count["machine"]))
             return sequencers_by_fcid[0]
+        # otherwise return based on tile count if we can
+        elif sequencer_by_tile_count is not None:
+            log.warning("Sequencer type unknown flowcell ID: %s, yet sequencer type was inferred for tile count: %s; is this a new flowcell ID pattern?" % (fcid, self.tile_count()))
+            return sequencer_by_tile_count
+        # otherwise we do not know
         else:
-            if len(sequencers_by_fcid)==0 and sequencer_by_tile_count is not None:
-                return sequencer_by_tile_count
-            raise LookupError("sequencer model unclear; flowcell ID suggests %s while tile count suggests %s", sequencers_by_fcid[0], sequencer_by_tile_count)
-
-        if len(sequencers_by_fcid)==0 and sequencer_by_tile_count is None:
-            raise LookupError("Unknown sequencer: %s",fcid)
-
+            log.warning("Tile count: %s and flowcell ID: %s are both novel; is this a new machine type?" % (self.tile_count(), fcid))
+            return {"machine":"UNKNOWN","lane_count":self.get_lane_count()}
 
     # Machine names aim to conform to the NCBI SRA controlled 
     # vocabulary for Illumina sequencers available here:
