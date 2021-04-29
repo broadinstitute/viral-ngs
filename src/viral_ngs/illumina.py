@@ -278,12 +278,15 @@ def main_illumina_demux(args):
             JVMmemory=args.JVMmemory)
 
         # organize samplesheet metadata as json
+        sample_meta = list(samples.get_rows())
+        for row in sample_meta:
+            row['lane'] = args.lane
         if args.out_meta_by_sample:
             with open(args.out_meta_by_sample, 'wt') as outf:
-                json.dump(dict((r['sample'],r) for r in samples.get_rows()), outf, indent=2)
+                json.dump(dict((r['sample'],r) for r in sample_meta), outf, indent=2)
         if args.out_meta_by_filename:
             with open(args.out_meta_by_filename, 'wt') as outf:
-                json.dump(dict((r['run'],r) for r in samples.get_rows()), outf, indent=2)
+                json.dump(dict((r['run'],r) for r in sample_meta), outf, indent=2)
 
     else:
         tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
