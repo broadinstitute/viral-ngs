@@ -346,7 +346,7 @@ def main_flowcell_metadata(args):
         runinfo = RunInfo(args.run_info)
         machine_match = runinfo.infer_sequencer_model()
     if args.in_dir:
-        illumina = IlluminaDirectory(args.inDir)
+        illumina = IlluminaDirectory(args.in_dir)
         illumina.load()
         runinfo = illumina.get_RunInfo()
         machine_match = runinfo.infer_sequencer_model()
