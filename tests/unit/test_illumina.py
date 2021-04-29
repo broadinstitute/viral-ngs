@@ -145,6 +145,33 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_machine_model(), "Illumina NovaSeq 6000")
         self.assertEqual(runinfo.get_flowcell_lane_count(), 2)
 
+    def test_nextseq550(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-nextseq550.xml'))
+        self.assertEqual(runinfo.get_flowcell(), 'HMTLKAFX2')
+        self.assertEqual(runinfo.get_rundate_american(), '02/21/2021')
+        self.assertEqual(runinfo.get_rundate_iso(), '2021-02-21')
+        self.assertEqual(runinfo.get_machine(), 'NB552060')
+        self.assertEqual(runinfo.get_read_structure(), '149T10B10B149T')
+        self.assertEqual(runinfo.num_reads(), 2)
+        self.assertEqual(runinfo.get_machine_model(), "NextSeq 550")
+        self.assertEqual(runinfo.get_flowcell_lane_count(), 4)
+
+    def test_novel_tile_count_but_known_fcid(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-tile-count.xml'))
+        self.assertEqual(runinfo.get_machine_model(), "Illumina MiSeq")
+
+    def test_novel_fcid_but_known_tile_count(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-fcid.xml'))
+        self.assertEqual(runinfo.get_machine_model(), "Illumina MiSeq")
+
+    def test_novel_tile_count_and_fcid(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-fcid-and-tilecount.xml'))
+        self.assertEqual(runinfo.get_machine_model(), "UNKNOWN")
+
 
 class TestIlluminaDir(TestCaseWithTmp):
 
