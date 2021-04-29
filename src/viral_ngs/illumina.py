@@ -262,7 +262,7 @@ def main_illumina_demux(args):
                 'swath_count':runinfo.get_swath_count(),
                 'tile_count':runinfo.get_tile_count(),
                 'total_tile_count':runinfo.tile_count(),
-                'sequencer_model':infer_sequencer_model(),
+                'sequencer_model':runinfo.infer_sequencer_model(),
                 }, outf, indent=2)
 
     # manually garbage collect to make sure we have as much RAM free as possible
