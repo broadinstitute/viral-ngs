@@ -255,13 +255,13 @@ def main_illumina_demux(args):
                 'read_structure':picardOpts['read_structure'],
                 'indexes':str(samples.indexes),
                 'run_id':runinfo.get_run_id(),
-                'lane':args.lane,
-                'flowcell':runinfo.get_flowcell(),
-                'lane_count':runinfo.get_lane_count(),
-                'surface_count':runinfo.get_surface_count(),
-                'swath_count':runinfo.get_swath_count(),
-                'tile_count':runinfo.get_tile_count(),
-                'total_tile_count':runinfo.tile_count(),
+                'lane':str(args.lane),
+                'flowcell':str(runinfo.get_flowcell()),
+                'lane_count':str(runinfo.get_lane_count()),
+                'surface_count':str(runinfo.get_surface_count()),
+                'swath_count':str(runinfo.get_swath_count()),
+                'tile_count':str(runinfo.get_tile_count()),
+                'total_tile_count':str(runinfo.tile_count()),
                 'sequencer_model':runinfo.infer_sequencer_model(),
                 }, outf, indent=2)
 
@@ -280,7 +280,7 @@ def main_illumina_demux(args):
         # organize samplesheet metadata as json
         sample_meta = list(samples.get_rows())
         for row in sample_meta:
-            row['lane'] = args.lane
+            row['lane'] = str(args.lane)
         if args.out_meta_by_sample:
             with open(args.out_meta_by_sample, 'wt') as outf:
                 json.dump(dict((r['sample'],r) for r in sample_meta), outf, indent=2)
