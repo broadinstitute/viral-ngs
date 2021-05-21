@@ -899,14 +899,14 @@ class RunInfo(object):
             # Since we cannot tell them apart based on tile count, we call it the 550
             log.info("Detected %s tiles, interpreting as NextSeq 550 (mid-output) run.",tc)
             machine = {"machine":"NextSeq 550","lane_count":4}
+        elif tc == 624:
+            log.info("Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.",tc)
+            machine = {"machine":"Illumina NovaSeq 6000","lane_count":2}
         elif tc == 768:
             # HiSeq 2000 and 2500 have the same number of tiles
             # Defaulting to the newer HiSeq 2500
             log.info("Detected %s tiles, interpreting as HiSeq2500 run.",tc)
             machine = {"machine":"Illumina HiSeq 2500","lane_count":8}
-        elif tc == 624:
-            log.info("Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.",tc)
-            machine = {"machine":"Illumina NovaSeq 6000","lane_count":2}
         elif tc == 864:
             # NextSeq 550 is a NextSeq 500 that can also read arrays.
             # Since we cannot tell them apart based on tile count, we call it the 550
