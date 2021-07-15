@@ -526,7 +526,7 @@ def parser_plot_coverage_common(parser=argparse.ArgumentParser()):    # parser n
     parser.add_argument(
         '--binningSummaryStatistic',
         dest="binning_summary_statistic",
-        choices=["max", "min"],
+        choices=["max", "min", "mean", "median"],
         type=str,
         default="max",
         help="Statistic used to summarize each bin (max or min)."
@@ -673,7 +673,13 @@ def plot_coverage(
         bin_size = 1
         if bin_large_plots:
             # Bin locations and take summary value (maximum or minimum) in each bin
-            binning_action = eval(binning_summary_statistic)
+            binning_fn = {
+                "min": min,
+                "max": max,
+                "mean": mean,
+                "median": median
+            }
+            binning_action = binning_fn.get(binning_summary_statistic, "max")
             
             inner_plot_width_inches = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).width
             inner_plot_width_px = inner_plot_width_inches * fig.dpi # width of actual plot (sans whitespace and y axis text)
