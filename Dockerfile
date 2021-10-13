@@ -42,6 +42,9 @@ COPY util $VIRAL_NGS_PATH/util/
 COPY tools $VIRAL_NGS_PATH/tools/
 COPY *.py VERSION* $VIRAL_NGS_PATH/
 
+# R fails unless you do this, CollectInsertSizeMetrics needs R, why is conda R broken
+RUN	ln -s /lib/x86_64-linux-gnu/libreadline.so.7 /lib/x86_64-linux-gnu/libreadline.so.6
+
 # This not only prints the current version string, but it
 # also saves it to the VERSION file for later use and also
 # verifies that conda-installed python libraries are working.
