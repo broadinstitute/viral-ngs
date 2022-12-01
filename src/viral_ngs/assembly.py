@@ -275,11 +275,11 @@ def assemble_spades(
     in_bam,
     clip_db,
     out_fasta,
-    spades_opts='',
+    spades_opts='--rna',
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
     min_contig_len=0,
-    kmer_sizes=(55,65),
+    kmer_sizes=(55,65,35),
     n_reads=10000000,
     outReads=None,
     always_succeed=False,
@@ -326,6 +326,8 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='Optional input contigs of high medium quality, previously assembled from the same sample')
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
+    parser.add_argument('--kmerSizes', dest='kmer_sizes', type=int, nargs='+', default=(55,65,35),
+                        help='Ordered list of kmer sizes to attempt')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
@@ -334,7 +336,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         'an error code')
     parser.add_argument('--minContigLen', dest='min_contig_len', type=int, default=0,
                         help='only output contigs longer than this many bp')
-    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='--rna', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
