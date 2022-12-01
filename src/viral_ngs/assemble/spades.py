@@ -97,7 +97,7 @@ class SpadesTool(tools.Tool):
                     if contigs_untrusted: args += [ '--untrusted-contigs', contigs_untrusted ]
                     if kmer_size: args += [ '-k', kmer_size ]
                     if spades_opts: args += shlex.split(spades_opts)
-                    args += [ '--rna', '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
+                    args += [ '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
 
                     transcripts_fname = os.path.join(spades_dir, ('hard_filtered_' if filter_contigs else '') + 'transcripts.fasta')
 

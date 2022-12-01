@@ -275,7 +275,7 @@ def assemble_spades(
     in_bam,
     clip_db,
     out_fasta,
-    spades_opts='',
+    spades_opts='--rna',
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
     min_contig_len=0,
@@ -336,7 +336,7 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         'an error code')
     parser.add_argument('--minContigLen', dest='min_contig_len', type=int, default=0,
                         help='only output contigs longer than this many bp')
-    parser.add_argument('--spadesOpts', dest='spades_opts', default='', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='--rna', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)
