@@ -275,15 +275,14 @@ def assemble_spades(
     in_bam,
     clip_db,
     out_fasta,
-    spades_opts='--rna',
+    spades_opts='--rnaviral',
     contigs_trusted=None, contigs_untrusted=None,
     filter_contigs=False,
     min_contig_len=0,
-    kmer_sizes=(55,65,35),
+    kmer_sizes=None,
     n_reads=10000000,
     outReads=None,
     always_succeed=False,
-    max_kmer_sizes=1,
     mem_limit_gb=8,
     threads=None,
 ):
@@ -305,7 +304,7 @@ def assemble_spades(
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
                                                min_contig_len=min_contig_len,
-                                               kmer_sizes=kmer_sizes, always_succeed=always_succeed, max_kmer_sizes=max_kmer_sizes,
+                                               kmer_sizes=kmer_sizes, always_succeed=always_succeed,
                                                spades_opts=spades_opts, mem_limit_gb=mem_limit_gb,
                                                threads=threads)
         except subprocess.CalledProcessError as e:
@@ -326,17 +325,17 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='Optional input contigs of high medium quality, previously assembled from the same sample')
     parser.add_argument('--nReads', dest='n_reads', type=int, default=10000000, 
                         help='Before assembly, subsample the reads to at most this many')
-    parser.add_argument('--kmerSizes', dest='kmer_sizes', type=int, nargs='+', default=(55,65,35),
-                        help='Ordered list of kmer sizes to attempt')
+    parser.add_argument('--kmerSizes', dest='kmer_sizes', default=None,
+                        help='Comma-separated ascending order list of odd-value kmer sizes to attempt')
     parser.add_argument('--outReads', default=None, help='Save the trimmomatic/prinseq/subsamp reads to a BAM file')
     parser.add_argument('--filterContigs', dest='filter_contigs', default=False, action='store_true', 
                         help='only output contigs SPAdes is sure of (drop lesser-quality contigs from output)')
-    parser.add_argument('--alwaysSucceed', dest='always_succeed', default=False, action='store_true',
+    parser.add_argument('--alwaysSucceed', dest='always_succeed', default=True, action='store_true',
                         help='if assembly fails for any reason, output an empty contigs file, rather than failing with '
                         'an error code')
     parser.add_argument('--minContigLen', dest='min_contig_len', type=int, default=0,
                         help='only output contigs longer than this many bp')
-    parser.add_argument('--spadesOpts', dest='spades_opts', default='--rna', help='(advanced) Extra flags to pass to the SPAdes assembler')
+    parser.add_argument('--spadesOpts', dest='spades_opts', default='--rnaviral', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, assemble_spades, split_args=True)

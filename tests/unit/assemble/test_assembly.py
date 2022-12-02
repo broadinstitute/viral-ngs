@@ -149,7 +149,7 @@ class TestAssembleSpades(TestCaseWithTmp):
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
             #print('test_assembly_contigs_lens:', contig_lens, file=sys.stderr)
-            self.assertEqual(contig_lens, [190, 195, 197, 222, 243, 247, 359])
+            self.assertEqual(contig_lens, [200, 201, 210, 222, 243, 244, 268, 294, 300, 328, 348, 376, 381, 430])
 
     def test_assembly_with_previously_assembled_contigs(self):
         inDir = util.file.get_test_input_path(self)
@@ -163,7 +163,7 @@ class TestAssembleSpades(TestCaseWithTmp):
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
             #print('test_assembly_with_previously_assembled_contigs_contigs_lens:', contig_lens, file=sys.stderr)
-            self.assertEqual(contig_lens, [172, 174, 190, 195, 197, 222, 243, 247, 359])
+            self.assertEqual(contig_lens, [200, 201, 210, 222, 243, 244, 268, 294, 300, 328, 348, 376, 381, 430])
 
     def test_empty_input_succeed(self):
         inDir = util.file.get_test_input_path()
@@ -229,7 +229,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.out.bam')
         read_stats = assembly.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500)
         os.unlink(outBam)
-        self.assertEqual(read_stats, (18710, 16324, 16324, 500, 500, 0))
+        self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))
 
 
 class TestAmbiguityBases(unittest.TestCase):
