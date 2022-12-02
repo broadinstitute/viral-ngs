@@ -95,7 +95,7 @@ class SpadesTool(tools.Tool):
                 if spades_opts: args += shlex.split(spades_opts)
                 args += [ '-m' + str(mem_limit_gb), '-t', str(threads), '-o', spades_dir ]
 
-                transcripts_fname = os.path.join(spades_dir, ('hard_filtered_' if filter_contigs else '') + 'transcripts.fasta')
+                transcripts_fname = os.path.join(spades_dir, ('hard_filtered_' if filter_contigs else '') + 'contigs.fasta')
 
                 try:
                     self.execute(args=args)
@@ -106,9 +106,9 @@ class SpadesTool(tools.Tool):
                     else:
                         raise
 
-                # work around the bug that spades may succeed yet not create the transcripts.fasta file
+                # work around the bug that spades may succeed yet not create the contigs.fasta file
                 if not os.path.isfile(transcripts_fname):
-                    msg = 'SPAdes failed to make transcripts.fasta'
+                    msg = 'SPAdes failed to make contigs.fasta'
                     if always_succeed:
                         log.warning(msg)
                         util.file.make_empty(transcripts_fname)
@@ -118,7 +118,7 @@ class SpadesTool(tools.Tool):
                 if min_contig_len:
                     transcripts = Bio.SeqIO.parse(transcripts_fname, 'fasta')
                     transcripts_sans_short = [r for r in transcripts if len(r.seq) >= min_contig_len]
-                    transcripts_fname = os.path.join(spades_dir, 'transcripts_over_{}bp.fasta'.format(min_contig_len))
+                    transcripts_fname = os.path.join(spades_dir, 'contigs_over_{}bp.fasta'.format(min_contig_len))
                     Bio.SeqIO.write(transcripts_sans_short, transcripts_fname, 'fasta')
 
                 contigs_cumul = os.path.join(spades_dir, 'contigs_cumul.{}.fasta'.format(contigs_cumul_count))
