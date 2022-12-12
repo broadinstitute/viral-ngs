@@ -181,7 +181,7 @@ def tbl_transfer_multichr(ref_fastas, ref_tbls, alt_fasta, out_dir, oob_clip=Fal
     alt_seqids = []
     with util.file.open_or_gzopen(alt_fasta, 'r') as inf:
         for seq in Bio.SeqIO.parse(inf, 'fasta'):
-            fname = os.path.join(out_dir, util.file.string_to_filename(seq.id) + ".fasta")
+            fname = os.path.join(out_dir, util.file.string_to_file_name(seq.id) + ".fasta")
             alt_seqids.append(seq.id)
             alt_fastas.append(fname)
             Bio.SeqIO.write(seq, fname, "fasta")
