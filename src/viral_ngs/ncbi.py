@@ -675,6 +675,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
         with open(fn, "r") as inf:
             asm_fasta = Bio.SeqIO.parse(inf, 'fasta')
             for idx, seq_obj in enumerate(asm_fasta):
+                seq_obj.id
                 if n_segs>1:
                     sample = sample_base + "-" + str(idx+1)
                 else:
@@ -683,28 +684,28 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                 # write the segment to a temp .fasta file
                 # in the same dir so fasta2fsa functions as expected
                 with util.file.tmp_dir() as tdir:
-                    temp_fasta_fname = os.path.join(tdir,sample+".fasta")
+                    temp_fasta_fname = os.path.join(tdir,util.file.string_to_file_name(seq_obj.id)+".fasta")
                     with open(temp_fasta_fname, "w") as out_chr_fasta:
                         Bio.SeqIO.write(seq_obj, out_chr_fasta, "fasta")
                     # make .fsa files
-                    fasta2fsa(temp_fasta_fname, annotDir, biosample=biosample.get(sample_base))
+                    fasta2fsa(temp_fasta_fname, annotDir, biosample=biosample.get(seq_obj.id))
 
                 # make .src files
                 if master_source_table:
-                    out_src_fname = os.path.join(annotDir, sample + '.src')
+                    out_src_fname = os.path.join(annotDir, util.file.string_to_file_name(seq_obj.id) + '.src')
                     with open(master_source_table, 'rt') as inf:
                         with open(out_src_fname, 'wt') as outf:
                             outf.write(inf.readline())
                             for line in inf:
                                 row = line.rstrip('\n').split('\t')
-                                if row[0] == sample_base or row[0] == sample:
-                                    row[0] = sample
+                                if row[0] in set(seq_obj.id, sample_base, util.file.string_to_file_name(seq_obj.id)):
+                                    row[0] = seq_obj.id
                                     outf.write('\t'.join(row) + '\n')
 
                 # make .cmt files
-                make_structured_comment_file(os.path.join(annotDir, sample + '.cmt'),
-                                             name=sample,
-                                             coverage=coverage.get(sample, coverage.get(sample_base)),
+                make_structured_comment_file(os.path.join(annotDir, util.file.string_to_file_name(seq_obj.id) + '.cmt'),
+                                             name=seq_obj.id,
+                                             coverage=coverage.get(seq_obj.id, coverage.get(sample_base, coverage.get(util.file.string_to_file_name(seq_obj.id)))),
                                              seq_tech=sequencing_tech,
                                              assembly_method=assembly_method,
                                              assembly_method_version=assembly_method_version)
