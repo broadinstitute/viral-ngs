@@ -194,7 +194,7 @@ def tbl_transfer_multichr(ref_fastas, ref_tbls, alt_fasta, out_dir, oob_clip=Fal
 
     # iterate over each segment and call tbl_transfer on each
     for i in range(n_segs):
-        out_tbl = os.path.join(out_dir, alt_seqids[i] + '.tbl')
+        out_tbl = os.path.join(out_dir, util.file.string_to_file_name(alt_seqids[i]) + '.tbl')
         tbl_transfer(ref_fastas[i], ref_tbls[i], alt_fastas[i], out_tbl,
             oob_clip=oob_clip, ignore_ambig_feature_edge=ignore_ambig_feature_edge)
 
