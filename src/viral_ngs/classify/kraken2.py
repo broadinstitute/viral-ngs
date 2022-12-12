@@ -62,8 +62,12 @@ class Kraken2(tools.Tool):
                 util.file.mkdir_p(db)
                 futs.append(executor.submit(shutil.copytree, tax_db, os.path.join(db, 'taxonomy')))
             else:
-                futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
-                    options={'--download-taxonomy': None}))
+                if protein:
+                    futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                        options={'--download-taxonomy': None, '--protein': None}))
+                else:
+                    futs.append(executor.submit(self.execute, 'kraken2-build', db, None,
+                        options={'--download-taxonomy': None}))
             # add standard libraries:
             if standard_libraries:
                 for lib in standard_libraries:
