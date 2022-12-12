@@ -6,11 +6,6 @@ import pytest
 import tools
 from tools import *
 
-# Simply do nothing to override stub_conda in conftest.py
-@pytest.fixture(autouse=True)
-def stub_conda():
-    pass
-
 @pytest.fixture(params=tools.all_tool_classes())
 def tool_class(request):
     return request.param

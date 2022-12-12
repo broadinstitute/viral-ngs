@@ -14,7 +14,8 @@ import array
 import bisect
 import json
 import itertools
-from collections import OrderedDict, Sequence, MutableMapping
+import collections.abc
+from collections import OrderedDict
 
 # third-party libraries
 import Bio.AlignIO, Bio.SeqIO
@@ -40,7 +41,7 @@ class CoordMapperError(Exception):
         super(CoordMapperError, self).__init__(self, *args, **kwargs)
 
 
-class CoordMapper(MutableMapping):
+class CoordMapper(collections.abc.MutableMapping):
     """ Map (chrom, coordinate) between genome A and genome B.
         Coordinates are 1-based.
         Indels are handled as follows after corresponding sequences are aligned:
@@ -141,7 +142,7 @@ class CoordMapper(MutableMapping):
         if fromPos is None:
             return toChrom
         toPos = mapper(fromPos, 0)
-        if isinstance(toPos, Sequence) and side != 0:
+        if isinstance(toPos, collections.abc.Sequence) and side != 0:
             toPos = toPos[0] if side < 0 else toPos[1]
         return (toChrom, toPos)
 
