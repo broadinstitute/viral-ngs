@@ -13,7 +13,6 @@ import unittest
 import Bio.SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 import pytest
 
 import kmer_utils
@@ -101,7 +100,7 @@ class KmcPy(object):
     def _revcomp(self, kmer):
         """Return the reverse complement of a kmer, given as a string"""
         assert isinstance(kmer, str)
-        return str(Seq(kmer, IUPAC.unambiguous_dna).reverse_complement())
+        return str(SeqRecord(Seq(kmer), annotations={"molecule_type": "DNA"}).seq.reverse_complement())
 
     def _canonicalize(self, kmer):
         """Return the canonical version of a kmer"""
