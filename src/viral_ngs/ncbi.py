@@ -698,7 +698,7 @@ def prep_genbank_files(templateFile, fasta_files, annotDir,
                             outf.write(inf.readline())
                             for line in inf:
                                 row = line.rstrip('\n').split('\t')
-                                if row[0] in set(seq_obj.id, sample_base, util.file.string_to_file_name(seq_obj.id)):
+                                if row[0] in set((seq_obj.id, sample_base, util.file.string_to_file_name(seq_obj.id))):
                                     row[0] = seq_obj.id
                                     outf.write('\t'.join(row) + '\n')
 
