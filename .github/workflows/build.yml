@@ -1,0 +1,245 @@
+name: "viral-core CI"
+
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - created
+  schedule:
+    - cron: '0 18 * * 1' # weekly at 18:00 on Mondays
+
+env:
+  HOME: "${{ github.workspace }}"
+  CACHE_DIR: "${{ github.workspace }}/misc_cache"
+  MINICONDA_DIR: "${{ github.workspace }}/miniconda"
+  GATK_PATH: "${{ github.workspace }}/misc_cache"
+  PYTHONIOENCODING: UTF8
+  
+  DOCKER_REGISTRY: "quay.io"
+  DOCKER_REPO_PROD: "quay.io/broadinstitute/viral-core"
+  DOCKER_REPO_DEV: "quay.io/broadinstitute/viral-core"
+  
+  #BOTO_CONFIG: /dev/null # bogus value to override config on travis
+  _JAVA_OPTIONS: "-Xmx3g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
+
+  # TravisCI variables described here:
+  #   https://docs.travis-ci.com/user/environment-variables/
+  # GitHub Actions environment variables and context described here:
+  #   https://docs.github.com/en/actions/reference/environment-variables
+  #   https://docs.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions#env-context
+  GITHUB_ACTIONS_COMMIT: ${{ github.sha }}
+  GITHUB_ACTIONS_BUILD_DIR: ${{ github.workspace }}
+  #GITHUB_ACTIONS_BRANCH: ${{ github.base_ref }}
+  GITHUB_ACTIONS_BRANCH: ${{ github.ref }}
+  GITHUB_ACTIONS_PULL_REQUEST: ${{ github.event.number }}
+  GITHUB_ACTIONS_PULL_REQUEST_BRANCH: ${{ github.head_ref }}
+  GITHUB_ACTIONS_PULL_REQUEST_SHA : ${{ github.event.pull_request.head.sha }}
+  GITHUB_ACTIONS_BASE_REF: ${{ github.base_ref }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build_docker:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v3
+      # fetch git tags (tagged releases) because
+      # actions/checkout@v3 does either a full checkout or a shallow checkout without tags
+      - name: fetch tags
+        run: git fetch --prune --unshallow --tags
+      - name: Programmatic environment setup
+        run: |
+          set -e -x
+          # $GITHUB_ENV is available for subsequent steps
+          GITHUB_ACTIONS_TAG=$(git describe --tags --exact-match && sed 's/^v//g' || echo '')
+          echo "GITHUB_ACTIONS_TAG=$GITHUB_ACTIONS_TAG" >> $GITHUB_ENV
+          # 
+          # Set GITHUB_ACTIONS_BRANCH
+          # TRAVIS_BRANCH: (via https://docs.travis-ci.com/user/environment-variables/ )
+          #   for push builds, or builds not triggered by a pull request, this is the name of the branch.
+          #   for builds triggered by a pull request this is the name of the branch targeted by the pull request.
+          #   for builds triggered by a tag, this is the same as the name of the tag (TRAVIS_TAG).
+          # if GITHUB_ACTIONS_PULL_REQUEST_BRANCH is set, this is a pull request build
+          if [[ $GITHUB_ACTIONS_PULL_REQUEST_BRANCH ]]; then
+            GITHUB_ACTIONS_BRANCH=${GITHUB_ACTIONS_BASE_REF##*/}
+          # if event_name=="release", this is a tagged build
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_TAG
+          else
+            GITHUB_ACTIONS_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          fi
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH"
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH" >> $GITHUB_ENV
+
+      - name: Login to docker registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_ROBOT_TOKEN }}
+      # cache; see: https://docs.github.com/en/actions/guides/caching-dependencies-to-speed-up-workflows
+      - name: setup cache
+        id: docker_cache
+        uses: actions/cache@v3
+        env:
+          cache-name: old-docker-tag
+        with:
+          path: "$CACHE_DIR"
+          key: ${{ runner.os }}-${{ env.cache-name }}
+      # - name: Pull old docker image from cache
+      #   if: steps.docker_cache.outputs.cache-hit != 'true'
+      #   run: |
+      - name: Attempt to pull older image from cache
+        if: steps.docker_cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          set -e
+          # restore old tag from cache if present
+          if [ -f "$CACHE_DIR/old-docker-tag.txt" ]; then 
+            OLD_DOCKER_TAG=$(cat $CACHE_DIR/old-docker-tag.txt)
+          else 
+            OLD_DOCKER_TAG=$DOCKER_REPO_PROD
+          fi 
+          echo "old docker tag = $OLD_DOCKER_TAG"
+
+          # attempt to pull tag from cache
+          if docker pull $OLD_DOCKER_TAG; then
+            echo _CACHE_FROM="--cache-from $OLD_DOCKER_TAG" >> $GITHUB_ENV
+          else
+            echo "_CACHE_FROM=" >> $GITHUB_ENV
+          fi
+      - name: Build docker image
+        shell: bash
+        run: |
+          set -e -x
+          git describe --tags --always | tee VERSION
+
+          if [ -n "$GITHUB_ACTIONS_TAG" ]; then
+            echo "Release $GITHUB_ACTIONS_TAG"
+          elif [ -n "$GITHUB_ACTIONS_PULL_REQUEST_BRANCH" ]; then
+            echo "LABEL quay.expires-after=10w" >> Dockerfile
+          elif [[ "$GITHUB_ACTIONS_BRANCH" != "master" ]]; then
+            echo "LABEL quay.expires-after=10w" >> Dockerfile
+          fi
+
+          echo "Building with cache from: $_CACHE_FROM"
+          docker build -t local/build-container:build $_CACHE_FROM .
+      - name: Deploy docker image
+        run: |
+          github_actions_ci/deploy-docker.sh
+      - name: store tag ID in cache
+        run: |
+          mkdir -p $CACHE_DIR
+          github_actions_ci/list-docker-tags.sh | tail -1 | tee $CACHE_DIR/old-docker-tag.txt
+
+  test_py36_in_docker:
+    needs: build_docker
+    runs-on: ubuntu-20.04
+    env:
+      GITHUB_ACTIONS_PYTHON_VERSION: 3.8
+      PYTEST_ADDOPTS: "-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov read_utils --cov reports --cov tools --cov util --cov file_utils"
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v3
+      # fetch git tags (tagged releases) because 
+      # actions/checkout@v3 does either a full checkout or a shallow checkout without tags
+      - name: fetch tags
+        run: git fetch --prune --unshallow --tags
+      - name: Programmatic environment setup
+        run: |
+          set -e -x
+          # $GITHUB_ENV is available for subsequent steps
+          GITHUB_ACTIONS_TAG=$(git describe --tags --exact-match && sed 's/^v//g' || echo '')
+          echo "GITHUB_ACTIONS_TAG=$GITHUB_ACTIONS_TAG" >> $GITHUB_ENV
+          # 
+          # Set GITHUB_ACTIONS_BRANCH
+          # TRAVIS_BRANCH: (via https://docs.travis-ci.com/user/environment-variables/ )
+          #   for push builds, or builds not triggered by a pull request, this is the name of the branch.
+          #   for builds triggered by a pull request this is the name of the branch targeted by the pull request.
+          #   for builds triggered by a tag, this is the same as the name of the tag (TRAVIS_TAG).
+          # if GITHUB_ACTIONS_PULL_REQUEST_BRANCH is set, this is a pull request build
+          if [[ $GITHUB_ACTIONS_PULL_REQUEST_BRANCH ]]; then
+            GITHUB_ACTIONS_BRANCH=${GITHUB_ACTIONS_BASE_REF##*/}
+          # if event_name=="release", this is a tagged build
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_TAG
+          else
+            GITHUB_ACTIONS_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          fi
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH"
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH" >> $GITHUB_ENV
+      - name: install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "${{ env.GITHUB_ACTIONS_PYTHON_VERSION }}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: pull docker image
+        run: |
+          set -e -x
+          DOCKER_TAG=$(github_actions_ci/list-docker-tags.sh | tail -1)
+          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+          echo "pulling $DOCKER_TAG"
+          docker pull $DOCKER_TAG
+          mkdir coverage
+      - name: test with docker
+        run: |
+          docker run -e _JAVA_OPTIONS -e PYTEST_ADDOPTS -v `pwd`/coverage:/coverage -v `pwd`/test:/opt/viral-ngs/source/test --entrypoint /bin/bash $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; pytest test/unit; cp .coverage /coverage'
+      - name: run coveralls
+        run: |
+          mv coverage/.coverage .
+          pip install coveralls>=1.3.0
+          coveralls --service=github
+
+  ## note: this test_docs job does not actually produce the output on readthedocs
+  ## readthedocs does its own build trigger. this job exists simply to alert us
+  ## of build failures of the docs because otherwise we would never know.
+  test_docs:
+    needs: build_docker
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v3
+      # fetch git tags (tagged releases) because 
+      # actions/checkout@v3 does either a full checkout or a shallow checkout without tags
+      - name: fetch tags
+        run: git fetch --prune --unshallow --tags
+      - name: Programmatic environment setup
+        run: |
+          set -e -x
+          # $GITHUB_ENV is available for subsequent steps
+          GITHUB_ACTIONS_TAG=$(git describe --tags --exact-match && sed 's/^v//g' || echo '')
+          echo "GITHUB_ACTIONS_TAG=$GITHUB_ACTIONS_TAG" >> $GITHUB_ENV
+          # 
+          # Set GITHUB_ACTIONS_BRANCH
+          # TRAVIS_BRANCH: (via https://docs.travis-ci.com/user/environment-variables/ )
+          #   for push builds, or builds not triggered by a pull request, this is the name of the branch.
+          #   for builds triggered by a pull request this is the name of the branch targeted by the pull request.
+          #   for builds triggered by a tag, this is the same as the name of the tag (TRAVIS_TAG).
+          # if GITHUB_ACTIONS_PULL_REQUEST_BRANCH is set, this is a pull request build
+          if [[ $GITHUB_ACTIONS_PULL_REQUEST_BRANCH ]]; then
+            GITHUB_ACTIONS_BRANCH=${GITHUB_ACTIONS_BASE_REF##*/}
+          # if event_name=="release", this is a tagged build
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_TAG
+          else
+            GITHUB_ACTIONS_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          fi
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH"
+          echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: pull docker image
+        run: |
+          set -e -x
+          DOCKER_TAG=$(github_actions_ci/list-docker-tags.sh | tail -1)
+          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+          echo "pulling $DOCKER_TAG"
+          docker pull $DOCKER_TAG
+      - name: test building docs
+        run: |
+          set -e -x
+          docker run --entrypoint /bin/bash -v `pwd`:/opt/viral-ngs/source $DOCKER_TAG -c 'set -e; cd /opt/viral-ngs/source; github_actions_ci/install-pip-docs.sh; cd docs; make html'

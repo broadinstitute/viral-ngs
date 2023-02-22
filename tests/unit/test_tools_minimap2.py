@@ -31,7 +31,7 @@ class TestToolMinimap2(TestCaseWithTmp):
         ref_fasta = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
         with util.file.tempfname('.bam') as outfile:
             self.mm2.align_bam(in_bam, ref_fasta, outfile)
-            self.assertEqual(self.samtools.count(outfile), 18825)
+            self.assertEqual(self.samtools.count(outfile), 18843)
 
     def test_corrupt_bam(self):
         # pipe.poll() should raise an exception

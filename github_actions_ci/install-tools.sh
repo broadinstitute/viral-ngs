@@ -10,10 +10,10 @@ export JAVA_HOME="$CONDA_ENV/jre"
 echo "Installing and validating bioinformatic tools"
 export CONDA_ENVS_PATH=tools/conda-cache:tools/conda-tools/default
 
-PYVER=`echo $TRAVIS_PYTHON_VERSION | cut -c 1`
+PYVER=`echo $GITHUB_ACTIONS_PYTHON_VERSION | cut -c 1`
 
 if [ ! -d $CONDA_ENV ]; then
-    conda create -y -m --quiet -p $CONDA_ENV python="$TRAVIS_PYTHON_VERSION" || exit $?
+    conda create -y -m --quiet -p $CONDA_ENV python="$GITHUB_ACTIONS_PYTHON_VERSION" || exit $?
 fi
 
 # commented out custom retry logic for now
@@ -39,6 +39,6 @@ conda install -y --quiet \
 #done
 #set -e #(re)enable exit on error
 
-conda clean --all --yes # clean temp/cache files to reduce Travis cache size
+conda clean --all --yes # clean temp/cache files to reduce CI cache size
 
 conda list -p $CONDA_ENV

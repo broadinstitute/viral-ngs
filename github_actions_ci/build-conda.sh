@@ -19,15 +19,15 @@ if [ -z "$ANACONDA_TOKEN" ]; then
 fi
 
 conda config --set anaconda_upload no
-if [ -n "$TRAVIS_TAG" ]; then
+if [ -n "$GITHUB_ACTIONS_TAG" ]; then
     # This is an official release, upload it
     conda config --set anaconda_upload yes
 
     # render and build the conda package
     echo "Rendering recipe..."
-    python packaging/conda-recipe/render-recipe.py "$TRAVIS_TAG" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
+    python packaging/conda-recipe/render-recipe.py "$GITHUB_ACTIONS_TAG" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt # --build-reqs requirements-conda.txt
     echo "Building recipe..."
-    CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
+    CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$GITHUB_ACTIONS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" packaging/conda-recipe/viral-ngs
 
 else
     # This is a development build
@@ -35,11 +35,11 @@ else
     # make a directory to hold the built conda package
     mkdir -p CONDA_PACKAGE_OUTDIR
     
-    if [ -z "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
-        # if a commit is being pushed, TRAVIS_PULL_REQUEST_BRANCH is empty
-        BRANCH_NAME="$TRAVIS_BRANCH"
+    if [ -z "$GITHUB_ACTIONS_PULL_REQUEST_BRANCH" ]; then
+        # if a commit is being pushed, GITHUB_ACTIONS_PULL_REQUEST_BRANCH is empty
+        BRANCH_NAME="$GITHUB_ACTIONS_BRANCH"
     else
-        BRANCH_NAME="$TRAVIS_PULL_REQUEST_BRANCH"
+        BRANCH_NAME="$GITHUB_ACTIONS_PULL_REQUEST_BRANCH"
     fi
 
     SANITIZED_BRANCH_NAME="$(echo $BRANCH_NAME | sed 's/-/_/g')"
@@ -48,7 +48,7 @@ else
 
     # render and build the conda package
     echo "Rendering recipe..."
-    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$TRAVIS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt --build-reqs requirements-conda.txt
+    python packaging/conda-recipe/render-recipe.py "$CONDA_PKG_VERSION" --package-name "viral-ngs-dev" --download-filename "$GITHUB_ACTIONS_COMMIT" --run-reqs requirements-conda.txt --py3-run-reqs requirements-py3.txt --py2-run-reqs requirements-py2.txt --test-reqs requirements-conda-tests.txt --build-reqs requirements-conda.txt
     echo "Building recipe..."
-    CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$TRAVIS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
+    CONDA_PERL=5.26 conda build $CONDA_CHANNEL_STRING --python "$GITHUB_ACTIONS_PYTHON_VERSION" --token "$ANACONDA_TOKEN" --output-folder "$CONDA_PACKAGE_OUTDIR" packaging/conda-recipe/viral-ngs
 fi

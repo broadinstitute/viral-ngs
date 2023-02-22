@@ -1,4 +1,4 @@
-FROM quay.io/broadinstitute/viral-baseimage:0.1.20
+FROM quay.io/broadinstitute/viral-baseimage:0.2.0
 
 LABEL maintainer "viral-ngs@broadinstitute.org"
 
@@ -41,6 +41,8 @@ RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
 COPY util $VIRAL_NGS_PATH/util/
 COPY tools $VIRAL_NGS_PATH/tools/
 COPY *.py VERSION* $VIRAL_NGS_PATH/
+
+RUN git config --global --add safe.directory $VIRAL_NGS_PATH
 
 # R fails unless you do this, CollectInsertSizeMetrics needs R, why is conda R broken
 RUN	ln -s /lib/x86_64-linux-gnu/libreadline.so.7 /lib/x86_64-linux-gnu/libreadline.so.6
