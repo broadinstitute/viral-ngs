@@ -255,7 +255,7 @@ def test_coverage_lca(taxa_db):
     assert metagenomics.coverage_lca([10, 11, 12], taxa_db.parents, 50) == 7
     assert metagenomics.coverage_lca([9], taxa_db.parents) is None
 
-
+@pytest.mark.skip(reason="KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork")
 def test_krakenuniq(mocker):
     p = mocker.patch('classify.kraken.KrakenUniq.pipeline')
     args = [

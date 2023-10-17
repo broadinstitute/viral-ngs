@@ -775,7 +775,8 @@ def krakenuniq(db, inBams, outReports=None, outReads=None, lockMemory=False, fil
     kuniq_tool = classify.kraken.KrakenUniq()
     kuniq_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
                         filter_threshold=filterThreshold, num_threads=threads)
-__commands__.append(('krakenuniq', parser_krakenuniq))
+# Disable KrakenUniq from future versions for now, pending conda rebuild of @yesimon's fork and its dependencies
+#__commands__.append(('krakenuniq', parser_krakenuniq))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):
@@ -1552,7 +1553,8 @@ def krakenuniq_build(db, library, taxonomy=None, subsetTaxonomy=None,
 
     if clean:
         krakenuniq_tool.execute('krakenuniq-build', db, '', options={'--clean': None})
-__commands__.append(('krakenuniq_build', parser_krakenuniq_build))
+# KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork & dependencies
+#__commands__.append(('krakenuniq_build', parser_krakenuniq_build))
 
 
 
