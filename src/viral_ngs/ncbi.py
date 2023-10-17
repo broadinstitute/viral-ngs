@@ -594,7 +594,7 @@ def fasta2fsa(infname, outdir, biosample=None):
     if not outfname.endswith('.fsa'):
         outfname = outfname + '.fsa'
     outfname = os.path.join(outdir, outfname)
-    with open(infname, 'rU') as inf:
+    with open(infname, 'r') as inf:
         with open(outfname, 'wt') as outf:
             for line in inf:
                 if line.startswith('>') and biosample:
@@ -757,14 +757,14 @@ def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
     '''
     metadata = {}
 
-    with util.file.open_or_gzopen(biosampleFile, 'rU') as inf:
+    with util.file.open_or_gzopen(biosampleFile, 'r') as inf:
         header = inf.readline()
         for line in inf:
             row = line.rstrip('\n\r').split('\t')
             metadata.setdefault(row[0], {})
             metadata[row[0]]['biosample_accession'] = row[1]
 
-    with util.file.open_or_gzopen(md5_fname, 'rU') as inf:
+    with util.file.open_or_gzopen(md5_fname, 'r') as inf:
         for line in inf:
             row = line.rstrip('\n\r').split()
             s = os.path.basename(row[1])
@@ -777,7 +777,7 @@ def prep_sra_table(lib_fname, biosampleFile, md5_fname, outFile):
     with open(outFile, 'wt') as outf:
         header = ['biosample_accession', 'sample_name', 'library_ID', 'filename', 'MD5_checksum']
         outf.write('\t'.join(header) + '\n')
-        with open(lib_fname, 'rU') as inf:
+        with open(lib_fname, 'r') as inf:
             for line in inf:
                 lib = line.rstrip('\n\r')
                 parts = lib.split('.')
