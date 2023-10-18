@@ -135,7 +135,7 @@ jobs:
           mkdir -p $CACHE_DIR
           github_actions_ci/list-docker-tags.sh | tail -1 | tee $CACHE_DIR/old-docker-tag.txt
 
-  test_py36_in_docker:
+  test_in_docker:
     needs: build_docker
     runs-on: ubuntu-20.04
     env:
