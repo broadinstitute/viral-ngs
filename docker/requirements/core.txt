@@ -7,6 +7,7 @@ cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
 fastqc>=0.11.7
 gatk=3.8
+jq>=1.6
 lbzip2=2.5
 lz4-c=1.8.3
 minimap2>=2.17
