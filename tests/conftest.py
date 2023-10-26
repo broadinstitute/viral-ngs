@@ -169,9 +169,9 @@ class FixtureReporter:
 
         slowest = sorted(self.stats.items(), key=operator.itemgetter(1), reverse=True)
         if not self.durations:
-            writer.sep("=", "slowest fixture durations")
+            writer.write_sep("=", "slowest fixture durations")
         else:
-            writer.sep("=", "slowest %s fixture durations" % self.durations)
+            writer.write_sep("=", "slowest %s fixture durations" % self.durations)
             slowest = slowest[:self.durations]
 
 
