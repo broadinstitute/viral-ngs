@@ -23,7 +23,7 @@ env:
   DOCKER_REPO_DEV: "quay.io/broadinstitute/viral-core"
   
   #BOTO_CONFIG: /dev/null # bogus value to override config on travis
-  _JAVA_OPTIONS: "-Xmx2g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
+  _JAVA_OPTIONS: "-Xmx5g" # overrides jvm opts set elsewhere; see: https://stackoverflow.com/questions/28327620/difference-between-java-options-java-tool-options-and-java-opts
 
   # TravisCI variables described here:
   #   https://docs.travis-ci.com/user/environment-variables/
