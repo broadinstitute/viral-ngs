@@ -601,11 +601,15 @@ def parser_guess_barcodes(parser=argparse.ArgumentParser()):
                         help='The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.',
                         type=float,
                         default=0.7)
-    parser.add_argument('--number_of_negative_controls',
-                        help='The number of negative controls in the pool, for calculating expected number of reads in the rest of the pool.',
-                        type=int,
-                        default=1)
-
+    group2 = parser.add_mutually_exclusive_group()
+    group2.add_argument('--number_of_negative_controls',
+                        help='If specified, the number of negative controls in the pool, for calculating expected number of reads in the rest of the pool.',
+                        type=int)
+    group2.add_argument('--neg_control_prefixes',
+                        nargs='+',
+                        help='If specified, the sample name prefixes assumed for counting negative controls. Case-insensitive.',
+                        type=str,
+                        default=["neg", "water", "NTC", "H2O"])
     parser.add_argument('--rows_limit',
                         default=1000,
                         type=int,
@@ -624,7 +628,8 @@ def main_guess_barcodes(in_barcodes,
                         expected_assigned_fraction, 
                         number_of_negative_controls, 
                         readcount_threshold, 
-                        rows_limit):
+                        rows_limit,
+                        neg_control_prefixes):
     """
         Guess the barcode value for a sample name,
             based on the following:
@@ -650,7 +655,8 @@ def main_guess_barcodes(in_barcodes,
                                                     outlier_threshold=outlier_threshold, 
                                                     expected_assigned_fraction=expected_assigned_fraction, 
                                                     number_of_negative_controls=number_of_negative_controls, 
-                                                    readcount_threshold=readcount_threshold)
+                                                    readcount_threshold=readcount_threshold,
+                                                    neg_control_prefixes=neg_control_prefixes)
     bh.write_guessed_barcodes(out_summary_tsv, guessed_barcodes)
 
 __commands__.append(('guess_barcodes', parser_guess_barcodes))

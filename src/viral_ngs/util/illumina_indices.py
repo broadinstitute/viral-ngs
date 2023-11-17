@@ -2658,7 +2658,7 @@ class IlluminaBarcodeHelper(object):
         return out_dict
 
 
-    def find_uncertain_barcodes(self, sample_names=None, outlier_threshold=0.675, expected_assigned_fraction=0.7, number_of_negative_controls=1, readcount_threshold=None):
+    def find_uncertain_barcodes(self, sample_names=None, outlier_threshold=0.675, expected_assigned_fraction=0.7, number_of_negative_controls=None, readcount_threshold=None, neg_control_prefixes=None):
         """
             If sample_names is specified, barcodes for the named samples 
             will be re-examined. 
@@ -2668,12 +2668,17 @@ class IlluminaBarcodeHelper(object):
             If this is not specified, outliers will be detected automatically.
         """
         samples_to_examine = sample_names or []
+        neg_control_prefixes = neg_control_prefixes or ["neg", "water", "NTC", "H2O"]
+
+        inferred_ntc_count = [s.upper().startswith(tuple([p.upper() for p in neg_control_prefixes])) for s in self.sample_to_read_counts.keys()].count(True)
+
+        number_of_negative_controls = number_of_negative_controls or inferred_ntc_count
 
         guessed_barcodes = []
 
         if not samples_to_examine:
             if readcount_threshold:
-                for sample_name,count in self.sample_to_read_counts.values():
+                for sample_name,count in self.sample_to_read_counts.items():
                     if count < readcount_threshold:
                         samples_to_examine.append(sample_name)
             else:
