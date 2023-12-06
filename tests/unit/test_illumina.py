@@ -323,6 +323,20 @@ class TestIlluminaBarcodeHelper(TestCaseWithTmp):
 
         self.assertEqualContents(out_report, expected)
 
+    def test_single_index_i5_only_run(self):
+        dir_prefix = "single_index_i5_only"
+        in_dir = util.file.get_test_input_path(self)
+        in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
+        in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
+        out_report = util.file.mkstempfname('.txt')
+        expected = os.path.join(in_dir,dir_prefix,"expected.txt")
+
+        args = [in_barcodes, in_metrics, out_report]
+        args = illumina.parser_guess_barcodes(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        self.assertEqualContents(out_report, expected)
+
     def test_few_assigned(self):
         dir_prefix = "few_assigned"
         in_dir = util.file.get_test_input_path(self)

@@ -2645,7 +2645,6 @@ class IlluminaBarcodeHelper(object):
         if is_dual_index and (putative_match is not None and putative_match[1] != None):
             out_dict["guessed_barcode_2"]           = "unknown"
             out_dict["guessed_barcode_2_name"]      = "unknown"
-        
 
         if putative_match is not None and putative_match[0]!=None:
             out_dict["guessed_barcode_1"]           = putative_match[0]
@@ -2653,7 +2652,7 @@ class IlluminaBarcodeHelper(object):
             if is_dual_index and putative_match[1] != None:
                 out_dict["guessed_barcode_2"]           = putative_match[1]
                 out_dict["guessed_barcode_2_name"]      = self.barcode_name_map[putative_match[1]]
-                out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
+            out_dict["guessed_barcodes_read_count"] = self.barcodes_seen[(putative_match[0],putative_match[1])]
 
         return out_dict
 
