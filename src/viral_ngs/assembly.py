@@ -428,7 +428,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         breaklen=None, # aligner='nucmer', circular=False, trimmed_contigs=None,
         maxgap=200, minmatch=10, mincluster=None,
         min_pct_id=0.6, min_contig_len=200, min_pct_contig_aligned=0.3, n_genome_segments=0, 
-        outStats=None, threads=None):
+        allow_incomplete_output=False, outStats=None, threads=None):
     ''' This step cleans up the de novo assembly with a known reference genome.
         Uses MUMmer (nucmer or promer) to create a reference-based consensus
         sequence of aligned contigs (with runs of N's in between the de novo
@@ -481,7 +481,7 @@ def order_and_orient(inFasta, inReference, outFasta,
         base_counts = [sum([len(seg.seq.ungap('N')) for seg in scaffold]) \
             if len(scaffold)==n_genome_segments else 0 for scaffold in scaffolds]
         best_ref_num = numpy.argmax(base_counts)
-        if len(scaffolds[best_ref_num]) != n_genome_segments:
+        if (len(scaffolds[best_ref_num]) != n_genome_segments) and not allow_incomplete_output:
             raise IncompleteAssemblyError(len(scaffolds[best_ref_num]), n_genome_segments)
         log.info('base_counts={} best_ref_num={}'.format(base_counts, best_ref_num))
         shutil.copyfile(scaffolds_fasta[best_ref_num], outFasta)
@@ -525,6 +525,13 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
 
     parser.add_argument('--outReference', help='Output the reference chosen for scaffolding to this file')
     parser.add_argument('--outStats', help='Output stats used in reference selection')
+    parser.add_argument(
+        "--allow_incomplete_output",
+        help="Do not fail with IncompleteAssemblyError if we fail to recover all segments of the desired genome.",
+        default=False,
+        action="store_true",
+        dest="allow_incomplete_output"
+    )
     #parser.add_argument('--aligner',
     #                    help='nucmer (nucleotide) or promer (six-frame translations) [default: %(default)s]',
     #                    choices=['nucmer', 'promer'],

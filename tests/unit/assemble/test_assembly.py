@@ -420,7 +420,38 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contig.mummer3_fail_lasv.fasta'),
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta)
-        
+
+    def test_not_all_segments_fail(self):
+        # IncompleteAssemblyError is thrown when only some but not all segments are recovered
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        self.assertRaises(assembly.IncompleteAssemblyError,
+            assembly.order_and_orient,
+            os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta)
+
+    def test_not_all_segments_succeed(self):
+        # ... unless we specifically allow for partial outputs
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta,
+            allow_incomplete_output=True)
+
+    def test_empty_output_succeed(self):
+        # a completely empty output should be possible if we allow it
+        inDir = util.file.get_test_input_path(self)
+        emptyFasta = os.path.join(inDir, '..', 'empty.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            emptyFasta,
+            os.path.join(inDir, 'ref.influenza.fasta'),
+            outFasta,
+            allow_incomplete_output=True)
+        self.assertEqualContents(outFasta, emptyFasta)
 
 class TestGap2Seq(TestCaseWithTmp):
     '''Test gap-filling tool Gap2Seq'''
