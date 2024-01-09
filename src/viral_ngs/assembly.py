@@ -663,79 +663,80 @@ def impute_from_reference(
 
     with open(inFasta, 'r') as asmFastaFile:
         with open(inReference, 'r') as refFastaFile:
-            asmFasta = Bio.SeqIO.parse(asmFastaFile, 'fasta')
+            asmFasta = list(Bio.SeqIO.parse(asmFastaFile, 'fasta'))
             refFasta = Bio.SeqIO.parse(refFastaFile, 'fasta')
-            for idx, (refSeqObj, asmSeqObj) in enumerate(itertools.zip_longest(refFasta, asmFasta)):
-                # our zip fails if one file has more seqs than the other
-                if not refSeqObj or not asmSeqObj:
-                    raise KeyError("inFasta and inReference do not have the same number of sequences. This could be because the de novo assembly process was unable to create contigs for all segments.")
+            if asmFasta:
+                for idx, (refSeqObj, asmSeqObj) in enumerate(itertools.zip_longest(refFasta, asmFasta)):
+                    # our zip fails if one file has more seqs than the other
+                    if not refSeqObj or not asmSeqObj:
+                        raise KeyError("inFasta and inReference do not have the same number of sequences. This could be because the de novo assembly process was unable to create contigs for all segments.")
 
-                # error if PoorAssembly
-                minLength = len(refSeqObj) * minLengthFraction
-                non_n_count = util.misc.unambig_count(asmSeqObj.seq)
-                seq_len = len(asmSeqObj)
-                log.info(
-                    "Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
-                        idx=idx + 1,
-                        segname=refSeqObj.id,
-                        len_actual=seq_len,
-                        len_desired=len(refSeqObj),
-                        min_frac=minLengthFraction,
-                        unamb_actual=non_n_count,
-                        unamb_desired=seq_len,
-                        min_unamb=minUnambig
-                    )
-                )
-                if seq_len < minLength or non_n_count < seq_len * minUnambig:
-                    raise PoorAssemblyError(idx + 1, seq_len, non_n_count, minLength, len(refSeqObj))
-
-                # prepare temp input and output files
-                tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
-                concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
-                ref_file = util.file.mkstempfname('.ref.fasta')
-                actual_file = util.file.mkstempfname('.actual.fasta')
-                aligned_file = util.file.mkstempfname('.'+aligner+'.fasta')
-                refName = refSeqObj.id
-                with open(concat_file, 'wt') as outf:
-                    Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
-                with open(ref_file, 'wt') as outf:
-                    Bio.SeqIO.write([refSeqObj], outf, "fasta")
-                with open(actual_file, 'wt') as outf:
-                    Bio.SeqIO.write([asmSeqObj], outf, "fasta")
-
-                # align scaffolded genome to reference (choose one of three aligners)
-                if aligner == 'mafft':
-                    assemble.mafft.MafftTool().execute(
-                        [ref_file, actual_file], aligned_file, False, True, True, False, False, None
-                    )
-                elif aligner == 'muscle':
-                    if len(refSeqObj) > 40000:
-                        assemble.muscle.MuscleTool().execute(
-                            concat_file, aligned_file, quiet=False,
-                            maxiters=2, diags=True
+                    # error if PoorAssembly
+                    minLength = len(refSeqObj) * minLengthFraction
+                    non_n_count = util.misc.unambig_count(asmSeqObj.seq)
+                    seq_len = len(asmSeqObj)
+                    log.info(
+                        "Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
+                            idx=idx + 1,
+                            segname=refSeqObj.id,
+                            len_actual=seq_len,
+                            len_desired=len(refSeqObj),
+                            min_frac=minLengthFraction,
+                            unamb_actual=non_n_count,
+                            unamb_desired=seq_len,
+                            min_unamb=minUnambig
                         )
-                    else:
-                        assemble.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
-                elif aligner == 'mummer':
-                    assemble.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
+                    )
+                    if seq_len < minLength or non_n_count < seq_len * minUnambig:
+                        raise PoorAssemblyError(idx + 1, seq_len, non_n_count, minLength, len(refSeqObj))
 
-                # run modify_contig
-                args = [
-                    aligned_file, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
-                    '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps'
-                ]
-                if newName:
-                    # renames the segment name "sampleName-idx" where idx is the segment number
-                    args.extend(['--name', newName + "-" + str(idx + 1)])
-                args = pmc.parse_args(args)
-                args.func_main(args)
+                    # prepare temp input and output files
+                    tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
+                    concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
+                    ref_file = util.file.mkstempfname('.ref.fasta')
+                    actual_file = util.file.mkstempfname('.actual.fasta')
+                    aligned_file = util.file.mkstempfname('.'+aligner+'.fasta')
+                    refName = refSeqObj.id
+                    with open(concat_file, 'wt') as outf:
+                        Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
+                    with open(ref_file, 'wt') as outf:
+                        Bio.SeqIO.write([refSeqObj], outf, "fasta")
+                    with open(actual_file, 'wt') as outf:
+                        Bio.SeqIO.write([asmSeqObj], outf, "fasta")
 
-                # clean up
-                os.unlink(concat_file)
-                os.unlink(ref_file)
-                os.unlink(actual_file)
-                os.unlink(aligned_file)
-                tempFastas.append(tmpOutputFile)
+                    # align scaffolded genome to reference (choose one of three aligners)
+                    if aligner == 'mafft':
+                        assemble.mafft.MafftTool().execute(
+                            [ref_file, actual_file], aligned_file, False, True, True, False, False, None
+                        )
+                    elif aligner == 'muscle':
+                        if len(refSeqObj) > 40000:
+                            assemble.muscle.MuscleTool().execute(
+                                concat_file, aligned_file, quiet=False,
+                                maxiters=2, diags=True
+                            )
+                        else:
+                            assemble.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
+                    elif aligner == 'mummer':
+                        assemble.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
+
+                    # run modify_contig
+                    args = [
+                        aligned_file, tmpOutputFile, refName, '--call-reference-ns', '--trim-ends', '--replace-5ends',
+                        '--replace-3ends', '--replace-length', str(replaceLength), '--replace-end-gaps'
+                    ]
+                    if newName:
+                        # renames the segment name "sampleName-idx" where idx is the segment number
+                        args.extend(['--name', newName + "-" + str(idx + 1)])
+                    args = pmc.parse_args(args)
+                    args.func_main(args)
+
+                    # clean up
+                    os.unlink(concat_file)
+                    os.unlink(ref_file)
+                    os.unlink(actual_file)
+                    os.unlink(aligned_file)
+                    tempFastas.append(tmpOutputFile)
 
     # merge outputs
     util.file.concat(tempFastas, outFasta)
