@@ -420,7 +420,38 @@ class TestOrderAndOrient(TestCaseWithTmp):
             os.path.join(inDir, 'contig.mummer3_fail_lasv.fasta'),
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta)
-        
+
+    def test_not_all_segments_fail(self):
+        # IncompleteAssemblyError is thrown when only some but not all segments are recovered
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        self.assertRaises(assembly.IncompleteAssemblyError,
+            assembly.order_and_orient,
+            os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta)
+
+    def test_not_all_segments_succeed(self):
+        # ... unless we specifically allow for partial outputs
+        inDir = util.file.get_test_input_path(self)
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
+            os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
+            outFasta,
+            allow_incomplete_output=True)
+
+    def test_empty_output_succeed(self):
+        # a completely empty output should be possible if we allow it
+        inDir = util.file.get_test_input_path(self)
+        emptyFasta = os.path.join(inDir, '..', 'empty.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.order_and_orient(
+            emptyFasta,
+            os.path.join(inDir, 'ref.influenza.fasta'),
+            outFasta,
+            allow_incomplete_output=True)
+        self.assertEqualContents(outFasta, emptyFasta)
 
 class TestGap2Seq(TestCaseWithTmp):
     '''Test gap-filling tool Gap2Seq'''
@@ -435,6 +466,15 @@ class TestGap2Seq(TestCaseWithTmp):
                                      out_scaffold=filled, random_seed=23923937, threads=1)
             shutil.copyfile(filled, '/tmp/filled.fasta')
             self.assertEqualContents(filled, join(inDir, 'TestGap2Seq', 'expected.ebov.doublehit.gapfill.fasta'))
+
+    def test_empty_fasta_input(self):
+        inDir = util.file.get_test_input_path()
+        empty_fasta = os.path.join(inDir, 'empty.fasta')
+        out_fasta = util.file.mkstempfname('.fasta')
+        assembly.gapfill_gap2seq(in_scaffold=empty_fasta,
+                                    in_bam=os.path.join(inDir, 'G5012.3.testreads.bam'),
+                                    out_scaffold=out_fasta, random_seed=23923937, threads=1)
+        self.assertEqualContents(out_fasta, empty_fasta)
 
 
 class TestImputeFromReference(TestCaseWithTmp):
@@ -526,6 +566,21 @@ class TestImputeFromReference(TestCaseWithTmp):
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_empty_fasta_input(self):
+        inDir = util.file.get_test_input_path(self)
+        empty_fasta = os.path.join(inDir, '..', 'empty.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.impute_from_reference(
+            empty_fasta,
+            os.path.join(inDir, 'ref.sub.ebov.fasta'),
+            outFasta,
+            minLengthFraction=0.0,
+            minUnambig=0.0,
+            replaceLength=5,
+            newName='test_sub-EBOV.genome',
+            aligner='mummer')
+        self.assertEqualContents(outFasta, empty_fasta)
 
 
 class TestMutableSequence(unittest.TestCase):
