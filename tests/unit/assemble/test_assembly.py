@@ -467,6 +467,15 @@ class TestGap2Seq(TestCaseWithTmp):
             shutil.copyfile(filled, '/tmp/filled.fasta')
             self.assertEqualContents(filled, join(inDir, 'TestGap2Seq', 'expected.ebov.doublehit.gapfill.fasta'))
 
+    def test_empty_fasta_input(self):
+        inDir = util.file.get_test_input_path()
+        empty_fasta = os.path.join(inDir, '..', 'empty.fasta')
+        with util.file.mkstempfname(suffix='.fasta') as out_fasta:
+            assembly.gapfill_gap2seq(in_scaffold=empty_fasta,
+                                     in_bam=os.path.join(inDir, 'G5012.3.testreads.bam'),
+                                     out_scaffold=out_fasta, random_seed=23923937, threads=1)
+            self.assertEqualContents(out_fasta, empty_fasta)
+
 
 class TestImputeFromReference(TestCaseWithTmp):
     ''' Test the impute_from_reference command (align and modify_contig) '''
@@ -557,6 +566,21 @@ class TestImputeFromReference(TestCaseWithTmp):
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
             str(Bio.SeqIO.read(expected, 'fasta').seq))
+
+    def test_empty_fasta_input(self):
+        inDir = util.file.get_test_input_path()
+        empty_fasta = os.path.join(inDir, '..', 'empty.fasta')
+        outFasta = util.file.mkstempfname('.fasta')
+        assembly.impute_from_reference(
+            empty_fasta,
+            os.path.join(inDir, 'ref.sub.ebov.fasta'),
+            outFasta,
+            minLengthFraction=0.0,
+            minUnambig=0.0,
+            replaceLength=5,
+            newName='test_sub-EBOV.genome',
+            aligner='mummer')
+        self.assertEqualContents(outFasta, empty_fasta)
 
 
 class TestMutableSequence(unittest.TestCase):
