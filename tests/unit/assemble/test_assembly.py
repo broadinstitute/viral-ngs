@@ -469,7 +469,7 @@ class TestGap2Seq(TestCaseWithTmp):
 
     def test_empty_fasta_input(self):
         inDir = util.file.get_test_input_path()
-        empty_fasta = os.path.join(inDir, '..', 'empty.fasta')
+        empty_fasta = os.path.join(inDir, 'empty.fasta')
         out_fasta = util.file.mkstempfname('.fasta')
         assembly.gapfill_gap2seq(in_scaffold=empty_fasta,
                                     in_bam=os.path.join(inDir, 'G5012.3.testreads.bam'),
