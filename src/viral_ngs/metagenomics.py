@@ -1409,7 +1409,7 @@ def parser_kraken_taxlevel_plurality(parser=argparse.ArgumentParser()):
     parser.add_argument('tax_heading', help='The taxonomic heading to analyze.')
     parser.add_argument('out_report', help='tab-delimited output file.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
+    util.cmd.attach_main(parser, taxlevel_plurality, split_args=True)
     return parser
 
 def taxlevel_plurality(summary_file, tax_heading, out_report):
