@@ -1492,11 +1492,14 @@ def taxlevel_plurality(summary_file, tax_heading, out_report):
         assert keeper_rows[0]["taxon_sci_name"].lower() == tax_heading.lower()
         keepers_sorted = enumerate(sorted(keeper_rows[1:], key=lambda row:int(row["reads_excl_children"]), reverse=True))
         for i, hit in keepers_sorted:
-            outrow = {'order_within_focal': i+1, 'focal_taxon_name':keeper_rows[0]["taxon_sci_name"], 'focal_taxon_count':keeper_rows[0]["reads_cumulative"], 'pct_of_focal': float(row["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
+            outrow = {  'order_within_focal': i+1,
+                        'focal_taxon_name':keeper_rows[0]["taxon_sci_name"],
+                        'focal_taxon_count':keeper_rows[0]["reads_cumulative"],
+                        'pct_of_focal': 100.0 * float(hit["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
             for k in ("pct_of_total", "reads_cumulative", "reads_excl_children", "taxon_rank", "taxon_id", "taxon_sci_name"):
                 outrow[k] = hit[k]
             out.append(outrow)
-            break # maybe some day emit more than just the top one
+            #break # maybe some day emit more than just the top one
 
     # write outputs
     with util.file.open_or_gzopen(out_report, 'wt') as outf:
