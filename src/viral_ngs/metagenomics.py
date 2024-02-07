@@ -1408,11 +1408,12 @@ def parser_kraken_taxlevel_plurality(parser=argparse.ArgumentParser()):
     parser.add_argument('summary_file', help='input Kraken-format summary text file with tab-delimited taxonomic levels.')
     parser.add_argument('tax_heading', help='The taxonomic heading to analyze.')
     parser.add_argument('out_report', help='tab-delimited output file.')
+    parser.add_argument('--min_reads', type=int, dest="min_reads", help='Only include hits with more than min_reads (default: %(default)s)', default=1)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, taxlevel_plurality, split_args=True)
     return parser
 
-def taxlevel_plurality(summary_file, tax_heading, out_report):
+def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
     """
         Identifies the most abundant taxon (of any rank) contributing to a node of interest in the taxonomic tree.
         It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
@@ -1498,8 +1499,8 @@ def taxlevel_plurality(summary_file, tax_heading, out_report):
                         'pct_of_focal': 100.0 * float(hit["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
             for k in ("pct_of_total", "reads_cumulative", "reads_excl_children", "taxon_rank", "taxon_id", "taxon_sci_name"):
                 outrow[k] = hit[k]
-            out.append(outrow)
-            #break # maybe some day emit more than just the top one
+            if int(outrow['reads_excl_children']) >= min_reads:
+                out.append(outrow)
 
     # write outputs
     with util.file.open_or_gzopen(out_report, 'wt') as outf:
