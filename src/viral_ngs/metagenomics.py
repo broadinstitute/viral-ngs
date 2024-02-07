@@ -1462,7 +1462,7 @@ def taxlevel_plurality(summary_file, tax_heading, out_report):
             row = next(csv.DictReader([line.strip().rstrip('\n')], fieldnames=fieldnames, dialect="kraken_report"))
 
             try:
-                indent_of_line = indent_len(row["sci_name"])
+                indent_of_line = indent_len(row["taxon_sci_name"])
             except AttributeError as e:
                 log.warning("Report type: '{}'".format(report_type))
                 log.warning("Issue with line {}: '{}'".format(lineno,line.strip().rstrip('\n')))
@@ -1475,7 +1475,7 @@ def taxlevel_plurality(summary_file, tax_heading, out_report):
                 indent_of_selection=-1
 
             if indent_of_selection == -1:
-                if row["sci_name"].lower() == tax_heading.lower():
+                if row["taxon_sci_name"].lower() == tax_heading.lower():
                     should_process = True
                     indent_of_selection = indent_of_line
 
@@ -1489,10 +1489,10 @@ def taxlevel_plurality(summary_file, tax_heading, out_report):
         out.append({'order_within_focal':0, 'focal_taxon_name':tax_heading, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'pct_of_total':0.0, 'reads_cumulative':0, 'reads_excl_children':0, 'taxon_rank':'', 'taxon_id':'', 'taxon_sci_name':''})
     else:
         # find the most abundant taxon classified underneath (but not including) the tax_heading 
-        assert keeper_rows[0]["sci_name"].lower() == tax_heading.lower()
+        assert keeper_rows[0]["taxon_sci_name"].lower() == tax_heading.lower()
         keepers_sorted = enumerate(sorted(keeper_rows[1:], key=lambda row:int(row["reads_excl_children"]), reverse=True))
         for i, hit in keepers_sorted:
-            outrow = {'order_within_focal': i+1, 'focal_taxon_name':keeper_rows[0]["sci_name"], 'focal_taxon_count':keeper_rows[0]["reads_cumulative"], 'pct_of_focal': float(row["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
+            outrow = {'order_within_focal': i+1, 'focal_taxon_name':keeper_rows[0]["taxon_sci_name"], 'focal_taxon_count':keeper_rows[0]["reads_cumulative"], 'pct_of_focal': float(row["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
             for k in ("pct_of_total", "reads_cumulative", "reads_excl_children", "taxon_rank", "taxon_id", "taxon_sci_name"):
                 outrow[k] = hit[k]
             out.append(outrow)
