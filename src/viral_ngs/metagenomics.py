@@ -154,6 +154,192 @@ class TaxonomyDb(object):
                 ranks[taxid] = rank
         return ranks, parents
 
+    def process_blast_hits(self, hits, top_percent):
+        '''Filter groups of blast hits and perform lca.
+
+        Args:
+        hits: []BlastRecord groups of hits.
+        top_percent: (float) Only consider hits within this percent of top bit score.
+
+        Return:
+        (int) Tax id of LCA.
+        '''
+        hits = (self.translate_gi_to_tax_id(hit) for hit in hits)
+
+        hits = [hit for hit in hits if hit.subject_id != 0]
+        if len(hits) == 0:
+            return
+
+        best_score = max(hit.bit_score for hit in hits)
+        cutoff_bit_score = (100 - top_percent) / 100 * best_score
+        valid_hits = (hit for hit in hits if hit.bit_score >= cutoff_bit_score)
+        valid_hits = list(valid_hits)
+        # Sort requires realized list
+        valid_hits.sort(key=operator.attrgetter('bit_score'), reverse=True)
+        if valid_hits:
+            tax_ids = tuple(itertools.chain(*(blast_m8_taxids(hit) for hit in valid_hits)))
+            return coverage_lca(tax_ids, self.parents)
+
+    def process_sam_hits(self, sam_hits, top_percent):
+        '''Filter groups of blast hits and perform lca.
+
+        Args:
+        sam_hits: []Sam groups of hits.
+        top_percent: (float) Only consider hits within this percent of top bit score.
+
+        Return:
+        (int) Tax id of LCA.
+        '''
+        best_score = max(hit.get_tag('AS') for hit in sam_hits)
+        cutoff_alignment_score = (100 - top_percent) / 100 * best_score
+        valid_hits = (hit for hit in sam_hits if hit.get_tag('AS') >= cutoff_alignment_score)
+        valid_hits = list(valid_hits)
+        # Sort requires realized list
+        valid_hits.sort(key=lambda sam1: sam1.get_tag('AS'), reverse=True)
+
+        tax_ids = [extract_tax_id(hit) for hit in valid_hits]
+        return coverage_lca(tax_ids, self.parents)
+
+    def translate_gi_to_tax_id(self, record):
+        '''Replace gi headers in subject ids to int taxonomy ids.'''
+        gi = int(record.subject_id.split('|')[1])
+        tax_id = self.gis[gi]
+        rec_list = list(record)
+        rec_list[1] = tax_id
+        return BlastRecord(*rec_list)
+
+    def sam_lca(self, sam_file, output=None, top_percent=10, unique_only=True):
+        ''' Calculate the LCA taxonomy id for multi-mapped reads in a samfile.
+
+        Assumes the sam is sorted by query name. Writes tsv output: query_id \t tax_id.
+
+        Args:
+        sam_file: (path) Sam file.
+        output: (io) Output file.
+        top_percent: (float) Only this percent within top hit are used.
+        unique_only: (bool) If true, only output assignments for unique, mapped reads. If False, set unmapped or duplicate reads as unclassified.
+
+        Return:
+        (collections.Counter) Counter of taxid hits
+        '''
+
+        c = collections.Counter()
+        with pysam.AlignmentFile(sam_file, 'rb') as sam:
+            seg_groups = (v for k, v in itertools.groupby(sam, operator.attrgetter('query_name')))
+            for seg_group in seg_groups:
+                segs = list(seg_group)
+                query_name = segs[0].query_name
+                # 0x4 is unmapped, 0x400 is duplicate
+                mapped_segs = [seg for seg in segs if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0]
+                if unique_only and not mapped_segs:
+                    continue
+
+                if mapped_segs:
+                    tax_id = self.process_sam_hits(mapped_segs, top_percent)
+                    if tax_id is None:
+                        log.warning('Query: {} has no valid taxonomy paths.'.format(query_name))
+                        if unique_only:
+                            continue
+                        else:
+                            tax_id = 0
+                else:
+                    tax_id = 0
+
+                if output:
+                    classified = 'C' if tax_id else 'U'
+                    output.write('{}\t{}\t{}\n'.format(classified, query_name, tax_id))
+                c[tax_id] += 1
+        return c
+
+    def sam_lca_report(self, bam_aligned, outReport, outReads=None, unique_only=None):
+        if outReads:
+            lca_tsv = outReads
+        else:
+            lca_tsv = util.file.mkstempfname('.tsv')
+        with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
+            hits = self.sam_lca(bam_aligned, lca, top_percent=10, unique_only=unique_only)
+        with open(outReport, 'w') as f:
+            for line in self.kraken_dfs_report(hits):
+                print(line, file=f)
+
+    def blast_lca(self,
+                m8_file,
+                output,
+                paired=False,
+                min_bit_score=50,
+                max_expected_value=0.01,
+                top_percent=10,):
+        '''Calculate the LCA taxonomy id for groups of blast hits.
+
+        Writes tsv output: query_id \t tax_id
+
+        Args:
+        m8_file: (io) Blast m8 file to read.
+        output: (io) Output file.
+        paired: (bool) Whether to count paired suffixes /1,/2 as one group.
+        min_bit_score: (float) Minimum bit score or discard.
+        max_expected_value: (float) Maximum e-val or discard.
+        top_percent: (float) Only this percent within top hit are used.
+        '''
+        records = blast_records(m8_file)
+        records = (r for r in records if r.e_val <= max_expected_value)
+        records = (r for r in records if r.bit_score >= min_bit_score)
+        if paired:
+            records = (paired_query_id(rec) for rec in records)
+        blast_groups = (v for k, v in itertools.groupby(records, operator.attrgetter('query_id')))
+        for blast_group in blast_groups:
+            blast_group = list(blast_group)
+            tax_id = self.process_blast_hits(blast_group, top_percent)
+            query_id = blast_group[0].query_id
+            if not tax_id:
+                log.debug('Query: {} has no valid taxonomy paths.'.format(query_id))
+            classified = 'C' if tax_id else 'U'
+            output.write('{}\t{}\t{}\n'.format(classified, query_id, tax_id))
+
+    def kraken_dfs(self, lines, taxa_hits, total_hits, taxid, level):
+        '''Recursively do DFS for number of hits per taxa.'''
+        cum_hits = num_hits = taxa_hits.get(taxid, 0)
+        for child_taxid in self.children[taxid]:
+            cum_hits += kraken_dfs(db, lines, taxa_hits, total_hits, child_taxid, level + 1)
+        percent_covered = '%.2f' % (cum_hits / total_hits * 100)
+        rank = rank_code(self.ranks[taxid])
+        name = self.names[taxid]
+        if cum_hits > 0:
+            lines.append('\t'.join([percent_covered, str(cum_hits), str(num_hits), rank, str(taxid), '  ' * level + name]))
+        return cum_hits
+
+    def kraken_dfs_report(self, taxa_hits):
+        '''Return a kraken compatible DFS report of taxa hits.
+
+        Warning: this potentially mutates the self.children variable
+
+        Args:
+        taxa_hits: (collections.Counter) # of hits per tax id.
+
+        Return:
+        []str lines of the report
+        '''
+
+        self.children = parents_to_children(self.parents)  # huh??? are we sure we want to mutate?
+        total_hits = sum(taxa_hits.values())
+        if total_hits == 0:
+            return ['\t'.join(['100.00', '0', '0', 'U', '0', 'unclassified'])]
+
+        lines = []
+        self.kraken_dfs(lines, taxa_hits, total_hits, 1, 0)
+        unclassified_hits = taxa_hits.get(0, 0)
+        unclassified_hits += taxa_hits.get(-1, 0)
+
+        if unclassified_hits > 0:
+            percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
+            lines.append(
+                '\t'.join([
+                    str(percent_covered), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
+                ])
+            )
+        return reversed(lines)
+
+
 
 BlastRecord = collections.namedtuple(
     'BlastRecord', [
@@ -161,7 +347,6 @@ BlastRecord = collections.namedtuple(
         'query_end', 'subject_start', 'subject_end', 'e_val', 'bit_score', 'extra'
     ]
 )
-
 
 def blast_records(f):
     '''Yield blast m8 records line by line'''
@@ -179,7 +364,6 @@ def blast_records(f):
 
         yield BlastRecord(*args)
 
-
 def paired_query_id(record):
     '''Replace paired suffixes in query ids.'''
     suffixes = ('/1', '/2')
@@ -190,19 +374,8 @@ def paired_query_id(record):
             return BlastRecord(*rec_list)
     return record
 
-
-def translate_gi_to_tax_id(db, record):
-    '''Replace gi headers in subject ids to int taxonomy ids.'''
-    gi = int(record.subject_id.split('|')[1])
-    tax_id = db.gis[gi]
-    rec_list = list(record)
-    rec_list[1] = tax_id
-    return BlastRecord(*rec_list)
-
-
 def blast_m8_taxids(record):
     return [int(record.subject_id)]
-
 
 def extract_tax_id(sam1):
     '''Replace gi headers in subject ids to int taxonomy ids.'''
@@ -212,136 +385,6 @@ def extract_tax_id(sam1):
     else:
         raise TaxIdError(parts)
 
-
-def sam_lca(db, sam_file, output=None, top_percent=10, unique_only=True):
-    ''' Calculate the LCA taxonomy id for multi-mapped reads in a samfile.
-
-    Assumes the sam is sorted by query name. Writes tsv output: query_id \t tax_id.
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      sam_file: (path) Sam file.
-      output: (io) Output file.
-      top_percent: (float) Only this percent within top hit are used.
-      unique_only: (bool) If true, only output assignments for unique, mapped reads. If False, set unmapped or duplicate reads as unclassified.
-
-    Return:
-      (collections.Counter) Counter of taxid hits
-    '''
-
-    c = collections.Counter()
-    with pysam.AlignmentFile(sam_file, 'rb') as sam:
-        seg_groups = (v for k, v in itertools.groupby(sam, operator.attrgetter('query_name')))
-        for seg_group in seg_groups:
-            segs = list(seg_group)
-            query_name = segs[0].query_name
-            # 0x4 is unmapped, 0x400 is duplicate
-            mapped_segs = [seg for seg in segs if seg.flag & 0x4 == 0 and seg.flag & 0x400 == 0]
-            if unique_only and not mapped_segs:
-                continue
-
-            if mapped_segs:
-                tax_id = process_sam_hits(db, mapped_segs, top_percent)
-                if tax_id is None:
-                    log.warning('Query: {} has no valid taxonomy paths.'.format(query_name))
-                    if unique_only:
-                        continue
-                    else:
-                        tax_id = 0
-            else:
-                tax_id = 0
-
-            if output:
-                classified = 'C' if tax_id else 'U'
-                output.write('{}\t{}\t{}\n'.format(classified, query_name, tax_id))
-            c[tax_id] += 1
-    return c
-
-
-def blast_lca(db,
-              m8_file,
-              output,
-              paired=False,
-              min_bit_score=50,
-              max_expected_value=0.01,
-              top_percent=10,):
-    '''Calculate the LCA taxonomy id for groups of blast hits.
-
-    Writes tsv output: query_id \t tax_id
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      m8_file: (io) Blast m8 file to read.
-      output: (io) Output file.
-      paired: (bool) Whether to count paired suffixes /1,/2 as one group.
-      min_bit_score: (float) Minimum bit score or discard.
-      max_expected_value: (float) Maximum e-val or discard.
-      top_percent: (float) Only this percent within top hit are used.
-    '''
-    records = blast_records(m8_file)
-    records = (r for r in records if r.e_val <= max_expected_value)
-    records = (r for r in records if r.bit_score >= min_bit_score)
-    if paired:
-        records = (paired_query_id(rec) for rec in records)
-    blast_groups = (v for k, v in itertools.groupby(records, operator.attrgetter('query_id')))
-    for blast_group in blast_groups:
-        blast_group = list(blast_group)
-        tax_id = process_blast_hits(db, blast_group, top_percent)
-        query_id = blast_group[0].query_id
-        if not tax_id:
-            log.debug('Query: {} has no valid taxonomy paths.'.format(query_id))
-        classified = 'C' if tax_id else 'U'
-        output.write('{}\t{}\t{}\n'.format(classified, query_id, tax_id))
-
-
-def process_sam_hits(db, sam_hits, top_percent):
-    '''Filter groups of blast hits and perform lca.
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      sam_hits: []Sam groups of hits.
-      top_percent: (float) Only consider hits within this percent of top bit score.
-
-    Return:
-      (int) Tax id of LCA.
-    '''
-    best_score = max(hit.get_tag('AS') for hit in sam_hits)
-    cutoff_alignment_score = (100 - top_percent) / 100 * best_score
-    valid_hits = (hit for hit in sam_hits if hit.get_tag('AS') >= cutoff_alignment_score)
-    valid_hits = list(valid_hits)
-    # Sort requires realized list
-    valid_hits.sort(key=lambda sam1: sam1.get_tag('AS'), reverse=True)
-
-    tax_ids = [extract_tax_id(hit) for hit in valid_hits]
-    return coverage_lca(tax_ids, db.parents)
-
-
-def process_blast_hits(db, hits, top_percent):
-    '''Filter groups of blast hits and perform lca.
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      hits: []BlastRecord groups of hits.
-      top_percent: (float) Only consider hits within this percent of top bit score.
-
-    Return:
-      (int) Tax id of LCA.
-    '''
-    hits = (translate_gi_to_tax_id(db, hit) for hit in hits)
-
-    hits = [hit for hit in hits if hit.subject_id != 0]
-    if len(hits) == 0:
-        return
-
-    best_score = max(hit.bit_score for hit in hits)
-    cutoff_bit_score = (100 - top_percent) / 100 * best_score
-    valid_hits = (hit for hit in hits if hit.bit_score >= cutoff_bit_score)
-    valid_hits = list(valid_hits)
-    # Sort requires realized list
-    valid_hits.sort(key=operator.attrgetter('bit_score'), reverse=True)
-    if valid_hits:
-        tax_ids = tuple(itertools.chain(*(blast_m8_taxids(hit) for hit in valid_hits)))
-        return coverage_lca(tax_ids, db.parents)
 
 
 def coverage_lca(query_ids, parents, lca_percent=100):
@@ -682,49 +725,6 @@ def taxa_hits_from_tsv(f, taxid_column=2):
     return c
 
 
-def kraken_dfs_report(db, taxa_hits):
-    '''Return a kraken compatible DFS report of taxa hits.
-
-    Args:
-      db: (TaxonomyDb) Taxonomy db.
-      taxa_hits: (collections.Counter) # of hits per tax id.
-
-    Return:
-      []str lines of the report
-    '''
-
-    db.children = parents_to_children(db.parents)
-    total_hits = sum(taxa_hits.values())
-    if total_hits == 0:
-        return ['\t'.join(['100.00', '0', '0', 'U', '0', 'unclassified'])]
-
-    lines = []
-    kraken_dfs(db, lines, taxa_hits, total_hits, 1, 0)
-    unclassified_hits = taxa_hits.get(0, 0)
-    unclassified_hits += taxa_hits.get(-1, 0)
-
-    if unclassified_hits > 0:
-        percent_covered = '%.2f' % (unclassified_hits / total_hits * 100)
-        lines.append(
-            '\t'.join([
-                str(percent_covered), str(unclassified_hits), str(unclassified_hits), 'U', '0', 'unclassified'
-            ])
-        )
-    return reversed(lines)
-
-
-def kraken_dfs(db, lines, taxa_hits, total_hits, taxid, level):
-    '''Recursively do DFS for number of hits per taxa.'''
-    cum_hits = num_hits = taxa_hits.get(taxid, 0)
-    for child_taxid in db.children[taxid]:
-        cum_hits += kraken_dfs(db, lines, taxa_hits, total_hits, child_taxid, level + 1)
-    percent_covered = '%.2f' % (cum_hits / total_hits * 100)
-    rank = rank_code(db.ranks[taxid])
-    name = db.names[taxid]
-    if cum_hits > 0:
-        lines.append('\t'.join([percent_covered, str(cum_hits), str(num_hits), rank, str(taxid), '  ' * level + name]))
-    return cum_hits
-
 def parser_kraken2(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
@@ -900,22 +900,6 @@ def kaiju(inBam, db, taxDb, outReport, outReads=None, threads=None):
     kaiju_tool = classify.kaiju.Kaiju()
     kaiju_tool.classify(db, taxDb, inBam, output_report=outReport, output_reads=outReads, num_threads=threads)
 __commands__.append(('kaiju', parser_kaiju))
-
-
-def sam_lca_report(tax_db, bam_aligned, outReport, outReads=None, unique_only=None):
-
-    if outReads:
-        lca_tsv = outReads
-    else:
-        lca_tsv = util.file.mkstempfname('.tsv')
-
-    with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
-        hits = sam_lca(tax_db, bam_aligned, lca, top_percent=10, unique_only=unique_only)
-
-    with open(outReport, 'w') as f:
-
-        for line in kraken_dfs_report(tax_db, hits):
-            print(line, file=f)
 
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
