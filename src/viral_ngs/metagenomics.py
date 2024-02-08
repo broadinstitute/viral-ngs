@@ -300,7 +300,7 @@ class TaxonomyDb(object):
         '''Recursively do DFS for number of hits per taxa.'''
         cum_hits = num_hits = taxa_hits.get(taxid, 0)
         for child_taxid in self.children[taxid]:
-            cum_hits += kraken_dfs(db, lines, taxa_hits, total_hits, child_taxid, level + 1)
+            cum_hits += self.kraken_dfs(lines, taxa_hits, total_hits, child_taxid, level + 1)
         percent_covered = '%.2f' % (cum_hits / total_hits * 100)
         rank = rank_code(self.ranks[taxid])
         name = self.names[taxid]
