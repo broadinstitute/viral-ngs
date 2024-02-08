@@ -154,6 +154,13 @@ class TaxonomyDb(object):
                 ranks[taxid] = rank
         return ranks, parents
 
+    def get_ordered_ancestors(self, taxid):
+        ''' returns all ancestors of a taxid in proximity order: [parent, grandparent, greatgrandparent, etc] '''
+        if taxid in self.parents and taxid != self.parents[taxid]:
+            return [self.parents[taxid]] + self.get_ordered_ancestors(self.parents[taxid])
+        else:
+            return []
+
     def process_blast_hits(self, hits, top_percent):
         '''Filter groups of blast hits and perform lca.
 

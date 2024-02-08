@@ -231,6 +231,10 @@ def test_translate_gi_to_tax_id(taxa_db_simple):
     assert taxa_db_simple.translate_gi_to_tax_id(blast1) == expected
 
 
+def test_ancestor_lookup(taxa_db_simple):
+    assert taxa_db_simple.get_ordered_ancestors(4) == [3, 2, 1]
+
+
 def test_kraken_dfs_report(taxa_db):
     hits = Counter({1: 101, 3: 103, 10: 105, 12: 107})
 
