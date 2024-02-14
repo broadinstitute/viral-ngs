@@ -699,6 +699,48 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
 __commands__.append(('subset_taxonomy', parser_subset_taxonomy))
 
 
+def parser_filter_taxids_to_focal_hits(parser=argparse.ArgumentParser()):
+    parser.add_argument("taxids_tsv",   help="TSV file where first column is a taxid")
+    parser.add_argument("focal_report_tsv", help="TSV produced by taxlevel_plurality")
+    parser.add_argument("taxdb_dir", help="Taxonomy database directory (containing nodes.dmp, parents.dmp etc.)")
+    parser.add_argument("min_read_count", type=int, help="ignore focal_report_tsv entries below this read count")
+    parser.add_argument("output_tsv",  help="Output TSV file where first column is a taxid")
+
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, filter_taxids_to_focal_hits, split_args=True)
+    return parser
+def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_read_count, output_tsv):
+    '''
+    Generate a subset of the taxids_tsv file filtered by the focal_report_tsv.
+    We will only emit rows from the taxids_tsv that contain taxids that are either
+    contained within or are a child/descendant of nodes contained within the
+    focal_report_tsv
+    '''
+
+    # load taxonomy database structure
+    taxdb = TaxonomyDb(tax_dir=taxdb_dir, load_nodes=True)
+
+    # load focal hits
+    hits = set()
+    with util.file.open_or_gzopen(focal_report_tsv, "rt") as inf:
+        for row in csv.reader(inf, delimiter='\t'):
+            if int(row['reads_excl_children']) >= min_read_count:
+                hits.add(row['taxon_id'])
+
+    # filter taxids_tsv -> output_tsv
+    with util.file.open_or_gzopen(taxids_tsv, "rt") as inf:
+        with util.file.open_or_gzopen(output_tsv, "wt") as outf:
+            for line in inf:
+                taxid = line.rstrip('\r\n').split('\t')[0]
+                ancestors = taxdb.get_ordered_ancestors(taxid)
+                for node in [taxid] + ancestors:
+                    if taxid in hits:
+                        outf.write(line)
+                        break
+
+__commands__.append(('filter_taxids_to_focal_hits', parser_filter_taxids_to_focal_hits))
+
+
 def rank_code(rank):
     '''Get the short 1 letter rank code for named ranks.'''
     if rank == "species":
