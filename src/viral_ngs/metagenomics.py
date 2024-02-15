@@ -77,10 +77,13 @@ class TaxonomyDb(object):
         load_names=False
     ):
         if tax_dir:
-            gis_paths = [maybe_compressed(os.path.join(tax_dir, 'gi_taxid_nucl.dmp')),
-                         maybe_compressed(os.path.join(tax_dir, 'gi_taxid_prot.dmp'))]
-            nodes_path = maybe_compressed(os.path.join(tax_dir, 'nodes.dmp'))
-            names_path = maybe_compressed(os.path.join(tax_dir, 'names.dmp'))
+            if load_gis and not gis:
+                gis_paths = [maybe_compressed(os.path.join(tax_dir, 'gi_taxid_nucl.dmp')),
+                            maybe_compressed(os.path.join(tax_dir, 'gi_taxid_prot.dmp'))]
+            else:
+                gis_paths = []
+            nodes_path = load_nodes and maybe_compressed(os.path.join(tax_dir, 'nodes.dmp')) or None
+            names_path = load_names and maybe_compressed(os.path.join(tax_dir, 'names.dmp')) or None
         self.tax_dir = tax_dir
         self.gis_paths = gis_paths
         self.nodes_path = nodes_path
@@ -718,7 +721,7 @@ def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_rea
     '''
 
     # load taxonomy database structure
-    taxdb = TaxonomyDb(tax_dir=taxdb_dir, load_nodes=True)
+    taxdb = TaxonomyDb(tax_dir=taxdb_dir, load_nodes=True, load_gis=False)
 
     # load focal hits
     hits = set()
