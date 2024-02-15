@@ -726,7 +726,7 @@ def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_rea
     # load focal hits
     hits = set()
     with util.file.open_or_gzopen(focal_report_tsv, "rt") as inf:
-        for row in csv.reader(inf, delimiter='\t'):
+        for row in csv.DictReader(inf, delimiter='\t'):
             if int(row['reads_excl_children']) >= min_read_count:
                 hits.add(row['taxon_id'])
 
