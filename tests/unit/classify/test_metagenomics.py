@@ -193,7 +193,7 @@ def test_blast_lca(taxa_db_simple, simple_m8):
     """)
     out = StringIO()
     with simple_m8 as f:
-        metagenomics.blast_lca(taxa_db_simple, f, out, paired=True)
+        taxa_db_simple.blast_lca(f, out, paired=True)
         out.seek(0)
         assert out.read() == expected
 
@@ -228,7 +228,11 @@ def test_translate_gi_to_tax_id(taxa_db_simple):
 
     tup[1] = 5
     expected = metagenomics.BlastRecord(*tup)
-    assert metagenomics.translate_gi_to_tax_id(taxa_db_simple, blast1) == expected
+    assert taxa_db_simple.translate_gi_to_tax_id(blast1) == expected
+
+
+def test_ancestor_lookup(taxa_db_simple):
+    assert taxa_db_simple.get_ordered_ancestors(4) == [3, 2, 1]
 
 
 def test_kraken_dfs_report(taxa_db):
@@ -243,7 +247,7 @@ def test_kraken_dfs_report(taxa_db):
     25.72\t107\t0\t-\t8\t        eight
     25.72\t107\t107\tS\t12\t          twelve
     ''')
-    report = metagenomics.kraken_dfs_report(taxa_db, hits)
+    report = taxa_db.kraken_dfs_report(hits)
     text_report = '\n'.join(list(report)) + '\n'
     assert text_report == expected
 
