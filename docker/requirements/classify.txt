@@ -1,4 +1,4 @@
-blast=2.9.0
+blast>=2.9.0
 bmtagger>=3.101
 diamond>=2.1.9
 kmc>=3.2.1

@@ -4,6 +4,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
     + "hlevitin@broadinstitute.org"
 
 import unittest
+import glob
 import os, os.path
 import tempfile
 import shutil
@@ -364,13 +365,11 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
 
         # tar one db, but not the other
         tar_db_tgz = util.file.mkstempfname('-humanChr9Subset.blastn.db.tar.gz')
-        cmd = ['tar', '-C', self.tempDir, '-cvzf', tar_db_tgz]
-        for ext in ('nhr', 'nin', 'nsq'):
-            cmd.append('humanChr9Subset.'+ext)
+        cmd = ['tar', '-C', self.tempDir, '-cvzf', tar_db_tgz] + glob.glob("humanChr9Subset.n*", root_dir=self.tempDir)
         subprocess.check_call(cmd)
         self.blastdbs_multi[1] = tar_db_tgz
-        for ext in ('nhr', 'nin', 'nsq'):
-            os.unlink(os.path.join(self.tempDir, 'humanChr9Subset.'+ext))
+        for idx in glob.glob("humanChr9Subset.n*", root_dir=self.tempDir):
+            os.unlink(idx)
 
     def test_deplete_blastn_bam(self):
         tempDir = tempfile.mkdtemp()
