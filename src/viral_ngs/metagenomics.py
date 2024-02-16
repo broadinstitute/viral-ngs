@@ -728,18 +728,16 @@ def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_rea
     with util.file.open_or_gzopen(focal_report_tsv, "rt") as inf:
         for row in csv.DictReader(inf, delimiter='\t'):
             if int(row['reads_excl_children']) >= min_read_count:
-                hits.add(row['taxon_id'])
+                hits.add(int(row['taxon_id']))
 
     # filter taxids_tsv -> output_tsv
     with util.file.open_or_gzopen(taxids_tsv, "rt") as inf:
         with util.file.open_or_gzopen(output_tsv, "wt") as outf:
             for line in inf:
-                taxid = line.rstrip('\r\n').split('\t')[0]
+                taxid = int(line.rstrip('\r\n').split('\t')[0])
                 ancestors = taxdb.get_ordered_ancestors(taxid)
-                for node in [taxid] + ancestors:
-                    if taxid in hits:
-                        outf.write(line)
-                        break
+                if any(node in hits for node in [taxid] + ancestors):
+                    outf.write(line)
 
 __commands__.append(('filter_taxids_to_focal_hits', parser_filter_taxids_to_focal_hits))
 
