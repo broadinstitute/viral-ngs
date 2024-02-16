@@ -365,10 +365,10 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
 
         # tar one db, but not the other
         tar_db_tgz = util.file.mkstempfname('-humanChr9Subset.blastn.db.tar.gz')
-        cmd = ['tar', '-C', self.tempDir, '-cvzf', tar_db_tgz] + glob.glob("humanChr9Subset.n*", root_dir=self.tempDir)
+        cmd = ['tar', '-C', self.tempDir, '-cvzf', tar_db_tgz] + map(os.path.basename, glob.glob(os.path.join(self.tempDir, "humanChr9Subset.n*")))
         subprocess.check_call(cmd)
         self.blastdbs_multi[1] = tar_db_tgz
-        for idx in glob.glob("humanChr9Subset.n*", root_dir=self.tempDir):
+        for idx in glob.glob(os.path.join(self.tempDir, "humanChr9Subset.n*")):
             os.unlink(idx)
 
     def test_deplete_blastn_bam(self):
