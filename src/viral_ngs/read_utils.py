@@ -1346,12 +1346,12 @@ def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentPar
     parser.add_argument('outBam', help='Output reads, BAM format.')
     parser.add_argument(
         '--doNotRequirePairsToBeProper',
-        help='Require reads to be properly paired (default: %(default)s)',
+        help='Do not require reads to be properly paired when filtering (default: %(default)s)',
         action='store_true'
     )
     parser.add_argument(
         '--keepSingletons',
-        help='Reject reads that are not properly paired (default: %(default)s)',
+        help='Keep singleton reads when filtering (default: %(default)s)',
         action='store_true'
     )
 
@@ -1408,12 +1408,12 @@ def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--doNotRequirePairsToBeProper',
-        help='Require reads to be properly paired (default: %(default)s)',
+        help='Do not require reads to be properly paired when filtering (default: %(default)s)',
         action='store_true'
     )
     parser.add_argument(
         '--keepSingletons',
-        help='Reject reads that are not properly paired (default: %(default)s)',
+        help='Keep singleton reads when filtering (default: %(default)s)',
         action='store_true'
     )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
@@ -1499,12 +1499,12 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--doNotRequirePairsToBeProper',
-        help='Require reads to be properly paired (default: %(default)s)',
+        help='Do not require reads to be properly paired when filtering (default: %(default)s)',
         action='store_true'
     )
     parser.add_argument(
         '--keepSingletons',
-        help='Reject reads that are not properly paired (default: %(default)s)',
+        help='Keep singleton reads when filtering (default: %(default)s)',
         action='store_true'
     )
 
