@@ -1309,6 +1309,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
+
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, align_and_fix, split_args=True)
     return parser
@@ -1318,9 +1319,53 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 
 # =========================
 
+def filter_bam_to_proper_primary_mapped_reads(inBam, outBam, doNotRequirePairsToBeProper=False, keepSingletons=False):
+    ''' Take a BAM file and filter to only reads that are properly
+        paired and mapped. Optionally reject singletons, and 
+        optionally require reads to be properly paired and mapped.
 
-def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None):
+        Output includes reads that are:
+            - not flagged as duplicates
+            - not secondary or supplementary (split/chimeric reads)
+            - For paired-end reads:
+            -   marked as proper pair (if require_pairs_to_be_proper=True) OR
+                both not unmapped (if require_pairs_to_be_proper=False) OR
+                not a member of a pair with a singleton (if reject_singletons=True)
+            - For single-end reads:
+                mapped
+    '''
+    samtools = tools.samtools.SamtoolsTool()
+    samtools.filter_to_proper_primary_mapped_reads(inBam, 
+                                                   outBam,
+                                                   require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
+                                                   reject_singletons=not keepSingletons)
+    return 0
+
+def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input aligned reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--doNotRequirePairsToBeProper',
+        help='Require reads to be properly paired (default: %(default)s)',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--keepSingletons',
+        help='Reject reads that are not properly paired (default: %(default)s)',
+        action='store_true'
+    )
+
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, filter_bam_to_proper_primary_mapped_reads, split_args=True)
+    return parser
+
+# =========================
+
+
+def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
+                      filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False):
     ''' Take reads, align to reference with minimap2 and perform samtools idxstats.
+        Optionally filter reads after alignment, prior to reporting idxstats, to include only those flagged as properly paired.
     '''
 
     assert outBam or outStats, "Either outBam or outStats must be specified"
@@ -1338,17 +1383,42 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None):
 
     mm2.align_bam(inBam, ref_indexed, bam_aligned)
 
+    if filterReadsAfterAlignment:
+        samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
+                                                       bam_filtered, 
+                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
+                                                       reject_singletons=not keepSingletons)
+    else:
+        bam_filtered = bam_aligned
+
     if outStats is not None:
-        samtools.idxstats(bam_aligned, outStats)
+        samtools.idxstats(bam_filtered, outStats)
 
     if outBam is None:
-        os.unlink(bam_aligned)
+        os.unlink(bam_filtered)
 
 def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
     parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
+    parser.add_argument(
+        '--filterReadsAfterAlignment',
+        help=("If specified, reads till be filtered after alignment to include only those flagged as properly paired."
+                "This excludes secondary and supplementary alignments."),
+        action='store_true'
+    )
+    parser.add_argument(
+        '--doNotRequirePairsToBeProper',
+        help='Require reads to be properly paired (default: %(default)s)',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--keepSingletons',
+        help='Reject reads that are not properly paired (default: %(default)s)',
+        action='store_true'
+    )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
     parser.add_argument('--outStats', help='Output idxstats file', default=None)
+
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, minimap2_idxstats, split_args=True)
     return parser
@@ -1357,8 +1427,10 @@ __commands__.append(('minimap2_idxstats', parser_minimap2_idxstats))
 
 
 def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
-        min_score_to_filter=None, aligner_options=None):
+        min_score_to_filter=None, aligner_options=None,
+        filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
+        Optionally filter reads after alignment, prior to reporting idxstats, to include only those flagged as properly paired.
     '''
 
     assert outBam or outStats, "Either outBam or outStats must be specified"
@@ -1378,12 +1450,20 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
     bwa_opts = [] if aligner_options is None else aligner_options.split()
     bwa.mem(inBam, ref_indexed, bam_aligned, options=bwa_opts,
             min_score_to_filter=min_score_to_filter)
+    
+    if filterReadsAfterAlignment:
+        samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
+                                                       bam_filtered, 
+                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
+                                                       reject_singletons=not keepSingletons)
+    else:
+        bam_filtered = bam_aligned
 
     if outStats is not None:
-        samtools.idxstats(bam_aligned, outStats)
+        samtools.idxstats(bam_filtered, outStats)
 
     if outBam is None:
-        os.unlink(bam_aligned)
+        os.unlink(bam_filtered)
 
 
 def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
@@ -1411,6 +1491,23 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
         '--alignerOptions',
         dest="aligner_options",
         help="bwa options (default: bwa defaults)")
+    parser.add_argument(
+        '--filterReadsAfterAlignment',
+        help=("If specified, reads till be filtered after alignment to include only those flagged as properly paired."
+                "This excludes secondary and supplementary alignments."),
+        action='store_true'
+    )
+    parser.add_argument(
+        '--doNotRequirePairsToBeProper',
+        help='Require reads to be properly paired (default: %(default)s)',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--keepSingletons',
+        help='Reject reads that are not properly paired (default: %(default)s)',
+        action='store_true'
+    )
+
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, bwamem_idxstats, split_args=True)
     return parser
