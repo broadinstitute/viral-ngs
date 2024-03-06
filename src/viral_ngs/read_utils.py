@@ -1370,10 +1370,11 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
 
     assert outBam or outStats, "Either outBam or outStats must be specified"
 
+    bam_aligned = util.file.mkstempfname('.aligned.bam')
     if outBam is None:
-        bam_aligned = mkstempfname('.aligned.bam')
+        bam_filtered = mkstempfname('.filtered.bam')
     else:
-        bam_aligned = outBam
+        bam_filtered = outBam
 
     samtools = tools.samtools.SamtoolsTool()
     mm2 = tools.minimap2.Minimap2()
@@ -1382,20 +1383,23 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
     shutil.copyfile(refFasta, ref_indexed)
 
     mm2.align_bam(inBam, ref_indexed, bam_aligned)
-
+    
     if filterReadsAfterAlignment:
         samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
                                                        bam_filtered, 
                                                        require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
                                                        reject_singletons=not keepSingletons)
+        os.unlink(bam_aligned)
     else:
-        bam_filtered = bam_aligned
+        shutil.move(bam_aligned, bam_filtered)
 
     if outStats is not None:
         samtools.idxstats(bam_filtered, outStats)
 
     if outBam is None:
         os.unlink(bam_filtered)
+
+    
 
 def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
@@ -1435,10 +1439,11 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
 
     assert outBam or outStats, "Either outBam or outStats must be specified"
 
+    bam_aligned = util.file.mkstempfname('.aligned.bam')
     if outBam is None:
-        bam_aligned = mkstempfname('.aligned.bam')
+        bam_filtered = mkstempfname('.filtered.bam')
     else:
-        bam_aligned = outBam
+        bam_filtered = outBam
 
     samtools = tools.samtools.SamtoolsTool()
     bwa = tools.bwa.Bwa()
@@ -1456,8 +1461,9 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
                                                        bam_filtered, 
                                                        require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
                                                        reject_singletons=not keepSingletons)
+        os.unlink(bam_aligned)
     else:
-        bam_filtered = bam_aligned
+        shutil.move(bam_aligned, bam_filtered)
 
     if outStats is not None:
         samtools.idxstats(bam_filtered, outStats)

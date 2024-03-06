@@ -48,6 +48,25 @@ class TestBwamemIdxstats(TestCaseWithTmp):
         self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
         self.assertGreater(actual_count, 18000)
 
+    def test_bwamem_idxstats_with_filtering(self):
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        outBam = util.file.mkstempfname('.bam', directory=self.tempDir)
+        outStats = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
+        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats, filterReadsAfterAlignment=True)
+        with open(outStats, 'rt') as inf:
+            actual_count = int(inf.readline().strip().split('\t')[2])
+        self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
+        self.assertLess(actual_count, 18000)
+
+        outBamNoFiltering = util.file.mkstempfname('.bam', directory=self.tempDir)
+        outStatsNoFiltering = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
+        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBamNoFiltering, outStatsNoFiltering, filterReadsAfterAlignment=False)
+        with open(outStatsNoFiltering, 'rt') as inf:
+            count_without_filtering = int(inf.readline().strip().split('\t')[2])
+
+        # the filtered count should be less than the count without filtering
+        self.assertLess(actual_count, count_without_filtering)
+
     def test_bwamem_idxstats_no_bam_output(self):
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outStats = util.file.mkstempfname('.stats.txt', directory=self.tempDir)
