@@ -182,7 +182,7 @@ class SamtoolsTool(tools.Tool):
         opts = ['-b', '-F' '1028', '-f', '2', '-@', '3']
         self.view(opts, inBam, outBam)
 
-    def filter_to_proper_primary_mapped_reads(self, inBam, outBam, require_pairs_to_be_proper=True, reject_singletons=True):
+    def filter_to_proper_primary_mapped_reads(self, inBam, outBam, require_pairs_to_be_proper=True, reject_singletons=True, reject_duplicates=True):
         '''
             This function writes a bam file filtered to include only reads that are:
               - not flagged as duplicates
@@ -210,7 +210,7 @@ class SamtoolsTool(tools.Tool):
                     is_single_end=not read.is_paired
 
                     # if a PCR/optical duplicate, do not write
-                    if read.is_duplicate:
+                    if reject_duplicates and read.is_duplicate:
                         continue
 
                     # if a read is a secondary or supplementary mapping (split/chimeric), do not write

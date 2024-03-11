@@ -1319,7 +1319,7 @@ __commands__.append(('align_and_fix', parser_align_and_fix))
 
 # =========================
 
-def filter_bam_to_proper_primary_mapped_reads(inBam, outBam, doNotRequirePairsToBeProper=False, keepSingletons=False):
+def filter_bam_to_proper_primary_mapped_reads(inBam, outBam, doNotRequirePairsToBeProper=False, keepSingletons=False, keepDuplicates=False):
     ''' Take a BAM file and filter to only reads that are properly
         paired and mapped. Optionally reject singletons, and 
         optionally require reads to be properly paired and mapped.
@@ -1338,7 +1338,8 @@ def filter_bam_to_proper_primary_mapped_reads(inBam, outBam, doNotRequirePairsTo
     samtools.filter_to_proper_primary_mapped_reads(inBam, 
                                                    outBam,
                                                    require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
-                                                   reject_singletons=not keepSingletons)
+                                                   reject_singletons=not keepSingletons,
+                                                   reject_duplicates=not keepDuplicates)
     return 0
 
 def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentParser()):
@@ -1354,6 +1355,11 @@ def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentPar
         help='Keep singleton reads when filtering (default: %(default)s)',
         action='store_true'
     )
+    parser.add_argument(
+        '--keepDuplicates',
+        help='When filtering, do not exclude reads due to being flagged as duplicates (default: %(default)s)',
+        action='store_true'
+    )
 
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_bam_to_proper_primary_mapped_reads, split_args=True)
@@ -1363,7 +1369,7 @@ def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentPar
 
 
 def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
-                      filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False):
+                      filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False, keepDuplicates=False):
     ''' Take reads, align to reference with minimap2 and perform samtools idxstats.
         Optionally filter reads after alignment, prior to reporting idxstats, to include only those flagged as properly paired.
     '''
@@ -1388,7 +1394,8 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
         samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
                                                        bam_filtered, 
                                                        require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
-                                                       reject_singletons=not keepSingletons)
+                                                       reject_singletons=not keepSingletons,
+                                                       reject_duplicates=not keepDuplicates)
         os.unlink(bam_aligned)
     else:
         shutil.move(bam_aligned, bam_filtered)
@@ -1420,6 +1427,11 @@ def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
         help='Keep singleton reads when filtering (default: %(default)s)',
         action='store_true'
     )
+    parser.add_argument(
+        '--keepDuplicates',
+        help='When filtering, do not exclude reads due to being flagged as duplicates (default: %(default)s)',
+        action='store_true'
+    )
     parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
     parser.add_argument('--outStats', help='Output idxstats file', default=None)
 
@@ -1432,7 +1444,7 @@ __commands__.append(('minimap2_idxstats', parser_minimap2_idxstats))
 
 def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
         min_score_to_filter=None, aligner_options=None,
-        filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False):
+        filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False, keepDuplicates=False):
     ''' Take reads, align to reference with BWA-MEM and perform samtools idxstats.
         Optionally filter reads after alignment, prior to reporting idxstats, to include only those flagged as properly paired.
     '''
@@ -1460,7 +1472,8 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
         samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
                                                        bam_filtered, 
                                                        require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
-                                                       reject_singletons=not keepSingletons)
+                                                       reject_singletons=not keepSingletons,
+                                                       reject_duplicates=not keepDuplicates)
         os.unlink(bam_aligned)
     else:
         shutil.move(bam_aligned, bam_filtered)
@@ -1511,6 +1524,11 @@ def parser_bwamem_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--keepSingletons',
         help='Keep singleton reads when filtering (default: %(default)s)',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--keepDuplicates',
+        help='When filtering, do not exclude reads due to being flagged as duplicates (default: %(default)s)',
         action='store_true'
     )
 
