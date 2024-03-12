@@ -5,4 +5,4 @@ kmc>=3.2.1
 kraken2>=2.1.3
 krona>=2.8.1
 last>=1541
-#perl=5.32.1
+perl=5.32.1
