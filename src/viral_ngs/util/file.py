@@ -208,7 +208,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
     else:
         util.file.mkdir_p(out_dir)
     assert compression in ('gz', 'bz2', 'lz4', 'zip', 'zst', 'none', 'auto')
-    if compression is 'auto':
+    if compression == 'auto':
         assert tarfile != '-' or pipe_hint, "cannot autodetect on stdin input unless pipe_hint provided"
         # auto-detect compression type based on file name
         if tarfile=='-':

@@ -139,7 +139,7 @@ jobs:
     needs: build_docker
     runs-on: ubuntu-20.04
     env:
-      GITHUB_ACTIONS_PYTHON_VERSION: 3.8
+      GITHUB_ACTIONS_PYTHON_VERSION: "3.10"
       PYTEST_ADDOPTS: "-rsxX -n 2 --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-report= --cov broad_utils --cov illumina --cov read_utils --cov reports --cov tools --cov util --cov file_utils"
     steps:
       - name: checkout repository
@@ -172,7 +172,7 @@ jobs:
           echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH"
           echo "GITHUB_ACTIONS_BRANCH=$GITHUB_ACTIONS_BRANCH" >> $GITHUB_ENV
       - name: install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "${{ env.GITHUB_ACTIONS_PYTHON_VERSION }}"
       - name: Set up Docker Buildx

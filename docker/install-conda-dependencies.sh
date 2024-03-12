@@ -9,6 +9,7 @@
 
 set -e -o pipefail
 
+#DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 
 echo "PATH:              ${PATH}"
@@ -17,7 +18,10 @@ echo "CONDA_PREFIX:      ${CONDA_PREFIX}"
 echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
 echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
 echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
-CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda -c defaults"
+CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda"
+
+# ToDo: if confirmed working, move to conda config section of viral-baseimage
+conda config --set repodata_threads $(nproc)
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
@@ -43,7 +47,7 @@ function start_keepalive {
 
     >&2 echo "Running..."
     # Start a process that runs as a keep-alive
-    # to avoid travis quitting if there is no output
+    # to avoid having the CI running quit if there is no output
     (while true; do
         sleep 120
         >&2 echo "Still running..."
@@ -70,13 +74,18 @@ sync
 REQUIREMENTS=""
 for condafile in $*; do
 	REQUIREMENTS="$REQUIREMENTS --file $condafile"
+
+    # print dependency tree for all packages in file
+    [[ $DEBUG = 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
 done
 
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-#timeout $CONDA_INSTALL_TIMEOUT conda install -y -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
-mamba install -y -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
+if [[ $DEBUG = 1 ]]; then 
+    MAMBA_DEBUG_LEVEL="-vvv"
+fi
+mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
 stop_keepalive
 
 # clean up

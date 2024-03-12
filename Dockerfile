@@ -16,7 +16,8 @@ ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
 	MINICONDA_PATH="/opt/miniconda" \
-	CONDA_DEFAULT_ENV=viral-ngs-env
+	CONDA_DEFAULT_ENV=viral-ngs-env \
+	CONDA_ENVS_PATH="$MINICONDA_PATH/envs"
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	CONDA_PREFIX=$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV \
@@ -27,7 +28,7 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-RUN conda create -n $CONDA_DEFAULT_ENV python=3.7
+RUN conda create -n $CONDA_DEFAULT_ENV python=3.10
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
