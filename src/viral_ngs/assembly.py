@@ -428,9 +428,9 @@ def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filt
 def parser_skani_contigs_to_refs(parser=argparse.ArgumentParser(description='Find closest references for contigs')):
     parser.add_argument('inContigs', help='FASTA file containing contigs')
     parser.add_argument('inRefs', nargs='+', help='FASTA files containing reference genomes')
-    parser.add_argument('out_skani_dist', help='Output file containing distances between contigs and references')
-    parser.add_argument('out_skani_dist_filtered', help='Output file containing distances between contigs and references, with only references that have a hit')
-    parser.add_argument('out_clusters_filtered', help='Output file containing clusters of highly-related genomes, with only references that have a hit')
+    parser.add_argument('out_skani_dist', help='Output file containing ANI distances between contigs and references')
+    parser.add_argument('out_skani_dist_filtered', help='Output file containing ANI distances between contigs and references, with only the top reference hit per cluster')
+    parser.add_argument('out_clusters_filtered', help='Output file containing clusters of highly-related genomes, with only clusters that have a hit to the contigs')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)
     return parser

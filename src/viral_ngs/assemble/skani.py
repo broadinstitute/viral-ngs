@@ -82,14 +82,14 @@ class SkaniTool(tools.Tool):
     def triangle(self, ref_fastas, outfile_ani, outfile_af, other_args = (), threads=None):
         ''' skani triangle computes an all-to-all ANI distance matrix for a set of sequences
         '''
-        self.execute('triangle', ref_fastas + other_args, outfile_ani, threads=threads)
+        self.execute('triangle', list(ref_fastas) + list(other_args), outfile_ani, threads=threads)
         shutil.copyfile('skani_matrix.af', outfile_af)
 
     def dist(self, query_fasta, ref_fastas, outfile, other_args = (), threads=None):
         ''' skani dist computes ANI distance between a specified query set of
             sequences (MAGs) and reference genomes (database)
         '''
-        self.execute('dist', ['-q', query_fasta, '-r'] + ref_fastas + other_args, outfile, threads=threads)
+        self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
 
     def find_reference_clusters(self, ref_fastas,
                                 other_args = ('-m', 50, '--no-learned-ani', '--slow', '--robust', '--detailed', '--ci', '--sparse'),
