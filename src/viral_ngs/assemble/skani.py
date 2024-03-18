@@ -71,11 +71,11 @@ class SkaniTool(tools.Tool):
 
         # build the skani command
         tool_cmd = [self.install_and_get_path(), subcommand]
-        tool_cmd.extend(args)
+        tool_cmd.extend(map(str, args))
         tool_cmd.extend(["-t", "{}".format(util.misc.sanitize_thread_count(threads))])
 
         # run the command
-        _log.debug(' '.join(map(str, tool_cmd)) + ' > ' + outfile)
+        _log.debug(' '.join(tool_cmd) + ' > ' + outfile)
         with open(outfile, 'w') as outf:
             util.misc.run_and_save(tool_cmd, outf=outf)
 
