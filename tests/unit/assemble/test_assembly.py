@@ -313,11 +313,11 @@ class TestOrderAndOrient(TestCaseWithTmp):
     def test_ebov_palindrome_refsel(self):
         # this tests a scenario where show-aligns has more alignments than show-tiling
         with util.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
-            contigs, refs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
-                                                                 'refs.ebov.fasta',
+            contigs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
                                                                  'expected.ebov.doublehit.fasta',
                                                                  'expected.refsel.ebov.stats.tsv')
-            assembly.order_and_orient(contigs, refs, outFasta, n_genome_segments=1, outStats=outStats)
+            refs = self.inputs('ref.ebov.gin.fasta','ref.ebov.sle.fasta','ref.ebov.lbr.fasta')
+            assembly.order_and_orient(contigs, refs, outFasta, outStats=outStats)
             self.assertEqualFastaSeqs(outFasta, expected)
             self.assertEqualContents(outStats, expectedStats)
 
