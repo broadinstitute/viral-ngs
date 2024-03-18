@@ -582,6 +582,28 @@ class TestImputeFromReference(TestCaseWithTmp):
             aligner='mummer')
         self.assertEqualContents(outFasta, empty_fasta)
 
+class TestSkaniReferenceSelection(TestCaseWithTmp):
+    ''' Test Skani-based reference selection '''
+
+    def test_skani_contigs_to_refs(self):
+        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
+        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+            as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
+            contigs = os.path.join(inDir, 'contigs.lasv.fasta')
+            refs =  [os.path.join(inDir, 'ref.lasv.{}.fasta'.format(strain))
+                     for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')] + \
+                    [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
+                      for strain in ('lbr', 'sle', 'gin')]
+
+            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+
+            with open(out_clusters_filtered, 'r') as inf:
+                clusters = inf.readlines()
+            self.assertEqual(len(clusters), 1)
+            clusters = set([os.path.basename(f) for f in clusters.strip().split('\t')])
+            expected_clusters = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('pinneo', 'KGH_G502')])
+            self.assertEqual(clusters, expected_clusters)
+
 
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
