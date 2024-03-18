@@ -316,7 +316,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
             contigs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
                                                                  'expected.ebov.doublehit.fasta',
                                                                  'expected.refsel.ebov.stats.tsv')
-            refs = self.inputs('ref.ebov.gin.fasta','ref.ebov.sle.fasta','ref.ebov.lbr.fasta')
+            refs = self.inputs('ref.ebov.lbr.fasta','ref.ebov.sle.fasta','ref.ebov.gin.fasta')
             assembly.order_and_orient(contigs, refs, outFasta, outStats=outStats)
             self.assertEqualFastaSeqs(outFasta, expected)
             self.assertEqualContents(outStats, expectedStats)
