@@ -17,6 +17,7 @@ import argparse
 import itertools
 import pytest
 import assemble.mummer
+import assemble.skani
 import tools.minimap2
 import tools.novoalign
 import tools.picard

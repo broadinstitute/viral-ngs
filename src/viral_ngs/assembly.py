@@ -41,6 +41,7 @@ import assemble.mafft
 import assemble.mummer
 import assemble.muscle
 import assemble.gap2seq
+import assemble.skani
 
 # third-party
 import numpy
@@ -381,7 +382,7 @@ __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 def cluster_references_ani(inRefs, outClusters, threads=None):
     ''' This step uses the skani triangle tool to define clusters of highly-related genomes.
     '''
-    skani = tools.skani.SkaniTool()
+    skani = assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, threads=threads)
     with open(outClusters, 'w') as outf:
         for cluster in clusters:
@@ -399,7 +400,7 @@ __commands__.append(('cluster_references_ani', parser_cluster_references_ani))
 
 def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=None):
 
-    skani = tools.skani.SkaniTool()
+    skani = assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, threads=threads)
     skani.find_closest_references(inContigs, inRefs, out_skani_dist, threads=threads)
     refs_hit = set()
