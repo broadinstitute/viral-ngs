@@ -75,7 +75,7 @@ class SkaniTool(tools.Tool):
         tool_cmd.extend(["-t", "{}".format(util.misc.sanitize_thread_count(threads))])
 
         # run the command
-        _log.debug(' '.join(tool_cmd) + ' > ' + outfile)
+        _log.debug(' '.join(map(str, tool_cmd)) + ' > ' + outfile)
         with open(outfile, 'w') as outf:
             util.misc.run_and_save(tool_cmd, outf=outf)
 
