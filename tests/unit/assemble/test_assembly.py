@@ -247,6 +247,37 @@ class TestAmbiguityBases(unittest.TestCase):
                 self.assertEqual(out, out.upper())
 
 
+class TestUndirectedGraph(unittest.TestCase):
+    def test_simple(self):
+        g = assembly.UndirectedGraph()
+        g.add_edge('a', 'b')
+        g.add_edge('a', 'c')
+        g.add_edge('b', 'd')
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{'a', 'b', 'c', 'd'}])
+
+    def test_disconnected(self):
+        g = assembly.UndirectedGraph()
+        g.add_edge('a', 'b')
+        g.add_edge('c', 'd')
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{'a', 'b'}, {'c', 'd'}])
+
+    def test_both(self):
+        g = assembly.UndirectedGraph()
+        g.add_edge(1, 2)
+        g.add_edge(11,12)
+        g.add_edge(18,15)
+        g.add_node(12)
+        g.add_node(22)
+        g.add_node(55)
+        g.add_edge(25,22)
+        g.add_edge(7,2)
+        g.add_edge(12,18)
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{1, 2, 7}, {11, 12, 15, 18}, {22, 25}, {55}])
+
+
 class TestOrderAndOrient(TestCaseWithTmp):
     ''' Test the MUMmer-based order_and_orient command '''
 
