@@ -410,6 +410,7 @@ def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filt
     with open(out_skani_dist, 'r') as inf:
         with open(out_skani_dist_filtered, 'w') as outf:
             writer = csv.DictWriter(outf, dist_header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+            writer.writeheader()
             for row in csv.DictReader(inf, delimiter='\t'):
                 refs_hit.add(row['Ref_file'])
                 if row['Ref_file'] not in refs_hit_by_cluster:
