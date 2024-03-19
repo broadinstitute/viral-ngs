@@ -644,6 +644,27 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'KGH_G502')])
             self.assertEqual(actual_cluster, expected_cluster)
 
+    def test_skani_no_big_contigs(self):
+        '''
+            Test that skani_dist tolerates empty (or practically empty) input query fasta
+        '''
+
+        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
+        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+            as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
+            contigs = os.path.join(inDir, 'contigs.lasv.one_small.fasta')
+            refs =  [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
+                      for strain in ('lbr', 'sle', 'gin')]
+
+            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+
+            with open(out_clusters_filtered, 'r') as inf:
+                clusters = inf.readlines()
+            self.assertEqual(len(clusters), 0)
+            with open(out_skani_dist, 'r') as inf:
+                lines = inf.readlines()
+            self.assertEqual(len(lines), 1)
+
 
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
