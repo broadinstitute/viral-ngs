@@ -402,7 +402,7 @@ def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filt
 
     skani = assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, threads=threads)
-    skani.find_closest_references(inContigs, inRefs, out_skani_dist, threads=threads)
+    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, threads=threads)
     refs_hit = set()
     refs_hit_by_cluster = set()
 
