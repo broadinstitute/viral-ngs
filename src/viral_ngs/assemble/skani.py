@@ -79,11 +79,10 @@ class SkaniTool(tools.Tool):
         with open(outfile, 'w') as outf:
             util.misc.run_and_save(tool_cmd, outf=outf)
 
-    def triangle(self, ref_fastas, outfile_ani, outfile_af, other_args = (), threads=None):
+    def triangle(self, ref_fastas, outfile_ani, other_args = (), threads=None):
         ''' skani triangle computes an all-to-all ANI distance matrix for a set of sequences
         '''
         self.execute('triangle', list(ref_fastas) + list(other_args), outfile_ani, threads=threads)
-        shutil.copyfile('skani_matrix.af', outfile_af)
 
     def dist(self, query_fasta, ref_fastas, outfile, other_args = (), threads=None):
         ''' skani dist computes ANI distance between a specified query set of
@@ -101,10 +100,9 @@ class SkaniTool(tools.Tool):
         for ref_fasta in ref_fastas:
             g.add_node(ref_fasta)
 
-        with util.file.tempfnames(('.skani_matrix.ani', '.skani_matrix.af')) \
-            as (tmp_matrix_ani, tmp_matrix_af):
+        with util.file.tempfnames(('.skani_matrix.ani'),) as (tmp_matrix_ani,):
             # run skani triangle
-            self.triangle(ref_fastas, 'skani_matrix.ani', 'skani_matrix.af', other_args, threads=threads)
+            self.triangle(ref_fastas, tmp_matrix_ani, other_args, threads=threads)
 
             # parse the skani triangle results and define clusters
             with open(tmp_matrix_ani, 'r') as inf:

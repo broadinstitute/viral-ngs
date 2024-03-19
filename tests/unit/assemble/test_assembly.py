@@ -249,7 +249,7 @@ class TestAmbiguityBases(unittest.TestCase):
 
 class TestUndirectedGraph(unittest.TestCase):
     def test_simple(self):
-        g = assembly.skani.UndirectedGraph()
+        g = assemble.skani.UndirectedGraph()
         g.add_edge('a', 'b')
         g.add_edge('a', 'c')
         g.add_edge('b', 'd')
@@ -257,14 +257,14 @@ class TestUndirectedGraph(unittest.TestCase):
         self.assertEqual(actual, [{'a', 'b', 'c', 'd'}])
 
     def test_disconnected(self):
-        g = assembly.skani.UndirectedGraph()
+        g = assemble.skani.UndirectedGraph()
         g.add_edge('a', 'b')
         g.add_edge('c', 'd')
         actual = list(sorted(g.get_clusters()))
         self.assertEqual(actual, [{'a', 'b'}, {'c', 'd'}])
 
     def test_both(self):
-        g = assembly.skani.UndirectedGraph()
+        g = assemble.skani.UndirectedGraph()
         g.add_edge(1, 2)
         g.add_edge(11,12)
         g.add_edge(18,15)
