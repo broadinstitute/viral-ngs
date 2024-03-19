@@ -618,6 +618,14 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
     ''' Test Skani-based reference selection '''
 
     def test_skani_contigs_to_refs(self):
+        '''
+            Test the skani_contigs_to_refs function.
+            Test inputs include LASV MAGs/contigs against various EBOV and LASV references.
+            The only references that should hit are the LASV Josiah and KGH_G502 references.
+            Additionally, skani should identify them as being from the same cluster.
+            No EBOV references should be selected.
+        '''
+
         inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
         with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
@@ -633,7 +641,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
                 clusters = inf.readlines()
             self.assertEqual(len(clusters), 1)
             actual_cluster = set([os.path.basename(f) for f in clusters[0].strip().split('\t')])
-            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('pinneo', 'KGH_G502')])
+            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'KGH_G502')])
             self.assertEqual(actual_cluster, expected_cluster)
 
 
