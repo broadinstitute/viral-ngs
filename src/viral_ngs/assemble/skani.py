@@ -14,6 +14,7 @@ import os
 import os.path
 import shutil
 import subprocess
+import Bio.SeqIO
 
 TOOL_NAME = "skani"
 
@@ -65,6 +66,16 @@ class SkaniTool(tools.Tool):
     def _get_tool_version(self):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '--version']).decode('UTF-8').strip().split()[1]
 
+    def _is_fasta_basically_empty(self, inFasta, min_length=500):
+        ''' Check if a fasta file contains no sequences longer than min_length.
+            If the fasta contains only sequences < min_length, return True
+        '''
+        with open(inFasta, 'r') as inf:
+            for seq in Bio.SeqIO.parse(inf, 'fasta'):
+                if len(seq.seq.replace("-","").replace("N","")) >= min_length:
+                    return False
+        return True
+
     def execute(self, subcommand, args, outfile, threads=None):
         ''' generic execution of skani
         '''
@@ -88,7 +99,12 @@ class SkaniTool(tools.Tool):
         ''' skani dist computes ANI distance between a specified query set of
             sequences (MAGs) and reference genomes (database)
         '''
-        self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
+        if self._is_fasta_basically_empty(query_fasta):
+            _log.warning("Query fasta file is empty or contains only very short sequences. Skipping skani dist (which will fail in this scenario).")
+            with open(outfile, 'w') as outf:
+                outf.write('\t'.join(['Ref_file','Query_file','ANI','Align_fraction_ref','Align_fraction_query','Ref_name','Query_name','Num_ref_contigs','Num_query_contigs','ANI_5_percentile','ANI_95_percentile','Standard_deviation','Ref_90_ctg_len','Ref_50_ctg_len','Ref_10_ctg_len','Query_90_ctg_len','Query_50_ctg_len','Query_10_ctg_len','Avg_chain_len','Total_bases_covered']) + '\n')
+        else:
+            self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
 
     def find_reference_clusters(self, ref_fastas,
                                 other_args = ('-m', 50, '--no-learned-ani', '--slow', '--robust', '--detailed', '--ci', '--sparse'),
