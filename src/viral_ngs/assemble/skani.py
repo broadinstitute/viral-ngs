@@ -100,7 +100,7 @@ class SkaniTool(tools.Tool):
         for ref_fasta in ref_fastas:
             g.add_node(ref_fasta)
 
-        with util.file.tempfnames(('.skani_matrix.ani'),) as (tmp_matrix_ani,):
+        with util.file.tempfname('.skani_matrix.ani') as tmp_matrix_ani:
             # run skani triangle
             self.triangle(ref_fastas, tmp_matrix_ani, other_args, threads=threads)
 
