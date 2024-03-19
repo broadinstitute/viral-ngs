@@ -17,6 +17,7 @@ import argparse
 import itertools
 import pytest
 import assemble.mummer
+import assemble.skani
 import tools.minimap2
 import tools.novoalign
 import tools.picard
@@ -246,6 +247,37 @@ class TestAmbiguityBases(unittest.TestCase):
                 self.assertEqual(out, out.upper())
 
 
+class TestUndirectedGraph(unittest.TestCase):
+    def test_simple(self):
+        g = assemble.skani.UndirectedGraph()
+        g.add_edge('a', 'b')
+        g.add_edge('a', 'c')
+        g.add_edge('b', 'd')
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{'a', 'b', 'c', 'd'}])
+
+    def test_disconnected(self):
+        g = assemble.skani.UndirectedGraph()
+        g.add_edge('a', 'b')
+        g.add_edge('c', 'd')
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{'a', 'b'}, {'c', 'd'}])
+
+    def test_both(self):
+        g = assemble.skani.UndirectedGraph()
+        g.add_edge(1, 2)
+        g.add_edge(11,12)
+        g.add_edge(18,15)
+        g.add_node(12)
+        g.add_node(22)
+        g.add_node(55)
+        g.add_edge(25,22)
+        g.add_edge(7,2)
+        g.add_edge(12,18)
+        actual = list(sorted(g.get_clusters()))
+        self.assertEqual(actual, [{1, 2, 7}, {11, 12, 15, 18}, {22, 25}, {55}])
+
+
 class TestOrderAndOrient(TestCaseWithTmp):
     ''' Test the MUMmer-based order_and_orient command '''
 
@@ -313,11 +345,11 @@ class TestOrderAndOrient(TestCaseWithTmp):
     def test_ebov_palindrome_refsel(self):
         # this tests a scenario where show-aligns has more alignments than show-tiling
         with util.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
-            contigs, refs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
-                                                                 'refs.ebov.fasta',
+            contigs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
                                                                  'expected.ebov.doublehit.fasta',
                                                                  'expected.refsel.ebov.stats.tsv')
-            assembly.order_and_orient(contigs, refs, outFasta, n_genome_segments=1, outStats=outStats)
+            refs = self.inputs('ref.ebov.lbr.fasta','ref.ebov.sle.fasta','ref.ebov.gin.fasta')
+            assembly.order_and_orient(contigs, refs, outFasta, outStats=outStats)
             self.assertEqualFastaSeqs(outFasta, expected)
             self.assertEqualContents(outStats, expectedStats)
 
@@ -581,6 +613,36 @@ class TestImputeFromReference(TestCaseWithTmp):
             newName='test_sub-EBOV.genome',
             aligner='mummer')
         self.assertEqualContents(outFasta, empty_fasta)
+
+class TestSkaniReferenceSelection(TestCaseWithTmp):
+    ''' Test Skani-based reference selection '''
+
+    def test_skani_contigs_to_refs(self):
+        '''
+            Test the skani_contigs_to_refs function.
+            Test inputs include LASV MAGs/contigs against various EBOV and LASV references.
+            The only references that should hit are the LASV Josiah and KGH_G502 references.
+            Additionally, skani should identify them as being from the same cluster.
+            No EBOV references should be selected.
+        '''
+
+        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
+        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+            as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
+            contigs = os.path.join(inDir, 'contigs.lasv.fasta')
+            refs =  [os.path.join(inDir, 'ref.lasv.{}.fasta'.format(strain))
+                     for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')] + \
+                    [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
+                      for strain in ('lbr', 'sle', 'gin')]
+
+            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+
+            with open(out_clusters_filtered, 'r') as inf:
+                clusters = inf.readlines()
+            self.assertEqual(len(clusters), 1)
+            actual_cluster = set([os.path.basename(f) for f in clusters[0].strip().split('\t')])
+            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'KGH_G502')])
+            self.assertEqual(actual_cluster, expected_cluster)
 
 
 class TestMutableSequence(unittest.TestCase):

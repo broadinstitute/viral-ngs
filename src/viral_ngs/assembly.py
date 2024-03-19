@@ -41,6 +41,7 @@ import assemble.mafft
 import assemble.mummer
 import assemble.muscle
 import assemble.gap2seq
+import assemble.skani
 
 # third-party
 import numpy
@@ -375,8 +376,67 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
     util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
     return parser
 
-
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
+
+
+def cluster_references_ani(inRefs, outClusters, threads=None):
+    ''' This step uses the skani triangle tool to define clusters of highly-related genomes.
+    '''
+    skani = assemble.skani.SkaniTool()
+    clusters = skani.find_reference_clusters(inRefs, threads=threads)
+    with open(outClusters, 'w') as outf:
+        for cluster in clusters:
+            outf.write('\t'.join(cluster) + '\n')
+
+def parser_cluster_references_ani(parser=argparse.ArgumentParser(description='Cluster references')):
+    parser.add_argument('inRefs', nargs='+', help='FASTA files containing reference genomes')
+    parser.add_argument('outClusters', help='Output file containing clusters of highly-related genomes. Each line contains the filenames of the genomes in one cluster.')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, cluster_references_ani, split_args=True)
+    return parser
+
+__commands__.append(('cluster_references_ani', parser_cluster_references_ani))
+
+
+def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=None):
+
+    skani = assemble.skani.SkaniTool()
+    clusters = skani.find_reference_clusters(inRefs, threads=threads)
+    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, threads=threads)
+    refs_hit = set()
+    refs_hit_by_cluster = set()
+
+    dist_header = util.file.readFlatFileHeader(out_skani_dist)
+    with open(out_skani_dist, 'r') as inf:
+        with open(out_skani_dist_filtered, 'w') as outf:
+            writer = csv.DictWriter(outf, dist_header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+            for row in csv.DictReader(inf, delimiter='\t'):
+                refs_hit.add(row['Ref_file'])
+                if row['Ref_file'] not in refs_hit_by_cluster:
+                    writer.writerow(row)
+                    for cluster in clusters:
+                        if row['Ref_file'] in cluster:
+                            refs_hit_by_cluster.update(cluster)
+                            break
+
+    with open(out_clusters_filtered, 'w') as outf:
+        for cluster in clusters:
+            hits = list([ref for ref in cluster if ref in refs_hit])
+            if hits:
+                outf.write('\t'.join(hits) + '\n')
+
+def parser_skani_contigs_to_refs(parser=argparse.ArgumentParser(description='Find closest references for contigs')):
+    parser.add_argument('inContigs', help='FASTA file containing contigs')
+    parser.add_argument('inRefs', nargs='+', help='FASTA files containing reference genomes')
+    parser.add_argument('out_skani_dist', help='Output file containing ANI distances between contigs and references')
+    parser.add_argument('out_skani_dist_filtered', help='Output file containing ANI distances between contigs and references, with only the top reference hit per cluster')
+    parser.add_argument('out_clusters_filtered', help='Output file containing clusters of highly-related genomes, with only clusters that have a hit to the contigs')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)
+    return parser
+
+__commands__.append(('skani_contigs_to_refs', parser_skani_contigs_to_refs))        
+
 
 
 def _order_and_orient_orig(inFasta, inReference, outFasta,
