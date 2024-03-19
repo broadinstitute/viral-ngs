@@ -632,9 +632,9 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             with open(out_clusters_filtered, 'r') as inf:
                 clusters = inf.readlines()
             self.assertEqual(len(clusters), 1)
-            clusters = set([os.path.basename(f) for f in clusters.strip().split('\t')])
-            expected_clusters = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('pinneo', 'KGH_G502')])
-            self.assertEqual(clusters, expected_clusters)
+            actual_cluster = set([os.path.basename(f) for f in clusters[0].strip().split('\t')])
+            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('pinneo', 'KGH_G502')])
+            self.assertEqual(actual_cluster, expected_cluster)
 
 
 class TestMutableSequence(unittest.TestCase):
