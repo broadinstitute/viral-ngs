@@ -107,7 +107,8 @@ class SkaniTool(tools.Tool):
             self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
 
     def find_reference_clusters(self, ref_fastas,
-                                other_args = ('-m', 50, '--no-learned-ani', '--slow', '--robust', '--detailed', '--ci', '--sparse'),
+                                m=50, s=50, c=20, min_af=15,
+                                other_args = ('--no-learned-ani', '--robust', '--detailed', '--ci', '--sparse'),
                                 threads=None):
         ''' use skani triangle to define clusters of highly-related genomes
             (default settings here are for viral genomes)
@@ -118,7 +119,8 @@ class SkaniTool(tools.Tool):
 
         with util.file.tempfname('.skani_matrix.ani') as tmp_matrix_ani:
             # run skani triangle
-            self.triangle(ref_fastas, tmp_matrix_ani, other_args, threads=threads)
+            self.triangle(ref_fastas, tmp_matrix_ani,
+                          ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
 
             # parse the skani triangle results and define clusters
             with open(tmp_matrix_ani, 'r') as inf:
@@ -128,12 +130,14 @@ class SkaniTool(tools.Tool):
         return g.get_clusters()
 
     def find_closest_reference(self, contigs_fasta, ref_fastas, out_file,
-                                other_args = ('-m', 50, '--no-learned-ani', '--slow', '--robust', '--detailed', '--ci', '-s', 85, '-n', 10, '--no-marker-index'),
+                                m=50, s=50, c=20, min_af=15,
+                                other_args = ('--no-learned-ani', '--robust', '--detailed', '--ci', '-n', 10, '--no-marker-index'),
                                 threads=None):
         ''' use skani dist to find the closest reference genome for each contig
             (default settings here are for viral genomes)
         '''
-        self.dist(contigs_fasta, ref_fastas, out_file, other_args, threads=threads)
+        self.dist(contigs_fasta, ref_fastas, out_file,
+                  ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
         with open(out_file, 'r') as inf:
             top_row = None
             for row in csv.DictReader(inf, delimiter='\t'):
