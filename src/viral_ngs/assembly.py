@@ -379,11 +379,11 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 
 
-def cluster_references_ani(inRefs, outClusters, threads=None):
+def cluster_references_ani(inRefs, outClusters, m=50, s=50, c=20, min_af=15, threads=None):
     ''' This step uses the skani triangle tool to define clusters of highly-related genomes.
     '''
     skani = assemble.skani.SkaniTool()
-    clusters = skani.find_reference_clusters(inRefs, threads=threads)
+    clusters = skani.find_reference_clusters(inRefs, m=m, s=s, c=c, min_af=min_af, threads=threads)
     with open(outClusters, 'w') as outf:
         for cluster in clusters:
             outf.write('\t'.join(cluster) + '\n')
@@ -391,6 +391,10 @@ def cluster_references_ani(inRefs, outClusters, threads=None):
 def parser_cluster_references_ani(parser=argparse.ArgumentParser(description='Cluster references')):
     parser.add_argument('inRefs', nargs='+', help='FASTA files containing reference genomes')
     parser.add_argument('outClusters', help='Output file containing clusters of highly-related genomes. Each line contains the filenames of the genomes in one cluster.')
+    parser.add_argument('-m', type=int, default=50, help='marker k-mer compression factor (default: %(default)s)')
+    parser.add_argument('-s', type=int, default=50, help='screen out pairs with < percent identity using k-mer sketching (default: %(default)s)')
+    parser.add_argument('-c', type=int, default=20, help='compression factor (k-mer subsampling ratio) (default: %(default)s)')
+    parser.add_argument('--min_af', dest='min_af', type=int, default=15, help='minimum alignment fraction (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, cluster_references_ani, split_args=True)
     return parser
@@ -398,11 +402,11 @@ def parser_cluster_references_ani(parser=argparse.ArgumentParser(description='Cl
 __commands__.append(('cluster_references_ani', parser_cluster_references_ani))
 
 
-def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=None):
+def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, m=50, s=50, c=20, min_af=15, threads=None):
 
     skani = assemble.skani.SkaniTool()
-    clusters = skani.find_reference_clusters(inRefs, threads=threads)
-    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, threads=threads)
+    clusters = skani.find_reference_clusters(inRefs, m=m, s=s, c=c, min_af=min_af, threads=threads)
+    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, m=m, s=s, c=c, min_af=min_af, threads=threads)
     refs_hit = set()
     refs_hit_by_cluster = set()
 
@@ -432,6 +436,10 @@ def parser_skani_contigs_to_refs(parser=argparse.ArgumentParser(description='Fin
     parser.add_argument('out_skani_dist', help='Output file containing ANI distances between contigs and references')
     parser.add_argument('out_skani_dist_filtered', help='Output file containing ANI distances between contigs and references, with only the top reference hit per cluster')
     parser.add_argument('out_clusters_filtered', help='Output file containing clusters of highly-related genomes, with only clusters that have a hit to the contigs')
+    parser.add_argument('-m', type=int, default=50, help='marker k-mer compression factor (default: %(default)s)')
+    parser.add_argument('-s', type=int, default=50, help='screen out pairs with < percent identity using k-mer sketching (default: %(default)s)')
+    parser.add_argument('-c', type=int, default=20, help='compression factor (k-mer subsampling ratio) (default: %(default)s)')
+    parser.add_argument('--min_af', dest='min_af', type=int, default=15, help='minimum alignment fraction (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)
     return parser
