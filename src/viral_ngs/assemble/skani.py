@@ -76,6 +76,12 @@ class SkaniTool(tools.Tool):
                     return False
         return True
 
+    def _sort_skani_table_by_product(self, in_tsv, out_tsv):
+        ''' Sort the skani output tsv by the product of ANI and Total_bases_covered
+        '''
+        
+        pass
+
     def execute(self, subcommand, args, outfile, threads=None):
         ''' generic execution of skani
         '''
