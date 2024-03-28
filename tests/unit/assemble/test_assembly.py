@@ -9,6 +9,7 @@ import Bio.SeqIO
 import Bio.Data.IUPACData
 import unittest
 import argparse
+import csv
 import glob
 import os
 import os.path
