@@ -705,7 +705,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
                 clusters = inf.readlines()
             self.assertEqual(len(clusters), 1)
             with open(out_skani_dist, 'r') as inf:
-                hits = list(row['Ref_name'].split()[0] for row in csv.DictReader(inf, delimiter='\t'))
+                hits = list(row['Ref_name'].split()[0].split('_')[1] for row in csv.DictReader(inf, delimiter='\t'))
             self.assertEqual(len(hits), 10)
             expected = ['L24917.1','DQ473501.1','DQ473496.1','FJ445140.1','FJ445177.1','FJ445116.1','DQ473499.1','DQ473507.1','DQ473498.1','GQ223229.1']
             self.assertEqual(hits, expected)
