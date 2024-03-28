@@ -641,7 +641,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
                 clusters = inf.readlines()
             self.assertEqual(len(clusters), 1)
             actual_cluster = set([os.path.basename(f) for f in clusters[0].strip().split('\t')])
-            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'KGH_G502')])
+            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19')])
             self.assertEqual(actual_cluster, expected_cluster)
 
     def test_skani_no_big_contigs(self):
