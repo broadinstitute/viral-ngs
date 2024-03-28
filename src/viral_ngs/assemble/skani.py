@@ -79,8 +79,14 @@ class SkaniTool(tools.Tool):
     def _sort_skani_table_by_product(self, in_tsv, out_tsv):
         ''' Sort the skani output tsv by the product of ANI and Total_bases_covered
         '''
-        
-        pass
+        with open(in_tsv, 'r') as inf:
+            reader = csv.DictReader(inf, delimiter='\t')
+            sorted_rows = sorted(reader, key=lambda row: float(row['ANI']) * float(row['Total_bases_covered']), reverse=True)
+
+        with open(out_tsv, 'w') as outf:
+            writer = csv.DictWriter(outf, fieldnames=reader.fieldnames, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+            writer.writeheader()
+            writer.writerows(sorted_rows)
 
     def execute(self, subcommand, args, outfile, threads=None):
         ''' generic execution of skani
@@ -113,7 +119,7 @@ class SkaniTool(tools.Tool):
             self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
 
     def find_reference_clusters(self, ref_fastas,
-                                m=50, s=50, c=20, min_af=15,
+                                m=15, s=50, c=10, min_af=15,
                                 other_args = ('--no-learned-ani', '--robust', '--detailed', '--ci', '--sparse'),
                                 threads=None):
         ''' use skani triangle to define clusters of highly-related genomes
@@ -142,8 +148,12 @@ class SkaniTool(tools.Tool):
         ''' use skani dist to find the closest reference genome for each contig
             (default settings here are for viral genomes)
         '''
-        self.dist(contigs_fasta, ref_fastas, out_file,
-                  ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
+
+        with util.file.tempfname('.skani_dist.tsv') as tmp_tsv:
+            self.dist(contigs_fasta, ref_fastas, tmp_tsv,
+                    ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
+            self._sort_skani_table_by_product(tmp_tsv, out_file)
+
         with open(out_file, 'r') as inf:
             top_row = None
             for row in csv.DictReader(inf, delimiter='\t'):
