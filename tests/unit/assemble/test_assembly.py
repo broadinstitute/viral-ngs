@@ -9,6 +9,7 @@ import Bio.SeqIO
 import Bio.Data.IUPACData
 import unittest
 import argparse
+import glob
 import os
 import os.path
 import shutil
@@ -695,7 +696,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
         with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
             contigs = os.path.join(inDir, 'USA-MA-Broad_BWH-19947-2023.l000013249603_C5.HTKJ7DRX3.1.acellular.dedup.assembly1-spades.fasta')
-            refs =  os.path.glob(os.path.join(inDir, 'RVA*.fa'))
+            refs =  glob.glob(os.path.join(inDir, 'RVA*.fa'))
 
             assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
 
