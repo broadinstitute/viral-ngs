@@ -9,6 +9,8 @@ import Bio.SeqIO
 import Bio.Data.IUPACData
 import unittest
 import argparse
+import csv
+import glob
 import os
 import os.path
 import shutil
@@ -641,7 +643,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
                 clusters = inf.readlines()
             self.assertEqual(len(clusters), 1)
             actual_cluster = set([os.path.basename(f) for f in clusters[0].strip().split('\t')])
-            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'KGH_G502')])
+            expected_cluster = set(['ref.lasv.{}.fasta'.format(strain) for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19')])
             self.assertEqual(actual_cluster, expected_cluster)
 
     def test_skani_no_big_contigs(self):
@@ -685,6 +687,28 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             with open(out_skani_dist, 'r') as inf:
                 lines = inf.readlines()
             self.assertEqual(len(lines), 1)
+
+    def test_output_sorted_by_product(self):
+        '''
+            Test that skani.find_closest_reference output tsv is sorted by the product
+            of ANI * Total_bases_covered (and not just the default ANI-based sort order)
+        '''
+        inDir = util.file.get_test_input_path(self)
+        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+            as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
+            contigs = os.path.join(inDir, 'USA-MA-Broad_BWH-19947-2023.l000013249603_C5.HTKJ7DRX3.1.acellular.dedup.assembly1-spades.fasta')
+            refs =  glob.glob(os.path.join(inDir, 'RVA*.fa'))
+
+            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+
+            with open(out_clusters_filtered, 'r') as inf:
+                clusters = inf.readlines()
+            self.assertEqual(len(clusters), 1)
+            with open(out_skani_dist, 'r') as inf:
+                hits = list(row['Ref_name'].split()[0].split('_')[1] for row in csv.DictReader(inf, delimiter='\t'))
+            self.assertEqual(len(hits), 10)
+            expected = ['FJ445177.1','L24917.1','FJ445116.1','DQ473501.1','DQ473496.1','DQ473507.1','DQ473499.1','FJ445140.1','DQ473498.1','GQ223229.1']
+            self.assertEqual(hits, expected)
 
 
 class TestMutableSequence(unittest.TestCase):
