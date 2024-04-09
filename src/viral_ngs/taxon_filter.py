@@ -543,7 +543,7 @@ def chunk_blast_hits(inFasta, db, blast_hits_output, threads=None, chunkSize=100
     else:
         #Pipe tools together and run blastn multithreaded
         with open(blast_hits_output, 'wt') as outf:
-            for output in classify.blast.BlastnTool().get_hits_fasta(inFasta, db, threads,task=None, outfmt='6', max_target_seqs=1, output_type=output_type):
+            for output in classify.blast.BlastnTool().get_hits_fasta(inFasta, db, threads, task=task, outfmt=outfmt, max_target_seqs=max_target_seqs, output_type=output_type):
                 #Account for read_ids extract only or full blast output run. Default = read_lines.
                 if output_type == 'read_id':
                     # Extract the first clmn in the output (assuming its the read ID)

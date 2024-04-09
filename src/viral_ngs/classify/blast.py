@@ -78,14 +78,14 @@ class BlastnTool(BlastTools):
         # If read_id is defined, strip tab output to just query read ID names and emit (default)
         last_read_id = None
         for line in output.decode('UTF-8').splitlines():
-            line = line.strip()
-
             if output_type == 'read_id':
+                #Split line by tab, and take the first element
                 read_id = line.split('\t')[0]
                 # Only emit if it is not a duplicate of the previous read ID
                 if read_id != last_read_id:
                     last_read_id = read_id
                     yield read_id
+                #Yield the full line without stripping whitespace
             elif output_type == 'full_line':
                 yield line
 
@@ -107,10 +107,9 @@ class BlastnTool(BlastTools):
             threads=threads)
 
     def get_hits_fasta(self, inFasta, db, threads=None, task=None, outfmt='6', max_target_seqs=1, output_type='read_id'):
-        _log.debug("Executing get_hits_fasta function.")
-        _log.debug(f"get_hits_fasta called with outfmt: {outfmt}")
+        _log.debug(f"Executing get_hits_fasta function. Called with outfmt: {outfmt}")
         with open(inFasta, 'rt') as inf:
-            for hit in self.get_hits_pipe(inf, db, threads=threads, task=None, outfmt=outfmt, max_target_seqs=1, output_type=output_type):
+            for hit in self.get_hits_pipe(inf, db, threads=threads, task=None, outfmt=outfmt, max_target_seqs=max_target_seqs, output_type=output_type):
                 yield hit
 
 
