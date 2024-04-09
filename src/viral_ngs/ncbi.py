@@ -305,8 +305,8 @@ def tbl_transfer_prealigned(inputFasta, refFasta, refAnnotTblFiles, outputDir, o
             # since alt_chrlens is only used in the case where features would 
             # extend beyond the genome (for reporting >{seq.len})
             alt_chrlens = {}#fasta_chrlens(combined_fasta_filename)
-            alt_chrlens[seq.id] = len(seq.seq.ungap("-"))
-            alt_chrlens[matchingRefSeq.id] = len(matchingRefSeq.seq.ungap("-"))
+            alt_chrlens[seq.id] = len(seq.seq.replace("-",""))
+            alt_chrlens[matchingRefSeq.id] = len(matchingRefSeq.seq.replace("-",""))
 
             tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip, ignore_ambig_feature_edge)
 

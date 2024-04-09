@@ -131,8 +131,9 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
 
         bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         samtoolsTool.removeDoublyMappedReads(leading_or_trailing_indels_removed, bam_to_process)
-        samtoolsTool.index(bam_to_process)
         os.unlink(leading_or_trailing_indels_removed)
+
+    samtoolsTool.index(bam_to_process)
 
     # For low-quality data, the process of removing doubly-mapped reads
     # can remove all reads. In such cases, stub out an empty vphaser output
@@ -304,8 +305,21 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta, samtools=None):
     """
     samtools = samtools or tools.samtools.SamtoolsTool()
     pileupFileName = util.file.mkstempfname('.txt')
+
+    # bcftools params
+    # https://samtools.github.io/bcftools/bcftools.html#mpileup
+    # -A, --count-orphans Do not skip anomalous read pairs in variant calling.
+    # -r, --regions Only generate mpileup output in given regions. Requires the alignment files to be indexed. 
+    # -B, --no-BAQ Disable probabilistic realignment for the computation of base alignment quality (BAQ).
+    # -d, --max-depth At a position, read maximally INT reads per input file. 
+    # -L, --max-idepth Skip INDEL calling if the average per-sample depth is above INT 
+    # -Q, --min-BQ Minimum base quality for a base to be considered
+    # -f, --fasta-ref The faidx-indexed reference file in the FASTA format. The file can be optionally compressed by bgzip.
+    # bcftools.mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
+    #                                               '-L', '50000', '-Q', '0', '-O', 'v', '-f', inConsFasta])
+
     samtools.mpileup(inBam, pileupFileName, ['-A', '-r', '%s:%d-%d' % (chrom, pos, pos), '-B', '-d', '50000',
-                                                   '-L', '50000', '-Q', '0', '-f', inConsFasta])
+                                                '-Q', '0', '-f', inConsFasta])
     with open(pileupFileName) as pileupFile:
         words = pileupFile.readline().split('\t')
     if len(words) < 5:
@@ -573,7 +587,7 @@ def merge_to_vcf(
                         for seq in Bio.SeqIO.parse(inf2, 'fasta'):
                             if refSeq.id == seq.id:
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
-                                ref_seq_in_alignment_file[seq.id] = seq.seq.ungap('-')
+                                ref_seq_in_alignment_file[seq.id] = seq.seq.replace("-","")
 
         if len(ref_seq_id_to_alignment_file) < len(ref_chrlens):
             raise LookupError("Not all reference sequences found in alignments.")
@@ -626,7 +640,7 @@ def merge_to_vcf(
                     for seq in Bio.SeqIO.parse(alignFileIn, 'fasta'):
                         for sampleName in samplesToUse:
                             if seq.id == sampleName:
-                                samp_to_seqIndex[sampleName] = seq.seq.ungap('-')
+                                samp_to_seqIndex[sampleName] = seq.seq.replace("-","")
                                 break
 
                 if not len(samp_to_seqIndex) == len(samplesToUse):
@@ -738,7 +752,7 @@ def merge_to_vcf(
                                      "for %s at %s:%s-%s.", s, ref_sequence.id, pos, end)
                             continue
 
-                        cons = samp_to_seqIndex[s]  # .seq.ungap('-')#[ cm.mapChr(ref_sequence.id, s) ]
+                        cons = samp_to_seqIndex[s]  # .seq.replace("-","")#[ cm.mapChr(ref_sequence.id, s) ]
 
                         allele = str(cons[cons_start - 1:cons_stop]).upper()
                         if s in samp_offsets:

@@ -202,9 +202,9 @@ class CoordMapper(collections.abc.MutableMapping):
                         self.chrMaps[seq1.id] = mapDict
 
                         # ungapped strings
-                        #longerSeqLen = max( len(seq1.seq.ungap("-")), len(seq2.seq.ungap("-")) )
-                        #seq1UngappedPadded = str(seq1.seq.ungap("-")).ljust(longerSeqLen, "N")
-                        #seq2UngappedPadded = str(seq2.seq.ungap("-")).ljust(longerSeqLen, "N")
+                        #longerSeqLen = max( len(seq1.seq.replace("-","")), len(seq2.seq.replace("-","")) )
+                        #seq1UngappedPadded = str(seq1.seq.replace("-","")).ljust(longerSeqLen, "N")
+                        #seq2UngappedPadded = str(seq2.seq.replace("-","")).ljust(longerSeqLen, "N")
                         #mapper = CoordMapper2Seqs(seq1UngappedPadded, seq2UngappedPadded)
                         #mapDict = self.chrMapsUngapped[seq1.id]
                         #mapDict[seq2.id] = mapper
