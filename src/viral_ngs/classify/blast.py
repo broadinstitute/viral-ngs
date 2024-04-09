@@ -47,9 +47,7 @@ class BlastnTool(BlastTools):
     subtool_name = 'blastn'
 
     def get_hits_pipe(self, inPipe, db, threads=None, task=None, outfmt='6', max_target_seqs=1, output_type="read_id"):
-        _log.debug("Executing get_hits_pipe function.")
-        #Validates output type run during this function
-        _log.debug(f"get_hits_pipe called with outfmt: {outfmt}")
+        _log.debug(f"Executing get_hits_pipe function. Called with outfmt: {outfmt}")
         #toggle between extracting read IDs only or full blast output (all lines)
         if output_type not in ['read_id', 'full_line']:
             _log.warning(f"Invalid output_type '{output_type}' specified. Defaulting to 'read_id'.")
@@ -78,19 +76,19 @@ class BlastnTool(BlastTools):
             raise subprocess.CalledProcessError(blast_pipe.returncode, cmd)
         
         # If read_id is defined, strip tab output to just query read ID names and emit (default)
+        last_read_id = None
+        for line in output.decode('UTF-8').splitlines():
+            line = line.strip()
+
         if output_type == 'read_id':
-            last_read_id = None
-            for line in output.decode('UTF-8').splitlines():
-                line = line.strip()
-                read_id = line.split('\t')[0]
-            #only emit if it is not a duplicate of the previous read ID
-                if read_id != last_read_id:
-                    last_read_id = read_id
-                    yield read_id
-        #Else, writes entire line of BLAST output
+            read_id = line.split('\t')[0]
+            # Only emit if it is not a duplicate of the previous read ID
+            if read_id != last_read_id:
+                last_read_id = read_id
+                yield read_id
         elif output_type == 'full_line':
-            for line in output.decode('UTF-8').splitlines():
-                yield line 
+            yield line
+            
         #Display on CMD if BLAST fails
         if blast_pipe.returncode!= 0:
             _log.error('Error running blastn command: {}'.format(error))
