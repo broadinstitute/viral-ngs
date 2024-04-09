@@ -410,7 +410,7 @@ def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads, task=None, outfm
         by blastn_chunked_fasta
     """
     #Might need to remove this path, not absolute
-    os.environ['BLASTDB']= 'viral-classify/blast'
+    #os.environ['BLASTDB']= 'viral-classify/blast'
     try:
         with util.file.open_or_gzopen(out_hits, 'wt') as outf:
             for line in classify.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads, task=task, outfmt=outfmt, output_type=output_type):
@@ -418,6 +418,7 @@ def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads, task=None, outfm
         log.info("_run_blastn_chunk completed succesfully.")
     except Exception as e:
         log.error("An error occurred in _run_blastn_chunk.:%s", e)
+        raise e
 
 def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None, task=None, outfmt='6', max_target_seqs=1, output_type='read_id'):
     """

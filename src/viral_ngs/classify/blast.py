@@ -80,15 +80,15 @@ class BlastnTool(BlastTools):
         for line in output.decode('UTF-8').splitlines():
             line = line.strip()
 
-        if output_type == 'read_id':
-            read_id = line.split('\t')[0]
-            # Only emit if it is not a duplicate of the previous read ID
-            if read_id != last_read_id:
-                last_read_id = read_id
-                yield read_id
-        elif output_type == 'full_line':
-            yield line
-            
+            if output_type == 'read_id':
+                read_id = line.split('\t')[0]
+                # Only emit if it is not a duplicate of the previous read ID
+                if read_id != last_read_id:
+                    last_read_id = read_id
+                    yield read_id
+            elif output_type == 'full_line':
+                yield line
+
         #Display on CMD if BLAST fails
         if blast_pipe.returncode!= 0:
             _log.error('Error running blastn command: {}'.format(error))
