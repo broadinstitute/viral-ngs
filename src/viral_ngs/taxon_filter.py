@@ -37,7 +37,7 @@ import classify.last
 import classify.bmtagger
 import read_utils
 
-
+'''
 #Adding logging configuration to identify issues/ time spent
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +47,8 @@ logging.basicConfig(
         logging.StreamHandler()  # Keeps the console output if desired
     ]
 )
+'''
+
 log = logging.getLogger(__name__)
 # =======================
 # ***  deplete  ***

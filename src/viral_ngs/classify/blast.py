@@ -10,6 +10,8 @@ import tools.samtools
 import util.misc
 
 TOOL_NAME = "blastn"
+
+'''
 #Creating task.log
 logging.basicConfig(
     level=logging.DEBUG,
@@ -19,6 +21,7 @@ logging.basicConfig(
         logging.StreamHandler() 
     ]
 )
+'''
 _log = logging.getLogger(__name__)
 
 class BlastTools(tools.Tool):
