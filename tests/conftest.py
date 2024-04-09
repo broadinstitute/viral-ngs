@@ -42,6 +42,10 @@ def pytest_configure(config):
     reporter = FixtureReporter(config)
     config.pluginmanager.register(reporter, 'fixturereporter')
 
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
+
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--runslow"):

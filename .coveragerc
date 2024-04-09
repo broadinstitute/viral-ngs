@@ -5,6 +5,7 @@ branch = True
 omit = tools/conda-tools/*
 disable_warnings =
     module-not-imported
+relative_files = True
 
 [report]
 
