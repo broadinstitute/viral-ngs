@@ -919,7 +919,7 @@ def _merge_fastqs_and_mvicuna(lb, files):
 
     return readList
 
-def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
+def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None, threads=None):
     ''' Remove duplicate reads from BAM file using M-Vicuna. The
         primary advantage to this approach over Picard's MarkDuplicates tool
         is that Picard requires that input reads are aligned to a reference,
@@ -943,7 +943,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None):
     # For each library, merge FASTQs and run rmdup for entire library
     readListAll = mkstempfname('.keep_reads_all.txt')
     per_lb_read_lists = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.available_cpu_count()) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=threads or util.misc.available_cpu_count()) as executor:
         futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files) for lb, files in lb_to_files.items()]
         for future in concurrent.futures.as_completed(futures):
             log.info("mvicuna finished processing library")
@@ -972,7 +972,7 @@ def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
         default=tools.picard.FilterSamReadsTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads',None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_mvicuna_bam, split_args=True)
     return parser
 

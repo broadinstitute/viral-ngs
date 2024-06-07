@@ -453,7 +453,7 @@ def parser_common_barcodes(parser=argparse.ArgumentParser()):
     parser.add_argument('--JVMmemory',
                         help='JVM virtual memory size (default: %(default)s)',
                         default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads',None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_common_barcodes)
     return parser
 
@@ -506,7 +506,7 @@ def main_common_barcodes(args):
     except IndexError:
         barcode2_len = 0
 
-    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, barcode1_len, barcode2_len, args.truncateToLength, args.includeNoise, args.omitHeader)
+    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, barcode1_len, barcode2_len, args.truncateToLength, args.includeNoise, args.omitHeader, args.threads)
 
     # clean up
     os.unlink(barcode_file)

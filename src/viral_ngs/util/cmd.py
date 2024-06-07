@@ -17,6 +17,7 @@ import collections
 
 import util.version
 import util.file
+import util.misc
 
 __author__ = "dpark@broadinstitute.org"
 __version__ = util.version.get_version()
@@ -76,15 +77,13 @@ def common_args(parser, arglist=(('tmp_dir', None), ('loglevel', None))):
                     the end, even if there's a failure.""",
                                 default=False)
         elif k == 'threads':
-            if v is None:
-                text_default = "all available cores"
-            else:
-                text_default = v
+            # if v is None, sanitize_thread_count() sets count to all available cores
+            thread_count = util.misc.sanitize_thread_count(v)
             parser.add_argument('--threads',
                                 dest="threads",
                                 type=int,
-                                help="Number of threads (default: {})".format(text_default),
-                                default=v)
+                                help="Number of threads; by default all cores are used",
+                                default=thread_count)
         elif k == 'version':
             if not v:
                 v = __version__
