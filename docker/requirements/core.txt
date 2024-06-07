@@ -6,6 +6,7 @@ csvkit>=1.0.4
 cd-hit=4.6.8
 cd-hit-auxtools=4.6.8
 fastqc>=0.11.7
+fgbio>=2.2.1
 gatk=3.8
 jq>=1.6
 lbzip2>=2.5
@@ -28,6 +29,7 @@ firecloud>=0.16.35
 lz4>=2.2.1
 jinja2>=2.11.3
 matplotlib>=2.2.4
+pandas
 pysam>=0.20.0
 pybedtools>=0.7.10
 zstandard>=0.15.2
