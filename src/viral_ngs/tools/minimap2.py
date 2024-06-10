@@ -14,6 +14,7 @@ import tools.samtools
 import tools.picard
 import util.file
 import util.misc
+from errors import *
 
 TOOL_NAME = 'minimap2'
 
@@ -80,6 +81,7 @@ class Minimap2(tools.Tool):
                     log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
 
             if len(align_bams)==0:
+                log.warning("All read groups in file %s appear to be empty.", inBam)
                 with util.file.tempfname('.empty.sam') as empty_sam:
                     samtools.dumpHeader(inBam, empty_sam)
                     samtools.sort(empty_sam, outBam)
@@ -92,6 +94,7 @@ class Minimap2(tools.Tool):
                     picardOptions=picardOptions,
                     JVMmemory=JVMmemory
                 )
+
                 for bam in align_bams:
                     os.unlink(bam)
 
@@ -181,8 +184,10 @@ class Minimap2(tools.Tool):
 
         # perform actual alignment
         if samtools.isEmpty(one_rg_inBam):
+            log.warning("Input file %s appears to lack reads for RG '%s'", inBam, rgid)
             # minimap doesn't like empty inputs, so copy empty bam through
-            samtools.sort(one_rg_inBam, outBam)
+            # samtools.sort(one_rg_inBam, outBam)
+            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
         else:
             self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
 

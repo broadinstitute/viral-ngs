@@ -1388,6 +1388,9 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
     ref_indexed = util.file.mkstempfname('.reference.fasta')
     shutil.copyfile(refFasta, ref_indexed)
 
+    if samtools.isEmpty(inBam):
+        log.warning("The input bam file appears to have zero reads: %s", inBam)
+
     mm2.align_bam(inBam, ref_indexed, bam_aligned)
     
     if filterReadsAfterAlignment:
@@ -1401,6 +1404,10 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
         shutil.move(bam_aligned, bam_filtered)
 
     if outStats is not None:
+        # index the final bam before calling idxstats
+        # but only if it is a bam or cram file (sam cannot be indexed)
+        if (bam_filtered.endswith(".bam") or bam_filtered.endswith(".cram")):
+            samtools.index(bam_filtered)
         samtools.idxstats(bam_filtered, outStats)
 
     if outBam is None:

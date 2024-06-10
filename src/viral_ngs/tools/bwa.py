@@ -16,6 +16,7 @@ import tools.samtools
 import tools.picard
 import util.file
 import util.misc
+from errors import *
 
 TOOL_NAME = 'bwa'
 

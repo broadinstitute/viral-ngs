@@ -7,12 +7,6 @@
     either in $PATH or $NOVOALIGN_PATH.
 '''
 
-import tools
-import tools.picard
-import tools.samtools
-import util.file
-import util.misc
-
 import logging
 import os
 import os.path
@@ -21,11 +15,16 @@ import subprocess
 import stat
 import sys
 
+import tools
+import tools.picard
+import tools.samtools
+import util.file
+import util.misc
+from errors import *
+
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "novoalign"
-#TOOL_VERSION = "3.09.04"
-
 
 class NovoalignTool(tools.Tool):
 
@@ -217,7 +216,3 @@ class NovoalignTool(tools.Tool):
             os.chmod(outfname, mode)
         except (IOError, OSError):
             _log.warning('could not chmod "%s", this is likely OK', refFasta)
-
-
-class InvalidBamHeaderError(ValueError):
-    pass
