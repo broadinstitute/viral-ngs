@@ -8,8 +8,6 @@ on:
   release:
     types:
       - created
-  schedule:
-    - cron: '0 18 * * 1' # weekly at 18:00 on Mondays
 
 env:
   HOME: "${{ github.workspace }}"
