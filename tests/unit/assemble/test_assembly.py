@@ -309,8 +309,22 @@ class TestOrderAndOrient(TestCaseWithTmp):
     def test_lassa_multisegment_refsel(self):
         with util.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
              as (outFasta, outReference, outStats):
-            contigs, expected, expectedStats = self.inputs('contigs.lasv.fasta', 
-                                                           'expected.lasv.fasta', 
+            contigs, expected, expectedStats = self.inputs('contigs.lasv.fasta',
+                                                           'expected.lasv.fasta',
+                                                           'expected.refsel.lasv.stats.tsv')
+            refs = [self.input('ref.lasv.{}.fasta'.format(strain))
+                    for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')]
+            assembly.order_and_orient(contigs, refs, outFasta,
+                                      outReference=outReference, outStats=outStats)
+            self.assertEqualContents(outFasta, expected)
+            self.assertEqualFasta(outReference, refs[0])
+            self.assertEqualContents(outStats, expectedStats)
+
+    def test_lassa_divergent(self):
+        with util.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
+             as (outFasta, outReference, outStats):
+            contigs, expected, expectedStats = self.inputs('contigs.lasv.distant.fasta',
+                                                           'expected.lasv.fasta',
                                                            'expected.refsel.lasv.stats.tsv')
             refs = [self.input('ref.lasv.{}.fasta'.format(strain))
                     for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')]
