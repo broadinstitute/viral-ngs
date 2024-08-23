@@ -5,7 +5,7 @@ import os
 import os.path
 from os.path import join
 
-import lxml.html.clean
+#import lxml.html.clean
 import pytest
 
 import metagenomics
