@@ -5,23 +5,57 @@
 __author__ = "dpark@broadinstitute.org"
 __version__ = None
 
+# import built-in
 import subprocess
 import os
 import re
 import time, datetime
 import os.path
+import inspect
+
+# module-level imports
 import util.misc
 
 
-def get_project_path():
-    '''Return the absolute path of the top-level project, assumed to be the
-       parent of the directory containing this script.'''
-    # abspath converts relative to absolute path; expanduser interprets ~
-    path = __file__  # path to this script
+def get_project_path(include_derived_modules=True):
+    '''Return the absolute path of the top-level project,
+       if include_derived_modules==False:
+           path is assumed to be the parent of the directory containing this script.'''
+
+    # obtain path to this script (i.e. the script you're currently reading)
+    path = __file__
+
     path = os.path.expanduser(path)  # interpret ~
-    path = os.path.abspath(path)  # convert to absolute path
+    path = os.path.abspath(path)  # abspath converts relative to absolute path
+
     path = os.path.dirname(path)  # containing directory: util
     path = os.path.dirname(path)  # containing directory: main project dir
+
+    # If we want to be more careful, look at derived Python
+    # modules calling this one, look for a VERSION file to
+    # determine validity of the various containing directories
+    if include_derived_modules:
+        '''
+            find a VERSION file relative to scripts in the Python call stack,
+            looking from the outermost layer (closest to initial invocation)
+            to the innermost call, and use the path of the first VERSION file found.
+
+            This allows a derived module with its own VERSION file
+            to report its versions rather than the core version.
+
+            This falls back to using/finding the core path
+        '''
+        for called_item in inspect.stack()[::-1]:
+           # resolve symlinks so the project_path is relative to the actual location of the invoked script
+           # (i.e. taxon_filter.py --version should resolve viral-classify/VERSION, not viral-core/VERSION)
+            called_item_realpath        = os.path.realpath(called_item.filename)
+            dir_containing_called_item  = os.path.dirname(called_item_realpath)
+            potential_version_file_path = f"{dir_containing_called_item}/VERSION"
+
+            if os.path.isfile(potential_version_file_path):
+                path = dir_containing_called_item
+                break
+
     return path
 
 
@@ -41,7 +75,6 @@ def call_git_describe():
         ver = None
     os.chdir(cwd)
     return ver
-
 
 def release_file():
     return os.path.join(get_project_path(), 'VERSION')
