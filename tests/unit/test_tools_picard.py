@@ -39,7 +39,7 @@ class TestToolPicard(TestCaseWithTmp):
     def test_messy_fasta_index(self):
         orig_ref = os.path.join(util.file.get_test_input_path(self), 'messy-headers.fasta')
         picard_index = tools.picard.CreateSequenceDictionaryTool()
-        with util.file.mkstempfname('.fasta') as inRef:
+        with util.file.tempfname('.fasta') as inRef:
             shutil.copyfile(orig_ref, inRef)
             picard_index.execute(inRef, overwrite=True)
         with open(inRef[:-6] + '.dict', 'rt') as inf:
