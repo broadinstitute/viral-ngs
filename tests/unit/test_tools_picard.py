@@ -46,7 +46,7 @@ class TestToolPicard(TestCaseWithTmp):
             seqnames = set()
             for line in inf:
                 if line.startswith('@SQ'):
-                    seq_name = dict(x.split(':') for x in line.strip().split('\t')[1:])['SN']
+                    seq_name = dict(x.split(':', maxsplit=1) for x in line.strip().split('\t')[1:])['SN']
                     # old versions of code cut this off at "Influenza"
                     self.assertGreater(len(seq_name), 50)
                     seqnames.add(seq_name)
