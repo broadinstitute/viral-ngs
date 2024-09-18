@@ -36,6 +36,23 @@ class TestToolPicard(TestCaseWithTmp):
                 actual_first3 = [re.sub(r'VN:1\.[4-6]','VN:1.4',x.strip()).split('\t')[:3] for x in inf.readlines()]
             self.assertEqual(actual_first3, expected_first3)
 
+    def test_messy_fasta_index(self):
+        orig_ref = os.path.join(util.file.get_test_input_path(self), 'messy-headers.fasta')
+        picard_index = tools.picard.CreateSequenceDictionaryTool()
+        with util.file.tempfname('.fasta') as inRef:
+            shutil.copyfile(orig_ref, inRef)
+            picard_index.execute(inRef, overwrite=True)
+        with open(inRef[:-6] + '.dict', 'rt') as inf:
+            seqnames = set()
+            for line in inf:
+                if line.startswith('@SQ'):
+                    seq_name = dict(x.split(':', maxsplit=1) for x in line.strip().split('\t')[1:])['SN']
+                    # old versions of code cut this off at "Influenza"
+                    self.assertGreater(len(seq_name), 50)
+                    seqnames.add(seq_name)
+            # require that all sequence names are unique
+            self.assertEqual(len(seqnames), 8)
+
     def test_sam_downsample(self):
         desired_count = 100
         tolerance = 0.02

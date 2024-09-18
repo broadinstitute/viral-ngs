@@ -651,7 +651,7 @@ def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
         fasta_out = FastaIO.FastaWriter(handle, wrap=None)
         fasta_out.write_header()
         for record in SeqIO.parse(fasta_in, "fasta"):
-            record.id=sanitize_id_for_sam_rname(record.id)
+            record.id=sanitize_id_for_sam_rname(record.description)
             fasta_out.write_record(record)
     print("out_filepath",out_filepath)
     print("os.path.dirname(out_filepath)",os.path.dirname(out_filepath))
