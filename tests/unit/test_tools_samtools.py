@@ -32,6 +32,22 @@ class TestToolSamtools(TestCaseWithTmp):
             samtools.faidx(inRef)
             self.assertEqualContents(outFai, expected_fai)
 
+    def test_messy_fasta_index(self):
+        orig_ref = os.path.join(util.file.get_test_input_path(), 'TestToolPicard', 'messy-headers.fasta')
+        samtools = tools.samtools.SamtoolsTool()
+        with util.file.tempfname('.fasta') as inRef:
+            shutil.copyfile(orig_ref, inRef)
+            samtools.faidx(inRef, overwrite=True)
+        with open(inRef + '.fai', 'rt') as inf:
+            seqnames = set()
+            for line in inf:
+                seq_name = line.strip().split('\t')[0]
+                # old versions of code cut this off at "Influenza"
+                self.assertGreater(len(seq_name), 50)
+                seqnames.add(seq_name)
+            # require that all sequence names are unique
+            self.assertEqual(len(seqnames), 8)
+
     def test_isEmpty(self):
         samtools = tools.samtools.SamtoolsTool()
         self.assertTrue(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'empty.bam')))
