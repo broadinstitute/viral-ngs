@@ -915,9 +915,10 @@ def refine_assembly(
     novoalign = tools.novoalign.NovoalignTool(license_path=novoalign_license_path)
     gatk = tools.gatk.GATKTool(path=gatk_path)
 
-    # Create deambiguated genome for GATK
+    # Sanitize fasta header & create deambiguated genome for GATK
     deambigFasta = util.file.mkstempfname('.deambig.fasta')
-    deambig_fasta(inFasta, deambigFasta)
+    with util.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
+        deambig_fasta(sanitized_fastas[0], deambigFasta)
     picard_index.execute(deambigFasta, overwrite=True)
     samtools.faidx(deambigFasta, overwrite=True)
 
