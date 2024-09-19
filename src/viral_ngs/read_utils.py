@@ -1197,7 +1197,7 @@ def align_and_fix(
     samtools = tools.samtools.SamtoolsTool()
 
     refFastaCopy = mkstempfname('.ref_copy.fasta')
-    shutil.copyfile(refFasta, refFastaCopy)
+    shutil.copyfile(util.file.fastas_with_sanitized_ids(refFasta, use_tmp=True)[0], refFastaCopy)
 
     tools.picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True, JVMmemory=JVMmemory)
     samtools.faidx(refFastaCopy, overwrite=True)
