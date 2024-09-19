@@ -648,7 +648,7 @@ def sanitize_id_for_sam_rname(string_in):
 
 def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
     with open(out_filepath, "w") as handle:
-        fasta_out = FastaIO.FastaWriter(handle, wrap=None)
+        fasta_out = FastaIO.FastaWriter(handle)
         fasta_out.write_header()
         for record in SeqIO.parse(fasta_in, "fasta"):
             record.id=sanitize_id_for_sam_rname(record.description)
