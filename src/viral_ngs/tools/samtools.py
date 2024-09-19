@@ -154,7 +154,10 @@ class SamtoolsTool(tools.Tool):
             else:
                 return
         #pysam.faidx(inFasta)
-        self.execute('faidx', [inFasta])
+        with util.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
+            sanitized_fasta = sanitized_fastas[0]
+            self.execute('faidx', [sanitized_fasta])
+            shutil.copyfile(sanitized_fasta + '.fai', outfname)
 
     def depth(self, inBam, outFile, options=None):
         """ Write a TSV file with coverage depth by position """

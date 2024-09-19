@@ -647,17 +647,15 @@ def sanitize_id_for_sam_rname(string_in):
     return string_value
 
 def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
-    with open(out_filepath, "w") as handle:
-        fasta_out = FastaIO.FastaWriter(handle, wrap=None)
-        fasta_out.write_header()
-        for record in SeqIO.parse(fasta_in, "fasta"):
-            record.id=sanitize_id_for_sam_rname(record.description)
-            fasta_out.write_record(record)
+    with open(out_filepath, "wt") as outf:
+        with open(fasta_in, "rt") as inf:
+            for line in inf:
+                line = line.strip()
+                if line.startswith(">"):
+                    line = ">"+sanitize_id_for_sam_rname(line[1:])
+                outf.write(line + '\n')
     print("out_filepath",out_filepath)
     print("os.path.dirname(out_filepath)",os.path.dirname(out_filepath))
-    print("ls -lah")
-    for line in subprocess.check_output(["ls","-lah",os.path.dirname(out_filepath)]).decode("utf-8").split("\n"):
-        print(line)
     return out_filepath
 
 @contextlib.contextmanager
