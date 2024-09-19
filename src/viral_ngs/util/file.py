@@ -650,9 +650,10 @@ def write_fasta_with_sanitized_ids(fasta_in, out_filepath):
     with open(out_filepath, "wt") as outf:
         with open(fasta_in, "rt") as inf:
             for line in inf:
+                line = line.strip()
                 if line.startswith(">"):
                     line = ">"+sanitize_id_for_sam_rname(line[1:])
-                outf.write(line)
+                outf.write(line + '\n')
     print("out_filepath",out_filepath)
     print("os.path.dirname(out_filepath)",os.path.dirname(out_filepath))
     return out_filepath
