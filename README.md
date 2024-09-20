@@ -1,5 +1,4 @@
 [![Docker Repository on Quay](https://quay.io/repository/broadinstitute/viral-ngs/status "Docker Repository on Quay")](https://quay.io/repository/broadinstitute/viral-ngs)
-[![broad-viral-badge](https://img.shields.io/badge/install%20from-broad--viral-green.svg?style=flat-square)](https://anaconda.org/broad-viral/viral-ngs)
 [![Build Status](https://travis-ci.com/broadinstitute/viral-ngs.svg?branch=master)](https://travis-ci.com/broadinstitute/viral-ngs)
 [![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
 [![Code Health](https://landscape.io/github/broadinstitute/viral-ngs/master/landscape.svg?style=flat)](https://landscape.io/github/broadinstitute/viral-ngs)
