@@ -1,3 +1,21 @@
+DEPRECATION WARNING
+---------
+
+This repository ([`broadinstitute/viral-ngs`](https://github.com/broadinstitute/viral-ngs)) is DEPRECATED; development now occurs in the following repositories:
+
+* https://github.com/broadinstitute/viral-core
+* https://github.com/broadinstitute/viral-assemble
+* https://github.com/broadinstitute/viral-phylo
+* https://github.com/broadinstitute/viral-classify
+
+Pipelines are available here:
+* https://github.com/broadinstitute/viral-pipelines
+
+Pipeline documentation:
+* https://viral-pipelines.readthedocs.io/en/latest/
+
+---------
+
 [![Docker Repository on Quay](https://quay.io/repository/broadinstitute/viral-ngs/status "Docker Repository on Quay")](https://quay.io/repository/broadinstitute/viral-ngs)
 [![Build Status](https://travis-ci.com/broadinstitute/viral-ngs.svg?branch=master)](https://travis-ci.com/broadinstitute/viral-ngs)
 [![Coverage Status](https://coveralls.io/repos/broadinstitute/viral-ngs/badge.png)](https://coveralls.io/r/broadinstitute/viral-ngs)
@@ -9,7 +27,6 @@ viral-ngs
 =========
 
 A set of scripts and tools for the analysis of viral NGS data.
-
 
 More detailed documentation can be found at http://viral-ngs.readthedocs.org/
 This includes installation instructions,
