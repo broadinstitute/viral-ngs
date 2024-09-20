@@ -152,6 +152,7 @@ class TestIntrahostFilters(unittest.TestCase):
 
 
 #@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+@unittest.skip("vphaser2 behaving unpredictably; not used in WDL pipelines")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
         (intrahost.vphaser_one_sample), which runs V-Phaser2 on
