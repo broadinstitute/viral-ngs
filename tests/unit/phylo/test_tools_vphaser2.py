@@ -12,7 +12,7 @@ from test import TestCaseWithTmp, _CPUS
 
 
 #@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
-@unittest.skip()
+@unittest.skip("vphaser2 behaving unpredictably; not used in WDL pipelines")
 class TestVPhaser2(TestCaseWithTmp):
 
     def test_vphaser2(self):
