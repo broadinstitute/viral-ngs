@@ -70,7 +70,7 @@ def download_file(uriToGet, dest, destFileName=None):
     req = urlopen(uriToGet)
 
     if not destFileName:
-        m = re.search('filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
+        m = re.search(r'filename="(?P<filename>.+)"', req.info()['Content-Disposition'])
 
         if m:
             destFileName = m.group("filename")

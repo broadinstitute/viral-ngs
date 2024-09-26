@@ -71,7 +71,7 @@ class SnakemakeRunner(object):
         os.symlink(self.root, self.bindir)
         os.symlink(join(self.root, 'pipes', 'Snakefile'), join(self.workdir, 'Snakefile'))
         with open(join(self.root, 'pipes', 'config.yaml')) as f:
-            config = yaml.load(f)
+            config = yaml.load(f, loader=yaml.FullLoader)
         self.config = merge_yaml_dicts(config, {'number_of_threads': _CPUS})
         if self.override_config:
             self.config = merge_yaml_dicts(self.config, self.override_config)
