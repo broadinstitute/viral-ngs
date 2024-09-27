@@ -37,4 +37,37 @@ task downsample_bams {
   }
 }
 
+task dedup_bam {
+  File  in_bam
+  Int?  max_mismatches=3
 
+  String sample_name = basename(in_bam, ".bam")
+
+  command {
+    read_utils.py rmdup_clumpify_bam \
+        ${in_bam} \
+        ${sample_name}.dedup.bam \
+        ${'--maxMismatches=' + max_mismatches} \
+        --JVMmemory "8g"
+
+    samtools view -c ${in_bam} | tee dedup_read_count_pre
+    samtools view -c ${sample_name}.dedup.bam | tee dedup_read_count_post
+
+    reports.py fastqc ${sample_name}.dedup.bam ${sample_name}.deduped_fastqc.html
+  }
+
+  output {
+    File dedup_bam               = "${sample_name}.dedup.bam"
+    File dedup_only_reads_fastqc = "${sample_name}.deduped_fastqc.html"
+    Int dedup_read_count_pre     = read_int("dedup_read_count_pre")
+    Int dedup_read_count_post    = read_int("dedup_read_count_post")
+    String      viralngs_version = "viral-ngs_version_unknown"
+  }
+  runtime {
+    docker: "quay.io/broadinstitute/viral-ngs"
+    memory: "52 GB"
+    cpu: 8
+    dx_instance_type: "mem1_ssd1_x32"
+    preemptible: 0
+  }
+}

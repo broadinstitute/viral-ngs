@@ -1,44 +1,82 @@
-#DX_SKIP_WORKFLOW
-
 import "tasks_demux.wdl" as demux
 import "tasks_metagenomics.wdl" as metagenomics
 import "tasks_taxon_filter.wdl" as taxon_filter
 import "tasks_assembly.wdl" as assembly
 import "tasks_reports.wdl" as reports
+import "tasks_read_utils.wdl" as reads
 
 workflow demux_metag {
   call demux.illumina_demux as illumina_demux
 
+  File spikein_db
+  File trim_clip_db
+  Array[File]? bmtaggerDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? blastDbs  # .tar.gz, .tgz, .tar.bz2, .tar.lz4, .fasta, or .fasta.gz
+  Array[File]? bwaDbs
+  File krona_taxonomy_db_tgz
+  File kaiju_db_lz4
+  File ncbi_taxonomy_db_tgz
+
   scatter(raw_reads in illumina_demux.raw_reads_unaligned_bams) {
+    # de-duplicate raw reads
+    call reads.dedup_bam as dedup {
+        input:
+            in_bam = raw_reads        
+    }
+
+    # count spike-ins in the sample
+    #   NB: the spike-in report is created from raw reads 
+    #       that have NOT been de-duplicated
     call reports.spikein_report as spikein {
       input:
-        reads_bam = raw_reads
+        reads_bam = raw_reads,
+        spikein_db = spikein_db
     }
+
+    # deplete human/host genomic reads
     call taxon_filter.deplete_taxa as deplete {
       input:
-        raw_reads_unmapped_bam = raw_reads
+        raw_reads_unmapped_bam = dedup.dedup_bam,
+        bmtaggerDbs = bmtaggerDbs,
+        blastDbs = blastDbs,
+        bwaDbs = bwaDbs
     }
+
+    # create de novo contigs from depleted reads via spaces
     call assembly.assemble as spades {
       input:
         assembler = "spades",
-        reads_unmapped_bam = deplete.cleaned_bam
+        reads_unmapped_bam = deplete.cleaned_bam,
+        trim_clip_db = trim_clip_db,
+        always_succeed = true
+    }
+
+    # classify de-duplicated reads to taxa via kaiju
+    call metagenomics.kaiju as kaiju {
+      input:
+        reads_unmapped_bam = dedup.dedup_bam,
+        krona_taxonomy_db_tgz = krona_taxonomy_db_tgz,
+        kaiju_db_lz4 = kaiju_db_lz4,
+        ncbi_taxonomy_db_tgz = ncbi_taxonomy_db_tgz
     }
   }
 
+  # classify de-duplicated reads to taxa via krakenuniq
   call metagenomics.krakenuniq as kraken {
     input:
-      reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
+      reads_unmapped_bam = dedup.dedup_bam,
+      krona_taxonomy_db_tgz = krona_taxonomy_db_tgz
   }
-  call reports.aggregate_metagenomics_reports as metag_summary_report {
-      input:
-          kraken_summary_reports = kraken.krakenuniq_summary_reports
-  }
+
+  # summarize spike-in reports from all samples
   call reports.spikein_summary as spike_summary {
       input:
           spikein_count_txt = spikein.report
   }
-  call metagenomics.kaiju as kaiju {
-    input:
-      reads_unmapped_bam = illumina_demux.raw_reads_unaligned_bams,
+  # summarize kraken reports from all samples
+  call reports.aggregate_metagenomics_reports as metag_summary_report {
+      input:
+          kraken_summary_reports = kraken.krakenuniq_summary_reports
   }
+  # TODO: summarize kaiju reports from all samples
 }

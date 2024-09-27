@@ -26,6 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+import tools.bbmap
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -458,7 +459,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
         jvm_worker_memory = str(max(1,int(JVMmemory.rstrip("g"))/workers))+'g'
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(rmdup_clumpify_bam, *fp, JVMmemory=jvm_worker_memory): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
@@ -918,9 +919,73 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_cdhit_bam, split_args=True)
     return parser
-
-
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
+
+
+def rmdup_clumpify_bam(in_bam, out_bam, max_mismatches=3, optical_only=False, dupedist=40, spanx=False, spany=False, adjacent=False, no_containment=False, threads=None, JVMmemory=None):
+    ''' Remove duplicate reads from BAM file using bbmap's clumpify tool.
+    '''
+    bbmap = tools.bbmap.BBMapTool()
+    bbmap.dedup_clumpify(in_bam, out_bam, subs=max_mismatches, optical=optical_only, dupedist=dupedist, spanx=spanx, spany=spany, adjacent=adjacent, containment=no_containment==False, threads=None, JVMmemory=JVMmemory)
+    return 0
+
+def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_bam', help='Input reads, BAM format.')
+    parser.add_argument('out_bam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--maxMismatches',
+        dest="max_mismatches",
+        type=int,
+        default=3,
+        help='The max number of base mismatches to allow when identifying duplicate reads. (default: %(default)s)'
+    )
+    parser.add_argument('--no_containment', dest='no_containment', default=False, action='store_true',
+        help='Disables containments (where one sequence is shorter)'
+    )
+    optical_group = parser.add_argument_group('optical','arguments related to removal of optical duplicates')
+    optical_group.add_argument('--optical_only', dest='optical_only', default=False, action='store_true',
+        help='If true, only remove *optical* duplicates. Optical duplicate '
+        'removal is limited by xy-position, and is intended for single-end sequencing.'
+    )
+    optical_group.add_argument('--spany', dest='spany', default=False, action='store_true',
+        help='Allow reads to be considered optical duplicates if they '
+            'are on different tiles, but are within dupedist in the '
+            'y-axis.  Should only be enabled when looking for '
+            'tile-edge duplicates (as in NextSeq).'
+    )
+    optical_group.add_argument('--spanx', dest='spanx', default=False, action='store_true',
+        help='Like spany, but for the x-axis.  Not necessary for NextSeq.'
+    )
+    optical_group.add_argument('--adjacent', dest='spany', default=False, action='store_true',
+        help='Limit tile-spanning to adjacent tiles (those with consecutive numbers).'
+    )
+    optical_group.add_argument(
+        '--dupedist',
+        dest="dupedist",
+        type=int,
+        default=40,
+        help='Max distance to consider for optical duplicates (default: %(default)s). '
+            'Larger distance removes more duplicates but is '
+            'more likely to remove PCR rather than optical '
+            'duplicates. This is platform-specific; '
+            'recommendations:'
+            'NextSeq --dupedist=40  (and --spany), '
+            'HiSeq 1T --dupedist=40, '
+            'HiSeq 2500 --dupedist=40, '
+            'HiSeq 3k/4k --dupedist=2500, '
+            'Novaseq --dupedist=12000.'
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)',
+        dest='JVMmemory'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_clumpify_bam, split_args=True)
+    return parser
+__commands__.append(('rmdup_clumpify_bam', parser_rmdup_clumpify_bam))
+
 
 def _merge_fastqs_and_mvicuna(lb, files):
     readList = mkstempfname('.keep_reads.txt')

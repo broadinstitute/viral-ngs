@@ -31,7 +31,6 @@ rule depletion:
     output: 
         config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bwa_depleted.bam',
         config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.bmtagger_depleted.bam',
-        config["tmp_dir"] +'/'+config["subdirs"]["depletion"]+'/{sample}.rmdup.bam',
         config["data_dir"]+'/'+config["subdirs"]["depletion"]+'/{sample}.cleaned.bam'
     resources: 
         mem_mb     = 15*1000,
@@ -135,4 +134,4 @@ rule merge_one_per_sample:
             shell("{config[bin_dir]}/read_utils.py merge_bams {input} {output} --picardOptions SORT_ORDER=queryname")
         else:
             shell("{config[bin_dir]}/read_utils.py merge_bams {input} {params.tmpf_bam} --picardOptions SORT_ORDER=queryname")
-            shell("{config[bin_dir]}/read_utils.py rmdup_mvicuna_bam {params.tmpf_bam} {output} --JVMmemory {mem_mb}m")
+            shell("{config[bin_dir]}/read_utils.py rmdup_clumpify_bam {params.tmpf_bam} {output} --JVMmemory {mem_mb}m")
