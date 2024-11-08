@@ -18,6 +18,7 @@ novoalign=3.09.04
 parallel>=20190922
 picard=2.25.6
 pigz>=2.4
+psutil>=6.1.0
 prinseq>=0.20.4
 samtools>=1.16.1
 trimmomatic>=0.38

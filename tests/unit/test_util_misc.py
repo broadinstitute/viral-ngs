@@ -5,6 +5,7 @@ __author__ = "dpark@broadinstitute.org"
 import os, random, collections
 import unittest
 import subprocess
+import multiprocessing
 import util.misc
 import util.file
 import pytest
@@ -284,15 +285,76 @@ def test_chk():
 
 def test_available_cpu_count(monkeypatch_function_result):
     reported_cpu_count = util.misc.available_cpu_count()
-
     assert reported_cpu_count >= int(os.environ.get('PYTEST_XDIST_WORKER_COUNT', '1'))
-
-    with monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
-        assert util.misc.available_cpu_count() == 1
-
     assert util.misc.available_cpu_count() == reported_cpu_count
 
-    with monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+    # cgroup v2 limited to 1 cpu
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="100000 100000"):
+        assert util.misc.available_cpu_count() == 1
+
+    # cgroup v2 limited to 2 cpu
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="200000 100000"):
+        assert util.misc.available_cpu_count() == 2
+
+    # cgroup v2 with no CPU limit imposed on cgroup
+    # (fall back to /proc/self/status method, with limit imposed there):
+    #   'Cpus_allowed:  d' = 0b1101 bitmask (meaning execution allowed on 3 CPUs)
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="max 100000"), \
+         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  d'):
+        assert util.misc.available_cpu_count() == 3
+
+    # cgroup v1 limited to 2 CPUs
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='200000'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='100000'):
+         
+        assert util.misc.available_cpu_count() == 2
+
+    # cgroup v1 limited to 1 CPU
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='1'), \
          monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+         
+        assert util.misc.available_cpu_count() == 1
+
+    # cgroup v1 with no limit imposed on the cgroup
+    # (fall back to /proc/self/status method, with limit imposed there):
+    #   'Cpus_allowed:  c' = 0b1100 bitmask (meaning execution allowed on 2 CPUs)
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  c'):
+         
+        assert util.misc.available_cpu_count() == 2
+
+    # cgroup v1 with no limit imposed on the cgoup or via /proc/self/status
+    # (fall back to /proc/self/status method, with no limit imposed there)
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+        
         assert util.misc.available_cpu_count() == reported_cpu_count
+
+    # cgroup v1 with no limit imposed on the cgoup
+    # with 'Cpus_allowed' not present in /proc/self/status
+    # (fall back to multiprocessing.cpu_count() method)
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'):
+        
+        assert util.misc.available_cpu_count() == reported_cpu_count
+
+    # cgroup v1 with no limit imposed on the cgoup
+    # with 'Cpus_allowed' not present in /proc/self/status
+    # (fall back to multiprocessing.cpu_count() method with CPU count of 2 reported)
+    with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'), \
+         monkeypatch_function_result(multiprocessing.cpu_count, patch_result=2, patch_module=multiprocessing):
+        
+        assert util.misc.available_cpu_count() == 2
