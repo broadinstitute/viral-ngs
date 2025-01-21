@@ -1737,7 +1737,7 @@ def generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_na
 
         # Run fastq_to_ubam
         # TO-DO: How to access fastq_to_ubam here correctly?
-        !miniwdl run /home/unix/lluebber/projects/viral-pipelines/pipes/WDL/workflows/fastq_to_ubam.wdl \
+        !miniwdl run fastq_to_ubam.wdl \
             FastqToUBAM.fastq_1=$r1_fastq \
             FastqToUBAM.fastq_2=$r2_fastq \
             FastqToUBAM.sample_name=$sample_name \
