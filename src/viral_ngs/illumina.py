@@ -22,6 +22,12 @@ import xml.etree.ElementTree
 from collections import defaultdict
 import concurrent.futures
 
+import pandas as pd
+import numpy as np
+import glob
+import matplotlib.pyplot as plt
+from tools.splitcode import SplitCodeTool
+
 import arrow
 
 import util.cmd
@@ -31,6 +37,7 @@ import tools.picard
 from util.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 
 log = logging.getLogger(__name__)
+
 
 # =========================
 # ***  illumina_demux   ***
@@ -1458,6 +1465,419 @@ def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
     util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
     return parser
 __commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))
+
+
+# ==================
+# ***  Swiftseq/cDNAtag-Seq demux   ***
+# ==================
+
+def read_json(filepath):
+    with open(filepath, 'r') as file:
+        data = json.load(file)
+    return data
+
+def create_lut(path_to_samplesheet, out_folder, unmatched_name):
+    # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
+    # TO-DO: Adjust the table outputted by this function to match Picard output
+
+    # Load samplesheet
+    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
+    barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
+
+    df_out = f"{out_folder}/bc2sample_lut.csv"
+    
+    i7_barcodes = list(set(barcodes_df["barcode_1"].values))
+    
+    pools = []
+    barcode_ids = []
+    barcode_list = []
+    sample_list = []
+    i7_list = []
+    i5_list = []
+    num_reads_h0 = []
+    num_reads_h1 = []
+    for i7 in i7_barcodes:
+        for bc in barcodes + [unmatched_name]:
+            # Get barcodes
+            i7_list.append(i7)
+            barcode_list.append(bc)
+    
+            pool_values = barcodes_df[barcodes_df["barcode_1"] == i7]["library_id_per_sample"].values
+            if len(set(pool_values)) > 1:
+                raise ValueError(f"More than one ({len(set(pool_values))}) pools found for i7 barcode {i7}.")
+            pool = pool_values[0]
+            pools.append(pool)
+    
+            i5_values = barcodes_df[barcodes_df["barcode_1"] == i7]["barcode_2"].values
+            if len(set(i5_values)) > 1:
+                raise ValueError(f"More than one ({len(set(i5_values))}) i5 barcodes found for i7 barcode {i7}.")
+            i5 = i5_values[0]
+            i5_list.append(i5)
+
+            if bc == unmatched_name:
+                bc_id = unmatched_name
+            else:
+                bc_ids = barcodes_df[barcodes_df["barcode_3"] == bc]["Inline_Index_ID"].values
+                if len(set(bc_ids)) > 1:
+                    raise ValueError(f"More than one ({len(set(bc_ids))}) barcodes index IDs found for inline barcode {bc}.")
+                bc_id = bc_ids[0]
+            barcode_ids.append(bc_id)
+    
+            # Get sample name
+            if bc == unmatched_name:
+                sample = None
+            else:
+                samples_temp = barcodes_df[(barcodes_df["barcode_1"] == i7) & (barcodes_df["barcode_2"] == i5) & (barcodes_df["barcode_3"] == bc)]["sample"].values
+                if len(set(samples_temp)) > 1:
+                    raise ValueError(f"Error in sample to barcodes mapping (multiple samples found for i7/i5/ibarcode combination: {i7}/{i5}/{bc}).")
+                sample = samples_temp[0]
+            sample_list.append(sample)
+    
+            # Get number of reads
+            splitcode_summary_file = glob.glob(f"{out_folder}/*_{pool}_*summary.json")[0]
+            splitcode_summary = read_json(splitcode_summary_file)
+            if bc_id == unmatched_name:
+                num_reads_h0.append(splitcode_summary["n_processed"] - splitcode_summary["n_assigned"])
+                num_reads_h1.append(0)
+            else:
+                seen_h0 = False
+                seen_h1 = False
+                for subdict in splitcode_summary["tag_qc"]:
+                    if subdict['tag'] == f"{bc_id}_R1" and subdict['distance'] == 0:
+                        if seen_h0:
+                            raise ValueError(f"More than one read count found for inline barcode {bc_id} with Hamming distance 0.")
+                        num_reads_h0.append(subdict['count'])
+                        seen_h0 = True
+                    if subdict['tag'] == f"{bc_id}_R1" and subdict['distance'] == 1:
+                        if seen_h1:
+                            raise ValueError(f"More than one read count found for inline barcode {bc_id} with Hamming distance 1.")
+                        num_reads_h1.append(subdict['count'])
+                        seen_h1 = True
+                if not seen_h0:
+                    num_reads_h0.append(0)
+                if not seen_h1:
+                    num_reads_h1.append(0)
+
+    df_lut = pd.DataFrame({
+        'sample': sample_list,
+        'library_id': pools,
+        'i7_barcode': i7_list,
+        'i5_barcode': i5_list,
+        'inline_barcode_id': barcode_ids,
+        'inline_barcode': barcode_list,
+        'num_reads_hdistance0': num_reads_h0,
+        'num_reads_hdistance1': num_reads_h1,
+    })
+    
+    df_lut['num_reads_total'] = df_lut['num_reads_hdistance0'] + df_lut['num_reads_hdistance1']
+    
+    df_lut.to_csv(df_out, index=False)
+
+    return df_out
+
+def plot_read_counts(
+    df_lut_path, 
+    out_folder
+):
+    df_lut = pd.read_csv(df_lut_path)
+    fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
+    fontsize = 14
+    
+    df_grouped = df_lut.groupby(['inline_barcode', 'library_id'])['num_reads_total'].sum().unstack(fill_value=0)
+    df_grouped_fracs = df_grouped.div(df_grouped.sum(axis=0), axis=1)
+    
+    bar_width = 0.2
+    bar_positions = np.arange(len(df_grouped))
+    
+    # Define colors
+    unique_library_ids = df_lut['library_id'].nunique()
+    tab20_colors = plt.cm.tab20.colors
+    pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+        
+    for i, pool in enumerate(df_grouped.columns):
+        axs[0].bar(bar_positions + i * bar_width, df_grouped[pool], width=bar_width, label=f'{pool.split("_")[-1]}', color=pool_colors[i])
+        axs[1].bar(bar_positions + i * bar_width, df_grouped[pool], width=bar_width, color=pool_colors[i])
+        axs[2].bar(bar_positions + i * bar_width, df_grouped_fracs[pool], width=bar_width, color=pool_colors[i])
+            
+    axs[1].set_yscale("log")
+    
+    for ax in axs[:2]:
+        ax.set_ylabel('# Reads', fontsize=fontsize)
+    axs[2].set_ylabel('Fraction of Reads', fontsize=fontsize)
+    
+    for ax in axs:
+        ax.set_xticks(bar_positions + 1.5 * bar_width)
+        ax.set_xticklabels(df_grouped.index, rotation=45, ha="right")
+        ax.tick_params(axis='both', labelsize=fontsize-2)
+        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+        ax.margins(x=0.01)
+    
+    axs[0].legend(title='Pool', fontsize=fontsize-2, title_fontsize=fontsize)
+    axs[0].set_title('# Reads per inline barcode', fontsize=fontsize)
+    axs[2].set_xlabel('Inline Barcode', fontsize=fontsize)
+
+    plt.tight_layout()
+    
+    fig.savefig(f"{out_folder}/reads_per_pool.pdf", bbox_inches="tight", dpi=300)
+    fig.savefig(f"{out_folder}/reads_per_pool.png", bbox_inches="tight", dpi=300)
+    
+def plot_sorted_curve(
+    df_lut_path,
+    out_folder,
+    unmatched_name
+):
+    df_lut = pd.read_csv(df_lut_path)
+    
+    fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
+    fontsize = 14
+    
+    # Define colors
+    unique_library_ids = df_lut['library_id'].nunique()
+    tab20_colors = plt.cm.tab20.colors
+    pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+    
+    reads_per_bc = pd.DataFrame()
+    for i, pool in enumerate(sorted(df_lut['library_id'].unique())):
+        num_reads = df_lut[(df_lut['library_id']==pool) & (df_lut['inline_barcode']!=unmatched_name)]['num_reads_total']
+        num_reads = sorted(num_reads, reverse=True)
+        for ax in axs[:2]:
+            ax.scatter(np.arange(len(num_reads)), num_reads, label=f'{pool.split("_")[-1]}', color=pool_colors[i])
+            ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
+    
+        # Calculate total and fractions
+        total_reads = sum(num_reads)
+        fractions = np.array([read / total_reads for read in num_reads])
+    
+        for ax in axs[2:]:
+            ax.scatter(np.arange(len(fractions)), fractions*100, color=pool_colors[i])
+            ax.plot(np.arange(len(fractions)), fractions*100, color=pool_colors[i])
+        show_bottom_values = 5
+        reads_per_bc[f'{pool}_reads'] = num_reads
+        reads_per_bc[f'{pool}_reads_%'] = fractions*100
+    
+    axs[1].set_yscale("symlog")
+    axs[1].set_ylim(bottom=0)
+    axs[3].set_ylim(bottom=0, top=0.5)
+    axs[3].set_xlabel('Inline Barcode', fontsize=fontsize)
+    axs[0].set_title('Reads per Inline Barcode (Sorted Curve)', fontsize=fontsize)
+    axs[0].legend(title='Pool', fontsize=fontsize-2, title_fontsize=fontsize)
+    
+    for ax in axs[:2]:
+        ax.set_ylabel('# Reads', fontsize=fontsize)
+    
+    for ax in axs[2:]:
+        ax.set_ylabel('% Reads', fontsize=fontsize)
+    
+    for ax in axs:
+        ax.tick_params(axis='both', labelsize=fontsize-2)
+        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+        ax.margins(x=0.01)
+
+    # Save data frame that contains the number of reads and fraction for each barcode in a sorted table
+    reads_per_bc.to_csv(f"{out_folder}/reads_per_bc.csv", index=False)
+
+    plt.tight_layout()
+    
+    fig.savefig(f"{out_folder}/reads_per_pool_sorted_curve.pdf", bbox_inches="tight", dpi=300)
+    fig.savefig(f"{out_folder}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300)
+
+def generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_name, out_folder):
+    # Load sample sheet
+    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
+    
+    for bc_idx in bc_idxs + [unmatched_name]:
+        r1_fastq = f"{out_folder}/{sample}_demuxed/Barcode_{bc_idx}_0.fastq"
+        r2_fastq = f"{out_folder}/{sample}_demuxed/Barcode_{bc_idx}_1.fastq"
+
+        # Get library/pool name (TO-DO: More stable way to get library name)
+        library_name = sample.split("_")[-3]
+
+        # Get i7 and i5 barcode sequences
+        i7s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name]["barcode_1"].values
+        if len(set(i7s)) > 1:
+            raise ValueError(f"More than one i7 barcode sequence found for library {library_name}.")
+        i7_barcode = i7s[0]
+        
+        i5s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name]["barcode_2"].values
+        if len(set(i5s)) > 1:
+            raise ValueError(f"More than one i5 barcode sequence found for library {library_name}.")
+        i5_barcode = i5s[0]
+
+        # Get sample name and inline barcode sequence
+        if bc_idx != unmatched_name:
+            barcodes_df_temp = barcodes_df[(barcodes_df["library_id_per_sample"] == library_name) & (barcodes_df["Inline_Index_ID"].astype(str) == str(bc_idx))]
+
+            # Get sample name
+            sample_names = barcodes_df_temp["sample"].values
+            if len(set(sample_names)) > 1:
+                raise ValueError(f"More than one sample name found for library {library_name} and barcode {bc_idx}.")
+            sample_name = sample_names[0]
+
+            # Get inline barcode sequence
+            inline_seqs = barcodes_df_temp["barcode_3"].values
+            if len(set(inline_seqs)) > 1:
+                raise ValueError(f"More than one inline barcode sequence found for library {library_name} and barcode {bc_idx}.")
+            inline_barcode = inline_seqs[0]
+
+        # Handle files where inline barcode was not matched
+        else:
+            sample_name = unmatched_name + "_" + library_name
+            inline_barcode = unmatched_name + "_" + library_name
+
+        # TO-DO: Where to find these values for the bam header when no original bam is available?
+        platform_name = 'ILLUMINA'
+        flowcell = 'B22J5GLLT4'
+        lane = '6'
+        platform_unit = f"{flowcell}.{lane}.{i7_barcode}-{i5_barcode}-{inline_barcode}"
+        run_date = '2024-12-17T00:00:00+0000'
+        id_ = 'AAGCG.1'
+        cn = 'BI'
+
+        bam_outfolder = f"{out_folder}/{sample}_demuxed_bam"
+
+        # Run fastq_to_ubam
+        # TO-DO: How to access fastq_to_ubam here correctly?
+        !miniwdl run /home/unix/lluebber/projects/viral-pipelines/pipes/WDL/workflows/fastq_to_ubam.wdl \
+            FastqToUBAM.fastq_1=$r1_fastq \
+            FastqToUBAM.fastq_2=$r2_fastq \
+            FastqToUBAM.sample_name=$sample_name \
+            FastqToUBAM.library_name=$library_name \
+            FastqToUBAM.platform_name=$platform_name \
+            FastqToUBAM.platform_unit=$platform_unit \
+            FastqToUBAM.sequencing_center=$cn \
+            FastqToUBAM.readgroup_name=$id_ \
+            FastqToUBAM.run_date="$run_date" \
+            --dir $bam_outfolder
+
+        # Change name of generated bam file
+        generated_bam = glob.glob(f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam")[0]
+        destination = f"{bam_outfolder}/{sample_name}.{flowcell}.{lane}.bam"
+        shutil.move(generated_bam, destination)
+
+def splitcode_demux(
+    path_to_samplesheet,
+    fastq_folder,
+    out_folder,
+    unmatched_name = "unmatched",
+    max_hamming_dist = 1,
+    threads = 32
+):
+    """
+    Args:
+    path_to_samplesheet  (str) File path to csv samplesheet
+    fastq_folder         (str) File path to folder containing gzipped fastq files
+    out_folder           (str) File path to folder where all resulting files will be saved
+    unmatched_name       (str) ID for reads that don't match an inline barcode. Default: "unmatched"
+    max_hamming_dist     (int) Max allowed Hamming distance for inline barcode matching. Default: 1
+    threads              (int) Threads used by splitcode demultiplexing. Default: 32
+    """
+    # Create out_folder
+    os.makedirs(out_folder, exist_ok=True)
+    
+    # Load samplesheet
+    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
+
+    # Instantiate the splitcode
+    splitcode_tool = SplitCodeTool()
+
+    # Load inline barcodes and inline barcode indeces
+    barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
+    
+    bc_idxs = []
+    for bc in barcodes:
+        inline_indeces = list(set(barcodes_df[barcodes_df["barcode_3"]==bc]["Inline_Index_ID"].values))
+        if len(inline_indeces) > 1:
+            raise ValueError(f"Multiple Inline_Index_ID values found for inline barcode {bc}.")
+        bc_idxs.append(inline_indeces[0])
+        
+    # Get names of fastq files
+    fastqs = f"{fastq_folder}/*.fastq.gz"
+
+    # Get pool/sample names from fastq file names
+    samples = sorted(list(set(["_".join(i.split("/")[-1].split("_")[:-2]) for i in glob.glob(fastqs)])))
+
+    # Create splitcode config file
+    config_file = f"{out_folder}/config.txt"
+    with open(config_file, "w") as config_f:
+        # Write column titles
+        config_f.write("tag\tid\tlocation\tdistance\tleft\tright\n")
+    
+        # Populate columns
+        for idx, bc in zip(bc_idxs, barcodes):
+            bc_len = len(bc)
+            
+            # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
+            # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
+            config_f.write(bc + "\t" + f"{idx}_R1" + "\t" + f"0:0:{bc_len}" + "\t" + str(max_hamming_dist) + "\t1\t0\n")
+            
+            # # R2 barcode (using the "right" (-> remove from the right) column to remove the inline barcodes from R2 reads)
+            # config_f.write(bc + "\t" + f"{idx}_R2" + "\t" + f"1:-{bc_len}:0" + "\t" + str(max_hamming_dist) + "\t0\t1\n")
+
+    # Create splitcode keep file
+    for sample in samples:
+        keep_filename = f"{out_folder}/{sample}_keep.txt"
+        with open(keep_filename, "w") as keep_file:
+            out_demux = f"{out_folder}/{sample}_demuxed/"
+
+            # Create out_demux folder
+            os.makedirs(out_demux, exist_ok=True)
+            
+            for idx, bc in zip(bc_idxs, barcodes):
+                # keep file columns: Tags to group, splitcode out_file
+                
+                # Use R1 and R2 inline barcodes to split:
+                # keep_file.write(f"{idx}_R1,{idx}_R2" + "\t" + out_demux + f"Barcode_{idx}" + "\n")
+                
+                # Alternative: Only use R1 inline barcode to split:
+                keep_file.write(f"{idx}_R1" + "\t" + out_demux + f"Barcode_{idx}" + "\n")
+
+    # Unzip fastq files using pigz
+    fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
+    subprocess.run(["pigz", "-d", *fastq_files], check=True)
+
+    # Use splitcode to demultiplex fastq files
+    # TO-DO: Enable parallel processing of pools/samples
+    for sample in samples:
+        # input args
+        r1 = f"{fastq_folder}/{sample}_R1_001.fastq"
+        r2 = f"{fastq_folder}/{sample}_R2_001.fastq"
+        n_fastqs = 2
+
+        keep_file = f"{out_folder}/{sample}_keep.txt"
+    
+        # output args
+        unmapped_r1 = f"{out_folder}/{sample}_demuxed/Barcode_{unmatched_name}_0.fastq"
+        unmapped_r2 = f"{out_folder}/{sample}_demuxed/Barcode_{unmatched_name}_1.fastq"
+        summary_stats = f"{out_folder}/{sample}_summary.json"
+    
+        # Optional: Use '--trim-3 0,8' to remove 8 bases from end of R2 read (note: trimming happens before demuxing)
+        splitcode_tool.execute(
+            args=[
+                f"--nFastqs={n_fastqs}",
+                f"-t {threads}",
+                f"-c {config_file}",
+                f"--keep={keep_file}",
+                f"--unassigned={unmapped_r1},{unmapped_r2}",
+                "--no-output",
+                "--no-outb",
+                f"--summary {summary_stats}",
+                r1,
+                r2
+            ]
+        )
+    
+    # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
+    df_out = create_lut(path_to_samplesheet, out_folder, unmatched_name)
+
+    # Plot number and fraction of reads per inline barcode per pool
+    plot_read_counts(df_out, out_folder)
+
+    # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
+    plot_sorted_curve(df_out, out_folder, unmatched_name)
+
+    # Generate bam files
+    for sample in samples:
+        generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_name, out_folder)
 
 
 # =======================
