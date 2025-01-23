@@ -142,7 +142,7 @@ class FeatureTable(object):
         self.valid_feature_types = valid_feature_types or self._default_feature_types
 
         self.feature_line_regex_map = {        
-            "feature_table_header"             : re.compile(r"^>Feature (gb\||ref\|)(?P<refID>.*)\|.*$"),
+            "feature_table_header"             : re.compile(r"^>Feature (gb\||ref\||emb\|)(?P<refID>.*)\|.*$"),
             "feature_first_location_line"      : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t(?P<feature_type>" + "|".join(self.valid_feature_types) + ")$"),
             "feature_subsequent_location_line" : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t*$"),
             "offset_line"                      : re.compile(r"^(?:\[offset=(?P<offset>-?\d+)\])$"),
