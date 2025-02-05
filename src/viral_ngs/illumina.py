@@ -2264,7 +2264,7 @@ def splitcode_demux(
     Args:
     inDir                (str) File path to folder containing gzipped fastq files
     outDir               (str) Output directory for BAM files and other output files
-    sampleSheet          (str) Overwrite file path to csv samplesheet. Input tab or CSV file w/header and columns:
+    sampleSheet          (str) Overwrite file path to csv samplesheet. Input tab or CSV file with columns:
                                sample, library_id_per_sample, I7_Index_ID, barcode_1, I5_Index_ID, barcode_2, Inline_Index_ID, barcode_3.
                                Default is to look for a SampleSheet.csv in the inDir.
     unmatched_name       (str) ID for reads that don't match an inline barcode. Default: "unmatched"
@@ -2479,7 +2479,7 @@ def parser_splitcode_demux(parser=None):
     parser.add_argument(
         "--sampleSheet",
         default=None,
-        help="""Override SampleSheet. Input tab or CSV file w/header and columns:
+        help="""Override SampleSheet. Input tab or CSV file with columns:
                 sample, library_id_per_sample, I7_Index_ID, barcode_1, I5_Index_ID, barcode_2, Inline_Index_ID, barcode_3..
                 Default is to look for a SampleSheet.csv in the inDir.""",
     )
