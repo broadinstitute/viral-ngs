@@ -45,80 +45,129 @@ log = logging.getLogger(__name__)
 
 
 def parser_illumina_demux(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
-    parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outDir', help='Output directory for BAM files.')
+    parser.add_argument(
+        "inDir",
+        help="Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.",
+    )
+    parser.add_argument("lane", help="Lane number.", type=int)
+    parser.add_argument("outDir", help="Output directory for BAM files.")
 
-    parser.add_argument('--outMetrics',
-                        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
-                        default=None)
-    parser.add_argument('--commonBarcodes',
-                        help='''Write a TSV report of all barcode counts, in descending order. 
+    parser.add_argument(
+        "--outMetrics",
+        help="Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.",
+        default=None,
+    )
+    parser.add_argument(
+        "--commonBarcodes",
+        help='''Write a TSV report of all barcode counts, in descending order. 
                                 Only applicable for read structures containing "B"''',
-                        default=None)
-    parser.add_argument('--max_barcodes',
-                        help='''Cap the commonBarcodes report length to this size (default: %(default)s)''',
-                        default=10000, type=int)
-    parser.add_argument('--sampleSheet',
-                        default=None,
-                        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
+        default=None,
+    )
+    parser.add_argument(
+        "--max_barcodes",
+        help="""Cap the commonBarcodes report length to this size (default: %(default)s)""",
+        default=10000,
+        type=int,
+    )
+    parser.add_argument(
+        "--sampleSheet",
+        default=None,
+        help="""Override SampleSheet. Input tab or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
-                                Default is to look for a SampleSheet.csv in the inDir.''')
-    parser.add_argument('--runInfo',
-                        default=None,
-                        dest="runinfo",
-                        help='''Override RunInfo. Input xml file.
-                                Default is to look for a RunInfo.xml file in the inDir.''')
-    parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
-    parser.add_argument('--read_structure',
-                        help='Override read structure (default: read from RunInfo.xml).',
-                        default=None)
-    parser.add_argument('--append_run_id',
-                        help='If specified, output filenames will include the flowcell ID and lane number.',
-                        action='store_true')
-    parser.add_argument('--out_meta_by_sample',
-                        help='Output json metadata by sample',
-                        default=None)
-    parser.add_argument('--out_meta_by_filename',
-                        help='Output json metadata by bam file basename',
-                        default=None)
-    parser.add_argument('--out_runinfo',
-                        help='Output json metadata about the run',
-                        default=None)
+                                Default is to look for a SampleSheet.csv in the inDir.""",
+    )
+    parser.add_argument(
+        "--runInfo",
+        default=None,
+        dest="runinfo",
+        help="""Override RunInfo. Input xml file.
+                                Default is to look for a RunInfo.xml file in the inDir.""",
+    )
+    parser.add_argument(
+        "--flowcell",
+        help="Override flowcell ID (default: read from RunInfo.xml).",
+        default=None,
+    )
+    parser.add_argument(
+        "--read_structure",
+        help="Override read structure (default: read from RunInfo.xml).",
+        default=None,
+    )
+    parser.add_argument(
+        "--append_run_id",
+        help="If specified, output filenames will include the flowcell ID and lane number.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--out_meta_by_sample", help="Output json metadata by sample", default=None
+    )
+    parser.add_argument(
+        "--out_meta_by_filename",
+        help="Output json metadata by bam file basename",
+        default=None,
+    )
+    parser.add_argument(
+        "--out_runinfo", help="Output json metadata about the run", default=None
+    )
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
-        if opt not in ('read_structure', 'num_processors'):
-            parser.add_argument('--' + opt,
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
+        if opt not in ("read_structure", "num_processors"):
+            parser.add_argument(
+                "--" + opt,
+                help="Picard ExtractIlluminaBarcodes "
+                + opt.upper()
+                + " (default: %(default)s)",
+                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt),
+            )
     for opt in tools.picard.IlluminaBasecallsToSamTool.option_list:
-        if opt == 'adapters_to_check':
-            parser.add_argument('--' + opt,
-                                nargs='*',
-                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
-        elif opt in ('read_structure', 'num_processors'):
+        if opt == "adapters_to_check":
+            parser.add_argument(
+                "--" + opt,
+                nargs="*",
+                help="Picard IlluminaBasecallsToSam "
+                + opt.upper()
+                + " (default: %(default)s)",
+                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt),
+            )
+        elif opt in ("read_structure", "num_processors"):
             pass
         else:
-            parser.add_argument('--' + opt,
-                                help='Picard IlluminaBasecallsToSam ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt))
+            parser.add_argument(
+                "--" + opt,
+                help="Picard IlluminaBasecallsToSam "
+                + opt.upper()
+                + " (default: %(default)s)",
+                default=tools.picard.IlluminaBasecallsToSamTool.defaults.get(opt),
+            )
 
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('threads', tools.picard.IlluminaBasecallsToSamTool.defaults['num_processors']), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    parser.add_argument(
+        "--JVMmemory",
+        help="JVM virtual memory size (default: %(default)s)",
+        default=tools.picard.IlluminaBasecallsToSamTool.jvmMemDefault,
+    )
+    util.cmd.common_args(
+        parser,
+        (
+            (
+                "threads",
+                tools.picard.IlluminaBasecallsToSamTool.defaults["num_processors"],
+            ),
+            ("loglevel", None),
+            ("version", None),
+            ("tmp_dir", None),
+        ),
+    )
     util.cmd.attach_main(parser, main_illumina_demux)
     return parser
 
 
 def main_illumina_demux(args):
-    ''' Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or 
-        for simplex runs, a single bam will be produced bearing the flowcell ID.
-        Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
-        while handling the various required input formats. Also can
-        read Illumina BCL directories, tar.gz BCL directories.
-    '''
+    """Read Illumina runs & produce BAM files, demultiplexing to one bam per sample, or
+    for simplex runs, a single bam will be produced bearing the flowcell ID.
+    Wraps together Picard's ExtractBarcodes (for multiplexed samples) and IlluminaBasecallsToSam
+    while handling the various required input formats. Also can
+    read Illumina BCL directories, tar.gz BCL directories.
+    """
 
     # prepare
     illumina = IlluminaDirectory(args.inDir)
@@ -145,73 +194,87 @@ def main_illumina_demux(args):
     else:
         run_id = None
     if args.sampleSheet:
-        samples = SampleSheet(args.sampleSheet, only_lane=args.lane, append_run_id=run_id)
+        samples = SampleSheet(
+            args.sampleSheet, only_lane=args.lane, append_run_id=run_id
+        )
     else:
         samples = illumina.get_SampleSheet(only_lane=args.lane, append_run_id=run_id)
 
-
-    link_locs=False
+    link_locs = False
     # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
     # called with LINK_LOCS=true, symlinks with absolute paths
-    # may be created, pointing from tile-specific *.locs to the 
+    # may be created, pointing from tile-specific *.locs to the
     # single s.locs file in the Intensities directory.
     # These links may break if the run directory is moved.
     # We should begin by removing broken links, if present,
     # and call CheckIlluminaDirectory ourselves if a 's.locs'
     # file is present, but only if the directory check fails
-    # since link_locs=true tries to create symlinks even if they 
+    # since link_locs=true tries to create symlinks even if they
     # (or the files) already exist
     try:
         tools.picard.CheckIlluminaDirectoryTool().execute(
-            illumina.get_BCLdir(),
-            args.lane,
-            read_structure,
-            link_locs=link_locs
+            illumina.get_BCLdir(), args.lane, read_structure, link_locs=link_locs
         )
     except subprocess.CalledProcessError as e:
         log.warning("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
         if os.path.exists(os.path.join(illumina.get_intensities_dir(), "s.locs")):
             # recurse to remove broken links in directory
-            log.info("This run has an 's.locs' file; checking for and removing broken per-tile symlinks...")
-            broken_links = util.file.find_broken_symlinks(illumina.get_intensities_dir())
+            log.info(
+                "This run has an 's.locs' file; checking for and removing broken per-tile symlinks..."
+            )
+            broken_links = util.file.find_broken_symlinks(
+                illumina.get_intensities_dir()
+            )
             if len(broken_links):
                 for lpath in broken_links:
                     log.info("Removing broken symlink: %s", lpath)
                     os.unlink(lpath)
 
             # call CheckIlluminaDirectory with LINK_LOCS=true
-            link_locs=True
+            link_locs = True
 
             log.info("Checking run directory with Picard...")
             tools.picard.CheckIlluminaDirectoryTool().execute(
-                illumina.get_BCLdir(),
-                args.lane,
-                read_structure,
-                link_locs=link_locs
+                illumina.get_BCLdir(), args.lane, read_structure, link_locs=link_locs
             )
         else:
             log.error("CheckIlluminaDirectory failed for %s", illumina.get_BCLdir())
 
-    multiplexed_samples = True if 'B' in read_structure else False
-    
+    multiplexed_samples = True if "B" in read_structure else False
+
     if multiplexed_samples:
-        assert samples is not None, "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
+        assert (
+            samples is not None
+        ), "This looks like a multiplexed run since 'B' is in the read_structure: a SampleSheet must be given."
     else:
-        assert samples==None, "A SampleSheet may not be provided unless 'B' is present in the read_structure"
+        assert (
+            samples == None
+        ), "A SampleSheet may not be provided unless 'B' is present in the read_structure"
         if args.commonBarcodes:
-            log.warning("--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file.")
+            log.warning(
+                "--commonBarcodes was set but 'B' is not present in the read_structure; emitting an empty file."
+            )
             util.file.touch(args.commonBarcodes)
 
     # B in read structure indicates barcoded multiplexed samples
     if multiplexed_samples:
         # Picard ExtractIlluminaBarcodes
-        extract_input = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
-        barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+        extract_input = util.file.mkstempfname(
+            ".txt", prefix=".".join(["barcodeData", flowcell, str(args.lane)])
+        )
+        barcodes_tmpdir = tempfile.mkdtemp(prefix="extracted_barcodes-")
         samples.make_barcodes_file(extract_input)
-        out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-        picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                          if hasattr(args, opt) and getattr(args, opt) != None)
-        picardOpts['read_structure'] = read_structure
+        out_metrics = (
+            (args.outMetrics is None)
+            and util.file.mkstempfname(".metrics.txt")
+            or args.outMetrics
+        )
+        picardOpts = dict(
+            (opt, getattr(args, opt))
+            for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+            if hasattr(args, opt) and getattr(args, opt) != None
+        )
+        picardOpts["read_structure"] = read_structure
         tools.picard.ExtractIlluminaBarcodesTool().execute(
             illumina.get_BCLdir(),
             args.lane,
@@ -219,58 +282,78 @@ def main_illumina_demux(args):
             barcodes_tmpdir,
             out_metrics,
             picardOptions=picardOpts,
-            JVMmemory=args.JVMmemory)
+            JVMmemory=args.JVMmemory,
+        )
 
         if args.commonBarcodes:
-            barcode_lengths = re.findall(r'(\d+)B',read_structure)
+            barcode_lengths = re.findall(r"(\d+)B", read_structure)
             try:
-                barcode1_len=int(barcode_lengths[0])
+                barcode1_len = int(barcode_lengths[0])
             except IndexError:
                 barcode1_len = 0
             try:
-                barcode2_len=int(barcode_lengths[1])
+                barcode2_len = int(barcode_lengths[1])
             except IndexError:
                 barcode2_len = 0
 
             # this step can take > 2 hours on a large high-output flowcell
             # so kick it to the background while we demux
-            #count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
+            # count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
             executor = concurrent.futures.ProcessPoolExecutor()
-            executor.submit(count_and_sort_barcodes, barcodes_tmpdir, args.commonBarcodes, barcode1_len, barcode2_len, truncateToLength=args.max_barcodes, threads=util.misc.sanitize_thread_count(args.threads))
+            executor.submit(
+                count_and_sort_barcodes,
+                barcodes_tmpdir,
+                args.commonBarcodes,
+                barcode1_len,
+                barcode2_len,
+                truncateToLength=args.max_barcodes,
+                threads=util.misc.sanitize_thread_count(args.threads),
+            )
 
         # Picard IlluminaBasecallsToSam
-        basecalls_input = util.file.mkstempfname('.txt', prefix='.'.join(['library_params', flowcell, str(args.lane)]))
+        basecalls_input = util.file.mkstempfname(
+            ".txt", prefix=".".join(["library_params", flowcell, str(args.lane)])
+        )
         samples.make_params_file(args.outDir, basecalls_input)
 
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    picardOpts['run_start_date'] = run_date
-    picardOpts['read_structure'] = read_structure
+    picardOpts = dict(
+        (opt, getattr(args, opt))
+        for opt in tools.picard.IlluminaBasecallsToSamTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
+    picardOpts["run_start_date"] = run_date
+    picardOpts["read_structure"] = read_structure
     if args.threads:
-        picardOpts['num_processors'] = args.threads
-    if not picardOpts.get('sequencing_center') and runinfo:
-        picardOpts['sequencing_center'] = runinfo.get_machine()
+        picardOpts["num_processors"] = args.threads
+    if not picardOpts.get("sequencing_center") and runinfo:
+        picardOpts["sequencing_center"] = runinfo.get_machine()
 
-    if picardOpts.get('sequencing_center'):
-        picardOpts["sequencing_center"] = util.file.string_to_file_name(picardOpts["sequencing_center"])
+    if picardOpts.get("sequencing_center"):
+        picardOpts["sequencing_center"] = util.file.string_to_file_name(
+            picardOpts["sequencing_center"]
+        )
 
     if args.out_runinfo:
-        with open(args.out_runinfo, 'wt') as outf:
-            json.dump({
-                'sequencing_center':picardOpts['sequencing_center'],
-                'run_start_date':runinfo.get_rundate_iso(),
-                'read_structure':picardOpts['read_structure'],
-                'indexes':str(samples.indexes),
-                'run_id':runinfo.get_run_id(),
-                'lane':str(args.lane),
-                'flowcell':str(runinfo.get_flowcell()),
-                'lane_count':str(runinfo.get_lane_count()),
-                'surface_count':str(runinfo.get_surface_count()),
-                'swath_count':str(runinfo.get_swath_count()),
-                'tile_count':str(runinfo.get_tile_count()),
-                'total_tile_count':str(runinfo.tile_count()),
-                'sequencer_model':runinfo.get_machine_model(),
-                }, outf, indent=2)
+        with open(args.out_runinfo, "wt") as outf:
+            json.dump(
+                {
+                    "sequencing_center": picardOpts["sequencing_center"],
+                    "run_start_date": runinfo.get_rundate_iso(),
+                    "read_structure": picardOpts["read_structure"],
+                    "indexes": str(samples.indexes),
+                    "run_id": runinfo.get_run_id(),
+                    "lane": str(args.lane),
+                    "flowcell": str(runinfo.get_flowcell()),
+                    "lane_count": str(runinfo.get_lane_count()),
+                    "surface_count": str(runinfo.get_surface_count()),
+                    "swath_count": str(runinfo.get_swath_count()),
+                    "tile_count": str(runinfo.get_tile_count()),
+                    "total_tile_count": str(runinfo.tile_count()),
+                    "sequencer_model": runinfo.get_machine_model(),
+                },
+                outf,
+                indent=2,
+            )
 
     # manually garbage collect to make sure we have as much RAM free as possible
     gc.collect()
@@ -282,28 +365,30 @@ def main_illumina_demux(args):
             args.lane,
             basecalls_input,
             picardOptions=picardOpts,
-            JVMmemory=args.JVMmemory)
+            JVMmemory=args.JVMmemory,
+        )
 
         # organize samplesheet metadata as json
         sample_meta = list(samples.get_rows())
         for row in sample_meta:
-            row['lane'] = str(args.lane)
+            row["lane"] = str(args.lane)
         if args.out_meta_by_sample:
-            with open(args.out_meta_by_sample, 'wt') as outf:
-                json.dump(dict((r['sample'],r) for r in sample_meta), outf, indent=2)
+            with open(args.out_meta_by_sample, "wt") as outf:
+                json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
         if args.out_meta_by_filename:
-            with open(args.out_meta_by_filename, 'wt') as outf:
-                json.dump(dict((r['run'],r) for r in sample_meta), outf, indent=2)
+            with open(args.out_meta_by_filename, "wt") as outf:
+                json.dump(dict((r["run"], r) for r in sample_meta), outf, indent=2)
 
     else:
         tools.picard.IlluminaBasecallsToSamTool().execute_single_sample(
             illumina.get_BCLdir(),
-            os.path.join(args.outDir,flowcell+".bam"),
+            os.path.join(args.outDir, flowcell + ".bam"),
             flowcell,
             args.lane,
             flowcell,
             picardOptions=picardOpts,
-            JVMmemory=args.JVMmemory)
+            JVMmemory=args.JVMmemory,
+        )
 
     # clean up
     if multiplexed_samples:
@@ -318,36 +403,64 @@ def main_illumina_demux(args):
     return 0
 
 
-__commands__.append(('illumina_demux', parser_illumina_demux))
+__commands__.append(("illumina_demux", parser_illumina_demux))
 
 # ==========================
 # ***  flowcell_metadata   ***
 # ==========================
 
+
 def parser_flowcell_metadata(parser=argparse.ArgumentParser()):
-    parser.add_argument('outMetadataFile', help='path of file to which metadata will be written.')
+    parser.add_argument(
+        "outMetadataFile", help="path of file to which metadata will be written."
+    )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--inDir', dest="in_dir", help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.', default=None)
-    group.add_argument('--runInfo',
-                        default=None,
-                        dest="run_info",
-                        help='''RunInfo.xml file.''')
-    group.add_argument('--flowcellID', dest="flowcell_id", help='flowcell ID (default: read from RunInfo.xml).', default=None)
-    util.cmd.common_args(parser, (('threads', tools.picard.IlluminaBasecallsToSamTool.defaults['num_processors']), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    group.add_argument(
+        "--inDir",
+        dest="in_dir",
+        help="Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.",
+        default=None,
+    )
+    group.add_argument(
+        "--runInfo", default=None, dest="run_info", help="""RunInfo.xml file."""
+    )
+    group.add_argument(
+        "--flowcellID",
+        dest="flowcell_id",
+        help="flowcell ID (default: read from RunInfo.xml).",
+        default=None,
+    )
+    util.cmd.common_args(
+        parser,
+        (
+            (
+                "threads",
+                tools.picard.IlluminaBasecallsToSamTool.defaults["num_processors"],
+            ),
+            ("loglevel", None),
+            ("version", None),
+            ("tmp_dir", None),
+        ),
+    )
     util.cmd.attach_main(parser, main_flowcell_metadata)
     return parser
 
+
 def main_flowcell_metadata(args):
-    ''' Writes run metadata to a file
-    '''
+    """Writes run metadata to a file"""
 
     if args.flowcell_id:
         machine_matches = RunInfo.get_machines_for_flowcell_id(args.flowcell_id)
         machine_match = None
-        if len(machine_matches)>1:
-            raise LookupError("Multiple sequencers found for flowcell ID: %s" % " ".join([m["machine"] for m in machine_matches]))
-        if len(machine_matches)==0:
-            raise LookupError("No sequencers found for flowcell ID '%s' " % args.flowcell_id)
+        if len(machine_matches) > 1:
+            raise LookupError(
+                "Multiple sequencers found for flowcell ID: %s"
+                % " ".join([m["machine"] for m in machine_matches])
+            )
+        if len(machine_matches) == 0:
+            raise LookupError(
+                "No sequencers found for flowcell ID '%s' " % args.flowcell_id
+            )
         machine_match = machine_matches[0]
     if args.run_info:
         runinfo = RunInfo(args.run_info)
@@ -358,36 +471,51 @@ def main_flowcell_metadata(args):
         runinfo = illumina.get_RunInfo()
         machine_match = runinfo.infer_sequencer_model()
 
-    with open(args.outMetadataFile,"w") as outf:
-        for k,v in machine_match.items():
-            if type(v)==str and len(v)>0 or type(v)!=str:
-                outline = "{k}\t{v}\n".format(k=k,v=v)
-                print(outline,end="")
+    with open(args.outMetadataFile, "w") as outf:
+        for k, v in machine_match.items():
+            if type(v) == str and len(v) > 0 or type(v) != str:
+                outline = "{k}\t{v}\n".format(k=k, v=v)
+                print(outline, end="")
                 outf.writelines([outline])
 
-__commands__.append(('flowcell_metadata', parser_flowcell_metadata))
+
+__commands__.append(("flowcell_metadata", parser_flowcell_metadata))
 
 # ==========================
 # ***  lane_metrics   ***
 # ==========================
 
+
 def parser_lane_metrics(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
-    parser.add_argument('outPrefix', help='''Prefix path to the *.illumina_lane_metrics and *.illumina_phasing_metrics files.''')
-    parser.add_argument('--read_structure',
-                        help='Override read structure (default: read from RunInfo.xml).',
-                        default=None)
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    parser.add_argument(
+        "inDir",
+        help="Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.",
+    )
+    parser.add_argument(
+        "outPrefix",
+        help="""Prefix path to the *.illumina_lane_metrics and *.illumina_phasing_metrics files.""",
+    )
+    parser.add_argument(
+        "--read_structure",
+        help="Override read structure (default: read from RunInfo.xml).",
+        default=None,
+    )
+    parser.add_argument(
+        "--JVMmemory",
+        help="JVM virtual memory size (default: %(default)s)",
+        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault,
+    )
+    util.cmd.common_args(
+        parser, (("loglevel", None), ("version", None), ("tmp_dir", None))
+    )
     util.cmd.attach_main(parser, main_lane_metrics)
     return parser
 
+
 def main_lane_metrics(args):
-    '''
-        Write out lane metrics to a tsv file.
-    '''
+    """
+    Write out lane metrics to a tsv file.
+    """
     # prepare
     illumina = IlluminaDirectory(args.inDir)
     illumina.load()
@@ -400,75 +528,113 @@ def main_lane_metrics(args):
     output_dir = os.path.dirname(os.path.realpath(args.outPrefix))
     output_prefix = os.path.basename(os.path.realpath(args.outPrefix))
 
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.CollectIlluminaLaneMetricsTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    picardOpts['read_structure'] = read_structure
+    picardOpts = dict(
+        (opt, getattr(args, opt))
+        for opt in tools.picard.CollectIlluminaLaneMetricsTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
+    picardOpts["read_structure"] = read_structure
     tools.picard.CollectIlluminaLaneMetricsTool().execute(
         illumina.path,
         output_dir,
         output_prefix,
         picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory,
+    )
 
     illumina.close()
     return 0
 
-__commands__.append(('lane_metrics', parser_lane_metrics))
+
+__commands__.append(("lane_metrics", parser_lane_metrics))
 
 
 # ==========================
 # ***  common_barcodes   ***
 # ==========================
 
+
 def parser_common_barcodes(parser=argparse.ArgumentParser()):
-    parser.add_argument('inDir', help='Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.')
-    parser.add_argument('lane', help='Lane number.', type=int)
-    parser.add_argument('outSummary', help='''Path to the summary file (.tsv format). It includes several columns: 
+    parser.add_argument(
+        "inDir",
+        help="Illumina BCL directory (or tar.gz of BCL directory). This is the top-level run directory.",
+    )
+    parser.add_argument("lane", help="Lane number.", type=int)
+    parser.add_argument(
+        "outSummary",
+        help="""Path to the summary file (.tsv format). It includes several columns: 
                                             (barcode1, likely_index_name1, barcode2, likely_index_name2, count), 
                                             where likely index names are either the exact match index name for the barcode 
-                                            sequence, or those Hamming distance of 1 away.''')
+                                            sequence, or those Hamming distance of 1 away.""",
+    )
 
-    parser.add_argument('--truncateToLength',
-                        help='If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.',
-                        type=int,
-                        default=None)
-    parser.add_argument('--omitHeader', 
-                        help='If specified, a header will not be added to the outSummary tsv file.',
-                        action='store_true')
-    parser.add_argument('--includeNoise', 
-                        help='If specified, barcodes with periods (".") will be included.',
-                        action='store_true')
-    parser.add_argument('--outMetrics',
-                        help='Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.',
-                        default=None)
-    parser.add_argument('--sampleSheet',
-                        default=None,
-                        help='''Override SampleSheet. Input tab or CSV file w/header and four named columns:
+    parser.add_argument(
+        "--truncateToLength",
+        help="If specified, only this number of barcodes will be returned. Useful if you only want the top N barcodes.",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--omitHeader",
+        help="If specified, a header will not be added to the outSummary tsv file.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--includeNoise",
+        help='If specified, barcodes with periods (".") will be included.',
+        action="store_true",
+    )
+    parser.add_argument(
+        "--outMetrics",
+        help="Output ExtractIlluminaBarcodes metrics file. Default is to dump to a temp file.",
+        default=None,
+    )
+    parser.add_argument(
+        "--sampleSheet",
+        default=None,
+        help="""Override SampleSheet. Input tab or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
-                                Default is to look for a SampleSheet.csv in the inDir.''')
-    parser.add_argument('--flowcell', help='Override flowcell ID (default: read from RunInfo.xml).', default=None)
-    parser.add_argument('--read_structure',
-                        help='Override read structure (default: read from RunInfo.xml).',
-                        default=None)
+                                Default is to look for a SampleSheet.csv in the inDir.""",
+    )
+    parser.add_argument(
+        "--flowcell",
+        help="Override flowcell ID (default: read from RunInfo.xml).",
+        default=None,
+    )
+    parser.add_argument(
+        "--read_structure",
+        help="Override read structure (default: read from RunInfo.xml).",
+        default=None,
+    )
 
     for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list:
-        if opt not in ('read_structure', 'num_processors'):
-            parser.add_argument('--' + opt,
-                                help='Picard ExtractIlluminaBarcodes ' + opt.upper() + ' (default: %(default)s)',
-                                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt))
+        if opt not in ("read_structure", "num_processors"):
+            parser.add_argument(
+                "--" + opt,
+                help="Picard ExtractIlluminaBarcodes "
+                + opt.upper()
+                + " (default: %(default)s)",
+                default=tools.picard.ExtractIlluminaBarcodesTool.defaults.get(opt),
+            )
 
-    parser.add_argument('--JVMmemory',
-                        help='JVM virtual memory size (default: %(default)s)',
-                        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault)
-    util.cmd.common_args(parser, (('threads',None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    parser.add_argument(
+        "--JVMmemory",
+        help="JVM virtual memory size (default: %(default)s)",
+        default=tools.picard.ExtractIlluminaBarcodesTool.jvmMemDefault,
+    )
+    util.cmd.common_args(
+        parser,
+        (("threads", None), ("loglevel", None), ("version", None), ("tmp_dir", None)),
+    )
     util.cmd.attach_main(parser, main_common_barcodes)
     return parser
 
+
 def main_common_barcodes(args):
-    ''' 
-        Extract Illumina barcodes for a run and write a TSV report 
-        of the barcode counts in descending order
-    '''
+    """
+    Extract Illumina barcodes for a run and write a TSV report
+    of the barcode counts in descending order
+    """
 
     # prepare
     illumina = IlluminaDirectory(args.inDir)
@@ -487,13 +653,22 @@ def main_common_barcodes(args):
         samples = illumina.get_SampleSheet(only_lane=args.lane)
 
     # Picard ExtractIlluminaBarcodes
-    barcode_file = util.file.mkstempfname('.txt', prefix='.'.join(['barcodeData', flowcell, str(args.lane)]))
-    barcodes_tmpdir = tempfile.mkdtemp(prefix='extracted_barcodes-')
+    barcode_file = util.file.mkstempfname(
+        ".txt", prefix=".".join(["barcodeData", flowcell, str(args.lane)])
+    )
+    barcodes_tmpdir = tempfile.mkdtemp(prefix="extracted_barcodes-")
     samples.make_barcodes_file(barcode_file)
-    out_metrics = (args.outMetrics is None) and util.file.mkstempfname('.metrics.txt') or args.outMetrics
-    picardOpts = dict((opt, getattr(args, opt)) for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
-                      if hasattr(args, opt) and getattr(args, opt) != None)
-    picardOpts['read_structure'] = read_structure
+    out_metrics = (
+        (args.outMetrics is None)
+        and util.file.mkstempfname(".metrics.txt")
+        or args.outMetrics
+    )
+    picardOpts = dict(
+        (opt, getattr(args, opt))
+        for opt in tools.picard.ExtractIlluminaBarcodesTool.option_list
+        if hasattr(args, opt) and getattr(args, opt) != None
+    )
+    picardOpts["read_structure"] = read_structure
     tools.picard.ExtractIlluminaBarcodesTool().execute(
         illumina.get_BCLdir(),
         args.lane,
@@ -501,19 +676,29 @@ def main_common_barcodes(args):
         barcodes_tmpdir,
         out_metrics,
         picardOptions=picardOpts,
-        JVMmemory=args.JVMmemory)
+        JVMmemory=args.JVMmemory,
+    )
 
-    barcode_lengths = re.findall(r'(\d+)B',read_structure)
+    barcode_lengths = re.findall(r"(\d+)B", read_structure)
     try:
-        barcode1_len=int(barcode_lengths[0])
+        barcode1_len = int(barcode_lengths[0])
     except IndexError:
         barcode1_len = 0
     try:
-        barcode2_len=int(barcode_lengths[1])
+        barcode2_len = int(barcode_lengths[1])
     except IndexError:
         barcode2_len = 0
 
-    count_and_sort_barcodes(barcodes_tmpdir, args.outSummary, barcode1_len, barcode2_len, args.truncateToLength, args.includeNoise, args.omitHeader, args.threads)
+    count_and_sort_barcodes(
+        barcodes_tmpdir,
+        args.outSummary,
+        barcode1_len,
+        barcode2_len,
+        args.truncateToLength,
+        args.includeNoise,
+        args.omitHeader,
+        args.threads,
+    )
 
     # clean up
     os.unlink(barcode_file)
@@ -521,66 +706,132 @@ def main_common_barcodes(args):
     illumina.close()
     return 0
 
-__commands__.append(('common_barcodes', parser_common_barcodes))
 
-def count_and_sort_barcodes(barcodes_dir, outSummary, barcode1_len=8, barcode2_len=8, truncateToLength=None, includeNoise=False, omitHeader=False, threads=None):
+__commands__.append(("common_barcodes", parser_common_barcodes))
+
+
+def count_and_sort_barcodes(
+    barcodes_dir,
+    outSummary,
+    barcode1_len=8,
+    barcode2_len=8,
+    truncateToLength=None,
+    includeNoise=False,
+    omitHeader=False,
+    threads=None,
+):
     # collect the barcode file paths for all tiles
-    tile_barcode_files = [os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)]
+    tile_barcode_files = [
+        os.path.join(barcodes_dir, filename) for filename in os.listdir(barcodes_dir)
+    ]
 
     # count all of the barcodes present in the tile files
     log.info("reading barcodes in all tile files")
 
     with util.file.CountDB() as reduce_db:
-        barcodefile_tempfile_tuples = [(tile_barcode_file,util.file.mkstempfname('sqlite_.db')) for tile_barcode_file in tile_barcode_files]
+        barcodefile_tempfile_tuples = [
+            (tile_barcode_file, util.file.mkstempfname("sqlite_.db"))
+            for tile_barcode_file in tile_barcode_files
+        ]
 
         # scatter tile-specific barcode files among workers to store barcode counts in SQLite
         workers = util.misc.sanitize_thread_count(threads)
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [executor.submit(util.file.count_occurrences_in_tsv_sqlite_backed, tf, bf, include_noise=includeNoise) for bf,tf in barcodefile_tempfile_tuples]
+            futures = [
+                executor.submit(
+                    util.file.count_occurrences_in_tsv_sqlite_backed,
+                    tf,
+                    bf,
+                    include_noise=includeNoise,
+                )
+                for bf, tf in barcodefile_tempfile_tuples
+            ]
             for future in concurrent.futures.as_completed(futures):
                 tmp_db, barcode_file = future.result()
-                log.debug("done reading barcodes from %s; adding to total...",barcode_file)
-                # gather and reduce counts from separate SQLite databases into one 
+                log.debug(
+                    "done reading barcodes from %s; adding to total...", barcode_file
+                )
+                # gather and reduce counts from separate SQLite databases into one
                 reduce_db.add_counts_from_other_db(tmp_db)
                 os.unlink(tmp_db)
 
         illumina_reference = IlluminaIndexReference()
 
-        log.info("Number of barcodes seen %s",reduce_db.get_num_IDS())
+        log.info("Number of barcodes seen %s", reduce_db.get_num_IDS())
 
         # write the barcodes and their corresponding counts
-        with open(outSummary, 'w') as tsvfile:
+        with open(outSummary, "w") as tsvfile:
             log.info("sorting counts...")
             log.info("writing output...")
-            writer = csv.writer(tsvfile, delimiter='\t')
+            writer = csv.writer(tsvfile, delimiter="\t")
             # write the header unless the user has specified not to do so
             if not omitHeader:
-                writer.writerow(("Barcode1", "Likely_Index_Names1", "Barcode2", "Likely_Index_Names2", "Count"))
+                writer.writerow(
+                    (
+                        "Barcode1",
+                        "Likely_Index_Names1",
+                        "Barcode2",
+                        "Likely_Index_Names2",
+                        "Count",
+                    )
+                )
 
-            for num_processed,row in enumerate(reduce_db.get_counts_descending()):
+            for num_processed, row in enumerate(reduce_db.get_counts_descending()):
 
-                if truncateToLength and num_processed>truncateToLength:
+                if truncateToLength and num_processed > truncateToLength:
                     break
 
-                barcode,count = row
+                barcode, count = row
 
-                writer.writerow((barcode[:barcode1_len], ",".join([x for x in illumina_reference.guess_index(barcode[:barcode1_len], distance=1)] or ["Unknown"]), 
-                            barcode[barcode1_len:len(barcode)], ",".join([x for x in illumina_reference.guess_index(barcode[barcode1_len:len(barcode)], distance=1)] or ["Unknown"]),
-                            count))
+                writer.writerow(
+                    (
+                        barcode[:barcode1_len],
+                        ",".join(
+                            [
+                                x
+                                for x in illumina_reference.guess_index(
+                                    barcode[:barcode1_len], distance=1
+                                )
+                            ]
+                            or ["Unknown"]
+                        ),
+                        barcode[barcode1_len : len(barcode)],
+                        ",".join(
+                            [
+                                x
+                                for x in illumina_reference.guess_index(
+                                    barcode[barcode1_len : len(barcode)], distance=1
+                                )
+                            ]
+                            or ["Unknown"]
+                        ),
+                        count,
+                    )
+                )
 
-                if num_processed%50000==0:
-                    log.debug("written %s barcode summaries to output file",num_processed)
+                if num_processed % 50000 == 0:
+                    log.debug(
+                        "written %s barcode summaries to output file", num_processed
+                    )
 
     log.info("done")
+
 
 # ======================================
 # ***  guess_low-abundance_barcodes  ***
 # ======================================
 
+
 def parser_guess_barcodes(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_barcodes', help='The barcode counts file produced by common_barcodes.')
-    parser.add_argument('in_picard_metrics', help='The demultiplexing read metrics produced by Picard.')
-    parser.add_argument('out_summary_tsv', help='''Path to the summary file (.tsv format). It includes several columns: 
+    parser.add_argument(
+        "in_barcodes", help="The barcode counts file produced by common_barcodes."
+    )
+    parser.add_argument(
+        "in_picard_metrics", help="The demultiplexing read metrics produced by Picard."
+    )
+    parser.add_argument(
+        "out_summary_tsv",
+        help="""Path to the summary file (.tsv format). It includes several columns: 
                                             (sample_name, expected_barcode_1, expected_barcode_2, 
                                             expected_barcode_1_name, expected_barcode_2_name, 
                                             expected_barcodes_read_count, guessed_barcode_1, 
@@ -588,85 +839,109 @@ def parser_guess_barcodes(parser=argparse.ArgumentParser()):
                                             guessed_barcode_2_name, guessed_barcodes_read_count, 
                                             match_type), 
                                             where the expected values are those used by Picard during demultiplexing
-                                            and the guessed values are based on the barcodes seen among the data.''')
+                                            and the guessed values are based on the barcodes seen among the data.""",
+    )
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--readcount_threshold',
-                        default=None,
-                        type=int,
-                        help='''If specified, guess barcodes for samples with fewer than this many reads.''')
-    group.add_argument('--sample_names',
-                        nargs='*',
-                        help='If specified, only guess barcodes for these sample names.',
-                        type=str,
-                        default=None)
-    parser.add_argument('--outlier_threshold', 
-                        help='threshold of how far from unbalanced a sample must be to be considered an outlier.',
-                        type=float,
-                        default=0.775)
-    parser.add_argument('--expected_assigned_fraction', 
-                        help='The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.',
-                        type=float,
-                        default=0.7)
+    group.add_argument(
+        "--readcount_threshold",
+        default=None,
+        type=int,
+        help="""If specified, guess barcodes for samples with fewer than this many reads.""",
+    )
+    group.add_argument(
+        "--sample_names",
+        nargs="*",
+        help="If specified, only guess barcodes for these sample names.",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--outlier_threshold",
+        help="threshold of how far from unbalanced a sample must be to be considered an outlier.",
+        type=float,
+        default=0.775,
+    )
+    parser.add_argument(
+        "--expected_assigned_fraction",
+        help="The fraction of reads expected to be assigned. An exception is raised if fewer than this fraction are assigned.",
+        type=float,
+        default=0.7,
+    )
     group2 = parser.add_mutually_exclusive_group()
-    group2.add_argument('--number_of_negative_controls',
-                        help='If specified, the number of negative controls in the pool, for calculating expected number of reads in the rest of the pool.',
-                        type=int)
-    group2.add_argument('--neg_control_prefixes',
-                        nargs='+',
-                        help='If specified, the sample name prefixes assumed for counting negative controls. Case-insensitive.',
-                        type=str,
-                        default=["neg", "water", "NTC", "H2O"])
-    parser.add_argument('--rows_limit',
-                        default=1000,
-                        type=int,
-                        help='''The number of rows to use from the in_barcodes.''')
+    group2.add_argument(
+        "--number_of_negative_controls",
+        help="If specified, the number of negative controls in the pool, for calculating expected number of reads in the rest of the pool.",
+        type=int,
+    )
+    group2.add_argument(
+        "--neg_control_prefixes",
+        nargs="+",
+        help="If specified, the sample name prefixes assumed for counting negative controls. Case-insensitive.",
+        type=str,
+        default=["neg", "water", "NTC", "H2O"],
+    )
+    parser.add_argument(
+        "--rows_limit",
+        default=1000,
+        type=int,
+        help="""The number of rows to use from the in_barcodes.""",
+    )
 
-    
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(
+        parser, (("loglevel", None), ("version", None), ("tmp_dir", None))
+    )
     util.cmd.attach_main(parser, main_guess_barcodes, split_args=True)
     return parser
 
-def main_guess_barcodes(in_barcodes, 
-                        in_picard_metrics, 
-                        out_summary_tsv, 
-                        sample_names, 
-                        outlier_threshold, 
-                        expected_assigned_fraction, 
-                        number_of_negative_controls, 
-                        readcount_threshold, 
-                        rows_limit,
-                        neg_control_prefixes):
+
+def main_guess_barcodes(
+    in_barcodes,
+    in_picard_metrics,
+    out_summary_tsv,
+    sample_names,
+    outlier_threshold,
+    expected_assigned_fraction,
+    number_of_negative_controls,
+    readcount_threshold,
+    rows_limit,
+    neg_control_prefixes,
+):
     """
-        Guess the barcode value for a sample name,
-            based on the following:
-             - a list is made of novel barcode pairs seen in the data, but not in the picard metrics
-             - for the sample in question, get the most abundant novel barcode pair where one of the 
-               barcodes seen in the data matches one of the barcodes in the picard metrics (partial match)
-             - if there are no partial matches, get the most abundant novel barcode pair 
+    Guess the barcode value for a sample name,
+        based on the following:
+         - a list is made of novel barcode pairs seen in the data, but not in the picard metrics
+         - for the sample in question, get the most abundant novel barcode pair where one of the
+           barcodes seen in the data matches one of the barcodes in the picard metrics (partial match)
+         - if there are no partial matches, get the most abundant novel barcode pair
 
-            Limitations:
-             - If multiple samples share a barcode with multiple novel barcodes, disentangling them
-               is difficult or impossible
+        Limitations:
+         - If multiple samples share a barcode with multiple novel barcodes, disentangling them
+           is difficult or impossible
 
-        The names of samples to guess are selected:
-          - explicitly by name, passed via argument, OR
-          - explicitly by read count threshold, OR
-          - automatically (if names or count threshold are omitted)
-            based on basic outlier detection of deviation from an assumed-balanced pool with
-            some number of negative controls
+    The names of samples to guess are selected:
+      - explicitly by name, passed via argument, OR
+      - explicitly by read count threshold, OR
+      - automatically (if names or count threshold are omitted)
+        based on basic outlier detection of deviation from an assumed-balanced pool with
+        some number of negative controls
     """
 
-    bh = util.illumina_indices.IlluminaBarcodeHelper(in_barcodes, in_picard_metrics, rows_limit)
-    guessed_barcodes = bh.find_uncertain_barcodes(sample_names=sample_names, 
-                                                    outlier_threshold=outlier_threshold, 
-                                                    expected_assigned_fraction=expected_assigned_fraction, 
-                                                    number_of_negative_controls=number_of_negative_controls, 
-                                                    readcount_threshold=readcount_threshold,
-                                                    neg_control_prefixes=neg_control_prefixes)
+    bh = util.illumina_indices.IlluminaBarcodeHelper(
+        in_barcodes, in_picard_metrics, rows_limit
+    )
+    guessed_barcodes = bh.find_uncertain_barcodes(
+        sample_names=sample_names,
+        outlier_threshold=outlier_threshold,
+        expected_assigned_fraction=expected_assigned_fraction,
+        number_of_negative_controls=number_of_negative_controls,
+        readcount_threshold=readcount_threshold,
+        neg_control_prefixes=neg_control_prefixes,
+    )
     bh.write_guessed_barcodes(out_summary_tsv, guessed_barcodes)
 
-__commands__.append(('guess_barcodes', parser_guess_barcodes))
+
+__commands__.append(("guess_barcodes", parser_guess_barcodes))
 
 
 # ============================
@@ -675,8 +950,7 @@ __commands__.append(('guess_barcodes', parser_guess_barcodes))
 
 
 class IlluminaDirectory(object):
-    ''' A class that handles Illumina data directories
-    '''
+    """A class that handles Illumina data directories"""
 
     def __init__(self, uri):
         self.uri = uri
@@ -695,8 +969,8 @@ class IlluminaDirectory(object):
 
     def load(self):
         if self.path is None:
-            if '://' in self.uri:
-                raise NotImplementedError('boto s3 download here uri -> tarball')
+            if "://" in self.uri:
+                raise NotImplementedError("boto s3 download here uri -> tarball")
                 # tarball = util.file.mkstempfname('.tar.gz')
                 # # TODO: download here, uri -> tarball
                 # self._extract_tarball(tarball)
@@ -713,21 +987,29 @@ class IlluminaDirectory(object):
         # this is not the correct root-level directory
         # sometimes this points to one level up
         while True:
-            if os.path.isdir(os.path.join(self.path, 'Data', 'Intensities', 'BaseCalls')):
+            if os.path.isdir(
+                os.path.join(self.path, "Data", "Intensities", "BaseCalls")
+            ):
                 # found it! self.path is correct
                 break
             else:
-                subdirs = list(os.path.join(self.path, x) for x in os.listdir(self.path)
-                               if os.path.isdir(os.path.join(self.path, x)))
+                subdirs = list(
+                    os.path.join(self.path, x)
+                    for x in os.listdir(self.path)
+                    if os.path.isdir(os.path.join(self.path, x))
+                )
                 if len(subdirs) == 1:
                     # follow the rabbit hole
                     self.path = subdirs[0]
                 else:
                     # don't know where to go now!
-                    raise Exception('cannot find Data/Intensities/BaseCalls/ inside %s (%s)' % (self.uri, self.path))
+                    raise Exception(
+                        "cannot find Data/Intensities/BaseCalls/ inside %s (%s)"
+                        % (self.uri, self.path)
+                    )
 
     def _extract_tarball(self, tarfile):
-        self.tempDir = tempfile.mkdtemp(prefix='IlluminaDirectory-')
+        self.tempDir = tempfile.mkdtemp(prefix="IlluminaDirectory-")
         self.path = self.tempDir
         util.file.extract_tarball(tarfile, self.tempDir)
 
@@ -738,23 +1020,25 @@ class IlluminaDirectory(object):
 
     def get_RunInfo(self):
         if self.runinfo is None:
-            runinfo_file = os.path.join(self.path, 'RunInfo.xml')
+            runinfo_file = os.path.join(self.path, "RunInfo.xml")
             util.file.check_paths(runinfo_file)
             self.runinfo = RunInfo(runinfo_file)
         return self.runinfo
 
     def get_SampleSheet(self, only_lane=None, append_run_id=None):
         if self.samplesheet is None:
-            samplesheet_file = os.path.join(self.path, 'SampleSheet.csv')
+            samplesheet_file = os.path.join(self.path, "SampleSheet.csv")
             util.file.check_paths(samplesheet_file)
-            self.samplesheet = SampleSheet(samplesheet_file, only_lane=only_lane, append_run_id=append_run_id)
+            self.samplesheet = SampleSheet(
+                samplesheet_file, only_lane=only_lane, append_run_id=append_run_id
+            )
         return self.samplesheet
 
     def get_intensities_dir(self):
-        return os.path.join(self.path, 'Data', 'Intensities')
+        return os.path.join(self.path, "Data", "Intensities")
 
     def get_BCLdir(self):
-        return os.path.join(self.get_intensities_dir(), 'BaseCalls')
+        return os.path.join(self.get_intensities_dir(), "BaseCalls")
 
 
 # ==================
@@ -763,9 +1047,9 @@ class IlluminaDirectory(object):
 
 
 class RunInfo(object):
-    ''' A class that reads the RunInfo.xml file emitted by Illumina
-        MiSeq and HiSeq machines.
-    '''
+    """A class that reads the RunInfo.xml file emitted by Illumina
+    MiSeq and HiSeq machines.
+    """
 
     def __init__(self, xml_fname):
         self.fname = xml_fname
@@ -775,31 +1059,33 @@ class RunInfo(object):
         return self.fname
 
     def get_run_id(self):
-        return self.root[0].attrib['Id']
+        return self.root[0].attrib["Id"]
 
     def get_flowcell_raw(self):
-        return self.root[0].find('Flowcell').text
+        return self.root[0].find("Flowcell").text
 
     def get_flowcell(self):
         fc = self.get_flowcell_raw()
         # slice in the case where the ID has a prefix of zeros
         if re.match(r"^0+-", fc):
-            if '-' in fc:
+            if "-" in fc:
                 # miseq often adds a bunch of leading zeros and a dash in front
-                fc = "-".join(fc.split('-')[1:])
+                fc = "-".join(fc.split("-")[1:])
         # >=5 to avoid an exception here: https://github.com/broadinstitute/picard/blob/2.17.6/src/main/java/picard/illumina/IlluminaBasecallsToSam.java#L510
         # <= 15 to limit the bytes added to each bam record
-        assert len(fc) >= 5,"The flowcell ID must be five or more characters in length"
+        assert len(fc) >= 5, "The flowcell ID must be five or more characters in length"
         if len(fc) > 15:
-            log.warning("The provided flowcell ID is longer than 15 characters. Is that correct?")
+            log.warning(
+                "The provided flowcell ID is longer than 15 characters. Is that correct?"
+            )
         return fc
 
     def _get_rundate_obj(self):
         """
-            Access the text of the <Date> node in the RunInfo.xml file
-            and returns an arrow date object.
+        Access the text of the <Date> node in the RunInfo.xml file
+        and returns an arrow date object.
         """
-        rundate = self.root[0].find('Date').text
+        rundate = self.root[0].find("Date").text
         # possible formats found in RunInfo.xml:
         #   "170712" (YYMMDD)
         #   "20170712" (YYYYMMDD)
@@ -809,7 +1095,7 @@ class RunInfo(object):
             "YYMMDD",
             "YYYYMMDD",
             "M/D/YYYY h:mm:ss A",
-            "YYYY-MM-DDTHH:mm:ssZ"
+            "YYYY-MM-DDTHH:mm:ssZ",
         ]
         for datestring_format in datestring_formats:
             try:
@@ -817,7 +1103,10 @@ class RunInfo(object):
                 return date_parsed
             except arrow.parser.ParserError:
                 pass
-        raise arrow.parser.ParserError("The date string seen in RunInfo.xml ('%s') did not match known Illumina formats: %s" % (rundate,datestring_formats) )
+        raise arrow.parser.ParserError(
+            "The date string seen in RunInfo.xml ('%s') did not match known Illumina formats: %s"
+            % (rundate, datestring_formats)
+        )
 
     def get_rundate_american(self):
         return str(self._get_rundate_obj().format("MM/DD/YYYY"))
@@ -826,116 +1115,134 @@ class RunInfo(object):
         return str(self._get_rundate_obj().format("YYYY-MM-DD"))
 
     def get_machine(self):
-        return self.root[0].find('Instrument').text
+        return self.root[0].find("Instrument").text
 
     def get_read_structure(self):
         reads = []
-        for x in self.root[0].find('Reads').findall('Read'):
-            order = int(x.attrib['Number'])
-            read = x.attrib['NumCycles'] + (x.attrib['IsIndexedRead'] == 'Y' and 'B' or 'T')
+        for x in self.root[0].find("Reads").findall("Read"):
+            order = int(x.attrib["Number"])
+            read = x.attrib["NumCycles"] + (
+                x.attrib["IsIndexedRead"] == "Y" and "B" or "T"
+            )
             reads.append((order, read))
-        return ''.join([r for _, r in sorted(reads)])
+        return "".join([r for _, r in sorted(reads)])
 
     def num_reads(self):
-        return sum(1 for x in self.root[0].find('Reads').findall('Read') if x.attrib['IsIndexedRead'] == 'N')
+        return sum(
+            1
+            for x in self.root[0].find("Reads").findall("Read")
+            if x.attrib["IsIndexedRead"] == "N"
+        )
 
     def get_lane_count(self):
-        layout = self.root[0].find('FlowcellLayout')
-        return int(layout.attrib['LaneCount'])
+        layout = self.root[0].find("FlowcellLayout")
+        return int(layout.attrib["LaneCount"])
 
     def get_surface_count(self):
-        layout = self.root[0].find('FlowcellLayout')
-        return int(layout.attrib['SurfaceCount'])
+        layout = self.root[0].find("FlowcellLayout")
+        return int(layout.attrib["SurfaceCount"])
 
     def get_swath_count(self):
-        layout = self.root[0].find('FlowcellLayout')
-        return int(layout.attrib['SwathCount'])
+        layout = self.root[0].find("FlowcellLayout")
+        return int(layout.attrib["SwathCount"])
 
     def get_tile_count(self):
-        layout = self.root[0].find('FlowcellLayout')
-        return int(layout.attrib['TileCount'])
+        layout = self.root[0].find("FlowcellLayout")
+        return int(layout.attrib["TileCount"])
 
     def get_section_count(self):
-        layout = self.root[0].find('FlowcellLayout')
+        layout = self.root[0].find("FlowcellLayout")
         # not ever flowcell type has sections but some do (ex. NextSeq 550 does)
         # return 1 in the event it's not listed in the RunInfo.xml file
-        return int(layout.attrib.get('SectionPerLane',1))
+        return int(layout.attrib.get("SectionPerLane", 1))
 
     def tile_count(self):
-        lane_count    = self.get_lane_count()
+        lane_count = self.get_lane_count()
         surface_count = self.get_surface_count()
-        swath_count   = self.get_swath_count()
-        tile_count    = self.get_tile_count()
+        swath_count = self.get_swath_count()
+        tile_count = self.get_tile_count()
         section_count = self.get_section_count()
 
-        total_tile_count = lane_count*surface_count*swath_count*tile_count*section_count
+        total_tile_count = (
+            lane_count * surface_count * swath_count * tile_count * section_count
+        )
         return total_tile_count
 
     def machine_model_from_tile_count(self):
         """
-            Return machine name and lane count based on tile count
-            Machine names aim to conform to the NCBI SRA controlled 
-            vocabulary for Illumina sequencers available here:
-              https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/sra/doc/SRA_1-5/SRA.common.xsd?view=co&content-type=text%2Fplain
+        Return machine name and lane count based on tile count
+        Machine names aim to conform to the NCBI SRA controlled
+        vocabulary for Illumina sequencers available here:
+          https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/sra/doc/SRA_1-5/SRA.common.xsd?view=co&content-type=text%2Fplain
         """
         tc = self.tile_count()
 
-        machine=None
+        machine = None
         if tc == 2:
-            log.info("Detected %s tiles, interpreting as MiSeq nano run.",tc)
-            machine = {"machine":"Illumina MiSeq","lane_count":1}
+            log.info("Detected %s tiles, interpreting as MiSeq nano run.", tc)
+            machine = {"machine": "Illumina MiSeq", "lane_count": 1}
         elif tc == 8:
-            log.info("Detected %s tiles, interpreting as MiSeq micro run.",tc)
-            machine = {"machine":"Illumina MiSeq","lane_count":1}
+            log.info("Detected %s tiles, interpreting as MiSeq micro run.", tc)
+            machine = {"machine": "Illumina MiSeq", "lane_count": 1}
         elif tc == 16:
-            log.info("Detected %s tiles, interpreting as iSeq run.",tc)
-            machine = {"machine":"Illumina iSeq 100","lane_count":1}
+            log.info("Detected %s tiles, interpreting as iSeq run.", tc)
+            machine = {"machine": "Illumina iSeq 100", "lane_count": 1}
         elif tc == 28:
-            log.info("Detected %s tiles, interpreting as MiSeq run.",tc)
-            machine = {"machine":"Illumina MiSeq","lane_count":1}
+            log.info("Detected %s tiles, interpreting as MiSeq run.", tc)
+            machine = {"machine": "Illumina MiSeq", "lane_count": 1}
         elif tc == 38:
-            log.info("Detected %s tiles, interpreting as MiSeq run.",tc)
-            machine = {"machine":"Illumina MiSeq","lane_count":1}
+            log.info("Detected %s tiles, interpreting as MiSeq run.", tc)
+            machine = {"machine": "Illumina MiSeq", "lane_count": 1}
         elif tc == 128:
-            log.info("Detected %s tiles, interpreting as HiSeq2k run.",tc)
-            machine = {"machine":"Illumina HiSeq 2500","lane_count":2}
+            log.info("Detected %s tiles, interpreting as HiSeq2k run.", tc)
+            machine = {"machine": "Illumina HiSeq 2500", "lane_count": 2}
         elif tc == 132:
             # NextSeq P2 kit can be used on either NextSeq 1000 or 2000
             # so we cannot know which from the tile count alone
-            log.info("Detected %s tiles, interpreting as NextSeq 1000/2000 P2 run.",tc)
-            machine = {"machine":"NextSeq 1000/2000","lane_count":1}
+            log.info("Detected %s tiles, interpreting as NextSeq 1000/2000 P2 run.", tc)
+            machine = {"machine": "NextSeq 1000/2000", "lane_count": 1}
         elif tc == 264:
-            log.info("Detected %s tiles, interpreting as NextSeq 2000 P3 run.",tc)
-            machine = {"machine":"NextSeq 2000","lane_count":2}
+            log.info("Detected %s tiles, interpreting as NextSeq 2000 P3 run.", tc)
+            machine = {"machine": "NextSeq 2000", "lane_count": 2}
         elif tc == 288:
             # NextSeq 550 is a NextSeq 500 that can also read arrays.
             # Since we cannot tell them apart based on tile count, we call it the 550
-            log.info("Detected %s tiles, interpreting as NextSeq 550 (mid-output) run.",tc)
-            machine = {"machine":"NextSeq 550","lane_count":4}
+            log.info(
+                "Detected %s tiles, interpreting as NextSeq 550 (mid-output) run.", tc
+            )
+            machine = {"machine": "NextSeq 550", "lane_count": 4}
         elif tc == 624:
-            log.info("Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.",tc)
-            machine = {"machine":"Illumina NovaSeq 6000","lane_count":2}
+            log.info(
+                "Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.", tc
+            )
+            machine = {"machine": "Illumina NovaSeq 6000", "lane_count": 2}
         elif tc == 768:
             # HiSeq 2000 and 2500 have the same number of tiles
             # Defaulting to the newer HiSeq 2500
-            log.info("Detected %s tiles, interpreting as HiSeq2500 run.",tc)
-            machine = {"machine":"Illumina HiSeq 2500","lane_count":8}
+            log.info("Detected %s tiles, interpreting as HiSeq2500 run.", tc)
+            machine = {"machine": "Illumina HiSeq 2500", "lane_count": 8}
         elif tc == 864:
             # NextSeq 550 is a NextSeq 500 that can also read arrays.
             # Since we cannot tell them apart based on tile count, we call it the 550
-            log.info("Detected %s tiles, interpreting as NextSeq 550 (high-output) run.",tc)
-            machine = {"machine":"NextSeq 550","lane_count":4}
+            log.info(
+                "Detected %s tiles, interpreting as NextSeq 550 (high-output) run.", tc
+            )
+            machine = {"machine": "NextSeq 550", "lane_count": 4}
         elif tc == 896:
-            log.info("Detected %s tiles, interpreting as HiSeq4k run.",tc)
-            machine = {"machine":"Illumina HiSeq 4000","lane_count":8}
+            log.info("Detected %s tiles, interpreting as HiSeq4k run.", tc)
+            machine = {"machine": "Illumina HiSeq 4000", "lane_count": 8}
         elif tc == 1408:
-            log.info("Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.",tc)
-            machine = {"machine":"Illumina NovaSeq 6000","lane_count":2}
+            log.info(
+                "Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.", tc
+            )
+            machine = {"machine": "Illumina NovaSeq 6000", "lane_count": 2}
         elif tc == 3744:
-            log.info("Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.",tc)
-            machine = {"machine":"Illumina NovaSeq 6000","lane_count":4}
+            log.info(
+                "Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.", tc
+            )
+            machine = {"machine": "Illumina NovaSeq 6000", "lane_count": 4}
         elif tc > 3744:
-            log.info("Tile count: %s tiles (unknown instrument type).",tc)
+            log.info("Tile count: %s tiles (unknown instrument type).", tc)
         return machine
 
     def get_flowcell_chemistry(self):
@@ -947,7 +1254,7 @@ class RunInfo(object):
         try:
             return self.get_lane_count()
         except Exception as e:
-            return guessed_sequencer.get("lane_count",None)
+            return guessed_sequencer.get("lane_count", None)
 
     def get_machine_model(self):
         guessed_sequencer = self.infer_sequencer_model()
@@ -957,103 +1264,121 @@ class RunInfo(object):
     def get_machines_for_flowcell_id(cls, fcid):
         sequencer_by_fcid = []
         for key in cls.flowcell_to_machine_model_and_chemistry:
-            if re.search(key,fcid):
-                sequencer_by_fcid.append(cls.flowcell_to_machine_model_and_chemistry[key])
+            if re.search(key, fcid):
+                sequencer_by_fcid.append(
+                    cls.flowcell_to_machine_model_and_chemistry[key]
+                )
         return sequencer_by_fcid
 
     def infer_sequencer_model(self):
         fcid = self.get_flowcell_raw()
         sequencer_by_tile_count = self.machine_model_from_tile_count()
-        sequencers_by_fcid      = self.get_machines_for_flowcell_id(fcid)
-        
-        if len(sequencers_by_fcid)>1:
-            raise LookupError("Multiple sequencers possible: %s",fcid)
+        sequencers_by_fcid = self.get_machines_for_flowcell_id(fcid)
 
-        print("self.tile_count()",self.tile_count())
+        if len(sequencers_by_fcid) > 1:
+            raise LookupError("Multiple sequencers possible: %s", fcid)
+
+        print("self.tile_count()", self.tile_count())
 
         # always return sequencer model based on flowcell ID, if we can
-        if len(sequencers_by_fcid)>0:
-            if sequencer_by_tile_count is not None and sequencers_by_fcid[0]["machine"]!=sequencer_by_tile_count["machine"]:
-                log.warning("Sequencer type inferred from flowcell ID: %s does not match sequencer inferred from tile count: %s; is this a new machine type?" % (sequencers_by_fcid[0]["machine"], sequencer_by_tile_count["machine"]))
+        if len(sequencers_by_fcid) > 0:
+            if (
+                sequencer_by_tile_count is not None
+                and sequencers_by_fcid[0]["machine"]
+                != sequencer_by_tile_count["machine"]
+            ):
+                log.warning(
+                    "Sequencer type inferred from flowcell ID: %s does not match sequencer inferred from tile count: %s; is this a new machine type?"
+                    % (
+                        sequencers_by_fcid[0]["machine"],
+                        sequencer_by_tile_count["machine"],
+                    )
+                )
             return sequencers_by_fcid[0]
         # otherwise return based on tile count if we can
         elif sequencer_by_tile_count is not None:
-            log.warning("Sequencer type unknown flowcell ID: %s, yet sequencer type was inferred for tile count: %s; is this a new flowcell ID pattern?" % (fcid, self.tile_count()))
+            log.warning(
+                "Sequencer type unknown flowcell ID: %s, yet sequencer type was inferred for tile count: %s; is this a new flowcell ID pattern?"
+                % (fcid, self.tile_count())
+            )
             return sequencer_by_tile_count
         # otherwise we do not know
         else:
-            log.warning("Tile count: %s and flowcell ID: %s are both novel; is this a new machine type?" % (self.tile_count(), fcid))
-            return {"machine":"UNKNOWN","lane_count":self.get_lane_count()}
+            log.warning(
+                "Tile count: %s and flowcell ID: %s are both novel; is this a new machine type?"
+                % (self.tile_count(), fcid)
+            )
+            return {"machine": "UNKNOWN", "lane_count": self.get_lane_count()}
 
-    # Machine names aim to conform to the NCBI SRA controlled 
+    # Machine names aim to conform to the NCBI SRA controlled
     # vocabulary for Illumina sequencers available here:
     #   https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/sra/doc/SRA_1-5/SRA.common.xsd?view=co&content-type=text%2Fplain
     flowcell_to_machine_model_and_chemistry = {
-        r'[A-Z,0-9]{5}AAXX':{
-            "machine":    "Illumina Genome Analyzer IIx",
-            "chemistry":  "All",
-            "lane_count":  8,
-            "note":       ""
+        r"[A-Z,0-9]{5}AAXX": {
+            "machine": "Illumina Genome Analyzer IIx",
+            "chemistry": "All",
+            "lane_count": 8,
+            "note": "",
         },
-        r'[A-Z,0-9]{5}ABXX':{
-            "machine":    "Illumina HiSeq 2000",
-            "chemistry":  "V2 Chemistry",
-            "lane_count":  8,
-            "note":       ""
+        r"[A-Z,0-9]{5}ABXX": {
+            "machine": "Illumina HiSeq 2000",
+            "chemistry": "V2 Chemistry",
+            "lane_count": 8,
+            "note": "",
         },
-        r'[A-Z,0-9]{5}ACXX':{
-            "machine":   "Illumina HiSeq 2000",
+        r"[A-Z,0-9]{5}ACXX": {
+            "machine": "Illumina HiSeq 2000",
             "chemistry": "V3 Chemistry",
             "lane_count": 8,
-            "note":       "Also used on transient 2000E"
+            "note": "Also used on transient 2000E",
         },
-        r'[A-Z,0-9]{5}(?:ANXX|AN\w\w)':{
-            "machine":    "Illumina HiSeq 2500",
-            "chemistry":  "V4 Chemistry",
-            "lane_count":  8,
-            "note":       "High output"
+        r"[A-Z,0-9]{5}(?:ANXX|AN\w\w)": {
+            "machine": "Illumina HiSeq 2500",
+            "chemistry": "V4 Chemistry",
+            "lane_count": 8,
+            "note": "High output",
         },
-        r'[A-Z,0-9]{5}(?:ADXX|AD\w\w)':{
-            "machine":    "Illumina HiSeq 2500",
-            "chemistry":  "V1 Chemistry",
-            "lane_count":  2,
-            "note":       "Rapid run"
+        r"[A-Z,0-9]{5}(?:ADXX|AD\w\w)": {
+            "machine": "Illumina HiSeq 2500",
+            "chemistry": "V1 Chemistry",
+            "lane_count": 2,
+            "note": "Rapid run",
         },
-        r'[A-Z,0-9]{5}AMXX':{
-            "machine":    "Illumina HiSeq 2500",
-            "chemistry":  "V2 Chemistry (beta)",
-            "lane_count":  2,
-            "note":       "Rapid run"
+        r"[A-Z,0-9]{5}AMXX": {
+            "machine": "Illumina HiSeq 2500",
+            "chemistry": "V2 Chemistry (beta)",
+            "lane_count": 2,
+            "note": "Rapid run",
         },
-        r'[A-Z,0-9]{5}(?:BCXX|BC\w\w)':{
-            "machine":    "Illumina HiSeq 2500",
-            "chemistry":  "V2 Chemistry",
-            "lane_count":  2,
-            "note":       "Rapid run"
-        },
-        # NextSeq 550 is a NextSeq 500 that can also read arrays.
-        # Since we cannot tell them apart based on tile count, we call it the 550
-        r'[A-Z,0-9]{5}AFX\w':{
-            "machine":    "NextSeq 550",
-            "chemistry":  "Mid-Output NextSeq",
-            "lane_count":  4,
-            "note":       ""
+        r"[A-Z,0-9]{5}(?:BCXX|BC\w\w)": {
+            "machine": "Illumina HiSeq 2500",
+            "chemistry": "V2 Chemistry",
+            "lane_count": 2,
+            "note": "Rapid run",
         },
         # NextSeq 550 is a NextSeq 500 that can also read arrays.
         # Since we cannot tell them apart based on tile count, we call it the 550
-        r'[A-Z,0-9]{5}AGXX':{
-            "machine":    "NextSeq 550",
-            "chemistry":  "V1 Chemistry",
-            "lane_count":  4,
-            "note":       "High-output"
+        r"[A-Z,0-9]{5}AFX\w": {
+            "machine": "NextSeq 550",
+            "chemistry": "Mid-Output NextSeq",
+            "lane_count": 4,
+            "note": "",
         },
         # NextSeq 550 is a NextSeq 500 that can also read arrays.
         # Since we cannot tell them apart based on tile count, we call it the 550
-        r'[A-Z,0-9]{5}(?:BGXX|BG\w\w)':{
-            "machine":    "NextSeq 550",
-            "chemistry":  "V2/V2.5 Chemistry",
-            "lane_count":  4,
-            "note":       "High-output"
+        r"[A-Z,0-9]{5}AGXX": {
+            "machine": "NextSeq 550",
+            "chemistry": "V1 Chemistry",
+            "lane_count": 4,
+            "note": "High-output",
+        },
+        # NextSeq 550 is a NextSeq 500 that can also read arrays.
+        # Since we cannot tell them apart based on tile count, we call it the 550
+        r"[A-Z,0-9]{5}(?:BGXX|BG\w\w)": {
+            "machine": "NextSeq 550",
+            "chemistry": "V2/V2.5 Chemistry",
+            "lane_count": 4,
+            "note": "High-output",
         },
         # r'[A-Z,0-9]{5}(?:AAAC|AAA\w)':{ # suffix not confirmed
         #     "machine":    "NextSeq 1000/2000",
@@ -1067,72 +1392,82 @@ class RunInfo(object):
         #     "lane_count":  2,
         #     "note":       "High-output"
         # },
-        r'[A-Z,0-9]{5}(?:BBXX|BB\w\w)':{
-            "machine":    "Illumina HiSeq 4000",
-            "chemistry":  "Illumina HiSeq 4000",
-            "lane_count":  8,
-            "note":       ""
+        r"[A-Z,0-9]{5}(?:BBXX|BB\w\w)": {
+            "machine": "Illumina HiSeq 4000",
+            "chemistry": "Illumina HiSeq 4000",
+            "lane_count": 8,
+            "note": "",
         },
-        r'[A-Z,0-9]{5}(?:ALXX:AL\w\w)':{
-            "machine":    "HiSeq X Ten",
-            "chemistry":  "V1/V2.5 Chemistry",
-            "lane_count":  8,
-            "note":       ""
+        r"[A-Z,0-9]{5}(?:ALXX:AL\w\w)": {
+            "machine": "HiSeq X Ten",
+            "chemistry": "V1/V2.5 Chemistry",
+            "lane_count": 8,
+            "note": "",
         },
-        r'[A-Z,0-9]{5}(?:CCXX:CC\w\w)':{
-            "machine":    "HiSeq X Ten",
-            "chemistry":  "V2/V2.5 Chemistry",
-            "lane_count":  8,
-            "note":       ""
+        r"[A-Z,0-9]{5}(?:CCXX:CC\w\w)": {
+            "machine": "HiSeq X Ten",
+            "chemistry": "V2/V2.5 Chemistry",
+            "lane_count": 8,
+            "note": "",
         },
-        r'[A-Z,0-9]{5}DR\w\w':{
-            "machine":    "Illumina NovaSeq 6000",
-            "chemistry":  "V1 Chemistry",
-            "lane_count":  2,
-            "note":       "S1/SP"
+        r"[A-Z,0-9]{5}DR\w\w": {
+            "machine": "Illumina NovaSeq 6000",
+            "chemistry": "V1 Chemistry",
+            "lane_count": 2,
+            "note": "S1/SP",
         },
-        r'[A-Z,0-9]{5}DM\w\w':{
-            "machine":    "Illumina NovaSeq 6000",
-            "chemistry":  "V1 Chemistry",
-            "lane_count":  2,
-            "note":       "S2"
+        r"[A-Z,0-9]{5}DM\w\w": {
+            "machine": "Illumina NovaSeq 6000",
+            "chemistry": "V1 Chemistry",
+            "lane_count": 2,
+            "note": "S2",
         },
-        r'[A-Z,0-9]{5}DS\w\w':{
-            "machine":    "Illumina NovaSeq 6000",
-            "chemistry":  "V1 Chemistry",
-            "lane_count":  4,
-            "note":       "S4"
+        r"[A-Z,0-9]{5}DS\w\w": {
+            "machine": "Illumina NovaSeq 6000",
+            "chemistry": "V1 Chemistry",
+            "lane_count": 4,
+            "note": "S4",
         },
-        r'BNS417.*':{
-            "machine":    "Illumina iSeq 100",
-            "chemistry":  "V1",
-            "lane_count":  1,
-            "note":       "AKA Firefly"
+        r"BNS417.*": {
+            "machine": "Illumina iSeq 100",
+            "chemistry": "V1",
+            "lane_count": 1,
+            "note": "AKA Firefly",
         },
-        r'[0-9]{9}-\w{5}':{
-            "machine":    "Illumina MiSeq",
-            "chemistry":  "V1/V2/V3 Chemistry",
-            "lane_count":  1,
-            "note":       ""
-        }
+        r"[0-9]{9}-\w{5}": {
+            "machine": "Illumina MiSeq",
+            "chemistry": "V1/V2/V3 Chemistry",
+            "lane_count": 1,
+            "note": "",
+        },
     }
+
 
 # ======================
 # ***  SampleSheet   ***
 # ======================
 
+
 class SampleSheetError(Exception):
     def __init__(self, message, fname):
         super(SampleSheetError, self).__init__(
-            'Failed to read SampleSheet {}. {}'.format(
-                fname, message))
+            "Failed to read SampleSheet {}. {}".format(fname, message)
+        )
+
 
 class SampleSheet(object):
-    ''' A class that reads an Illumina SampleSheet.csv or alternative/simplified
-        tab-delimited versions as well.
-    '''
+    """A class that reads an Illumina SampleSheet.csv or alternative/simplified
+    tab-delimited versions as well.
+    """
 
-    def __init__(self, infile, use_sample_name=True, only_lane=None, allow_non_unique=False, append_run_id=None):
+    def __init__(
+        self,
+        infile,
+        use_sample_name=True,
+        only_lane=None,
+        allow_non_unique=False,
+        append_run_id=None,
+    ):
         self.fname = infile
         self.use_sample_name = use_sample_name
         if only_lane is not None:
@@ -1144,77 +1479,85 @@ class SampleSheet(object):
         self._detect_and_load_sheet(infile)
 
     def _detect_and_load_sheet(self, infile):
-        if infile.endswith(('.csv','.csv.gz')):
+        if infile.endswith((".csv", ".csv.gz")):
             # one of a few possible CSV formats (watch out for line endings from other OSes)
-            with util.file.open_or_gzopen(infile, 'rU') as inf:
+            with util.file.open_or_gzopen(infile, "rU") as inf:
                 header = None
                 miseq_skip = False
                 row_num = 0
                 for line_no, line in enumerate(inf):
-                    if line_no==0:
+                    if line_no == 0:
                         # remove BOM, if present
-                        line = line.replace('\ufeff','')
+                        line = line.replace("\ufeff", "")
 
                     # if this is a blank line, skip parsing and continue to the next line...
-                    if len(line.rstrip('\r\n').strip()) == 0:
+                    if len(line.rstrip("\r\n").strip()) == 0:
                         continue
-                    csv.register_dialect('samplesheet', quoting=csv.QUOTE_MINIMAL, escapechar='\\')
-                    row = next(csv.reader([line.strip().rstrip('\n')], dialect="samplesheet"))
-                    row = [item.strip() for item in row] # remove leading/trailing whitespace from each item
+                    csv.register_dialect(
+                        "samplesheet", quoting=csv.QUOTE_MINIMAL, escapechar="\\"
+                    )
+                    row = next(
+                        csv.reader([line.strip().rstrip("\n")], dialect="samplesheet")
+                    )
+                    row = [
+                        item.strip() for item in row
+                    ]  # remove leading/trailing whitespace from each item
                     if miseq_skip:
-                        if line.startswith('[Data]'):
+                        if line.startswith("[Data]"):
                             # start paying attention *after* this line
                             miseq_skip = False
                         # otherwise, skip all the miseq headers
-                    elif line.startswith('['):
+                    elif line.startswith("["):
                         # miseq: ignore all lines until we see "[Data]"
                         miseq_skip = True
                     elif header is None:
                         header = row
-                        if all(x in header for x in ['Sample_ID','Index']):
+                        if all(x in header for x in ["Sample_ID", "Index"]):
                             # this is a Broad Platform MiSeq-generated SampleSheet.csv
                             keymapper = {
-                                'Sample_ID': 'sample',
-                                'Index': 'barcode_1',
-                                'Index2': 'barcode_2',
-                                'Sample_Name': 'sample_name'
+                                "Sample_ID": "sample",
+                                "Index": "barcode_1",
+                                "Index2": "barcode_2",
+                                "Sample_Name": "sample_name",
                             }
                             header = list(map(keymapper.get, header))
-                        elif 'Sample_ID' in header:
+                        elif "Sample_ID" in header:
                             # this is a MiSeq-generated SampleSheet.csv
                             keymapper = {
-                                'Sample_ID': 'sample',
-                                'index': 'barcode_1',
-                                'index2': 'barcode_2',
-                                'Sample_Name': 'sample_name'
+                                "Sample_ID": "sample",
+                                "index": "barcode_1",
+                                "index2": "barcode_2",
+                                "Sample_Name": "sample_name",
                             }
                             header = list(map(keymapper.get, header))
-                        elif 'SampleID' in header:
+                        elif "SampleID" in header:
                             # this is a Broad Platform HiSeq-generated SampleSheet.csv
                             keymapper = {
-                                'SampleID': 'sample',
-                                'Index': 'barcode_1',
-                                'Index2': 'barcode_2',
-                                'libraryName': 'library_id_per_sample',
-                                'FCID': 'flowcell',
-                                'Lane': 'lane'
+                                "SampleID": "sample",
+                                "Index": "barcode_1",
+                                "Index2": "barcode_2",
+                                "libraryName": "library_id_per_sample",
+                                "FCID": "flowcell",
+                                "Lane": "lane",
                             }
                             header = list(map(keymapper.get, header))
                         elif len(row) == 3:
                             # hopefully this is a Broad walk-up submission sheet (_web_iww_htdocs_seq...)
-                            header = ['sample', 'barcode_1', 'barcode_2']
-                            if 'sample' not in row[0].lower():
+                            header = ["sample", "barcode_1", "barcode_2"]
+                            if "sample" not in row[0].lower():
                                 # this is an actual data row! (no header exists in this file)
                                 row_num += 1
-                                self.rows.append({
-                                    'sample': row[0],
-                                    'barcode_1': row[1],
-                                    'barcode_2': row[2],
-                                    'row_num': str(row_num)
-                                })
+                                self.rows.append(
+                                    {
+                                        "sample": row[0],
+                                        "barcode_1": row[1],
+                                        "barcode_2": row[2],
+                                        "row_num": str(row_num),
+                                    }
+                                )
                         else:
-                            raise SampleSheetError('unrecognized filetype', infile)
-                        for h in ('sample', 'barcode_1'):
+                            raise SampleSheetError("unrecognized filetype", infile)
+                        for h in ("sample", "barcode_1"):
                             assert h in header
                     else:
                         # data rows
@@ -1228,111 +1571,136 @@ class SampleSheet(object):
 
                         assert len(header) == len(row)
                         row = dict((k, v) for k, v in zip(header, row) if k and v)
-                        row['row_num'] = str(row_num)
-                        if (self.only_lane is not None and row.get('lane') and self.only_lane != row['lane']):
+                        row["row_num"] = str(row_num)
+                        if (
+                            self.only_lane is not None
+                            and row.get("lane")
+                            and self.only_lane != row["lane"]
+                        ):
                             continue
-                        if ('sample' in row and row['sample']) and ('barcode_1' in row and row['barcode_1']):
+                        if ("sample" in row and row["sample"]) and (
+                            "barcode_1" in row and row["barcode_1"]
+                        ):
                             self.rows.append(row)
             # go back and re-shuffle miseq columns if use_sample_name applies
-            if (self.use_sample_name and 'sample_name' in header and all(row.get('sample_name') for row in self.rows)):
+            if (
+                self.use_sample_name
+                and "sample_name" in header
+                and all(row.get("sample_name") for row in self.rows)
+            ):
                 for row in self.rows:
-                    row['library_id_per_sample'] = row['sample']
-                    row['sample'] = row['sample_name']
+                    row["library_id_per_sample"] = row["sample"]
+                    row["sample"] = row["sample_name"]
             for row in self.rows:
-                if 'sample_name' in row:
-                    del row['sample_name']
-        elif infile.endswith(('.txt','.txt.gz','.tsv')):
+                if "sample_name" in row:
+                    del row["sample_name"]
+        elif infile.endswith((".txt", ".txt.gz", ".tsv")):
             # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
             self.rows = []
             row_num = 0
             for row in util.file.read_tabfile_dict(infile):
-                assert row.get('sample') and row.get('barcode_1')
+                assert row.get("sample") and row.get("barcode_1")
                 row_num += 1
-                row['row_num'] = str(row_num)
+                row["row_num"] = str(row_num)
                 self.rows.append(row)
         else:
-            raise SampleSheetError('unrecognized filetype', infile)
+            raise SampleSheetError("unrecognized filetype", infile)
 
         if not self.rows:
-            raise SampleSheetError('empty file', infile)
+            raise SampleSheetError("empty file", infile)
 
         # populate library IDs, run IDs (ie BAM filenames)
         for row in self.rows:
-            row['library'] = row['sample']
-            if row.get('library_id_per_sample'):
-                row['library'] += '.l' + row['library_id_per_sample']
-            row['run'] = row['library']
-        if len(set(row['run'] for row in self.rows)) != len(self.rows):
+            row["library"] = row["sample"]
+            if row.get("library_id_per_sample"):
+                row["library"] += ".l" + row["library_id_per_sample"]
+            row["run"] = row["library"]
+        if len(set(row["run"] for row in self.rows)) != len(self.rows):
             if self.allow_non_unique:
                 log.warning("non-unique library IDs in this lane")
                 unique_count = {}
                 for row in self.rows:
-                    unique_count.setdefault(row['library'], 0)
-                    unique_count[row['library']] += 1
-                    row['run'] += '.r' + str(unique_count[row['library']])
+                    unique_count.setdefault(row["library"], 0)
+                    unique_count[row["library"]] += 1
+                    row["run"] += ".r" + str(unique_count[row["library"]])
             else:
-                raise SampleSheetError('non-unique library IDs in this lane', infile)
+                raise SampleSheetError("non-unique library IDs in this lane", infile)
         if self.append_run_id:
             for row in self.rows:
-                row['run'] += '.' + self.append_run_id
+                row["run"] += "." + self.append_run_id
 
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
-            row['sample_original'] = row['sample']
-            row['sample'] = util.file.string_to_file_name(row['sample'])
-            row['library'] = util.file.string_to_file_name(row['library'])
-            row['run'] = util.file.string_to_file_name(row['run'])
+            row["sample_original"] = row["sample"]
+            row["sample"] = util.file.string_to_file_name(row["sample"])
+            row["library"] = util.file.string_to_file_name(row["library"])
+            row["run"] = util.file.string_to_file_name(row["run"])
 
         # are we single or double indexed?
-        if all(row.get('barcode_2') for row in self.rows):
+        if all(row.get("barcode_2") for row in self.rows):
             self.indexes = 2
-        elif any(row.get('barcode_2') for row in self.rows):
-            raise SampleSheetError('inconsistent single/double barcoding in sample sheet', infile)
+        elif any(row.get("barcode_2") for row in self.rows):
+            raise SampleSheetError(
+                "inconsistent single/double barcoding in sample sheet", infile
+            )
         else:
             self.indexes = 1
 
     def make_barcodes_file(self, outFile):
-        ''' Create input file for Picard ExtractBarcodes '''
+        """Create input file for Picard ExtractBarcodes"""
         if self.num_indexes() == 2:
-            header = ['barcode_name', 'library_name', 'barcode_sequence_1', 'barcode_sequence_2']
+            header = [
+                "barcode_name",
+                "library_name",
+                "barcode_sequence_1",
+                "barcode_sequence_2",
+            ]
         else:
-            header = ['barcode_name', 'library_name', 'barcode_sequence_1']
-        with open(outFile, 'wt') as outf:
-            outf.write('\t'.join(header) + '\n')
+            header = ["barcode_name", "library_name", "barcode_sequence_1"]
+        with open(outFile, "wt") as outf:
+            outf.write("\t".join(header) + "\n")
             for row in self.rows:
                 out = {
-                    'barcode_sequence_1': row['barcode_1'],
-                    'barcode_sequence_2': row.get('barcode_2', ''),
-                    'barcode_name': row['sample'],
-                    'library_name': row['library']
+                    "barcode_sequence_1": row["barcode_1"],
+                    "barcode_sequence_2": row.get("barcode_2", ""),
+                    "barcode_name": row["sample"],
+                    "library_name": row["library"],
                 }
-                outf.write('\t'.join(out[h] for h in header) + '\n')
+                outf.write("\t".join(out[h] for h in header) + "\n")
 
     def make_params_file(self, bamDir, outFile):
-        ''' Create input file for Picard IlluminaBasecallsToXXX '''
+        """Create input file for Picard IlluminaBasecallsToXXX"""
         if self.num_indexes() == 2:
-            header = ['OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'BARCODE_1', 'BARCODE_2']
+            header = [
+                "OUTPUT",
+                "SAMPLE_ALIAS",
+                "LIBRARY_NAME",
+                "BARCODE_1",
+                "BARCODE_2",
+            ]
         else:
-            header = ['OUTPUT', 'SAMPLE_ALIAS', 'LIBRARY_NAME', 'BARCODE_1']
-        with open(outFile, 'wt') as outf:
-            outf.write('\t'.join(header) + '\n')
+            header = ["OUTPUT", "SAMPLE_ALIAS", "LIBRARY_NAME", "BARCODE_1"]
+        with open(outFile, "wt") as outf:
+            outf.write("\t".join(header) + "\n")
             # add one catchall entry at the end called Unmatched
-            rows = self.rows + [{
-                'barcode_1': 'N',
-                'barcode_2': 'N',
-                'sample': 'Unmatched',
-                'library': 'Unmatched',
-                'run': 'Unmatched'
-            }]
+            rows = self.rows + [
+                {
+                    "barcode_1": "N",
+                    "barcode_2": "N",
+                    "sample": "Unmatched",
+                    "library": "Unmatched",
+                    "run": "Unmatched",
+                }
+            ]
             for row in rows:
                 out = {
-                    'BARCODE_1': row['barcode_1'],
-                    'BARCODE_2': row.get('barcode_2', ''),
-                    'SAMPLE_ALIAS': row['sample'],
-                    'LIBRARY_NAME': row['library']
+                    "BARCODE_1": row["barcode_1"],
+                    "BARCODE_2": row.get("barcode_2", ""),
+                    "SAMPLE_ALIAS": row["sample"],
+                    "LIBRARY_NAME": row["library"],
                 }
-                out['OUTPUT'] = os.path.join(bamDir, row['run'] + ".bam")
-                outf.write('\t'.join(out[h] for h in header) + '\n')
+                out["OUTPUT"] = os.path.join(bamDir, row["run"] + ".bam")
+                outf.write("\t".join(out[h] for h in header) + "\n")
 
     def get_fname(self):
         return self.fname
@@ -1341,153 +1709,199 @@ class SampleSheet(object):
         return self.rows
 
     def num_indexes(self):
-        ''' Return 1 or 2 depending on whether pools are single or double indexed '''
+        """Return 1 or 2 depending on whether pools are single or double indexed"""
         return self.indexes
 
     def fetch_by_index(self, idx):
         idx = str(idx)
         for row in self.rows:
-            if idx == row['row_num']:
+            if idx == row["row_num"]:
                 return row
         return None
+
 
 # =============================
 # ***  miseq_fastq_to_bam   ***
 # =============================
 
 
-def miseq_fastq_to_bam(outBam, sampleSheet, inFastq1, inFastq2=None, runInfo=None,
-                       sequencing_center=None,
-                       JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault):
-    ''' Convert fastq read files to a single bam file. Fastq file names must conform
-        to patterns emitted by Miseq machines. Sample metadata must be provided
-        in a SampleSheet.csv that corresponds to the fastq filename. Specifically,
-        the _S##_ index in the fastq file name will be used to find the corresponding
-        row in the SampleSheet
-    '''
+def miseq_fastq_to_bam(
+    outBam,
+    sampleSheet,
+    inFastq1,
+    inFastq2=None,
+    runInfo=None,
+    sequencing_center=None,
+    JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault,
+):
+    """Convert fastq read files to a single bam file. Fastq file names must conform
+    to patterns emitted by Miseq machines. Sample metadata must be provided
+    in a SampleSheet.csv that corresponds to the fastq filename. Specifically,
+    the _S##_ index in the fastq file name will be used to find the corresponding
+    row in the SampleSheet
+    """
 
     # match miseq based on fastq filenames
     mo = re.match(r"^\S+_S(\d+)_L001_R(\d)_001.fastq(?:.gz|)$", inFastq1)
-    assert mo, "fastq filename %s does not match the patterns used by an Illumina Miseq machine" % inFastq1
-    assert mo.group(2) == '1', "fastq1 must correspond to read 1, not read %s" % mo.group(2)
+    assert mo, (
+        "fastq filename %s does not match the patterns used by an Illumina Miseq machine"
+        % inFastq1
+    )
+    assert (
+        mo.group(2) == "1"
+    ), "fastq1 must correspond to read 1, not read %s" % mo.group(2)
     sample_num = mo.group(1)
     if inFastq2:
         mo = re.match(r"^\S+_S(\d+)_L001_R(\d)_001.fastq(?:.gz|)$", inFastq2)
-        assert mo, "fastq filename %s does not match the patterns used by an Illumina Miseq machine" % inFastq2
-        assert mo.group(2) == '2', "fastq2 must correspond to read 2, not read %s" % mo.group(2)
-        assert mo.group(1) == sample_num, "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (
-            sample_num, mo.group(1))
+        assert mo, (
+            "fastq filename %s does not match the patterns used by an Illumina Miseq machine"
+            % inFastq2
+        )
+        assert (
+            mo.group(2) == "2"
+        ), "fastq2 must correspond to read 2, not read %s" % mo.group(2)
+        assert (
+            mo.group(1) == sample_num
+        ), "fastq1 (%s) and fastq2 (%s) must have the same sample number" % (
+            sample_num,
+            mo.group(1),
+        )
 
     # load metadata
     samples = SampleSheet(sampleSheet, allow_non_unique=True)
     sample_info = samples.fetch_by_index(sample_num)
     assert sample_info, "sample %s not found in %s" % (sample_num, sampleSheet)
-    sampleName = sample_info['sample']
+    sampleName = sample_info["sample"]
     log.info("Using sample name: %s", sampleName)
-    if sample_info.get('barcode_2'):
-        barcode = '-'.join((sample_info['barcode_1'], sample_info['barcode_2']))
+    if sample_info.get("barcode_2"):
+        barcode = "-".join((sample_info["barcode_1"], sample_info["barcode_2"]))
     else:
-        barcode = sample_info['barcode_1']
+        barcode = sample_info["barcode_1"]
     picardOpts = {
-        'LIBRARY_NAME': sample_info['library'],
-        'PLATFORM': 'illumina',
-        'VERBOSITY': 'WARNING',
-        'QUIET': 'TRUE',
+        "LIBRARY_NAME": sample_info["library"],
+        "PLATFORM": "illumina",
+        "VERBOSITY": "WARNING",
+        "QUIET": "TRUE",
     }
     if runInfo:
         runInfo = RunInfo(runInfo)
         flowcell = runInfo.get_flowcell()
-        picardOpts['RUN_DATE'] = runInfo.get_rundate_iso()
+        picardOpts["RUN_DATE"] = runInfo.get_rundate_iso()
         if inFastq2:
-            assert runInfo.num_reads() == 2, "paired fastqs given for a single-end RunInfo.xml"
+            assert (
+                runInfo.num_reads() == 2
+            ), "paired fastqs given for a single-end RunInfo.xml"
         else:
-            assert runInfo.num_reads() == 1, "second fastq missing for a paired-end RunInfo.xml"
+            assert (
+                runInfo.num_reads() == 1
+            ), "second fastq missing for a paired-end RunInfo.xml"
     else:
-        flowcell = 'A'
+        flowcell = "A"
     if sequencing_center is None and runInfo:
         sequencing_center = runInfo.get_machine()
     if sequencing_center:
-        picardOpts['SEQUENCING_CENTER'] = util.file.string_to_file_name(sequencing_center)
-    picardOpts['PLATFORM_UNIT'] = '.'.join((flowcell, '1', barcode))
+        picardOpts["SEQUENCING_CENTER"] = util.file.string_to_file_name(
+            sequencing_center
+        )
+    picardOpts["PLATFORM_UNIT"] = ".".join((flowcell, "1", barcode))
     if len(flowcell) > 5:
         flowcell = flowcell[:5]
-    picardOpts['READ_GROUP_NAME'] = flowcell
+    picardOpts["READ_GROUP_NAME"] = flowcell
 
     # run Picard
     picard = tools.picard.FastqToSamTool()
-    picard.execute(inFastq1,
-                   inFastq2,
-                   sampleName,
-                   outBam,
-                   picardOptions=picard.dict_to_picard_opts(picardOpts),
-                   JVMmemory=JVMmemory)
+    picard.execute(
+        inFastq1,
+        inFastq2,
+        sampleName,
+        outBam,
+        picardOptions=picard.dict_to_picard_opts(picardOpts),
+        JVMmemory=JVMmemory,
+    )
     return 0
 
 
 def parser_miseq_fastq_to_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('outBam', help='Output BAM file.')
-    parser.add_argument('sampleSheet', help='Input SampleSheet.csv file.')
-    parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads if paired.')
-    parser.add_argument('--inFastq2', help='Input fastq file; 2nd end of paired-end reads.', default=None)
-    parser.add_argument('--runInfo', help='Input RunInfo.xml file.', default=None)
+    parser.add_argument("outBam", help="Output BAM file.")
+    parser.add_argument("sampleSheet", help="Input SampleSheet.csv file.")
     parser.add_argument(
-        '--sequencing_center',
+        "inFastq1", help="Input fastq file; 1st end of paired-end reads if paired."
+    )
+    parser.add_argument(
+        "--inFastq2",
+        help="Input fastq file; 2nd end of paired-end reads.",
         default=None,
-        help='Name of your sequencing center (default is the sequencing machine ID from the RunInfo.xml)')
-    parser.add_argument('--JVMmemory',
-                        default=tools.picard.FastqToSamTool.jvmMemDefault,
-                        help='JVM virtual memory size (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    )
+    parser.add_argument("--runInfo", help="Input RunInfo.xml file.", default=None)
+    parser.add_argument(
+        "--sequencing_center",
+        default=None,
+        help="Name of your sequencing center (default is the sequencing machine ID from the RunInfo.xml)",
+    )
+    parser.add_argument(
+        "--JVMmemory",
+        default=tools.picard.FastqToSamTool.jvmMemDefault,
+        help="JVM virtual memory size (default: %(default)s)",
+    )
+    util.cmd.common_args(
+        parser, (("loglevel", None), ("version", None), ("tmp_dir", None))
+    )
     util.cmd.attach_main(parser, miseq_fastq_to_bam, split_args=True)
     return parser
 
 
-__commands__.append(('miseq_fastq_to_bam', parser_miseq_fastq_to_bam))
-
+__commands__.append(("miseq_fastq_to_bam", parser_miseq_fastq_to_bam))
 
 
 # ==============================
 # ***  extract_fc_metadata   ***
 # ==============================
 def extract_fc_metadata(flowcell, outRunInfo, outSampleSheet):
-    ''' Extract RunInfo.xml and SampleSheet.csv from the provided Illumina directory
-    '''
+    """Extract RunInfo.xml and SampleSheet.csv from the provided Illumina directory"""
     illumina = IlluminaDirectory(flowcell)
     illumina.load()
     shutil.copy(illumina.get_RunInfo().get_fname(), outRunInfo)
     shutil.copy(illumina.get_SampleSheet().get_fname(), outSampleSheet)
     return 0
+
+
 def parser_extract_fc_metadata(parser=argparse.ArgumentParser()):
-    parser.add_argument('flowcell', help='Illumina directory (possibly tarball)')
-    parser.add_argument('outRunInfo', help='Output RunInfo.xml file.')
-    parser.add_argument('outSampleSheet', help='Output SampleSheet.csv file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    parser.add_argument("flowcell", help="Illumina directory (possibly tarball)")
+    parser.add_argument("outRunInfo", help="Output RunInfo.xml file.")
+    parser.add_argument("outSampleSheet", help="Output SampleSheet.csv file.")
+    util.cmd.common_args(
+        parser, (("loglevel", None), ("version", None), ("tmp_dir", None))
+    )
     util.cmd.attach_main(parser, extract_fc_metadata, split_args=True)
     return parser
-__commands__.append(('extract_fc_metadata', parser_extract_fc_metadata))
+
+
+__commands__.append(("extract_fc_metadata", parser_extract_fc_metadata))
 
 
 # ==================
 # ***  Swiftseq/cDNAtag-Seq demux   ***
 # ==================
 
+
 def read_json(filepath):
-    with open(filepath, 'r') as file:
+    with open(filepath, "r") as file:
         data = json.load(file)
     return data
 
-def create_lut(path_to_samplesheet, out_folder, unmatched_name):
+
+def create_lut(sampleSheet, outDir, unmatched_name):
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
     # TO-DO: Adjust the table outputted by this function to match Picard output
 
     # Load samplesheet
-    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
+    barcodes_df = pd.read_csv(sampleSheet, sep="\t")
     barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
 
-    df_out = f"{out_folder}/bc2sample_lut.csv"
-    
+    df_out = f"{outDir}/bc2sample_lut.csv"
+
     i7_barcodes = list(set(barcodes_df["barcode_1"].values))
-    
+
     pools = []
     barcode_ids = []
     barcode_list = []
@@ -1501,222 +1915,303 @@ def create_lut(path_to_samplesheet, out_folder, unmatched_name):
             # Get barcodes
             i7_list.append(i7)
             barcode_list.append(bc)
-    
-            pool_values = barcodes_df[barcodes_df["barcode_1"] == i7]["library_id_per_sample"].values
+
+            pool_values = barcodes_df[barcodes_df["barcode_1"] == i7][
+                "library_id_per_sample"
+            ].values
             if len(set(pool_values)) > 1:
-                raise ValueError(f"More than one ({len(set(pool_values))}) pools found for i7 barcode {i7}.")
+                raise ValueError(
+                    f"More than one ({len(set(pool_values))}) pools found for i7 barcode {i7}."
+                )
             pool = pool_values[0]
             pools.append(pool)
-    
+
             i5_values = barcodes_df[barcodes_df["barcode_1"] == i7]["barcode_2"].values
             if len(set(i5_values)) > 1:
-                raise ValueError(f"More than one ({len(set(i5_values))}) i5 barcodes found for i7 barcode {i7}.")
+                raise ValueError(
+                    f"More than one ({len(set(i5_values))}) i5 barcodes found for i7 barcode {i7}."
+                )
             i5 = i5_values[0]
             i5_list.append(i5)
 
             if bc == unmatched_name:
                 bc_id = unmatched_name
             else:
-                bc_ids = barcodes_df[barcodes_df["barcode_3"] == bc]["Inline_Index_ID"].values
+                bc_ids = barcodes_df[barcodes_df["barcode_3"] == bc][
+                    "Inline_Index_ID"
+                ].values
                 if len(set(bc_ids)) > 1:
-                    raise ValueError(f"More than one ({len(set(bc_ids))}) barcodes index IDs found for inline barcode {bc}.")
+                    raise ValueError(
+                        f"More than one ({len(set(bc_ids))}) barcodes index IDs found for inline barcode {bc}."
+                    )
                 bc_id = bc_ids[0]
             barcode_ids.append(bc_id)
-    
+
             # Get sample name
             if bc == unmatched_name:
                 sample = None
             else:
-                samples_temp = barcodes_df[(barcodes_df["barcode_1"] == i7) & (barcodes_df["barcode_2"] == i5) & (barcodes_df["barcode_3"] == bc)]["sample"].values
+                samples_temp = barcodes_df[
+                    (barcodes_df["barcode_1"] == i7)
+                    & (barcodes_df["barcode_2"] == i5)
+                    & (barcodes_df["barcode_3"] == bc)
+                ]["sample"].values
                 if len(set(samples_temp)) > 1:
-                    raise ValueError(f"Error in sample to barcodes mapping (multiple samples found for i7/i5/ibarcode combination: {i7}/{i5}/{bc}).")
+                    raise ValueError(
+                        f"Error in sample to barcodes mapping (multiple samples found for i7/i5/ibarcode combination: {i7}/{i5}/{bc})."
+                    )
                 sample = samples_temp[0]
             sample_list.append(sample)
-    
+
             # Get number of reads
-            splitcode_summary_file = glob.glob(f"{out_folder}/*_{pool}_*summary.json")[0]
+            splitcode_summary_file = glob.glob(f"{outDir}/*_{pool}_*summary.json")[0]
             splitcode_summary = read_json(splitcode_summary_file)
             if bc_id == unmatched_name:
-                num_reads_h0.append(splitcode_summary["n_processed"] - splitcode_summary["n_assigned"])
+                num_reads_h0.append(
+                    splitcode_summary["n_processed"] - splitcode_summary["n_assigned"]
+                )
                 num_reads_h1.append(0)
             else:
                 seen_h0 = False
                 seen_h1 = False
                 for subdict in splitcode_summary["tag_qc"]:
-                    if subdict['tag'] == f"{bc_id}_R1" and subdict['distance'] == 0:
+                    if subdict["tag"] == f"{bc_id}_R1" and subdict["distance"] == 0:
                         if seen_h0:
-                            raise ValueError(f"More than one read count found for inline barcode {bc_id} with Hamming distance 0.")
-                        num_reads_h0.append(subdict['count'])
+                            raise ValueError(
+                                f"More than one read count found for inline barcode {bc_id} with Hamming distance 0."
+                            )
+                        num_reads_h0.append(subdict["count"])
                         seen_h0 = True
-                    if subdict['tag'] == f"{bc_id}_R1" and subdict['distance'] == 1:
+                    if subdict["tag"] == f"{bc_id}_R1" and subdict["distance"] == 1:
                         if seen_h1:
-                            raise ValueError(f"More than one read count found for inline barcode {bc_id} with Hamming distance 1.")
-                        num_reads_h1.append(subdict['count'])
+                            raise ValueError(
+                                f"More than one read count found for inline barcode {bc_id} with Hamming distance 1."
+                            )
+                        num_reads_h1.append(subdict["count"])
                         seen_h1 = True
                 if not seen_h0:
                     num_reads_h0.append(0)
                 if not seen_h1:
                     num_reads_h1.append(0)
 
-    df_lut = pd.DataFrame({
-        'sample': sample_list,
-        'library_id': pools,
-        'i7_barcode': i7_list,
-        'i5_barcode': i5_list,
-        'inline_barcode_id': barcode_ids,
-        'inline_barcode': barcode_list,
-        'num_reads_hdistance0': num_reads_h0,
-        'num_reads_hdistance1': num_reads_h1,
-    })
-    
-    df_lut['num_reads_total'] = df_lut['num_reads_hdistance0'] + df_lut['num_reads_hdistance1']
-    
+    df_lut = pd.DataFrame(
+        {
+            "sample": sample_list,
+            "library_id": pools,
+            "i7_barcode": i7_list,
+            "i5_barcode": i5_list,
+            "inline_barcode_id": barcode_ids,
+            "inline_barcode": barcode_list,
+            "num_reads_hdistance0": num_reads_h0,
+            "num_reads_hdistance1": num_reads_h1,
+        }
+    )
+
+    df_lut["num_reads_total"] = (
+        df_lut["num_reads_hdistance0"] + df_lut["num_reads_hdistance1"]
+    )
+
     df_lut.to_csv(df_out, index=False)
 
     return df_out
 
-def plot_read_counts(
-    df_lut_path, 
-    out_folder
-):
+
+def plot_read_counts(df_lut_path, outDir):
     df_lut = pd.read_csv(df_lut_path)
     fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
     fontsize = 14
-    
-    df_grouped = df_lut.groupby(['inline_barcode', 'library_id'])['num_reads_total'].sum().unstack(fill_value=0)
+
+    df_grouped = (
+        df_lut.groupby(["inline_barcode", "library_id"])["num_reads_total"]
+        .sum()
+        .unstack(fill_value=0)
+    )
     df_grouped_fracs = df_grouped.div(df_grouped.sum(axis=0), axis=1)
-    
+
     bar_width = 0.2
     bar_positions = np.arange(len(df_grouped))
-    
+
     # Define colors
-    unique_library_ids = df_lut['library_id'].nunique()
+    unique_library_ids = df_lut["library_id"].nunique()
     tab20_colors = plt.cm.tab20.colors
     pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
-        
+
     for i, pool in enumerate(df_grouped.columns):
-        axs[0].bar(bar_positions + i * bar_width, df_grouped[pool], width=bar_width, label=f'{pool.split("_")[-1]}', color=pool_colors[i])
-        axs[1].bar(bar_positions + i * bar_width, df_grouped[pool], width=bar_width, color=pool_colors[i])
-        axs[2].bar(bar_positions + i * bar_width, df_grouped_fracs[pool], width=bar_width, color=pool_colors[i])
-            
+        axs[0].bar(
+            bar_positions + i * bar_width,
+            df_grouped[pool],
+            width=bar_width,
+            label=f'{pool.split("_")[-1]}',
+            color=pool_colors[i],
+        )
+        axs[1].bar(
+            bar_positions + i * bar_width,
+            df_grouped[pool],
+            width=bar_width,
+            color=pool_colors[i],
+        )
+        axs[2].bar(
+            bar_positions + i * bar_width,
+            df_grouped_fracs[pool],
+            width=bar_width,
+            color=pool_colors[i],
+        )
+
     axs[1].set_yscale("log")
-    
+
     for ax in axs[:2]:
-        ax.set_ylabel('# Reads', fontsize=fontsize)
-    axs[2].set_ylabel('Fraction of Reads', fontsize=fontsize)
-    
+        ax.set_ylabel("# Reads", fontsize=fontsize)
+    axs[2].set_ylabel("Fraction of Reads", fontsize=fontsize)
+
     for ax in axs:
         ax.set_xticks(bar_positions + 1.5 * bar_width)
         ax.set_xticklabels(df_grouped.index, rotation=45, ha="right")
-        ax.tick_params(axis='both', labelsize=fontsize-2)
-        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+        ax.tick_params(axis="both", labelsize=fontsize - 2)
+        ax.grid(True, axis="y", linestyle="--", alpha=0.7)
         ax.margins(x=0.01)
-    
-    axs[0].legend(title='Pool', fontsize=fontsize-2, title_fontsize=fontsize)
-    axs[0].set_title('# Reads per inline barcode', fontsize=fontsize)
-    axs[2].set_xlabel('Inline Barcode', fontsize=fontsize)
+
+    axs[0].legend(title="Pool", fontsize=fontsize - 2, title_fontsize=fontsize)
+    axs[0].set_title("# Reads per inline barcode", fontsize=fontsize)
+    axs[2].set_xlabel("Inline Barcode", fontsize=fontsize)
 
     plt.tight_layout()
-    
-    fig.savefig(f"{out_folder}/reads_per_pool.pdf", bbox_inches="tight", dpi=300)
-    fig.savefig(f"{out_folder}/reads_per_pool.png", bbox_inches="tight", dpi=300)
-    
-def plot_sorted_curve(
-    df_lut_path,
-    out_folder,
-    unmatched_name
-):
+
+    fig.savefig(f"{outDir}/reads_per_pool.pdf", bbox_inches="tight", dpi=300)
+    fig.savefig(f"{outDir}/reads_per_pool.png", bbox_inches="tight", dpi=300)
+
+
+def plot_sorted_curve(df_lut_path, outDir, unmatched_name):
     df_lut = pd.read_csv(df_lut_path)
-    
+
     fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
     fontsize = 14
-    
+
     # Define colors
-    unique_library_ids = df_lut['library_id'].nunique()
+    unique_library_ids = df_lut["library_id"].nunique()
     tab20_colors = plt.cm.tab20.colors
     pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
-    
+
     reads_per_bc = pd.DataFrame()
-    for i, pool in enumerate(sorted(df_lut['library_id'].unique())):
-        num_reads = df_lut[(df_lut['library_id']==pool) & (df_lut['inline_barcode']!=unmatched_name)]['num_reads_total']
+    for i, pool in enumerate(sorted(df_lut["library_id"].unique())):
+        num_reads = df_lut[
+            (df_lut["library_id"] == pool)
+            & (df_lut["inline_barcode"] != unmatched_name)
+        ]["num_reads_total"]
         num_reads = sorted(num_reads, reverse=True)
         for ax in axs[:2]:
-            ax.scatter(np.arange(len(num_reads)), num_reads, label=f'{pool.split("_")[-1]}', color=pool_colors[i])
+            ax.scatter(
+                np.arange(len(num_reads)),
+                num_reads,
+                label=f'{pool.split("_")[-1]}',
+                color=pool_colors[i],
+            )
             ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
-    
+
         # Calculate total and fractions
         total_reads = sum(num_reads)
         fractions = np.array([read / total_reads for read in num_reads])
-    
+
         for ax in axs[2:]:
-            ax.scatter(np.arange(len(fractions)), fractions*100, color=pool_colors[i])
-            ax.plot(np.arange(len(fractions)), fractions*100, color=pool_colors[i])
+            ax.scatter(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
+            ax.plot(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
         show_bottom_values = 5
-        reads_per_bc[f'{pool}_reads'] = num_reads
-        reads_per_bc[f'{pool}_reads_%'] = fractions*100
-    
+        reads_per_bc[f"{pool}_reads"] = num_reads
+        reads_per_bc[f"{pool}_reads_%"] = fractions * 100
+
     axs[1].set_yscale("symlog")
     axs[1].set_ylim(bottom=0)
     axs[3].set_ylim(bottom=0, top=0.5)
-    axs[3].set_xlabel('Inline Barcode', fontsize=fontsize)
-    axs[0].set_title('Reads per Inline Barcode (Sorted Curve)', fontsize=fontsize)
-    axs[0].legend(title='Pool', fontsize=fontsize-2, title_fontsize=fontsize)
-    
+    axs[3].set_xlabel("Inline Barcode", fontsize=fontsize)
+    axs[0].set_title("Reads per Inline Barcode (Sorted Curve)", fontsize=fontsize)
+    axs[0].legend(title="Pool", fontsize=fontsize - 2, title_fontsize=fontsize)
+
     for ax in axs[:2]:
-        ax.set_ylabel('# Reads', fontsize=fontsize)
-    
+        ax.set_ylabel("# Reads", fontsize=fontsize)
+
     for ax in axs[2:]:
-        ax.set_ylabel('% Reads', fontsize=fontsize)
-    
+        ax.set_ylabel("% Reads", fontsize=fontsize)
+
     for ax in axs:
-        ax.tick_params(axis='both', labelsize=fontsize-2)
-        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+        ax.tick_params(axis="both", labelsize=fontsize - 2)
+        ax.grid(True, axis="y", linestyle="--", alpha=0.7)
         ax.margins(x=0.01)
 
     # Save data frame that contains the number of reads and fraction for each barcode in a sorted table
-    reads_per_bc.to_csv(f"{out_folder}/reads_per_bc.csv", index=False)
+    reads_per_bc.to_csv(f"{outDir}/reads_per_bc.csv", index=False)
 
     plt.tight_layout()
-    
-    fig.savefig(f"{out_folder}/reads_per_pool_sorted_curve.pdf", bbox_inches="tight", dpi=300)
-    fig.savefig(f"{out_folder}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300)
 
-def generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_name, out_folder):
+    fig.savefig(
+        f"{outDir}/reads_per_pool_sorted_curve.pdf", bbox_inches="tight", dpi=300
+    )
+    fig.savefig(
+        f"{outDir}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300
+    )
+
+
+def generate_bams_from_fastqs(
+    sample,
+    sampleSheet,
+    bc_idxs,
+    unmatched_name,
+    outDir,
+    platform_name,
+    flowcell,
+    lane,
+    run_date,
+    readgroup_name,
+    sequencing_center,
+):
     # Load sample sheet
-    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
-    
+    barcodes_df = pd.read_csv(sampleSheet, sep="\t")
+
     for bc_idx in bc_idxs + [unmatched_name]:
-        r1_fastq = f"{out_folder}/{sample}_demuxed/Barcode_{bc_idx}_0.fastq"
-        r2_fastq = f"{out_folder}/{sample}_demuxed/Barcode_{bc_idx}_1.fastq"
+        r1_fastq = f"{outDir}/{sample}_demuxed/Barcode_{bc_idx}_0.fastq"
+        r2_fastq = f"{outDir}/{sample}_demuxed/Barcode_{bc_idx}_1.fastq"
 
         # Get library/pool name (TO-DO: More stable way to get library name)
         library_name = sample.split("_")[-3]
 
         # Get i7 and i5 barcode sequences
-        i7s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name]["barcode_1"].values
+        i7s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name][
+            "barcode_1"
+        ].values
         if len(set(i7s)) > 1:
-            raise ValueError(f"More than one i7 barcode sequence found for library {library_name}.")
+            raise ValueError(
+                f"More than one i7 barcode sequence found for library {library_name}."
+            )
         i7_barcode = i7s[0]
-        
-        i5s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name]["barcode_2"].values
+
+        i5s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name][
+            "barcode_2"
+        ].values
         if len(set(i5s)) > 1:
-            raise ValueError(f"More than one i5 barcode sequence found for library {library_name}.")
+            raise ValueError(
+                f"More than one i5 barcode sequence found for library {library_name}."
+            )
         i5_barcode = i5s[0]
 
         # Get sample name and inline barcode sequence
         if bc_idx != unmatched_name:
-            barcodes_df_temp = barcodes_df[(barcodes_df["library_id_per_sample"] == library_name) & (barcodes_df["Inline_Index_ID"].astype(str) == str(bc_idx))]
+            barcodes_df_temp = barcodes_df[
+                (barcodes_df["library_id_per_sample"] == library_name)
+                & (barcodes_df["Inline_Index_ID"].astype(str) == str(bc_idx))
+            ]
 
             # Get sample name
             sample_names = barcodes_df_temp["sample"].values
             if len(set(sample_names)) > 1:
-                raise ValueError(f"More than one sample name found for library {library_name} and barcode {bc_idx}.")
+                raise ValueError(
+                    f"More than one sample name found for library {library_name} and barcode {bc_idx}."
+                )
             sample_name = sample_names[0]
 
             # Get inline barcode sequence
             inline_seqs = barcodes_df_temp["barcode_3"].values
             if len(set(inline_seqs)) > 1:
-                raise ValueError(f"More than one inline barcode sequence found for library {library_name} and barcode {bc_idx}.")
+                raise ValueError(
+                    f"More than one inline barcode sequence found for library {library_name} and barcode {bc_idx}."
+                )
             inline_barcode = inline_seqs[0]
 
         # Handle files where inline barcode was not matched
@@ -1724,112 +2219,165 @@ def generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_na
             sample_name = unmatched_name + "_" + library_name
             inline_barcode = unmatched_name + "_" + library_name
 
-        # TO-DO: Where to find these values for the bam header when no original bam is available?
-        platform_name = 'ILLUMINA'
-        flowcell = 'B22J5GLLT4'
-        lane = '6'
         platform_unit = f"{flowcell}.{lane}.{i7_barcode}-{i5_barcode}-{inline_barcode}"
-        run_date = '2024-12-17T00:00:00+0000'
-        id_ = 'AAGCG.1'
-        cn = 'BI'
 
-        bam_outfolder = f"{out_folder}/{sample}_demuxed_bam"
+        bam_outfolder = f"{outDir}/{sample}_demuxed_bam"
 
         # Run fastq_to_ubam
         # TO-DO: How to access fastq_to_ubam here correctly?
-        !miniwdl run fastq_to_ubam.wdl \
-            FastqToUBAM.fastq_1=$r1_fastq \
-            FastqToUBAM.fastq_2=$r2_fastq \
-            FastqToUBAM.sample_name=$sample_name \
-            FastqToUBAM.library_name=$library_name \
-            FastqToUBAM.platform_name=$platform_name \
-            FastqToUBAM.platform_unit=$platform_unit \
-            FastqToUBAM.sequencing_center=$cn \
-            FastqToUBAM.readgroup_name=$id_ \
-            FastqToUBAM.run_date="$run_date" \
-            --dir $bam_outfolder
+        # !miniwdl run fastq_to_ubam.wdl \
+        #     FastqToUBAM.fastq_1=$r1_fastq \
+        #     FastqToUBAM.fastq_2=$r2_fastq \
+        #     FastqToUBAM.sample_name=$sample_name \
+        #     FastqToUBAM.library_name=$library_name \
+        #     FastqToUBAM.platform_name=$platform_name \
+        #     FastqToUBAM.platform_unit=$platform_unit \
+        #     FastqToUBAM.sequencing_center=$sequencing_center \
+        #     FastqToUBAM.readgroup_name=$readgroup_name \
+        #     FastqToUBAM.run_date="$run_date" \
+        #     --dir $bam_outfolder
 
         # Change name of generated bam file
-        generated_bam = glob.glob(f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam")[0]
+        generated_bam = glob.glob(
+            f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam"
+        )[0]
         destination = f"{bam_outfolder}/{sample_name}.{flowcell}.{lane}.bam"
         shutil.move(generated_bam, destination)
 
+
 def splitcode_demux(
-    path_to_samplesheet,
-    fastq_folder,
-    out_folder,
-    unmatched_name = "unmatched",
-    max_hamming_dist = 1,
-    threads = 32
+    inDir,
+    outDir,
+    sampleSheet=None,
+    unmatched_name="unmatched",
+    max_hamming_dist=1,
+    threads=32,
+    runinfo=None,
+    platform_name=None,
+    flowcell=None,
+    lane=None,
+    run_date=None,
+    readgroup_name=None,
+    sequencing_center=None,
 ):
     """
     Args:
-    path_to_samplesheet  (str) File path to csv samplesheet
-    fastq_folder         (str) File path to folder containing gzipped fastq files
-    out_folder           (str) File path to folder where all resulting files will be saved
+    inDir                (str) File path to folder containing gzipped fastq files
+    outDir               (str) Output directory for BAM files and other output files
+    sampleSheet          (str) Overwrite file path to csv samplesheet. Input tab or CSV file w/header and columns:
+                               sample, library_id_per_sample, I7_Index_ID, barcode_1, I5_Index_ID, barcode_2, Inline_Index_ID, barcode_3.
+                               Default is to look for a SampleSheet.csv in the inDir.
     unmatched_name       (str) ID for reads that don't match an inline barcode. Default: "unmatched"
     max_hamming_dist     (int) Max allowed Hamming distance for inline barcode matching. Default: 1
     threads              (int) Threads used by splitcode demultiplexing. Default: 32
+    runinfo              (str) Override RunInfo. Input xml file. Default: Look for a RunInfo.xml file in the inDir
+    platform_name        (str) Platform name (used to populate BAM header). Default: read from RunInfo.xml
+    flowcell             (str) Flowcell ID (used to populate BAM header). Default: read from RunInfo.xml
+    lane                 (str) Lane number (used to populate BAM header). Default: read from RunInfo.xml
+    run_date             (str) Run date (used to populate BAM header). Default: read from RunInfo.xml
+    readgroup_name       (str) Readgroup name (used to populate BAM header). Default: read from RunInfo.xml
+    sequencing_center    (str) Sequencing center (used to populate BAM header). Default: read from RunInfo.xml
     """
-    # Create out_folder
-    os.makedirs(out_folder, exist_ok=True)
-    
+
+    # TO-DO: Add read_structure argument (?)
+    # TO-DO: Adjust IlluminaDirectory for this / write new -> also add support for bam inputs
+    illumina = IlluminaDirectory(inDir)
+    illumina.load()
+
+    # TO-DO: Add reading info from RunInfo.xml: platform_name, lane, readgroup_name, sequencing_center
+    if runinfo:
+        runinfo = RunInfo(runinfo)
+    else:
+        runinfo = illumina.get_RunInfo()
+    if flowcell:
+        flowcell = flowcell
+    else:
+        flowcell = runinfo.get_flowcell()
+    if run_date:
+        run_date = run_date
+    else:
+        run_date = runinfo.get_rundate_american()
+
+    # Create outDir
+    os.makedirs(outDir, exist_ok=True)
+
     # Load samplesheet
-    barcodes_df = pd.read_csv(path_to_samplesheet, sep="\t")
+    if sampleSheet is None:
+        sampleSheet = f"{inDir}/SampleSheet.csv"
+    barcodes_df = pd.read_csv(sampleSheet, sep="\t")
 
     # Instantiate the splitcode
     splitcode_tool = SplitCodeTool()
 
     # Load inline barcodes and inline barcode indeces
     barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
-    
+
     bc_idxs = []
     for bc in barcodes:
-        inline_indeces = list(set(barcodes_df[barcodes_df["barcode_3"]==bc]["Inline_Index_ID"].values))
+        inline_indeces = list(
+            set(barcodes_df[barcodes_df["barcode_3"] == bc]["Inline_Index_ID"].values)
+        )
         if len(inline_indeces) > 1:
-            raise ValueError(f"Multiple Inline_Index_ID values found for inline barcode {bc}.")
+            raise ValueError(
+                f"Multiple Inline_Index_ID values found for inline barcode {bc}."
+            )
         bc_idxs.append(inline_indeces[0])
-        
+
     # Get names of fastq files
-    fastqs = f"{fastq_folder}/*.fastq.gz"
+    fastqs = f"{inDir}/*.fastq.gz"
 
     # Get pool/sample names from fastq file names
-    samples = sorted(list(set(["_".join(i.split("/")[-1].split("_")[:-2]) for i in glob.glob(fastqs)])))
+    samples = sorted(
+        list(
+            set(["_".join(i.split("/")[-1].split("_")[:-2]) for i in glob.glob(fastqs)])
+        )
+    )
 
     # Create splitcode config file
-    config_file = f"{out_folder}/config.txt"
+    config_file = f"{outDir}/config.txt"
     with open(config_file, "w") as config_f:
         # Write column titles
         config_f.write("tag\tid\tlocation\tdistance\tleft\tright\n")
-    
+
         # Populate columns
         for idx, bc in zip(bc_idxs, barcodes):
             bc_len = len(bc)
-            
+
             # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
             # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
-            config_f.write(bc + "\t" + f"{idx}_R1" + "\t" + f"0:0:{bc_len}" + "\t" + str(max_hamming_dist) + "\t1\t0\n")
-            
+            config_f.write(
+                bc
+                + "\t"
+                + f"{idx}_R1"
+                + "\t"
+                + f"0:0:{bc_len}"
+                + "\t"
+                + str(max_hamming_dist)
+                + "\t1\t0\n"
+            )
+
             # # R2 barcode (using the "right" (-> remove from the right) column to remove the inline barcodes from R2 reads)
             # config_f.write(bc + "\t" + f"{idx}_R2" + "\t" + f"1:-{bc_len}:0" + "\t" + str(max_hamming_dist) + "\t0\t1\n")
 
     # Create splitcode keep file
     for sample in samples:
-        keep_filename = f"{out_folder}/{sample}_keep.txt"
+        keep_filename = f"{outDir}/{sample}_keep.txt"
         with open(keep_filename, "w") as keep_file:
-            out_demux = f"{out_folder}/{sample}_demuxed/"
+            out_demux = f"{outDir}/{sample}_demuxed/"
 
             # Create out_demux folder
             os.makedirs(out_demux, exist_ok=True)
-            
+
             for idx, bc in zip(bc_idxs, barcodes):
                 # keep file columns: Tags to group, splitcode out_file
-                
+
                 # Use R1 and R2 inline barcodes to split:
                 # keep_file.write(f"{idx}_R1,{idx}_R2" + "\t" + out_demux + f"Barcode_{idx}" + "\n")
-                
+
                 # Alternative: Only use R1 inline barcode to split:
-                keep_file.write(f"{idx}_R1" + "\t" + out_demux + f"Barcode_{idx}" + "\n")
+                keep_file.write(
+                    f"{idx}_R1" + "\t" + out_demux + f"Barcode_{idx}" + "\n"
+                )
 
     # Unzip fastq files using pigz
     fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
@@ -1839,17 +2387,17 @@ def splitcode_demux(
     # TO-DO: Enable parallel processing of pools/samples
     for sample in samples:
         # input args
-        r1 = f"{fastq_folder}/{sample}_R1_001.fastq"
-        r2 = f"{fastq_folder}/{sample}_R2_001.fastq"
+        r1 = f"{inDir}/{sample}_R1_001.fastq"
+        r2 = f"{inDir}/{sample}_R2_001.fastq"
         n_fastqs = 2
 
-        keep_file = f"{out_folder}/{sample}_keep.txt"
-    
+        keep_file = f"{outDir}/{sample}_keep.txt"
+
         # output args
-        unmapped_r1 = f"{out_folder}/{sample}_demuxed/Barcode_{unmatched_name}_0.fastq"
-        unmapped_r2 = f"{out_folder}/{sample}_demuxed/Barcode_{unmatched_name}_1.fastq"
-        summary_stats = f"{out_folder}/{sample}_summary.json"
-    
+        unmapped_r1 = f"{outDir}/{sample}_demuxed/Barcode_{unmatched_name}_0.fastq"
+        unmapped_r2 = f"{outDir}/{sample}_demuxed/Barcode_{unmatched_name}_1.fastq"
+        summary_stats = f"{outDir}/{sample}_summary.json"
+
         # Optional: Use '--trim-3 0,8' to remove 8 bases from end of R2 read (note: trimming happens before demuxing)
         splitcode_tool.execute(
             args=[
@@ -1862,22 +2410,144 @@ def splitcode_demux(
                 "--no-outb",
                 f"--summary {summary_stats}",
                 r1,
-                r2
+                r2,
             ]
         )
-    
+
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
-    df_out = create_lut(path_to_samplesheet, out_folder, unmatched_name)
+    df_out = create_lut(sampleSheet, outDir, unmatched_name)
 
     # Plot number and fraction of reads per inline barcode per pool
-    plot_read_counts(df_out, out_folder)
+    plot_read_counts(df_out, outDir)
 
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
-    plot_sorted_curve(df_out, out_folder, unmatched_name)
+    plot_sorted_curve(df_out, outDir, unmatched_name)
 
     # Generate bam files
     for sample in samples:
-        generate_bams_from_fastqs(sample, path_to_samplesheet, bc_idxs, unmatched_name, out_folder)
+        generate_bams_from_fastqs(
+            sample,
+            sampleSheet,
+            bc_idxs,
+            unmatched_name,
+            outDir,
+            platform_name,
+            flowcell,
+            lane,
+            run_date,
+            readgroup_name,
+            sequencing_center,
+        )
+
+
+def main_splitcode_demux(args):
+    """
+    Main function to call splitcode_demux from the command line.
+    """
+    splitcode_demux(
+        inDir=args.inDir,
+        outDir=args.outDir,
+        sampleSheet=args.sampleSheet,
+        unmatched_name=args.unmatched_name,
+        max_hamming_dist=args.max_hamming_dist,
+        threads=args.threads,
+        runinfo=args.runinfo,
+        platform_name=args.platform_name,
+        flowcell=args.flowcell,
+        lane=args.lane,
+        run_date=args.run_date,
+        readgroup_name=args.readgroup_name,
+        sequencing_center=args.sequencing_center,
+    )
+
+
+def parser_splitcode_demux(parser=None):
+    if parser is None:
+        parser = argparse.ArgumentParser(
+            description="Demultiplex FASTQ files using inline barcodes with splitcode."
+        )
+
+    # Positional arguments
+    parser.add_argument(
+        "inDir", help="File path to folder containing gzipped FASTQ files."
+    )
+    parser.add_argument(
+        "outDir", help="Output directory for BAM files and other output files."
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--sampleSheet",
+        default=None,
+        help="""Override SampleSheet. Input tab or CSV file w/header and columns:
+                sample, library_id_per_sample, I7_Index_ID, barcode_1, I5_Index_ID, barcode_2, Inline_Index_ID, barcode_3..
+                Default is to look for a SampleSheet.csv in the inDir.""",
+    )
+
+    # Optional arguments specific to splitcode_demux
+    parser.add_argument(
+        "--unmatched_name",
+        default="unmatched",
+        help="ID for reads that don't match an inline barcode. Default: 'unmatched'.",
+    )
+    parser.add_argument(
+        "--max_hamming_dist",
+        type=int,
+        default=1,
+        help="Max allowed Hamming distance for inline barcode matching. Default: 1.",
+    )
+
+    # Additional BAM header fields
+    parser.add_argument(
+        "--runInfo",
+        default=None,
+        dest="runinfo",
+        help="""Override RunInfo. Input xml file.
+                Default is to look for a RunInfo.xml file in the inDir.""",
+    )
+    parser.add_argument(
+        "--platform_name",
+        default=None,
+        help="Platform name (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--flowcell",
+        default=None,
+        help="Flowcell ID (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--lane",
+        default=None,
+        help="Lane number (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--run_date",
+        default=None,
+        help="Run date (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--readgroup_name",
+        default=None,
+        help="Readgroup name (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--sequencing_center",
+        default=None,
+        help="Sequencing center (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+
+    # Attach common arguments. Adjust the default for threads if needed.
+    util.cmd.common_args(
+        parser,
+        (("threads", 32), ("loglevel", None), ("version", None), ("tmp_dir", None)),
+    )
+
+    # Attach main function so that the parser can execute the main when run from CLI.
+    util.cmd.attach_main(parser, main_splitcode_demux)
+    return parser
+
+
+__commands__.append(("splitcode_demux", parser_splitcode_demux))
 
 
 # =======================
@@ -1885,5 +2555,5 @@ def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     util.cmd.main_argparse(__commands__, __doc__)
