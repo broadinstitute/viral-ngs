@@ -76,7 +76,16 @@ class RevertSamTool(PicardTools):
 class CheckIlluminaDirectoryTool(PicardTools):
     subtoolName = 'CheckIlluminaDirectory'
 
-    def execute(self, basecalls_dir, lanes,  read_structure, data_types=None, fake_files=False, tile_numbers=None, link_locs=False, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+    def execute(self, 
+                basecalls_dir, 
+                lanes, 
+                read_structure, 
+                data_types    = None, 
+                fake_files    = False, 
+                tile_numbers  = None, 
+                link_locs     = False, 
+                picardOptions = None, 
+                JVMmemory     = None):    # pylint: disable=W0221
         picardOptions = picardOptions or []
         opts = [
             'BASECALLS_DIR=' + basecalls_dir,
@@ -485,7 +494,43 @@ class ExtractIlluminaBarcodesTool(PicardTools):
         PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
 
 
+class AddCommentsToBamTool(PicardTools):
+    # https://broadinstitute.github.io/picard/command-line-overview.html#AddCommentsToBam
+    subtoolName = 'AddCommentsToBam'
+    jvmMemDefault = '8g'
+
+    def execute(self, 
+                inBam, 
+                outBam,
+                comments, 
+                picardOptions = None, 
+                JVMmemory     = None
+    ):    # pylint: disable=W0221
+        picardOptions = picardOptions or {}
+
+        # check that comments are provided
+        if not comments:
+            raise Exception("comments must be provided to AddCommentsToBam ")
+
+        comments_to_add = []
+        if type(comments) in (list, tuple, set):
+            # if we have an iterable, check that all comments are strings or can be cast to strings
+            # and have a length > 0 before adding to comments_to_add
+            comments_to_add = [str(comment) for comment in comments if len(str(comment)) > 0]
+        elif type(comments) == str:
+            comments_to_add = [comments]
+        else:
+            raise Exception("comments provided to AddCommentsToBam must be in the form of a string or a list of strings")
+
+        opts = ['INPUT=' + inBam, 'OUTPUT=' + outBam] 
+
+        for comment in comments_to_add:
+            opts += ['COMMENT=' + comment]
+
+        PicardTools.execute(self, self.subtoolName, opts, JVMmemory)
+
 class IlluminaBasecallsToSamTool(PicardTools):
+    # https://broadinstitute.github.io/picard/command-line-overview.html#IlluminaBasecallsToSam
     subtoolName = 'IlluminaBasecallsToSam'
     jvmMemDefault = '7g'
     defaults = {
