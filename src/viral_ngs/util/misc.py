@@ -1,18 +1,22 @@
 '''A few miscellaneous tools. '''
-import math
 import collections
 import contextlib
-import itertools, functools, operator
+import copy
+import functools
+import hashlib
+import itertools
+import json
 import logging
+import math
+import multiprocessing
+import operator
 import os, os.path
 import re
 import subprocess
-import threading
-import multiprocessing
 import sys
-import copy
-import yaml, json
+import threading
 import time
+import yaml
 
 import util.file
 
@@ -46,6 +50,7 @@ def memoize(obj):
         return cache[key]
     return memoizer
 
+
 def unique(items):
     ''' Return unique items in the same order as seen in the input. '''
     seen = set()
@@ -54,6 +59,56 @@ def unique(items):
             seen.add(i)
             yield i
 
+def collapse_dup_strs_to_str_or_md5(values,
+                                    suffix              =  "",
+                                    delimiter           = "_",
+                                    hash_if_longer_than =  -1,
+                                    sort_plural_vals    = False,
+                                    calculate_md5_including_suffix  = False,
+                                    append_suffix_to_delimited_str  = True,
+                                    append_suffix_to_one_unique_str = False,
+                                    ):
+    """
+    Collapse multiple string values into one string value
+
+    Given a list of values (ex. from a column in a duplicated group of >=2 rows):
+      1) If all values are empty (""), return "".
+      2) Otherwise, if there's exactly 1 unique value (non-empty or empty), return that value + (suffix, optionally)
+      3) Otherwise (>=2 distinct values), join with delimiter. 
+         If (length with delimiters + suffix, if appending) > max_length, 
+         compute the MD5 hash of the joined values (without delimiters, optionally including the suffix),
+         and only return the last 8 characters of that MD5 hash plus suffix.
+         The default is to always return MD5+suffix (default max_length is -1)
+
+         Note that the MD5 hash will *not* be affected by 
+         any empty strings present in the input
+         (and when returning a delimited string of the joined values,
+          such empty strings will be omitted).
+    """
+    # If all values are empty, return ""
+    if all(v == "" for v in values):
+        return ""
+
+    # Get the unique values, in the original order
+    unique_vals = list(unique(values))
+
+    # Exactly 1 unique value => <value><suffix>
+    if len(unique_vals) == 1:
+        return f"{unique_vals[0]}{suffix if append_suffix_to_one_unique_str else ''}"
+
+    # Otherwise, return joined values
+    # or if that would be too long, return (MD5 of joined values)[-8:]+(optional suffix)
+    # the input values are optionally sorted after removing empty strings
+    joined_values_delimited = f"{delimiter}".join(sorted([s for s in unique_vals if len(s)>0]) if sort_plural_vals else unique_vals) + suffix if append_suffix_to_delimited_str else ""
+    if len(joined_values_delimited) <= int(hash_if_longer_than):
+        return joined_values_delimited
+    else:
+        # If the joined string is too long, compute MD5 of joined values
+        joined_values = f"".join(sorted(unique_vals)) + suffix if calculate_md5_including_suffix else ""
+        md5_str = hashlib.md5(joined_values.encode("utf-8")).hexdigest()
+        # Use only the last 8 characters of the MD5
+        short_md5 = md5_str[-8:]
+        return f"{short_md5}{suffix}"
 
 def histogram(items):
     ''' I count the number of times I see stuff and return a dict of counts. '''
