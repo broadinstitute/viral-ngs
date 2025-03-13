@@ -2732,6 +2732,11 @@ def splitcode_demux(
         illumina_dir = IlluminaDirectory(illuminaRunDirectory)
         illumina_dir.load()
 
+    # ToDo: if illuminaRunDirectory is not provided, but we lack provided runinfo, 
+    #       inspect the inDir to see if it looks like an illumina run directory
+    #       and try to load it as such (then interpreting Analysis/, fastq/ and other sub-dirs)
+    #       as potential locations for the fastq files (maybe recursive find them)
+
     if runinfo:
         runinfo = RunInfo(runinfo)
     else:
