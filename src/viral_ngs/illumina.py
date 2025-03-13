@@ -7,33 +7,33 @@ __author__ = "dpark@broadinstitute.org"
 __commands__ = []
 
 import argparse
+import concurrent.futures
+import csv
+import gc
+import glob
+import itertools
+import json
 import logging
 import os
 import os.path
 import re
-import gc
-import csv
-import json
-import sqlite3, itertools
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import xml.etree.ElementTree
 from collections import defaultdict
-import concurrent.futures
-
-import pandas as pd
-import numpy as np
-import glob
-import matplotlib.pyplot as plt
-from tools.splitcode import SplitCodeTool
 
 import arrow
+import matplotlib.pyplot as plt
+import numpy  as np
+import pandas as pd
+from tools.splitcode import SplitCodeTool
 
+import tools.picard
 import util.cmd
 import util.file
 import util.misc
-import tools.picard
 from util.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 
 log = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
     parser.add_argument(
         "--sampleSheet",
         default=None,
-        help="""Override SampleSheet. Input tab or CSV file w/header and four named columns:
+        help="""Override SampleSheet. Input TSV or CSV file w/header and four named columns:
                                 barcode_name, library_name, barcode_sequence_1, barcode_sequence_2.
                                 Default is to look for a SampleSheet.csv in the inDir.""",
     )
@@ -97,6 +97,20 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
         "--append_run_id",
         help="If specified, output filenames will include the flowcell ID and lane number.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--collapse_duplicated_barcodes",
+        help="""If specified, reads from samples with duplicated barcodes or barcode pairs 
+                will be collapsed into a single output for each distinct barcode (or distinct barcode pair). 
+                Intended for protocols allowing additional demultiplexing downstream by other means 
+                (ex. breaking out samples based on a third, inner barcode, added via swift-seq). 
+                If not specified, an error will be raised if duplicated barcodes (or barcode pairs) 
+                are present in the sample sheet. If a value is specified, it will be used as 
+                the path to store output sample sheet with barcodes collapsed""",
+        default=False,
+        const=None,
+        nargs='?',
+        #action="store_true"
     )
     parser.add_argument(
         "--out_meta_by_sample", help="Output json metadata by sample", default=None
@@ -195,10 +209,52 @@ def main_illumina_demux(args):
         run_id = None
     if args.sampleSheet:
         samples = SampleSheet(
-            args.sampleSheet, only_lane=args.lane, append_run_id=run_id
+            args.sampleSheet,
+            only_lane=args.lane,
+            append_run_id=run_id,
+            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False
         )
     else:
-        samples = illumina.get_SampleSheet(only_lane=args.lane, append_run_id=run_id)
+        samples = illumina.get_SampleSheet(
+            only_lane=args.lane,
+            append_run_id=run_id,
+            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False
+        )
+
+    # === debugging ===
+    # print sample rows BEFORE collapsing duplicates
+    #samples.print_rows()
+    # =================
+    collapse_requested = (args.collapse_duplicated_barcodes is not False)
+    if not samples.can_be_collapsed:
+        if collapse_requested:
+            log.warning(
+                "'--collapse_duplicated_barcodes' specified, but no duplicated barcodes "
+                "(or barcode pairs) were found in the sample sheet."
+            )
+    else:
+        log.warning("Duplicated barcodes (or barcode pairs) found in the sample sheet.")
+        if collapse_requested:
+            log.info(
+                "'--collapse_duplicated_barcodes' specified; collapsing each duplicated barcode into "
+                "a distinct barcode (or barcode pair)..."
+            )
+            samples.collapse_sample_index_duplicates(output_tsv=args.collapse_duplicated_barcodes)
+
+    # === debugging ===
+    # print sample rows AFTER collapsing duplicates
+    # samples.print_rows()
+    #
+    # write library params file earlier than it would normally be
+    # so we can inspect it for debugging purposes
+    #
+    # basecalls_input = util.file.mkstempfname(
+    #         ".txt", prefix=".".join(["library_params", flowcell, str(args.lane)])
+    #     )
+    # samples.make_params_file(args.outDir, basecalls_input)
+    # log.error("library params file written")
+    # exit(0)
+    # =================
 
     link_locs = False
     # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
@@ -1278,7 +1334,7 @@ class RunInfo(object):
         if len(sequencers_by_fcid) > 1:
             raise LookupError("Multiple sequencers possible: %s", fcid)
 
-        print("self.tile_count()", self.tile_count())
+        log.info("self.tile_count()", self.tile_count())
 
         # always return sequencer model based on flowcell ID, if we can
         if len(sequencers_by_fcid) > 0:
@@ -1451,7 +1507,7 @@ class RunInfo(object):
 class SampleSheetError(Exception):
     def __init__(self, message, fname):
         super(SampleSheetError, self).__init__(
-            "Failed to read SampleSheet {}. {}".format(fname, message)
+            "Failed to load {} ({})".format(fname, message)
         )
 
 
@@ -1463,20 +1519,31 @@ class SampleSheet(object):
     def __init__(
         self,
         infile,
-        use_sample_name=True,
-        only_lane=None,
-        allow_non_unique=False,
-        append_run_id=None,
+        use_sample_name  = True,
+        only_lane        = None,
+        allow_non_unique = False,
+        append_run_id    = None,
+        collapse_duplicates = False,
     ):
-        self.fname = infile
-        self.use_sample_name = use_sample_name
+        self.fname            = infile
+        self.use_sample_name  = use_sample_name
         if only_lane is not None:
-            only_lane = str(only_lane)
-        self.only_lane = only_lane
+            only_lane         = str(only_lane)
+        self.only_lane        = only_lane
         self.allow_non_unique = allow_non_unique
-        self.append_run_id = append_run_id
-        self.rows = []
+        self.append_run_id    = append_run_id
+        self.rows             = []
+        self._rowsOriginal    = []
+        self.duplicate_rows_collapsed = False
         self._detect_and_load_sheet(infile)
+
+        if self.can_be_collapsed:
+            if not allow_non_unique:
+                raise SampleSheetError("Duplicate indices found in sample sheet", infile)
+            else:
+                if collapse_duplicates:
+                    self.collapse_sample_index_duplicates()
+            
 
     def _detect_and_load_sheet(self, infile):
         if infile.endswith((".csv", ".csv.gz")):
@@ -1487,7 +1554,8 @@ class SampleSheet(object):
                 row_num = 0
                 for line_no, line in enumerate(inf):
                     if line_no == 0:
-                        # remove BOM, if present
+                        # remove BOM from first line, if present
+                        #   see: https://en.wikipedia.org/wiki/Byte_order_mark
                         line = line.replace("\ufeff", "")
 
                     # if this is a blank line, skip parsing and continue to the next line...
@@ -1594,8 +1662,33 @@ class SampleSheet(object):
             for row in self.rows:
                 if "sample_name" in row:
                     del row["sample_name"]
+
         elif infile.endswith((".txt", ".txt.gz", ".tsv")):
-            # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample
+            # ===================================================================================================
+            # our custom tab file format: sample, barcode_1, barcode_2, library_id_per_sample, [barcode_3], [...]
+            # Required tsv column headings are:
+            #    'sample' (must correspond to a biological sample; must be unique within a samplesheet)
+            #    'library_id_per_sample' (must be unique within a samplesheet)
+            #    'barcode_1'
+            #    'barcode_2' (if paired reads, omit if single-end)
+            #
+            # Additional columns are optional and may include:
+            #    'barcode_3'
+            #
+            # Note:
+            #   ('sample' x 'library_id_per_sample') must be unique within a samplesheet and correspond to 
+            #   independent libraries from the same original sample. 
+            #
+            #   External software or pipelines using this format may require additional columns to be present, 
+            #   such as:
+            #     'library_strategy'
+            #     'library_source'
+            #     'library_selection'
+            #     'design_description'
+            #
+            #     Controlled vocabulary following the strict ontology on the third tab of:
+            #       https://www.ncbi.nlm.nih.gov/core/assets/sra/files/SRA_metadata_acc_example.xlsx
+            # ===================================================================================================
             self.rows = []
             row_num = 0
             for row in util.file.read_tabfile_dict(infile):
@@ -1632,9 +1725,9 @@ class SampleSheet(object):
         # escape sample, run, and library IDs to be filename-compatible
         for row in self.rows:
             row["sample_original"] = row["sample"]
-            row["sample"] = util.file.string_to_file_name(row["sample"])
+            row["sample"]  = util.file.string_to_file_name(row["sample"])
             row["library"] = util.file.string_to_file_name(row["library"])
-            row["run"] = util.file.string_to_file_name(row["run"])
+            row["run"]     = util.file.string_to_file_name(row["run"])
 
         # are we single or double indexed?
         if all(row.get("barcode_2") for row in self.rows):
@@ -1645,6 +1738,204 @@ class SampleSheet(object):
             )
         else:
             self.indexes = 1
+
+    def collapse_sample_index_duplicates(self, output_tsv=None):
+        """
+        Read in a sample sheet TSV, detect repeated grouping by (barcode_1[, barcode_2]),
+        and collapse those rows into a single row if a group has >=2 rows.
+        Un-duplicated rows remain as-is.
+
+        The grouping logic:
+          * If barcode_2 is present, group by (barcode_1, barcode_2).
+          * Otherwise, group only by (barcode_1).
+
+        For each group of >=2:
+          - If barcode_2 does not exist, sample => <barcode_1>
+          - If barcode_2 exists:
+              * If it is non-empty for that group, sample => <barcode_1>-<barcode_2>
+              * If it is empty for that group, sample => <barcode_1>
+          - Other columns => collapsed with an MD5-based logic if multiple distinct values exist.
+        """
+        assert len(self.rows) > 0, "No sample sheet rows to collapse"
+
+        hash_if_longer_than=32
+
+        # convert [dict()] -> dataframe
+        #   pd.json_normalize() is used to allow for conversion of nested dicts
+        #     see: https://stackoverflow.com/a/53831756
+        #   for simple lists of dicts, pd.DataFrame() is sufficient
+        df = pd.json_normalize(self.rows).fillna("")
+
+        # Read data, preserve column order
+        # df = pd.read_csv(input_tsv, sep="\t", dtype=str).fillna("")
+        original_cols = df.columns.tolist()
+
+        # Determine which columns to group by
+        grouping_cols = ["barcode_1"]
+        has_barcode2 = "barcode_2" in df.columns
+        if has_barcode2:
+            grouping_cols.append("barcode_2")
+
+        # Identify rows that belong to a duplicated group
+        duplicated_mask = df.duplicated(subset=grouping_cols, keep=False)
+
+        # Rows not in duplicates: pass unchanged
+        df_unique = df[~duplicated_mask].copy()
+
+        # Rows that are duplicates
+        df_duplicates = df[duplicated_mask].copy()
+
+        # Group them
+        grouped_dups = df_duplicates.groupby(grouping_cols, sort=False)
+
+        collapsed_rows = []
+        for group_keys, group_df in grouped_dups:
+            """
+            group_keys is either:
+              - A single value if grouping_cols == ['barcode_1']
+              - A tuple (b1, b2) if grouping_cols == ['barcode_1','barcode_2']
+            """
+            if not isinstance(group_keys, tuple):
+                group_keys = (group_keys,)  # unify type
+
+            b1 = group_keys[0]
+            b2 = group_keys[1] if has_barcode2 else None
+
+            if len(group_df) == 1:
+                # Single row in this group -> not truly duplicated, pass unmodified
+                collapsed_rows.append(group_df.iloc[0])
+            else:
+                # Actual duplicates => build one collapsed row
+                row_dict = {}
+
+                # If "barcode_1" is a column, set it
+                if "barcode_1" in df.columns:
+                    row_dict["barcode_1"] = b1
+
+                # If "barcode_2" is a column, set it
+                if has_barcode2:
+                    row_dict["barcode_2"] = b2
+
+                # Build the sample string
+                # If no barcode_2 column => sample = <b1>
+                # If b2 is not empty => sample = <b1>-<b2>
+                # If b2 is empty => sample = <b1>
+                if not has_barcode2:
+                    row_dict["sample"] = f"{b1}"
+                else:
+                    if b2 and b2.strip() != "":
+                        row_dict["sample"] = f"{b1}-{b2}"
+                    else:
+                        row_dict["sample"] = f"{b1}"
+
+                # For other columns, apply the collapse function
+                for col in original_cols:
+                    if col in ("barcode_1", "barcode_2", "sample"):
+                        continue
+                    col_values = group_df[col].tolist()
+                    row_dict[col] = util.misc.collapse_dup_strs_to_str_or_md5(
+                        col_values,
+                        suffix="_muxed",
+                        hash_if_longer_than=hash_if_longer_than
+                    )
+
+                # set the new run value; this becomes the bam file basename
+                row_dict["run"] = f"{row_dict['sample']}.l{row_dict['library_id_per_sample']}" 
+
+                if self.append_run_id:
+                    row_dict["run"] += "." + self.append_run_id
+
+                """
+                File naming schemes seen in the wild:
+
+                NovaSeq XP:
+                  <SampleName>_S<SampleNumber>_L00<LaneNumber>_R<ReadNumber>_001.fastq.gz
+                  ex.
+                    NA10831_S1_L001_R1_001.fastq.gz
+
+                NovaSeq standard:
+                  <SampleName>_S<SampleNumber>_R<ReadNumber>_001.fastq.gz
+                  ex.
+                    NA10831_S1_R1_001.fastq.gz
+
+                Broad walkup NovaSeq:
+                  <Sample_ID>_S<SampleNumber>_L00<LaneNumber>_R<ReadNumber>_001.fastq.gz
+                    Where Sample_ID is constructed as follows (empirical):
+                      <fcid>_<lane>_<Sample_Name>
+                        The <Sample_Name> is the original sample name, prefixed by 
+                        a numeric string corresponding to the 
+                        "Investigator Name" and/or "Experiment Name"
+                        in the [header] block of the Illumina CSV 
+                        returned with flowcell data. (ex. '0420593812' in the examples below)
+                  ex.
+                    22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+                    22J5GLLT4_6_0420593812_VGG_21760_S49_L006_R2_001.fastq.gz
+
+                Custom formats we have used:
+                  <sample_name>.l<library_id>.<run_id>.<lane>.bam
+                  ex.
+                    USA-MA-Broad_MGH-22906-2024.lNDM_B1.HLWLWDRX5.1.bam
+                    USA-MA-Broad_MGH-21721-2024.lDN_B20_C1.HJC2FDRX5.1.bam
+                """
+
+                collapsed_rows.append(pd.Series(row_dict))
+
+        # Create a DataFrame from collapsed rows
+        df_collapsed = pd.DataFrame(collapsed_rows) if collapsed_rows else pd.DataFrame(columns=original_cols)
+
+        # Combine the collapsed duplicates with the unchanged unique rows
+        out_df = pd.concat([df_collapsed, df_unique], ignore_index=True)
+        out_df = out_df[original_cols]  # restore original column ordering
+
+
+        # save collapsed tsv based on location of input tsv
+        #if output_tsv is None:
+        #    base = os.path.splitext(os.path.realpath(os.path.basename(self.fname)))[0]
+        #    output_tsv = f"{base}_pools-collapsed.tsv"
+
+        rows_collapsed = out_df.to_dict(orient="records")
+
+        if len(rows_collapsed) < len(self.rows):
+            # if we collapsed rows, log the change
+            log.info("%s: %i rows collapsed ----> %i rows", os.path.basename(self.fname), len(self.rows), len(rows_collapsed))
+            self.duplicate_rows_collapsed = True
+        else:
+            log.info("%s: ZERO rows collapsed (i.e. no duplicate barcodes or barcode pairs were present)", os.path.basename(self.fname), len(self.rows), len(rows_collapsed))
+
+        excluded_tsv_output_columns=('row_num','library','run','sample_original')
+        filtered_cols = [col for col in original_cols if col not in excluded_tsv_output_columns]
+        if output_tsv is not None:
+            log.info("Saving collapsed sample sheet to: %s", os.path.realpath(output_tsv))
+            out_df[filtered_cols].to_csv(output_tsv, sep="\t", index=False)
+
+        self._rowsOriginal = self.rows
+        self.rows = rows_collapsed
+
+        return rows_collapsed
+
+    @property
+    def can_be_collapsed(self) -> bool:
+        """
+        Return True if, within the specified TSV, at least one group of rows
+        shares the same (barcode_1[, barcode_2]) -- i.e., if collapsing would occur.
+        Otherwise, return False.
+
+        This function does NOT perform collapsing; it only checks the possibility.
+        """
+        assert len(self.rows) > 0, "No sample sheet rows to collapse"
+
+        # convert [dict()] -> dataframe
+        #   pd.json_normalize() is used to allow for conversion of nested dicts
+        df = pd.json_normalize(self.rows).fillna("")
+
+        grouping_cols = ["barcode_1"]
+        if "barcode_2" in df.columns:
+            grouping_cols.append("barcode_2")
+
+        # Check if any row is duplicated based on grouping_cols
+        duplicated_mask = df.duplicated(subset=grouping_cols, keep=False)
+        # Return True if there's at least one group of 2 or more
+        return duplicated_mask.any()
 
     def make_barcodes_file(self, outFile):
         """Create input file for Picard ExtractBarcodes"""
@@ -1708,9 +1999,26 @@ class SampleSheet(object):
     def get_rows(self):
         return self.rows
 
+    def print_rows(self):
+        for r in self.get_rows():
+            longest_key_len = len(max(r.keys(), key=len))
+            print(f"Sample: {r['sample']}")
+            for k,v in r.items():
+                if k!='sample':
+                    print(f"\t{k:<{longest_key_len+1}}: {v}")
+            print("")
+
     def num_indexes(self):
-        """Return 1 or 2 depending on whether pools are single or double indexed"""
+        """
+            Return 1 or 2 depending on whether pools are single or double indexed.
+            Note that this field refers only to to Illumina adapter indices;
+            it does not include nested inner barcodes (e.g., SwiftSeq barcode_3).
+        """
         return self.indexes
+
+    @property
+    def num_samples(self):
+        return len(self.rows)
 
     def fetch_by_index(self, idx):
         idx = str(idx)
@@ -2237,6 +2545,8 @@ def generate_bams_from_fastqs(
         #     FastqToUBAM.run_date="$run_date" \
         #     --dir $bam_outfolder
 
+
+
         # Change name of generated bam file
         generated_bam = glob.glob(
             f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam"
@@ -2249,7 +2559,7 @@ def splitcode_demux(
     inDir,
     outDir,
     sampleSheet=None,
-    unmatched_name="unmatched",
+    unmatched_name="Unmatched",
     max_hamming_dist=1,
     threads=32,
     runinfo=None,
@@ -2329,7 +2639,7 @@ def splitcode_demux(
     # Get pool/sample names from fastq file names
     samples = sorted(
         list(
-            set(["_".join(i.split("/")[-1].split("_")[:-2]) for i in glob.glob(fastqs)])
+            set(["_".join(f.split("/")[-1].split("_")[:-2]) for f in glob.glob(fastqs)])
         )
     )
 

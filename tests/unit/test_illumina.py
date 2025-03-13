@@ -64,6 +64,46 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
+    def test_dup_index_collapse_at_init(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(
+                                        os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
+                                        collapse_duplicates=True)
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(samples.duplicate_rows_collapsed, True)
+        self.assertEqual(len(samples.get_rows()), 4)
+
+    def test_dup_index_collapse(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(
+                                        os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
+                                      )
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(samples.duplicate_rows_collapsed, False)
+        self.assertEqual(samples.can_be_collapsed, True)
+        self.assertEqual(samples.num_samples, 96)
+
+        samples.collapse_sample_index_duplicates()
+
+        self.assertEqual(samples.num_indexes(), 2)
+        self.assertEqual(samples.duplicate_rows_collapsed, True)
+        self.assertEqual(samples.can_be_collapsed, False)
+        self.assertEqual(len(samples.get_rows()), 4)
+
+        # check that unique values in grouped rows are preserved
+        # and others are collapsed to the md5sum of the (joined) unique values
+        collapsed_row = next((r for r in samples.get_rows() if r["sample"] == "CTGATCGT-GCGCATAT" and r["barcode_1"] == "CTGATCGT" and r["barcode_2"] == "GCGCATAT"), None)
+        self.assertEqual(collapsed_row["library_id_per_sample"], "Pool_1")
+        self.assertEqual(collapsed_row["barcode_3"],"2e094627_muxed")
+
+        # check for dups in the collapsed output
+        self.assertEqual(len(set((r["barcode_1"] for r in samples.get_rows()))), len(list((r["barcode_1"] for r in samples.get_rows()))))
+        self.assertEqual(len(set((r["barcode_2"] for r in samples.get_rows()))), len(list((r["barcode_2"] for r in samples.get_rows()))))
+
+        # check that the collapsed output is what we expect
+        self.assertEqual(tuple(r["barcode_1"] for r in samples.get_rows()), ("CTGATCGT","ACTCTCGA","TGAGCTAG","GAGACGAT"))
+        self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
+
     def test_tabfile_win_endings(self):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_win-endings.txt'))

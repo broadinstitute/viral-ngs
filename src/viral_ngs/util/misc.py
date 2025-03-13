@@ -99,12 +99,15 @@ def collapse_dup_strs_to_str_or_md5(values,
     # Otherwise, return joined values
     # or if that would be too long, return (MD5 of joined values)[-8:]+(optional suffix)
     # the input values are optionally sorted after removing empty strings
-    joined_values_delimited = f"{delimiter}".join(sorted([s for s in unique_vals if len(s)>0]) if sort_plural_vals else unique_vals) + suffix if append_suffix_to_delimited_str else ""
+    joined_values_delimited = f"{delimiter}".join(sorted([s for s in unique_vals if len(s)>0]) if sort_plural_vals else unique_vals) + (suffix if append_suffix_to_delimited_str else "")
+    
+
     if len(joined_values_delimited) <= int(hash_if_longer_than):
         return joined_values_delimited
     else:
         # If the joined string is too long, compute MD5 of joined values
-        joined_values = f"".join(sorted(unique_vals)) + suffix if calculate_md5_including_suffix else ""
+        #joined_values = f"".join(sorted(unique_vals)) + (suffix if calculate_md5_including_suffix else "")
+        joined_values = f"".join(unique_vals) + (suffix if calculate_md5_including_suffix else "")
         md5_str = hashlib.md5(joined_values.encode("utf-8")).hexdigest()
         # Use only the last 8 characters of the MD5
         short_md5 = md5_str[-8:]

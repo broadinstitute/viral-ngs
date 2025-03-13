@@ -219,8 +219,13 @@ class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
 
     def execute(
-        self, inFastq1, inFastq2, sampleName,
-        outBam, picardOptions=None, JVMmemory=None
+        self, 
+        inFastq1, 
+        inFastq2, 
+        sampleName,
+        outBam, 
+        picardOptions=None, 
+        JVMmemory=None
     ):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
@@ -459,7 +464,12 @@ class ExtractIlluminaBarcodesTool(PicardTools):
     subtoolName = 'ExtractIlluminaBarcodes'
     jvmMemDefault = '8g'
     # minimum_base_quality=20 used to accommodate NovaSeq, which with RTA3 writes only four Q-score values: 2, 12, 23, and 37
-    defaults = {'read_structure': '101T8B8B101T', 'max_mismatches': 0, 'minimum_base_quality': 20, 'num_processors': 0}
+    defaults = {
+                    'read_structure':      '101T8B8B101T', 
+                    'max_mismatches':        0, 
+                    'minimum_base_quality': 20, 
+                    'num_processors':        0
+                }
     option_list = (
         'read_structure', 'max_mismatches', 'minimum_base_quality', 'min_mismatch_delta', 'max_no_calls',
         'minimum_quality', 'compress_outputs', 'num_processors'
