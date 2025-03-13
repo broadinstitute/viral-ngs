@@ -2023,7 +2023,7 @@ class SampleSheet(object):
 
             lib_val = row.get("library_id_per_sample", "")
             muxed_run_str = f"{muxed_sample}.l{lib_val}"
-            if append_run_id:
+            if self.append_run_id:
                 muxed_run_str += f".{self.append_run_id}"
             return muxed_run_str
 
@@ -2753,10 +2753,12 @@ def splitcode_demux(
     flowcell          = flowcell          or runinfo.get_flowcell()
     run_date          = run_date          or runinfo.get_rundate_american()
     read_structure    = read_structure    or runinfo.get_read_structure()
-    run_id            = run_id            or runinfo.get_run_id() # "{}.{}".format(flowcell, lane)
+    run_id            = run_id            or f"{runinfo.get_flowcell()}.{lane}" # runinfo.get_run_id()
     sequencing_center = sequencing_center or runinfo.get_machine()
     sequencing_center = util.file.string_to_file_name(sequencing_center)
     #readgroup_name = 
+
+    #print(f"run_id: {run_id}")
 
     if sampleSheet:
         samples = SampleSheet(
@@ -2786,7 +2788,7 @@ def splitcode_demux(
 
     inner_demux_barcode_map_df = None
     if samples.can_be_collapsed:
-        samples.collapse_sample_index_duplicates()
+        #samples.collapse_sample_index_duplicates()
         #collapsed_barcodes_df = pd.json_normalize(samples.get_rows()).fillna("")
         inner_demux_barcode_map_df = samples.inner_demux_mapper()
     else:
@@ -2805,15 +2807,15 @@ def splitcode_demux(
     inner_demux_barcode_map_df
 
     # Iterate over rows
-    for sample_value, row in inner_demux_barcode_map_df:
+    for sample_value, row in inner_demux_barcode_map_df.iterrows():
         print(f"\nSample index: {sample_value}")
         print(f"Row data:\n{row}")
 
         # Access a column by name:
-        b1 = row_data["barcode_1"]
-        b3 = row_data["barcode_3"]
-        run_str = row_data["run"]
-        muxed_run_str = row_data["muxed_run"]
+        b1 = row["barcode_1"]
+        b3 = row["barcode_3"]
+        run_str = row["run"]
+        muxed_run_str = row["muxed_run"]
         
         print(f"Row for sample={sample_value}: barcode_1={b1}, barcode_3={b3}, run={run_str}, muxed_run={muxed_run_str}")
 
