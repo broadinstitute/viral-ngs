@@ -2305,130 +2305,462 @@ def read_json(filepath):
     return data
 
 
-def create_lut(sampleSheet, outDir, unmatched_name):
+def create_lut(sample_sheet, outDir, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
+    pool_ids = pool_ids or []
+
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
     # TO-DO: Adjust the table outputted by this function to match Picard output
 
-    # Load samplesheet
-    barcodes_df = pd.read_csv(sampleSheet, sep="\t")
-    barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
-
+    # Load sample_sheet
+    barcodes_df = pd.read_csv(sample_sheet, sep="\t")
+    
     df_out = f"{outDir}/bc2sample_lut.csv"
 
     i7_barcodes = list(set(barcodes_df["barcode_1"].values))
+    barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
 
-    pools = []
-    barcode_ids = []
-    barcode_list = []
-    sample_list = []
-    i7_list = []
-    i5_list = []
+    # Build "run" column = "<sample>.l<library_id_per_sample>[.<append_run_id>]"
+    def build_sample_library_id_string(row):
+        sample_val = row.get("sample", "")
+        lib_val    = row.get("library_id_per_sample", "")
+        run_str = f"{sample_val}.l{lib_val}"
+        if append_run_id:
+            run_str += f".{append_run_id}"
+        return run_str
+    barcodes_df["run"] = barcodes_df.apply(build_sample_library_id_string, axis=1)
+    
+    def build_muxed_run_string(row):
+        b1 = row.get("barcode_1", "")
+        b2 = row.get("barcode_2", None)
+        if b2 and b2.strip():
+            muxed_sample = f"{b1}-{b2}"
+        else:
+            muxed_sample = b1
+
+        lib_val = row.get("library_id_per_sample", "")
+        muxed_run_str = f"{muxed_sample}.l{lib_val}"
+        if append_run_id:
+            muxed_run_str += f".{append_run_id}"
+        return muxed_run_str
+    barcodes_df["muxed_pool"] = barcodes_df.apply(build_muxed_run_string, axis=1)
+
+    # if check_sample_sheet_consistency:
+    #     pools = []
+    #     #pools = pool_ids
+    #     barcode_ids = []
+    #     barcode_list = []
+    #     sample_list = []
+    #     i7_list = []
+    #     i5_list = []
+    #     num_reads_h0 = []
+    #     num_reads_h1 = []
+    #     for i7 in i7_barcodes:
+    #         for bc in barcodes + [unmatched_name]:
+    #             # Get barcodes
+    #             i7_list.append(i7)
+    #             barcode_list.append(bc)
+
+    #             pool_values = barcodes_df[barcodes_df["barcode_1"] == i7][
+    #                 "muxed_pool" #"library_id_per_sample"
+    #             ].values
+    #             distinct_pool_values = set(pool_values)
+    #             if len(distinct_pool_values) > 1:
+    #                 raise ValueError(
+    #                     f"More than one ({len(distinct_pool_values)}) pools found for i7 barcode {i7}."
+
+    #                 )
+    #             pool = pool_values[0]
+    #             pools.append(pool)
+
+    #             i5_values = barcodes_df[barcodes_df["barcode_1"] == i7]["barcode_2"].values
+    #             distinct_i5_values = set(i5_values)
+    #             if len(distinct_i5_values) > 1:
+    #                 raise ValueError(
+    #                     f"More than one ({len(distinct_i5_values)}) i5 barcodes found for i7 barcode {i7}."
+    #                 )
+    #             i5 = i5_values[0]
+    #             i5_list.append(i5)
+
+    #             if bc == unmatched_name:
+    #                 bc_id = unmatched_name
+    #             else:
+    #                 bc_ids = barcodes_df[barcodes_df["barcode_3"] == bc][
+    #                     "Inline_Index_ID"
+    #                 ].values
+    #                 distinct_bc_ids = set(bc_ids)
+    #                 if len(distinct_bc_ids) > 1:
+    #                     raise ValueError(
+    #                         f"More than one ({len(distinct_bc_ids)}) barcodes index IDs found for inline barcode {bc}."
+    #                     )
+    #                 bc_id = bc_ids[0]
+    #             barcode_ids.append(bc_id)
+
+    #             # Get sample name
+    #             if bc == unmatched_name:
+    #                 sample = None
+    #             else:
+    #                 samples_temp = barcodes_df[
+    #                     (barcodes_df["barcode_1"] == i7)
+    #                     & (barcodes_df["barcode_2"] == i5)
+    #                     & (barcodes_df["barcode_3"] == bc)
+    #                 ]["sample"].values
+    #                 if len(set(samples_temp)) > 1:
+    #                     raise ValueError(
+    #                         f"Error in sample to barcodes mapping (multiple samples found for i7/i5/inner barcode combination: {i7}/{i5}/{bc})."
+    #                     )
+    #                 sample = samples_temp[0]
+    #             sample_list.append(sample)
+    
+    # alternative validation approach
+
+    #print(barcodes_df.groupby(["barcode_1","barcode_3"]).count())
+
+    #def duplication_check(df, columns):
+    #    # barcodes_df[barcodes_df.duplicated(subset=["barcode_1","muxed_pool"], keep=False)][["barcode_1","muxed_pool"]])
+    #    return df.groupby(columns).filter(lambda x: len(x) > 1)[columns].count()
+
+    def duplication_check(df, primary_cols, secondary_col, error_message_header=None, error_message=None):
+        default_error_message_header = "Error: More than one '{column_to_check_for_duplicates}' value present for distinct combinations of the columns {affected_column_names}:"
+        default_error_message        = "'{duplicated_values}' appears {duplicate_count} times, for {affected_values}."
+
+        error_message_header = error_message_header or default_error_message_header
+        error_message        = error_message        or default_error_message
+
+        # Check which placeholders are actually present in the template
+        err_header_has_dup_check_col         = '{column_to_check_for_duplicates}' in error_message_header
+        err_header_has_affected_column_names = '{affected_column_names}' in error_message_header
+
+        err_msg_has_affected_values       = '{affected_values}' in error_message
+        err_msg_has_dup_val               = '{duplicated_values}' in error_message
+        err_msg_has_count                 = '{duplicate_count}' in error_message
+        
+
+        # To store all generated error messages
+        errors = []
+
+        # Group the dataframe by the primary columns
+        grouped = df.groupby(primary_cols, dropna=False)
+
+        error_header_out=None
+        for group_key, subdf in grouped:
+            # If there's only one primary column, group_key is a single value
+            # Otherwise, it's a tuple of values
+            if isinstance(group_key, tuple):
+                # E.g.: ("North", "A")
+                group_str = ','.join(
+                    f"{col}={val}" for col, val in zip(primary_cols, group_key)
+                )
+            else:
+                # E.g.: "North" when there's only one primary column
+                group_str = f"{primary_cols[0]}={group_key}"
+
+            # Count occurrences of each value in secondary_col
+            value_counts = subdf[secondary_col].value_counts(dropna=True)
+            # Identify duplicates: values with count > 1
+            duplicates = value_counts[value_counts > 1]
+
+            
+            # Build a separate message for each duplicated value
+            for val, count_ in duplicates.items():
+                msg_dict        = {}
+                header_msg_dict = {}
+                
+                if err_msg_has_affected_values:
+                    msg_dict['affected_values'] = group_str
+                if err_msg_has_dup_val:
+                    msg_dict['duplicated_values'] = val
+                if err_msg_has_count:
+                    msg_dict['duplicate_count'] = count_
+                if err_header_has_dup_check_col:
+                    header_msg_dict['column_to_check_for_duplicates'] = secondary_col
+                if err_header_has_affected_column_names:
+                    header_msg_dict['affected_column_names'] = f"{'+'.join([f'{chr(39)+c+chr(39)}' for c in primary_cols])}"
+
+                if error_header_out is None:
+                    error_header_out = error_message_header.format(**header_msg_dict)
+                message = error_message.format(**msg_dict)
+                errors.append(message)
+        return (error_header_out, errors)
+
+
+    duplication_check_conditions = [
+        {
+            "columns": ["barcode_1","barcode_2"],
+            "column_to_check_for_duplicates": "barcode_3",
+        }
+    ]
+
+    for dup_condition in duplication_check_conditions:
+        
+        problem_header, problems = duplication_check( barcodes_df,
+                                                        dup_condition["columns"],
+                                                        dup_condition["column_to_check_for_duplicates"],
+                                                        dup_condition.get("error_message_header", None),
+                                                        dup_condition.get("error_message", None) )
+        problem_found = False
+        if len(problems):
+            print(problem_header)
+            for problem in problems:
+                print(f"\t{problem}")
+            problem_found = True
+        if problem_found:
+            raise ValueError("Problem(s) found in sample sheet; see above for details.")
+
+
+    #     pools = []
+    #     #pools = pool_ids
+    #     barcode_ids = []
+    #     barcode_list = []
+    #     sample_list = []
+    #     i7_list = []
+    #     i5_list = []
     num_reads_h0 = []
     num_reads_h1 = []
-    for i7 in i7_barcodes:
-        for bc in barcodes + [unmatched_name]:
-            # Get barcodes
-            i7_list.append(i7)
-            barcode_list.append(bc)
+    # create a dataframe with the same columns as barcodes_df to store values for unmatched reads
+    pool_dfs = []
+    unmatched_dfs = [] #pd.DataFrame(columns=barcodes_df.columns)
 
-            pool_values = barcodes_df[barcodes_df["barcode_1"] == i7][
-                "library_id_per_sample"
-            ].values
-            if len(set(pool_values)) > 1:
-                raise ValueError(
-                    f"More than one ({len(set(pool_values))}) pools found for i7 barcode {i7}."
-                )
-            pool = pool_values[0]
-            pools.append(pool)
 
-            i5_values = barcodes_df[barcodes_df["barcode_1"] == i7]["barcode_2"].values
-            if len(set(i5_values)) > 1:
-                raise ValueError(
-                    f"More than one ({len(set(i5_values))}) i5 barcodes found for i7 barcode {i7}."
-                )
-            i5 = i5_values[0]
-            i5_list.append(i5)
+    for pool in barcodes_df["muxed_pool"].unique():
+        print(f"pool {pool}")
+        
+        # Get and load splitcode stats report json
+        splitcode_summary_file = glob.glob(f"{outDir}/{pool}_summary.json")[0]
+        splitcode_summary = read_json(splitcode_summary_file)
 
-            if bc == unmatched_name:
-                bc_id = unmatched_name
-            else:
-                bc_ids = barcodes_df[barcodes_df["barcode_3"] == bc][
-                    "Inline_Index_ID"
-                ].values
-                if len(set(bc_ids)) > 1:
-                    raise ValueError(
-                        f"More than one ({len(set(bc_ids))}) barcodes index IDs found for inline barcode {bc}."
-                    )
-                bc_id = bc_ids[0]
-            barcode_ids.append(bc_id)
+        #for subdict in splitcode_summary["tag_qc"]:
+        
+        samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 
-            # Get sample name
-            if bc == unmatched_name:
-                sample = None
-            else:
-                samples_temp = barcodes_df[
-                    (barcodes_df["barcode_1"] == i7)
-                    & (barcodes_df["barcode_2"] == i5)
-                    & (barcodes_df["barcode_3"] == bc)
-                ]["sample"].values
-                if len(set(samples_temp)) > 1:
-                    raise ValueError(
-                        f"Error in sample to barcodes mapping (multiple samples found for i7/i5/ibarcode combination: {i7}/{i5}/{bc})."
-                    )
-                sample = samples_temp[0]
-            sample_list.append(sample)
+        print("samplesheet_rows_for_pool_df")
+        print(samplesheet_rows_for_pool_df)
 
-            # Get number of reads
-            splitcode_summary_file = glob.glob(f"{outDir}/*_{pool}_*summary.json")[0]
-            splitcode_summary = read_json(splitcode_summary_file)
-            if bc_id == unmatched_name:
-                num_reads_h0.append(
-                    splitcode_summary["n_processed"] - splitcode_summary["n_assigned"]
-                )
-                num_reads_h1.append(0)
-            else:
-                seen_h0 = False
-                seen_h1 = False
-                for subdict in splitcode_summary["tag_qc"]:
-                    if subdict["tag"] == f"{bc_id}_R1" and subdict["distance"] == 0:
-                        if seen_h0:
-                            raise ValueError(
-                                f"More than one read count found for inline barcode {bc_id} with Hamming distance 0."
-                            )
-                        num_reads_h0.append(subdict["count"])
-                        seen_h0 = True
-                    if subdict["tag"] == f"{bc_id}_R1" and subdict["distance"] == 1:
-                        if seen_h1:
-                            raise ValueError(
-                                f"More than one read count found for inline barcode {bc_id} with Hamming distance 1."
-                            )
-                        num_reads_h1.append(subdict["count"])
-                        seen_h1 = True
-                if not seen_h0:
-                    num_reads_h0.append(0)
-                if not seen_h1:
-                    num_reads_h1.append(0)
+        splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
 
-    df_lut = pd.DataFrame(
-        {
-            "sample": sample_list,
-            "library_id": pools,
-            "i7_barcode": i7_list,
-            "i5_barcode": i5_list,
-            "inline_barcode_id": barcode_ids,
-            "inline_barcode": barcode_list,
-            "num_reads_hdistance0": num_reads_h0,
-            "num_reads_hdistance1": num_reads_h1,
+        splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
+        splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
+        #splitcode_summary_df.fillna({'run':0}, inplace=True)
+        
+        splitcode_summary_df_h0_df = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
+        splitcode_summary_df_h1_df = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
+
+        #splitcode_summary_df_h0_df
+        #splitcode_summary_df_h0_df["run"] = splitcode_summary_df_h0_df["tag"].apply(lambda s: s., axis=1)
+        #splitcode_summary_df_h0_df.loc[:,"run"] = splitcode_summary_df_h0_df["tag"].replace(r'_R1$', '')
+
+        print("splitcode_summary_df_h0_df")
+        print(splitcode_summary_df_h0_df)
+
+        print("=============================")
+        print("splitcode_summary_df_h1_df")
+        print(splitcode_summary_df_h1_df)
+
+
+
+        splitcode_summary_df_h1_df = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
+
+        print("=============================")
+        print("splitcode_summary_df_h1_df")
+        print(splitcode_summary_df_h1_df)
+
+        
+
+        #splitcode_summary_df_h1_counth1_df = splitcode_summary_df_h1_df[['count_h1','run']]
+
+        #print("=============================")
+        #print("splitcode_summary_df_h1_counth1_df")
+        #print(splitcode_summary_df_h1_counth1_df)
+
+        samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.join(
+                                            splitcode_summary_df_h0_df.set_index('run'), 
+                                            on='run')
+
+        print("samplesheet_rows_for_pool_hx_df")
+        print(samplesheet_rows_for_pool_hx_df)
+        #exit(0)
+
+
+        # samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.join(
+        #                                     splitcode_summary_df_h1_df.set_index('run'), 
+        #                                     on='run')
+
+
+        #samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.convert_dtypes().fillna({'count':0})
+        #splitcode_summary_df_h1_df = splitcode_summary_df_h1_df.convert_dtypes()
+        #splitcode_summary_df_h1_df = splitcode_summary_df_h1_df.fillna({'count_h1':0})
+
+        samplesheet_rows_for_pool_hx_df = pd.merge(samplesheet_rows_for_pool_hx_df,
+                                            splitcode_summary_df_h1_df[['run','count_h1']].rename(columns={'run':'run_h1'}),
+                                             left_on='run',
+                                             right_on='run_h1',
+                                             how='left')
+        samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.drop(columns=['run_h1','distance','tag']) # dropping distance since we've added a col with different distance (as indicated by _h1 suffix)
+        # fil NA values in 'count_h1' and cast to int
+        samplesheet_rows_for_pool_hx_df["count_h1"] = samplesheet_rows_for_pool_hx_df["count_h1"].fillna(0).astype(int)
+
+        print("samplesheet_rows_for_pool_hx_df")
+        print(samplesheet_rows_for_pool_hx_df)
+        #exit(0)
+
+        #samplesheet_rows_for_pool_hx_df.fillna({'count_h1':0}, inplace=True)
+
+        #print(splitcode_summary_df[splitcode_summary_df["distance"] == 0])
+        #print(splitcode_summary_df[splitcode_summary_df["distance"] == 1])
+
+
+        
+        
+        print("samplesheet_rows_for_pool_hx_df")
+        print(samplesheet_rows_for_pool_hx_df)
+        #exit(0)
+            
+
+        #samplesheet_rows_for_pool = barcodes_df[barcodes_df["muxed_pool"] == pool]
+        #print(samplesheet_rows_for_pool)
+        #exit(0)
+        # df_lut = pd.DataFrame(
+        #     {
+        #         "sample": samplesheet_rows_for_pool["sample"].values,
+        #         "library_id": samplesheet_rows_for_pool["run"].values, #pools,
+        #         "i7_barcode": samplesheet_rows_for_pool["barcode_1"].values,
+        #         "i5_barcode": samplesheet_rows_for_pool["barcode_2"].values,
+        #         "inline_barcode_id": samplesheet_rows_for_pool["Inline_Index_ID"].values,
+        #         "inline_barcode": samplesheet_rows_for_pool["barcode_3"].values,
+        #         "num_reads_hdistance0": num_reads_h0,
+        #         "num_reads_hdistance1": num_reads_h1,
+        #     }
+        # )
+        #exit(0)
+        num_reads_h0.extend(samplesheet_rows_for_pool_hx_df["count"].values)
+        num_reads_h1.extend(samplesheet_rows_for_pool_hx_df["count_h1"].values)
+
+        pool_dfs.append(samplesheet_rows_for_pool_hx_df)
+
+        # ToDo: account for unmatched reads
+        #num_reads_h0.append(
+        #    splitcode_summary["n_processed"] - splitcode_summary["n_assigned"]
+        #)
+        #num_reads_h1.append(0)
+        unmatched_dict = {
+            "sample": unmatched_name,
+            "library_id_per_sample": list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
+            "run": unmatched_name,
+            "muxed_pool": pool,
+            "count": splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
+            "count_h1": 0,
+            "barcode_1": list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
+            "barcode_2": list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
+            "barcode_3": "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
         }
-    )
+        #unmatched_df = unmatched_df.append(unmatched_dict, ignore_index=True)
+        # pd.DataFrame(columns=barcodes_df.columns)
+        #unmatched_df = pd.DataFrame(unmatched_dict) #, ignore_index=True) #index=[0])
+        unmatched_df = pd.DataFrame.from_dict([unmatched_dict])
+        #unmatched_df = pd.DataFrame.from_dict([unmatched_dict])
+        unmatched_dfs.append(unmatched_df)
+
+        print("unmatched_df")
+        print(unmatched_df)
+
+    all_pools_and_unmatched_df = pd.concat(pool_dfs + unmatched_dfs, ignore_index=True)
+
+    metrics_out = {
+        "sample": len(all_pools_and_unmatched_df["sample"].values),
+        "library_id": len(all_pools_and_unmatched_df["run"].values), #pools,
+        "i7_barcode": len(all_pools_and_unmatched_df["barcode_1"].values),
+        "i5_barcode": len(all_pools_and_unmatched_df["barcode_2"].values),
+        "inline_barcode_id": len(all_pools_and_unmatched_df["Inline_Index_ID"].values.astype(str)),
+        "inline_barcode": len(all_pools_and_unmatched_df["barcode_3"].values),
+        "num_reads_hdistance0": len(all_pools_and_unmatched_df["count"].values),
+        "num_reads_hdistance1": len(all_pools_and_unmatched_df["count_h1"].values),
+    }
+    for k,v in metrics_out.items():
+        print(f"{k}: {v}")
+    
+    df_lut = all_pools_and_unmatched_df.copy()
+    # rename columns to values expected by downstream plotting code
+    df_lut = df_lut.rename(columns={
+                                    "count": "num_reads_hdistance0", 
+                                    "count_h1": "num_reads_hdistance1",
+                                    "barcode_3":"inline_barcode",
+                                    "library_id_per_sample":"library_id"
+                                    })
+
+    # df_lut = pd.DataFrame(
+    #     {
+    #         "sample": barcodes_df["sample"].values,
+    #         "library_id": barcodes_df["run"].values, #pools,
+    #         "i7_barcode": barcodes_df["barcode_1"].values,
+    #         "i5_barcode": barcodes_df["barcode_2"].values,
+    #         "inline_barcode_id": barcodes_df["Inline_Index_ID"].values.astype(str),
+    #         "inline_barcode": barcodes_df["barcode_3"].values,
+    #         "num_reads_hdistance0": num_reads_h0, #samplesheet_rows_for_pool_hx_df["count"].values,
+    #         "num_reads_hdistance1": num_reads_h1 #samplesheet_rows_for_pool_hx_df["count_h1"].values,
+    #     }
+    # )
+    # df_lut = pd.concat([df_lut, unmatched_df], ignore_index=True)
+
+    print(df_lut)
 
     df_lut["num_reads_total"] = (
         df_lut["num_reads_hdistance0"] + df_lut["num_reads_hdistance1"]
     )
 
     df_lut.to_csv(df_out, index=False)
+    
 
     return df_out
+
+    #     # ======================
+    #     if bc_id == unmatched_name:
+    #         num_reads_h0.append(
+    #             splitcode_summary["n_processed"] - splitcode_summary["n_assigned"]
+    #         )
+    #         num_reads_h1.append(0)
+    #     else:
+    #         seen_h0 = False
+    #         seen_h1 = False
+    #         for subdict in splitcode_summary["tag_qc"]:
+    #             #if subdict["tag"] == f"{barcodes_df[barcodes_df['muxed_pool'] == pool][barcodes_df['barcode_3'] == bc]['run'].values[0]}_R1" and subdict["distance"] == 0:
+    #             if subdict["tag"] == f"{barcodes_df[barcodes_df['muxed_pool'] == pool][barcodes_df['barcode_3'] == bc]['run'].values[0]}_R1" and subdict["distance"] == 0:
+    #                 if seen_h0:
+    #                     raise ValueError(
+    #                         f"More than one read count found for inline barcode {bc_id} with Hamming distance 0."
+    #                     )
+    #                 num_reads_h0.append(subdict["count"])
+    #                 seen_h0 = True
+    #             if subdict["tag"] == f"{barcodes_df[barcodes_df['muxed_pool'] == pool][barcodes_df['barcode_3'] == bc]['run'].values[0]}_R1" and subdict["distance"] == 1:
+    #                 if seen_h1:
+    #                     raise ValueError(
+    #                         f"More than one read count found for inline barcode {bc_id} with Hamming distance 1."
+    #                     )
+    #                 num_reads_h1.append(subdict["count"])
+    #                 seen_h1 = True
+    #         if not seen_h0:
+    #             num_reads_h0.append(0)
+    #         if not seen_h1:
+    #             num_reads_h1.append(0)
+
+    # df_lut = pd.DataFrame(
+    #     {
+    #         "sample": sample_list,
+    #         "library_id": pools,
+    #         "i7_barcode": i7_list,
+    #         "i5_barcode": i5_list,
+    #         "inline_barcode_id": barcode_ids,
+    #         "inline_barcode": barcode_list,
+    #         "num_reads_hdistance0": num_reads_h0,
+    #         "num_reads_hdistance1": num_reads_h1,
+    #     }
+    # )
+
+    # df_lut["num_reads_total"] = (
+    #     df_lut["num_reads_hdistance0"] + df_lut["num_reads_hdistance1"]
+    # )
+
+    # df_lut.to_csv(df_out, index=False)
+
+    # return df_out
 
 
 def plot_read_counts(df_lut_path, outDir):
@@ -2779,6 +3111,8 @@ def splitcode_demux(
 
     # Create outDir
     os.makedirs(outDir, exist_ok=True)
+    out_demux_dir_path = f"{outDir}"
+    os.makedirs(out_demux_dir_path, exist_ok=True)
 
     # Load samplesheet
     # if sampleSheet is None:
@@ -2799,157 +3133,290 @@ def splitcode_demux(
     # Load inline barcodes and inline barcode indices
     inline_barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
 
-    # Instantiate the splitcode
+    # Instantiate the splitcode and samtools tools
     splitcode_tool = SplitCodeTool()
+    samtools = tools.samtools.SamtoolsTool()
 
-    print(inner_demux_barcode_map_df)
+    #print(inner_demux_barcode_map_df)
 
-    inner_demux_barcode_map_df
+    demux_bams_to_sample_library_id_map   = defaultdict(list)
+    pool_id_to_sample_library_id_map = defaultdict(list)
+    sample_to_demux_bam_map = {}
+    pool_id_to_splitcode_keepfile = {}
+    pool_id_to_splitcode_configfile = {}
+    pool_id_to_pool_bam = {}
+    sample_library_id_to_fastqs = {}
+    pool_ids_successfully_demuxed_via_splitcode = []
 
     # Iterate over rows
-    for sample_value, row in inner_demux_barcode_map_df.iterrows():
-        print(f"\nSample index: {sample_value}")
-        print(f"Row data:\n{row}")
+    for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
+
+        print(f"\nSample index: {sample_name}")
+        print(f"\tData:")
+        for r in sample_row:
+            print(f"\t\t{r}")
 
         # Access a column by name:
-        b1 = row["barcode_1"]
-        b3 = row["barcode_3"]
-        run_str = row["run"]
-        muxed_run_str = row["muxed_run"]
+        b1 = sample_row["barcode_1"]
+        b3 = sample_row["barcode_3"]
+        inline_index_id = sample_row["Inline_Index_ID"]
+        run_str = sample_row["run"]
+        muxed_pool_str = sample_row["muxed_run"]
         
-        print(f"Row for sample={sample_value}: barcode_1={b1}, barcode_3={b3}, run={run_str}, muxed_run={muxed_run_str}")
+        print(f"\tRow for sample={sample_name}:")
+        #print(f"\t\tbarcode_1={b1}")
+        print(f"\t\tinline_index_id={inline_index_id}")
+        print(f"\t\tbarcode_3={b3}")
+        print(f"\t\trun={run_str}")
+        print(f"\t\tmuxed_run={muxed_pool_str}")
 
-    # Accessing a row for a given sample index
-    # target = "SAMPLE2"
-    # if target in df_mapped.index:
-    #     row_for_target = df_mapped.loc[target]
-    #     print(f"\nRow for {target}:\n{row_for_target}")
-    # else:
-    #     print(f"\nNo row found for {target}")
 
-    # ======== retain for now ========
-    # bc_idxs = []
-    # for bc in inline_barcodes:
-    #     inline_indices = list(
-    #         set(barcodes_df[barcodes_df["barcode_3"] == bc]["Inline_Index_ID"].values)
-    #     )
-    #     if len(inline_indices) > 1:
-    #         raise ValueError(
-    #             f"Multiple Inline_Index_ID values found for inline barcode {bc}."
-    #         )
-    #     bc_idxs.append(inline_indices[0])
-    # Get names of fastq files
-    # fastqs = f"{inDir}/*.fastq.gz"
-    # # Get pool/sample names from fastq file names
-    # samples = sorted(
-    #     list(
-    #         set(["_".join(f.split("/")[-1].split("_")[:-2]) for f in glob.glob(fastqs)])
-    #     )
-    # )
-    # ================================
+        bam_to_glob_for = f"{sample_row['muxed_run']}*.bam"
+        #found_bam_files = glob.glob(f"{bam_to_glob_for}",root_dir=inDir)
+        found_bam_files = glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))
+        found_bam_file = found_bam_files[0] if found_bam_files else None
+        if found_bam_file:
+            if muxed_pool_str not in pool_id_to_pool_bam:
+                pool_id_to_pool_bam[muxed_pool_str] = found_bam_file
 
-    # Create splitcode config file
-    config_file = f"{outDir}/config.txt"
-    with open(config_file, "w") as config_f:
-        # Write column titles
-        config_header = "\t".join(["tag","id","location","distance","left","right"])
-        config_f.write(config_header+"\n")
+            demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
+            sample_to_demux_bam_map[sample_name] = found_bam_file
+            pool_id_to_sample_library_id_map[sample_row["muxed_run"]].append(sample_row["run"])
+        else:
+            raise FileNotFoundError(f"No bam file found: for {bam_to_glob_for}")
 
-        # Populate columns
-        #for idx, bc in zip(bc_idxs, inline_barcodes):
-        for idx, bc in enumerate(inline_barcodes):
-            bc_len = len(bc)
+    demux_bams_to_sample_library_id_map = dict(demux_bams_to_sample_library_id_map)
+    pool_id_to_sample_library_id_map = dict(pool_id_to_sample_library_id_map)
 
-            # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
-            # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
-            config_line = "\t".join([
-                                        bc, 
-                                        #f"{idx}_R1", 
-                                        f"{idx}_R1", 
-                                        f"0:0:{bc_len}", 
+    print(f"demux_bams_to_sample_library_id_map {demux_bams_to_sample_library_id_map}")
+    print("\n\n\n\n\n")
+    print(f"pool_id_to_sample_library_id_map {pool_id_to_sample_library_id_map}")
+    print("\n\n\n\n\n")
+    print(f"sample_to_demux_bam_map {sample_to_demux_bam_map}")
+    #print("\n\n\n\n\n")
+    #print(f"pool_id_to_splitcode_keepfile {pool_id_to_splitcode_keepfile}")
+    
+    #exit(0)
+
+    for pool_id, sample_libraries in pool_id_to_sample_library_id_map.items():
+        #print(f"pool_id, sample_libraries: {pool_id}, {sample_libraries}")
+
+        # ======== create splitcode config file ========
+        splitcode_config = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
+        with open(splitcode_config, "w") as config_fh:
+            config_tsv_writer = csv.writer(config_fh, delimiter="\t")
+
+            # Write header columns
+            config_header = [
+                                "tag",
+                                "id",
+                                "location",
+                                "distance",
+                                "left",
+                                "right"
+                            ]
+
+            config_tsv_writer.writerow(config_header)
+
+            # Create splitcode config files
+            for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
+                barcode_sequence  = sample_row["barcode_3"]
+                barcode_len       = len(barcode_sequence)
+                inline_index_id   = sample_row["Inline_Index_ID"]
+                sample_library_id = sample_row["run"]
+
+                #print(f"sample_row {sample_row}")
+                #print(f"pool_id {pool_id}")
+                #exit(0)
+
+                if sample_row["muxed_run"] == pool_id:
+                    # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
+                    # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
+                    config_line_r1 = [
+                                        barcode_sequence, 
+                                        f"{sample_library_id}_R1", 
+                                        f"0:0:{barcode_len}", 
                                         str(max_hamming_dist), 
                                         "1", 
                                         "0"
-                                    ])
-            config_f.write(config_line+"\n")
+                                     ]
+                    config_tsv_writer.writerow(config_line_r1)
 
-            # # R2 barcode (using the "right" (-> remove from the right) column to remove the inline barcodes from R2 reads)
-            # config_line2 = "\t".join([
-            #                             bc, 
-            #                             f"{idx}_R2", 
-            #                             f"1:-{bc_len}:0", 
-            #                             str(max_hamming_dist), 
-            #                             "0", 
-            #                             "1"
-            #                         ])
-            # config_f.write(config_line2+"\n")
+                    # === retain for now ===
+                    # R2 barcode (using the "right" (-> remove from the right) column to remove the inline barcodes from R2 reads)
+                    # config_line_r2 = [
+                    #                     barcode_sequence, 
+                    #                     f"{inline_index_id}_R2", 
+                    #                     f"1:-{barcode_len}:0", 
+                    #                     str(max_hamming_dist), 
+                    #                     "0", 
+                    #                     "1"
+                    #                  ]
+                    # #config_f.write("\t".join(config_line_r2)+"\n")
+                    # config_tsv_writer.writerow(config_line_r2)
+                    # =======================
+        pool_id_to_splitcode_configfile[pool_id] = splitcode_config
 
-    # ToDo: === addition adaptation below====
 
-    # Create splitcode keep file
-    for sample in samples:
-        keep_filename = f"{outDir}/{sample}_keep.txt"
-        with open(keep_filename, "w") as keep_file:
-            out_demux = f"{outDir}/{sample}_demuxed/"
+        # ======== create splitcode keep file ==========
+    
+        # ToDo: rather than create a single splitcode keep file for each pool
+        #       provide the option to create 1..N splitcode keep files for each pool
+        #       where N is the number of samples in each pool
+        #       to allow for increased parallelization of the splitcode demuxing
+        #       (at the expense of more I/O)
 
-            # Create out_demux folder
-            os.makedirs(out_demux, exist_ok=True)
+        splitcode_sample_keep_file = util.file.mkstempfname(f"splitcode_{pool_id}_keepfile.txt")
+        with open(splitcode_sample_keep_file, "w") as splitcode_sample_keep_fh:
+            splitcode_sample_keepfile_tsv_writer = csv.writer(splitcode_sample_keep_fh, delimiter="\t")
+            #sampled_demuxed_basename = sample["run"]
+            # splitcode_sample_keep_fh.write(
+            #     #f"{inline_index_id}_R1" + "\t" + out_demux_dir_path + f"Barcode_{inline_index_id}" + "\n"
+            #     "\t".join([
+            #                     f"{inline_index_id}_R1",
+            #                     out_demux_dir_path,
+            #                     #f"Barcode_{inline_index_id}" + "\n"
+            #                     #f"{sample_name}" + "\n"
+            #                     f"{sampled_demuxed_basename}" + "\n"
+            #               ])
+            # )
+            for sample_library_id in sample_libraries:
+                # ToDo: write fastq intermediate files to tmp dir once conversion to bam is in place downstream
+                sample_output_prefix = f"{out_demux_dir_path}/{sample_library_id}"
+                splitcode_sample_keep_row = [
+                                                f"{sample_library_id}_R1",
+                                                sample_output_prefix,
+                                                #f"Barcode_{inline_index_id}" + "\n"
+                                                #f"{sample_name}" + "\n"
+                                                #f"{sampled_demuxed_basename}"
+                                            ]
+                splitcode_sample_keepfile_tsv_writer.writerow(splitcode_sample_keep_row)
 
-            for idx, bc in zip(bc_idxs, inline_barcodes):
-                # keep file columns: Tags to group, splitcode out_file
+                assert (sample_library_id not in sample_library_id_to_fastqs), "%s detected twice when it should be present only once" % sample_library_id
+                sample_library_id_to_fastqs[sample_library_id] = [f"{sample_library_id}_R1.fastq",f"{sample_library_id}_R2.fastq"]
+            
 
-                # Use R1 and R2 inline barcodes to split:
-                # keep_file.write(f"{idx}_R1,{idx}_R2" + "\t" + out_demux + f"Barcode_{idx}" + "\n")
+            #demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
+            #sample_to_demux_bam_map[sample_name] = found_bam_file        
+            pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
 
-                # Alternative: Only use R1 inline barcode to split:
-                keep_file.write(
-                    f"{idx}_R1" + "\t" + out_demux + f"Barcode_{idx}" + "\n"
-                )
+    print("\n\n\n\n\n")
+    print(f"pool_id_to_splitcode_configfile {pool_id_to_splitcode_configfile}")
+    print("\n\n\n\n\n")
+    print(f"pool_id_to_splitcode_keepfile {pool_id_to_splitcode_keepfile}")
+    
+    
 
-    # ToDo: glob the input files for either fastq or bam patterns
-    # if the input is a bam file, convert to fastq files
-    # samtools = tools.samtools.SamtoolsTool()
-    #with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (fqin1, fqin2), \
-    #     util.file.tmp_dir('_splitcode') as t_dir:
-    #     pass
+            # ToDo: glob the input files for either fastq or bam patterns
+            # if the input is a bam file, convert to fastq files
+            # 
+            #with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (fqin1, fqin2), \
+            #     util.file.tmp_dir('_splitcode') as t_dir:
+            #     pass
 
-    # Unzip fastq files using pigz
-    fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
-    subprocess.run(["pigz", "-d", *fastq_files], check=True)
+            # Unzip fastq files using pigz
+            #fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
+            #subprocess.run(["pigz", "-d", *fastq_files], check=True)
 
-    # Use splitcode to demultiplex fastq files
-    # TO-DO: Enable parallel processing of pools/samples
-    for sample in samples:
-        # input args
-        r1 = f"{inDir}/{sample}_R1_001.fastq"
-        r2 = f"{inDir}/{sample}_R2_001.fastq"
-        n_fastqs = 2
+            # Use splitcode to demultiplex fastq files
+            # TO-DO: Enable parallel processing of pools/samples
+            # scatter tile-specific barcode files among workers to store barcode counts in SQLite
+            
+            # workers = util.misc.sanitize_thread_count(threads)
+            # with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            #     futures = [
+            #         executor.submit(
+            #             util.file.count_occurrences_in_tsv_sqlite_backed,
+            #             tf,
+            #             bf,
+            #             include_noise=includeNoise,
+            #         )
+            #         for bf, tf in barcodefile_tempfile_tuples
+            #     ]
+            #     for future in concurrent.futures.as_completed(futures):
+            #         tmp_db, barcode_file = future.result()
+            #         log.debug(
+            #             "done reading barcodes from %s; adding to total...", barcode_file
+            #         )
+            #         # gather and reduce counts from separate SQLite databases into one
+            #         reduce_db.add_counts_from_other_db(tmp_db)
+            #         os.unlink(tmp_db)
 
-        keep_file = f"{outDir}/{sample}_keep.txt"
+            # for sample in samples:
 
-        # output args
-        unmapped_r1 = f"{outDir}/{sample}_demuxed/Barcode_{unmatched_name}_0.fastq"
-        unmapped_r2 = f"{outDir}/{sample}_demuxed/Barcode_{unmatched_name}_1.fastq"
-        summary_stats = f"{outDir}/{sample}_summary.json"
+            #demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
+            #sample_to_demux_bam_map[sample_name] = found_bam_file        
+            #pool_id_to_splitcode_keepfile[sample_name] = splitcode_sample_keep_file
 
-        # Optional: Use '--trim-3 0,8' to remove 8 bases from end of R2 read (note: trimming happens before demuxing)
-        splitcode_tool.execute(
-            args=[
-                f"--nFastqs={n_fastqs}",
-                f"-t {threads}",
-                f"-c {config_file}",
-                f"--keep={keep_file}",
-                f"--unassigned={unmapped_r1},{unmapped_r2}",
-                "--no-output",
-                "--no-outb",
-                f"--summary {summary_stats}",
-                r1,
-                r2,
-            ]
-        )
 
+    #exit(0)
+    # pool_bamto_splitcode_keepfile, pool_id_to_splitcode_configfile
+    for pool_id in sorted(pool_id_to_sample_library_id_map.keys()):
+        break
+        splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
+        splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
+
+        pool_bam_file = pool_id_to_pool_bam[pool_id]
+
+        with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):        
+            # input args
+            #fqin1 = f"{inDir}/{sample}_R1_001.fastq"
+            #fqin2 = f"{inDir}/{sample}_R2_001.fastq"
+            #keep_file = f"{outDir}/{sample}_keep.txt"
+            n_fastqs = 2
+
+            # output args
+            unmapped_r1   = f"{out_demux_dir_path}/{unmatched_name}_0.fastq"
+            unmapped_r2   = f"{out_demux_dir_path}/{unmatched_name}_1.fastq"
+            summary_stats = f"{out_demux_dir_path}/{pool_id}_summary.json"
+
+            # Optional: Use '--trim-3 0,8' to remove 8 bases from end of R2 read (note: trimming happens before demuxing)
+            # splitcode_tool.execute(
+            #     args=[
+            #         f"--nFastqs={n_fastqs}",
+            #         f"-t {threads}",
+            #         f"-c {splitcode_config}",
+            #         f"--keep={pool_id_to_splitcode_keepfile[sample_name]}",
+            #         f"--unassigned={unmapped_r1},{unmapped_r2}",
+            #         f"--summary {summary_stats}",
+            #         "--no-output",
+            #         "--no-outb",
+            #         fqin1,
+            #         fqin2,
+            #     ]
+            # )
+
+            splitcode_kwargs={
+                "n_fastqs": n_fastqs,
+                "threads": threads,
+                "config_file": splitcode_config,
+                "keep_file": splitcode_keepfile,
+                "unassigned_r1": unmapped_r1,
+                "unassigned_r2": unmapped_r2,
+                "summary_stats": summary_stats,
+                "r1": fqin1,
+                "r2": fqin2,
+                "splitcode_opts": ["--no-output", "--no-outb"]
+            }
+            splitcode_tool.execute(**splitcode_kwargs)
+
+            #break
+
+            # maps sample_library_id to fastqs
+            # ex.
+            #   'VGG_19883.lPool_3.HHJYWDRX5.1' -> ["VGG_19883.lPool_3.HHJYWDRX5.1_R1.fastq","VGG_19883.lPool_3.HHJYWDRX5.1_R2.fastq"]
+            print(f"sample_library_id_to_fastqs {sample_library_id_to_fastqs}")
+            pool_ids_successfully_demuxed_via_splitcode.append(pool_id)
+
+            # ToDo: convert the splitcode output file fastqs to bams
+            #       and reheader them with the appropriate readgroups and other attributes
+
+    
+    #exit(0)
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
-    df_out = create_lut(sampleSheet, outDir, unmatched_name)
+    df_out = create_lut(sampleSheet, outDir, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+
+    print(df_out)
 
     # Plot number and fraction of reads per inline barcode per pool
     plot_read_counts(df_out, outDir)
@@ -2957,9 +3424,11 @@ def splitcode_demux(
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
     plot_sorted_curve(df_out, outDir, unmatched_name)
 
+    #exit(0)
+
     # Generate bam files
-    for sample in samples:
-        pass
+    #for sample in samples:
+    #    pass
         # generate_bams_from_fastqs(
         #     sample,
         #     sampleSheet,
