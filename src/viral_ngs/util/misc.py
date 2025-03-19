@@ -113,6 +113,15 @@ def collapse_dup_strs_to_str_or_md5(values,
         short_md5 = md5_str[-8:]
         return f"{short_md5}{suffix}"
 
+
+def reverse_complement(seq):
+    """
+        Returns the reverse complement using string.maketrans
+    """
+    table = bytearray.maketrans(b"ACTGN",b"TGACN")
+    return bytearray(seq.encode("UTF8")).translate(table)[::-1].decode("UTF8")
+
+
 def histogram(items):
     ''' I count the number of times I see stuff and return a dict of counts. '''
     out = {}

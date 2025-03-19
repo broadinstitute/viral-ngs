@@ -68,7 +68,8 @@ class TestSampleSheet(TestCaseWithTmp):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(
                                         os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
-                                        collapse_duplicates=True)
+                                        collapse_duplicates=True,
+                                        allow_non_unique = True)
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, True)
         self.assertEqual(len(samples.get_rows()), 4)
@@ -77,6 +78,7 @@ class TestSampleSheet(TestCaseWithTmp):
         inDir = util.file.get_test_input_path(self)
         samples = illumina.SampleSheet(
                                         os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
+                                        allow_non_unique = True
                                       )
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, False)
@@ -146,6 +148,70 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 11)
 
+    def test_rev_comp_barcode_values(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
+        samples.rev_comp_barcode_values()
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "GCGATCTA")
+
+    def test_rev_comp_barcode_value_barcode2_at_load(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'), rev_comp_barcode_2=True)
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "GCGATCTA")
+        self.assertTrue(samples.barcodes_revcomped_relative_to_input)
+        self.assertIn("barcode_2", samples.barcodes_revcomped_column_names)
+        self.assertNotIn("barcode_1", samples.barcodes_revcomped_column_names)
+
+    def test_rev_comp_barcode_values_specified_at_load_two_columns(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'), barcode_columns_to_revcomp=["barcode_1","barcode_2"])
+        self.assertEqual(samples.get_rows()[23]["barcode_1"], "TCCTCTAC")
+        self.assertEqual(samples.get_rows()[23]["barcode_2"], "AGAGGATA")
+        self.assertTrue(samples.barcodes_revcomped_relative_to_input)
+        self.assertIn("barcode_1", samples.barcodes_revcomped_column_names)
+        self.assertIn("barcode_2", samples.barcodes_revcomped_column_names)
+
+    def test_rev_comp_barcode_values_specified_one_column(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
+        self.assertEqual(samples.get_rows()[23]["barcode_1"], "GTAGAGGA")
+        samples.rev_comp_barcode_values(barcode_columns_to_revcomp=["barcode_1"])
+        self.assertEqual(samples.get_rows()[23]["barcode_1"], "TCCTCTAC")
+        # barcode_2 should be unchanged
+        self.assertEqual(samples.get_rows()[23]["barcode_2"], "TATCCTCT")
+        self.assertIn("barcode_1", samples.barcodes_revcomped_column_names)
+        self.assertNotIn("barcode_2", samples.barcodes_revcomped_column_names)
+
+    def test_rev_comp_barcode_values_specified_two_columns(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
+        self.assertEqual(samples.get_rows()[23]["barcode_1"], "GTAGAGGA")
+        self.assertEqual(samples.get_rows()[23]["barcode_2"], "TATCCTCT")
+        samples.rev_comp_barcode_values(barcode_columns_to_revcomp=["barcode_1","barcode_2"])
+        self.assertEqual(samples.get_rows()[23]["barcode_1"], "TCCTCTAC")
+        self.assertEqual(samples.get_rows()[23]["barcode_2"], "AGAGGATA")
+        self.assertIn("barcode_1", samples.barcodes_revcomped_column_names)
+        self.assertIn("barcode_2", samples.barcodes_revcomped_column_names)
+
+    def test_rev_comp_barcode_values_undo(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
+        samples.rev_comp_barcode_values()
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "GCGATCTA")
+        samples.rev_comp_barcode_values()
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
+
+    def test_rev_comp_barcode_values_not_inplace(self):
+        inDir = util.file.get_test_input_path(self)
+        samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
+        samples_revcomped = samples.rev_comp_barcode_values(inplace=False)
+        # the original shet should be unchanged
+        self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
+        # the returned copy should be rev-comped
+        self.assertEqual(samples_revcomped.get_rows()[0]["barcode_2"], "GCGATCTA")
 
 class TestRunInfo(TestCaseWithTmp):
 

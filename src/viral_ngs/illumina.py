@@ -115,6 +115,19 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
         #action="store_true"
     )
     parser.add_argument(
+        "--rev_comp_barcodes_before_demux",
+        help="""Reverse complement barcodes before demultiplexing.
+                If specified without setting a value, 
+                    the "barcode_2" column will be reverse-complemented.
+                If one or more values are specified, 
+                    the columns with those names will be reverse-complemented.
+                (and if not specified, barcodes will not be reverse-complemented)""",
+        nargs='*',
+        action=util.cmd.storeMultiArgsOrFallBackToConst,
+        type=str,
+        const=["barcode_2"],
+    )
+    parser.add_argument(
         "--out_meta_by_sample", help="Output json metadata by sample", default=None
     )
     parser.add_argument(
@@ -214,13 +227,19 @@ def main_illumina_demux(args):
             args.sampleSheet,
             only_lane=args.lane,
             append_run_id=run_id,
-            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False
+            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
+            # barcode_columns_to_revcomp:
+            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            barcode_columns_to_revcomp = args.rev_comp_barcodes_before_demux 
         )
     else:
         samples = illumina.get_SampleSheet(
             only_lane=args.lane,
             append_run_id=run_id,
-            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False
+            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
+            # barcode_columns_to_revcomp:
+            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            barcode_columns_to_revcomp = args.rev_comp_barcodes_before_demux
         )
 
     # === debugging ===
@@ -1083,12 +1102,15 @@ class IlluminaDirectory(object):
             self.runinfo = RunInfo(runinfo_file)
         return self.runinfo
 
-    def get_SampleSheet(self, only_lane=None, append_run_id=None):
+    def get_SampleSheet(self, only_lane=None, append_run_id=None, **kwargs):
         if self.samplesheet is None:
             samplesheet_file = os.path.join(self.path, "SampleSheet.csv")
             util.file.check_paths(samplesheet_file)
             self.samplesheet = SampleSheet(
-                samplesheet_file, only_lane=only_lane, append_run_id=append_run_id
+                samplesheet_file,
+                only_lane=only_lane,
+                append_run_id=append_run_id,
+                **kwargs
             )
         return self.samplesheet
 
@@ -1526,6 +1548,8 @@ class SampleSheet(object):
         allow_non_unique = False,
         append_run_id    = None,
         collapse_duplicates = False,
+        rev_comp_barcode_2        = False,
+        barcode_columns_to_revcomp = None # list of (additional) column names to reverse complement
     ):
         self.fname            = infile
         self.use_sample_name  = use_sample_name
@@ -1536,8 +1560,21 @@ class SampleSheet(object):
         self.append_run_id    = append_run_id
         self.rows             = []
         self._rowsOriginal    = []
-        self.duplicate_rows_collapsed = False
+        # state-holding class attributes
+        self.duplicate_rows_collapsed             = False
+        self.barcodes_revcomped_relative_to_input = False # idempotent
+        self.barcodes_revcomped_column_names      = set()
+
         self._detect_and_load_sheet(infile)
+
+        barcode_columns_to_revcomp = barcode_columns_to_revcomp or []
+
+        # see rev_comp_barcode_2 is set, or barcode_columns_to_revcomp is: present, iterable, and not empty
+        if rev_comp_barcode_2 or (barcode_columns_to_revcomp and isinstance(barcode_columns_to_revcomp, (list, tuple, set, str))):
+            columns_to_revcomp = ['barcode_2'] if rev_comp_barcode_2 else []
+            columns_to_revcomp += barcode_columns_to_revcomp
+
+            self.rev_comp_barcode_values( barcode_columns_to_revcomp=columns_to_revcomp, inplace=True)
 
         if self.can_be_collapsed:
             if not allow_non_unique:
@@ -2068,6 +2105,61 @@ class SampleSheet(object):
                 }
                 outf.write("\t".join(out[h] for h in header) + "\n")
 
+    def write_tsv(self, outFile, force=False):
+        """Write sample sheet to a tab-delimited file using csv dictwriter"""
+        
+        # before writing to outFile, check if it already
+        # exists and raise an error unless force=True
+        if os.path.exists(outFile) and not force:
+            raise FileExistsError(f"Output file {outFile} already exists. Use force=True to overwrite.")
+
+        with open(outFile, "wt") as outf:
+            writer = csv.DictWriter(outf, self.rows[0].keys(), delimiter="\t")
+            writer.writeheader()
+            for row in self.rows:
+                writer.writerow(row)
+
+    def rev_comp_barcode_values(self, barcode_columns_to_revcomp=None, inplace=True):
+        """
+        Reverse-complement all barcode values in the sample sheet
+        for the specified column(s). If no column is specified,
+        only the 'barcode_2' column is reverse-complemented.
+        If inplace=True, modify the instance data; otherwise, return a new SampleSheet object.
+        """
+        barcode_columns_to_revcomp = barcode_columns_to_revcomp or ["barcode_2"]
+
+        # barcodes_revcomped_relative_to_input barcodes_revcomped_column_names
+
+        if type(barcode_columns_to_revcomp) is str:
+            barcode_columns_to_revcomp = [barcode_columns_to_revcomp]
+
+        if inplace:
+            self._rowsOriginal = self.rows.copy()
+            for row_idx, row in enumerate(self.rows):
+                for column_name in barcode_columns_to_revcomp:
+                    if column_name in row:
+                        try:
+                            row[column_name] = util.misc.reverse_complement(row[column_name])
+                        # If the barcode is not a valid DNA sequence, ignore it
+                        except Exception as e:
+                            log.warning("Failed to reverse-complement barcode value on line %s of %s: '%s'", row_idx+1, self.fname, row[column_name] )
+                            row[column_name] = row[column_name]
+                            pass
+                        self.barcodes_revcomped_relative_to_input = True
+                        self.barcodes_revcomped_column_names.add(column_name)
+            return self
+        else:
+            new_sheet_fp = util.file.mkstempfname(f'{os.path.basename(self.fname)}_rev-comped-{"-".join(barcode_columns_to_revcomp)}.txt')
+            log.debug("Creating a new SampleSheet object with reverse-complemented barcodes: %s", new_sheet_fp)
+            shutil.copyfile(self.fname, new_sheet_fp)
+
+            new_ss = SampleSheet(
+                                    new_sheet_fp,
+                                    barcode_columns_to_revcomp = barcode_columns_to_revcomp,
+                                    allow_non_unique          = self.allow_non_unique
+                                )
+            return new_ss
+
     def make_params_file(self, bamDir, outFile):
         """Create input file for Picard IlluminaBasecallsToXXX"""
         if self.num_indexes() == 2:
@@ -2108,8 +2200,12 @@ class SampleSheet(object):
     def get_rows(self):
         return self.rows
 
-    def print_rows(self):
-        for r in self.get_rows():
+    def print_rows(self, row_indices=None):
+        """ Print rows, optionally only a subset of them 
+            specified via row_indices """
+        rows_selected = [self.rows[i] for i in row_indices] if row_indices else self.rows
+
+        for r in rows_selected:
             longest_key_len = len(max(r.keys(), key=len))
             print(f"Sample: {r['sample']}")
             for k,v in r.items():
@@ -2773,6 +2869,8 @@ def splitcode_demux(
     readgroup_name=None,
     sequencing_center=None,
 
+    rev_comp_barcodes_before_demux=None,
+
     threads=None,
 ):
     """
@@ -2793,6 +2891,8 @@ def splitcode_demux(
     run_date             (str) Run date (used to populate BAM header). Default: read from RunInfo.xml
     readgroup_name       (str) Readgroup name (used to populate BAM header). Default: read from RunInfo.xml
     sequencing_center    (str) Sequencing center (used to populate BAM header). Default: read from RunInfo.xml
+    
+    rev_comp_barcodes_before_demux (list(str)) List of barcode columns to reverse complement before demux.
     """
 
     threads = threads or util.misc.available_cpu_count()
@@ -2834,13 +2934,19 @@ def splitcode_demux(
             sampleSheet,
             only_lane=lane,
             append_run_id=run_id,
-            allow_non_unique=True
+            allow_non_unique=True,
+            # barcode_columns_to_revcomp:
+            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            barcode_columns_to_revcomp = rev_comp_barcodes_before_demux
         )
     else:
         samples = illumina_dir.get_SampleSheet(
             only_lane=lane,
             append_run_id=run_id,
-            allow_non_unique=True
+            allow_non_unique=True,
+            # barcode_columns_to_revcomp:
+            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            barcode_columns_to_revcomp = rev_comp_barcodes_before_demux
         )
 
     # debugging / perhaps useful later
@@ -3112,6 +3218,7 @@ def main_splitcode_demux(args):
         run_date=args.run_date,
         readgroup_name=args.readgroup_name,
         sequencing_center=args.sequencing_center,
+        rev_comp_barcodes_before_demux=args.rev_comp_barcodes_before_demux
     )
 
 
@@ -3188,6 +3295,19 @@ def parser_splitcode_demux(parser=None):
         "--sequencing_center",
         default=None,
         help="Sequencing center (used to populate BAM header). Default: read from RunInfo.xml.",
+    )
+    parser.add_argument(
+        "--rev_comp_barcodes_before_demux",
+        help="""Reverse complement barcodes before demultiplexing.
+                If specified without setting a value, 
+                    the "barcode_2" column will be reverse-complemented.
+                If one or more values are specified, 
+                    the columns with those names will be reverse-complemented.
+                (and if not specified, barcodes will not be reverse-complemented)""",
+        nargs='*',
+        action=util.cmd.storeMultiArgsOrFallBackToConst,
+        type=str,
+        const=["barcode_2"],
     )
 
     # Attach common arguments. Adjust the default for threads if needed.

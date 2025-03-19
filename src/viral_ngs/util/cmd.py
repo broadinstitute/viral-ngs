@@ -151,6 +151,40 @@ class _HelpAction(argparse._HelpAction):
         parser.exit()
 
 
+
+class storeMultiArgsOrFallBackToConst(argparse.Action):
+    """
+    Custom argparse action to allow multiple values 
+    to be stored in a list for an optional argument, with a fallback
+    const value in the event the arg flag is passed without one or more
+    values. Equivalent to using:
+        nargs='?',const=1
+    (but for multiple values)
+
+        1) If --arg is NOT passed: set to self.default (None)
+        2) If --arg IS    passed:
+            a) If values are supplied:
+                set arg to list of values supplied
+            b) If no values are supplied:
+                set arg to self.const
+
+    Usage:
+        p.add_argument('--option',
+            nargs='*',
+            action=customAction,
+            type=int,
+            const=[1, 2, 3]
+        )
+    """
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not option_string:
+            setattr(namespace, self.dest, self.default) #default=None
+        else:
+            if not values:
+                setattr(namespace, self.dest, self.const)
+            else:
+                setattr(namespace, self.dest, values)
+
 def make_parser(commands, description):
     ''' commands: a list of pairs containing the following:
             1. name of command (string, no whitespace)
