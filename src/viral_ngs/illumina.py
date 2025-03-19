@@ -3159,7 +3159,7 @@ def splitcode_demux(
     # ======== run splitcode ==========
 
     for pool_id in sorted(pool_id_to_sample_library_id_map.keys()):
-        break # TODO: remove this
+        #break # TODO: remove this
         splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
         splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
 
@@ -3203,6 +3203,9 @@ def splitcode_demux(
     
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
     df_out = create_lut(sampleSheet, outDir, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+
+    picard_style_splitcode_metrics_path = os.path.splitext(df_out)[0] + "_picard-style.txt"
+    convert_splitcode_demux_metrics_to_picard_style(df_out, picard_style_splitcode_metrics_path)
 
     # Plot number and fraction of reads per inline barcode per pool
     plot_read_counts(df_out, outDir)
@@ -3250,7 +3253,7 @@ def splitcode_demux(
             f"LIBRARY_NAME={sample}",
             f"PLATFORM={platform_name}",
             f"PLATFORM_UNIT={platform_unit}",
-            f"PLATFORM_MODEL={platform_model}",,
+            f"PLATFORM_MODEL={platform_model}",
             f"SEQUENCING_CENTER={sequencing_center}",
             f"RUN_DATE={run_date}",
             f"READ_GROUP_NAME={readgroup_name}",
@@ -3441,6 +3444,253 @@ def parser_splitcode_demux(parser=None):
 
 __commands__.append(("splitcode_demux", parser_splitcode_demux))
 
+def convert_splitcode_demux_metrics_to_picard_style(
+    in_splitcode_csv_path,
+    out_splitcode_tsv_metrics_path,
+    demux_function="viral-core.SplitcodeMetrics",
+    catchall_name="unmatched",
+    combine_innerbarcode_unmatched=False,
+    report_within_pools=True
+):
+    """
+    Convert a custom Splitcode demux CSV file into a Picard-style
+    ExtractIlluminaBarcodes.BarcodeMetric TSV file.
+
+    :param in_splitcode_csv_path: Path to the Splitcode-format CSV input
+    :param out_splitcode_tsv_metrics_path: Path to the desired Picard-style metrics TSV output
+    :param demux_function: The string to insert after 'ExtractIlluminaBarcodes$' in
+                           the '## METRICS CLASS' comment line
+    :param catchall_name: A placeholder name for collapsed 'N' rows (not strictly used here)
+    :param combine_innerbarcode_unmatched: If True, we collapse “all-N” rows into one single row.
+                                           If False, we leave them as-is (no collapsing).
+    :param report_within_pools: If True, the ratio/percentage columns are computed for each unique
+                                (barcode_1, barcode_2) group. If False, they are computed globally.
+                                Also, if True, we check only the *last* barcode segment for 'N's.
+                                If False, we check the entire combined barcode for 'N's.
+    """
+
+    #
+    # Required columns for the first set of metrics
+    #
+    required_cols = [
+        "sample",                     # -> BARCODE_NAME
+        "barcode_1",                 # -> part of BARCODE
+        "barcode_2",                 # -> part of BARCODE
+        "num_reads_hdistance0",      # -> PERFECT_MATCHES, PF_PERFECT_MATCHES
+        "num_reads_hdistance1",      # -> ONE_MISMATCH_MATCHES, PF_ONE_MISMATCH_MATCHES
+        "num_reads_total"            # -> READS, PF_READS
+    ]
+
+    # Read the CSV
+    df = pd.read_csv(in_splitcode_csv_path)
+
+    # Check for presence of required columns
+    for col in required_cols:
+        if col not in df.columns:
+            raise ValueError(f"Required column '{col}' is missing in the input file.")
+    # Also check that these columns are not all empty
+    for col in required_cols:
+        if df[col].dropna().empty:
+            raise ValueError(
+                f"Required column '{col}' is present but entirely empty (no usable data)."
+            )
+
+    # If 'inline_barcode' is present, treat it as a potential "third" barcode
+    barcode_3_col = "inline_barcode" if "inline_barcode" in df.columns else None
+
+    #
+    # Combine up to 3 barcodes into 'BARCODE' (with '-') and 'BARCODE_WITHOUT_DELIMITER' (concatenated)
+    #
+    def combine_barcodes(row):
+        bcs = []
+        for bc_col in ["barcode_1", "barcode_2"]:
+            val = row.get(bc_col, "")
+            if pd.notnull(val) and val != "":
+                bcs.append(val)
+        if barcode_3_col and pd.notnull(row.get(barcode_3_col, "")) and row[barcode_3_col] != "":
+            bcs.append(row[barcode_3_col])
+        barcode = "-".join(bcs)
+        barcode_no_delim = "".join(bcs)
+        return pd.Series([barcode, barcode_no_delim])
+
+    df[["BARCODE", "BARCODE_WITHOUT_DELIMITER"]] = df.apply(combine_barcodes, axis=1)
+
+    #
+    # Assign 'BARCODE_NAME' and 'LIBRARY_NAME'
+    #
+    df["BARCODE_NAME"] = df["sample"]
+    if "run" in df.columns and not df["run"].dropna().empty:
+        df["LIBRARY_NAME"] = df["run"]
+    elif "library_id" in df.columns and not df["library_id"].dropna().empty:
+        df["LIBRARY_NAME"] = df["library_id"]
+    else:
+        df["LIBRARY_NAME"] = df["BARCODE_NAME"]
+
+    #
+    # Fill the first set of columns (READS, PF_READS, etc.)
+    #
+    df["READS"] = df["num_reads_total"]
+    df["PF_READS"] = df["num_reads_total"]
+    df["PERFECT_MATCHES"] = df["num_reads_hdistance0"]
+    df["PF_PERFECT_MATCHES"] = df["num_reads_hdistance0"]
+    df["ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
+    df["PF_ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
+
+    #
+    # Define the "all N" checkers
+    #
+    def is_all_N(barcode_str: str) -> bool:
+        """Return True if the entire (combined) barcode is all 'N' and non-empty."""
+        if not isinstance(barcode_str, str):
+            return False
+        return len(barcode_str) > 0 and all(ch == 'N' for ch in barcode_str)
+
+    def last_barcode_is_all_N(barcode_str: str) -> bool:
+        """
+        Return True if the final piece (e.g. inline barcode) is non-empty and all 'N'.
+        For example, 'ACTGATCG-NNNNNNNNN' => True for that last piece.
+        """
+        if not isinstance(barcode_str, str):
+            return False
+        parts = barcode_str.split("-")
+        if not parts:
+            return False
+        return is_all_N(parts[-1])
+
+    #
+    # Row Collapsing for "all-N" if combine_innerbarcode_unmatched == True
+    #
+    if combine_innerbarcode_unmatched:
+        # The definition of "all-N" changes depending on report_within_pools:
+        #  - If report_within_pools=True => check ONLY the last barcode piece
+        #  - Otherwise => check entire combined barcode
+        check_all_n_func = last_barcode_is_all_N if report_within_pools else is_all_N
+
+        # Identify any rows that are "all N" by that definition
+        df["IS_ALL_N"] = df["BARCODE"].apply(check_all_n_func)
+
+        # Separate them out
+        df_all_n = df[df["IS_ALL_N"]]
+        df_not_all_n = df[~df["IS_ALL_N"]]
+
+        if not df_all_n.empty:
+            # Sum their metric columns
+            sum_reads               = df_all_n["READS"].sum()
+            sum_pf_reads            = df_all_n["PF_READS"].sum()
+            sum_perfect_matches     = df_all_n["PERFECT_MATCHES"].sum()
+            sum_pf_perfect_matches  = df_all_n["PF_PERFECT_MATCHES"].sum()
+            sum_one_mismatch        = df_all_n["ONE_MISMATCH_MATCHES"].sum()
+            sum_pf_one_mismatch     = df_all_n["PF_ONE_MISMATCH_MATCHES"].sum()
+
+            collapsed = df_all_n.iloc[0].copy()
+            collapsed["BARCODE"] = "N"
+            collapsed["BARCODE_WITHOUT_DELIMITER"] = "N"
+            collapsed["BARCODE_NAME"] = ""
+            collapsed["LIBRARY_NAME"] = ""
+            collapsed["READS"] = sum_reads
+            collapsed["PF_READS"] = sum_pf_reads
+            collapsed["PERFECT_MATCHES"] = sum_perfect_matches
+            collapsed["PF_PERFECT_MATCHES"] = sum_pf_perfect_matches
+            collapsed["ONE_MISMATCH_MATCHES"] = sum_one_mismatch
+            collapsed["PF_ONE_MISMATCH_MATCHES"] = sum_pf_one_mismatch
+
+            # Recombine the "not all-N" rows plus this one collapsed row
+            df = pd.concat([df_not_all_n, pd.DataFrame([collapsed])], ignore_index=True)
+
+        # Drop helper column
+        df.drop(columns=["IS_ALL_N"], inplace=True, errors="ignore")
+
+    #
+    # Now define how we compute the ratio/percentage columns
+    #
+    # Because you specifically want "if report_within_pools=True, only the last barcode is considered
+    # for 'N's in the PF_NORMALIZED_MATCHES exclusion," we will conditionally pick which function
+    # to use in that step too.
+    #
+    exclude_for_mean_func = last_barcode_is_all_N if report_within_pools else is_all_N
+
+    def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
+        """Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns."""
+        sum_of_reads = group["READS"].sum()
+        max_of_reads = group["READS"].max() if len(group) > 0 else 1
+        sum_of_pf_reads = group["PF_READS"].sum()
+        max_of_pf_reads = group["PF_READS"].max() if len(group) > 0 else 1
+
+        # For PF_NORMALIZED_MATCHES, exclude rows that pass `exclude_for_mean_func`
+        # (which is either last_barcode_is_all_N or is_all_N, depending on 'report_within_pools').
+        group_for_mean = group[~group["BARCODE"].apply(exclude_for_mean_func)]
+        mean_pf_reads = group_for_mean["PF_READS"].mean() if len(group_for_mean) > 0 else 1
+
+        out = group.copy()
+        if sum_of_reads == 0:
+            out["PCT_MATCHES"] = 0
+        else:
+            out["PCT_MATCHES"] = out["PERFECT_MATCHES"] / sum_of_reads
+
+        if max_of_reads == 0:
+            out["RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = 0
+        else:
+            out["RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = out["READS"] / max_of_reads
+
+        if sum_of_pf_reads == 0:
+            out["PF_PCT_MATCHES"] = 0
+        else:
+            out["PF_PCT_MATCHES"] = out["PF_PERFECT_MATCHES"] / sum_of_pf_reads
+
+        if max_of_pf_reads == 0:
+            out["PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = 0
+        else:
+            out["PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = out["PF_READS"] / max_of_pf_reads
+
+        if mean_pf_reads == 0:
+            out["PF_NORMALIZED_MATCHES"] = 0
+        else:
+            out["PF_NORMALIZED_MATCHES"] = out["PF_PERFECT_MATCHES"] / mean_pf_reads
+
+        return out
+
+    #
+    # Perform the group-based or global stats
+    #
+    if report_within_pools:
+        # Group by (barcode_1, barcode_2)
+        grouped = df.groupby(["barcode_1", "barcode_2"], group_keys=False)
+        df = grouped[df.columns].apply(compute_stats_per_group)
+    else:
+        # Global
+        df = compute_stats_per_group(df)
+
+    #
+    # Prepare the output
+    #
+    columns_out = [
+        "BARCODE",
+        "BARCODE_WITHOUT_DELIMITER",
+        "BARCODE_NAME",
+        "LIBRARY_NAME",
+        "READS",
+        "PF_READS",
+        "PERFECT_MATCHES",
+        "PF_PERFECT_MATCHES",
+        "ONE_MISMATCH_MATCHES",
+        "PF_ONE_MISMATCH_MATCHES",
+        "PCT_MATCHES",
+        "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT",
+        "PF_PCT_MATCHES",
+        "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT",
+        "PF_NORMALIZED_MATCHES",
+    ]
+
+    with open(out_splitcode_tsv_metrics_path, "w") as f:
+        # Write the Picard-style "## METRICS CLASS" header line
+        f.write(f"## METRICS CLASS\t{demux_function}\n")
+        # Write column header
+        f.write("\t".join(columns_out) + "\n")
+
+        # Write data rows
+        for _, row in df.iterrows():
+            row_values = [str(row.get(col, "")) for col in columns_out]
+            f.write("\t".join(row_values) + "\n")
 
 # =======================
 def full_parser():
