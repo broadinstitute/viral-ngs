@@ -2737,125 +2737,6 @@ def plot_sorted_curve(df_lut_path, outDir, unmatched_name):
         f"{outDir}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300
     )
 
-
-def generate_bams_from_fastqs(
-    sample,
-    sampleSheet,
-    bc_idxs,
-    unmatched_name,
-    outDir,
-    platform_name,
-    flowcell,
-    lane,
-    run_date,
-    readgroup_name,
-    sequencing_center,
-):
-    # Load sample sheet
-    barcodes_df = pd.read_csv(sampleSheet, sep="\t")
-
-    for bc_idx in bc_idxs + [unmatched_name]:
-        r1_fastq = f"{outDir}/{sample}_demuxed/Barcode_{bc_idx}_0.fastq"
-        r2_fastq = f"{outDir}/{sample}_demuxed/Barcode_{bc_idx}_1.fastq"
-
-        # Get library/pool name (TO-DO: More stable way to get library name)
-        library_name = sample.split("_")[-3]
-
-        # Get i7 and i5 barcode sequences
-        i7s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name][
-            "barcode_1"
-        ].values
-        if len(set(i7s)) > 1:
-            raise ValueError(
-                f"More than one i7 barcode sequence found for library {library_name}."
-            )
-        i7_barcode = i7s[0]
-
-        i5s = barcodes_df[barcodes_df["library_id_per_sample"] == library_name][
-            "barcode_2"
-        ].values
-        if len(set(i5s)) > 1:
-            raise ValueError(
-                f"More than one i5 barcode sequence found for library {library_name}."
-            )
-        i5_barcode = i5s[0]
-
-        # Get sample name and inline barcode sequence
-        if bc_idx != unmatched_name:
-            barcodes_df_temp = barcodes_df[
-                (barcodes_df["library_id_per_sample"] == library_name)
-                & (barcodes_df["Inline_Index_ID"].astype(str) == str(bc_idx))
-            ]
-
-            # Get sample name
-            sample_names = barcodes_df_temp["sample"].values
-            if len(set(sample_names)) > 1:
-                raise ValueError(
-                    f"More than one sample name found for library {library_name} and barcode {bc_idx}."
-                )
-            sample_name = sample_names[0]
-
-            # Get inline barcode sequence
-            inline_seqs = barcodes_df_temp["barcode_3"].values
-            if len(set(inline_seqs)) > 1:
-                raise ValueError(
-                    f"More than one inline barcode sequence found for library {library_name} and barcode {bc_idx}."
-                )
-            inline_barcode = inline_seqs[0]
-
-        # Handle files where inline barcode was not matched
-        else:
-            sample_name = unmatched_name + "_" + library_name
-            inline_barcode = unmatched_name + "_" + library_name
-
-        platform_unit = f"{flowcell}.{lane}.{i7_barcode}-{i5_barcode}-{inline_barcode}"
-        bam_outfolder = f"{outDir}/demuxed_bams"
-        
-        
-
-
-        #tools.samtools.getReadGroups(inBam)
-
-        picardOptions = [
-            f"LIBRARY_NAME={library_name}",
-            f"PLATFORM={platform_name}",
-            f"PLATFORM_UNIT={platform_unit}",
-            f"SEQUENCING_CENTER={sequencing_center}",
-            f"READ_GROUP_NAME={readgroup_name}",
-            f"RUN_DATE={run_date}",
-        ]
-
-        # output bam file named in the form <sample_name>.l<library_id>.<run_id>.<lane>.bam
-        out_bam = f"{bam_outfolder}/{sample_name}.l{library_name}.{flowcell}.{lane}.bam"
-
-        tools.picard.FastqToSamTool().execute( fastq1,
-                                                fastqs2,
-                                                sampleName,
-                                                out_bam,
-                                                picardOptions=picardOptions,
-                                                JVMmemory=jvm_memory)
-
-        # generate a new header to apply to the bam file
-        #
-        #tools.samtools.dumpHeader(inBam, outHeader)
-        # read_utils.fastq_to_bam(
-        #     inFastq1,
-        #     inFastq2,
-        #     outBam,
-        #     sampleName=None,
-        #     header=newHeader,
-        #     JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault,
-        #     picardOptions=None
-        # )
-
-        # Change name of generated bam file
-        # generated_bam = glob.glob(
-        #     f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam"
-        # )[0]
-        # destination = f"{bam_outfolder}/{sample_name}.{flowcell}.{lane}.bam"
-        # shutil.move(generated_bam, destination)
-
-
 def splitcode_demux(
     inDir,
     lane,
@@ -2878,6 +2759,9 @@ def splitcode_demux(
     sequencer_model=None,
 
     rev_comp_barcodes_before_demux=None,
+    out_runinfo=None,
+    out_meta_by_filename=None,
+    out_meta_by_sample=None,
 
     threads=None,
     jvm_memory=None
@@ -2977,6 +2861,28 @@ def splitcode_demux(
     os.makedirs(outDir, exist_ok=True)
     out_demux_dir_path = f"{outDir}"
     os.makedirs(out_demux_dir_path, exist_ok=True)
+
+    if out_runinfo:
+        with open(out_runinfo, "wt") as outf:
+            json.dump(
+                {
+                    "sequencing_center": sequencing_center,
+                    "run_start_date": runinfo.get_rundate_iso(),
+                    "read_structure": read_structure, # ToDo: how to represent nested demux?
+                    "indexes": str(samples.indexes),
+                    "run_id": runinfo.get_run_id(),
+                    "lane": str(lane),
+                    "flowcell": str(runinfo.get_flowcell()),
+                    "lane_count": str(runinfo.get_lane_count()),
+                    "surface_count": str(runinfo.get_surface_count()),
+                    "swath_count": str(runinfo.get_swath_count()),
+                    "tile_count": str(runinfo.get_tile_count()),
+                    "total_tile_count": str(runinfo.tile_count()),
+                    "sequencer_model": runinfo.get_machine_model(),
+                },
+                outf,
+                indent=2,
+            )
 
     # Load samplesheet into dataframe
     barcodes_df = pd.json_normalize(samples.get_rows()).fillna("")
@@ -3269,42 +3175,16 @@ def splitcode_demux(
                                                 out_bam,
                                                 picardOptions=picardOptions,
                                                 JVMmemory=jvm_memory)
-
-        # generate a new header to apply to the bam file
-        #
-        #tools.samtools.dumpHeader(inBam, outHeader)
-        # read_utils.fastq_to_bam(
-        #     inFastq1,
-        #     inFastq2,
-        #     outBam,
-        #     sampleName=None,
-        #     header=newHeader,
-        #     JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault,
-        #     picardOptions=None
-        # )
-
-        # Change name of generated bam file
-        # generated_bam = glob.glob(
-        #     f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam"
-        # )[0]
-        # destination = f"{bam_outfolder}/{sample_name}.{flowcell}.{lane}.bam"
-        # shutil.move(generated_bam, destination)
-
-
-        
-        # generate_bams_from_fastqs(
-        #     sample,
-        #     sampleSheet,
-        #     bc_idxs,
-        #     unmatched_name,
-        #     outDir,
-        #     platform_name,
-        #     flowcell,
-        #     lane,
-        #     run_date,
-        #     readgroup_name,
-        #     sequencing_center,
-        # )
+    # organize samplesheet metadata as json
+    sample_meta = list(samples.get_rows())
+    for row in sample_meta:
+        row["lane"] = str(lane)
+    if out_meta_by_sample:
+        with open(out_meta_by_sample, "wt") as outf:
+            json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
+    if out_meta_by_filename:
+        with open(out_meta_by_filename, "wt") as outf:
+            json.dump(dict((r["run"], r) for r in sample_meta), outf, indent=2)
 
 
 def main_splitcode_demux(args):
@@ -3327,6 +3207,9 @@ def main_splitcode_demux(args):
         #readgroup_name=args.readgroup_name,
         sequencing_center=args.sequencing_center,
         rev_comp_barcodes_before_demux=args.rev_comp_barcodes_before_demux,
+        out_runinfo=args.out_runinfo,
+        out_meta_by_filename=args.out_meta_by_filename,
+        out_meta_by_sample=args.out_meta_by_sample,
         jvm_memory=args.jvm_memory
     )
 
@@ -3423,6 +3306,17 @@ def parser_splitcode_demux(parser=None):
         action=util.cmd.storeMultiArgsOrFallBackToConst,
         type=str,
         const=["barcode_2"],
+    )
+    parser.add_argument(
+        "--out_meta_by_sample", help="Output json metadata by sample", default=None
+    )
+    parser.add_argument(
+        "--out_meta_by_filename",
+        help="Output json metadata by bam file basename",
+        default=None,
+    )
+    parser.add_argument(
+        "--out_runinfo", help="Output json metadata about the run", default=None
     )
     parser.add_argument(
         "--JVMmemory",
