@@ -108,11 +108,13 @@ def collapse_dup_strs_to_str_or_md5(values,
         # If the joined string is too long, compute MD5 of joined values
         #joined_values = f"".join(sorted(unique_vals)) + (suffix if calculate_md5_including_suffix else "")
         joined_values = f"".join(unique_vals) + (suffix if calculate_md5_including_suffix else "")
-        md5_str = hashlib.md5(joined_values.encode("utf-8")).hexdigest()
         # Use only the last 8 characters of the MD5
-        short_md5 = md5_str[-8:]
+        short_md5 = md5_digest(joined_values)
         return f"{short_md5}{suffix}"
 
+def md5_digest(in_str, last_n_chr=8):
+    '''Return the last `last_n_chr` characters of the md5 digest of `str`.'''
+    return hashlib.md5(in_str.encode('utf-8')).hexdigest()[-last_n_chr:]
 
 def reverse_complement(seq):
     """

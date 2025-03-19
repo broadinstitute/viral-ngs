@@ -229,7 +229,10 @@ def main_illumina_demux(args):
             append_run_id=run_id,
             allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
             # barcode_columns_to_revcomp:
-            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            #   For --rev_comp_barcodes_before_demux: 
+            #    1) None if not passed
+            #    2) 'barcode_2' if passed without value
+            #    3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
             barcode_columns_to_revcomp = args.rev_comp_barcodes_before_demux 
         )
     else:
@@ -238,7 +241,10 @@ def main_illumina_demux(args):
             append_run_id=run_id,
             allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
             # barcode_columns_to_revcomp:
-            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            #   For --rev_comp_barcodes_before_demux: 
+            #    1) None if not passed
+            #    2) 'barcode_2' if passed without value
+            #    3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
             barcode_columns_to_revcomp = args.rev_comp_barcodes_before_demux
         )
 
@@ -1358,7 +1364,7 @@ class RunInfo(object):
         if len(sequencers_by_fcid) > 1:
             raise LookupError("Multiple sequencers possible: %s", fcid)
 
-        log.info("self.tile_count()", self.tile_count())
+        log.debug("self.tile_count(): %s", self.tile_count())
 
         # always return sequencer model based on flowcell ID, if we can
         if len(sequencers_by_fcid) > 0:
@@ -2014,6 +2020,8 @@ class SampleSheet(object):
         # Detect presence of barcode_2
         has_barcode2 = ("barcode_2" in df.columns)
 
+        columns = df.columns
+
         # Grouping columns: always barcode_1; add barcode_2 if it exists
         grouping_cols = ["barcode_1"]
         if has_barcode2:
@@ -2022,7 +2030,7 @@ class SampleSheet(object):
         def fill_inline_index_ids(group):
             """
             If Inline_Index_ID doesn't exist, create it by enumerating rows in the group.
-            If Inline_Index_ID exists but empty, fill those rows with enumerated IDs.
+            If Inline_Index_ID exists but is empty, fill those rows with enumerated IDs.
             """
             if "Inline_Index_ID" not in group.columns:
                 group["Inline_Index_ID"] = [str(i + 1) for i in range(len(group))]
@@ -2033,9 +2041,8 @@ class SampleSheet(object):
             return group
 
         # Fill missing Inline_Index_ID values on a per-group basis
-        df = df.groupby(grouping_cols, group_keys=False)
-        # ToDo:  DeprecationWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby
-        df = df.apply(fill_inline_index_ids)
+        df = df.groupby(grouping_cols, group_keys=False, as_index=False)
+        df = df[columns].apply(fill_inline_index_ids, include_groups=False)
 
         # Build "run" column = "<sample>.l<library_id_per_sample>[.<append_run_id>]"
         def build_run_string(row):
@@ -2564,9 +2571,9 @@ def create_lut(sample_sheet, outDir, unmatched_name, pool_ids=None, append_run_i
         pool_dfs.append(samplesheet_rows_for_pool_hx_df)
 
         unmatched_dict = {
-            "sample": unmatched_name,
+            "sample": f"{unmatched_name}.{pool}",
             "library_id_per_sample": list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
-            "run": unmatched_name,
+            "run": f"{unmatched_name}.{pool}",
             "muxed_pool": pool,
             "count": splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
             "count_h1": 0,
@@ -2802,7 +2809,7 @@ def generate_bams_from_fastqs(
             inline_barcode = unmatched_name + "_" + library_name
 
         platform_unit = f"{flowcell}.{lane}.{i7_barcode}-{i5_barcode}-{inline_barcode}"
-        bam_outfolder = f"{outDir}/{sample}_demuxed_bam"
+        bam_outfolder = f"{outDir}/demuxed_bams"
         
         
 
@@ -2857,7 +2864,7 @@ def splitcode_demux(
     max_hamming_dist=1,
     unmatched_name=None,
 
-    illuminaRunDirectory=None,
+    illumina_run_directory=None,
     sampleSheet=None,
     runinfo=None,
     
@@ -2866,12 +2873,14 @@ def splitcode_demux(
     flowcell=None,
     run_id=None,
     run_date=None,
-    readgroup_name=None,
+    #readgroup_name=None,
     sequencing_center=None,
+    sequencer_model=None,
 
     rev_comp_barcodes_before_demux=None,
 
     threads=None,
+    jvm_memory=None
 ):
     """
     Args:
@@ -2891,6 +2900,7 @@ def splitcode_demux(
     run_date             (str) Run date (used to populate BAM header). Default: read from RunInfo.xml
     readgroup_name       (str) Readgroup name (used to populate BAM header). Default: read from RunInfo.xml
     sequencing_center    (str) Sequencing center (used to populate BAM header). Default: read from RunInfo.xml
+    sequencer_model      (str) Sequencer model (used to populate BAM header). Default: inferred from RunInfo.xml
     
     rev_comp_barcodes_before_demux (list(str)) List of barcode columns to reverse complement before demux.
     """
@@ -2899,11 +2909,11 @@ def splitcode_demux(
     unmatched_name = unmatched_name or "Unmatched"
 
     illumina_dir=None
-    if illuminaRunDirectory:
-        illumina_dir = IlluminaDirectory(illuminaRunDirectory)
+    if illumina_run_directory:
+        illumina_dir = IlluminaDirectory(illumina_run_directory)
         illumina_dir.load()
 
-    # ToDo: if illuminaRunDirectory is not provided, but we lack provided runinfo, 
+    # ToDo: if illumina_run_directory is not provided, but we lack provided runinfo, 
     #       inspect the inDir to see if it looks like an illumina run directory
     #       and try to load it as such (then interpreting Analysis/, fastq/ and other sub-dirs)
     #       as potential locations for the fastq files (maybe recursive find them)
@@ -2922,12 +2932,17 @@ def splitcode_demux(
         assert runinfo, "No RunInfo.xml provided, nor found in a specified Illumina Run Directory."
 
     flowcell          = flowcell          or runinfo.get_flowcell()
-    run_date          = run_date          or runinfo.get_rundate_american()
+    run_date          = run_date          or runinfo.get_rundate_iso()
     read_structure    = read_structure    or runinfo.get_read_structure()
     run_id            = run_id            or f"{runinfo.get_flowcell()}.{lane}" # runinfo.get_run_id()
-    sequencing_center = sequencing_center or runinfo.get_machine()
+    sequencing_center = sequencing_center or runinfo.get_machine() #f"{runinfo.get_machine_model()}.{runinfo.get_machine()}"
     sequencing_center = util.file.string_to_file_name(sequencing_center)
-    #readgroup_name = 
+    platform_model    = sequencer_model or runinfo.get_machine_model()
+    platform_model    = util.file.string_to_file_name(platform_model)
+
+    if not platform_name:
+        log.warning("No platform name provided. Defaulting to 'ILLUMINA'.")
+    platform_name     = platform_name or "ILLUMINA"
 
     if sampleSheet:
         samples = SampleSheet(
@@ -2936,7 +2951,10 @@ def splitcode_demux(
             append_run_id=run_id,
             allow_non_unique=True,
             # barcode_columns_to_revcomp:
-            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            #   For --rev_comp_barcodes_before_demux: 
+            #    1) None if not passed
+            #    2) 'barcode_2' if passed without value
+            #    3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
             barcode_columns_to_revcomp = rev_comp_barcodes_before_demux
         )
     else:
@@ -2945,7 +2963,10 @@ def splitcode_demux(
             append_run_id=run_id,
             allow_non_unique=True,
             # barcode_columns_to_revcomp:
-            #   For --rev_comp_barcodes_before_demux: 1) None if not passed, 2) 'barcode_2' if passed without value, or 3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
+            #   For --rev_comp_barcodes_before_demux: 
+            #    1) None if not passed
+            #    2) 'barcode_2' if passed without value
+            #    3) barcodes specified if values passed with --rev_comp_barcodes_before_demux
             barcode_columns_to_revcomp = rev_comp_barcodes_before_demux
         )
 
@@ -3089,10 +3110,12 @@ def splitcode_demux(
                 splitcode_sample_keepfile_tsv_writer.writerow(splitcode_sample_keep_row)
 
                 assert (sample_library_id not in sample_library_id_to_fastqs), "%s detected twice when it should be present only once" % sample_library_id
-                sample_library_id_to_fastqs[sample_library_id] = [f"{sample_library_id}_R1.fastq",f"{sample_library_id}_R2.fastq"]
+                sample_library_id_to_fastqs[sample_library_id] = [f"{sample_output_prefix}_R1.fastq",f"{sample_output_prefix}_R2.fastq"]
                   
-            pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
-    
+        pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
+        unmatched_sample_name = f"{unmatched_name}.{pool_id}"
+        unmatched_output_prefix = f"{out_demux_dir_path}/{unmatched_sample_name}"
+        sample_library_id_to_fastqs[unmatched_sample_name] = [f"{unmatched_output_prefix}_R1.fastq",f"{unmatched_output_prefix}_R2.fastq"]
 
             # ToDo: glob the input files for either fastq or bam patterns
             # if the input is a bam file, convert to fastq files
@@ -3130,8 +3153,13 @@ def splitcode_demux(
     #         reduce_db.add_counts_from_other_db(tmp_db)
     #         os.unlink(tmp_db)
 
+    #tmp dir to store intermediate fastq files from splitcode
+    #with util.file.tmp_dir('_splitcode') as t_dir:
+
+    # ======== run splitcode ==========
 
     for pool_id in sorted(pool_id_to_sample_library_id_map.keys()):
+        break # TODO: remove this
         splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
         splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
 
@@ -3141,8 +3169,8 @@ def splitcode_demux(
             n_fastqs = 2
 
             # output args
-            unmapped_r1   = f"{out_demux_dir_path}/{unmatched_name}_0.fastq"
-            unmapped_r2   = f"{out_demux_dir_path}/{unmatched_name}_1.fastq"
+            unmapped_r1   = f"{out_demux_dir_path}/{unmatched_name}.{pool_id}_R1.fastq"
+            unmapped_r2   = f"{out_demux_dir_path}/{unmatched_name}.{pool_id}_R2.fastq"
             summary_stats = f"{out_demux_dir_path}/{pool_id}_summary.json"
 
             # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8' 
@@ -3182,9 +3210,85 @@ def splitcode_demux(
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
     plot_sorted_curve(df_out, outDir, unmatched_name)
 
+    
+    df = pd.read_csv(df_out)
+    df = df.rename(columns={"inline_barcode": "barcode_3"})
+
+    # change index of df to 'run' column
+    df = df.set_index('run')
+
     # Generate bam files
-    for sample in sample_library_id_to_fastqs.items():
-        pass
+    for sample,(fq1,fq2) in sample_library_id_to_fastqs.items():
+        # print the row of df with index matching sample
+        if sample not in df.index:
+            log.warning("Sample %s not found in the samplesheet data.", sample)
+            continue
+
+        samplesheet_row_for_sample = df.loc[sample]
+        samplesheet_row_idx = df.index.get_loc(sample)
+        samplesheet_row_idx = samplesheet_row_idx if type(samplesheet_row_idx)==int else None
+
+        barcodes_for_sample_joined = "-".join([
+                                        samplesheet_row_for_sample["barcode_1"], 
+                                        samplesheet_row_for_sample["barcode_2"], 
+                                        samplesheet_row_for_sample["barcode_3"]])
+        platform_unit = ".".join([
+                                    flowcell,
+                                    str(lane), 
+                                    barcodes_for_sample_joined
+                                ])
+
+        sample = samplesheet_row_for_sample.name #long-form name in the form {sample}.l{library_name}.{flowcell}.{lane}
+        sample_name = samplesheet_row_for_sample["sample"]
+        library_name = samplesheet_row_for_sample["library_id"]
+        readgroup_name = ".".join([
+                                    flowcell[:4],
+                                    str(lane),
+                                    str(samplesheet_row_idx+1) if samplesheet_row_idx is not None else util.misc.md5_digest(barcodes_for_sample_joined,last_n_chr=4)
+                                    ])
+        picardOptions = [
+            f"LIBRARY_NAME={sample}",
+            f"PLATFORM={platform_name}",
+            f"PLATFORM_UNIT={platform_unit}",
+            f"PLATFORM_MODEL={platform_model}",,
+            f"SEQUENCING_CENTER={sequencing_center}",
+            f"RUN_DATE={run_date}",
+            f"READ_GROUP_NAME={readgroup_name}",
+        ]
+
+        # output bam file named in the form <sample_name>.l<library_id>.<run_id>.<lane>.bam
+        #out_bam = f"{out_demux_dir_path}/{sample}.l{library_name}.{flowcell}.{lane}.bam"
+        out_bam = f"{out_demux_dir_path}/{sample}.bam"
+
+        tools.picard.FastqToSamTool().execute(  fq1,
+                                                fq2,
+                                                sample_name,
+                                                out_bam,
+                                                picardOptions=picardOptions,
+                                                JVMmemory=jvm_memory)
+
+        # generate a new header to apply to the bam file
+        #
+        #tools.samtools.dumpHeader(inBam, outHeader)
+        # read_utils.fastq_to_bam(
+        #     inFastq1,
+        #     inFastq2,
+        #     outBam,
+        #     sampleName=None,
+        #     header=newHeader,
+        #     JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault,
+        #     picardOptions=None
+        # )
+
+        # Change name of generated bam file
+        # generated_bam = glob.glob(
+        #     f"{bam_outfolder}/*_fastq_to_ubam/call-FastqToUBAM/work/{sample_name}.bam"
+        # )[0]
+        # destination = f"{bam_outfolder}/{sample_name}.{flowcell}.{lane}.bam"
+        # shutil.move(generated_bam, destination)
+
+
+        
         # generate_bams_from_fastqs(
         #     sample,
         #     sampleSheet,
@@ -3209,6 +3313,7 @@ def main_splitcode_demux(args):
         lane=args.lane,
         outDir=args.outDir,
         sampleSheet=args.sampleSheet,
+        illumina_run_directory=args.illumina_run_directory,
         unmatched_name=args.unmatched_name,
         max_hamming_dist=args.max_hamming_dist,
         threads=args.threads,
@@ -3216,9 +3321,10 @@ def main_splitcode_demux(args):
         platform_name=args.platform_name,
         flowcell=args.flowcell,
         run_date=args.run_date,
-        readgroup_name=args.readgroup_name,
+        #readgroup_name=args.readgroup_name,
         sequencing_center=args.sequencing_center,
-        rev_comp_barcodes_before_demux=args.rev_comp_barcodes_before_demux
+        rev_comp_barcodes_before_demux=args.rev_comp_barcodes_before_demux,
+        jvm_memory=args.jvm_memory
     )
 
 
@@ -3248,6 +3354,12 @@ def parser_splitcode_demux(parser=None):
         help="""Override SampleSheet. Input tab or CSV file with columns:
                 sample, library_id_per_sample, I7_Index_ID, barcode_1, I5_Index_ID, barcode_2, Inline_Index_ID, barcode_3..
                 Default is to look for a SampleSheet.csv in the inDir.""",
+    )
+    parser.add_argument(
+        "--illuminaRunDirectory",
+        dest="illumina_run_directory",
+        default=None,
+        help="""Path to Illumina Run Directory. Default is to look for a RunInfo.xml file in the inDir.""",
     )
 
     # Optional arguments specific to splitcode_demux
@@ -3286,11 +3398,11 @@ def parser_splitcode_demux(parser=None):
         default=None,
         help="Run date (used to populate BAM header). Default: read from RunInfo.xml.",
     )
-    parser.add_argument(
-        "--readgroup_name",
-        default=None,
-        help="Readgroup name (used to populate BAM header). Default: read from RunInfo.xml.",
-    )
+    # parser.add_argument(
+    #     "--readgroup_name",
+    #     default=None,
+    #     help="Readgroup name (used to populate BAM header). Default: read from RunInfo.xml.",
+    # )
     parser.add_argument(
         "--sequencing_center",
         default=None,
@@ -3308,6 +3420,12 @@ def parser_splitcode_demux(parser=None):
         action=util.cmd.storeMultiArgsOrFallBackToConst,
         type=str,
         const=["barcode_2"],
+    )
+    parser.add_argument(
+        "--JVMmemory",
+        dest="jvm_memory",
+        help="JVM virtual memory size (default: %(default)s)",
+        default=tools.picard.FastqToSamTool.jvmMemDefault,
     )
 
     # Attach common arguments. Adjust the default for threads if needed.

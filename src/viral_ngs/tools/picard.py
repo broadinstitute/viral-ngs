@@ -217,6 +217,7 @@ class SamToFastqTool(PicardTools):
 
 class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
+    jvmMemDefault = '4g'
 
     def execute(
         self, 
